@@ -15,8 +15,6 @@ dependencies {
     implementation 'org.ow2.asm:asm:9.6'
     implementation 'org.ow2.asm:asm-commons:9.6'
 
-    // Byte Buddy shaded ASM classes referenced by ByteCodeGenerator/SimpleByteCodeGenerator
-    implementation 'net.bytebuddy:byte-buddy:1.15.0'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

@@ -1,8 +1,8 @@
 package Graph;
 
-import net.bytebuddy.jar.asm.ClassWriter;
-import net.bytebuddy.jar.asm.MethodVisitor;
-import net.bytebuddy.jar.asm.Opcodes;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 import Operations.Operation;
 
 import java.util.List;
