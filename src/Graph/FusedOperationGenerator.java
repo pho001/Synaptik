@@ -1,0 +1,2224 @@
+package Graph;
+
+import Operations.*;
+
+import Utils.*;
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.VectorSpecies;
+import org.objectweb.asm.*;
+
+import static org.objectweb.asm.Opcodes.*;
+import Tensor.Tensor;
+
+import java.util.*;
+import Utils.SlotManager;
+
+public class FusedOperationGenerator {
+
+    static String className = "Operations/fusedOperationClass";
+
+    public static byte[] generate(List<Tensor> cluster, Tensor node) {
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        //ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+
+        cw.visit(V1_8, ACC_PUBLIC, className, null, "java/lang/Object",
+                new String[]{"Operations/Operation"});
+
+        // Pole cluster
+        cw.visitField(ACC_PRIVATE, "cluster", "Ljava/util/List;", "Ljava/util/List<LTensor/Tensor;>;", null).visitEnd();
+
+        // Konstruktor s parametrem List<Tensor> cluster
+        MethodVisitor constructor = cw.visitMethod(ACC_PUBLIC, "<init>", "(Ljava/util/List;)V", "(Ljava/util/List<LTensor/Tensor;>;)V", null);
+        constructor.visitCode();
+        constructor.visitVarInsn(ALOAD, 0); // this
+        constructor.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        constructor.visitVarInsn(ALOAD, 0); // this
+        constructor.visitVarInsn(ALOAD, 1); // cluster
+        constructor.visitFieldInsn(PUTFIELD, className, "cluster", "Ljava/util/List;");
+        constructor.visitInsn(RETURN);
+        constructor.visitMaxs(2, 2); // COMPUTE_MAXS
+        constructor.visitEnd();
+
+        // Method: apply(List, Tensor)
+        //apply(cw,node,cluster);
+        apply(cw, cluster);
+        isElementwise(cw);
+        gradient(cw,cluster);
+        computeBackend(cw);
+        expression(cw);
+
+        return cw.toByteArray();
+    }
+
+    private static void apply(ClassWriter cw,List<Tensor> cluster){
+        String arch = System.getProperty("os.arch").toLowerCase();
+
+        if (arch.contains("aarch64") || arch.contains("arm64")) {
+            applyFastLocalVarsAARM(cw,cluster);  // např. Apple M1/M2/M3 nebo ARM servery
+        } else if (arch.contains("amd64") || arch.contains("x86_64")) {
+            applyFastLocalVarsX86(cw,cluster);  // klasické Intel/AMD
+        } else {
+            applyFastLocalVarsX86(cw,cluster);
+        }
+
+        //applyFastArraysNoIntermediates(cw,cluster);
+
+    }
+
+
+    private static void applyFastLocalVarsAARM(ClassWriter cw,List<Tensor> cluster){
+        MethodVisitor apply = cw.visitMethod(
+                ACC_PUBLIC,
+                "apply",
+                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",          // generická signatura
+                null
+        );
+        AnnotationVisitor av = apply.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        apply.visitCode();
+
+        int inputsList=1;
+        int nodeTensor=2;
+        int nodeValues=3;           //result array
+        int loopCounter=4;          //integer
+        int intermediates=5;        //array
+        int tmpOffset=6;            //integer
+        int maxVaroffset=7;         //first input array
+
+
+
+
+
+        List<Tensor> outerTensors=findOuterTensors(cluster);
+        int numOuterInputs = outerTensors.size();
+        int numOperations = cluster.size();
+        int valuesCount = outerTensors.getFirst().getFlatDataSize();
+        int totalSize=valuesCount*numOperations;
+
+        // Nacti node values, neboli results
+        apply.visitVarInsn(ALOAD, nodeTensor);
+        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        apply.visitVarInsn(ASTORE, nodeValues);
+
+        Map<Tensor, Integer> reducedMap=reduceCluster(cluster);
+        int reducedOpsSize=reducedMap.size();
+
+        // create intermediates Array
+        //newArray(apply,intermediates,numOperations*valuesCount,false);
+        Label alreadyExists = new Label();
+        Label afterAlloc = new Label();
+
+        // tensor.getIntermediates()
+        apply.visitVarInsn(ALOAD, 2);  // předpoklad: tensor je ve slotu 2
+        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getIntermediates", "()[D", false);
+        apply.visitVarInsn(ASTORE, intermediates); // uložení do slotu intermediates
+
+        // if (intermediates != null) goto alreadyExists;
+        apply.visitVarInsn(ALOAD, intermediates);
+        apply.visitJumpInsn(IFNONNULL, alreadyExists);
+
+        apply.visitLdcInsn(reducedOpsSize*valuesCount);
+        apply.visitIntInsn(NEWARRAY, T_DOUBLE);     // vytvoří double[]
+        apply.visitVarInsn(ASTORE, intermediates);  // ulož do lokálky
+
+        apply.visitLabel(alreadyExists);
+// pokračuj dál
+
+        apply.visitLabel(afterAlloc);
+        //newArray(apply,intermediates,reducedOpsSize*valuesCount,false);
+
+
+        //load all outer inputs
+        for (int i = 0; i < numOuterInputs; i++) {
+            // načíst List param (index 1)
+            apply.visitVarInsn(ALOAD, inputsList); // List inputs
+            pushIntConst(apply, i);       // index
+            apply.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true);
+
+            apply.visitTypeInsn(CHECKCAST, "Tensor/Tensor"); // přetypuj na Tensor
+            apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData",
+                    "()[D", false); // zavolej getData()
+
+            // ulož do lokální proměnné (index 2+i)
+            apply.visitVarInsn(ASTORE, maxVaroffset + i);
+
+        }
+
+        //create local variables for each operation result
+
+        int localVarsOffset=maxVaroffset+numOuterInputs;
+
+        newLocalDoubles(apply,localVarsOffset,numOperations);
+
+        //int localVarsOffsetInputs=localVarsOffset+numOperations;
+        //newLocalDoubles(apply, localVarsOffsetInputs,numOuterInputs);
+
+
+
+        // Loop init
+        apply.visitInsn(ICONST_0);
+        apply.visitVarInsn(ISTORE, loopCounter);
+
+
+        // Input maps init
+        Map<Tensor, Integer> inputIndices = new HashMap<>();    // For input tensors
+        Map<Tensor, Integer> clusterIndices = new HashMap<>();  // For cluster tensors
+        for (int i = 0; i < outerTensors.size(); i++) {
+            inputIndices.put(outerTensors.get(i), i);
+        }
+        for (int i = 0; i < cluster.size(); i++) {
+            clusterIndices.put(cluster.get(i), i);
+        }
+
+        Label loopStart=new Label();
+        Label loopEnd=new Label();
+
+
+
+        // Loop start
+        apply.visitLabel(loopStart);
+        apply.visitVarInsn(ILOAD, loopCounter);
+
+        // Counter condition check
+        pushIntConst(apply,valuesCount);
+        apply.visitJumpInsn(IF_ICMPGE, loopEnd);
+
+
+        /*
+        for(int i=0; i<numOuterInputs;i++){
+            apply.visitVarInsn(ALOAD, maxVaroffset+i);
+            apply.visitVarInsn(ILOAD,loopCounter);
+            apply.visitInsn(DALOAD);
+            apply.visitVarInsn(DSTORE,localVarsOffsetInputs+i*2);
+        }
+
+         */
+
+
+        //priprav si stack
+        apply.visitVarInsn(ALOAD, nodeValues);
+        apply.visitVarInsn(ILOAD,loopCounter);
+        //Stack:[nodeValues,loopCounter]
+
+
+
+        for (int opIndex=0;opIndex<cluster.size();opIndex++) {
+            //Načtení operandů
+            Tensor tensor=cluster.get(opIndex);
+            //priprav si stack na ukladani do bufferu, pouze pokud pouzivam jako buffer pole. pokud ne, zapisuju primo do lokalni promenne
+            //Stack:[nodeValues,loopCounter]
+
+            for (Tensor t : tensor.getPrevTensors()) {
+                if (inputIndices.containsKey(t)) {
+                    //jedna se o vstupni tensor
+                    loadArrayDouble(apply, maxVaroffset + inputIndices.get(t), loopCounter, true);
+                    //apply.visitVarInsn(DLOAD,localVarsOffsetInputs+inputIndices.get(t)*2);
+                } else {
+                    //jedna se o vysledek jedne z predchozich operaci
+                    int prevOpIdx = clusterIndices.get(t);
+                    //read from local variables
+                    apply.visitVarInsn(DLOAD,localVarsOffset+prevOpIdx*2);
+                }
+            }
+
+            Operation operation=tensor.getOperation();
+            performOperation(apply,operation);
+
+            //Stack:[nodeValues,loopCounter,value]
+
+            // Uložení výsledku
+            if (opIndex == numOperations - 1) {
+                //apply.visitInsn(DUP2);             //Stack:[nodeValues,loopCounter,value,value]
+                //apply.visitVarInsn(DSTORE,localVarsOffset+opIndex*2);     //Stack:[nodeValues,loopCounter,value]
+                apply.visitInsn(DASTORE);
+
+                //Stack: []
+            }
+            else{
+                apply.visitVarInsn(DSTORE,localVarsOffset+opIndex*2);     //Stack:[nodeValues,loopCounter]
+            }
+
+        }
+
+        storeDoublesToArray(apply,intermediates,loopCounter,localVarsOffset,reducedOpsSize,cluster,reducedMap);
+
+
+        apply.visitIincInsn(loopCounter, 1);
+        apply.visitJumpInsn(GOTO, loopStart);
+
+        apply.visitLabel(loopEnd);
+
+        apply.visitVarInsn(ALOAD, nodeTensor);         // Stack: [Tensor]
+        apply.visitVarInsn(ALOAD, intermediates);      // Stack: [Tensor, double[]]
+        apply.visitMethodInsn(INVOKEVIRTUAL,
+                "Tensor/Tensor",
+                "setIntermediates",
+                "([D)V",
+                false);
+
+        apply.visitInsn(RETURN);
+
+
+        apply.visitMaxs(0, 0);
+        apply.visitEnd();
+    }
+
+
+    private static void applyFastLocalVarsX86(ClassWriter cw,List<Tensor> cluster){
+        MethodVisitor apply = cw.visitMethod(
+                ACC_PUBLIC,
+                "apply",
+                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",          // generická signatura
+                null
+        );
+        AnnotationVisitor av = apply.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        apply.visitCode();
+
+        SlotManager sm=new SlotManager();
+
+
+
+        List<Tensor> outerTensors=findOuterTensors(cluster);
+        int numOuterInputs = outerTensors.size();
+        int numOperations = cluster.size();
+        int valuesCount = outerTensors.getFirst().getFlatDataSize();
+        int totalSize=valuesCount*numOperations;
+        Map<Tensor, Integer> reducedMap=reduceCluster(cluster);
+        int reducedOpsSize=reducedMap.size();
+
+        sm.define(SlotKey.CLUSTER_TENSOR_INPUTS);       // musi byt inicializovan jako prvni - jde o prvni parametr metody
+        sm.define(SlotKey.CLUSTER_TENSOR);              // musi byt inicializovan jako druhy - jde o druhy parametr metody
+        sm.define(SlotKey.CLUSTER_TENSOR_VALUES);
+        sm.define(SlotKey.CLUSTER_TENSOR_GRADS);
+        sm.define(SlotKey.LOOP_COUNTER);
+        sm.define(SlotKey.SECOND_LOOP_COUNTER);
+        sm.defineGroup(SlotKey.CLUSTER_INTERMEDIATES,numOperations);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS,numOuterInputs);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS,numOuterInputs);
+        sm.defineGroup(SlotKey.CLUSTER_INNER_GRAD_VALUES,numOperations);
+
+
+
+
+        // Nacti node values, neboli results
+
+        apply.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        apply.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+
+
+
+
+
+        // create intermediates Array
+        //newArray(apply,intermediates,numOperations*valuesCount,false);
+        List<Integer> slots=sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES);
+
+        for(int i=0;i<slots.size();i++){
+            emitLoadOrCreateIntermediatesArray(apply,
+                    sm.get(SlotKey.CLUSTER_TENSOR),
+                    sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES).get(i),
+                    reducedOpsSize,
+                    valuesCount);
+        }
+
+
+
+
+        //load all outer inputs
+        loadInputArrays(apply,sm);
+
+
+
+
+        // Loop init
+        apply.visitInsn(ICONST_0);
+        apply.visitVarInsn(ISTORE,sm.get(SlotKey.LOOP_COUNTER));
+
+
+        // Input maps init
+        Map<Tensor, Integer> inputIndices = new HashMap<>();    // For input tensors
+        Map<Tensor, Integer> clusterIndices = new HashMap<>();  // For cluster tensors
+        for (int i = 0; i < outerTensors.size(); i++) {
+            inputIndices.put(outerTensors.get(i), i);
+        }
+        for (int i = 0; i < cluster.size(); i++) {
+            clusterIndices.put(cluster.get(i), i);
+        }
+
+        Label loopStart=new Label();
+        Label loopEnd=new Label();
+
+
+
+        // Loop start
+        apply.visitLabel(loopStart);
+        apply.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+
+        // Counter condition check
+        pushIntConst(apply,valuesCount);
+        apply.visitJumpInsn(IF_ICMPGE, loopEnd);
+        List <NodeInfo> computeNodes = new ArrayList<>();
+        for (int opIndex=0;opIndex<cluster.size();opIndex++) {
+            Tensor tensor=cluster.get(opIndex);
+            Operation operation=tensor.getOperation();
+            boolean isLastInCluster = (opIndex == cluster.size() - 1);
+            NodeInfo node;
+            if (isLastInCluster){
+                node = NodeInfo.fromLastClusterInput(opIndex,sm);
+
+            }
+            else {
+                if (reducedMap.containsKey(tensor)){
+                    int index = 0;
+                    for (Tensor key : reducedMap.keySet()) {
+                        if (Objects.equals(key, tensor)) {
+                            break;
+                        }
+                        index++;
+                    }
+                    node = NodeInfo.fromInnerClusterInput(opIndex,sm,index,reducedOpsSize);
+                }
+                else{
+                    node = NodeInfo.fromInnerClusterInput(opIndex,sm);
+                }
+
+            }
+            node.setOperation(tensor.getOperation());
+
+            for (Tensor t : tensor.getPrevTensors()) {
+                if (inputIndices.containsKey(t)) {
+                    //jedna se o vstupni tensor
+                    node.addOperator(OperatorInfo.fromClusterInput(sm,inputIndices.get(t)));
+                } else {
+                    //jedna se o vysledek jedne z predchozich operaci
+                    int prevOpIdx = clusterIndices.get(t);
+                    //read from local variables
+                    node.addOperator(OperatorInfo.fromIntermediate(sm,prevOpIdx));
+                }
+            }
+            computeNodes.add(node);
+        }
+
+
+        for (NodeInfo node : computeNodes) {
+            node.performForwardOperation(apply);
+
+        }
+
+
+
+
+
+        apply.visitIincInsn(sm.get(SlotKey.LOOP_COUNTER), 1);
+        apply.visitJumpInsn(GOTO, loopStart);
+
+        apply.visitLabel(loopEnd);
+
+
+
+        apply.visitInsn(RETURN);
+
+
+        apply.visitMaxs(0, 0);
+        apply.visitEnd();
+    }
+
+
+
+    private static void applyUnrolled(ClassWriter cw,List<Tensor> cluster){
+        MethodVisitor apply = cw.visitMethod(
+                ACC_PUBLIC,
+                "apply",
+                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",          // generická signatura
+                null
+        );
+        AnnotationVisitor av = apply.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        apply.visitCode();
+
+        int inputsList=1;
+        int nodeTensor=2;
+        int nodeValues=3;           //result array
+        int loopCounter=4;          //integer
+        int intermediates=5;        //array
+        int unrollOffset=6;         //double - zabira 2 sloty, do pici!
+        int buffer=8;               //integer
+        int maxVaroffset=9;         //first input array
+
+
+        int unroll = 4;                         //faktor pro rozvinuti smycky
+
+
+        List<Tensor> outerTensors=findOuterTensors(cluster);
+        int numOuterInputs = outerTensors.size();
+        int numOperations = cluster.size();
+        int valuesCount = outerTensors.getFirst().getFlatDataSize();
+        int totalSize=valuesCount*numOperations;
+        int remainder = valuesCount % unroll;
+        int mainLoopEnd = valuesCount - remainder;
+
+
+        // Nacti node values, neboli results
+        apply.visitVarInsn(ALOAD, nodeTensor);
+        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        apply.visitVarInsn(ASTORE, nodeValues);
+
+        // create buffer Array
+        newArray(apply,buffer, numOperations,false);
+
+        //create intermediates
+        new2DArray(apply,intermediates,valuesCount,false);
+
+        for (int i = 0; i < numOuterInputs; i++) {
+            // načíst List param (index 1)
+            apply.visitVarInsn(ALOAD, inputsList); // List inputs
+            pushIntConst(apply, i);       // index
+            apply.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true);
+
+            apply.visitTypeInsn(CHECKCAST, "Tensor/Tensor"); // přetypuj na Tensor
+            apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData",
+                    "()[D", false); // zavolej getData()
+
+            // ulož do lokální proměnné (index 2+i)
+            apply.visitVarInsn(ASTORE, maxVaroffset + i);
+
+        }
+
+
+
+        // Loop init
+        apply.visitInsn(ICONST_0);
+        apply.visitVarInsn(ISTORE, loopCounter);
+
+
+        // Input maps init
+        Map<Tensor, Integer> inputIndices = new HashMap<>();    // For input tensors
+        Map<Tensor, Integer> clusterIndices = new HashMap<>();  // For cluster tensors
+        for (int i = 0; i < outerTensors.size(); i++) {
+            inputIndices.put(outerTensors.get(i), i);
+        }
+        for (int i = 0; i < cluster.size(); i++) {
+            clusterIndices.put(cluster.get(i), i);
+        }
+
+        Label loopStart = new Label();
+        Label loopEnd = new Label();
+        Label remainderLoop = new Label();
+
+        // Main loop condition check
+        apply.visitLabel(loopStart);
+        apply.visitVarInsn(ILOAD, loopCounter);
+        apply.visitLdcInsn(mainLoopEnd);
+        apply.visitJumpInsn(IF_ICMPGE, remainderLoop);
+
+        // Generate unrolled iterations (4 at a time)
+        for (int u = 0; u < unroll; u++) {
+            // Stack: [nodeValues, loopCounter]
+            apply.visitVarInsn(ALOAD, nodeValues);
+            apply.visitVarInsn(ILOAD, loopCounter);
+
+            singleIteration(apply, cluster, buffer, inputIndices, clusterIndices,
+                    maxVaroffset, loopCounter, numOperations, intermediates);
+
+            // Only increment after last unrolled iteration
+            if (u < unroll - 1) {
+                apply.visitIincInsn(loopCounter, 1);
+            }
+        }
+
+        apply.visitIincInsn(loopCounter, 1);
+        apply.visitJumpInsn(GOTO, loopStart);
+
+        // Remainder loop for leftover iterations
+        apply.visitLabel(remainderLoop);
+        apply.visitVarInsn(ILOAD, loopCounter);
+        apply.visitLdcInsn(valuesCount);
+        apply.visitJumpInsn(IF_ICMPGE, loopEnd);
+
+        // Stack: [nodeValues, loopCounter]
+        apply.visitVarInsn(ALOAD, nodeValues);
+        apply.visitVarInsn(ILOAD, loopCounter);
+        singleIteration(apply, cluster, buffer, inputIndices, clusterIndices,
+                maxVaroffset, loopCounter, numOperations, intermediates);
+
+        apply.visitIincInsn(loopCounter, 1);
+        apply.visitJumpInsn(GOTO, remainderLoop);
+
+        apply.visitLabel(loopEnd);
+
+        apply.visitInsn(RETURN);
+
+        apply.visitMaxs(0, 0);
+        apply.visitEnd();
+    }
+
+
+    private static void singleIteration(MethodVisitor apply,List<Tensor> cluster,int buffer,
+                                        Map<Tensor, Integer> inputIndices,Map<Tensor, Integer> clusterIndices,int maxVaroffset,int loopCounter,int numOperations,int intermediates){
+
+
+        for (int opIndex=0;opIndex<cluster.size();opIndex++) {
+            //Načtení operandů
+            Tensor tensor=cluster.get(opIndex);
+            //priprav si stack na ukladani do bufferu
+            apply.visitVarInsn(ALOAD, buffer);
+            pushIntConst(apply,opIndex);
+
+            //Stack:[nodeValues,loopCounter,buffer,opIndex]
+
+            for (Tensor t : tensor.getPrevTensors()) {
+                if (inputIndices.containsKey(t)) {
+                    //jedna se o vstupni tensor
+                    loadArrayDouble(apply, maxVaroffset + inputIndices.get(t), loopCounter, true);
+                } else {
+                    //jedna se o vysledek jedne z predchozich operaci
+                    int prevOpIdx = clusterIndices.get(t);
+                    apply.visitVarInsn(ALOAD, buffer);
+                    pushIntConst(apply, prevOpIdx);
+                    apply.visitInsn(DALOAD);
+                }
+            }
+
+            Operation operation=tensor.getOperation();
+            performOperation(apply,operation);
+
+            //Stack:[nodeValues,loopCounter,buffer,opIndex,value]
+
+            // Uložení výsledku
+            if (opIndex == numOperations - 1) {
+                apply.visitInsn(DUP2_X2);           //Stack:[nodeValues,loopCounter,value,buffer,opIndex,value]
+                apply.visitInsn(DASTORE);           //Stack:[nodeValues,loopCounter,value]
+            }
+            apply.visitInsn(DASTORE);
+            // bud: Stack:[] - pro pripad, kdy jsme ukladali vysledek posledni operace
+
+            // nebo: Stack: [nodeValues,loopCounter] - v pripade, kdy jsme ukladali jen do bufferu a neslo o posledni operaci v rade
+            if (opIndex==numOperations - 1) {
+                apply.visitVarInsn(ALOAD, intermediates);
+                apply.visitVarInsn(ILOAD,loopCounter);
+                apply.visitVarInsn(ALOAD, buffer);
+                apply.visitInsn(AASTORE);
+
+            }
+
+        }
+    }
+    private static void applyFastArraysIntermediates(ClassWriter cw,List<Tensor> cluster){
+        MethodVisitor apply = cw.visitMethod(
+                ACC_PUBLIC,
+                "apply",
+                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",          // generická signatura
+                null
+        );
+        AnnotationVisitor av = apply.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        apply.visitCode();
+
+        int inputsList=1;
+        int nodeTensor=2;
+        int nodeValues=3;           //result array
+        int loopCounter=4;          //integer
+        int intermediates=5;        //array
+        int tmpValDouble=6;         //double - zabira 2 sloty, do pici!
+        int buffer=8;               //integer
+        int maxVaroffset=9;         //first input array
+
+
+
+        List<Tensor> outerTensors=findOuterTensors(cluster);
+        int numOuterInputs = outerTensors.size();
+        int numOperations = cluster.size();
+        int valuesCount = outerTensors.getFirst().getFlatDataSize();
+        int totalSize=valuesCount*numOperations;
+
+        // Nacti node values, neboli results
+        apply.visitVarInsn(ALOAD, nodeTensor);
+        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        apply.visitVarInsn(ASTORE, nodeValues);
+
+        // create buffer Array
+        newArray(apply,buffer, numOperations,false);
+        newArray(apply,intermediates, valuesCount*numOperations,false);
+
+        for (int i = 0; i < numOuterInputs; i++) {
+            // načíst List param (index 1)
+            apply.visitVarInsn(ALOAD, inputsList); // List inputs
+            pushIntConst(apply, i);       // index
+            apply.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true);
+
+            apply.visitTypeInsn(CHECKCAST, "Tensor/Tensor"); // přetypuj na Tensor
+            apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData",
+                    "()[D", false); // zavolej getData()
+
+            // ulož do lokální proměnné (index 2+i)
+            apply.visitVarInsn(ASTORE, maxVaroffset + i);
+
+        }
+
+
+
+        // Loop init
+        apply.visitInsn(ICONST_0);
+        apply.visitVarInsn(ISTORE, loopCounter);
+
+
+        // Input maps init
+        Map<Tensor, Integer> inputIndices = new HashMap<>();    // For input tensors
+        Map<Tensor, Integer> clusterIndices = new HashMap<>();  // For cluster tensors
+        for (int i = 0; i < outerTensors.size(); i++) {
+            inputIndices.put(outerTensors.get(i), i);
+        }
+        for (int i = 0; i < cluster.size(); i++) {
+            clusterIndices.put(cluster.get(i), i);
+        }
+
+        Label loopStart=new Label();
+        Label loopEnd=new Label();
+
+
+
+        // Loop start
+        apply.visitLabel(loopStart);
+        apply.visitVarInsn(ILOAD, loopCounter);
+
+        // Counter condition check
+        if (valuesCount <= 127) {
+            apply.visitIntInsn(BIPUSH, valuesCount);
+        } else if (valuesCount <= 32767) {
+            apply.visitIntInsn(SIPUSH, valuesCount);
+        } else {
+            apply.visitLdcInsn(valuesCount);
+        }
+        apply.visitJumpInsn(IF_ICMPGE, loopEnd);
+
+        //priprav si stack
+        apply.visitVarInsn(ALOAD, nodeValues);
+        apply.visitVarInsn(ILOAD,loopCounter);
+        //Stack:[nodeValues,loopCounter]
+
+        for (int opIndex=0;opIndex<cluster.size();opIndex++) {
+            //Načtení operandů
+            Tensor tensor=cluster.get(opIndex);
+            //priprav si stack na ukladani do bufferu
+            apply.visitVarInsn(ALOAD, buffer);
+            pushIntConst(apply,opIndex);
+
+            //Stack:[nodeValues,loopCounter,buffer,opIndex]
+
+            for (Tensor t : tensor.getPrevTensors()) {
+                if (inputIndices.containsKey(t)) {
+                    //jedna se o vstupni tensor
+                    loadArrayDouble(apply, maxVaroffset + inputIndices.get(t), loopCounter, true);
+                } else {
+                    //jedna se o vysledek jedne z predchozich operaci
+                    int prevOpIdx = clusterIndices.get(t);
+                    apply.visitVarInsn(ALOAD, buffer);
+                    pushIntConst(apply, prevOpIdx);
+                    apply.visitInsn(DALOAD);
+                }
+            }
+
+            Operation operation=tensor.getOperation();
+            performOperation(apply,operation);
+
+            //Stack:[nodeValues,loopCounter,buffer,opIndex,value]
+
+
+
+
+            // Uložení výsledku
+            if (opIndex == numOperations - 1) {
+                apply.visitInsn(DUP2_X2);           //Stack:[nodeValues,loopCounter,value,buffer,opIndex,value]
+                apply.visitInsn(DASTORE);           //Stack:[nodeValues,loopCounter,value]
+            }
+            apply.visitInsn(DASTORE);
+            // bud: Stack:[] - pro pripad, kdy jsme ukladali vysledek posledni operace
+            // nebo: Stack: [nodeValues,loopCounter] - v pripade, kdy jsme ukladali jen do bufferu a neslo o posledni operaci v rade
+
+        }
+
+        emitArrayCopy(apply,buffer,intermediates,loopCounter,numOperations);
+        apply.visitIincInsn(loopCounter, 1);                       //inkrementuj o numOps
+        apply.visitJumpInsn(GOTO, loopStart);
+
+        apply.visitLabel(loopEnd);
+
+        apply.visitInsn(RETURN);
+
+        apply.visitMaxs(0, 0);
+        apply.visitEnd();
+    }
+
+    private static void applyFastLocalVarsVectors(ClassWriter cw, List<Tensor> cluster){
+        MethodVisitor apply = cw.visitMethod(
+                ACC_PUBLIC,
+                "apply",
+                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",          // generická signatura
+                null
+        );
+        AnnotationVisitor av = apply.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        apply.visitCode();
+
+        SlotManager sm=new SlotManager();
+        final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
+
+
+
+        List<Tensor> outerTensors=findOuterTensors(cluster);
+        int numOuterInputs = outerTensors.size();
+        int numOperations = cluster.size();
+        int valuesCount = outerTensors.getFirst().getFlatDataSize();
+        int totalSize=valuesCount*numOperations;
+        Map<Tensor, Integer> reducedMap=reduceCluster(cluster);
+        int reducedOpsSize=reducedMap.size();
+
+        sm.define(SlotKey.CLUSTER_TENSOR_INPUTS);       // musi byt inicializovan jako prvni - jde o prvni parametr metody
+        sm.define(SlotKey.CLUSTER_TENSOR);              // musi byt inicializovan jako druhy - jde o druhy parametr metody
+        sm.define(SlotKey.CLUSTER_TENSOR_VALUES);
+        sm.define(SlotKey.CLUSTER_TENSOR_GRADS);
+        sm.define(SlotKey.LOOP_COUNTER);
+        sm.define(SlotKey.SECOND_LOOP_COUNTER);
+        sm.defineGroup(SlotKey.CLUSTER_INTERMEDIATES,numOperations);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS,numOuterInputs);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS,numOuterInputs);
+        sm.defineGroup(SlotKey.CLUSTER_INNER_GRAD_VALUES,numOperations);
+
+
+
+
+        // Nacti node values, neboli results
+
+        apply.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        apply.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+
+
+
+
+
+        // create intermediates Array
+        //newArray(apply,intermediates,numOperations*valuesCount,false);
+        List<Integer> slots=sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES);
+
+        for(int i=0;i<slots.size();i++){
+            emitLoadOrCreateIntermediatesArray(apply,
+                    sm.get(SlotKey.CLUSTER_TENSOR),
+                    sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES).get(i),
+                    reducedOpsSize,
+                    valuesCount);
+        }
+
+
+
+
+        //load all outer inputs
+        loadInputArrays(apply,sm);
+
+
+
+
+        // Loop init
+        apply.visitInsn(ICONST_0);
+        apply.visitVarInsn(ISTORE,sm.get(SlotKey.LOOP_COUNTER));
+
+
+        Map<Tensor, Integer> inputIndices = new HashMap<>();    // For input tensors
+        Map<Tensor, Integer> clusterIndices = new HashMap<>();  // For cluster tensors
+        for (int i = 0; i < outerTensors.size(); i++) {
+            inputIndices.put(outerTensors.get(i), i);
+        }
+        for (int i = 0; i < cluster.size(); i++) {
+            clusterIndices.put(cluster.get(i), i);
+        }
+
+        Label loopStart=new Label();
+        Label loopEnd=new Label();
+
+
+
+        // Loop start
+        apply.visitLabel(loopStart);
+        apply.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+        int upper = SPECIES.loopBound(valuesCount);
+        // Counter condition check
+        pushIntConst(apply,upper);
+        apply.visitJumpInsn(IF_ICMPGE, loopEnd);
+
+        List <NodeInfo> computeNodes = new ArrayList<>();
+
+        for (int opIndex=0;opIndex<cluster.size();opIndex++) {
+            Tensor tensor=cluster.get(opIndex);
+            Operation operation=tensor.getOperation();
+            boolean isLastInCluster = (opIndex == cluster.size() - 1);
+            NodeInfo node;
+            if (isLastInCluster){
+                node = NodeInfo.fromLastClusterInput(opIndex,sm);
+
+            }
+            else {
+                if (reducedMap.containsKey(tensor)){
+                    int index = 0;
+                    for (Tensor key : reducedMap.keySet()) {
+                        if (Objects.equals(key, tensor)) {
+                            break;
+                        }
+                        index++;
+                    }
+                    node = NodeInfo.fromInnerClusterInput(opIndex,sm,index,reducedOpsSize);
+                }
+                else{
+                    node = NodeInfo.fromInnerClusterInput(opIndex,sm);
+                }
+
+            }
+            node.setOperation(tensor.getOperation());
+
+            for (Tensor t : tensor.getPrevTensors()) {
+                if (inputIndices.containsKey(t)) {
+                    //jedna se o vstupni tensor
+                    node.addOperator(OperatorInfo.fromClusterInput(sm,inputIndices.get(t)));
+                } else {
+                    //jedna se o vysledek jedne z predchozich operaci
+                    int prevOpIdx = clusterIndices.get(t);
+                    //read from local variables
+                    node.addOperator(OperatorInfo.fromIntermediate(sm,prevOpIdx));
+                }
+            }
+            computeNodes.add(node);
+        }
+
+
+        for (NodeInfo node : computeNodes) {
+            node.performForwardOperation(apply);
+
+        }
+
+
+
+
+
+        apply.visitIincInsn(sm.get(SlotKey.LOOP_COUNTER), 1);
+        apply.visitJumpInsn(GOTO, loopStart);
+
+        apply.visitLabel(loopEnd);
+
+
+
+        apply.visitInsn(RETURN);
+
+
+        apply.visitMaxs(0, 0);
+        apply.visitEnd();
+
+
+    }
+
+
+
+    private static void applyFastArraysNoIntermediates(ClassWriter cw,List<Tensor> cluster){
+        MethodVisitor apply = cw.visitMethod(
+                ACC_PUBLIC,
+                "apply",
+                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",          // generická signatura
+                null
+        );
+        AnnotationVisitor av = apply.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        apply.visitCode();
+
+        int inputsList=1;
+        int nodeTensor=2;
+        int nodeValues=3;           //result array
+        int loopCounter=4;          //integer
+        int intermediates=5;        //array
+        int tmpValDouble=6;         //double - zabira 2 sloty, do pici!
+        int buffer=8;               //integer
+        int maxVaroffset=9;         //first input array
+
+
+
+        List<Tensor> outerTensors=findOuterTensors(cluster);
+        int numOuterInputs = outerTensors.size();
+        int numOperations = cluster.size();
+        int valuesCount = outerTensors.getFirst().getFlatDataSize();
+        int totalSize=valuesCount*numOperations;
+
+        // Nacti node values, neboli results
+        apply.visitVarInsn(ALOAD, nodeTensor);
+        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        apply.visitVarInsn(ASTORE, nodeValues);
+
+        // create buffer Array
+        newArray(apply,buffer, numOperations,false);
+
+        for (int i = 0; i < numOuterInputs; i++) {
+            // načíst List param (index 1)
+            apply.visitVarInsn(ALOAD, inputsList); // List inputs
+            pushIntConst(apply, i);       // index
+            apply.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true);
+
+            apply.visitTypeInsn(CHECKCAST, "Tensor/Tensor"); // přetypuj na Tensor
+            apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData",
+                    "()[D", false); // zavolej getData()
+
+            // ulož do lokální proměnné (index 2+i)
+            apply.visitVarInsn(ASTORE, maxVaroffset + i);
+
+        }
+
+
+
+        // Loop init
+        apply.visitInsn(ICONST_0);
+        apply.visitVarInsn(ISTORE, loopCounter);
+
+
+        // Input maps init
+        Map<Tensor, Integer> inputIndices = new HashMap<>();    // For input tensors
+        Map<Tensor, Integer> clusterIndices = new HashMap<>();  // For cluster tensors
+        for (int i = 0; i < outerTensors.size(); i++) {
+            inputIndices.put(outerTensors.get(i), i);
+        }
+        for (int i = 0; i < cluster.size(); i++) {
+            clusterIndices.put(cluster.get(i), i);
+        }
+
+        Label loopStart=new Label();
+        Label loopEnd=new Label();
+
+
+
+        // Loop start
+        apply.visitLabel(loopStart);
+        apply.visitVarInsn(ILOAD, loopCounter);
+
+        // Counter condition check
+        if (valuesCount <= 127) {
+            apply.visitIntInsn(BIPUSH, valuesCount);
+        } else if (valuesCount <= 32767) {
+            apply.visitIntInsn(SIPUSH, valuesCount);
+        } else {
+            apply.visitLdcInsn(valuesCount);
+        }
+        apply.visitJumpInsn(IF_ICMPGE, loopEnd);
+
+        //priprav si stack
+        apply.visitVarInsn(ALOAD, nodeValues);
+        apply.visitVarInsn(ILOAD,loopCounter);
+        //Stack:[nodeValues,loopCounter]
+
+        for (int opIndex=0;opIndex<cluster.size();opIndex++) {
+            //Načtení operandů
+            Tensor tensor=cluster.get(opIndex);
+            //priprav si stack na ukladani do bufferu
+            apply.visitVarInsn(ALOAD, buffer);
+            pushIntConst(apply,opIndex);
+
+            //Stack:[nodeValues,loopCounter,buffer,opIndex]
+
+            for (Tensor t : tensor.getPrevTensors()) {
+                if (inputIndices.containsKey(t)) {
+                    //jedna se o vstupni tensor
+                    loadArrayDouble(apply, maxVaroffset + inputIndices.get(t), loopCounter, true);
+                } else {
+                    //jedna se o vysledek jedne z predchozich operaci
+                    int prevOpIdx = clusterIndices.get(t);
+                    apply.visitVarInsn(ALOAD, buffer);
+                    pushIntConst(apply, prevOpIdx);
+                    apply.visitInsn(DALOAD);
+                }
+            }
+
+            Operation operation=tensor.getOperation();
+            performOperation(apply,operation);
+
+            //Stack:[nodeValues,loopCounter,buffer,opIndex,value]
+
+
+
+
+            // Uložení výsledku
+            if (opIndex == numOperations - 1) {
+                apply.visitInsn(DUP2_X2);           //Stack:[nodeValues,loopCounter,value,buffer,opIndex,value]
+                apply.visitInsn(DASTORE);           //Stack:[nodeValues,loopCounter,value]
+            }
+            apply.visitInsn(DASTORE);
+            // bud: Stack:[] - pro pripad, kdy jsme ukladali vysledek posledni operace
+            // nebo: Stack: [nodeValues,loopCounter] - v pripade, kdy jsme ukladali jen do bufferu a neslo o posledni operaci v rade
+
+        }
+
+
+        apply.visitIincInsn(loopCounter, 1);                       //inkrementuj o numOps
+        apply.visitJumpInsn(GOTO, loopStart);
+
+        apply.visitLabel(loopEnd);
+
+        apply.visitInsn(RETURN);
+
+        apply.visitMaxs(0, 0);
+        apply.visitEnd();
+    }
+
+
+
+    private static void applyslow(ClassWriter cw,List<Tensor> cluster){
+        MethodVisitor apply = cw.visitMethod(
+                ACC_PUBLIC,
+                "apply",
+                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",          // generická signatura
+                null
+        );
+        AnnotationVisitor av = apply.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        apply.visitCode();
+
+        int inputsList=1;
+        int nodeTensor=2;
+        int nodeValues=3;           //result array
+        int loopCounter=4;          //integer
+        int intermediates=5;        //array
+        int tmpValDouble=6;         //double - zabira 2 sloty, do pici!
+        int tmpCounter=8;           //integer
+        int maxVaroffset=9;         //first input array
+
+
+
+        List<Tensor> outerTensors=findOuterTensors(cluster);
+        int numOuterInputs = outerTensors.size();
+        int numOperations = cluster.size();
+        int valuesCount = outerTensors.getFirst().getFlatDataSize();
+        int totalSize=valuesCount*numOperations;
+
+        // Nacti node values, neboli results
+        apply.visitVarInsn(ALOAD, nodeTensor);
+        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        apply.visitVarInsn(ASTORE, nodeValues);
+
+
+
+        // create intermediates array
+        newArray(apply,intermediates,totalSize,false);
+
+        //newArray(apply, nodeValues, valuesCount, false);
+
+        // Generate: double[] input_n = ((Tensor) inputs.get(n)).getData();
+        for (int i = 0; i < numOuterInputs; i++) {
+            // načíst List param (index 1)
+            apply.visitVarInsn(ALOAD, inputsList); // List inputs
+            pushIntConst(apply, i);       // index
+            apply.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true);
+
+            apply.visitTypeInsn(CHECKCAST, "Tensor/Tensor"); // přetypuj na Tensor
+            apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData",
+                    "()[D", false); // zavolej getData()
+
+            // ulož do lokální proměnné (index 2+i)
+            apply.visitVarInsn(ASTORE, maxVaroffset + i);
+
+        }
+
+
+
+        // Loop init
+        apply.visitInsn(ICONST_0);
+        apply.visitVarInsn(ISTORE, loopCounter);
+
+        apply.visitInsn(ICONST_0);
+        apply.visitVarInsn(ISTORE, tmpCounter);
+
+        // Input maps init
+        Map<Tensor, Integer> inputIndices = new HashMap<>();    // For input tensors
+        Map<Tensor, Integer> clusterIndices = new HashMap<>();  // For cluster tensors
+        for (int i = 0; i < outerTensors.size(); i++) {
+            inputIndices.put(outerTensors.get(i), i);
+        }
+        for (int i = 0; i < cluster.size(); i++) {
+            clusterIndices.put(cluster.get(i), i);
+        }
+
+        Label loopStart=new Label();
+        Label loopEnd=new Label();
+
+
+
+        // Loop start
+        apply.visitLabel(loopStart);
+        apply.visitVarInsn(ILOAD, loopCounter);
+
+        // Counter condition check
+        if (valuesCount <= 127) {
+            apply.visitIntInsn(BIPUSH, totalSize);
+        } else if (valuesCount <= 32767) {
+            apply.visitIntInsn(SIPUSH, totalSize);
+        } else {
+            apply.visitLdcInsn(totalSize);
+        }
+        apply.visitJumpInsn(IF_ICMPGE, loopEnd);
+
+
+        //Stack:[]
+
+        for (int opIndex=0;opIndex<cluster.size();opIndex++) {
+            Tensor tensor=cluster.get(opIndex);
+            List<Tensor> prevTensors= tensor.getPrevTensors();
+            if (opIndex!=numOperations-1) {
+                apply.visitVarInsn(ALOAD, intermediates);               //Stack: [resultsArray]
+                apply.visitVarInsn(ILOAD, loopCounter);                 //Stack: [resultsArray, iCounter]
+                if (opIndex != 0) {
+                    apply.visitLdcInsn(opIndex);                        //Stack: [resultsArray, iCounter,opIndex]
+                    apply.visitInsn(IADD);                              //Stack: [resultsArray, iCounter+opIndex]
+                }
+            }
+
+            for (Tensor t:prevTensors){
+                Integer inputIndex = inputIndices.get(t);
+                if (inputIndex != null) {
+                    // Load input tensor value
+                    loadArrayDouble(apply,maxVaroffset+inputIndex,tmpCounter,true);
+                }
+                // pokud prev Tensor nejsou vnejsi tensory, ale tensory uvnitr clusteru
+                else {
+                    int clusterIdx = clusterIndices.get(t);
+                    apply.visitVarInsn(ALOAD, intermediates);   //Stack: [resultsArray, iCounter+opIndex,resultsArray]
+                    apply.visitVarInsn(ILOAD, loopCounter);     //Stack: [resultsArray, iCounter+opIndex,resultsArray,iCounter]
+                    if (clusterIdx <= 127) {                    // [resultsArray, i, tmp, lastOpIdx]
+                        apply.visitIntInsn(BIPUSH, clusterIdx);
+                    } else if (clusterIdx <= 32767) {
+                        apply.visitIntInsn(SIPUSH, clusterIdx);
+                    } else {
+                        apply.visitLdcInsn(clusterIdx);
+                    }
+                    //Stack: [resultsArray, iCounter+opIndex,resultsArray,iCounter,clusterIdx]
+
+                    apply.visitInsn(IADD);                   //Stack: [resultsArray, iCounter+opIndex,resultsArray,iCounter+clusterIdx]
+                    apply.visitInsn(DALOAD);                 //Stack: [resultsArray, iCounter+opIndex,prevValue]
+
+                }
+            }
+
+            Operation operation=tensor.getOperation();
+            performOperation(apply,operation);
+
+            //Stack: [resultsArray, iCounter+opIndex,opResultVal]
+
+            if (opIndex == numOperations - 1) {
+                //Stack: [opResultVal]
+                apply.visitVarInsn(DSTORE, tmpValDouble);
+
+                // První zápis: resultsArray[iCounter + opIndex] = opResultVal
+                apply.visitVarInsn(ALOAD, intermediates);  // Stack: [intermediates]
+                apply.visitVarInsn(ILOAD, loopCounter);      // Stack: [intermediates, loopCounter]
+                if (opIndex != 0) {
+                    apply.visitLdcInsn(opIndex);                       //Stack: [intermediates, loopCounter,opIndex]
+                    apply.visitInsn(IADD);                             //Stack: [intermediates, loopCounter+opIndex]
+                }
+                apply.visitVarInsn(DLOAD, tmpValDouble);        // Stack: [intermediates, loopCounter+opIndex, opResultVal]
+                apply.visitInsn(DASTORE);
+
+
+                // Druhý zápis: finalResults[tmpCounter] = opResultVal
+                apply.visitVarInsn(ALOAD, nodeValues);     // Stack: [nodeValues]
+                apply.visitVarInsn(ILOAD, tmpCounter);     // Stack: [nodeValues, tmpCounter]
+                apply.visitVarInsn(DLOAD, tmpValDouble);   // Stack: [nodeValues, tmpCounter, opResultVal]
+                apply.visitInsn(DASTORE);                  // Stack: []
+            }
+            else {
+                //Stack: [resultsArray, iCounter+opIndex,opResultVal]
+                apply.visitInsn(DASTORE);
+                //Stack: []
+            }
+
+
+        }
+
+
+        // Inkrementace indexu - inkrement o iOps
+        apply.visitIincInsn(tmpCounter, 1);
+        apply.visitIincInsn(loopCounter, numOperations);                       //inkrementuj o numOps
+        apply.visitJumpInsn(GOTO, loopStart);
+
+        apply.visitLabel(loopEnd);
+
+        apply.visitInsn(RETURN);
+
+        apply.visitMaxs(0, 0);
+        apply.visitEnd();
+    }
+
+
+    private static void gradient(ClassWriter cw,List<Tensor> cluster){
+        MethodVisitor gradient = cw.visitMethod(
+                ACC_PUBLIC,
+                "gradient",
+                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",                      // generická signatura
+                null
+        );
+
+        AnnotationVisitor av = gradient.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        gradient.visitCode();
+
+        SlotManager sm=new SlotManager();
+        sm.define(SlotKey.CLUSTER_TENSOR_INPUTS);       // musi byt inicializovan jako prvni - jde o prvni parametr metody
+        sm.define(SlotKey.CLUSTER_TENSOR);              // musi byt inicializovan jako druhy - jde o druhy parametr metody
+        sm.define(SlotKey.CLUSTER_TENSOR_VALUES);
+        sm.define(SlotKey.CLUSTER_TENSOR_GRADS);
+        sm.define(SlotKey.LOOP_COUNTER);
+        sm.define(SlotKey.SECOND_LOOP_COUNTER);
+        sm.define(SlotKey.CLUSTER_INTERMEDIATES);
+
+
+
+        List<Tensor> outerTensors=findOuterTensors(cluster);
+        int numOuterInputs = outerTensors.size();
+        int numOperations = cluster.size();
+        int valuesCount = outerTensors.getFirst().getFlatDataSize();
+        int totalSize=valuesCount*numOperations;
+
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS,numOuterInputs);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS,numOuterInputs);
+        sm.defineGroup(SlotKey.CLUSTER_INNER_GRAD_VALUES,numOperations);
+        //sm.define(SlotKey.TMP_REGISTER);
+        //sm.define(SlotKey.TMP_REGISTER1);
+
+
+
+        /*
+        dale v kodu se dynamicky se nactou lokalni promenne pro:
+
+        outerInputs values - to jsou hodnoty vnejsich vstupu
+        outerInputs gradients - to jsou gradienty vnejsich vstupu
+        inner gradients - ciste seznam lokalnich promennych, kam ukladam pokazde gradient pro operace v clusteru
+
+
+         */
+
+        /*
+                Local variables initialization
+         */
+
+        //load outer input arrays
+        loadInputArrays(gradient,sm);
+
+        //load output input gradient arrays
+
+        loadInputGradientArrays(gradient,sm);
+
+        //initialize inner gradients
+
+        newLocalDoubles(gradient,sm.getGroup(SlotKey.CLUSTER_INNER_GRAD_VALUES).getFirst(),numOperations);
+
+
+
+
+        // Load cluster gradients
+        gradient.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        gradient.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getGradient", "()LTensor/Tensor;", false);
+        gradient.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        gradient.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_GRADS));
+
+
+        // Load intermediates
+        gradient.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        gradient.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getIntermediates", "()[D", false);
+        gradient.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_INTERMEDIATES));
+
+
+        // Load cluster results
+        gradient.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        gradient.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        gradient.visitVarInsn(ASTORE,  sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+
+
+        /*
+                Local variables initialization end
+         */
+
+        // Input maps init
+        Map<Tensor, Integer> inputIndices = new HashMap<>();      // For input tensors
+        Map<Tensor, Integer> clusterIndices = new HashMap<>();    // For cluster tensors
+        for (int i = 0; i < outerTensors.size(); i++) {
+            inputIndices.put(outerTensors.get(i), i);
+        }
+        for (int i = 0; i < cluster.size(); i++) {
+            clusterIndices.put(cluster.get(i), i);
+        }
+
+        Map<Tensor,Integer> reduced=reduceCluster(cluster);
+
+
+        int loopCounter=sm.get(SlotKey.LOOP_COUNTER);
+        gradient.visitInsn(ICONST_0);
+        gradient.visitVarInsn(ISTORE, loopCounter);
+
+        Label loopStart=new Label();
+        Label loopEnd=new Label();
+
+
+
+        // Loop start
+        gradient.visitLabel(loopStart);
+        gradient.visitVarInsn(ILOAD, loopCounter);
+
+        // Counter condition check
+        pushIntConst(gradient,valuesCount);
+        gradient.visitJumpInsn(IF_ICMPGE, loopEnd);
+
+        /*
+                Zacatek iterace pro vypocet gradientu pro jednu hodnotu
+         */
+
+        resetValues(gradient,sm,SlotKey.CLUSTER_INNER_GRAD_VALUES);
+
+
+
+        for (int opIndex=cluster.size()-1;opIndex>=0;opIndex--) {
+            Tensor tensor=cluster.get(opIndex);
+            Operation operation=tensor.getOperation();
+            boolean isLastInCluster = (opIndex == cluster.size() - 1);
+            NodeInfo node;
+            if (isLastInCluster){
+                node = NodeInfo.fromLastClusterInput(opIndex,sm);
+            }
+            else {
+                node = NodeInfo.fromInnerClusterInput(opIndex,sm);
+            }
+
+
+
+            for (Tensor t : tensor.getPrevTensors()) {
+                //index to intermediates
+                int reducedIndex=-1;
+                if (inputIndices.containsKey(t)) {
+                    int varIndex = inputIndices.get(t); // index double[] pole
+                    node.addOperator(OperatorInfo.fromClusterInput(sm,varIndex));
+
+                } else if (clusterIndices.containsKey(t)) {
+                    //jedna se o mezivypocet, tedy vstup se nachazi uvnitr clusteru - nejdriv spocitej index lokalni promenne pro prislusny gradient
+                    if (reduced.containsKey(t)) {
+                        int index = 0;
+                        for (Tensor key : reduced.keySet()) {
+                            if (Objects.equals(key, t)) {
+                                break;
+                            }
+                            index++;
+                        }
+                        node.addOperator(OperatorInfo.fromIntermediate(sm, clusterIndices.get(t), index, reduced.size()));
+                    }
+                    else {
+                        node.addOperator(OperatorInfo.fromIntermediate(sm, clusterIndices.get(t)));
+                    }
+                } else {
+                    throw new IllegalStateException("Unknown tensor input: " + t);
+                }
+            }
+
+            switch (operation) {
+                case Operations.add add -> {
+                    if (node.getOperators().size()!=2){
+                        throw new IllegalStateException("Two inputs are required.");
+                    }
+                    emitGradientAdd(gradient,node);
+                }
+                case Operations.mul mul -> {
+                    if (node.getOperators().size()!=2){
+                        throw new IllegalStateException("Two inputs are required.");
+                    }
+
+                    emitGradientMul(gradient,node);
+
+                }
+                case Operations.sub sub -> {
+                    if (node.getOperators().size()!=2){
+                        throw new IllegalStateException("Two inputs are required.");
+                    }
+                    emitGradientSub(gradient,node);
+                }
+                case Operations.div div -> {
+                    if (node.getOperators().size()!=2){
+                        throw new IllegalStateException("Two inputs are required.");
+                    }
+                    emitGradientDiv(gradient,node);
+
+                }
+                case log log -> {
+                    if (node.getOperators().size()!=1){
+                        throw new IllegalStateException("One input is required.");
+                    }
+                    emitGradientLog(gradient,node);
+                }
+                case pow pow -> {
+                    if (node.getOperators().size()!=1){
+                        throw new IllegalStateException("Only one input is required.");
+                    }
+                    emitGradientPow(gradient,node, pow.getExponent());
+                }
+                case exp exp -> {
+                    if (node.getOperators().size()!=1){
+                        throw new IllegalStateException("Only one input is required.");
+                    }
+                    emitGradientExp(gradient,node);
+                }
+
+                default -> throw new IllegalStateException("Unexpected operation " + operation);
+            }
+        }
+
+
+
+
+
+         /*
+                Konec iterace pro vypocet gradientu pro jednu hodnotu
+         */
+
+
+        gradient.visitIincInsn(loopCounter, 1);
+        gradient.visitJumpInsn(GOTO, loopStart);
+
+        gradient.visitLabel(loopEnd);
+
+
+
+        gradient.visitInsn(RETURN);   // prostý návrat, metoda nic nedělá
+        gradient.visitMaxs(0, 0);     // pokud používáš COMPUTE_MAXS, může být 0, 0
+        gradient.visitEnd();
+    }
+
+    private static void isElementwise(ClassWriter cw){
+        MethodVisitor element = cw.visitMethod(
+                ACC_PUBLIC,                // přístupový modifikátor
+                "isElementWise",           // název metody
+                "()Z",                     // descriptor (vrací boolean)
+                null,                      // žádné generické typy
+                null                       // žádné výjimky
+        );
+
+        element.visitCode();
+        element.visitInsn(ICONST_0);   // Push 'false' na zásobník (false == 0)
+        element.visitInsn(IRETURN);    // Vrátí hodnotu z vrcholu zásobníku jako boolean
+        element.visitMaxs(1, 1);       // max stack: 1, max locals: 1 (this)
+        element.visitEnd();
+    }
+
+
+
+    private static List<Tensor> findOuterTensors(List<Tensor> cluster) {
+
+        Set<Tensor> allPrevTensors = new HashSet<>();
+        for (Tensor tensor : cluster) {
+            if (tensor.getPrevTensors() != null) {
+                allPrevTensors.addAll(tensor.getPrevTensors());
+            }
+        }
+
+        List<Tensor> inputTensors = new ArrayList<>();
+        for (Tensor tensor : allPrevTensors) {
+            if (!cluster.contains(tensor)) {
+                inputTensors.add(tensor);
+            }
+        }
+
+        return inputTensors;
+    }
+
+    private static void prepareListItem(MethodVisitor mv,int index){
+        mv.visitLdcInsn(index);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                "(I)Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, "Tensor/Tensor");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        mv.visitInsn(ICONST_0);
+    }
+
+    private static void newArray(MethodVisitor mv, int localVarPosition, int cols, boolean isLocalVariable){
+        /*
+        if (isLocalVariable) {
+            mv.visitVarInsn(ILOAD, cols);
+        }
+        else{
+            if (cols >= -128 && cols <= 127) {
+                mv.visitIntInsn(BIPUSH, cols);
+            } else if (cols>=-32768 && cols <= 32767) {
+                mv.visitIntInsn(SIPUSH, cols);
+            } else {
+                mv.visitLdcInsn(cols);
+            }
+        }
+
+        //[Stack: cols]
+        mv.visitIntInsn(NEWARRAY, T_DOUBLE);
+        mv.visitVarInsn(ASTORE, localVarPosition);
+
+        */
+        Label alreadyExists = new Label();
+        Label afterAlloc = new Label();
+
+    // Zkontroluj, jestli už pole existuje (není null)
+        mv.visitVarInsn(ALOAD, localVarPosition);
+        mv.visitJumpInsn(IFNONNULL, alreadyExists);
+
+    // Pokud je null, vytvoř pole (původní logika)
+        if (isLocalVariable) {
+            mv.visitVarInsn(ILOAD, cols);
+        } else {
+            if (cols >= -128 && cols <= 127) {
+                mv.visitIntInsn(BIPUSH, cols);
+            } else if (cols >= -32768 && cols <= 32767) {
+                mv.visitIntInsn(SIPUSH, cols);
+            } else {
+                mv.visitLdcInsn(cols);
+            }
+        }
+        mv.visitIntInsn(NEWARRAY, T_DOUBLE);
+        mv.visitVarInsn(ASTORE, localVarPosition);
+        mv.visitJumpInsn(GOTO, afterAlloc);
+
+        mv.visitLabel(alreadyExists);
+// pokud už pole existuje, nic nedělej
+
+        mv.visitLabel(afterAlloc);
+    }
+
+
+
+    private static void loadArrayDouble(MethodVisitor mv, int localVarPosition, int col, boolean isLocalVar) {
+        mv.visitVarInsn(ALOAD, localVarPosition);     //Stack:[...,array]
+        if (isLocalVar) {
+            mv.visitVarInsn(ILOAD, col);
+        }
+        else {
+            if (col >= -128 && col <= 127) {
+                mv.visitIntInsn(BIPUSH, col);
+            } else if (col>=-32768 && col <= 32767) {
+                mv.visitIntInsn(SIPUSH, col);
+            } else {
+                mv.visitLdcInsn(col);
+            }
+        }
+        //Stack:[...,array,colIndex]
+        mv.visitInsn(DALOAD);   //Stack:[...,double]
+    }
+
+
+    private static void performOperation(MethodVisitor mv, Operation operation){
+        switch (operation) {
+            case Operations.add add -> mv.visitInsn(DADD);        // a[i] + b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sum]
+            case Operations.mul mul -> mv.visitInsn(DMUL);        // a[i] * b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,mul]
+            case Operations.sub sub -> mv.visitInsn(DSUB);        // a[i] - b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sub]
+            case Operations.div div -> mv.visitInsn(DDIV);        // a[i] / b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,div]
+            case log log -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math","log", "(D)D", false);
+            case pow pow -> {
+                if (pow.getExponent()==0){
+                    mv.visitInsn(POP);
+                    mv.visitInsn(DCONST_1);
+                }
+                else if (pow.getExponent()==0.5 || pow.getExponent()==(double)1/2){
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
+                }
+                /*
+                else if(pow.getExponent()==1){
+                    continue;
+                }
+
+                 */
+                else if (pow.getExponent()==2){
+                    mv.visitInsn(DUP2);
+                    mv.visitInsn(DMUL);
+                }
+                else {
+                    mv.visitLdcInsn(pow.getExponent());
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
+                }
+            }
+            case exp exp -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
+                /*
+                case sqrt sqrt -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
+                case sin sin -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "sin", "(D)D", false);
+                case cos cos -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "cos", "(D)D", false);
+                case tan tan -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "tan", "(D)D", false);
+                case asin asin -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "asin", "(D)D", false);
+                case acos acos -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "acos", "(D)D", false);
+                case atan atan -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "atan", "(D)D", false);
+                case tanh tanh -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "tanh", "(D)D", false);
+
+                 */
+
+            default -> throw new UnsupportedOperationException();
+        }
+    }
+
+    private static void computeBackend(ClassWriter cw) {
+        MethodVisitor mv = cw.visitMethod(
+                ACC_PUBLIC,
+                "getPreferredBackend",
+                "()LBackend/ComputeBackend;",
+                null,
+                null
+        );
+        AnnotationVisitor av = mv.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        mv.visitCode();
+
+        mv.visitFieldInsn(
+                GETSTATIC,
+                "Backend/ComputeBackend",
+                "CPU",
+                "LBackend/ComputeBackend;"
+        );
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(1, 1);
+        mv.visitEnd();
+    }
+
+    private static void expression(ClassWriter cw){
+        MethodVisitor mv = cw.visitMethod(
+                ACC_PUBLIC,
+                "getExpression",
+                "()Ljava/lang/String;", // návratový typ
+                null,
+                null
+        );
+        AnnotationVisitor av = mv.visitAnnotation("Ljava/lang/Override;", true);
+        av.visitEnd();
+
+        mv.visitCode();
+        // Vlož řetězec "fused" na zásobník
+        mv.visitLdcInsn("fused");
+        // Vrať hodnotu ze zásobníku
+        mv.visitInsn(ARETURN);
+
+        mv.visitMaxs(1, 1); // max 1 na zásobníku, 1 lokální proměnná (this)
+        mv.visitEnd();
+    }
+
+    // Pomocná metoda pro push integer konstant
+    private static void pushIntConst(MethodVisitor mv, int value) {
+        if (value >= -1 && value <= 5) {
+            mv.visitInsn(ICONST_0 + value);
+        } else if (value <= Byte.MAX_VALUE) {
+            mv.visitIntInsn(BIPUSH, value);
+        } else if (value <= Short.MAX_VALUE) {
+            mv.visitIntInsn(SIPUSH, value);
+        } else {
+            mv.visitLdcInsn(value);
+        }
+    }
+
+    private static void new2DArray(MethodVisitor mv, int localVarPosition, int rows, boolean isLocalVariable){
+        if (!isLocalVariable){
+            pushIntConst(mv,rows);
+        }
+        else {
+            mv.visitVarInsn(ILOAD, rows);
+        }
+        mv.visitTypeInsn(ANEWARRAY, "[D");                    // new double[rows][]
+        mv.visitVarInsn(ASTORE, localVarPosition);
+    }
+
+    private static void newLocalDoubles(MethodVisitor mv, int baseIndex, int cols) {
+        for (int i = 0; i < cols; i++) {
+            mv.visitLdcInsn(0.0);
+            mv.visitVarInsn(DSTORE, baseIndex + i * 2); // local variable pro double zabira 2 sloty! vtluc si to do palice!
+        }
+    }
+
+    public static void storeDoublesToArray(MethodVisitor mv, int outputArrayVarIndex, int loopCounter, int startLocalIndex, int numOps,List<Tensor> cluster,Map<Tensor,Integer> reduced) {
+        mv.visitVarInsn(ILOAD, loopCounter);
+        pushIntConst(mv,reduced.size());
+        mv.visitInsn(IMUL);         // offset = loopCounter * reduced.size()
+        //Stack: [...int]
+        int i=0;
+        for (int index:reduced.values()){
+
+            mv.visitInsn(DUP);
+            //Stack: [...offset,offset]
+            mv.visitVarInsn(ALOAD, outputArrayVarIndex);             // output array
+            //Stack: [...offset,offset,array]
+            mv.visitInsn(SWAP);
+            //Stack: [...offset,array,offset]
+
+            pushIntConst(mv, i);                              // i
+            mv.visitInsn(IADD);                                   // offset+i
+            //Stack: [...offset,array,offset+index]
+            mv.visitVarInsn(DLOAD, startLocalIndex + index * 2);      // load local double
+            //Stack: [...int,array,int,double]
+            mv.visitInsn(DASTORE);                                // output[offset + i] = value
+            i++;
+        }
+
+
+
+        mv.visitInsn(POP);
+    }
+
+    public static void storeDoublesToArrayTMP(MethodVisitor mv, int outputArrayIndex, int loopCounter, int startLocalIndex, int numOps,int tmpOffset) {
+        mv.visitVarInsn(ILOAD, loopCounter);
+        pushIntConst(mv,numOps);
+        mv.visitInsn(IMUL);         // offset = loopCounter * numOps
+        mv.visitVarInsn(ISTORE, tmpOffset);
+        //Stack: [...int]
+        for (int i = 0; i < numOps; i++) {
+            mv.visitVarInsn(ALOAD, outputArrayIndex);
+            mv.visitVarInsn(ILOAD, tmpOffset);
+            pushIntConst(mv, i);
+            mv.visitInsn(IADD);
+            mv.visitVarInsn(DLOAD, startLocalIndex + i*2);  // Správný offset pro double
+            mv.visitInsn(DASTORE);                                  // output[offset + i] = value
+        }
+    }
+
+    //tohle je celkem pomale
+    public static void emitArrayCopy(MethodVisitor mv, int srcArrayIndex, int destArrayIndex,int loopCounter, int numOps) {
+        if (numOps <= 20) {
+            // Manuální kopírování bez arraycopy může být rychlejší
+            for (int i = 0; i < numOps; i++) {
+                mv.visitVarInsn(ALOAD, destArrayIndex);
+                mv.visitVarInsn(ILOAD, loopCounter);
+                pushIntConst(mv, numOps);
+                mv.visitInsn(IMUL);
+                pushIntConst(mv, i);
+                mv.visitInsn(IADD);
+                mv.visitVarInsn(ALOAD, srcArrayIndex);
+                pushIntConst(mv, i);
+                mv.visitInsn(DALOAD);
+                mv.visitInsn(DASTORE);
+            }
+            return;
+        }
+        else {
+            mv.visitVarInsn(ALOAD, srcArrayIndex);     // zdrojové pole
+
+            pushIntConst(mv, 0);                 //src. offset
+
+            mv.visitVarInsn(ALOAD, destArrayIndex);    // cílové pole
+
+            mv.visitVarInsn(ILOAD, loopCounter);
+            pushIntConst(mv, numOps);
+            mv.visitInsn(IMUL);                         // dest. offset = loopCounter * numOps
+
+
+            pushIntConst(mv, numOps);                   // počet prvků
+            mv.visitMethodInsn(INVOKESTATIC,
+                    "java/lang/System",
+                    "arraycopy",
+                    "(Ljava/lang/Object;ILjava/lang/Object;II)V",
+                    false);
+        }
+    }
+
+    private static boolean needsToBeStored(Tensor t, List<Tensor> cluster) {
+        Operation op = t.getOperation();
+
+        // Zjisti, jestli t je spotřebováván jinou operací v clusteru
+        boolean usedByNonTrivialConsumer = false;
+
+        for (Tensor consumerTensor : cluster) {
+            if (consumerTensor == t) continue; // přeskoč sám sebe
+
+            for (Tensor input : consumerTensor.getPrevTensors()) {
+                if (input == t) {
+                    // Spotřebovatel této hodnoty
+                    Operation consumerOp = consumerTensor.getOperation();
+                    if (!(consumerOp instanceof add) && !(consumerOp instanceof sub)) {
+                        usedByNonTrivialConsumer = true;
+                        break;
+                    }
+                }
+            }
+
+            if (usedByNonTrivialConsumer) break;
+        }
+
+        return usedByNonTrivialConsumer || op.requiresOutputForGradient();
+    }
+
+
+
+    /**
+     * Reduces the given cluster of tensors by identifying and storing only the
+     * intermediate results that are necessary for further computations or
+     * gradient calculations. This method optimizes memory usage by avoiding
+     * the storage of unnecessary intermediate results.
+     *
+     * @param cluster the list of tensors to be reduced
+     * @return a map containing the tensors that need to be stored along with
+     *         their original indices in the cluster
+     */
+    private static Map<Tensor,Integer> reduceCluster(List<Tensor> cluster){
+        Map <Tensor,Integer> reducedIndexMap = new LinkedHashMap<>();;
+        int i=0;
+        for (Tensor t : cluster) {
+            if (cluster.getLast() != t) {
+                if (needsToBeStored(t, cluster)) {
+                    reducedIndexMap.put(t, cluster.indexOf(t));
+                    i++;
+                }
+            }
+        }
+        return reducedIndexMap;
+    }
+
+
+
+    private static void loadInputArrays(MethodVisitor mv, SlotManager sm) {
+        int inputsListIndex=sm.get(SlotKey.CLUSTER_TENSOR_INPUTS);
+        List<Integer> inputs=sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
+
+        for (int i = 0; i < inputs.size(); i++) {
+            int index=inputs.get(i);
+            mv.visitVarInsn(ALOAD, inputsListIndex); // List inputs
+            pushIntConst(mv, i);                     // index
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true);
+
+            mv.visitTypeInsn(CHECKCAST, "Tensor/Tensor"); // přetypuj na Tensor
+            mv.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData",
+                    "()[D", false); // zavolej getData()
+
+            mv.visitVarInsn(ASTORE, index); // ulož do lokální proměnné
+        }
+    }
+
+    private static void loadInputGradientArrays(MethodVisitor mv, SlotManager sm) {
+        int inputsListIndex=sm.get(SlotKey.CLUSTER_TENSOR_INPUTS);
+        List<Integer> inputs=sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
+        for (int i = 0; i < inputs.size(); i++) {
+            int index=inputs.get(i);
+            mv.visitVarInsn(ALOAD, inputsListIndex); // načti List<Tensor>
+            pushIntConst(mv, i);                     // index i
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true); // List.get(i)
+
+            mv.visitTypeInsn(CHECKCAST, "Tensor/Tensor"); // přetypuj na Tensor
+            mv.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getGradient",
+                    "()LTensor/Tensor;", false); // zavolej getGradient()
+
+            mv.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData",
+                    "()[D", false); // zavolej getData() na gradient Tensoru
+
+            mv.visitVarInsn(ASTORE, index); // ulož double[] do lokální proměnné
+        }
+    }
+
+
+    private static void emitGradientAdd(MethodVisitor mv, NodeInfo node) {
+
+        // ∂L/∂x += ∂L/∂z
+        OperatorInfo first=node.getOperators().getFirst();
+
+        node.emitOperatorGradOnStack(mv,first);
+        node.emitGradientOnStack(mv);
+        mv.visitInsn(DADD);
+        node.emitStoreOperatorGrad(mv,first);
+        // ∂L/∂y += ∂L/∂z
+        OperatorInfo second=node.getOperators().getLast();
+        node.emitOperatorGradOnStack(mv,second);
+        node.emitGradientOnStack(mv);
+        mv.visitInsn(DADD);
+        node.emitStoreOperatorGrad(mv,second);
+
+    }
+
+    private static void emitGradientSub(MethodVisitor mv, NodeInfo node) {
+        // ∂L/∂x += ∂L/∂z
+        OperatorInfo first=node.getOperators().getFirst();
+
+
+
+        node.emitOperatorGradOnStack(mv,first);
+        node.emitGradientOnStack(mv);
+        mv.visitInsn(DADD);
+        node.emitStoreOperatorGrad(mv,first);
+
+        // ∂L/∂y += -∂L/∂z
+        OperatorInfo second=node.getOperators().getLast();
+        node.emitOperatorGradOnStack(mv,second);
+        node.emitGradientOnStack(mv);
+        mv.visitInsn(DNEG);
+        mv.visitInsn(DADD);
+        node.emitStoreOperatorGrad(mv,second);
+    }
+
+    private static void emitGradientMul(MethodVisitor mv,NodeInfo node) {
+
+        OperatorInfo first=node.getOperators().getFirst();
+        OperatorInfo second=node.getOperators().getLast();
+
+        // ∂L/∂x += ∂L/∂z * y
+        node.emitOperatorGradOnStack(mv, first);        // Stack: [...inputGrad]
+        node.emitGradientOnStack(mv);                   // Stack: [...inputGrad,outGrad]
+        node.emitOperatorValueOnStack(mv, second);      // Stack: [...inputGrad,outGrad,secondVal]
+        mv.visitInsn(DMUL);                             // Stack: [...inputGrad,outGrad*secondVal]
+        mv.visitInsn(DADD);                             // Stack: [...inputGrad+outGrad*secondVal]
+        node.emitStoreOperatorGrad(mv, first);          // Stack: [...]
+
+        // ∂L/∂y += ∂L/∂z * x
+        node.emitOperatorGradOnStack(mv, second);           // Stack: [...secondGrad]
+        node.emitGradientOnStack(mv);                       // Stack: [...secondGrad,outGrad]
+
+        node.emitOperatorValueOnStack(mv, first);           // Stack: [...secondGrad,outGrad,firstVal]
+        mv.visitInsn(DMUL);                                 // Stack: [...secondGrad,outGrad*firstVal]
+        mv.visitInsn(DADD);                                 // Stack: [...secondGrad+outGrad*firstVal]
+        node.emitStoreOperatorGrad(mv, second);             // Stack: [...]
+
+    }
+
+    private static void emitGradientDiv(MethodVisitor mv, NodeInfo node) {
+
+
+        OperatorInfo first=node.getOperators().getFirst();
+        OperatorInfo second=node.getOperators().getLast();
+
+
+
+        // ∂L/∂x += ∂L/∂z * (1 / y)
+        node.emitOperatorGradOnStack(mv, first);            // Stack: [...firstGrad]
+        node.emitGradientOnStack(mv);
+        mv.visitLdcInsn(1.0);                         // Stack: [...firstGrad,outGrad,1.0]
+        node.emitOperatorValueOnStack(mv,second);           // Stack: [...firstGrad,outGrad,1.0,secondVal]
+        mv.visitInsn(DDIV);                                 // Stack: [...firstGrad,outGrad,1.0/secondVal]
+        mv.visitInsn(DMUL);                                 // Stack: [...firstGrad,outGrad*1.0/secondVal]
+        mv.visitInsn(DADD);                                 // Stack: [...firstGrad+outGrad*1.0/secondVal]
+        node.emitStoreOperatorGrad(mv, first);              // Stack: [...]
+
+        // ∂L/∂y += ∂L/∂z * (-x / y^2)
+        node.emitOperatorGradOnStack(mv, second);           // Stack: [...secondGrad]
+        //node.loadCache(mv,SlotKey.TMP_REGISTER);            // Stack: [...secondGrad,outGrad]
+        node.emitGradientOnStack(mv);
+        node.emitOperatorValueOnStack(mv,first);
+        //node.loadCache(mv,SlotKey.TMP_REGISTER1);           // Stack: [...secondGrad,outGrad,firstVal,secondVal]
+        node.emitOperatorValueOnStack(mv, second);
+
+        mv.visitInsn(DUP2);                                 // Stack: [...secondGrad,outGrad,firstVal,secondVal,secondVal]
+        mv.visitInsn(DMUL);                                 // Stack: [...secondGrad,outGrad,firstVal,secondVal*secondVal]
+        mv.visitInsn(DDIV);                                 // Stack: [...secondGrad,outGrad,firstVal/secondVal*secondVal]
+        mv.visitInsn(DMUL);                                 // Stack: [...secondGrad,outGrad*firstVal/secondVal*secondVal]
+        mv.visitInsn(DNEG);                                 // Stack: [...secondGrad,-outGrad*firstVal/secondVal*secondVal]
+        mv.visitInsn(DADD);                                 // Stack: [...secondGrad-outGrad*firstVal/secondVal*secondVal]
+        node.emitStoreOperatorGrad(mv, second);             // Stack: [...]
+
+    }
+
+    private static void emitGradientPow(MethodVisitor mv,NodeInfo node,double pow) {
+        OperatorInfo first=node.getOperators().getFirst();
+
+        if (pow==0.0){
+            return;
+        }
+        else if (pow==1.0){
+            node.emitOperatorGradOnStack(mv, first);                    // Stack: [...inputGradValue]
+            node.emitGradientOnStack(mv);                               // Stack: [...inputGradValue,outGrad]
+            mv.visitInsn(DADD);
+
+        }
+        else if (pow==2.0){
+            node.emitOperatorGradOnStack(mv, first);                        // Stack: [...inputGradValue]
+            node.emitGradientOnStack(mv);                                   // Stack: [...inputGradValue,outGrad]
+            node.emitOperatorValueOnStack(mv,first);                        // Stack: [...inputGradValue,outGrad,inputValue]
+            mv.visitLdcInsn(2.0);                                     // Stack: [...inputGradValue,outGrad,inputValue,2.0]
+            mv.visitInsn(DMUL);                                             // Stack: [...inputGradValue,outGrad,inputValue*2.0]
+            mv.visitInsn(DMUL);                                             // Stack: [...inputGradValue,outGrad*inputValue*2.0]
+            mv.visitInsn(DADD);                                             // Stack: [...inputGradValue+outGrad*inputValue*2.0]
+
+        }
+        else{
+            node.emitOperatorGradOnStack(mv, first);                        // Stack: [...inputGradValue]
+            node.emitGradientOnStack(mv);                                   // Stack: [...inputGradValue,outGrad]
+            mv.visitLdcInsn(pow);                                           // Stack: [...inputGradValue,outGrad,pow]
+            node.emitOperatorValueOnStack(mv,first);                        // Stack: [...inputGradValue,outGrad,pow,inputValue]
+            mv.visitLdcInsn(pow-1);                                   // Stack: [...inputGradValue,outGrad,pow,inputValue,pow-1]
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);      // Stack: [...inputGradValue,outGrad,pow,inputValue^(pow-1)]
+            mv.visitInsn(DMUL);                                             // Stack: [...inputGradValue,outGrad,pow*inputValue^(pow-1)]
+            mv.visitInsn(DMUL);                                             // Stack: [...inputGradValue,outGrad*pow*inputValue^(pow-1)]
+            mv.visitInsn(DADD);                                             // Stack: [...inputGradValue+outGrad*pow*inputValue^(pow-1)]
+        }
+        node.emitStoreOperatorGrad(mv,first);
+
+    }
+
+    public static void emitGradientLog(MethodVisitor mv, NodeInfo node) {
+
+        node.emitFirstOperatorGradOnStack(mv);                              // Stack: [...inputGradValue]
+        node.emitGradientOnStack(mv);                                       // Stack: [...inputGradValue,outGrad]
+        node.emitFirstOperatorValueOnStack(mv);                             // Stack: [...inputGradValue,outGrad,inputVal]
+        mv.visitInsn(DDIV);                                                 // Stack: [...inputGradValue,outGrad/inputVal]
+        mv.visitInsn(DADD);                                                 // Stack: [...inputGradValue+outGrad/inputVal]
+        node.emitStoreFirstOperatorGrad(mv);                         // Stack: [...]
+    }
+
+
+    public static void emitGradientExp(MethodVisitor mv, NodeInfo node) {
+        node.emitFirstOperatorGradOnStack(mv);                              // Stack: [...inputGradValue]
+        node.emitValueOnStack(mv);                                          // Stack: [...inputGradValue,outValue]
+        mv.visitInsn(DADD);                                                 // Stack: [...inputGradValue+outValue]
+        node.emitStoreFirstOperatorGrad(mv);
+
+    }
+
+    public static void resetValues(MethodVisitor mv, SlotManager sm, SlotKey key){
+            List<Integer> slots=sm.getGroup(key);
+            if (slots==null){
+                throw new RuntimeException("No slots for reset.");
+            }
+            for(Integer slot:slots){
+                switch (key.type){
+                    case DOUBLE: {
+                        mv.visitInsn(DCONST_0);
+                        mv.visitVarInsn(DSTORE,slot);
+                        break;
+                    }
+                    case DOUBLE_ARRAY:{
+                        Label loopStart = new Label();
+                        Label cleanupLoopStart = new Label();
+                        Label exit = new Label();
+
+                        int loopIndex = sm.get(SlotKey.SECOND_LOOP_COUNTER);
+
+                        // i = 0
+                        mv.visitInsn(ICONST_0);
+                        mv.visitVarInsn(ISTORE, loopIndex);
+
+                        // loopStart:
+                        mv.visitLabel(loopStart);
+                        mv.visitVarInsn(ILOAD, loopIndex);        // i
+                        mv.visitVarInsn(ALOAD, slot);             // array
+                        mv.visitInsn(ARRAYLENGTH);                // array.length
+                        mv.visitInsn(ICONST_4);                   // 4
+                        mv.visitInsn(ISUB);                       // array.length - 4
+                        mv.visitJumpInsn(IF_ICMPGT, cleanupLoopStart); // if i > array.length - 4 → cleanup loop
+
+                        // Unrolled assignments: array[i + 0..3] = 0.0
+                        for (int offset = 0; offset < 4; offset++) {
+                            mv.visitVarInsn(ALOAD, slot);               // array
+                            mv.visitVarInsn(ILOAD, loopIndex);          // i
+                            if (offset > 0) {
+                                mv.visitIntInsn(BIPUSH, offset);        // offset
+                                mv.visitInsn(IADD);                     // i + offset
+                            }
+                            mv.visitInsn(DCONST_0);                     // 0.0
+                            mv.visitInsn(DASTORE);                      // array[i+offset] = 0.0
+                        }
+
+                        // i += 4
+                        mv.visitIincInsn(loopIndex, 4);
+                        mv.visitJumpInsn(GOTO, loopStart);
+
+                        // cleanupLoopStart:
+                        mv.visitLabel(cleanupLoopStart);
+                        mv.visitVarInsn(ILOAD, loopIndex);
+                        mv.visitVarInsn(ALOAD, slot);
+                        mv.visitInsn(ARRAYLENGTH);
+                        mv.visitJumpInsn(IF_ICMPGE, exit); // if i >= array.length → exit
+
+                        mv.visitVarInsn(ALOAD, slot);
+                        mv.visitVarInsn(ILOAD, loopIndex);
+                        mv.visitInsn(DCONST_0);
+                        mv.visitInsn(DASTORE);
+
+                        // i++
+                        mv.visitIincInsn(loopIndex, 1);
+                        mv.visitJumpInsn(GOTO, cleanupLoopStart);
+
+                        // exit:
+                        mv.visitLabel(exit);
+
+                    }
+                    default:{
+                        throw new RuntimeException("Slot key not supported yet.");
+                    }
+                }
+            }
+    }
+
+    public static void emitLoadOrCreateIntermediatesArray(
+            MethodVisitor mv,
+            int tensorSlot,            // slot, kde je Tensor objekt (např. 2)
+            int intermediatesSlot,     // slot, kam uložit intermediates pole
+            int reducedOpsSize,
+            int valuesCount
+    ) {
+        Label alreadyExists = new Label();
+        Label afterAlloc = new Label();
+
+        // tensor.getIntermediates()
+        mv.visitVarInsn(ALOAD, tensorSlot);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getIntermediates", "()[D", false);
+        mv.visitVarInsn(ASTORE, intermediatesSlot);
+
+        // if (intermediates != null) goto alreadyExists;
+        mv.visitVarInsn(ALOAD, intermediatesSlot);
+        mv.visitJumpInsn(IFNONNULL, alreadyExists);
+
+        // Vytvoření nového pole: new double[reducedOpsSize * valuesCount]
+        mv.visitLdcInsn(reducedOpsSize * valuesCount); // můžeš nahradit výpočtem přes IMUL, pokud je třeba
+        mv.visitIntInsn(NEWARRAY, Opcodes.T_DOUBLE);
+        mv.visitVarInsn(ASTORE, intermediatesSlot);
+
+        mv.visitLabel(alreadyExists);
+        mv.visitLabel(afterAlloc);
+    }
+
+
+
+
+
+    public static void emitConvertToFloatVectorFromArray(MethodVisitor mv, int arraySlot, int floatVectorSlot,int loopCounter){
+        mv.visitFieldInsn(GETSTATIC,
+                "jdk/incubator/vector/FloatVector",
+                "SPECIES_PREFERRED",
+                "Ljdk/incubator/vector/FloatVector$FloatSpecies;");
+        mv.visitVarInsn(FLOAD, arraySlot);
+        mv.visitVarInsn(ILOAD, loopCounter);
+        /* zavoláme statickou metodu
+           FloatVector.fromArray(FloatSpecies,[F,I)FloatVector */
+        mv.visitMethodInsn(INVOKESTATIC,
+                "jdk/incubator/vector/FloatVector",   // owner
+                "fromArray",                          // method
+                "(Ljdk/incubator/vector/FloatVector$FloatSpecies;[FI)"
+                        + "Ljdk/incubator/vector/FloatVector;", false);
+        mv.visitVarInsn(ASTORE, floatVectorSlot);
+
+    }
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+

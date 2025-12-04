@@ -1,0 +1,61 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'computationalgraph'
+version = '0.1.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // ASM for bytecode generation used across Graph/*
+    implementation 'org.ow2.asm:asm:9.6'
+    implementation 'org.ow2.asm:asm-commons:9.6'
+
+    // Byte Buddy shaded ASM classes referenced by ByteCodeGenerator/SimpleByteCodeGenerator
+    implementation 'net.bytebuddy:byte-buddy:1.15.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    // Required because code imports jdk.incubator.vector.*
+    options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    jvmArgs '--add-modules=jdk.incubator.vector'
+}
+
+application {
+    // Main class is in the default package
+    mainClass = 'Main'
+    // Ensure vector API module is available at runtime
+    applicationDefaultJvmArgs = ['--add-modules=jdk.incubator.vector']
+}
+
+// Use non-standard source layout: sources live in ./src
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+    test {
+        java {
+            srcDirs = ['test']
+        }
+    }
+}
