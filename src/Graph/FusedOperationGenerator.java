@@ -4,7 +4,7 @@ import Operations.*;
 
 import Utils.*;
 import jdk.incubator.vector.FloatVector;
-import jdk.incubator.vector.VectorSpecies;
+import jdk.incubator.vector.DoubleVector;
 import org.objectweb.asm.*;
 
 import static org.objectweb.asm.Opcodes.*;
@@ -763,170 +763,243 @@ public class FusedOperationGenerator {
     }
 
     private static void applyFastLocalVarsVectors(ClassWriter cw, List<Tensor> cluster){
-        MethodVisitor apply = cw.visitMethod(
+        // 1) Povolené vektorové operace: add, sub, mul, div a pow(2.0)
+        boolean vectorizable = true;
+        for (Tensor t : cluster) {
+            Operation op = t.getOperation();
+            if (!(op instanceof add || op instanceof sub || op instanceof mul || op instanceof div ||
+                  (op instanceof pow p && p.getExponent() == 2.0))) {
+                vectorizable = false;
+                break;
+            }
+        }
+
+        // 2) Pokud používáme intermediates potřebné pro backward (reducedMap.size() > 0), pro jednoduchost fallback
+        Map<Tensor, Integer> reducedMap = reduceCluster(cluster);
+        int reducedOpsSize = reducedMap.size();
+        if (!vectorizable || reducedOpsSize > 0) {
+            applyFastLocalVarsX86(cw, cluster);
+            return;
+        }
+
+        MethodVisitor mv = cw.visitMethod(
                 ACC_PUBLIC,
                 "apply",
-                "(Ljava/util/List;LTensor/Tensor;)V",                            // raw typy
-                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",          // generická signatura
+                "(Ljava/util/List;LTensor/Tensor;)V",
+                "(Ljava/util/List<LTensor/Tensor;>;LTensor/Tensor;)V",
                 null
         );
-        AnnotationVisitor av = apply.visitAnnotation("Ljava/lang/Override;", true);
+        AnnotationVisitor av = mv.visitAnnotation("Ljava/lang/Override;", true);
         av.visitEnd();
+        mv.visitCode();
 
-        apply.visitCode();
+        SlotManager sm = new SlotManager();
 
-        SlotManager sm=new SlotManager();
-        final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
-
-
-
-        List<Tensor> outerTensors=findOuterTensors(cluster);
+        // 3) Metadata a lokální proměnné
+        List<Tensor> outerTensors = findOuterTensors(cluster);
         int numOuterInputs = outerTensors.size();
         int numOperations = cluster.size();
         int valuesCount = outerTensors.getFirst().getFlatDataSize();
-        int totalSize=valuesCount*numOperations;
-        Map<Tensor, Integer> reducedMap=reduceCluster(cluster);
-        int reducedOpsSize=reducedMap.size();
 
-        sm.define(SlotKey.CLUSTER_TENSOR_INPUTS);       // musi byt inicializovan jako prvni - jde o prvni parametr metody
-        sm.define(SlotKey.CLUSTER_TENSOR);              // musi byt inicializovan jako druhy - jde o druhy parametr metody
+        sm.define(SlotKey.CLUSTER_TENSOR_INPUTS);       // param #1
+        sm.define(SlotKey.CLUSTER_TENSOR);              // param #2
         sm.define(SlotKey.CLUSTER_TENSOR_VALUES);
-        sm.define(SlotKey.CLUSTER_TENSOR_GRADS);
-        sm.define(SlotKey.LOOP_COUNTER);
-        sm.define(SlotKey.SECOND_LOOP_COUNTER);
-        sm.defineGroup(SlotKey.CLUSTER_INTERMEDIATES,numOperations);
-        sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS,numOuterInputs);
-        sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS,numOuterInputs);
-        sm.defineGroup(SlotKey.CLUSTER_INNER_GRAD_VALUES,numOperations);
+        sm.define(SlotKey.CLUSTER_TENSOR_GRADS);        // kvůli kompatibilitě s NodeInfo v tailu
+        sm.define(SlotKey.LOOP_COUNTER);                // i
+        sm.define(SlotKey.SECOND_LOOP_COUNTER);         // upper
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS, numOuterInputs);   // double[] vstupy
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS, numOuterInputs);     // pro NodeInfo tail
+        sm.defineGroup(SlotKey.CLUSTER_INTERMEDIATES, numOperations);           // per-op double[] (pro tail scalar běh)
+        sm.defineGroup(SlotKey.CLUSTER_INNER_GRAD_VALUES, numOperations);       // pro NodeInfo tail
 
+        // Výstupní pole
+        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        mv.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
+        mv.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
 
+        // Načíst vstupní double[] do lokálů
+        loadInputArrays(mv, sm);
 
-
-        // Nacti node values, neboli results
-
-        apply.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
-        apply.visitMethodInsn(INVOKEVIRTUAL, "Tensor/Tensor", "getData", "()[D", false);
-        apply.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
-
-
-
-
-
-        // create intermediates Array
-        //newArray(apply,intermediates,numOperations*valuesCount,false);
-        List<Integer> slots=sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES);
-
-        for(int i=0;i<slots.size();i++){
-            emitLoadOrCreateIntermediatesArray(apply,
-                    sm.get(SlotKey.CLUSTER_TENSOR),
-                    sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES).get(i),
-                    reducedOpsSize,
-                    valuesCount);
+        // Inicializace intermediates per-op (double[valuesCount]) pro tail
+        for (int slot : sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES)) {
+            Label ok = new Label();
+            mv.visitVarInsn(ALOAD, slot);
+            mv.visitJumpInsn(IFNONNULL, ok);
+            pushIntConst(mv, valuesCount);
+            mv.visitIntInsn(NEWARRAY, T_DOUBLE);
+            mv.visitVarInsn(ASTORE, slot);
+            mv.visitLabel(ok);
         }
 
+        // Mapy operátorů (pro tail NodeInfo)
+        Map<Tensor, Integer> inputIdx = new HashMap<>();
+        Map<Tensor, Integer> clusterIdx = new HashMap<>();
+        for (int i = 0; i < outerTensors.size(); i++) inputIdx.put(outerTensors.get(i), i);
+        for (int i = 0; i < cluster.size(); i++) clusterIdx.put(cluster.get(i), i);
 
+        // i = 0
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, sm.get(SlotKey.LOOP_COUNTER));
 
+        // upper = DoubleVector.SPECIES_PREFERRED.loopBound(valuesCount)
+        mv.visitFieldInsn(GETSTATIC,
+                "jdk/incubator/vector/DoubleVector",
+                "SPECIES_PREFERRED",
+                "Ljdk/incubator/vector/DoubleVector$DoubleSpecies;");
+        pushIntConst(mv, valuesCount);
+        mv.visitMethodInsn(INVOKEVIRTUAL,
+                "jdk/incubator/vector/DoubleVector$DoubleSpecies",
+                "loopBound",
+                "(I)I",
+                false);
+        mv.visitVarInsn(ISTORE, sm.get(SlotKey.SECOND_LOOP_COUNTER));
 
-        //load all outer inputs
-        loadInputArrays(apply,sm);
+        Label loopStart = new Label();
+        Label loopEnd = new Label();
 
+        // 4) Vektorová část
+        mv.visitLabel(loopStart);
+        // if (i >= upper) break;
+        mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+        mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
+        mv.visitJumpInsn(IF_ICMPGE, loopEnd);
 
+        for (int opIndex = 0; opIndex < numOperations; opIndex++) {
+            Tensor t = cluster.get(opIndex);
+            Operation op = t.getOperation();
 
-
-        // Loop init
-        apply.visitInsn(ICONST_0);
-        apply.visitVarInsn(ISTORE,sm.get(SlotKey.LOOP_COUNTER));
-
-
-        Map<Tensor, Integer> inputIndices = new HashMap<>();    // For input tensors
-        Map<Tensor, Integer> clusterIndices = new HashMap<>();  // For cluster tensors
-        for (int i = 0; i < outerTensors.size(); i++) {
-            inputIndices.put(outerTensors.get(i), i);
-        }
-        for (int i = 0; i < cluster.size(); i++) {
-            clusterIndices.put(cluster.get(i), i);
-        }
-
-        Label loopStart=new Label();
-        Label loopEnd=new Label();
-
-
-
-        // Loop start
-        apply.visitLabel(loopStart);
-        apply.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-        int upper = SPECIES.loopBound(valuesCount);
-        // Counter condition check
-        pushIntConst(apply,upper);
-        apply.visitJumpInsn(IF_ICMPGE, loopEnd);
-
-        List <NodeInfo> computeNodes = new ArrayList<>();
-
-        for (int opIndex=0;opIndex<cluster.size();opIndex++) {
-            Tensor tensor=cluster.get(opIndex);
-            Operation operation=tensor.getOperation();
-            boolean isLastInCluster = (opIndex == cluster.size() - 1);
-            NodeInfo node;
-            if (isLastInCluster){
-                node = NodeInfo.fromLastClusterInput(opIndex,sm);
-
+            // operand A → DoubleVector
+            Tensor first = t.getPrevTensors().getFirst();
+            if (inputIdx.containsKey(first)) {
+                int arrSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS).get(inputIdx.get(first));
+                emitLoadDoubleVectorFromArray(mv, arrSlot, sm.get(SlotKey.LOOP_COUNTER));
+            } else {
+                int prevIdx = clusterIdx.get(first);
+                int arrSlot = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES).get(prevIdx);
+                emitLoadDoubleVectorFromArray(mv, arrSlot, sm.get(SlotKey.LOOP_COUNTER));
             }
-            else {
-                if (reducedMap.containsKey(tensor)){
-                    int index = 0;
-                    for (Tensor key : reducedMap.keySet()) {
-                        if (Objects.equals(key, tensor)) {
-                            break;
-                        }
-                        index++;
-                    }
-                    node = NodeInfo.fromInnerClusterInput(opIndex,sm,index,reducedOpsSize);
-                }
-                else{
-                    node = NodeInfo.fromInnerClusterInput(opIndex,sm);
+
+            // binární vs. unární pow(2)
+            if (t.getPrevTensors().size() == 2) {
+                Tensor second = t.getPrevTensors().getLast();
+                if (inputIdx.containsKey(second)) {
+                    int arrSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS).get(inputIdx.get(second));
+                    emitLoadDoubleVectorFromArray(mv, arrSlot, sm.get(SlotKey.LOOP_COUNTER));
+                } else {
+                    int prevIdx = clusterIdx.get(second);
+                    int arrSlot = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES).get(prevIdx);
+                    emitLoadDoubleVectorFromArray(mv, arrSlot, sm.get(SlotKey.LOOP_COUNTER));
                 }
 
+                switch (op) {
+                    case Operations.add a -> mv.visitMethodInsn(INVOKEVIRTUAL,
+                            "jdk/incubator/vector/DoubleVector", "add",
+                            "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
+                    case Operations.sub s -> mv.visitMethodInsn(INVOKEVIRTUAL,
+                            "jdk/incubator/vector/DoubleVector", "sub",
+                            "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
+                    case Operations.mul m -> mv.visitMethodInsn(INVOKEVIRTUAL,
+                            "jdk/incubator/vector/DoubleVector", "mul",
+                            "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
+                    case Operations.div d -> mv.visitMethodInsn(INVOKEVIRTUAL,
+                            "jdk/incubator/vector/DoubleVector", "div",
+                            "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
+                    default -> throw new UnsupportedOperationException();
+                }
+            } else {
+                if (op instanceof pow p && p.getExponent() == 2.0) {
+                    mv.visitInsn(DUP);
+                    mv.visitMethodInsn(INVOKEVIRTUAL,
+                            "jdk/incubator/vector/DoubleVector", "mul",
+                            "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
+                } else {
+                    throw new UnsupportedOperationException("Unsupported unary op for Vector API");
+                }
             }
+
+            boolean isLast = (opIndex == numOperations - 1);
+            if (isLast) {
+                // store do výstupu
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+                mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+                mv.visitMethodInsn(INVOKEVIRTUAL,
+                        "jdk/incubator/vector/DoubleVector", "intoArray",
+                        "([DI)V", false);
+            }
+
+            // store i do per-op intermediates (pro tail scalar řetězení mezi uzly)
+            int outArr = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES).get(opIndex);
+            mv.visitInsn(DUP);
+            mv.visitVarInsn(ALOAD, outArr);
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+            mv.visitMethodInsn(INVOKEVIRTUAL,
+                    "jdk/incubator/vector/DoubleVector", "intoArray",
+                    "([DI)V", false);
+
+            if (isLast) {
+                // nic
+            } else {
+                mv.visitInsn(POP);
+            }
+        }
+
+        // i += DoubleVector.SPECIES_PREFERRED.length()
+        mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+        mv.visitFieldInsn(GETSTATIC,
+                "jdk/incubator/vector/DoubleVector",
+                "SPECIES_PREFERRED",
+                "Ljdk/incubator/vector/DoubleVector$DoubleSpecies;");
+        mv.visitMethodInsn(INVOKEVIRTUAL,
+                "jdk/incubator/vector/DoubleVector$DoubleSpecies",
+                "length", "()I", false);
+        mv.visitInsn(IADD);
+        mv.visitVarInsn(ISTORE, sm.get(SlotKey.LOOP_COUNTER));
+
+        mv.visitJumpInsn(GOTO, loopStart);
+        mv.visitLabel(loopEnd);
+
+        // 5) Tail: skalárně dojet zbytek i = upper..valuesCount (využijeme NodeInfo)
+        // Připravíme computeNodes tak jako v X86 metodě:
+        List<NodeInfo> computeNodes = new ArrayList<>();
+        for (int opIndex=0; opIndex<cluster.size(); opIndex++) {
+            Tensor tensor = cluster.get(opIndex);
+            boolean isLastInCluster = (opIndex == cluster.size()-1);
+            NodeInfo node = isLastInCluster
+                    ? NodeInfo.fromLastClusterInput(opIndex, sm)
+                    : NodeInfo.fromInnerClusterInput(opIndex, sm);
             node.setOperation(tensor.getOperation());
 
             for (Tensor t : tensor.getPrevTensors()) {
-                if (inputIndices.containsKey(t)) {
-                    //jedna se o vstupni tensor
-                    node.addOperator(OperatorInfo.fromClusterInput(sm,inputIndices.get(t)));
+                if (inputIdx.containsKey(t)) {
+                    node.addOperator(OperatorInfo.fromClusterInput(sm, inputIdx.get(t)));
                 } else {
-                    //jedna se o vysledek jedne z predchozich operaci
-                    int prevOpIdx = clusterIndices.get(t);
-                    //read from local variables
-                    node.addOperator(OperatorInfo.fromIntermediate(sm,prevOpIdx));
+                    int prevOpIdx = clusterIdx.get(t);
+                    node.addOperator(OperatorInfo.fromIntermediate(sm, prevOpIdx));
                 }
             }
             computeNodes.add(node);
         }
 
+        Label tailStart = new Label();
+        Label tailEnd = new Label();
+
+        mv.visitLabel(tailStart);
+        // if (i >= valuesCount) break;
+        mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+        pushIntConst(mv, valuesCount);
+        mv.visitJumpInsn(IF_ICMPGE, tailEnd);
 
         for (NodeInfo node : computeNodes) {
-            node.performForwardOperation(apply);
-
+            node.performForwardOperation(mv);
         }
 
+        mv.visitIincInsn(sm.get(SlotKey.LOOP_COUNTER), 1);
+        mv.visitJumpInsn(GOTO, tailStart);
+        mv.visitLabel(tailEnd);
 
-
-
-
-        apply.visitIincInsn(sm.get(SlotKey.LOOP_COUNTER), 1);
-        apply.visitJumpInsn(GOTO, loopStart);
-
-        apply.visitLabel(loopEnd);
-
-
-
-        apply.visitInsn(RETURN);
-
-
-        apply.visitMaxs(0, 0);
-        apply.visitEnd();
-
-
+        mv.visitInsn(RETURN);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
     }
 
 
@@ -2196,15 +2269,26 @@ public class FusedOperationGenerator {
                 "Ljdk/incubator/vector/FloatVector$FloatSpecies;");
         mv.visitVarInsn(FLOAD, arraySlot);
         mv.visitVarInsn(ILOAD, loopCounter);
-        /* zavoláme statickou metodu
-           FloatVector.fromArray(FloatSpecies,[F,I)FloatVector */
         mv.visitMethodInsn(INVOKESTATIC,
-                "jdk/incubator/vector/FloatVector",   // owner
-                "fromArray",                          // method
-                "(Ljdk/incubator/vector/FloatVector$FloatSpecies;[FI)"
-                        + "Ljdk/incubator/vector/FloatVector;", false);
+                "jdk/incubator/vector/FloatVector",
+                "fromArray",
+                "(Ljdk/incubator/vector/FloatVector$FloatSpecies;[FI)Ljdk/incubator/vector/FloatVector;", false);
         mv.visitVarInsn(ASTORE, floatVectorSlot);
+    }
 
+    // DoubleVector helpers for bytecode emission
+    private static void emitLoadDoubleVectorFromArray(MethodVisitor mv, int arraySlot, int indexSlot) {
+        mv.visitFieldInsn(GETSTATIC,
+                "jdk/incubator/vector/DoubleVector",
+                "SPECIES_PREFERRED",
+                "Ljdk/incubator/vector/DoubleVector$DoubleSpecies;");
+        mv.visitVarInsn(ALOAD, arraySlot);
+        mv.visitVarInsn(ILOAD, indexSlot);
+        mv.visitMethodInsn(INVOKESTATIC,
+                "jdk/incubator/vector/DoubleVector",
+                "fromArray",
+                "(Ljdk/incubator/vector/DoubleVector$DoubleSpecies;[DI)Ljdk/incubator/vector/DoubleVector;",
+                false);
     }
 
 
@@ -2214,11 +2298,3 @@ public class FusedOperationGenerator {
 
 
 }
-
-
-
-
-
-
-
-
