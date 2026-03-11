@@ -28,6 +28,11 @@ public class log implements Operation {
     }
 
     @Override
+    public OpType opType() {
+        return OpType.LOG;
+    }
+
+    @Override
     public void gradient(List<Tensor> inputs, Tensor node){
         double epsilon=1e-10;
         if (inputs.size() != 1) {

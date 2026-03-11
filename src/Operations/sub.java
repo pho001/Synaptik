@@ -25,6 +25,11 @@ public class sub implements Operation {
     }
 
     @Override
+    public OpType opType() {
+        return OpType.SUB;
+    }
+
+    @Override
     public void gradient(List<Tensor> inputs, Tensor node) {
 
         if (inputs.size() != 2) {

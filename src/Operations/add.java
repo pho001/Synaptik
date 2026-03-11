@@ -31,6 +31,11 @@ public class add implements Operation {
     }
 
     @Override
+    public OpType opType() {
+        return OpType.ADD;
+    }
+
+    @Override
     public void gradient(List<Tensor> inputs, Tensor node) {
 
         if (inputs.size() != 2) {

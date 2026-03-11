@@ -26,6 +26,11 @@ public class mul implements Operation {
     }
 
     @Override
+    public OpType opType() {
+        return OpType.MUL;
+    }
+
+    @Override
     public void gradient(List<Tensor> inputs,Tensor node) {
         if (inputs.size() != 2) {
             throw new IllegalArgumentException("The input array must contain exactly 2 elements");

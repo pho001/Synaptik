@@ -39,6 +39,11 @@ public class pow implements Operation {
     }
 
     @Override
+    public OpType opType() {
+        return OpType.POW;
+    }
+
+    @Override
     public void gradient(List<Tensor> inputs,Tensor node) {
         if (inputs.size() != 1) {
             throw new IllegalArgumentException("The input array must contain exactly 1 element");

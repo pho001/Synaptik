@@ -88,6 +88,11 @@ public class sum implements Operation{
         }
     }
 
+    @Override
+    public OpType opType() {
+        return OpType.SUM;
+    }
+
 
 
 
@@ -125,6 +130,9 @@ public class sum implements Operation{
         return false;
     }
 
+    public int getDimension() {
+        return dimension;
+    }
 
 
 }

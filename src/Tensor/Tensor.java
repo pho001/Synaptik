@@ -2,8 +2,7 @@ package Tensor;
 
 import Backend.ComputeBackend;
 import Graph.CompiledGraph;
-import Graph.FuseElementWise;
-import Graph.GraphOptimizer;
+import Graph.optimizer.GraphOptimizer;
 import Operations.*;
 
 import java.lang.reflect.Array;
@@ -24,6 +23,8 @@ public class Tensor {
     private CompiledGraph compiledGraph;
     private ComputeBackend forcedBackend = null;
     private double [] intermediates;
+    private Runnable backwardFunction;
+    private boolean isBackward = false;
 
 
 
@@ -44,9 +45,10 @@ public class Tensor {
         for (int dim : dimensions) {
             totalSize *= dim;
         }
+        this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
 
         this.data = new double[totalSize];
-        this.prevTensors = previous;
+
         this.label = label;
         this.shape = dimensions;
         this.strides=computeStrides(dimensions);
@@ -57,7 +59,7 @@ public class Tensor {
     public Tensor(int[] shape, List<Tensor> previous, Operation operation, String label) {
         int totalSize=calculateSize(shape);
         //this.data = new double[totalSize];
-        this.prevTensors = previous;
+        this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
         this.label = label;
         this.shape = shape;
         this.strides=computeStrides(shape);
@@ -70,7 +72,7 @@ public class Tensor {
     public Tensor(double[] data, int[] shape, List<Tensor> previous, String label) {
 
         this.data = data;
-        this.prevTensors = previous;
+        this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
         this.label = label;
         this.shape = shape;
         this.strides=computeStrides(shape);
@@ -81,12 +83,26 @@ public class Tensor {
     public Tensor(double[] data, int[] shape, int[] strides, List<Tensor> previous, String label) {
 
         this.data = data;
-        this.prevTensors = previous;
+        this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
         this.label = label;
         this.shape = shape;
         this.strides=strides;
         requiresGrad = previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad);
 
+    }
+
+    public static Tensor scalar(double value) {
+        // Skalár má data o délce 1 a prázdný tvar (nebo [1])
+        double[] data = new double[]{value};
+        int[] shape = new int[]{1};
+        int[] strides = new int[]{1};
+
+        // Vytvoříme tenzor bez operace (považován za konstantu)
+        Tensor scalar = new Tensor(data, shape, strides, new ArrayList<>(), "scalar_const");
+
+        // Pro AlgebraicRewite je klíčové, aby tenzor neměl operaci,
+        // čímž signalizuje, že jde o list (vstupy/konstantu).
+        return scalar;
     }
 
 
@@ -162,6 +178,10 @@ public class Tensor {
     public String getLabel() {
         return label;
     }
+    public void setLabel(String label) {
+        this.label = label;
+    }
+
 
     public double getByFlatIndex(int index){
         if (index < 0 || index >= data.length) {
@@ -237,6 +257,13 @@ public class Tensor {
             stride *= shape[i];
         }
         return strides;
+    }
+
+    public boolean isBackward() {
+        return isBackward;
+    }
+    public void setBackward(boolean backward) {
+        isBackward = backward;
     }
 
     public int[] computeStrides() {
@@ -352,6 +379,14 @@ public class Tensor {
         this.gradient=t;
     }
 
+    public CompiledGraph getCompiledGraph() {
+        return compiledGraph;
+    }
+
+    public void resetCompiledGraph() {
+        this.compiledGraph = null;
+    }
+
 
 
     public List<Tensor> topologicalSort() {
@@ -386,7 +421,10 @@ public class Tensor {
 
             compiledGraph=new CompiledGraph(this,optimizer);
         }
-            compiledGraph.forward();
+        //compiledGraph.forward();
+        compiledGraph.execute();
+
+
     }
 
 
@@ -395,14 +433,18 @@ public class Tensor {
         compute(optimizer);
     }
 
+
     public void backward(){
 
         if (compiledGraph==null){
             throw new RuntimeException("Can not compute gradients, forward pass must be done first");
         }
-
         compiledGraph.backward();
     }
+
+
+
+
 
 
 
@@ -418,6 +460,32 @@ public class Tensor {
     // Operations below
     //
 
+    public static Tensor onesLike(Tensor other) {
+        int size = other.getFlatDataSize();
+        double[] data = new double[size];
+        java.util.Arrays.fill(data, 1.0);
+        return new Tensor(
+                data,
+                other.getShape().clone(),
+                other.getStrides().clone(),
+                new java.util.ArrayList<>(), // Žádní předci (je to konstanta)
+                "ones_like"
+        );
+    }
+
+    public static Tensor zerosLike(Tensor other) {
+        int size = other.getFlatDataSize();
+        double[] data = new double[size]; // Java defaultně inicializuje na 0.0
+
+        return new Tensor(
+                data,
+                other.getShape().clone(),
+                other.getStrides().clone(),
+                new java.util.ArrayList<>(),
+                "zeros_like"
+        );
+    }
+
     public Tensor contiguous(){
         Operation op=new contiguous();
         this.getShape();
@@ -426,38 +494,303 @@ public class Tensor {
 
     public Tensor add (Tensor second){
         Operation op= new add();
-        return new Tensor(this.getShape(),List.of(this,second),op,"+");
+        Tensor out= new Tensor(this.getShape(),List.of(this,second),op,"+");
+
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (this.getRequiresGrad()) {
+                if (this.getGradient() == null) {
+                    // Pokud gradient ještě nemá, prostě ho přiřadíme
+                    this.setGradient(outGrad);
+                } else {
+                    // Pokud už gradient má (graf se větvil), tak je SEČTEME
+                    // .add() vytvoří nový uzel a ten nastavíme jako nový gradient
+                    this.setGradient(this.getGradient().add(outGrad));
+                }
+            }
+
+            if (second.getRequiresGrad()) {
+                if (second.getGradient() == null) {
+                    second.setGradient(outGrad);
+                } else {
+                    second.setGradient(second.getGradient().add(outGrad));
+                }
+            }
+        });
+        return out;
+
     }
 
     public Tensor sub (Tensor second){
         Operation op= new sub();
-        return new Tensor(this.getShape(),List.of(this,second),op,"-");
+        Tensor out= new Tensor(this.getShape(),List.of(this,second),op,"-");
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            // Pro 'a' je to stejné jako u sčítání
+            if (this.getRequiresGrad()) {
+                if (this.getGradient() == null) {
+                    this.setGradient(outGrad);
+                } else {
+                    this.setGradient(this.getGradient().add(outGrad));
+                }
+            }
+
+            // Pro 'b' musíme gradient otočit do mínusu (negace)
+            if (second.getRequiresGrad()) {
+                Tensor gradForSecond = outGrad.neg(); // Nebo outGrad.mul(-1)
+
+                if (second.getGradient() == null) {
+                    second.setGradient(gradForSecond);
+                } else {
+                    second.setGradient(second.getGradient().add(gradForSecond));
+                }
+            }
+        });
+        return out;
     }
 
     public Tensor mul (Tensor second){
         Operation op= new mul();
-        return new Tensor(this.getShape(),List.of(this,second),op,"+");
+        Tensor out= new Tensor(this.getShape(),List.of(this,second),op,"*");
+
+        out.setBackwardFunction(() -> {
+            // 1. Získáme gradient, který přitekl z vyšších vrstev sítě
+            Tensor outGrad = out.getGradient();
+
+            // 2. Výpočet a akumulace pro první vstup (this)
+            if (this.getRequiresGrad()) {
+                // Vytvoříme nový uzel grafu: outGrad * b
+                Tensor gradForThis = outGrad.mul(second);
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    // Akumulace (součet) s existujícím gradientem
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+
+            // 3. Výpočet a akumulace pro druhý vstup (second)
+            if (second.getRequiresGrad()) {
+                // Vytvoříme nový uzel grafu: outGrad * a
+                Tensor gradForSecond = outGrad.mul(this);
+
+                if (second.getGradient() == null) {
+                    second.setGradient(gradForSecond);
+                } else {
+                    // Akumulace (součet) s existujícím gradientem
+                    second.setGradient(second.getGradient().add(gradForSecond));
+                }
+            }
+        });
+
+        return out;
+
     }
 
     public Tensor div (Tensor second){
         Operation op= new div();
-        return new Tensor(this.getShape(),List.of(this,second),op,"/");
+        Tensor out= new Tensor(this.getShape(),List.of(this,second),op,"/");
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            // Gradient pro čitatele (a): outGrad / b
+            if (this.getRequiresGrad()) {
+                Tensor gradForThis = outGrad.div(second);
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+
+            // Gradient pro jmenovatele (b): -outGrad * a / (b^2)
+            if (second.getRequiresGrad()) {
+                // Vytváříme graf: -(outGrad) * this / (second * second)
+                Tensor gradForSecond = outGrad.neg().mul(this).div(second.pow(2));
+
+                if (second.getGradient() == null) {
+                    second.setGradient(gradForSecond);
+                } else {
+                    second.setGradient(second.getGradient().add(gradForSecond));
+                }
+            }
+        });
+        return out;
+    }
+
+    public Tensor neg (){
+        Operation op=new neg();
+        Tensor out= new Tensor(this.getShape(),List.of(this),op,"neg");
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            if (this.getRequiresGrad()) {
+                // Gradient otočíme do mínusu.
+                // Vytvoří to v grafu nový uzel reprezentující negaci gradientu.
+                Tensor gradForThis = outGrad.neg(); // Případně outGrad.mul(-1)
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+        });
+        return out;
+
     }
 
     public Tensor log (){
         Operation op= new log();
-        return new Tensor(this.getShape(),List.of(this),op,"log");
+        Tensor out = new Tensor(this.getShape(),List.of(this),op,"log");
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            if (this.getRequiresGrad()) {
+                // Derivace ln(x) je 1/x, takže outGrad násobíme 1/x (což je outGrad / x)
+                Tensor gradForThis = outGrad.div(this);
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+        });
+        return out;
     }
 
     public Tensor exp (){
         Operation op= new exp();
-        return new Tensor(this.getShape(),List.of(this),op,"exp");
+        Tensor out = new Tensor(this.getShape(),List.of(this),op,"exp");
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            if (this.getRequiresGrad()) {
+                // Derivace e^x je e^x. Jelikož 'out' už JE e^x, můžeme ho rovnou použít!
+                Tensor gradForThis = outGrad.mul(out);
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+        });
+        return out;
     }
 
-    public Tensor pow (double exp){
-        Operation op= new pow(exp);
-        return new Tensor(this.getShape(),List.of(this),op,"pow");
+    public Tensor pow(double exp) {
+        Operation op = new pow(exp); // Operace si konstantu uloží jako svůj vnitřní stav
+
+        // Pozor! Rodičem v grafu je POUZE 'this'. Konstanta není uzel.
+        Tensor out = new Tensor(this.getShape(), List.of(this), op, "pow");
+
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            if (this.getRequiresGrad()) {
+                // Matematický vzorec: outGrad * exp * (a^(exp - 1))
+                // Zde voláme tvé skalární verze metod!
+                Tensor gradForThis = outGrad
+                        .mul(exp)
+                        .mul(this.pow(exp - 1.0));
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    // Akumulace gradientu
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+
+        });
+
+        return out;
     }
+
+    public Tensor mul(double scalar) {
+        // Vytvoříš speciální operaci pro násobení skalárem,
+        // která si tu konstantu uloží do sebe.
+        Operation op = new mulScalar(scalar);
+
+        // V grafu je rodičem pouze 'this'.
+        Tensor out = new Tensor(this.getShape(), List.of(this), op, "* constant");
+
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            if (this.getRequiresGrad()) {
+
+                Tensor gradForThis = outGrad.mul(scalar);
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+        });
+
+        return out;
+    }
+
+    public Tensor inv() {
+        Operation op = new inv();
+        Tensor out = new Tensor(this.getShape(), List.of(this), op, "inv");
+
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            if (this.getRequiresGrad()) {
+                // Derivace 1/x je -1 / (x^2).
+                // Triky pro graf:
+                // 1. Místo -1 / (x*x) můžeme použít -(out * out), protože out = 1/x.
+                // To ušetří v grafu jednu operaci dělení!
+                Tensor gradForThis = outGrad.neg().mul(out.mul(out));
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+        });
+        return out;
+    }
+
+    public Tensor forwardOutput() {
+        Operation op = new noop();
+        Tensor out = new Tensor(this.getShape(), List.of(this), op, "noop");
+        return out;
+    }
+
+    public Tensor sqrt() {
+        Operation op = new sqrt();
+        Tensor out = new Tensor(this.getShape(), List.of(this), op, "sqrt");
+
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+
+            if (this.getRequiresGrad()) {
+                // Derivace: outGrad * 0.5 * (1 / sqrt(x))
+                // Triky: 1/sqrt(x) je vlastně out.inv()
+                // Takže: outGrad * 0.5 * out.inv()
+                Tensor gradForThis = outGrad.mul(0.5).mul(out.inv());
+
+                if (this.getGradient() == null) {
+                    this.setGradient(gradForThis);
+                } else {
+                    this.setGradient(this.getGradient().add(gradForThis));
+                }
+            }
+        });
+        return out;
+    }
+
 
     public Tensor sum(int dimension){
         Operation op=new sum(dimension);
@@ -475,6 +808,20 @@ public class Tensor {
         newShape[0]=1;
         return new Tensor(newShape,List.of(this),op,"sum");
     }
+
+
+    //lambda section
+    public void buildBackwardGraph() {
+        if (this.backwardFunction != null) {
+            this.backwardFunction.run(); // Spustí se připravená lambda
+        }
+    }
+
+    public void setBackwardFunction(Runnable backwardFunction) {
+        this.backwardFunction = backwardFunction;
+    }
+
+
 
 
 }
