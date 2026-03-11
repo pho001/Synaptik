@@ -1,5 +1,7 @@
 package Backend;
 
+import Backend.kernels.cuda.CudaKernel;
+import Backend.registry.CudaKernelRegistry;
 import Tensor.Tensor;
 import Operations.Operation;
 
@@ -10,7 +12,17 @@ public class CudaBackend implements BackendExecutor{
 
     @Override
     public void execute(Operation op, List<Tensor> inputs, Tensor node) {
-
+        if (op == null) {
+            return;
+        }
+        CudaKernel kernel = CudaKernelRegistry.resolve(op.opType());
+        if (kernel == null) {
+            throw new UnsupportedOperationException(
+                    "Missing CUDA kernel for opType=" + op.opType() +
+                            " (operation class: " + op.getClass().getName() + ")"
+            );
+        }
+        kernel.forward(op, inputs, node);
     }
 
     @Override
