@@ -1,4 +1,4 @@
-package Graph;
+package Graph.optimizer;
 
 import Tensor.Tensor;
 
@@ -6,24 +6,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GraphOptimizer {
-    private List<OptimizationRule> rules=new ArrayList<>();
+    private List<OptimizationRule> rules = new ArrayList<>();
+    private List<Tensor> graph=new ArrayList<>();
 
     public GraphOptimizer(List<OptimizationRule> rules) {
         this.rules = rules;
     }
-    public GraphOptimizer() {
 
+    public GraphOptimizer() {
     }
 
-    public List<Tensor> optimize(Tensor vertex) {
-        List<Tensor> graph = new ArrayList<>();
-        if (rules.size()==0){
-            return vertex.topologicalSort();
-        }
+
+    public List<Tensor> optimize(List<Tensor> sortedGraph) {
         for (OptimizationRule rule : rules) {
-            graph = rule.apply(vertex);
+            sortedGraph = rule.apply(sortedGraph);
         }
-        return graph;
+        return sortedGraph;
     }
 
     public void addRule(OptimizationRule rule) {
@@ -31,5 +29,4 @@ public class GraphOptimizer {
             rules.add(rule);
         }
     }
-
 }
