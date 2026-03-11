@@ -12,6 +12,7 @@ repositories {
 
 dependencies {
     // ASM for bytecode generation used across Graph/*
+    // Using the original org.objectweb.asm coordinates to match import statements
     implementation 'org.ow2.asm:asm:9.6'
     implementation 'org.ow2.asm:asm-commons:9.6'
 
@@ -22,7 +23,7 @@ dependencies {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(24)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
