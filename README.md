@@ -1,6 +1,6 @@
-# ComputationalGraph
+# Synaptik
 
-ComputationalGraph is a lightweight Java computational graph and autodiff playground focused on tensor execution, graph optimization, and runtime fusion of element-wise operations. The project combines a small tensor runtime with an optimizer pipeline, backend-specific kernel dispatch, and generated fused kernels for fast execution experiments.
+Synaptik is a lightweight Java computational graph and autodiff playground focused on tensor execution, graph optimization, and runtime fusion of element-wise operations. The project combines a small tensor runtime with an optimizer pipeline, backend-specific kernel dispatch, and generated fused kernels for fast execution experiments.
 
 ## Highlights
 
