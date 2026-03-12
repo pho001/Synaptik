@@ -32,5 +32,8 @@ bin/
 .gradle/
 build/
 
+### Local agent / workspace metadata ###
+.oca/
+
 ### Git (generated artifacts) ###
 /*.class
