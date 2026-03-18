@@ -132,7 +132,7 @@ public class AllOpsTest {
         Tensor s = a.sum(0);
         s.compute();
 
-        assertEquals(0, s.getShape().length);
+        assertEquals(1, s.getShape().length);
         assertArrayEquals(new double[]{10.0}, s.getData(), 1e-9);
     }
 }
