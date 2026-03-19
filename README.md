@@ -30,7 +30,7 @@ Using the Gradle Wrapper:
 - Run the demo app: `./gradlew run`
 - Build the project: `./gradlew build`
 - Run tests: `./gradlew test`
-- Run the optimizer benchmark entry point: `./gradlew run --args='benchmark'`
+- Run the optimizer benchmark entry point: `./gradlew run`
 
 On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
 
@@ -86,6 +86,30 @@ The backend layer separates graph execution from device-specific kernels.
 
 This makes it easier to extend support for new operations without embedding all execution logic directly inside backend classes.
 
+### CPU Dispatch and Execution Modes
+
+CPU execution supports mode-based dispatch for element-wise operations:
+
+- `SCALAR`
+- `VECTOR` (Vector API via `jdk.incubator.vector`)
+- `PARALLEL`
+- `PARALLEL_VECTOR`
+
+Dispatch thresholds and parallel chunking behavior are configured through:
+
+- [`CpuKernelConfig`](src/Config/backend/CpuKernelConfig.java)
+- [`CpuExecutionConfig`](src/Backend/kernels/cpu/CpuExecutionConfig.java)
+
+Compiled graphs pre-resolve backend and CPU kernels per node to reduce runtime dispatch overhead:
+
+- [`CompiledGraph`](src/Graph/CompiledGraph.java)
+- [`Tensor`](src/Tensor/Tensor.java)
+- [`CPUBackend`](src/Backend/CPUBackend.java)
+
+Parallel CPU execution uses a dedicated pool helper instead of `IntStream.parallel()`:
+
+- [`CpuThreadPool`](src/Backend/kernels/cpu/CpuThreadPool.java)
+
 ### Optimizer Pipeline
 
 The optimizer was reorganized into a dedicated module rooted at [`GraphOptimizer`](src/Graph/optimizer/GraphOptimizer.java) and built by [`OptimizerFactory`](src/Graph/optimizer/OptimizerFactory.java).
@@ -133,7 +157,18 @@ The benchmarking subsystem under [`src/Benchmark/`](src/Benchmark) provides:
 - tuning knob definitions
 - profile serialization/deserialization
 
-A sample persisted profile is stored in [`config/optimizer-profile.json`](config/optimizer-profile.json).
+Autotuning is two-phase:
+
+- phase 1: broad candidate screening
+- phase 2: refined measurement of finalists
+
+Winning profiles are persisted and reused on startup:
+
+- runtime training profile: [`config/optimizer-profile.json`](config/optimizer-profile.json)
+- autotune best training: [`build/optimizer-autotune/best-profile-training.json`](build/optimizer-autotune/best-profile-training.json)
+- autotune best inference: [`build/optimizer-autotune/best-profile-inference.json`](build/optimizer-autotune/best-profile-inference.json)
+
+`RECOMMENDED` is treated as a profile-backed runtime configuration and can be overridden by persisted autotune winners.
 
 ## Testing
 
