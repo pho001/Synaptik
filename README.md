@@ -4,7 +4,7 @@ Synaptik is a lightweight Java computational graph and autodiff playground focus
 
 ## Highlights
 
-- Tensor model built on `double[]` storage with shape/stride metadata
+- Tensor runtime split into execution node state and dedicated metadata (`TensorMetadata`)
 - Reverse-mode autodiff for a growing set of tensor operations
 - Optimizer pipeline with pluggable rewrite and fusion rules
 - Runtime fused-operation generation for element-wise subgraphs
@@ -67,8 +67,9 @@ On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
 
 [`Tensor`](src/Tensor/Tensor.java) is the central runtime object. It carries:
 
-- raw `double[]` storage
-- shape and stride metadata
+- execution/node state (operation, graph links, compiled execution cache)
+- tensor values for runtime execution
+- shape/stride/label/requires-grad metadata in [`TensorMetadata`](src/Tensor/TensorMetadata.java)
 - graph links to producer inputs
 - gradient storage and backward propagation helpers
 - execution hooks used by optimized and fused graphs

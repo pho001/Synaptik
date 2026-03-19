@@ -4,6 +4,7 @@ import Backend.ComputeBackend;
 import Backend.kernels.cpu.CpuKernel;
 import Graph.CompiledGraph;
 import Graph.optimizer.GraphOptimizer;
+import Graph.optimizer.OptimizerFactory;
 import Operations.*;
 
 import java.lang.reflect.Array;
@@ -398,7 +399,7 @@ public class Tensor {
 
 
     public void compute(){
-        GraphOptimizer optimizer = new GraphOptimizer();
+        GraphOptimizer optimizer = OptimizerFactory.createRecommendedTrainingOptimizer();
         compute(optimizer);
     }
 

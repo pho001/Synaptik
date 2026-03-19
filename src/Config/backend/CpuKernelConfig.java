@@ -1,6 +1,12 @@
 package Config.backend;
 
 public final class CpuKernelConfig {
+    private static final int DEFAULT_VECTOR_MIN_SIZE = 1_024;
+    private static final int DEFAULT_PARALLEL_MIN_SIZE = 100_000;
+    private static final int DEFAULT_PARALLELISM = 0;
+    private static final int DEFAULT_CHUNKS_PER_WORKER = 4;
+    private static final int DEFAULT_MIN_CHUNK_SIZE = 4_096;
+
     private final int loopUnrollFactor;
     private final int matMulTileM;
     private final int matMulTileN;
@@ -12,7 +18,7 @@ public final class CpuKernelConfig {
     private final int minChunkSize;
 
     public CpuKernelConfig(int loopUnrollFactor, int matMulTileM, int matMulTileN, int matMulTileK) {
-        this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, 1_024, 100_000);
+        this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, DEFAULT_VECTOR_MIN_SIZE, DEFAULT_PARALLEL_MIN_SIZE);
     }
 
     public CpuKernelConfig(
@@ -23,7 +29,7 @@ public final class CpuKernelConfig {
             int vectorMinSize,
             int parallelMinSize
     ) {
-        this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, vectorMinSize, parallelMinSize, 0, 4, 4_096);
+        this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, vectorMinSize, parallelMinSize, DEFAULT_PARALLELISM, DEFAULT_CHUNKS_PER_WORKER, DEFAULT_MIN_CHUNK_SIZE);
     }
 
     public CpuKernelConfig(
@@ -85,10 +91,10 @@ public final class CpuKernelConfig {
     }
 
     public static CpuKernelConfig defaultsTraining() {
-        return new CpuKernelConfig(1, 16, 0, 0, 1_024, 100_000, 0, 4, 4_096);
+        return new CpuKernelConfig(1, 16, 0, 0, DEFAULT_VECTOR_MIN_SIZE, DEFAULT_PARALLEL_MIN_SIZE, DEFAULT_PARALLELISM, DEFAULT_CHUNKS_PER_WORKER, DEFAULT_MIN_CHUNK_SIZE);
     }
 
     public static CpuKernelConfig defaultsInference() {
-        return new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096);
+        return new CpuKernelConfig(4, 32, 32, 32, DEFAULT_VECTOR_MIN_SIZE, DEFAULT_PARALLEL_MIN_SIZE, DEFAULT_PARALLELISM, DEFAULT_CHUNKS_PER_WORKER, DEFAULT_MIN_CHUNK_SIZE);
     }
 }

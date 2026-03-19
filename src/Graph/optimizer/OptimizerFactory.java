@@ -1,11 +1,25 @@
 package Graph.optimizer;
 
+import Backend.ComputeEngine;
+import Benchmark.OptimizationStage;
+import Benchmark.OptimizerBuilder;
+import Benchmark.OptimizerCandidate;
+import Benchmark.OptimizerCandidateFactory;
+import Benchmark.OptimizerProfileIO;
+import Benchmark.TuningKnobs;
 import Graph.optimizer.rules.AlgebraicRewritingRule;
 import Graph.optimizer.rules.CommonSubexpressionEliminationRule;
 import Graph.optimizer.rules.FuseElementWiseRule;
 import Graph.optimizer.rules.MemoryOptimizerRule;
 
+import java.nio.file.Path;
+import java.util.List;
+
 public final class OptimizerFactory {
+    private static final Path PROFILE_PATH = Path.of("config", "optimizer-profile.json");
+    private static final Path AUTOTUNE_BEST_TRAINING_PATH = Path.of("build", "optimizer-autotune", "best-profile-training.json");
+    private static final Path AUTOTUNE_BEST_INFERENCE_PATH = Path.of("build", "optimizer-autotune", "best-profile-inference.json");
+
     private OptimizerFactory() {}
 
     public static OptimizationRule addAlgebraicRewritingRule() {
@@ -44,16 +58,66 @@ public final class OptimizerFactory {
 
     // Agresivní režim pro inference benchmarky
     public static GraphOptimizer createInferencePerformanceOptimizer() {
-        GraphOptimizer optimizer = new GraphOptimizer();
-        optimizer.addRule(addAlgebraicRewritingRule());
-        optimizer.addRule(addCommonSubexpressionEliminationRuleAggressive());
-        optimizer.addRule(addFuseElementWiseAggressive());
-        optimizer.addRule(addMemoryOptimizerRule());
-        return optimizer;
+        try {
+            OptimizerCandidate baseInference = findCandidateOrDefault(
+                    OptimizerCandidateFactory.defaultCandidates(),
+                    "INFERENCE_PERF",
+                    List.of(OptimizationStage.AR, OptimizationStage.CSE, OptimizationStage.FUSE, OptimizationStage.MEM),
+                    TuningKnobs.inferencePerfDefaults()
+            );
+            OptimizerCandidate effective = OptimizerProfileIO.loadRecommendedOverrideOrDefault(
+                    AUTOTUNE_BEST_INFERENCE_PATH,
+                    baseInference
+            );
+            ComputeEngine.setCpuKernelConfig(effective.knobs().kernelConfig().cpu());
+            return OptimizerBuilder.build(effective);
+        } catch (Exception ignored) {
+            GraphOptimizer optimizer = new GraphOptimizer();
+            optimizer.addRule(addAlgebraicRewritingRule());
+            optimizer.addRule(addCommonSubexpressionEliminationRuleAggressive());
+            optimizer.addRule(addFuseElementWiseAggressive());
+            optimizer.addRule(addMemoryOptimizerRule());
+            return optimizer;
+        }
     }
 
     // Kompatibilita se stávajícím benchmarkem
     public static GraphOptimizer createRecommendedTrainingOptimizer() {
-        return createTrainingOptimizer();
+        try {
+            OptimizerCandidate baseRecommended = findCandidateOrDefault(
+                    OptimizerCandidateFactory.defaultCandidates(),
+                    "RECOMMENDED",
+                    List.of(OptimizationStage.AR, OptimizationStage.CSE, OptimizationStage.MEM),
+                    TuningKnobs.trainingDefaults()
+            );
+            TuningKnobs tuned = OptimizerProfileIO.loadKnobsOrDefault(PROFILE_PATH, baseRecommended.knobs());
+            OptimizerCandidate profileCandidate = new OptimizerCandidate(
+                    baseRecommended.name(),
+                    baseRecommended.stageOrder(),
+                    tuned
+            );
+            OptimizerCandidate effective = OptimizerProfileIO.loadRecommendedOverrideOrDefault(
+                    AUTOTUNE_BEST_TRAINING_PATH,
+                    profileCandidate
+            );
+            ComputeEngine.setCpuKernelConfig(effective.knobs().kernelConfig().cpu());
+            return OptimizerBuilder.build(effective);
+        } catch (Exception ignored) {
+            return createTrainingOptimizer();
+        }
+    }
+
+    private static OptimizerCandidate findCandidateOrDefault(
+            List<OptimizerCandidate> candidates,
+            String candidateName,
+            List<OptimizationStage> defaultStages,
+            TuningKnobs defaultKnobs
+    ) {
+        for (OptimizerCandidate c : candidates) {
+            if (candidateName.equals(c.name())) {
+                return c;
+            }
+        }
+        return new OptimizerCandidate(candidateName, defaultStages, defaultKnobs);
     }
 }
