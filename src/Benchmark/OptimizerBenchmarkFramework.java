@@ -628,10 +628,9 @@ public final class OptimizerBenchmarkFramework {
         Tensor Ta7 = buildTa7(A, B, C);
 
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
-        if (candidate.stageOrder().isEmpty()) Ta7.compute();
-        else Ta7.compute(optimizer);
+        Ta7.compute(optimizer);
 
-        return new BenchState(A, B, C, Ta7, candidate, optimizer);
+        return new BenchState(A, B, C, Ta7, optimizer);
     }
 
     private static Tensor buildTa7(Tensor A, Tensor B, Tensor C) {
@@ -730,21 +729,18 @@ public final class OptimizerBenchmarkFramework {
         private final Tensor B;
         private final Tensor C;
         private final Tensor ta7;
-        private final OptimizerCandidate candidate;
         private final GraphOptimizer optimizer;
 
-        private BenchState(Tensor a, Tensor b, Tensor c, Tensor ta7, OptimizerCandidate candidate, GraphOptimizer optimizer) {
+        private BenchState(Tensor a, Tensor b, Tensor c, Tensor ta7, GraphOptimizer optimizer) {
             this.A = a;
             this.B = b;
             this.C = c;
             this.ta7 = ta7;
-            this.candidate = candidate;
             this.optimizer = optimizer;
         }
 
         private void compute() {
-            if (candidate.stageOrder().isEmpty()) ta7.compute();
-            else ta7.compute(optimizer);
+            ta7.compute(optimizer);
         }
     }
 
