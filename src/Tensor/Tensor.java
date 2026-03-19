@@ -1,6 +1,7 @@
 package Tensor;
 
 import Backend.ComputeBackend;
+import Backend.kernels.cpu.CpuKernel;
 import Graph.CompiledGraph;
 import Graph.optimizer.GraphOptimizer;
 import Operations.*;
@@ -19,7 +20,9 @@ public class Tensor {
     private boolean isCompiled = false;
     private CompiledGraph compiledGraph;
     private ComputeBackend forcedBackend = null;
+    private ComputeBackend resolvedBackend;
     private double [] intermediates;
+    private CpuKernel resolvedCpuKernel;
     private Runnable backwardFunction;
     private boolean isBackward = false;
 
@@ -285,9 +288,11 @@ public class Tensor {
             throw new IllegalArgumentException("operations.Operation doesn't support backend: " + backend);
         }
         this.forcedBackend = backend;
+        this.resolvedBackend = null;
+        this.resolvedCpuKernel = null;
     }
 
-    public ComputeBackend getEffectiveBackend() {
+    public ComputeBackend resolveBackend() {
         if (forcedBackend != null) {
             return forcedBackend;
         }
@@ -299,6 +304,8 @@ public class Tensor {
 
     public void setOperation(Operation operation){
         this.operation=operation;
+        this.resolvedBackend = null;
+        this.resolvedCpuKernel = null;
     }
 
 
@@ -323,6 +330,22 @@ public class Tensor {
 
     public void setGradient(Tensor t) {
         this.gradient=t;
+    }
+
+    public CpuKernel getResolvedCpuKernel() {
+        return resolvedCpuKernel;
+    }
+
+    public void setResolvedCpuKernel(CpuKernel resolvedCpuKernel) {
+        this.resolvedCpuKernel = resolvedCpuKernel;
+    }
+
+    public ComputeBackend getResolvedBackend() {
+        return resolvedBackend;
+    }
+
+    public void setResolvedBackend(ComputeBackend resolvedBackend) {
+        this.resolvedBackend = resolvedBackend;
     }
 
     public CompiledGraph getCompiledGraph() {

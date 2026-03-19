@@ -1,5 +1,6 @@
 package Benchmark;
 
+import Backend.ComputeEngine;
 import Graph.optimizer.GraphOptimizer;
 import Tensor.Tensor;
 
@@ -26,7 +27,7 @@ public final class OptimizerBenchmarkFramework {
     private static final int AUTOTUNE_SIZE = 200_000;
     private static final int AUTOTUNE_WARMUP_ITERS = 12;
     private static final int AUTOTUNE_MEASURE_ITERS = 40;
-    private static final int AUTOTUNE_MAX_CANDIDATES = 120;
+    private static final int AUTOTUNE_MAX_CANDIDATES = 500;
     private static final int AUTOTUNE_REFINE_TOP_K = 8;
     private static final int AUTOTUNE_REFINE_WARMUP_ITERS = 50;
     private static final int AUTOTUNE_REFINE_MEASURE_ITERS = 300;
@@ -299,7 +300,12 @@ public final class OptimizerBenchmarkFramework {
         System.out.println(GRAY + "  kernel.cpu=[unroll=" + rkc.cpu().loopUnrollFactor()
                 + ", tileM=" + rkc.cpu().matMulTileM()
                 + ", tileN=" + rkc.cpu().matMulTileN()
-                + ", tileK=" + rkc.cpu().matMulTileK() + "]" + RESET);
+                + ", tileK=" + rkc.cpu().matMulTileK()
+                + ", vecMin=" + rkc.cpu().vectorMinSize()
+                + ", parMin=" + rkc.cpu().parallelMinSize()
+                + ", par=" + rkc.cpu().parallelism()
+                + ", chunksPerWorker=" + rkc.cpu().chunksPerWorker()
+                + ", minChunk=" + rkc.cpu().minChunkSize() + "]" + RESET);
         System.out.println(GRAY + "  kernel.cuda=[unroll=" + rkc.cuda().loopUnrollFactor()
                 + ", tileM=" + rkc.cuda().matMulTileM()
                 + ", tileN=" + rkc.cuda().matMulTileN()
@@ -327,7 +333,12 @@ public final class OptimizerBenchmarkFramework {
         System.out.println(GRAY + "  kernel.cpu=[unroll=" + ikc.cpu().loopUnrollFactor()
                 + ", tileM=" + ikc.cpu().matMulTileM()
                 + ", tileN=" + ikc.cpu().matMulTileN()
-                + ", tileK=" + ikc.cpu().matMulTileK() + "]" + RESET);
+                + ", tileK=" + ikc.cpu().matMulTileK()
+                + ", vecMin=" + ikc.cpu().vectorMinSize()
+                + ", parMin=" + ikc.cpu().parallelMinSize()
+                + ", par=" + ikc.cpu().parallelism()
+                + ", chunksPerWorker=" + ikc.cpu().chunksPerWorker()
+                + ", minChunk=" + ikc.cpu().minChunkSize() + "]" + RESET);
         System.out.println(GRAY + "  kernel.cuda=[unroll=" + ikc.cuda().loopUnrollFactor()
                 + ", tileM=" + ikc.cuda().matMulTileM()
                 + ", tileN=" + ikc.cuda().matMulTileN()
@@ -485,16 +496,35 @@ public final class OptimizerBenchmarkFramework {
 
         try {
             Files.createDirectories(AUTOTUNE_BEST_TRAINING_PATH.getParent());
-            Files.writeString(AUTOTUNE_BEST_TRAINING_PATH, bestTraining.toJson(validCount, mismatchCount), StandardCharsets.UTF_8);
-            Files.writeString(AUTOTUNE_BEST_INFERENCE_PATH, bestInference.toJson(validCount, mismatchCount), StandardCharsets.UTF_8);
-            // Backward-compatible alias for tooling that expects single best profile.
-            Files.writeString(AUTOTUNE_BEST_PATH, bestTraining.toJson(validCount, mismatchCount), StandardCharsets.UTF_8);
-            System.out.println(CYAN + "Saved training profile: " + RESET + AUTOTUNE_BEST_TRAINING_PATH.toAbsolutePath());
-            System.out.println(CYAN + "Saved inference profile: " + RESET + AUTOTUNE_BEST_INFERENCE_PATH.toAbsolutePath());
+            double previousTrainingScore = OptimizerProfileIO.loadScoreOrInfinity(AUTOTUNE_BEST_TRAINING_PATH);
+            double previousInferenceScore = OptimizerProfileIO.loadScoreOrInfinity(AUTOTUNE_BEST_INFERENCE_PATH);
+            boolean trainingImproved = bestTraining.score + 1e-12 < previousTrainingScore;
+            boolean inferenceImproved = bestInference.score + 1e-12 < previousInferenceScore;
 
-            // Keep RECOMMENDED as training-oriented by default.
-            OptimizerProfileIO.saveKnobs(PROFILE_PATH, bestTraining.candidate.knobs(), bestTraining.candidate.name());
-            System.out.println(CYAN + "Updated runtime profile (training): " + RESET + PROFILE_PATH.toAbsolutePath());
+            if (trainingImproved) {
+                Files.writeString(AUTOTUNE_BEST_TRAINING_PATH, bestTraining.toJson(validCount, mismatchCount), StandardCharsets.UTF_8);
+                // Backward-compatible alias for tooling that expects single best profile.
+                Files.writeString(AUTOTUNE_BEST_PATH, bestTraining.toJson(validCount, mismatchCount), StandardCharsets.UTF_8);
+                // Keep RECOMMENDED as training-oriented by default.
+                OptimizerProfileIO.saveKnobs(PROFILE_PATH, bestTraining.candidate.knobs(), bestTraining.candidate.name());
+                System.out.println(CYAN + "Saved improved training profile: " + RESET + AUTOTUNE_BEST_TRAINING_PATH.toAbsolutePath());
+                System.out.println(CYAN + "Updated runtime profile (training): " + RESET + PROFILE_PATH.toAbsolutePath());
+            } else {
+                System.out.println(GRAY + "Training profile kept (existing score="
+                        + String.format("%.6f", previousTrainingScore)
+                        + " <= new score="
+                        + String.format("%.6f", bestTraining.score) + ")." + RESET);
+            }
+
+            if (inferenceImproved) {
+                Files.writeString(AUTOTUNE_BEST_INFERENCE_PATH, bestInference.toJson(validCount, mismatchCount), StandardCharsets.UTF_8);
+                System.out.println(CYAN + "Saved improved inference profile: " + RESET + AUTOTUNE_BEST_INFERENCE_PATH.toAbsolutePath());
+            } else {
+                System.out.println(GRAY + "Inference profile kept (existing score="
+                        + String.format("%.6f", previousInferenceScore)
+                        + " <= new score="
+                        + String.format("%.6f", bestInference.score) + ")." + RESET);
+            }
         } catch (IOException e) {
             throw new IllegalStateException("Failed to write autotune profile", e);
         }
@@ -590,6 +620,8 @@ public final class OptimizerBenchmarkFramework {
     }
 
     private static BenchState newBenchState(double[] baseA, double[] baseB, double[] baseC, OptimizerCandidate candidate, boolean requiresGrad) {
+        ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
+
         Tensor A = inputTensor("A", baseA, requiresGrad);
         Tensor B = inputTensor("B", baseB, requiresGrad);
         Tensor C = inputTensor("C", baseC, requiresGrad);
@@ -749,7 +781,12 @@ public final class OptimizerBenchmarkFramework {
             sb.append("        \"cpuLoopUnrollFactor\": ").append(kernels.cpu().loopUnrollFactor()).append(",\n");
             sb.append("        \"cpuMatMulTileM\": ").append(kernels.cpu().matMulTileM()).append(",\n");
             sb.append("        \"cpuMatMulTileN\": ").append(kernels.cpu().matMulTileN()).append(",\n");
-            sb.append("        \"cpuMatMulTileK\": ").append(kernels.cpu().matMulTileK()).append("\n");
+            sb.append("        \"cpuMatMulTileK\": ").append(kernels.cpu().matMulTileK()).append(",\n");
+            sb.append("        \"cpuVectorMinSize\": ").append(kernels.cpu().vectorMinSize()).append(",\n");
+            sb.append("        \"cpuParallelMinSize\": ").append(kernels.cpu().parallelMinSize()).append(",\n");
+            sb.append("        \"cpuParallelism\": ").append(kernels.cpu().parallelism()).append(",\n");
+            sb.append("        \"cpuChunksPerWorker\": ").append(kernels.cpu().chunksPerWorker()).append(",\n");
+            sb.append("        \"cpuMinChunkSize\": ").append(kernels.cpu().minChunkSize()).append("\n");
             sb.append("      },\n");
             sb.append("      \"cuda\": {\n");
             sb.append("        \"cudaLoopUnrollFactor\": ").append(kernels.cuda().loopUnrollFactor()).append(",\n");

@@ -30,10 +30,10 @@ public final class CudaKernelConfig {
     }
 
     public static CudaKernelConfig defaultsTraining() {
-        return new CudaKernelConfig(1, 0, 0, 0);
+        return new CudaKernelConfig(4, 16, 16, 16);
     }
 
     public static CudaKernelConfig defaultsInference() {
-        return new CudaKernelConfig(8, 64, 64, 32);
+        return new CudaKernelConfig(8, 32, 32, 32);
     }
 }

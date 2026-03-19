@@ -40,6 +40,19 @@ public final class OptimizerProfileIO {
         }
     }
 
+    public static double loadScoreOrInfinity(Path path) {
+        if (!Files.exists(path)) return Double.POSITIVE_INFINITY;
+        try {
+            String json = Files.readString(path, StandardCharsets.UTF_8);
+            Matcher metricsMatcher = Pattern.compile("\"metrics\"\\s*:\\s*\\{([\\s\\S]*?)\\}").matcher(json);
+            if (!metricsMatcher.find()) return Double.POSITIVE_INFINITY;
+            String metricsBody = metricsMatcher.group(1);
+            return findDouble(metricsBody, "score", Double.POSITIVE_INFINITY);
+        } catch (Exception e) {
+            return Double.POSITIVE_INFINITY;
+        }
+    }
+
     public static void saveKnobs(Path path, TuningKnobs knobs, String candidateName) {
         String json = toJson(knobs, candidateName);
         try {
@@ -61,7 +74,12 @@ public final class OptimizerProfileIO {
                 "      \"cpuLoopUnrollFactor\": " + k.cpu().loopUnrollFactor() + ",\n" +
                 "      \"cpuMatMulTileM\": " + k.cpu().matMulTileM() + ",\n" +
                 "      \"cpuMatMulTileN\": " + k.cpu().matMulTileN() + ",\n" +
-                "      \"cpuMatMulTileK\": " + k.cpu().matMulTileK() + "\n" +
+                "      \"cpuMatMulTileK\": " + k.cpu().matMulTileK() + ",\n" +
+                "      \"cpuVectorMinSize\": " + k.cpu().vectorMinSize() + ",\n" +
+                "      \"cpuParallelMinSize\": " + k.cpu().parallelMinSize() + ",\n" +
+                "      \"cpuParallelism\": " + k.cpu().parallelism() + ",\n" +
+                "      \"cpuChunksPerWorker\": " + k.cpu().chunksPerWorker() + ",\n" +
+                "      \"cpuMinChunkSize\": " + k.cpu().minChunkSize() + "\n" +
                 "    },\n" +
                 "    \"cuda\": {\n" +
                 "      \"cudaLoopUnrollFactor\": " + k.cuda().loopUnrollFactor() + ",\n" +
@@ -102,7 +120,12 @@ public final class OptimizerProfileIO {
                     findInt(json, "cpuLoopUnrollFactor", findInt(json, "loopUnrollFactor", legacyUnroll)),
                     findInt(json, "cpuMatMulTileM", legacyTileM),
                     findInt(json, "cpuMatMulTileN", legacyTileN),
-                    findInt(json, "cpuMatMulTileK", legacyTileK)
+                    findInt(json, "cpuMatMulTileK", legacyTileK),
+                    findInt(json, "cpuVectorMinSize", d.kernelConfig().cpu().vectorMinSize()),
+                    findInt(json, "cpuParallelMinSize", d.kernelConfig().cpu().parallelMinSize()),
+                    findInt(json, "cpuParallelism", d.kernelConfig().cpu().parallelism()),
+                    findInt(json, "cpuChunksPerWorker", d.kernelConfig().cpu().chunksPerWorker()),
+                    findInt(json, "cpuMinChunkSize", d.kernelConfig().cpu().minChunkSize())
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", d.kernelConfig().cuda().loopUnrollFactor()),

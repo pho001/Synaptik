@@ -7,10 +7,9 @@ import Operations.Operation;
 
 import java.util.List;
 
-public class CudaBackend implements BackendExecutor{
+public class CudaBackend {
 
 
-    @Override
     public void execute(Operation op, List<Tensor> inputs, Tensor node) {
         if (op == null) {
             return;
@@ -23,11 +22,6 @@ public class CudaBackend implements BackendExecutor{
             );
         }
         kernel.forward(op, inputs, node);
-    }
-
-    @Override
-    public void backward(Operation op, List<Tensor> inputs, Tensor node) {
-
     }
 
 }

@@ -73,7 +73,7 @@ public final class FuseConfig {
                 0.55,
                 0.25,
                 0.20,
-                0.90,
+                1.00,
                 0.30,
                 true
         );
@@ -84,8 +84,8 @@ public final class FuseConfig {
                 96,
                 0.6,
                 0.30,
-                0.12,
-                0.55,
+                0.10,
+                0.50,
                 0.35,
                 false
         );

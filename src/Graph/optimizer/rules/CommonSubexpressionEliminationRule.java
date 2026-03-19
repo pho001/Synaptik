@@ -105,7 +105,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
 
         if (strictSafety) {
             sig.append("_reqGrad=").append(t.getRequiresGrad())
-                    .append("_backend=").append(t.getEffectiveBackend())
+                    .append("_backend=").append(t.resolveBackend())
                     .append("_shape=");
             int[] shape = t.getShape();
             if (shape != null) {

@@ -1,6 +1,9 @@
 package Graph;
 
 import Backend.ComputeEngine;
+import Backend.ComputeBackend;
+import Backend.kernels.cpu.CpuKernel;
+import Backend.registry.CpuKernelRegistry;
 import Operations.Operation;
 import Tensor.Tensor;
 import Graph.optimizer.GraphOptimizer;
@@ -38,6 +41,7 @@ public class CompiledGraph {
         // kompilujeme jen forward graf bez backward části.
         if (!hasTrainableLeafInputs()) {
             this.finalGraph = optimizer.optimize(new ArrayList<>(this.forwardGraph));
+            preResolveCpuKernels();
             this.forwardEndIndex = this.finalGraph.indexOf(this.forwardOutput);
             if (this.forwardEndIndex == -1) {
                 throw new IllegalStateException("Forward output node not found in inference finalGraph.");
@@ -81,6 +85,7 @@ public class CompiledGraph {
 
         // 7. Optimalizace nad celým sjednoceným grafem
         this.finalGraph = optimizer.optimize(this.finalGraph);
+        preResolveCpuKernels();
         this.forwardEndIndex = this.finalGraph.indexOf(this.forwardOutput);
         if (this.forwardEndIndex == -1) {
             throw new IllegalStateException("Forward output node not found in finalGraph.");
@@ -116,7 +121,7 @@ public class CompiledGraph {
             if (tensor.getPrevTensors() == null) {
                 continue;
             }
-            ComputeEngine.compute(tensor);
+            ComputeEngine.compute(tensor, tensor.getResolvedBackend());
         }
 
         // 2) Okamžitě synchronizujeme root výstup, aby ho případný backward/memory reuse
@@ -133,7 +138,7 @@ public class CompiledGraph {
                 if (tensor.getPrevTensors() == null) {
                     continue;
                 }
-                ComputeEngine.compute(tensor);
+                ComputeEngine.compute(tensor, tensor.getResolvedBackend());
             }
         }
     }
@@ -165,7 +170,7 @@ public class CompiledGraph {
         for (int i = backwardStartIndex; i < finalGraph.size(); i++) {
             Tensor t = finalGraph.get(i);
             if (t.getOperation() != null && t.isBackward()) {
-                ComputeEngine.compute(t);
+                ComputeEngine.compute(t, t.getResolvedBackend());
             }
         }
     }
@@ -249,6 +254,20 @@ public class CompiledGraph {
 
     public List<Tensor> getCompiledGraphAsList() {
         return this.finalGraph;
+    }
+
+    private void preResolveCpuKernels() {
+        for (Tensor tensor : finalGraph) {
+            Operation operation = tensor.getOperation();
+            ComputeBackend backend = tensor.resolveBackend();
+            tensor.setResolvedBackend(backend);
+            if (operation == null || backend != ComputeBackend.CPU) {
+                tensor.setResolvedCpuKernel(null);
+                continue;
+            }
+            CpuKernel kernel = CpuKernelRegistry.resolve(operation.opType());
+            tensor.setResolvedCpuKernel(kernel);
+        }
     }
 
 

@@ -7,8 +7,7 @@ import Operations.Operation;
 
 import java.util.List;
 
-public class OpenClBackend implements BackendExecutor {
-    @Override
+public class OpenClBackend {
     public void execute(Operation op, List<Tensor> inputs, Tensor node) {
         if (op == null) {
             return;
@@ -23,8 +22,4 @@ public class OpenClBackend implements BackendExecutor {
         kernel.forward(op, inputs, node);
     }
 
-    @Override
-    public void backward(Operation op, List<Tensor> inputs, Tensor node) {
-
-    }
 }
