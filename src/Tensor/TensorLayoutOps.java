@@ -10,6 +10,8 @@ final class TensorLayoutOps {
 
     static Tensor contiguous(Tensor input) {
         Operation op = new contiguous();
-        return new Tensor(input.getShape(), List.of(input), op, "contiguous");
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "contiguous");
+        out.setDataType(input.getDataType());
+        return out;
     }
 }

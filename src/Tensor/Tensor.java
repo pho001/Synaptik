@@ -13,6 +13,7 @@ import java.util.*;
 
 public class Tensor {
     private double[] data;
+    private TensorStorage storage;
     private TensorMetadata metadata;
     private Runnable localgradients;
     public Tensor gradient;
@@ -177,6 +178,9 @@ public class Tensor {
         if (this.data==null)
             this.data = new double[metadata.getFlatSize()];
         this.data[flatindex]=value;
+        if (storage != null) {
+            storage.setAsDoubleAt(flatindex, value);
+        }
     }
 
     public int[] getStrides() {
@@ -185,6 +189,7 @@ public class Tensor {
 
     public void setData(double[] data) {
         this.data=data;
+        syncDataToStorage();
     }
 
     public int getFlatIndex(int[] indices) {
@@ -225,6 +230,37 @@ public class Tensor {
 
     public int[] computeStrides() {
         return metadata.getStrides();
+    }
+
+    public DataType getDataType() {
+        return metadata.getDataType();
+    }
+
+    public void setDataType(DataType dataType) {
+        metadata.setDataType(dataType);
+        ensureStorageForDataType();
+        syncDataToStorage();
+        syncStorageToData();
+    }
+
+    public TensorStorage getStorage() {
+        return storage;
+    }
+
+    public void syncDataToStorage() {
+        if (storage == null || data == null) return;
+        int n = Math.min(storage.getSize(), data.length);
+        for (int i = 0; i < n; i++) {
+            storage.setAsDoubleAt(i, data[i]);
+        }
+    }
+
+    public void syncStorageToData() {
+        if (storage == null || data == null) return;
+        int n = Math.min(storage.getSize(), data.length);
+        for (int i = 0; i < n; i++) {
+            data[i] = storage.getAsDoubleAt(i);
+        }
     }
 
     public int getFlatDataSize(){
@@ -434,26 +470,30 @@ public class Tensor {
         int size = other.getFlatDataSize();
         double[] data = new double[size];
         java.util.Arrays.fill(data, 1.0);
-        return new Tensor(
+        Tensor out = new Tensor(
                 data,
                 other.getShape().clone(),
                 other.getStrides().clone(),
                 new java.util.ArrayList<>(), // Žádní předci (je to konstanta)
                 "ones_like"
         );
+        out.setDataType(other.getDataType());
+        return out;
     }
 
     public static Tensor zerosLike(Tensor other) {
         int size = other.getFlatDataSize();
         double[] data = new double[size]; // Java defaultně inicializuje na 0.0
 
-        return new Tensor(
+        Tensor out = new Tensor(
                 data,
                 other.getShape().clone(),
                 other.getStrides().clone(),
                 new java.util.ArrayList<>(),
                 "zeros_like"
         );
+        out.setDataType(other.getDataType());
+        return out;
     }
 
     public Tensor contiguous(){
@@ -537,6 +577,20 @@ public class Tensor {
 
     public void setBackwardFunction(Runnable backwardFunction) {
         this.backwardFunction = backwardFunction;
+    }
+
+    private void ensureStorageForDataType() {
+        DataType dataType = metadata.getDataType();
+        if (dataType == null || dataType == DataType.FLOAT64) {
+            storage = null;
+            return;
+        }
+        int size = data != null ? data.length : metadata.getFlatSize();
+        storage = switch (dataType) {
+            case FLOAT16 -> new Float16Storage(size);
+            case FLOAT32 -> new Float32Storage(size);
+            case FLOAT64 -> null;
+        };
     }
 
 

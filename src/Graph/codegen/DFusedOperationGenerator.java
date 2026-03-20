@@ -24,14 +24,18 @@ public class DFusedOperationGenerator implements Opcodes {
         );
 
         cw.visitField(ACC_PRIVATE | ACC_FINAL, "expression", "Ljava/lang/String;", null, null).visitEnd();
+        cw.visitField(ACC_PRIVATE | ACC_FINAL, "precisionMode", "I", null, null).visitEnd();
 
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "<init>", "(Ljava/util/List;Ljava/lang/String;)V", null, null);
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "<init>", "(Ljava/util/List;Ljava/lang/String;I)V", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitFieldInsn(PUTFIELD, className, "expression", "Ljava/lang/String;");
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ILOAD, 3);
+        mv.visitFieldInsn(PUTFIELD, className, "precisionMode", "I");
         mv.visitInsn(RETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
@@ -67,10 +71,6 @@ public class DFusedOperationGenerator implements Opcodes {
         mv.visitInsn(RETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
-    }
-
-    private static void generateApplyRangeVectorMethod(ClassWriter cw, String className) {
-        throw new IllegalStateException("Use overload with cluster context");
     }
 
     private static void generateApplyRangeVectorMethod(
@@ -150,7 +150,7 @@ public class DFusedOperationGenerator implements Opcodes {
         mv.visitJumpInsn(IF_ICMPGE, loopEnd);
 
         for (Tensor node : topoCluster) {
-            generateNodeEvaluationVectorBytecode(mv, node, clusterSet, externalInputIndex, nodeVectorSlots, sm);
+            generateNodeEvaluationVectorBytecode(mv, className, node, clusterSet, externalInputIndex, nodeVectorSlots, sm);
             mv.visitVarInsn(ASTORE, nodeVectorSlots.get(node));
         }
 
@@ -165,12 +165,9 @@ public class DFusedOperationGenerator implements Opcodes {
                 false
         );
 
-        mv.visitIincInsn(sm.get(SlotKey.LOOP_COUNTER), 1); // temporary +1; corrected below using width loop
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
         mv.visitInsn(IADD);
-        mv.visitInsn(ICONST_1);
-        mv.visitInsn(ISUB);
         mv.visitVarInsn(ISTORE, sm.get(SlotKey.LOOP_COUNTER));
         mv.visitJumpInsn(GOTO, loopStart);
 
@@ -266,7 +263,7 @@ public class DFusedOperationGenerator implements Opcodes {
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
 
         for (Tensor node : topoCluster) {
-            generateNodeEvaluationBytecode(mv, node, clusterSet, externalInputIndex, nodeSlotMap, sm);
+            generateNodeEvaluationBytecode(mv, className, node, clusterSet, externalInputIndex, nodeSlotMap, sm);
             mv.visitVarInsn(DSTORE, nodeSlotMap.get(node));
         }
         mv.visitVarInsn(DLOAD, nodeSlotMap.get(outputTensor));
@@ -283,6 +280,7 @@ public class DFusedOperationGenerator implements Opcodes {
 
     private static void generateNodeEvaluationBytecode(
             MethodVisitor mv,
+            String className,
             Tensor current,
             Set<Tensor> clusterSet,
             Map<Tensor, Integer> externalInputIndex,
@@ -307,62 +305,65 @@ public class DFusedOperationGenerator implements Opcodes {
         String op = current.getOperation().getClass().getSimpleName().toLowerCase(Locale.ROOT);
         switch (op) {
             case "add":
-                mv.visitInsn(DADD);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "add", "(DDI)D", false);
                 break;
             case "sub":
-                mv.visitInsn(DSUB);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "sub", "(DDI)D", false);
                 break;
             case "mul":
-                mv.visitInsn(DMUL);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "mul", "(DDI)D", false);
                 break;
             case "div":
-                mv.visitInsn(DDIV);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "div", "(DDI)D", false);
                 break;
             case "neg":
-                mv.visitInsn(DNEG);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "neg", "(DI)D", false);
                 break;
             case "inv":
-                mv.visitVarInsn(DSTORE, sm.get(SlotKey.TMP_REGISTER));
-                mv.visitInsn(DCONST_1);
-                mv.visitVarInsn(DLOAD, sm.get(SlotKey.TMP_REGISTER));
-                mv.visitInsn(DDIV);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "inv", "(DI)D", false);
                 break;
             case "log":
-                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "log", "(D)D", false);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "log", "(DI)D", false);
                 break;
             case "exp":
-                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "exp", "(DI)D", false);
                 break;
             case "tanh":
-                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "tanh", "(D)D", false);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "tanh", "(DI)D", false);
                 break;
             case "pow":
-                handlePow(mv, current, sm);
+                handlePow(mv, className, current, sm);
                 break;
             case "sqrt":
-                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "sqrt", "(DI)D", false);
                 break;
             case "mulscalar":
                 Operations.mulScalar opInstance = (Operations.mulScalar) current.getOperation();
                 mv.visitLdcInsn(opInstance.getScalar());
-                mv.visitInsn(DMUL);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "mulScalar", "(DDI)D", false);
                 break;
             case "relu":
-                mv.visitInsn(DCONST_0);
-                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(DD)D", false);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "relu", "(DI)D", false);
                 break;
             case "sigmoid":
-                // 1 / (1 + exp(-x))
-                mv.visitInsn(DNEG);
-                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
-                mv.visitInsn(DCONST_1);
-                mv.visitInsn(DADD);
-                mv.visitVarInsn(DSTORE, sm.get(SlotKey.TMP_REGISTER));
-                mv.visitInsn(DCONST_1);
-                mv.visitVarInsn(DLOAD, sm.get(SlotKey.TMP_REGISTER));
-                mv.visitInsn(DDIV);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "sigmoid", "(DI)D", false);
                 break;
             case "noop":
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "noop", "(DI)D", false);
                 break;
             default:
                 throw new UnsupportedOperationException("Operation " + op + " is not supported for fusing.");
@@ -396,31 +397,14 @@ public class DFusedOperationGenerator implements Opcodes {
         mv.visitInsn(DALOAD);
     }
 
-    private static void handlePow(MethodVisitor mv, Tensor current, SlotManager sm) {
+    private static void handlePow(MethodVisitor mv, String className, Tensor current, SlotManager sm) {
         if (!(current.getOperation() instanceof Operations.pow p)) {
             throw new UnsupportedOperationException("pow operation instance is missing exponent metadata.");
         }
         double exponent = p.getExponent();
-
-        if (exponent == 0.0) {
-            mv.visitInsn(POP2);
-            mv.visitInsn(DCONST_1);
-        } else if (exponent == 1.0) {
-            // no-op
-        } else if (exponent == 0.5) {
-            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
-        } else if (exponent == -1.0) {
-            mv.visitVarInsn(DSTORE, sm.get(SlotKey.TMP_REGISTER));
-            mv.visitInsn(DCONST_1);
-            mv.visitVarInsn(DLOAD, sm.get(SlotKey.TMP_REGISTER));
-            mv.visitInsn(DDIV);
-        } else if (exponent == 2.0) {
-            mv.visitInsn(DUP2);
-            mv.visitInsn(DMUL);
-        } else {
-            mv.visitLdcInsn(exponent);
-            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
-        }
+        mv.visitLdcInsn(exponent);
+        emitPrecisionMode(mv, className);
+        mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "pow", "(DDI)D", false);
     }
 
     private static void generateMetadataMethods(ClassWriter cw, String className) {
@@ -473,6 +457,7 @@ public class DFusedOperationGenerator implements Opcodes {
 
     private static void generateNodeEvaluationVectorBytecode(
             MethodVisitor mv,
+            String className,
             Tensor current,
             Set<Tensor> clusterSet,
             Map<Tensor, Integer> externalInputIndex,
@@ -495,30 +480,71 @@ public class DFusedOperationGenerator implements Opcodes {
         }
         String op = current.getOperation().getClass().getSimpleName().toLowerCase(Locale.ROOT);
         switch (op) {
-            case "add" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "add", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "sub" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "sub", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "mul" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mul", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "div" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "div", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "neg" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "neg", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "inv" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "inv", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "log" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "log", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "exp" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "exp", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "tanh" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "tanh", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "sqrt" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "sqrt", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "relu" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "relu", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "sigmoid" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "sigmoid", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-            case "noop" -> mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "noop", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
+            case "add" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "add", "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "sub" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "sub", "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "mul" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mul", "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "div" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "div", "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "neg" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "neg", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "inv" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "inv", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "log" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "log", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "exp" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "exp", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "tanh" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "tanh", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "sqrt" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "sqrt", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "relu" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "relu", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "sigmoid" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "sigmoid", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
+            case "noop" -> {
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "noop", "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
+            }
             case "mulscalar" -> {
                 Operations.mulScalar ms = (Operations.mulScalar) current.getOperation();
                 mv.visitLdcInsn(ms.getScalar());
-                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalar", "(Ljava/lang/Object;D)Ljava/lang/Object;", false);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalar", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             }
             case "pow" -> {
                 if (!(current.getOperation() instanceof Operations.pow p)) {
                     throw new UnsupportedOperationException("pow operation instance is missing exponent metadata.");
                 }
                 mv.visitLdcInsn(p.getExponent());
-                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "pow", "(Ljava/lang/Object;D)Ljava/lang/Object;", false);
+                emitPrecisionMode(mv, className);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "pow", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             }
             default -> throw new UnsupportedOperationException("Operation " + op + " is not supported for fused vector execution.");
         }
@@ -670,5 +696,10 @@ public class DFusedOperationGenerator implements Opcodes {
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.FUSED_NODE_VECTOR_VALUES, nodeCount);
         return sm;
+    }
+
+    private static void emitPrecisionMode(MethodVisitor mv, String className) {
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitFieldInsn(GETFIELD, className, "precisionMode", "I");
     }
 }

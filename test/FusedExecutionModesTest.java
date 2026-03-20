@@ -1,7 +1,9 @@
 import Backend.ComputeEngine;
 import Config.backend.CpuKernelConfig;
+import Graph.codegen.FusedDTypeOps;
 import Graph.optimizer.GraphOptimizer;
 import Graph.optimizer.rules.FuseElementWiseRule;
+import Tensor.DataType;
 import Tensor.Tensor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,26 @@ public class FusedExecutionModesTest {
                 new CpuKernelConfig(4, 32, 32, 32, 1, 1));
     }
 
+    @Test
+    void fusedGraphRespectsFloat32AndFloat16Modes() {
+        int size = 4096;
+        double[] aVals = buildInput(size, 0.06);
+        double[] bVals = buildInput(size, -0.02);
+        double[] cVals = buildInput(size, 0.01);
+
+        GraphOptimizer fuseOnly = new GraphOptimizer();
+        fuseOnly.addRule(new FuseElementWiseRule());
+
+        double[] outF32 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT32, fuseOnly);
+        double[] outF16 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT16, fuseOnly);
+
+        double[] expectedF32 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_F32);
+        double[] expectedF16 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_F16);
+
+        assertArrayEquals(expectedF32, outF32, 1e-6);
+        assertArrayEquals(expectedF16, outF16, 2e-3);
+    }
+
     private static void assertModeMatches(
             double[] expected,
             double[] aVals,
@@ -74,6 +96,37 @@ public class FusedExecutionModesTest {
         double[] out = new double[size];
         for (int i = 0; i < size; i++) {
             out[i] = Math.sin(i * 0.1) + (i % 17) * scale;
+        }
+        return out;
+    }
+
+    private static double[] runTypedFused(
+            double[] aVals,
+            double[] bVals,
+            double[] cVals,
+            DataType dataType,
+            GraphOptimizer fuseOnly
+    ) {
+        Tensor a = new Tensor(aVals.clone(), new int[]{aVals.length}, null, "aTyped");
+        Tensor b = new Tensor(bVals.clone(), new int[]{bVals.length}, null, "bTyped");
+        Tensor c = new Tensor(cVals.clone(), new int[]{cVals.length}, null, "cTyped");
+        a.setDataType(dataType);
+        b.setDataType(dataType);
+        c.setDataType(dataType);
+
+        Tensor out = a.add(b).mul(c).add(a.mul(0.25)).sigmoid();
+        out.compute(fuseOnly);
+        return out.getData().clone();
+    }
+
+    private static double[] expectedTyped(double[] a, double[] b, double[] c, int mode) {
+        double[] out = new double[a.length];
+        for (int i = 0; i < out.length; i++) {
+            double v1 = FusedDTypeOps.add(a[i], b[i], mode);
+            double v2 = FusedDTypeOps.mul(v1, c[i], mode);
+            double v3 = FusedDTypeOps.mulScalar(a[i], 0.25, mode);
+            double v4 = FusedDTypeOps.add(v2, v3, mode);
+            out[i] = FusedDTypeOps.sigmoid(v4, mode);
         }
         return out;
     }

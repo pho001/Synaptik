@@ -14,6 +14,7 @@ final class TensorBinaryOps {
     static Tensor add(Tensor first, Tensor second) {
         Operation op = new add();
         Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "+");
+        out.setDataType(TensorDataTypeUtil.binary(first, second));
 
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
@@ -39,6 +40,7 @@ final class TensorBinaryOps {
     static Tensor sub(Tensor first, Tensor second) {
         Operation op = new sub();
         Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "-");
+        out.setDataType(TensorDataTypeUtil.binary(first, second));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (first.getRequiresGrad()) {
@@ -64,6 +66,7 @@ final class TensorBinaryOps {
     static Tensor mul(Tensor first, Tensor second) {
         Operation op = new mul();
         Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "*");
+        out.setDataType(TensorDataTypeUtil.binary(first, second));
 
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
@@ -92,6 +95,7 @@ final class TensorBinaryOps {
     static Tensor div(Tensor first, Tensor second) {
         Operation op = new div();
         Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "/");
+        out.setDataType(TensorDataTypeUtil.binary(first, second));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
 

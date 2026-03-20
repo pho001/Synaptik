@@ -17,12 +17,16 @@ final class TensorReduceOps {
                 newShape[j++] = shape[i];
             }
         }
-        return new Tensor(newShape, List.of(input), op, "sum");
+        Tensor out = new Tensor(newShape, List.of(input), op, "sum");
+        out.setDataType(input.getDataType());
+        return out;
     }
 
     static Tensor sumAll(Tensor input) {
         Operation op = new sum(-1);
         int[] newShape = new int[]{1};
-        return new Tensor(newShape, List.of(input), op, "sum");
+        Tensor out = new Tensor(newShape, List.of(input), op, "sum");
+        out.setDataType(input.getDataType());
+        return out;
     }
 }

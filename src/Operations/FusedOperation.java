@@ -2,7 +2,9 @@ package Operations;
 
 import Backend.ComputeBackend;
 import Graph.codegen.DFusedOperationGenerator;
+import Graph.codegen.FusedDTypeOps;
 import Tensor.Tensor;
+import Tensor.DataType;
 import Utils.CustomClassLoader;
 
 import java.lang.reflect.Constructor;
@@ -18,6 +20,7 @@ public class FusedOperation implements Operation {
 
     private final String expression;
     private final Operation compiledInstance;
+    private final int precisionMode;
 
     public FusedOperation(List<Tensor> cluster, Tensor root) {
         this(cluster, root, findExternalInputs(cluster));
@@ -32,6 +35,7 @@ public class FusedOperation implements Operation {
         }
 
         this.expression = "fused(" + cluster.size() + ")";
+        this.precisionMode = resolvePrecisionMode(cluster, root, externalInputsInOrder);
 
         try {
             int id = CLASS_COUNTER.incrementAndGet();
@@ -47,8 +51,8 @@ public class FusedOperation implements Operation {
 
             CustomClassLoader loader = new CustomClassLoader();
             Class<?> generatedClass = loader.define(binaryName, bytecode);
-            Constructor<?> ctor = generatedClass.getConstructor(List.class, String.class);
-            this.compiledInstance = (Operation) ctor.newInstance(cluster, this.expression);
+            Constructor<?> ctor = generatedClass.getConstructor(List.class, String.class, int.class);
+            this.compiledInstance = (Operation) ctor.newInstance(cluster, this.expression, this.precisionMode);
         } catch (Throwable t) {
             throw new RuntimeException("Failed to generate fused operation class", t);
         }
@@ -71,6 +75,10 @@ public class FusedOperation implements Operation {
 
     public Operation getCompiledInstance() {
         return compiledInstance;
+    }
+
+    public int getPrecisionMode() {
+        return precisionMode;
     }
 
     @Override
@@ -115,5 +123,35 @@ public class FusedOperation implements Operation {
         }
 
         return new ArrayList<>(external);
+    }
+
+    private static int resolvePrecisionMode(List<Tensor> cluster, Tensor root, List<Tensor> externalInputsInOrder) {
+        DataType target = root != null ? root.getDataType() : DataType.FLOAT64;
+        if (target == null) {
+            target = DataType.FLOAT64;
+        }
+
+        List<Tensor> all = new ArrayList<>();
+        if (cluster != null) all.addAll(cluster);
+        if (externalInputsInOrder != null) all.addAll(externalInputsInOrder);
+        if (root != null) all.add(root);
+
+        for (Tensor t : all) {
+            if (t == null) continue;
+            DataType dt = t.getDataType();
+            if (dt == DataType.FLOAT64) {
+                target = DataType.FLOAT64;
+                break;
+            }
+            if (dt == DataType.FLOAT32 && target == DataType.FLOAT16) {
+                target = DataType.FLOAT32;
+            }
+        }
+
+        return switch (target) {
+            case FLOAT64 -> FusedDTypeOps.MODE_F64;
+            case FLOAT32 -> FusedDTypeOps.MODE_F32;
+            case FLOAT16 -> FusedDTypeOps.MODE_F16;
+        };
     }
 }

@@ -18,6 +18,7 @@ final class TensorUnaryOps {
     static Tensor neg(Tensor input) {
         Operation op = new neg();
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "neg");
+        out.setDataType(TensorDataTypeUtil.unary(input));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (input.getRequiresGrad()) {
@@ -35,6 +36,7 @@ final class TensorUnaryOps {
     static Tensor log(Tensor input) {
         Operation op = new log();
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "log");
+        out.setDataType(TensorDataTypeUtil.unary(input));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (input.getRequiresGrad()) {
@@ -52,6 +54,7 @@ final class TensorUnaryOps {
     static Tensor exp(Tensor input) {
         Operation op = new exp();
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "exp");
+        out.setDataType(TensorDataTypeUtil.unary(input));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (input.getRequiresGrad()) {
@@ -69,6 +72,7 @@ final class TensorUnaryOps {
     static Tensor pow(Tensor input, double exponent) {
         Operation op = new pow(exponent);
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "pow");
+        out.setDataType(TensorDataTypeUtil.unary(input));
 
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
@@ -91,6 +95,7 @@ final class TensorUnaryOps {
     static Tensor mulScalar(Tensor input, double scalar) {
         Operation op = new mulScalar(scalar);
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "* constant");
+        out.setDataType(TensorDataTypeUtil.unary(input));
 
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
@@ -110,6 +115,7 @@ final class TensorUnaryOps {
     static Tensor inv(Tensor input) {
         Operation op = new inv();
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "inv");
+        out.setDataType(TensorDataTypeUtil.unary(input));
 
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
@@ -128,6 +134,7 @@ final class TensorUnaryOps {
     static Tensor sqrt(Tensor input) {
         Operation op = new sqrt();
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "sqrt");
+        out.setDataType(TensorDataTypeUtil.unary(input));
 
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
@@ -146,6 +153,7 @@ final class TensorUnaryOps {
     static Tensor sigmoid(Tensor input) {
         Operation op = new sigmoid();
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "sigmoid");
+        out.setDataType(TensorDataTypeUtil.unary(input));
 
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();

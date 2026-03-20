@@ -7,16 +7,26 @@ public final class TensorMetadata {
     private final int[] strides;
     private String label;
     private boolean requiresGrad;
+    private DataType dataType;
 
     public TensorMetadata(int[] shape, String label, boolean requiresGrad) {
+        this(shape, label, requiresGrad, DataType.FLOAT64);
+    }
+
+    public TensorMetadata(int[] shape, String label, boolean requiresGrad, DataType dataType) {
         int[] normalizedShape = normalizeShape(shape);
         this.shape = normalizedShape;
         this.strides = computeStrides(normalizedShape);
         this.label = label;
         this.requiresGrad = requiresGrad;
+        this.dataType = dataType == null ? DataType.FLOAT64 : dataType;
     }
 
     public TensorMetadata(int[] shape, int[] strides, String label, boolean requiresGrad) {
+        this(shape, strides, label, requiresGrad, DataType.FLOAT64);
+    }
+
+    public TensorMetadata(int[] shape, int[] strides, String label, boolean requiresGrad, DataType dataType) {
         int[] normalizedShape = normalizeShape(shape);
         int[] normalizedStrides;
         if (strides == null) {
@@ -35,6 +45,7 @@ public final class TensorMetadata {
         this.strides = normalizedStrides;
         this.label = label;
         this.requiresGrad = requiresGrad;
+        this.dataType = dataType == null ? DataType.FLOAT64 : dataType;
     }
 
     public int[] getShape() {
@@ -81,6 +92,14 @@ public final class TensorMetadata {
         this.requiresGrad = requiresGrad;
     }
 
+    public DataType getDataType() {
+        return dataType;
+    }
+
+    public void setDataType(DataType dataType) {
+        this.dataType = dataType == null ? DataType.FLOAT64 : dataType;
+    }
+
     public boolean isContiguous() {
         int expectedStride = 1;
         for (int i = shape.length - 1; i >= 0; i--) {
@@ -116,7 +135,7 @@ public final class TensorMetadata {
     }
 
     public TensorMetadata copy() {
-        return new TensorMetadata(shape, strides, label, requiresGrad);
+        return new TensorMetadata(shape, strides, label, requiresGrad, dataType);
     }
 
     public static int[] computeStrides(int[] shape) {
@@ -147,6 +166,7 @@ public final class TensorMetadata {
                 ", strides=" + Arrays.toString(strides) +
                 ", label='" + label + '\'' +
                 ", requiresGrad=" + requiresGrad +
+                ", dataType=" + dataType +
                 '}';
     }
 }
