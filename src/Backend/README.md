@@ -65,6 +65,7 @@ Mode selection is threshold-based in [src/Backend/kernels/cpu/CpuExecutionConfig
 
 - `vectorMinSize`
 - `parallelMinSize`
+- `contiguousMaterializeThreshold` (non-contiguous input routing threshold)
 
 Parallel chunking knobs:
 
@@ -73,6 +74,15 @@ Parallel chunking knobs:
 - `minChunkSize`
 
 Parallel execution uses [src/Backend/kernels/cpu/CpuThreadPool.java](src/Backend/kernels/cpu/CpuThreadPool.java) with per-parallelism `ForkJoinPool` reuse.
+
+Non-contiguous input handling is hybrid:
+
+- `size < contiguousMaterializeThreshold`:
+  - use strided fallback path in [src/Backend/kernels/cpu/CpuStridedElementWise.java](src/Backend/kernels/cpu/CpuStridedElementWise.java)
+- `size >= contiguousMaterializeThreshold`:
+  - materialize non-contiguous input to temporary contiguous tensor and run regular fast kernel path
+
+`CONTIGUOUS` op is excluded from preprocessing and handled directly by `CpuContiguousKernel`.
 
 ## Backend Tuning Configuration
 
