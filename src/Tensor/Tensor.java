@@ -513,6 +513,10 @@ public class Tensor {
         return TensorOps.sqrt(this);
     }
 
+    public Tensor sigmoid() {
+        return TensorOps.sigmoid(this);
+    }
+
 
     public Tensor sum(int dimension){
         return TensorOps.sum(this, dimension);

@@ -51,6 +51,10 @@ public final class TensorOps {
         return TensorUnaryOps.sqrt(input);
     }
 
+    public static Tensor sigmoid(Tensor input) {
+        return TensorUnaryOps.sigmoid(input);
+    }
+
     public static Tensor sum(Tensor input, int dimension) {
         return TensorReduceOps.sum(input, dimension);
     }

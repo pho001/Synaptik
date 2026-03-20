@@ -262,6 +262,10 @@ public class AlgebraicRewritingRule implements OptimizationRule {
 
         if (isConstant(input, 1.0)) return input;
         if (isOp(input, "inv")) return input.getPrevTensors().get(0);
+        if (!t.getRequiresGrad()) {
+            Tensor sigmoidInput = matchSigmoidInput(input);
+            if (sigmoidInput != null) return sigmoidInput.sigmoid();
+        }
         if (isOp(input, "pow") && input.getOperation() instanceof pow p) {
             return input.getPrevTensors().get(0).pow(-p.getExponent());
         }
@@ -273,6 +277,45 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         }
 
         return t;
+    }
+
+    private Tensor matchSigmoidInput(Tensor candidate) {
+        if (!isOp(candidate, "add") || candidate.getPrevTensors().size() != 2) {
+            return null;
+        }
+        Tensor left = candidate.getPrevTensors().get(0);
+        Tensor right = candidate.getPrevTensors().get(1);
+
+        Tensor fromLeft = matchExpNeg(right, left);
+        if (fromLeft != null) {
+            return fromLeft;
+        }
+        return matchExpNeg(left, right);
+    }
+
+    private Tensor matchExpNeg(Tensor constantCandidate, Tensor expCandidate) {
+        if (!isConstant(constantCandidate, 1.0)) {
+            return null;
+        }
+        if (!isOp(expCandidate, "exp") || expCandidate.getPrevTensors().size() != 1) {
+            return null;
+        }
+        Tensor negLikeInput = unwrapNegLike(expCandidate.getPrevTensors().get(0));
+        if (negLikeInput == null) return null;
+        return negLikeInput;
+    }
+
+    private Tensor unwrapNegLike(Tensor t) {
+        if (isOp(t, "neg") && t.getPrevTensors().size() == 1) {
+            return t.getPrevTensors().get(0);
+        }
+        if (isOp(t, "mulscalar")
+                && t.getOperation() instanceof mulScalar ms
+                && ms.getScalar() == -1.0
+                && t.getPrevTensors().size() == 1) {
+            return t.getPrevTensors().get(0);
+        }
+        return null;
     }
 
     private Tensor simplifySqrt(Tensor t) {

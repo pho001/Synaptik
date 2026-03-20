@@ -7,6 +7,7 @@ import Operations.log;
 import Operations.mulScalar;
 import Operations.neg;
 import Operations.pow;
+import Operations.sigmoid;
 import Operations.sqrt;
 
 import java.util.List;
@@ -132,6 +133,24 @@ final class TensorUnaryOps {
             Tensor outGrad = out.getGradient();
             if (input.getRequiresGrad()) {
                 Tensor gradForInput = outGrad.mul(0.5).mul(out.inv());
+                if (input.getGradient() == null) {
+                    input.setGradient(gradForInput);
+                } else {
+                    input.setGradient(input.getGradient().add(gradForInput));
+                }
+            }
+        });
+        return out;
+    }
+
+    static Tensor sigmoid(Tensor input) {
+        Operation op = new sigmoid();
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "sigmoid");
+
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (input.getRequiresGrad()) {
+                Tensor gradForInput = outGrad.mul(out).mul(Tensor.onesLike(out).sub(out));
                 if (input.getGradient() == null) {
                     input.setGradient(gradForInput);
                 } else {
