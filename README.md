@@ -38,22 +38,27 @@ On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
 
 - [`src/Tensor/`](src/Tensor)
   - Core tensor implementation, storage, shape/stride logic, execution state, and autodiff plumbing
+  - Module documentation: [`src/Tensor/README.md`](src/Tensor/README.md)
 - [`src/Operations/`](src/Operations)
   - Primitive tensor operations such as add, sub, mul, div, pow, exp, log, tanh, relu, sigmoid, contiguous, sum, and newer unary/scalar helpers
 - [`src/Backend/`](src/Backend)
   - Backend execution layer and per-platform dispatch integration
+  - Module documentation: [`src/Backend/README.md`](src/Backend/README.md)
 - [`src/Backend/kernels/`](src/Backend/kernels)
   - Backend kernel interfaces and concrete CPU kernel implementations
 - [`src/Backend/registry/`](src/Backend/registry)
   - Operation-to-kernel registries used by CPU, CUDA, and OpenCL backends
 - [`src/Graph/`](src/Graph)
   - Compiled graph execution and graph-level orchestration
+  - Module documentation: [`src/Graph/README.md`](src/Graph/README.md)
 - [`src/Graph/optimizer/`](src/Graph/optimizer)
   - Optimizer entry points, factory wiring, rule composition, and optimizer documentation
+  - Module documentation: [`src/Graph/optimizer/README.md`](src/Graph/optimizer/README.md)
 - [`src/Graph/codegen/`](src/Graph/codegen)
   - Runtime fused code generation for specialized fused operations
 - [`src/Benchmark/`](src/Benchmark)
   - Benchmark harness, candidate selection, profile I/O, and tuning utilities
+  - Module documentation: [`src/Benchmark/README.md`](src/Benchmark/README.md)
 - [`src/Config/`](src/Config)
   - Backend and optimizer tuning configuration objects
 - [`config/`](config)
@@ -62,6 +67,14 @@ On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
   - Regression and functional tests
 
 ## Core Architecture
+
+Detailed per-module docs:
+
+- Tensor: [`src/Tensor/README.md`](src/Tensor/README.md)
+- Backend: [`src/Backend/README.md`](src/Backend/README.md)
+- Graph: [`src/Graph/README.md`](src/Graph/README.md)
+- Optimizer: [`src/Graph/optimizer/README.md`](src/Graph/optimizer/README.md)
+- Benchmark: [`src/Benchmark/README.md`](src/Benchmark/README.md)
 
 ### Tensor Runtime
 
