@@ -69,6 +69,10 @@ public class FusedOperation implements Operation {
         compiledInstance.apply(inputs, out);
     }
 
+    public Operation getCompiledInstance() {
+        return compiledInstance;
+    }
+
     @Override
     public void gradient(List<Tensor> inputs, Tensor out) {
         // Backward je v tomto projektu realizovaný explicitními uzly v grafu.
