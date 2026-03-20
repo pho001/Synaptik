@@ -4,6 +4,7 @@ import Config.backend.CpuKernelConfig;
 import Config.backend.CudaKernelConfig;
 import Config.backend.KernelTuningConfig;
 import Config.backend.OpenClKernelConfig;
+import Config.backend.SumAccuracyMode;
 import Config.optimizer.FuseConfig;
 
 import java.io.IOException;
@@ -80,7 +81,8 @@ public final class OptimizerProfileIO {
                 "      \"cpuParallelism\": " + k.cpu().parallelism() + ",\n" +
                 "      \"cpuChunksPerWorker\": " + k.cpu().chunksPerWorker() + ",\n" +
                 "      \"cpuMinChunkSize\": " + k.cpu().minChunkSize() + ",\n" +
-                "      \"cpuContiguousMaterializeThreshold\": " + k.cpu().contiguousMaterializeThreshold() + "\n" +
+                "      \"cpuContiguousMaterializeThreshold\": " + k.cpu().contiguousMaterializeThreshold() + ",\n" +
+                "      \"cpuSumAccuracyMode\": \"" + k.cpu().sumAccuracyMode().name() + "\"\n" +
                 "    },\n" +
                 "    \"cuda\": {\n" +
                 "      \"cudaLoopUnrollFactor\": " + k.cuda().loopUnrollFactor() + ",\n" +
@@ -127,7 +129,8 @@ public final class OptimizerProfileIO {
                     findInt(json, "cpuParallelism", d.kernelConfig().cpu().parallelism()),
                     findInt(json, "cpuChunksPerWorker", d.kernelConfig().cpu().chunksPerWorker()),
                     findInt(json, "cpuMinChunkSize", d.kernelConfig().cpu().minChunkSize()),
-                    findInt(json, "cpuContiguousMaterializeThreshold", d.kernelConfig().cpu().contiguousMaterializeThreshold())
+                    findInt(json, "cpuContiguousMaterializeThreshold", d.kernelConfig().cpu().contiguousMaterializeThreshold()),
+                    findEnum(json, "cpuSumAccuracyMode", d.kernelConfig().cpu().sumAccuracyMode(), SumAccuracyMode.class)
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", d.kernelConfig().cuda().loopUnrollFactor()),
@@ -193,5 +196,15 @@ public final class OptimizerProfileIO {
         Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)").matcher(json);
         if (!m.find()) return defaultValue;
         return Double.parseDouble(m.group(1));
+    }
+
+    private static <E extends Enum<E>> E findEnum(String json, String key, E defaultValue, Class<E> enumClass) {
+        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\"([A-Z_]+)\"").matcher(json);
+        if (!m.find()) return defaultValue;
+        try {
+            return Enum.valueOf(enumClass, m.group(1));
+        } catch (IllegalArgumentException ignored) {
+            return defaultValue;
+        }
     }
 }

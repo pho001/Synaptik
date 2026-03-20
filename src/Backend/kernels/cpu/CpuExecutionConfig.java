@@ -1,6 +1,7 @@
 package Backend.kernels.cpu;
 
 import Config.backend.CpuKernelConfig;
+import Config.backend.SumAccuracyMode;
 import Operations.Operation;
 import Tensor.Tensor;
 
@@ -11,6 +12,7 @@ public final class  CpuExecutionConfig {
     private final int chunksPerWorker;
     private final int minChunkSize;
     private final int contiguousMaterializeThreshold;
+    private final SumAccuracyMode sumAccuracyMode;
 
     public CpuExecutionConfig(
             int vectorMinSize,
@@ -18,7 +20,8 @@ public final class  CpuExecutionConfig {
             int parallelism,
             int chunksPerWorker,
             int minChunkSize,
-            int contiguousMaterializeThreshold
+            int contiguousMaterializeThreshold,
+            SumAccuracyMode sumAccuracyMode
     ) {
         this.vectorMinSize = vectorMinSize;
         this.parallelMinSize = parallelMinSize;
@@ -26,6 +29,7 @@ public final class  CpuExecutionConfig {
         this.chunksPerWorker = chunksPerWorker;
         this.minChunkSize = minChunkSize;
         this.contiguousMaterializeThreshold = contiguousMaterializeThreshold;
+        this.sumAccuracyMode = sumAccuracyMode == null ? SumAccuracyMode.FAST : sumAccuracyMode;
     }
 
     public static CpuExecutionConfig defaults() {
@@ -42,7 +46,8 @@ public final class  CpuExecutionConfig {
                 config.parallelism(),
                 config.chunksPerWorker(),
                 config.minChunkSize(),
-                config.contiguousMaterializeThreshold()
+                config.contiguousMaterializeThreshold(),
+                config.sumAccuracyMode()
         );
     }
 
@@ -85,6 +90,24 @@ public final class  CpuExecutionConfig {
 
     public int contiguousMaterializeThreshold() {
         return contiguousMaterializeThreshold;
+    }
+
+    public SumAccuracyMode sumAccuracyMode() {
+        return sumAccuracyMode;
+    }
+
+    public CpuExecutionMode modeForReduction(int workSize) {
+        int size = Math.max(1, workSize);
+        if (size >= parallelMinSize) {
+            if (size >= vectorMinSize) {
+                return CpuExecutionMode.PARALLEL_VECTOR;
+            }
+            return CpuExecutionMode.PARALLEL;
+        }
+        if (size >= vectorMinSize) {
+            return CpuExecutionMode.VECTOR;
+        }
+        return CpuExecutionMode.SCALAR;
     }
 
 }

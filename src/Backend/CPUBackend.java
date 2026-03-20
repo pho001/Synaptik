@@ -73,8 +73,8 @@ public class CPUBackend {
         if (inputs == null || inputs.isEmpty()) {
             return inputs;
         }
-        // CONTIGUOUS kernel is already responsible for remapping layout.
-        if (op != null && op.opType() == Operation.OpType.CONTIGUOUS) {
+        // CONTIGUOUS and SUM kernels are responsible for their own layout strategy.
+        if (op != null && (op.opType() == Operation.OpType.CONTIGUOUS || op.opType() == Operation.OpType.SUM)) {
             return inputs;
         }
 

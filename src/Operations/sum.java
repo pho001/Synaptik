@@ -1,10 +1,6 @@
 package Operations;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.DoubleAdder;
-import java.util.stream.IntStream;
 
 import Backend.ComputeBackend;
 import Tensor.Tensor;
@@ -26,8 +22,8 @@ public class sum implements Operation{
 
         Tensor input=inputs.getFirst();
         int[] shape=input.getShape();
-        if (!input.isContiguous()){
-            input.contiguous();
+        if (!input.isContiguous()) {
+            input = input.contiguous();
         }
 
 
@@ -117,7 +113,7 @@ public class sum implements Operation{
 
     @Override
     public String getExpression() {
-        return "tanh";
+        return "sum";
     }
 
     @Override

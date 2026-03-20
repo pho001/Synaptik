@@ -17,7 +17,7 @@ public class OptimizerFuseTest {
         b0.setRequiresGrad(true);
         c0.setRequiresGrad(true);
         Tensor e0 = a0.add(b0).add(c0);
-        e0.compute();
+        e0.compute(new GraphOptimizer());
         int baselineGraphSize = e0.getCompiledGraph().getCompiledGraphAsList().size();
 
         Tensor a = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "a");

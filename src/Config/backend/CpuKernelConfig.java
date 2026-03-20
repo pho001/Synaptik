@@ -7,6 +7,7 @@ public final class CpuKernelConfig {
     private static final int DEFAULT_CHUNKS_PER_WORKER = 4;
     private static final int DEFAULT_MIN_CHUNK_SIZE = 4_096;
     private static final int DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD = 1_000_000_000;
+    private static final SumAccuracyMode DEFAULT_SUM_ACCURACY_MODE = SumAccuracyMode.FAST;
 
     private final int loopUnrollFactor;
     private final int matMulTileM;
@@ -18,6 +19,7 @@ public final class CpuKernelConfig {
     private final int chunksPerWorker;
     private final int minChunkSize;
     private final int contiguousMaterializeThreshold;
+    private final SumAccuracyMode sumAccuracyMode;
 
     public CpuKernelConfig(int loopUnrollFactor, int matMulTileM, int matMulTileN, int matMulTileK) {
         this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, DEFAULT_VECTOR_MIN_SIZE, DEFAULT_PARALLEL_MIN_SIZE);
@@ -71,6 +73,34 @@ public final class CpuKernelConfig {
             int minChunkSize,
             int contiguousMaterializeThreshold
     ) {
+        this(
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                vectorMinSize,
+                parallelMinSize,
+                parallelism,
+                chunksPerWorker,
+                minChunkSize,
+                contiguousMaterializeThreshold,
+                DEFAULT_SUM_ACCURACY_MODE
+        );
+    }
+
+    public CpuKernelConfig(
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int vectorMinSize,
+            int parallelMinSize,
+            int parallelism,
+            int chunksPerWorker,
+            int minChunkSize,
+            int contiguousMaterializeThreshold,
+            SumAccuracyMode sumAccuracyMode
+    ) {
         this.loopUnrollFactor = loopUnrollFactor;
         this.matMulTileM = matMulTileM;
         this.matMulTileN = matMulTileN;
@@ -81,6 +111,7 @@ public final class CpuKernelConfig {
         this.chunksPerWorker = chunksPerWorker;
         this.minChunkSize = minChunkSize;
         this.contiguousMaterializeThreshold = contiguousMaterializeThreshold;
+        this.sumAccuracyMode = sumAccuracyMode == null ? DEFAULT_SUM_ACCURACY_MODE : sumAccuracyMode;
     }
 
     public int loopUnrollFactor() {
@@ -123,6 +154,10 @@ public final class CpuKernelConfig {
         return contiguousMaterializeThreshold;
     }
 
+    public SumAccuracyMode sumAccuracyMode() {
+        return sumAccuracyMode;
+    }
+
     public static CpuKernelConfig defaultsTraining() {
         return new CpuKernelConfig(
                 1,
@@ -134,7 +169,8 @@ public final class CpuKernelConfig {
                 DEFAULT_PARALLELISM,
                 DEFAULT_CHUNKS_PER_WORKER,
                 DEFAULT_MIN_CHUNK_SIZE,
-                DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD
+                DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD,
+                DEFAULT_SUM_ACCURACY_MODE
         );
     }
 
@@ -149,7 +185,8 @@ public final class CpuKernelConfig {
                 DEFAULT_PARALLELISM,
                 DEFAULT_CHUNKS_PER_WORKER,
                 DEFAULT_MIN_CHUNK_SIZE,
-                DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD
+                DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD,
+                DEFAULT_SUM_ACCURACY_MODE
         );
     }
 }
