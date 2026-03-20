@@ -91,6 +91,7 @@ CPU dispatch knobs include:
 - `cpuParallelism`
 - `cpuChunksPerWorker`
 - `cpuMinChunkSize`
+- `cpuContiguousMaterializeThreshold`
 
 ## Full Knob Space (Current Implementation)
 
@@ -130,6 +131,7 @@ Total stage-order variants per knob profile:
 - `kernel.cpu.parallelism`: `[0]` (`0` means auto-detect available processors)
 - `kernel.cpu.chunksPerWorker`: `[2, 4, 8]`
 - `kernel.cpu.minChunkSize`: `[2048, 4096, 8192]`
+- `kernel.cpu.contiguousMaterializeThreshold`: `[0, 4096, 16384, 65536, 262144, 1000000000]`
 
 ### CUDA Kernel Knobs
 
@@ -149,9 +151,9 @@ Total stage-order variants per knob profile:
 
 Current autotune candidate construction:
 
-- `22` knob profiles
+- `82` knob profiles
 - `65` stage-order variants per profile
-- total generated candidates: `22 * 65 = 1430`
+- total generated candidates: `82 * 65 = 5330`
 
 Benchmark cap is controlled by `AUTOTUNE_MAX_CANDIDATES` in:
 

@@ -79,7 +79,8 @@ public final class OptimizerProfileIO {
                 "      \"cpuParallelMinSize\": " + k.cpu().parallelMinSize() + ",\n" +
                 "      \"cpuParallelism\": " + k.cpu().parallelism() + ",\n" +
                 "      \"cpuChunksPerWorker\": " + k.cpu().chunksPerWorker() + ",\n" +
-                "      \"cpuMinChunkSize\": " + k.cpu().minChunkSize() + "\n" +
+                "      \"cpuMinChunkSize\": " + k.cpu().minChunkSize() + ",\n" +
+                "      \"cpuContiguousMaterializeThreshold\": " + k.cpu().contiguousMaterializeThreshold() + "\n" +
                 "    },\n" +
                 "    \"cuda\": {\n" +
                 "      \"cudaLoopUnrollFactor\": " + k.cuda().loopUnrollFactor() + ",\n" +
@@ -125,7 +126,8 @@ public final class OptimizerProfileIO {
                     findInt(json, "cpuParallelMinSize", d.kernelConfig().cpu().parallelMinSize()),
                     findInt(json, "cpuParallelism", d.kernelConfig().cpu().parallelism()),
                     findInt(json, "cpuChunksPerWorker", d.kernelConfig().cpu().chunksPerWorker()),
-                    findInt(json, "cpuMinChunkSize", d.kernelConfig().cpu().minChunkSize())
+                    findInt(json, "cpuMinChunkSize", d.kernelConfig().cpu().minChunkSize()),
+                    findInt(json, "cpuContiguousMaterializeThreshold", d.kernelConfig().cpu().contiguousMaterializeThreshold())
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", d.kernelConfig().cuda().loopUnrollFactor()),

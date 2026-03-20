@@ -10,19 +10,22 @@ public final class  CpuExecutionConfig {
     private final int parallelism;
     private final int chunksPerWorker;
     private final int minChunkSize;
+    private final int contiguousMaterializeThreshold;
 
     public CpuExecutionConfig(
             int vectorMinSize,
             int parallelMinSize,
             int parallelism,
             int chunksPerWorker,
-            int minChunkSize
+            int minChunkSize,
+            int contiguousMaterializeThreshold
     ) {
         this.vectorMinSize = vectorMinSize;
         this.parallelMinSize = parallelMinSize;
         this.parallelism = parallelism;
         this.chunksPerWorker = chunksPerWorker;
         this.minChunkSize = minChunkSize;
+        this.contiguousMaterializeThreshold = contiguousMaterializeThreshold;
     }
 
     public static CpuExecutionConfig defaults() {
@@ -38,7 +41,8 @@ public final class  CpuExecutionConfig {
                 config.parallelMinSize(),
                 config.parallelism(),
                 config.chunksPerWorker(),
-                config.minChunkSize()
+                config.minChunkSize(),
+                config.contiguousMaterializeThreshold()
         );
     }
 
@@ -77,6 +81,10 @@ public final class  CpuExecutionConfig {
             }
         }
         return chunk;
+    }
+
+    public int contiguousMaterializeThreshold() {
+        return contiguousMaterializeThreshold;
     }
 
 }

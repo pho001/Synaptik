@@ -108,7 +108,8 @@ public final class OptimizerCandidateFactory {
         ));
 
         // CPU dispatch tuning grid (threshold-based mode selection only).
-        List<CpuKernelConfig> cpuDispatchProfiles = List.of(
+        List<CpuKernelConfig> cpuDispatchProfiles = new ArrayList<>();
+        List<CpuKernelConfig> cpuDispatchBaseProfiles = List.of(
                 new CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 0, 2, 2_048),
                 new CpuKernelConfig(4, 32, 32, 32, 512, 100_000, 0, 4, 4_096),
                 new CpuKernelConfig(4, 32, 32, 32, 2_048, 250_000, 0, 8, 8_192),
@@ -116,6 +117,23 @@ public final class OptimizerCandidateFactory {
                 new CpuKernelConfig(4, 32, 32, 32, 1_000_000_000, 2_000_000, 0, 4, 4_096),
                 new CpuKernelConfig(4, 32, 32, 32, 1_000_000_000, 1_000_000_000, 0, 4, 4_096)
         );
+        int[] contiguousMaterializeThresholds = new int[]{0, 4_096, 16_384, 65_536, 262_144, 1_000_000_000};
+        for (CpuKernelConfig base : cpuDispatchBaseProfiles) {
+            for (int threshold : contiguousMaterializeThresholds) {
+                cpuDispatchProfiles.add(new CpuKernelConfig(
+                        base.loopUnrollFactor(),
+                        base.matMulTileM(),
+                        base.matMulTileN(),
+                        base.matMulTileK(),
+                        base.vectorMinSize(),
+                        base.parallelMinSize(),
+                        base.parallelism(),
+                        base.chunksPerWorker(),
+                        base.minChunkSize(),
+                        threshold
+                ));
+            }
+        }
 
         for (CpuKernelConfig cpu : cpuDispatchProfiles) {
             knobGrid.add(new TuningKnobs(

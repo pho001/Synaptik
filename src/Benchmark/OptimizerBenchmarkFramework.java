@@ -305,7 +305,8 @@ public final class OptimizerBenchmarkFramework {
                 + ", parMin=" + rkc.cpu().parallelMinSize()
                 + ", par=" + rkc.cpu().parallelism()
                 + ", chunksPerWorker=" + rkc.cpu().chunksPerWorker()
-                + ", minChunk=" + rkc.cpu().minChunkSize() + "]" + RESET);
+                + ", minChunk=" + rkc.cpu().minChunkSize()
+                + ", contigMatThreshold=" + rkc.cpu().contiguousMaterializeThreshold() + "]" + RESET);
         System.out.println(GRAY + "  kernel.cuda=[unroll=" + rkc.cuda().loopUnrollFactor()
                 + ", tileM=" + rkc.cuda().matMulTileM()
                 + ", tileN=" + rkc.cuda().matMulTileN()
@@ -338,7 +339,8 @@ public final class OptimizerBenchmarkFramework {
                 + ", parMin=" + ikc.cpu().parallelMinSize()
                 + ", par=" + ikc.cpu().parallelism()
                 + ", chunksPerWorker=" + ikc.cpu().chunksPerWorker()
-                + ", minChunk=" + ikc.cpu().minChunkSize() + "]" + RESET);
+                + ", minChunk=" + ikc.cpu().minChunkSize()
+                + ", contigMatThreshold=" + ikc.cpu().contiguousMaterializeThreshold() + "]" + RESET);
         System.out.println(GRAY + "  kernel.cuda=[unroll=" + ikc.cuda().loopUnrollFactor()
                 + ", tileM=" + ikc.cuda().matMulTileM()
                 + ", tileN=" + ikc.cuda().matMulTileN()
@@ -782,7 +784,8 @@ public final class OptimizerBenchmarkFramework {
             sb.append("        \"cpuParallelMinSize\": ").append(kernels.cpu().parallelMinSize()).append(",\n");
             sb.append("        \"cpuParallelism\": ").append(kernels.cpu().parallelism()).append(",\n");
             sb.append("        \"cpuChunksPerWorker\": ").append(kernels.cpu().chunksPerWorker()).append(",\n");
-            sb.append("        \"cpuMinChunkSize\": ").append(kernels.cpu().minChunkSize()).append("\n");
+            sb.append("        \"cpuMinChunkSize\": ").append(kernels.cpu().minChunkSize()).append(",\n");
+            sb.append("        \"cpuContiguousMaterializeThreshold\": ").append(kernels.cpu().contiguousMaterializeThreshold()).append("\n");
             sb.append("      },\n");
             sb.append("      \"cuda\": {\n");
             sb.append("        \"cudaLoopUnrollFactor\": ").append(kernels.cuda().loopUnrollFactor()).append(",\n");
