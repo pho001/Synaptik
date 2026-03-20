@@ -92,6 +92,7 @@ CPU dispatch knobs include:
 - `cpuChunksPerWorker`
 - `cpuMinChunkSize`
 - `cpuContiguousMaterializeThreshold`
+- `cpuSumAccuracyMode`
 
 ## Full Knob Space (Current Implementation)
 
@@ -132,6 +133,8 @@ Total stage-order variants per knob profile:
 - `kernel.cpu.chunksPerWorker`: `[2, 4, 8]`
 - `kernel.cpu.minChunkSize`: `[2048, 4096, 8192]`
 - `kernel.cpu.contiguousMaterializeThreshold`: `[0, 4096, 16384, 65536, 262144, 1000000000]`
+- `kernel.cpu.sumAccuracyMode` runtime values: `[FAST, KAHAN, NEUMAIER]`
+- `kernel.cpu.sumAccuracyMode` autotune grid (current): `[FAST]`
 
 ### CUDA Kernel Knobs
 

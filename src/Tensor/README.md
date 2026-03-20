@@ -25,6 +25,8 @@ It combines:
   - [src/Tensor/TensorReduceOps.java](src/Tensor/TensorReduceOps.java)
   - [src/Tensor/TensorLayoutOps.java](src/Tensor/TensorLayoutOps.java)
   - [src/Tensor/TensorNaryOps.java](src/Tensor/TensorNaryOps.java)
+- Layout remap utility:
+  - [src/Tensor/TensorRemap.java](src/Tensor/TensorRemap.java)
 - Storage/type abstraction (currently auxiliary):
   - [src/Tensor/TensorStorage.java](src/Tensor/TensorStorage.java)
   - [src/Tensor/DataType.java](src/Tensor/DataType.java)
@@ -88,6 +90,18 @@ Tensor backend decision is:
 3. fallback to `CPU`.
 
 During compile, resolved backend and CPU kernel are cached per node to reduce runtime dispatch overhead.
+
+## Non-Contiguous Layout Handling
+
+`TensorRemap` provides layout remapping between tensors with identical shape and different strides.
+
+Current remap behavior:
+
+- iterates over logical dense index space (`prod(shape)`)
+- maps each logical index to source/destination offsets via respective strides
+- supports sequential and parallel remap paths
+
+This avoids stride-indexing out-of-bounds issues on non-contiguous tensors and is used by backend materialization paths.
 
 ## Notes on DTypes and Storage
 

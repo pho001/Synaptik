@@ -51,6 +51,9 @@ Rules must:
 
 - `AlgebraicRewritingRule`
   - local algebraic expression simplifications.
+  - includes inference-only canonical sigmoid rewrite:
+    - `inv(add(1, exp(neg(x)))) -> sigmoid(x)`
+    - `inv(add(1, exp(mulScalar(x, -1)))) -> sigmoid(x)`
 - `CommonSubexpressionEliminationRule`
   - merges equivalent subexpressions (with optional strict safety).
 - `FuseElementWiseRule`

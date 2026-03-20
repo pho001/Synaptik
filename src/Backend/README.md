@@ -54,18 +54,20 @@ During graph compilation, backend and CPU kernel are pre-resolved per node:
 
 `CPUBackend` executes through `CpuKernel` implementations and a runtime `CpuExecutionConfig`.
 
-Dispatch modes for element-wise kernels:
+Dispatch modes:
 
 - `SCALAR`
 - `VECTOR`
 - `PARALLEL`
 - `PARALLEL_VECTOR`
 
-Mode selection is threshold-based in [src/Backend/kernels/cpu/CpuExecutionConfig.java](src/Backend/kernels/cpu/CpuExecutionConfig.java):
+Element-wise mode selection is threshold-based in [src/Backend/kernels/cpu/CpuExecutionConfig.java](src/Backend/kernels/cpu/CpuExecutionConfig.java):
 
 - `vectorMinSize`
 - `parallelMinSize`
 - `contiguousMaterializeThreshold` (non-contiguous input routing threshold)
+
+Reduction (`SUM`) mode selection uses the same mode set and threshold logic via `modeForReduction(...)`.
 
 Parallel chunking knobs:
 
@@ -84,11 +86,26 @@ Non-contiguous input handling is hybrid:
 
 `CONTIGUOUS` op is excluded from preprocessing and handled directly by `CpuContiguousKernel`.
 
+`SUM` is also excluded from generic preprocessing and handled by its own reduction pipeline:
+
+- [src/Backend/kernels/cpu/CpuSumKernel.java](src/Backend/kernels/cpu/CpuSumKernel.java)
+- [src/Backend/kernels/cpu/reduction/SumExecutor.java](src/Backend/kernels/cpu/reduction/SumExecutor.java)
+- [src/Backend/kernels/cpu/reduction/SumLoops.java](src/Backend/kernels/cpu/reduction/SumLoops.java)
+
+The reduction pipeline supports:
+
+- `sumAll` and `sum(axis)`
+- contiguous fast paths (including vectorized last-dimension reduction)
+- strided non-contiguous fallback
+- threshold-based materialization to contiguous temporary tensors
+- numerical stability mode via `SumAccuracyMode` (`FAST`, `KAHAN`, `NEUMAIER`)
+
 ## Backend Tuning Configuration
 
 CPU kernel dispatch parameters are represented by:
 
 - [src/Config/backend/CpuKernelConfig.java](src/Config/backend/CpuKernelConfig.java)
+- [src/Config/backend/SumAccuracyMode.java](src/Config/backend/SumAccuracyMode.java)
 
 Cross-backend tuning container:
 

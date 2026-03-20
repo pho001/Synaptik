@@ -78,6 +78,15 @@ Related files:
 - [src/Operations/FusedOperation.java](src/Operations/FusedOperation.java)
 - [src/Backend/kernels/cpu/CpuFusedKernel.java](src/Backend/kernels/cpu/CpuFusedKernel.java)
 
+## Canonicalization Notes
+
+Algebraic rewriting includes canonical sigmoid recognition in inference graphs:
+
+- `1 / (1 + exp(-x)) -> sigmoid(x)`
+- also recognizes `exp(x * -1)` form (`mulScalar(-1)`)
+
+In training graphs (`requiresGrad=true` path), this rewrite is intentionally skipped to keep backward graph construction semantics unchanged.
+
 ## Notes
 
 - `ByteCodeGenerator` is a minimal ASM sample/utility and not the primary fused execution path.
