@@ -8,7 +8,8 @@ public final class TensorRemap {
     private TensorRemap() {}
 
     public static void apply(Tensor src, Tensor dst, int parallelThreshold) {
-        if (src.getFlatDataSize() > parallelThreshold) {
+        int logicalSize = logicalSize(src.getShape());
+        if (logicalSize > parallelThreshold) {
             parallelApply(src, dst);
         } else {
             sequentialApply(src, dst);
@@ -27,17 +28,13 @@ public final class TensorRemap {
 
         double[] srcData = src.getData();
         double[] dstData = dst.getData();
+        int[] denseStrides = denseStrides(srcShape);
+        int logicalSize = logicalSize(srcShape);
 
-        for (int i = 0; i < srcData.length; i++) {
-            int flatIndexDst = 0;
-            int index = i;
-
-            for (int dim = 0; dim < srcShape.length; dim++) {
-                int spatialIndex = index / srcStrides[dim];
-                index %= srcStrides[dim];
-                flatIndexDst += spatialIndex * dstStrides[dim];
-            }
-            dstData[flatIndexDst] = srcData[i];
+        for (int logicalIndex = 0; logicalIndex < logicalSize; logicalIndex++) {
+            int srcOffset = logicalToOffset(logicalIndex, srcShape, srcStrides, denseStrides);
+            int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, denseStrides);
+            dstData[dstOffset] = srcData[srcOffset];
         }
     }
 
@@ -53,23 +50,49 @@ public final class TensorRemap {
 
         double[] srcData = src.getData();
         double[] dstData = dst.getData();
+        int[] denseStrides = denseStrides(srcShape);
+        int logicalSize = logicalSize(srcShape);
 
         ForkJoinPool customPool = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
         try {
-            customPool.submit(() -> IntStream.range(0, srcData.length).parallel().forEach(i -> {
-                int flatIndexDst = 0;
-                int index = i;
-                for (int dim = 0; dim < srcShape.length; dim++) {
-                    int spatialIndex = index / srcStrides[dim];
-                    index %= srcStrides[dim];
-                    flatIndexDst += spatialIndex * dstStrides[dim];
-                }
-                dstData[flatIndexDst] = srcData[i];
+            customPool.submit(() -> IntStream.range(0, logicalSize).parallel().forEach(logicalIndex -> {
+                int srcOffset = logicalToOffset(logicalIndex, srcShape, srcStrides, denseStrides);
+                int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, denseStrides);
+                dstData[dstOffset] = srcData[srcOffset];
             })).get();
         } catch (Exception e) {
             throw new RuntimeException("Parallel remap failed", e);
         } finally {
             customPool.shutdown();
         }
+    }
+
+    private static int logicalToOffset(int logicalIndex, int[] shape, int[] strides, int[] denseStrides) {
+        int rem = logicalIndex;
+        int offset = 0;
+        for (int dim = 0; dim < shape.length; dim++) {
+            int coord = rem / denseStrides[dim];
+            rem %= denseStrides[dim];
+            offset += coord * strides[dim];
+        }
+        return offset;
+    }
+
+    private static int[] denseStrides(int[] shape) {
+        int[] out = new int[shape.length];
+        int stride = 1;
+        for (int i = shape.length - 1; i >= 0; i--) {
+            out[i] = stride;
+            stride *= shape[i];
+        }
+        return out;
+    }
+
+    private static int logicalSize(int[] shape) {
+        int size = 1;
+        for (int dim : shape) {
+            size *= dim;
+        }
+        return size;
     }
 }
