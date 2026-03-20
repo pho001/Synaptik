@@ -2,15 +2,15 @@ package Operations;
 
 import Backend.ComputeBackend;
 import Tensor.Tensor;
+import Tensor.TensorRemap;
 
 import java.util.List;
-import Utils.*;
 
 
 public class contiguous implements Operation{
     @Override
     public void apply(List<Tensor> inputs, Tensor node) {
-        remap.apply(inputs.getFirst(),node,10000);
+        TensorRemap.apply(inputs.getFirst(),node,10000);
     }
 
     @Override
@@ -20,7 +20,7 @@ public class contiguous implements Operation{
 
     @Override
     public void gradient(List<Tensor> inputs, Tensor node){
-        remap.apply(node.getGradient(),inputs.getFirst().getGradient(),10000);
+        TensorRemap.apply(node.getGradient(),inputs.getFirst().getGradient(),10000);
     }
 
     @Override

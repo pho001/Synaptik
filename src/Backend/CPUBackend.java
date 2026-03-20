@@ -6,8 +6,8 @@ import Backend.kernels.cpu.CpuExecutionConfig;
 import Backend.kernels.cpu.CpuStridedElementWise;
 import Backend.registry.CpuKernelRegistry;
 import Tensor.Tensor;
+import Tensor.TensorRemap;
 import Operations.Operation;
-import Utils.remap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -101,7 +101,7 @@ public class CPUBackend {
             }
 
             Tensor contiguousInput = new Tensor(input.getShape(), null, input.getLabel() + "_contiguous_tmp");
-            remap.apply(input, contiguousInput, materializeThreshold);
+            TensorRemap.apply(input, contiguousInput, materializeThreshold);
             prepared.add(contiguousInput);
         }
 
