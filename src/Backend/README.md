@@ -1,0 +1,137 @@
+# Backend (src/Backend)
+
+## Purpose
+
+The backend layer executes graph operations on a selected compute target while keeping graph orchestration (`Tensor`, `CompiledGraph`) separate from device-specific kernel code.
+
+Current backend targets:
+
+- `CPU` (implemented)
+- `GPU_CUDA` (scaffolding)
+- `GPU_OPENCL` (scaffolding)
+
+## Main Components
+
+- Dispatcher:
+  - [src/Backend/ComputeEngine.java](src/Backend/ComputeEngine.java)
+  - [src/Backend/ComputeBackend.java](src/Backend/ComputeBackend.java)
+- Per-device backends:
+  - [src/Backend/CPUBackend.java](src/Backend/CPUBackend.java)
+  - [src/Backend/CudaBackend.java](src/Backend/CudaBackend.java)
+  - [src/Backend/OpenClBackend.java](src/Backend/OpenClBackend.java)
+- Kernel registries:
+  - [src/Backend/registry/CpuKernelRegistry.java](src/Backend/registry/CpuKernelRegistry.java)
+  - [src/Backend/registry/CudaKernelRegistry.java](src/Backend/registry/CudaKernelRegistry.java)
+  - [src/Backend/registry/OpenClKernelRegistry.java](src/Backend/registry/OpenClKernelRegistry.java)
+- Kernel interfaces/impls:
+  - [src/Backend/kernels/cpu/](src/Backend/kernels/cpu)
+  - [src/Backend/kernels/cuda/](src/Backend/kernels/cuda)
+  - [src/Backend/kernels/opencl/](src/Backend/kernels/opencl)
+
+## Execution Flow
+
+1. `CompiledGraph.execute()` iterates compiled nodes.
+2. For each executable node, it calls `ComputeEngine.compute(tensor, tensor.getResolvedBackend())`.
+3. `ComputeEngine` routes to `CPUBackend`, `CudaBackend`, or `OpenClBackend`.
+4. Backend resolves kernel for `opType` (usually via registry).
+5. Kernel `forward(...)` performs the operation.
+
+Related files:
+
+- [src/Graph/CompiledGraph.java](src/Graph/CompiledGraph.java)
+- [src/Tensor/Tensor.java](src/Tensor/Tensor.java)
+
+## Compile-Time Resolution and Runtime Overhead
+
+During graph compilation, backend and CPU kernel are pre-resolved per node:
+
+- `Tensor.setResolvedBackend(...)`
+- `Tensor.setResolvedCpuKernel(...)`
+
+`CPUBackend.execute(...)` first uses pre-resolved kernel from node cache and only falls back to `CpuKernelRegistry.resolve(...)` if cache is missing. This keeps hot-path dispatch overhead low.
+
+## CPU Backend Details
+
+`CPUBackend` executes through `CpuKernel` implementations and a runtime `CpuExecutionConfig`.
+
+Dispatch modes for element-wise kernels:
+
+- `SCALAR`
+- `VECTOR`
+- `PARALLEL`
+- `PARALLEL_VECTOR`
+
+Mode selection is threshold-based in [src/Backend/kernels/cpu/CpuExecutionConfig.java](src/Backend/kernels/cpu/CpuExecutionConfig.java):
+
+- `vectorMinSize`
+- `parallelMinSize`
+
+Parallel chunking knobs:
+
+- `parallelism` (`0` = use available processors)
+- `chunksPerWorker`
+- `minChunkSize`
+
+Parallel execution uses [src/Backend/kernels/cpu/CpuThreadPool.java](src/Backend/kernels/cpu/CpuThreadPool.java) with per-parallelism `ForkJoinPool` reuse.
+
+## Backend Tuning Configuration
+
+CPU kernel dispatch parameters are represented by:
+
+- [src/Config/backend/CpuKernelConfig.java](src/Config/backend/CpuKernelConfig.java)
+
+Cross-backend tuning container:
+
+- [src/Config/backend/KernelTuningConfig.java](src/Config/backend/KernelTuningConfig.java)
+
+At runtime, CPU backend config is applied through:
+
+- `ComputeEngine.setCpuKernelConfig(...)`
+
+## Profile-Driven Runtime Configuration
+
+Optimizer profiles are used as runtime source of tuning knobs:
+
+- training profile path: `config/optimizer-profile.json`
+- autotune training winner: `build/optimizer-autotune/best-profile-training.json`
+- autotune inference winner: `build/optimizer-autotune/best-profile-inference.json`
+
+[src/Graph/optimizer/OptimizerFactory.java](src/Graph/optimizer/OptimizerFactory.java):
+
+- `createRecommendedTrainingOptimizer()` loads recommended/training profile and applies CPU kernel config.
+- `createInferencePerformanceOptimizer()` loads inference profile and applies CPU kernel config.
+
+This means backend dispatch thresholds/chunking are profile-driven, with defaults acting as fallback.
+
+## CUDA and OpenCL Status
+
+CUDA and OpenCL backends are intentionally scaffolded.
+
+Current registries map only `NOOP`:
+
+- [src/Backend/registry/CudaKernelRegistry.java](src/Backend/registry/CudaKernelRegistry.java)
+- [src/Backend/registry/OpenClKernelRegistry.java](src/Backend/registry/OpenClKernelRegistry.java)
+
+Missing kernels throw `UnsupportedOperationException` at execution time.
+
+## Adding a New CPU Operation Kernel
+
+1. Implement `CpuKernel` in `src/Backend/kernels/cpu/` (forward path and mode dispatch).
+2. Register new op type in `CpuKernelRegistry`.
+3. Ensure operation class reports correct `opType`.
+4. Add regression tests and benchmark coverage.
+
+## Adding a New Backend
+
+1. Add new enum value to `ComputeBackend`.
+2. Implement backend class (similar to `CPUBackend`/`CudaBackend`/`OpenClBackend`).
+3. Add kernel interface + registry for that backend.
+4. Extend `ComputeEngine.compute(...)` switch.
+5. Extend tuning config objects and profile I/O if backend has runtime knobs.
+6. Add benchmark candidate support if backend should be autotuned.
+
+## Known Limitations
+
+- CPU is the only fully implemented execution backend.
+- CUDA/OpenCL registries are placeholder-level today.
+- Backend profile loading currently focuses on optimizer-driven entry points.
