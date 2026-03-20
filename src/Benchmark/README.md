@@ -102,10 +102,7 @@ This section reflects the current candidate generation in:
 
 Autotune generates all subsets and permutations of:
 
-- `AR`
-- `CSE`
-- `FUSE`
-- `MEM`
+- `stages`: `[AR, CSE, FUSE, MEM]`
 
 Total stage-order variants per knob profile:
 
@@ -113,131 +110,40 @@ Total stage-order variants per knob profile:
 
 ### Optimizer Knobs
 
-- `strictCseSafety`:
-  - `true`
-  - `false`
-
-- `fuse.maxClusterNodes`:
-  - `32`
-  - `64`
-  - `80`
-  - `96`
-
-- `fuse.scoreThreshold`:
-  - `0.00`
-  - `0.55`
-  - `0.60`
-  - `0.85`
-
-- `fuse.internalEdgeBonus`:
-  - `0.25`
-  - `0.30`
-  - `0.50`
-
-- `fuse.externalInputPenalty`:
-  - `0.10`
-  - `0.20`
-
-- `fuse.sharedExpensivePenalty`:
-  - `0.50`
-  - `1.00`
-
-- `fuse.nonCheapBonus`:
-  - `0.30`
-  - `0.35`
-  - `0.40`
-
-- `fuse.preserveSharedExpensiveNodes`:
-  - `true`
-  - `false`
+- `strictCseSafety`: `[true, false]`
+- `fuse.maxClusterNodes`: `[32, 64, 80, 96]`
+- `fuse.scoreThreshold`: `[0.00, 0.55, 0.60, 0.85]`
+- `fuse.internalEdgeBonus`: `[0.25, 0.30, 0.50]`
+- `fuse.externalInputPenalty`: `[0.10, 0.20]`
+- `fuse.sharedExpensivePenalty`: `[0.50, 1.00]`
+- `fuse.nonCheapBonus`: `[0.30, 0.35, 0.40]`
+- `fuse.preserveSharedExpensiveNodes`: `[true, false]`
 
 ### CPU Kernel Knobs
 
-- `kernel.cpu.loopUnrollFactor`:
-  - `1`
-  - `4`
-
-- `kernel.cpu.matMulTileM`:
-  - `16`
-  - `32`
-  - `64`
-
-- `kernel.cpu.matMulTileN`:
-  - `0`
-  - `16`
-  - `32`
-
-- `kernel.cpu.matMulTileK`:
-  - `0`
-  - `16`
-  - `32`
-
-- `kernel.cpu.vectorMinSize`:
-  - `256`
-  - `512`
-  - `1024`
-  - `2048`
-  - `1000000000`
-
-- `kernel.cpu.parallelMinSize`:
-  - `50000`
-  - `100000`
-  - `250000`
-  - `1000000`
-  - `2000000`
-  - `1000000000`
-
-- `kernel.cpu.parallelism`:
-  - `0` (`0` means auto-detect available processors)
-
-- `kernel.cpu.chunksPerWorker`:
-  - `2`
-  - `4`
-  - `8`
-
-- `kernel.cpu.minChunkSize`:
-  - `2048`
-  - `4096`
-  - `8192`
+- `kernel.cpu.loopUnrollFactor`: `[1, 4]`
+- `kernel.cpu.matMulTileM`: `[16, 32, 64]`
+- `kernel.cpu.matMulTileN`: `[0, 16, 32]`
+- `kernel.cpu.matMulTileK`: `[0, 16, 32]`
+- `kernel.cpu.vectorMinSize`: `[256, 512, 1024, 2048, 1000000000]`
+- `kernel.cpu.parallelMinSize`: `[50000, 100000, 250000, 1000000, 2000000, 1000000000]`
+- `kernel.cpu.parallelism`: `[0]` (`0` means auto-detect available processors)
+- `kernel.cpu.chunksPerWorker`: `[2, 4, 8]`
+- `kernel.cpu.minChunkSize`: `[2048, 4096, 8192]`
 
 ### CUDA Kernel Knobs
 
-- `kernel.cuda.loopUnrollFactor`:
-  - `4`
-  - `8`
-
-- `kernel.cuda.matMulTileM`:
-  - `16`
-  - `32`
-
-- `kernel.cuda.matMulTileN`:
-  - `16`
-  - `32`
-
-- `kernel.cuda.matMulTileK`:
-  - `16`
-  - `32`
+- `kernel.cuda.loopUnrollFactor`: `[4, 8]`
+- `kernel.cuda.matMulTileM`: `[16, 32]`
+- `kernel.cuda.matMulTileN`: `[16, 32]`
+- `kernel.cuda.matMulTileK`: `[16, 32]`
 
 ### OpenCL Kernel Knobs
 
-- `kernel.opencl.loopUnrollFactor`:
-  - `1`
-  - `2`
-  - `4`
-
-- `kernel.opencl.matMulTileM`:
-  - `0`
-  - `16`
-  - `32`
-
-- `kernel.opencl.matMulTileN`:
-  - `0`
-  - `16`
-  - `32`
-
-- `kernel.opencl.matMulTileK`:
-  - `0`
-  - `16`
+- `kernel.opencl.loopUnrollFactor`: `[1, 2, 4]`
+- `kernel.opencl.matMulTileM`: `[0, 16, 32]`
+- `kernel.opencl.matMulTileN`: `[0, 16, 32]`
+- `kernel.opencl.matMulTileK`: `[0, 16]`
 
 ### Candidate Count Notes
 
