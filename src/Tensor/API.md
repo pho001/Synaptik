@@ -131,3 +131,12 @@ Primary class:
 
 - `toStructString()`
 
+## Reduction Semantics
+
+- `sum()`:
+  - Reduces all elements to a single value.
+  - Output shape is `[1]`.
+- `sum(int dimension)`:
+  - Reduces along one axis.
+  - Output shape removes the selected axis (rank decreases by 1).
+  - `dimension` is zero-based (`0..rank-1`).

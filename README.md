@@ -181,6 +181,11 @@ Quick operation catalog on `Tensor`:
 - Reduction: `sum()`, `sum(axis)`
 - Layout: `contiguous()`
 
+Reduction details:
+
+- `sum()` reduces the whole tensor to shape `[1]`
+- `sum(int dimension)` reduces one axis and removes that axis from output shape
+
 ## Quick Start Tensor Ops
 
 ```java
