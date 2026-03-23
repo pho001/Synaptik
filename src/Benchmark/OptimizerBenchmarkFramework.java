@@ -2,6 +2,7 @@ package Benchmark;
 
 import Backend.ComputeEngine;
 import Graph.optimizer.GraphOptimizer;
+import Tensor.DataType;
 import Tensor.Tensor;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ public final class OptimizerBenchmarkFramework {
     private static final double ABS_TOL = 1e-9;
     private static final double REL_TOL = 1e-7;
     private static final Random RNG = new Random(42);
+    private static final DataType BENCH_DTYPE = resolveBenchDataType();
 
     private static final String RESET = "\u001B[0m";
     private static final String BOLD = "\u001B[1m";
@@ -122,6 +124,7 @@ public final class OptimizerBenchmarkFramework {
         String allColor = allOk ? GREEN : RED;
 
         System.out.println(BOLD + CYAN + "=== Optimizer Benchmark ===" + RESET);
+        System.out.println(GRAY + "DType=" + BENCH_DTYPE + RESET);
         System.out.println(GRAY + "Size=" + SIZE + ", warmup=" + WARMUP_ITERS + ", measure=" + MEASURE_ITERS + RESET);
         System.out.println();
         System.out.println(BOLD + CYAN + "[Graph Size]" + RESET);
@@ -569,9 +572,9 @@ public final class OptimizerBenchmarkFramework {
     }
 
     private static void runScalarSanityCore(GraphOptimizer optimizer) {
-        Tensor A0 = Tensor.scalar(10.0);
-        Tensor B0 = Tensor.scalar(2.0);
-        Tensor C0 = Tensor.scalar(5.0);
+        Tensor A0 = Tensor.scalar(10.0, BENCH_DTYPE);
+        Tensor B0 = Tensor.scalar(2.0, BENCH_DTYPE);
+        Tensor C0 = Tensor.scalar(5.0, BENCH_DTYPE);
         A0.setRequiresGrad(true);
         B0.setRequiresGrad(true);
         C0.setRequiresGrad(true);
@@ -580,9 +583,9 @@ public final class OptimizerBenchmarkFramework {
         Te7No.getCompiledGraph().setTrainingModeOn();
         Te7No.compute();
 
-        Tensor A1 = Tensor.scalar(10.0);
-        Tensor B1 = Tensor.scalar(2.0);
-        Tensor C1 = Tensor.scalar(5.0);
+        Tensor A1 = Tensor.scalar(10.0, BENCH_DTYPE);
+        Tensor B1 = Tensor.scalar(2.0, BENCH_DTYPE);
+        Tensor C1 = Tensor.scalar(5.0, BENCH_DTYPE);
         A1.setRequiresGrad(true);
         B1.setRequiresGrad(true);
         C1.setRequiresGrad(true);
@@ -596,15 +599,15 @@ public final class OptimizerBenchmarkFramework {
         double expectedGradB = -48.0;
         double expectedGradC = 41.6;
 
-        checkClose("Scalar no-opt Te7", Te7No.toDoubleArrayCopy()[0], expectedTe7, 1e-9);
-        checkClose("Scalar no-opt gradA", A0.getGradient().toDoubleArrayCopy()[0], expectedGradA, 1e-9);
-        checkClose("Scalar no-opt gradB", B0.getGradient().toDoubleArrayCopy()[0], expectedGradB, 1e-9);
-        checkClose("Scalar no-opt gradC", C0.getGradient().toDoubleArrayCopy()[0], expectedGradC, 1e-9);
+        checkClose("Scalar no-opt Te7", Te7No.toDoubleArrayCopy()[0], expectedTe7, 1e-5);
+        checkClose("Scalar no-opt gradA", A0.getGradient().toDoubleArrayCopy()[0], expectedGradA, 1e-5);
+        checkClose("Scalar no-opt gradB", B0.getGradient().toDoubleArrayCopy()[0], expectedGradB, 1e-5);
+        checkClose("Scalar no-opt gradC", C0.getGradient().toDoubleArrayCopy()[0], expectedGradC, 1e-5);
 
-        checkClose("Scalar opt Te7", Te7Opt.toDoubleArrayCopy()[0], expectedTe7, 1e-9);
-        checkClose("Scalar opt gradA", A1.getGradient().toDoubleArrayCopy()[0], expectedGradA, 1e-9);
-        checkClose("Scalar opt gradB", B1.getGradient().toDoubleArrayCopy()[0], expectedGradB, 1e-9);
-        checkClose("Scalar opt gradC", C1.getGradient().toDoubleArrayCopy()[0], expectedGradC, 1e-9);
+        checkClose("Scalar opt Te7", Te7Opt.toDoubleArrayCopy()[0], expectedTe7, 1e-5);
+        checkClose("Scalar opt gradA", A1.getGradient().toDoubleArrayCopy()[0], expectedGradA, 1e-5);
+        checkClose("Scalar opt gradB", B1.getGradient().toDoubleArrayCopy()[0], expectedGradB, 1e-5);
+        checkClose("Scalar opt gradC", C1.getGradient().toDoubleArrayCopy()[0], expectedGradC, 1e-5);
     }
 
     private static void checkClose(String name, double actual, double expected, double tol) {
@@ -654,10 +657,23 @@ public final class OptimizerBenchmarkFramework {
     }
 
     private static Tensor inputTensor(String label, double[] data, boolean requiresGrad) {
-        Tensor t = new Tensor(new int[]{data.length}, null, label);
+        Tensor t = new Tensor(new int[]{data.length}, null, label, BENCH_DTYPE);
         t.setData(data.clone());
         t.setRequiresGrad(requiresGrad);
         return t;
+    }
+
+    private static DataType resolveBenchDataType() {
+        String raw = System.getProperty("benchmark.dtype", DataType.FLOAT32.name()).trim().toUpperCase(Locale.ROOT);
+        try {
+            DataType parsed = DataType.valueOf(raw);
+            if (parsed != DataType.FLOAT32 && parsed != DataType.FLOAT64) {
+                throw new IllegalArgumentException("Unsupported benchmark.dtype: " + raw + ". Allowed: FLOAT32, FLOAT64");
+            }
+            return parsed;
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("Invalid benchmark.dtype: " + raw + ". Allowed: FLOAT32, FLOAT64", ex);
+        }
     }
 
     private static double[] randomData(int n) {

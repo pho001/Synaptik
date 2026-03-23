@@ -230,6 +230,21 @@ public class Tensor {
         }
     }
 
+    public void setFloat32Data(float[] data) {
+        if (metadata.getDataType() != DataType.FLOAT32) {
+            throw new UnsupportedOperationException("setFloat32Data() is only supported for FLOAT32 tensors.");
+        }
+        if (data == null) {
+            throw new IllegalArgumentException("data cannot be null");
+        }
+        int expected = metadata.getFlatSize();
+        if (data.length != expected) {
+            throw new IllegalArgumentException("FLOAT32 data length mismatch. expected=" + expected + ", actual=" + data.length);
+        }
+        this.storage = new Float32Storage(data);
+        this.data = null;
+    }
+
     public int getFlatIndex(int[] indices) {
         return metadata.getFlatIndex(indices);
     }

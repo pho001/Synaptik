@@ -101,4 +101,21 @@ public class TensorStorageDataTypeTest {
         }
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 0.0);
     }
+
+    @Test
+    void setFloat32DataRebindsTypedStorage() {
+        Tensor t = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "t32", DataType.FLOAT32);
+        float[] replacement = new float[]{3.5f, -2.25f, 9.75f};
+
+        t.setFloat32Data(replacement);
+
+        assertSame(replacement, t.getFloat32Data());
+        assertArrayEquals(new double[]{3.5, -2.25, 9.75}, t.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void setFloat32DataRejectsNonFloat32Tensor() {
+        Tensor t = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "t64", DataType.FLOAT64);
+        assertThrows(UnsupportedOperationException.class, () -> t.setFloat32Data(new float[]{1.0f, 2.0f}));
+    }
 }
