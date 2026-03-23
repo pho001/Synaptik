@@ -648,6 +648,14 @@ public class Tensor {
         return TensorOps.exp(this);
     }
 
+    public Tensor fastExp() {
+        return TensorOps.fastExp(this);
+    }
+
+    public Tensor fastTanh() {
+        return TensorOps.fastTanh(this);
+    }
+
     public Tensor pow(double exp) {
         return TensorOps.pow(this, exp);
     }
@@ -672,6 +680,10 @@ public class Tensor {
 
     public Tensor sigmoid() {
         return TensorOps.sigmoid(this);
+    }
+
+    public Tensor tanh() {
+        return TensorOps.tanh(this);
     }
 
 

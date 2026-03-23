@@ -4,6 +4,7 @@ import Backend.kernels.cpu.CpuDTypeOps;
 import Backend.kernels.cpu.CpuExecutionConfig;
 import Backend.kernels.cpu.CpuExecutionMode;
 import Backend.kernels.cpu.CpuThreadPool;
+import Utils.FastExp;
 
 public final class UnaryF16 {
     private UnaryF16() {}
@@ -11,8 +12,10 @@ public final class UnaryF16 {
     public static void inv(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.INV); }
     public static void relu(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.RELU); }
     public static void exp(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.EXP); }
+    public static void fastExp(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.FAST_EXP); }
     public static void log(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.LOG); }
     public static void tanh(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.TANH); }
+    public static void fastTanh(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.FAST_TANH); }
     public static void sqrt(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.SQRT); }
     public static void sigmoid(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.SIGMOID); }
 
@@ -30,8 +33,10 @@ public final class UnaryF16 {
                 case INV -> 1.0f / x;
                 case RELU -> Math.max(0.0f, x);
                 case EXP -> (float) Math.exp(x);
+                case FAST_EXP -> FastExp.fastExpF32(x);
                 case LOG -> (float) Math.log(x);
                 case TANH -> (float) Math.tanh(x);
+                case FAST_TANH -> FastExp.fastTanhF32(x);
                 case SQRT -> (float) Math.sqrt(x);
                 case SIGMOID -> 1.0f / (1.0f + (float) Math.exp(-x));
             };
@@ -49,5 +54,5 @@ public final class UnaryF16 {
         });
     }
 
-    private enum Op { INV, RELU, EXP, LOG, TANH, SQRT, SIGMOID }
+    private enum Op { INV, RELU, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SQRT, SIGMOID }
 }

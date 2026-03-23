@@ -10,6 +10,14 @@ import java.util.List;
 
 public class CpuFusedKernel implements CpuKernel {
     @Override
+    public CpuKernelCostClass costClass(Operation op) {
+        if (op instanceof FusedOperation fused) {
+            return fused.isLowCostHint() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
+        }
+        return CpuKernel.super.costClass(op);
+    }
+
+    @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
         forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
     }
@@ -34,6 +42,8 @@ public class CpuFusedKernel implements CpuKernel {
 
         int length = node.getFlatDataSize();
         CpuExecutionMode mode = config.modeFor(op, node);
+        CpuKernelCostClass costClass = fused.isLowCostHint() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
+        String schedulerKey = fused.getSchedulerSignature();
         boolean recommendVector = true;
         if (fused != null) {
             recommendVector = FusedVectorOps.isRecommended(fused.getPrecisionMode());
@@ -47,8 +57,8 @@ public class CpuFusedKernel implements CpuKernel {
                     ranged.applyRangeScalar(inputs, node, 0, length);
                 }
             }
-            case PARALLEL -> runParallel(ranged, inputs, node, config, false, fused.getPrecisionMode());
-            case PARALLEL_VECTOR -> runParallel(ranged, inputs, node, config, recommendVector, fused.getPrecisionMode());
+            case PARALLEL -> runParallel(ranged, inputs, node, config, false, fused.getPrecisionMode(), costClass, schedulerKey);
+            case PARALLEL_VECTOR -> runParallel(ranged, inputs, node, config, recommendVector, fused.getPrecisionMode(), costClass, schedulerKey);
         }
     }
 
@@ -68,12 +78,16 @@ public class CpuFusedKernel implements CpuKernel {
             Tensor node,
             CpuExecutionConfig config,
             boolean preferVector,
-            int precisionMode
+            int precisionMode,
+            CpuKernelCostClass costClass,
+            String schedulerKey
     ) {
         int length = node.getFlatDataSize();
         int width = preferVector ? Math.max(1, FusedVectorOps.width(precisionMode)) : 1;
         int chunkSize = config.computeChunkSize(length, width);
         int chunks = (length + chunkSize - 1) / chunkSize;
+        boolean useCommonPool = CpuSchedulerAdvisor.shouldUseCommonPool(costClass, schedulerKey, length, config);
+        long t0 = System.nanoTime();
         CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, length);
@@ -82,6 +96,7 @@ public class CpuFusedKernel implements CpuKernel {
             } else {
                 ranged.applyRangeScalar(inputs, node, start, end);
             }
-        });
+        }, useCommonPool);
+        CpuSchedulerAdvisor.recordSample(schedulerKey, length, System.nanoTime() - t0);
     }
 }

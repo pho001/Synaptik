@@ -20,7 +20,9 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.INV, new CpuInvKernel());
         KERNELS.put(Operation.OpType.LOG, new CpuLogKernel());
         KERNELS.put(Operation.OpType.EXP, new CpuExpKernel());
+        KERNELS.put(Operation.OpType.FAST_EXP, new CpuFastExpKernel());
         KERNELS.put(Operation.OpType.TANH, new CpuTanhKernel());
+        KERNELS.put(Operation.OpType.FAST_TANH, new CpuFastTanhKernel());
         KERNELS.put(Operation.OpType.POW, new CpuPowKernel());
         KERNELS.put(Operation.OpType.SQRT, new CpuSqrtKernel());
         KERNELS.put(Operation.OpType.MUL_SCALAR, new CpuMulScalarKernel());

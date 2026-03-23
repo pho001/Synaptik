@@ -16,6 +16,8 @@ It combines:
 
 - Core runtime tensor:
   - [src/Tensor/Tensor.java](src/Tensor/Tensor.java)
+- API reference:
+  - [src/Tensor/API.md](src/Tensor/API.md)
 - Metadata:
   - [src/Tensor/TensorMetadata.java](src/Tensor/TensorMetadata.java)
 - Operation helpers:
@@ -63,11 +65,17 @@ It combines:
 3. `Tensor.compute()` uses profile-driven recommended optimizer from `OptimizerFactory`.
 4. `CompiledGraph` executes forward (and backward section in training mode) via backend dispatch.
 
+Unary transcendental APIs now include both exact and approximate variants:
+
+- exact: `exp()`, `tanh()`
+- approximate: `fastExp()`, `fastTanh()`
+
 Related files:
 
 - [src/Graph/CompiledGraph.java](src/Graph/CompiledGraph.java)
 - [src/Graph/optimizer/OptimizerFactory.java](src/Graph/optimizer/OptimizerFactory.java)
 - [src/Backend/ComputeEngine.java](src/Backend/ComputeEngine.java)
+- [src/Tensor/TensorUnaryOps.java](src/Tensor/TensorUnaryOps.java)
 
 ## Gradient and Backward
 

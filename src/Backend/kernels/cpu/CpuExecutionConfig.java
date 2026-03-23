@@ -2,6 +2,8 @@ package Backend.kernels.cpu;
 
 import Config.backend.CpuKernelConfig;
 import Config.backend.SumAccuracyMode;
+import Config.backend.VectorPolicy;
+import Operations.FusedOperation;
 import Operations.Operation;
 import Tensor.Tensor;
 
@@ -13,6 +15,10 @@ public final class  CpuExecutionConfig {
     private final int minChunkSize;
     private final int contiguousMaterializeThreshold;
     private final SumAccuracyMode sumAccuracyMode;
+    private final double lowCostNsPerElementThreshold;
+    private final VectorPolicy vectorPolicyCheap;
+    private final VectorPolicy vectorPolicyTranscendental;
+    private final VectorPolicy vectorPolicyReduction;
 
     public CpuExecutionConfig(
             int vectorMinSize,
@@ -21,7 +27,11 @@ public final class  CpuExecutionConfig {
             int chunksPerWorker,
             int minChunkSize,
             int contiguousMaterializeThreshold,
-            SumAccuracyMode sumAccuracyMode
+            SumAccuracyMode sumAccuracyMode,
+            double lowCostNsPerElementThreshold,
+            VectorPolicy vectorPolicyCheap,
+            VectorPolicy vectorPolicyTranscendental,
+            VectorPolicy vectorPolicyReduction
     ) {
         this.vectorMinSize = vectorMinSize;
         this.parallelMinSize = parallelMinSize;
@@ -30,6 +40,10 @@ public final class  CpuExecutionConfig {
         this.minChunkSize = minChunkSize;
         this.contiguousMaterializeThreshold = contiguousMaterializeThreshold;
         this.sumAccuracyMode = sumAccuracyMode == null ? SumAccuracyMode.FAST : sumAccuracyMode;
+        this.lowCostNsPerElementThreshold = lowCostNsPerElementThreshold <= 0.0d ? 2.0d : lowCostNsPerElementThreshold;
+        this.vectorPolicyCheap = vectorPolicyCheap == null ? VectorPolicy.AUTO : vectorPolicyCheap;
+        this.vectorPolicyTranscendental = vectorPolicyTranscendental == null ? VectorPolicy.AUTO : vectorPolicyTranscendental;
+        this.vectorPolicyReduction = vectorPolicyReduction == null ? VectorPolicy.AUTO : vectorPolicyReduction;
     }
 
     public static CpuExecutionConfig defaults() {
@@ -47,7 +61,11 @@ public final class  CpuExecutionConfig {
                 config.chunksPerWorker(),
                 config.minChunkSize(),
                 config.contiguousMaterializeThreshold(),
-                config.sumAccuracyMode()
+                config.sumAccuracyMode(),
+                config.lowCostNsPerElementThreshold(),
+                config.vectorPolicyCheap(),
+                config.vectorPolicyTranscendental(),
+                config.vectorPolicyReduction()
         );
     }
 
@@ -56,13 +74,15 @@ public final class  CpuExecutionConfig {
             return CpuExecutionMode.SCALAR;
         }
         int size = node.getFlatDataSize();
+        VectorPolicy vectorPolicy = resolveElementWisePolicy(op);
+        boolean vectorAllowed = isVectorAllowed(vectorPolicy, size);
         if (size >= parallelMinSize) {
-            if (size >= vectorMinSize) {
+            if (vectorAllowed) {
                 return CpuExecutionMode.PARALLEL_VECTOR;
             }
             return CpuExecutionMode.PARALLEL;
         }
-        if (size >= vectorMinSize) {
+        if (vectorAllowed) {
             return CpuExecutionMode.VECTOR;
         }
         return CpuExecutionMode.SCALAR;
@@ -96,18 +116,52 @@ public final class  CpuExecutionConfig {
         return sumAccuracyMode;
     }
 
+    public double lowCostNsPerElementThreshold() {
+        return lowCostNsPerElementThreshold;
+    }
+
     public CpuExecutionMode modeForReduction(int workSize) {
         int size = Math.max(1, workSize);
+        boolean vectorAllowed = isVectorAllowed(vectorPolicyReduction, size);
         if (size >= parallelMinSize) {
-            if (size >= vectorMinSize) {
+            if (vectorAllowed) {
                 return CpuExecutionMode.PARALLEL_VECTOR;
             }
             return CpuExecutionMode.PARALLEL;
         }
-        if (size >= vectorMinSize) {
+        if (vectorAllowed) {
             return CpuExecutionMode.VECTOR;
         }
         return CpuExecutionMode.SCALAR;
+    }
+
+    private boolean isVectorAllowed(VectorPolicy policy, int size) {
+        return switch (policy) {
+            case FORCE_ON -> true;
+            case FORCE_OFF -> false;
+            case AUTO -> size >= vectorMinSize;
+        };
+    }
+
+    private VectorPolicy resolveElementWisePolicy(Operation op) {
+        Operation.OpType type = op.opType();
+        if (type == null) {
+            return vectorPolicyCheap;
+        }
+        switch (type) {
+            case LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, SIGMOID -> {
+                return vectorPolicyTranscendental;
+            }
+            case FUSED -> {
+                if (op instanceof FusedOperation fused) {
+                    return fused.isLowCostHint() ? vectorPolicyCheap : vectorPolicyTranscendental;
+                }
+                return vectorPolicyTranscendental;
+            }
+            default -> {
+                return vectorPolicyCheap;
+            }
+        }
     }
 
 }

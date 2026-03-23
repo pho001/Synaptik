@@ -1,9 +1,11 @@
 package Backend.kernels.cpu;
 
+import Backend.ComputeEngine;
 import Operations.Operation;
 import Operations.mulScalar;
 import Operations.pow;
 import Tensor.Tensor;
+import Utils.FastExp;
 
 import java.util.List;
 
@@ -13,7 +15,7 @@ public final class CpuStridedElementWise {
     public static boolean supports(Operation op) {
         if (op == null) return false;
         return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, TANH, POW, SQRT, MUL_SCALAR, RELU, SIGMOID -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, MUL_SCALAR, RELU, SIGMOID -> true;
             default -> false;
         };
     }
@@ -197,8 +199,10 @@ public final class CpuStridedElementWise {
             case NEG -> -a[aIdx];
             case INV -> 1.0 / a[aIdx];
             case LOG -> Math.log(a[aIdx]);
-            case EXP -> Math.exp(a[aIdx]);
-            case TANH -> Math.tanh(a[aIdx]);
+            case EXP -> ComputeEngine.useFastExpApprox() ? FastExp.fastExpF64(a[aIdx]) : Math.exp(a[aIdx]);
+            case FAST_EXP -> FastExp.fastExpF64(a[aIdx]);
+            case TANH -> ComputeEngine.useFastTanhApprox() ? FastExp.fastTanhF64(a[aIdx]) : Math.tanh(a[aIdx]);
+            case FAST_TANH -> FastExp.fastTanhF64(a[aIdx]);
             case SQRT -> Math.sqrt(a[aIdx]);
             case RELU -> Math.max(0.0, a[aIdx]);
             case SIGMOID -> 1.0 / (1.0 + Math.exp(-a[aIdx]));
@@ -226,8 +230,10 @@ public final class CpuStridedElementWise {
             case NEG -> -a[aIdx];
             case INV -> 1.0f / a[aIdx];
             case LOG -> (float) Math.log(a[aIdx]);
-            case EXP -> (float) Math.exp(a[aIdx]);
-            case TANH -> (float) Math.tanh(a[aIdx]);
+            case EXP -> ComputeEngine.useFastExpApprox() ? FastExp.fastExpF32(a[aIdx]) : (float) Math.exp(a[aIdx]);
+            case FAST_EXP -> FastExp.fastExpF32(a[aIdx]);
+            case TANH -> ComputeEngine.useFastTanhApprox() ? FastExp.fastTanhF32(a[aIdx]) : (float) Math.tanh(a[aIdx]);
+            case FAST_TANH -> FastExp.fastTanhF32(a[aIdx]);
             case SQRT -> (float) Math.sqrt(a[aIdx]);
             case RELU -> Math.max(0.0f, a[aIdx]);
             case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-a[aIdx])));
@@ -257,8 +263,10 @@ public final class CpuStridedElementWise {
             case NEG -> -av;
             case INV -> 1.0f / av;
             case LOG -> (float) Math.log(av);
-            case EXP -> (float) Math.exp(av);
-            case TANH -> (float) Math.tanh(av);
+            case EXP -> ComputeEngine.useFastExpApprox() ? FastExp.fastExpF32(av) : (float) Math.exp(av);
+            case FAST_EXP -> FastExp.fastExpF32(av);
+            case TANH -> ComputeEngine.useFastTanhApprox() ? FastExp.fastTanhF32(av) : (float) Math.tanh(av);
+            case FAST_TANH -> FastExp.fastTanhF32(av);
             case SQRT -> (float) Math.sqrt(av);
             case RELU -> Math.max(0.0f, av);
             case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-av)));

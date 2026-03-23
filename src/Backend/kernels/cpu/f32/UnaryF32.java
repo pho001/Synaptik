@@ -3,6 +3,7 @@ package Backend.kernels.cpu.f32;
 import Backend.kernels.cpu.CpuExecutionConfig;
 import Backend.kernels.cpu.CpuExecutionMode;
 import Backend.kernels.cpu.CpuThreadPool;
+import Utils.FastExp;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
@@ -39,6 +40,14 @@ public final class UnaryF32 {
         }
     }
 
+    public static void fastExp(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+        switch (mode) {
+            case VECTOR -> scalarFastExp(in, out, 0, out.length);
+            case PARALLEL, PARALLEL_VECTOR -> parallelFastExp(in, out, config);
+            case SCALAR -> scalarFastExp(in, out, 0, out.length);
+        }
+    }
+
     public static void log(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
         switch (mode) {
             case VECTOR -> vectorLog(in, out);
@@ -54,6 +63,14 @@ public final class UnaryF32 {
             case PARALLEL -> parallelTanh(in, out, config);
             case PARALLEL_VECTOR -> parallelVectorTanh(in, out, config);
             case SCALAR -> scalarTanh(in, out, 0, out.length);
+        }
+    }
+
+    public static void fastTanh(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+        switch (mode) {
+            case VECTOR -> scalarFastTanh(in, out, 0, out.length);
+            case PARALLEL, PARALLEL_VECTOR -> parallelFastTanh(in, out, config);
+            case SCALAR -> scalarFastTanh(in, out, 0, out.length);
         }
     }
 
@@ -78,8 +95,10 @@ public final class UnaryF32 {
     private static void scalarInv(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = 1.0f / in[i]; }
     private static void scalarRelu(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.max(0.0f, in[i]); }
     private static void scalarExp(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = (float) Math.exp(in[i]); }
+    private static void scalarFastExp(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = FastExp.fastExpF32(in[i]); }
     private static void scalarLog(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = (float) Math.log(in[i]); }
     private static void scalarTanh(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = (float) Math.tanh(in[i]); }
+    private static void scalarFastTanh(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = FastExp.fastTanhF32(in[i]); }
     private static void scalarSqrt(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = (float) Math.sqrt(in[i]); }
     private static void scalarSigmoid(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = 1.0f / (1.0f + (float) Math.exp(-in[i])); }
 
@@ -134,8 +153,10 @@ public final class UnaryF32 {
     private static void parallelInv(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarInv); }
     private static void parallelRelu(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarRelu); }
     private static void parallelExp(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarExp); }
+    private static void parallelFastExp(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarFastExp); }
     private static void parallelLog(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarLog); }
     private static void parallelTanh(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarTanh); }
+    private static void parallelFastTanh(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarFastTanh); }
     private static void parallelSqrt(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarSqrt); }
     private static void parallelSigmoid(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarSigmoid); }
 

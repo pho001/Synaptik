@@ -43,6 +43,14 @@ public final class TensorOps {
         return TensorUnaryOps.exp(input);
     }
 
+    public static Tensor fastExp(Tensor input) {
+        return TensorUnaryOps.fastExp(input);
+    }
+
+    public static Tensor fastTanh(Tensor input) {
+        return TensorUnaryOps.fastTanh(input);
+    }
+
     public static Tensor pow(Tensor input, double exponent) {
         return TensorUnaryOps.pow(input, exponent);
     }
@@ -61,6 +69,10 @@ public final class TensorOps {
 
     public static Tensor sigmoid(Tensor input) {
         return TensorUnaryOps.sigmoid(input);
+    }
+
+    public static Tensor tanh(Tensor input) {
+        return TensorUnaryOps.tanh(input);
     }
 
     public static Tensor sum(Tensor input, int dimension) {

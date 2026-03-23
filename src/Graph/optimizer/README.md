@@ -97,6 +97,12 @@ Winning profiles are persisted:
 
 `RECOMMENDED` is profile-overridden by the autotune training winner.
 
+CPU dispatch-related tuned knobs include:
+
+- threshold knobs (`vectorMinSize`, `parallelMinSize`, `chunksPerWorker`, `minChunkSize`, `contiguousMaterializeThreshold`)
+- low-cost scheduler threshold (`lowCostNsPerElementThreshold`)
+- vector policies by op group (`vectorPolicyCheap`, `vectorPolicyTranscendental`, `vectorPolicyReduction`)
+
 ## Adding a New Rule
 
 1. Add a class in `src/Graph/optimizer/rules/` implementing `OptimizationRule`.

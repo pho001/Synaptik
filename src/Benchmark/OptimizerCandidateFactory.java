@@ -4,6 +4,7 @@ import Config.backend.CpuKernelConfig;
 import Config.backend.CudaKernelConfig;
 import Config.backend.KernelTuningConfig;
 import Config.backend.OpenClKernelConfig;
+import Config.backend.VectorPolicy;
 import Config.optimizer.FuseConfig;
 
 import java.util.ArrayList;
@@ -118,20 +119,35 @@ public final class OptimizerCandidateFactory {
                 new CpuKernelConfig(4, 32, 32, 32, 1_000_000_000, 1_000_000_000, 0, 4, 4_096)
         );
         int[] contiguousMaterializeThresholds = new int[]{0, 4_096, 16_384, 65_536, 262_144, 1_000_000_000};
+        double[] lowCostNsPerElemThresholds = new double[]{0.5, 1.0, 2.0, 4.0};
+        VectorPolicy[][] vectorPolicyProfiles = new VectorPolicy[][]{
+                {VectorPolicy.AUTO, VectorPolicy.AUTO, VectorPolicy.AUTO},
+                {VectorPolicy.AUTO, VectorPolicy.FORCE_OFF, VectorPolicy.AUTO},
+                {VectorPolicy.FORCE_ON, VectorPolicy.FORCE_OFF, VectorPolicy.AUTO}
+        };
         for (CpuKernelConfig base : cpuDispatchBaseProfiles) {
             for (int threshold : contiguousMaterializeThresholds) {
-                cpuDispatchProfiles.add(new CpuKernelConfig(
-                        base.loopUnrollFactor(),
-                        base.matMulTileM(),
-                        base.matMulTileN(),
-                        base.matMulTileK(),
-                        base.vectorMinSize(),
-                        base.parallelMinSize(),
-                        base.parallelism(),
-                        base.chunksPerWorker(),
-                        base.minChunkSize(),
-                        threshold
-                ));
+                for (double lowCostThreshold : lowCostNsPerElemThresholds) {
+                    for (VectorPolicy[] vp : vectorPolicyProfiles) {
+                        cpuDispatchProfiles.add(new CpuKernelConfig(
+                                base.loopUnrollFactor(),
+                                base.matMulTileM(),
+                                base.matMulTileN(),
+                                base.matMulTileK(),
+                                base.vectorMinSize(),
+                                base.parallelMinSize(),
+                                base.parallelism(),
+                                base.chunksPerWorker(),
+                                base.minChunkSize(),
+                                threshold,
+                                base.sumAccuracyMode(),
+                                lowCostThreshold,
+                                vp[0],
+                                vp[1],
+                                vp[2]
+                        ));
+                    }
+                }
             }
         }
 

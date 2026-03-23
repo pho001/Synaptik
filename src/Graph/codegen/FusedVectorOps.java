@@ -1,8 +1,10 @@
 package Graph.codegen;
 
+import Backend.ComputeEngine;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
+import Utils.FastExp;
 
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
@@ -177,6 +179,9 @@ public final class FusedVectorOps {
     public static FloatVector sqrtF32(FloatVector a) { return (FloatVector) mapUnaryF(a, x -> (float) Math.sqrt(x)); }
 
     public static Object exp(Object a, int mode) {
+        if (ComputeEngine.useFastExpApprox()) {
+            return fastExp(a, mode);
+        }
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::exp);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.exp(x));
@@ -186,7 +191,24 @@ public final class FusedVectorOps {
     }
 
     public static DoubleVector expF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, Math::exp); }
-    public static FloatVector expF32(FloatVector a) { return (FloatVector) mapUnaryF(a, x -> (float) Math.exp(x)); }
+    public static FloatVector expF32(FloatVector a) {
+        if (ComputeEngine.useFastExpApprox()) {
+            return fastExpF32(a);
+        }
+        return (FloatVector) mapUnaryF(a, x -> (float) Math.exp(x));
+    }
+
+    public static Object fastExp(Object a, int mode) {
+        return switch (mode) {
+            case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastExp::fastExpF64);
+            case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastExp::fastExpF32);
+            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.fastExp(x, mode));
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
+        };
+    }
+
+    public static DoubleVector fastExpF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, FastExp::fastExpF64); }
+    public static FloatVector fastExpF32(FloatVector a) { return (FloatVector) mapUnaryF(a, FastExp::fastExpF32); }
 
     public static Object log(Object a, int mode) {
         return switch (mode) {
@@ -201,6 +223,9 @@ public final class FusedVectorOps {
     public static FloatVector logF32(FloatVector a) { return (FloatVector) mapUnaryF(a, x -> (float) Math.log(x)); }
 
     public static Object tanh(Object a, int mode) {
+        if (ComputeEngine.useFastTanhApprox()) {
+            return fastTanh(a, mode);
+        }
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::tanh);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.tanh(x));
@@ -209,8 +234,30 @@ public final class FusedVectorOps {
         };
     }
 
-    public static DoubleVector tanhF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, Math::tanh); }
-    public static FloatVector tanhF32(FloatVector a) { return (FloatVector) mapUnaryF(a, x -> (float) Math.tanh(x)); }
+    public static DoubleVector tanhF64(DoubleVector a) {
+        if (ComputeEngine.useFastTanhApprox()) {
+            return fastTanhF64(a);
+        }
+        return (DoubleVector) mapUnaryD(a, Math::tanh);
+    }
+    public static FloatVector tanhF32(FloatVector a) {
+        if (ComputeEngine.useFastTanhApprox()) {
+            return fastTanhF32(a);
+        }
+        return (FloatVector) mapUnaryF(a, x -> (float) Math.tanh(x));
+    }
+
+    public static Object fastTanh(Object a, int mode) {
+        return switch (mode) {
+            case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastExp::fastTanhF64);
+            case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastExp::fastTanhF32);
+            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.fastTanh(x, mode));
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
+        };
+    }
+
+    public static DoubleVector fastTanhF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, FastExp::fastTanhF64); }
+    public static FloatVector fastTanhF32(FloatVector a) { return (FloatVector) mapUnaryF(a, FastExp::fastTanhF32); }
 
     public static Object sigmoid(Object a, int mode) {
         return switch (mode) {

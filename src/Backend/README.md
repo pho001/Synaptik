@@ -77,6 +77,14 @@ Parallel chunking knobs:
 
 Parallel execution uses [src/Backend/kernels/cpu/CpuThreadPool.java](src/Backend/kernels/cpu/CpuThreadPool.java) with per-parallelism `ForkJoinPool` reuse.
 
+Vector dispatch policy can be controlled per operation group via `CpuKernelConfig`:
+
+- `vectorPolicyCheap`
+- `vectorPolicyTranscendental`
+- `vectorPolicyReduction`
+
+Each policy supports `AUTO | FORCE_ON | FORCE_OFF`.
+
 Non-contiguous input handling is hybrid:
 
 - `size < contiguousMaterializeThreshold`:
@@ -114,6 +122,26 @@ Cross-backend tuning container:
 At runtime, CPU backend config is applied through:
 
 - `ComputeEngine.setCpuKernelConfig(...)`
+
+Approximation policy is applied through:
+
+- `ComputeEngine.setApproxMode(...)`
+- enum: [src/Backend/ApproxMode.java](src/Backend/ApproxMode.java)
+- modes:
+  - `OFF` (always exact)
+  - `TRAINING_ONLY` (fast approximation only during training execution)
+  - `ALWAYS` (fast approximation in both inference and training)
+
+Current policy-enabled operations:
+
+- `exp` (can route to `fastExp`)
+- `tanh` (can route to `fastTanh`)
+
+The same policy is honored in:
+
+- standard CPU kernels
+- strided fallback path
+- fused codegen helper operations
 
 ## Profile-Driven Runtime Configuration
 

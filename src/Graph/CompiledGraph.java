@@ -112,6 +112,8 @@ public class CompiledGraph {
 
     // Nyní máme jen jednu exekuční metodu! Žádný forward a backward zvlášť.
     public void execute() {
+        ComputeEngine.setTrainingExecution(!this.inferenceMode);
+        try {
         // 1) Vždy nejdřív spočítáme forward část včetně forwardOutput kotvy.
         for (int i = 0; i <= forwardEndIndex; i++) {
             Tensor tensor = finalGraph.get(i);
@@ -141,6 +143,9 @@ public class CompiledGraph {
                 ComputeEngine.compute(tensor, tensor.getResolvedBackend());
             }
         }
+        } finally {
+            ComputeEngine.clearTrainingExecution();
+        }
     }
 
     private void syncRootData() {
@@ -168,11 +173,16 @@ public class CompiledGraph {
             fillGradientOnes(rootTensor.getGradient());
         }
 
-        for (int i = backwardStartIndex; i < finalGraph.size(); i++) {
-            Tensor t = finalGraph.get(i);
-            if (t.getOperation() != null && t.isBackward()) {
-                ComputeEngine.compute(t, t.getResolvedBackend());
+        ComputeEngine.setTrainingExecution(true);
+        try {
+            for (int i = backwardStartIndex; i < finalGraph.size(); i++) {
+                Tensor t = finalGraph.get(i);
+                if (t.getOperation() != null && t.isBackward()) {
+                    ComputeEngine.compute(t, t.getResolvedBackend());
+                }
             }
+        } finally {
+            ComputeEngine.clearTrainingExecution();
         }
     }
 

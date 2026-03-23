@@ -364,14 +364,28 @@ public class FusedOperationGenerator implements Opcodes {
                 if (precisionMode == FusedDTypeOps.MODE_F32) {
                     mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "expF32", "(F)F", false);
                 } else {
-                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
+                    mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "expF64", "(D)D", false);
+                }
+                break;
+            case "fastexp":
+                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                    mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "fastExpF32", "(F)F", false);
+                } else {
+                    mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "fastExpF64", "(D)D", false);
                 }
                 break;
             case "tanh":
                 if (precisionMode == FusedDTypeOps.MODE_F32) {
                     mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "tanhF32", "(F)F", false);
                 } else {
-                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "tanh", "(D)D", false);
+                    mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "tanhF64", "(D)D", false);
+                }
+                break;
+            case "fasttanh":
+                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                    mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "fastTanhF32", "(F)F", false);
+                } else {
+                    mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "fastTanhF64", "(D)D", false);
                 }
                 break;
             case "pow":
@@ -616,7 +630,9 @@ public class FusedOperationGenerator implements Opcodes {
             case "inv" -> emitVectorUnaryOpCall(mv, "inv", precisionMode);
             case "log" -> emitVectorUnaryOpCall(mv, "log", precisionMode);
             case "exp" -> emitVectorUnaryOpCall(mv, "exp", precisionMode);
+            case "fastexp" -> emitVectorUnaryOpCall(mv, "fastExp", precisionMode);
             case "tanh" -> emitVectorUnaryOpCall(mv, "tanh", precisionMode);
+            case "fasttanh" -> emitVectorUnaryOpCall(mv, "fastTanh", precisionMode);
             case "sqrt" -> emitVectorUnaryOpCall(mv, "sqrt", precisionMode);
             case "relu" -> emitVectorUnaryOpCall(mv, "relu", precisionMode);
             case "sigmoid" -> emitVectorUnaryOpCall(mv, "sigmoid", precisionMode);

@@ -3,6 +3,7 @@ package Backend.kernels.cpu.f64;
 import Backend.kernels.cpu.CpuExecutionConfig;
 import Backend.kernels.cpu.CpuExecutionMode;
 import Backend.kernels.cpu.CpuThreadPool;
+import Utils.FastExp;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
@@ -39,6 +40,14 @@ public final class UnaryF64 {
         }
     }
 
+    public static void fastExp(double[] in, double[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+        switch (mode) {
+            case VECTOR -> scalarFastExp(in, out, 0, out.length);
+            case PARALLEL, PARALLEL_VECTOR -> parallelFastExp(in, out, config);
+            case SCALAR -> scalarFastExp(in, out, 0, out.length);
+        }
+    }
+
     public static void log(double[] in, double[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
         switch (mode) {
             case VECTOR -> vectorLog(in, out);
@@ -54,6 +63,14 @@ public final class UnaryF64 {
             case PARALLEL -> parallelTanh(in, out, config);
             case PARALLEL_VECTOR -> parallelVectorTanh(in, out, config);
             case SCALAR -> scalarTanh(in, out, 0, out.length);
+        }
+    }
+
+    public static void fastTanh(double[] in, double[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+        switch (mode) {
+            case VECTOR -> scalarFastTanh(in, out, 0, out.length);
+            case PARALLEL, PARALLEL_VECTOR -> parallelFastTanh(in, out, config);
+            case SCALAR -> scalarFastTanh(in, out, 0, out.length);
         }
     }
 
@@ -78,8 +95,10 @@ public final class UnaryF64 {
     private static void scalarInv(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = 1.0 / in[i]; }
     private static void scalarRelu(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.max(0.0, in[i]); }
     private static void scalarExp(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.exp(in[i]); }
+    private static void scalarFastExp(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = FastExp.fastExpF64(in[i]); }
     private static void scalarLog(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.log(in[i]); }
     private static void scalarTanh(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.tanh(in[i]); }
+    private static void scalarFastTanh(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = FastExp.fastTanhF64(in[i]); }
     private static void scalarSqrt(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.sqrt(in[i]); }
     private static void scalarSigmoid(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = 1.0 / (1.0 + Math.exp(-in[i])); }
 
@@ -134,8 +153,10 @@ public final class UnaryF64 {
     private static void parallelInv(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarInv); }
     private static void parallelRelu(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarRelu); }
     private static void parallelExp(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarExp); }
+    private static void parallelFastExp(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarFastExp); }
     private static void parallelLog(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarLog); }
     private static void parallelTanh(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarTanh); }
+    private static void parallelFastTanh(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarFastTanh); }
     private static void parallelSqrt(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarSqrt); }
     private static void parallelSigmoid(double[] in, double[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF64::scalarSigmoid); }
 

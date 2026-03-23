@@ -5,6 +5,7 @@ import Config.backend.CudaKernelConfig;
 import Config.backend.KernelTuningConfig;
 import Config.backend.OpenClKernelConfig;
 import Config.backend.SumAccuracyMode;
+import Config.backend.VectorPolicy;
 import Config.optimizer.FuseConfig;
 
 import java.io.IOException;
@@ -82,7 +83,11 @@ public final class OptimizerProfileIO {
                 "      \"cpuChunksPerWorker\": " + k.cpu().chunksPerWorker() + ",\n" +
                 "      \"cpuMinChunkSize\": " + k.cpu().minChunkSize() + ",\n" +
                 "      \"cpuContiguousMaterializeThreshold\": " + k.cpu().contiguousMaterializeThreshold() + ",\n" +
-                "      \"cpuSumAccuracyMode\": \"" + k.cpu().sumAccuracyMode().name() + "\"\n" +
+                "      \"cpuSumAccuracyMode\": \"" + k.cpu().sumAccuracyMode().name() + "\",\n" +
+                "      \"cpuLowCostNsPerElementThreshold\": " + k.cpu().lowCostNsPerElementThreshold() + ",\n" +
+                "      \"cpuVectorPolicyCheap\": \"" + k.cpu().vectorPolicyCheap().name() + "\",\n" +
+                "      \"cpuVectorPolicyTranscendental\": \"" + k.cpu().vectorPolicyTranscendental().name() + "\",\n" +
+                "      \"cpuVectorPolicyReduction\": \"" + k.cpu().vectorPolicyReduction().name() + "\"\n" +
                 "    },\n" +
                 "    \"cuda\": {\n" +
                 "      \"cudaLoopUnrollFactor\": " + k.cuda().loopUnrollFactor() + ",\n" +
@@ -130,7 +135,20 @@ public final class OptimizerProfileIO {
                     findInt(json, "cpuChunksPerWorker", d.kernelConfig().cpu().chunksPerWorker()),
                     findInt(json, "cpuMinChunkSize", d.kernelConfig().cpu().minChunkSize()),
                     findInt(json, "cpuContiguousMaterializeThreshold", d.kernelConfig().cpu().contiguousMaterializeThreshold()),
-                    findEnum(json, "cpuSumAccuracyMode", d.kernelConfig().cpu().sumAccuracyMode(), SumAccuracyMode.class)
+                    findEnum(json, "cpuSumAccuracyMode", d.kernelConfig().cpu().sumAccuracyMode(), SumAccuracyMode.class),
+                    findDouble(
+                            json,
+                            "cpuLowCostNsPerElementThreshold",
+                            d.kernelConfig().cpu().lowCostNsPerElementThreshold()
+                    ),
+                    findEnum(json, "cpuVectorPolicyCheap", d.kernelConfig().cpu().vectorPolicyCheap(), VectorPolicy.class),
+                    findEnum(
+                            json,
+                            "cpuVectorPolicyTranscendental",
+                            d.kernelConfig().cpu().vectorPolicyTranscendental(),
+                            VectorPolicy.class
+                    ),
+                    findEnum(json, "cpuVectorPolicyReduction", d.kernelConfig().cpu().vectorPolicyReduction(), VectorPolicy.class)
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", d.kernelConfig().cuda().loopUnrollFactor()),

@@ -356,9 +356,17 @@ public class HFusedOperationGenerator implements Opcodes {
                 emitPrecisionMode(mv);
                 mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "exp", "(DI)D", false);
                 break;
+            case "fastexp":
+                emitPrecisionMode(mv);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "fastExp", "(DI)D", false);
+                break;
             case "tanh":
                 emitPrecisionMode(mv);
                 mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "tanh", "(DI)D", false);
+                break;
+            case "fasttanh":
+                emitPrecisionMode(mv);
+                mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedDTypeOps", "fastTanh", "(DI)D", false);
                 break;
             case "pow":
                 handlePow(mv, className, current, sm);
@@ -552,7 +560,9 @@ public class HFusedOperationGenerator implements Opcodes {
             case "inv" -> emitVectorUnaryOpCall(mv, "inv", precisionMode);
             case "log" -> emitVectorUnaryOpCall(mv, "log", precisionMode);
             case "exp" -> emitVectorUnaryOpCall(mv, "exp", precisionMode);
+            case "fastexp" -> emitVectorUnaryOpCall(mv, "fastExp", precisionMode);
             case "tanh" -> emitVectorUnaryOpCall(mv, "tanh", precisionMode);
+            case "fasttanh" -> emitVectorUnaryOpCall(mv, "fastTanh", precisionMode);
             case "sqrt" -> emitVectorUnaryOpCall(mv, "sqrt", precisionMode);
             case "relu" -> emitVectorUnaryOpCall(mv, "relu", precisionMode);
             case "sigmoid" -> emitVectorUnaryOpCall(mv, "sigmoid", precisionMode);

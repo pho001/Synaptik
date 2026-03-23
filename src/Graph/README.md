@@ -41,11 +41,19 @@ The Graph module compiles tensor expression DAGs into executable plans, runs for
 2. Sync root tensor data from optimized/fused result node.
 3. If training mode is on, execute remaining backward section.
 
+During execution, graph runtime also sets training context in `ComputeEngine`, so backend approximation policy (`ApproxMode.TRAINING_ONLY`) can be applied consistently.
+
 Dispatch uses:
 
 - [src/Backend/ComputeEngine.java](src/Backend/ComputeEngine.java)
 
 with pre-resolved backend per node for low-overhead execution.
+
+Approximation-aware fused path:
+
+- fused generated ops for `exp`/`tanh` route through fused scalar/vector helpers
+- helpers honor current `ComputeEngine` approximation mode
+- explicit fused ops `fastExp` / `fastTanh` are also supported
 
 ## Training vs Inference Modes
 

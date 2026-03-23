@@ -1,5 +1,8 @@
 package Graph.codegen;
 
+import Backend.ComputeEngine;
+import Utils.FastExp;
+
 public final class FusedDTypeOps {
     public static final int MODE_F64 = 0;
     public static final int MODE_F32 = 1;
@@ -44,11 +47,35 @@ public final class FusedDTypeOps {
     }
 
     public static double exp(double a, int mode) {
+        if (ComputeEngine.useFastExpApprox()) {
+            return fastExp(a, mode);
+        }
         return cast(Math.exp(cast(a, mode)), mode);
     }
 
+    public static double fastExp(double a, int mode) {
+        return switch (mode) {
+            case MODE_F64 -> FastExp.fastExpF64(a);
+            case MODE_F32 -> (double) FastExp.fastExpF32((float) a);
+            case MODE_F16 -> cast(FastExp.fastExpF32((float) a), MODE_F16);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
+        };
+    }
+
     public static double tanh(double a, int mode) {
+        if (ComputeEngine.useFastTanhApprox()) {
+            return fastTanh(a, mode);
+        }
         return cast(Math.tanh(cast(a, mode)), mode);
+    }
+
+    public static double fastTanh(double a, int mode) {
+        return switch (mode) {
+            case MODE_F64 -> FastExp.fastTanhF64(a);
+            case MODE_F32 -> (double) FastExp.fastTanhF32((float) a);
+            case MODE_F16 -> cast(FastExp.fastTanhF32((float) a), MODE_F16);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
+        };
     }
 
     public static double sqrt(double a, int mode) {

@@ -21,6 +21,8 @@ public class FusedOperation implements Operation {
     private final String expression;
     private final Operation compiledInstance;
     private final int precisionMode;
+    private final boolean lowCostHint;
+    private final String schedulerSignature;
 
     public FusedOperation(List<Tensor> cluster, Tensor root) {
         this(cluster, root, findExternalInputs(cluster));
@@ -36,6 +38,8 @@ public class FusedOperation implements Operation {
 
         this.expression = "fused(" + cluster.size() + ")";
         this.precisionMode = resolvePrecisionMode(cluster, root, externalInputsInOrder);
+        this.lowCostHint = resolveLowCostHint(cluster);
+        this.schedulerSignature = buildSchedulerSignature(cluster, this.precisionMode);
 
         try {
             int id = CLASS_COUNTER.incrementAndGet();
@@ -80,6 +84,14 @@ public class FusedOperation implements Operation {
 
     public int getPrecisionMode() {
         return precisionMode;
+    }
+
+    public boolean isLowCostHint() {
+        return lowCostHint;
+    }
+
+    public String getSchedulerSignature() {
+        return schedulerSignature;
     }
 
     @Override
@@ -154,5 +166,43 @@ public class FusedOperation implements Operation {
             case FLOAT32 -> FusedDTypeOps.MODE_F32;
             case FLOAT16 -> FusedDTypeOps.MODE_F16;
         };
+    }
+
+    private static boolean resolveLowCostHint(List<Tensor> cluster) {
+        if (cluster == null || cluster.isEmpty()) {
+            return false;
+        }
+        for (Tensor t : cluster) {
+            if (t == null || t.getOperation() == null) {
+                continue;
+            }
+            OpType type = t.getOperation().opType();
+            if (type == null) {
+                return false;
+            }
+            switch (type) {
+                case ADD, SUB, MUL, MIN, MAX, NEG, MUL_SCALAR, RELU, NOOP -> {
+                    // keep scanning
+                }
+                default -> {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static String buildSchedulerSignature(List<Tensor> cluster, int precisionMode) {
+        StringBuilder sb = new StringBuilder(128);
+        sb.append("fused:pm=").append(precisionMode).append('|');
+        if (cluster != null) {
+            for (Tensor t : cluster) {
+                if (t == null || t.getOperation() == null) {
+                    continue;
+                }
+                sb.append(t.getOperation().opType()).append(',');
+            }
+        }
+        return sb.toString();
     }
 }

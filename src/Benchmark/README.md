@@ -133,6 +133,10 @@ Total stage-order variants per knob profile:
 - `kernel.cpu.chunksPerWorker`: `[2, 4, 8]`
 - `kernel.cpu.minChunkSize`: `[2048, 4096, 8192]`
 - `kernel.cpu.contiguousMaterializeThreshold`: `[0, 4096, 16384, 65536, 262144, 1000000000]`
+- `kernel.cpu.lowCostNsPerElementThreshold`: `[0.5, 1.0, 2.0, 4.0]`
+- `kernel.cpu.vectorPolicyCheap`: `[AUTO, FORCE_ON]`
+- `kernel.cpu.vectorPolicyTranscendental`: `[AUTO, FORCE_OFF]`
+- `kernel.cpu.vectorPolicyReduction`: `[AUTO]`
 - `kernel.cpu.sumAccuracyMode` runtime values: `[FAST, KAHAN, NEUMAIER]`
 - `kernel.cpu.sumAccuracyMode` autotune grid (current): `[FAST]`
 
@@ -154,9 +158,9 @@ Total stage-order variants per knob profile:
 
 Current autotune candidate construction:
 
-- `82` knob profiles
+- `874` knob profiles
 - `65` stage-order variants per profile
-- total generated candidates: `82 * 65 = 5330`
+- total generated candidates: `874 * 65 = 56810`
 
 Benchmark cap is controlled by `AUTOTUNE_MAX_CANDIDATES` in:
 

@@ -306,7 +306,11 @@ public final class OptimizerBenchmarkFramework {
                 + ", par=" + rkc.cpu().parallelism()
                 + ", chunksPerWorker=" + rkc.cpu().chunksPerWorker()
                 + ", minChunk=" + rkc.cpu().minChunkSize()
-                + ", contigMatThreshold=" + rkc.cpu().contiguousMaterializeThreshold() + "]" + RESET);
+                + ", contigMatThreshold=" + rkc.cpu().contiguousMaterializeThreshold()
+                + ", lowCostNsPerElemThreshold=" + String.format(Locale.US, "%.4f", rkc.cpu().lowCostNsPerElementThreshold())
+                + ", vecPolicyCheap=" + rkc.cpu().vectorPolicyCheap()
+                + ", vecPolicyTrans=" + rkc.cpu().vectorPolicyTranscendental()
+                + ", vecPolicyRed=" + rkc.cpu().vectorPolicyReduction() + "]" + RESET);
         System.out.println(GRAY + "  kernel.cuda=[unroll=" + rkc.cuda().loopUnrollFactor()
                 + ", tileM=" + rkc.cuda().matMulTileM()
                 + ", tileN=" + rkc.cuda().matMulTileN()
@@ -340,7 +344,11 @@ public final class OptimizerBenchmarkFramework {
                 + ", par=" + ikc.cpu().parallelism()
                 + ", chunksPerWorker=" + ikc.cpu().chunksPerWorker()
                 + ", minChunk=" + ikc.cpu().minChunkSize()
-                + ", contigMatThreshold=" + ikc.cpu().contiguousMaterializeThreshold() + "]" + RESET);
+                + ", contigMatThreshold=" + ikc.cpu().contiguousMaterializeThreshold()
+                + ", lowCostNsPerElemThreshold=" + String.format(Locale.US, "%.4f", ikc.cpu().lowCostNsPerElementThreshold())
+                + ", vecPolicyCheap=" + ikc.cpu().vectorPolicyCheap()
+                + ", vecPolicyTrans=" + ikc.cpu().vectorPolicyTranscendental()
+                + ", vecPolicyRed=" + ikc.cpu().vectorPolicyReduction() + "]" + RESET);
         System.out.println(GRAY + "  kernel.cuda=[unroll=" + ikc.cuda().loopUnrollFactor()
                 + ", tileM=" + ikc.cuda().matMulTileM()
                 + ", tileN=" + ikc.cuda().matMulTileN()
@@ -785,7 +793,11 @@ public final class OptimizerBenchmarkFramework {
             sb.append("        \"cpuParallelism\": ").append(kernels.cpu().parallelism()).append(",\n");
             sb.append("        \"cpuChunksPerWorker\": ").append(kernels.cpu().chunksPerWorker()).append(",\n");
             sb.append("        \"cpuMinChunkSize\": ").append(kernels.cpu().minChunkSize()).append(",\n");
-            sb.append("        \"cpuContiguousMaterializeThreshold\": ").append(kernels.cpu().contiguousMaterializeThreshold()).append("\n");
+            sb.append("        \"cpuContiguousMaterializeThreshold\": ").append(kernels.cpu().contiguousMaterializeThreshold()).append(",\n");
+            sb.append("        \"cpuLowCostNsPerElementThreshold\": ").append(String.format(Locale.US, "%.8f", kernels.cpu().lowCostNsPerElementThreshold())).append(",\n");
+            sb.append("        \"cpuVectorPolicyCheap\": \"").append(kernels.cpu().vectorPolicyCheap().name()).append("\",\n");
+            sb.append("        \"cpuVectorPolicyTranscendental\": \"").append(kernels.cpu().vectorPolicyTranscendental().name()).append("\",\n");
+            sb.append("        \"cpuVectorPolicyReduction\": \"").append(kernels.cpu().vectorPolicyReduction().name()).append("\"\n");
             sb.append("      },\n");
             sb.append("      \"cuda\": {\n");
             sb.append("        \"cudaLoopUnrollFactor\": ").append(kernels.cuda().loopUnrollFactor()).append(",\n");

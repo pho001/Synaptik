@@ -2,6 +2,8 @@ package Tensor;
 
 import Operations.Operation;
 import Operations.exp;
+import Operations.fastExp;
+import Operations.fastTanh;
 import Operations.inv;
 import Operations.log;
 import Operations.mulScalar;
@@ -9,6 +11,7 @@ import Operations.neg;
 import Operations.pow;
 import Operations.sigmoid;
 import Operations.sqrt;
+import Operations.tanh;
 
 import java.util.List;
 
@@ -54,6 +57,24 @@ final class TensorUnaryOps {
     static Tensor exp(Tensor input) {
         Operation op = new exp();
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "exp");
+        out.setDataType(TensorDataTypeUtil.unary(input));
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (input.getRequiresGrad()) {
+                Tensor gradForInput = outGrad.mul(out);
+                if (input.getGradient() == null) {
+                    input.setGradient(gradForInput);
+                } else {
+                    input.setGradient(input.getGradient().add(gradForInput));
+                }
+            }
+        });
+        return out;
+    }
+
+    static Tensor fastExp(Tensor input) {
+        Operation op = new fastExp();
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "fastExp");
         out.setDataType(TensorDataTypeUtil.unary(input));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
@@ -159,6 +180,44 @@ final class TensorUnaryOps {
             Tensor outGrad = out.getGradient();
             if (input.getRequiresGrad()) {
                 Tensor gradForInput = outGrad.mul(out).mul(Tensor.onesLike(out).sub(out));
+                if (input.getGradient() == null) {
+                    input.setGradient(gradForInput);
+                } else {
+                    input.setGradient(input.getGradient().add(gradForInput));
+                }
+            }
+        });
+        return out;
+    }
+
+    static Tensor tanh(Tensor input) {
+        Operation op = new tanh();
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "tanh");
+        out.setDataType(TensorDataTypeUtil.unary(input));
+
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (input.getRequiresGrad()) {
+                Tensor gradForInput = outGrad.mul(Tensor.onesLike(out).sub(out.mul(out)));
+                if (input.getGradient() == null) {
+                    input.setGradient(gradForInput);
+                } else {
+                    input.setGradient(input.getGradient().add(gradForInput));
+                }
+            }
+        });
+        return out;
+    }
+
+    static Tensor fastTanh(Tensor input) {
+        Operation op = new fastTanh();
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "fastTanh");
+        out.setDataType(TensorDataTypeUtil.unary(input));
+
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (input.getRequiresGrad()) {
+                Tensor gradForInput = outGrad.mul(Tensor.onesLike(out).sub(out.mul(out)));
                 if (input.getGradient() == null) {
                     input.setGradient(gradForInput);
                 } else {

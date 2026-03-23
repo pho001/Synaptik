@@ -23,4 +23,8 @@ public interface CpuKernel {
     default void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         forward(op, inputs, node, config);
     }
+
+    default CpuKernelCostClass costClass(Operation op) {
+        return CpuKernelCostClass.MEDIUM;
+    }
 }
