@@ -3,7 +3,7 @@
 This document summarizes public constructors, factory methods, runtime methods, and tensor operations exposed by `Tensor`.
 
 Primary class:
-- [src/Tensor/Tensor.java](src/Tensor/Tensor.java)
+- [src/Tensor/Tensor.java](../Tensor/Tensor.java)
 
 ## Constructors
 

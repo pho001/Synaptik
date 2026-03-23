@@ -14,16 +14,16 @@ Primary goals:
 ## Main Components
 
 - Entry framework:
-  - [src/Benchmark/OptimizerBenchmarkFramework.java](src/Benchmark/OptimizerBenchmarkFramework.java)
+  - [src/Benchmark/OptimizerBenchmarkFramework.java](../Benchmark/OptimizerBenchmarkFramework.java)
 - Candidate model/factory:
-  - [src/Benchmark/OptimizerCandidate.java](src/Benchmark/OptimizerCandidate.java)
-  - [src/Benchmark/OptimizerCandidateFactory.java](src/Benchmark/OptimizerCandidateFactory.java)
-  - [src/Benchmark/OptimizationStage.java](src/Benchmark/OptimizationStage.java)
+  - [src/Benchmark/OptimizerCandidate.java](../Benchmark/OptimizerCandidate.java)
+  - [src/Benchmark/OptimizerCandidateFactory.java](../Benchmark/OptimizerCandidateFactory.java)
+  - [src/Benchmark/OptimizationStage.java](../Benchmark/OptimizationStage.java)
 - Optimizer assembly:
-  - [src/Benchmark/OptimizerBuilder.java](src/Benchmark/OptimizerBuilder.java)
+  - [src/Benchmark/OptimizerBuilder.java](../Benchmark/OptimizerBuilder.java)
 - Knobs and profile I/O:
-  - [src/Benchmark/TuningKnobs.java](src/Benchmark/TuningKnobs.java)
-  - [src/Benchmark/OptimizerProfileIO.java](src/Benchmark/OptimizerProfileIO.java)
+  - [src/Benchmark/TuningKnobs.java](../Benchmark/TuningKnobs.java)
+  - [src/Benchmark/OptimizerProfileIO.java](../Benchmark/OptimizerProfileIO.java)
 
 ## Run Flow
 
@@ -98,7 +98,7 @@ CPU dispatch knobs include:
 
 This section reflects the current candidate generation in:
 
-- [src/Benchmark/OptimizerCandidateFactory.java](src/Benchmark/OptimizerCandidateFactory.java)
+- [src/Benchmark/OptimizerCandidateFactory.java](../Benchmark/OptimizerCandidateFactory.java)
 
 ### Stage Order
 
@@ -164,12 +164,12 @@ Current autotune candidate construction:
 
 Benchmark cap is controlled by `AUTOTUNE_MAX_CANDIDATES` in:
 
-- [src/Benchmark/OptimizerBenchmarkFramework.java](src/Benchmark/OptimizerBenchmarkFramework.java)
+- [src/Benchmark/OptimizerBenchmarkFramework.java](../Benchmark/OptimizerBenchmarkFramework.java)
 
 ## Integration Points
 
 - Optimizer construction:
-  - [src/Graph/optimizer/GraphOptimizer.java](src/Graph/optimizer/GraphOptimizer.java)
-  - [src/Graph/optimizer/OptimizerFactory.java](src/Graph/optimizer/OptimizerFactory.java)
+  - [src/Graph/optimizer/GraphOptimizer.java](../Graph/optimizer/GraphOptimizer.java)
+  - [src/Graph/optimizer/OptimizerFactory.java](../Graph/optimizer/OptimizerFactory.java)
 - Runtime backend config application:
-  - [src/Backend/ComputeEngine.java](src/Backend/ComputeEngine.java)
+  - [src/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)

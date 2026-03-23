@@ -15,26 +15,26 @@ It combines:
 ## Main Components
 
 - Core runtime tensor:
-  - [src/Tensor/Tensor.java](src/Tensor/Tensor.java)
+  - [src/Tensor/Tensor.java](../Tensor/Tensor.java)
 - API reference:
-  - [src/Tensor/API.md](src/Tensor/API.md)
+  - [src/Tensor/API.md](../Tensor/API.md)
 - Metadata:
-  - [src/Tensor/TensorMetadata.java](src/Tensor/TensorMetadata.java)
+  - [src/Tensor/TensorMetadata.java](../Tensor/TensorMetadata.java)
 - Operation helpers:
-  - [src/Tensor/TensorOps.java](src/Tensor/TensorOps.java)
-  - [src/Tensor/TensorBinaryOps.java](src/Tensor/TensorBinaryOps.java)
-  - [src/Tensor/TensorUnaryOps.java](src/Tensor/TensorUnaryOps.java)
-  - [src/Tensor/TensorReduceOps.java](src/Tensor/TensorReduceOps.java)
-  - [src/Tensor/TensorLayoutOps.java](src/Tensor/TensorLayoutOps.java)
-  - [src/Tensor/TensorNaryOps.java](src/Tensor/TensorNaryOps.java)
+  - [src/Tensor/TensorOps.java](../Tensor/TensorOps.java)
+  - [src/Tensor/TensorBinaryOps.java](../Tensor/TensorBinaryOps.java)
+  - [src/Tensor/TensorUnaryOps.java](../Tensor/TensorUnaryOps.java)
+  - [src/Tensor/TensorReduceOps.java](../Tensor/TensorReduceOps.java)
+  - [src/Tensor/TensorLayoutOps.java](../Tensor/TensorLayoutOps.java)
+  - [src/Tensor/TensorNaryOps.java](../Tensor/TensorNaryOps.java)
 - Layout remap utility:
-  - [src/Tensor/TensorRemap.java](src/Tensor/TensorRemap.java)
+  - [src/Tensor/TensorRemap.java](../Tensor/TensorRemap.java)
 - Storage/type abstraction (currently auxiliary):
-  - [src/Tensor/TensorStorage.java](src/Tensor/TensorStorage.java)
-  - [src/Tensor/DataType.java](src/Tensor/DataType.java)
-  - [src/Tensor/Float16Storage.java](src/Tensor/Float16Storage.java)
-  - [src/Tensor/Float32Storage.java](src/Tensor/Float32Storage.java)
-  - [src/Tensor/Float64Storage.java](src/Tensor/Float64Storage.java)
+  - [src/Tensor/TensorStorage.java](../Tensor/TensorStorage.java)
+  - [src/Tensor/DataType.java](../Tensor/DataType.java)
+  - [src/Tensor/Float16Storage.java](../Tensor/Float16Storage.java)
+  - [src/Tensor/Float32Storage.java](../Tensor/Float32Storage.java)
+  - [src/Tensor/Float64Storage.java](../Tensor/Float64Storage.java)
 
 ## Runtime Data Model
 
@@ -72,10 +72,10 @@ Unary transcendental APIs now include both exact and approximate variants:
 
 Related files:
 
-- [src/Graph/CompiledGraph.java](src/Graph/CompiledGraph.java)
-- [src/Graph/optimizer/OptimizerFactory.java](src/Graph/optimizer/OptimizerFactory.java)
-- [src/Backend/ComputeEngine.java](src/Backend/ComputeEngine.java)
-- [src/Tensor/TensorUnaryOps.java](src/Tensor/TensorUnaryOps.java)
+- [src/Graph/CompiledGraph.java](../Graph/CompiledGraph.java)
+- [src/Graph/optimizer/OptimizerFactory.java](../Graph/optimizer/OptimizerFactory.java)
+- [src/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)
+- [src/Tensor/TensorUnaryOps.java](../Tensor/TensorUnaryOps.java)
 
 ## Gradient and Backward
 
