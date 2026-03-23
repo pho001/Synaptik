@@ -1,6 +1,7 @@
 package Graph.optimizer.rules;
 
 import Graph.optimizer.OptimizationRule;
+import Tensor.DataType;
 import Tensor.Tensor;
 import java.util.*;
 
@@ -9,6 +10,11 @@ public class MemoryOptimizerRule implements OptimizationRule {
     @Override
     public List<Tensor> apply(List<Tensor> sortedGraph) {
         if (sortedGraph.isEmpty()) return sortedGraph;
+        for (Tensor t : sortedGraph) {
+            if (t.getDataType() != DataType.FLOAT64) {
+                return sortedGraph;
+            }
+        }
 
         // 1. Liveness Analysis: Kdy je uzel naposledy použit?
         Map<Tensor, Integer> lastUseMap = new HashMap<>();

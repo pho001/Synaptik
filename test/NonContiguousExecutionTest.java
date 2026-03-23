@@ -1,6 +1,7 @@
 import Backend.ComputeEngine;
 import Config.backend.CpuKernelConfig;
 import Graph.optimizer.GraphOptimizer;
+import Tensor.DataType;
 import Tensor.Tensor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -20,14 +21,14 @@ public class NonContiguousExecutionTest {
         // size=6 < threshold(100): strided path should be selected
         ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 100));
 
-        Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig");
-        Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig");
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig", DataType.FLOAT64);
 
         Tensor c = a.add(b);
         c.compute(new GraphOptimizer());
 
-        double[] expected = add(remapToContiguous(a), b.getData());
-        assertArrayEquals(expected, c.getData(), EPS);
+        double[] expected = add(remapToContiguous(a), b.toDoubleArrayCopy());
+        assertArrayEquals(expected, c.toDoubleArrayCopy(), EPS);
     }
 
     @Test
@@ -35,29 +36,29 @@ public class NonContiguousExecutionTest {
         // threshold(0): materialize path should be selected
         ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 0));
 
-        Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig");
-        Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig");
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig", DataType.FLOAT64);
 
         Tensor c = a.add(b);
         c.compute(new GraphOptimizer());
 
-        double[] expected = add(remapToContiguous(a), b.getData());
-        assertArrayEquals(expected, c.getData(), EPS);
+        double[] expected = add(remapToContiguous(a), b.toDoubleArrayCopy());
+        assertArrayEquals(expected, c.toDoubleArrayCopy(), EPS);
     }
 
     @Test
     public void testLogNonContiguousStridedVsMaterializeEquivalence() {
-        Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig");
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
 
         ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 100));
         Tensor s = a.log();
         s.compute(new GraphOptimizer());
-        double[] strided = s.getData().clone();
+        double[] strided = s.toDoubleArrayCopy().clone();
 
         ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 0));
         Tensor m = a.log();
         m.compute(new GraphOptimizer());
-        double[] materialized = m.getData().clone();
+        double[] materialized = m.toDoubleArrayCopy().clone();
 
         assertArrayEquals(strided, materialized, EPS);
     }
@@ -74,7 +75,7 @@ public class NonContiguousExecutionTest {
         int[] shape = src.getShape();
         int[] srcStrides = src.getStrides();
         int[] dstStrides = contiguousStrides(shape);
-        double[] srcData = src.getData();
+        double[] srcData = src.toDoubleArrayCopy();
         double[] out = new double[srcData.length];
 
         for (int i = 0; i < out.length; i++) {

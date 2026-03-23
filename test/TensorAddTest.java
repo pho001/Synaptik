@@ -18,7 +18,7 @@ public class TensorAddTest {
         c.getCompiledGraph().setTrainingModeOff();
         c.compute();
 
-        assertArrayEquals(new double[]{4.0, 6.0}, c.getData(), 1e-9);
+        assertArrayEquals(new double[]{4.0, 6.0}, c.toDoubleArrayCopy(), 1e-9);
     }
 
     @Test
@@ -35,7 +35,7 @@ public class TensorAddTest {
 
         assertNotNull(a.getGradient());
         assertNotNull(b.getGradient());
-        assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().getData(), 1e-9);
-        assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 }

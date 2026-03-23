@@ -151,7 +151,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
 
         // constant folding pro scalar konstantu
         if (isConstant(input)) {
-            return Tensor.scalar(input.getData()[0] * s);
+            return Tensor.scalar(input.scalarAsDouble() * s, input.getDataType());
         }
 
         return t;
@@ -180,10 +180,10 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (isOp(a, "mulscalar")
                 && a.getOperation() instanceof mulScalar ms
                 && isConstant(b)) {
-            return a.getPrevTensors().get(0).mul(ms.getScalar() / b.getData()[0]);
+            return a.getPrevTensors().get(0).mul(ms.getScalar() / b.scalarAsDouble());
         }
 
-        if (isConstant(b)) return a.mul(1.0 / b.getData()[0]);
+        if (isConstant(b)) return a.mul(1.0 / b.scalarAsDouble());
         return t;
     }
 
@@ -326,13 +326,12 @@ public class AlgebraicRewritingRule implements OptimizationRule {
 
     private boolean isConstant(Tensor t) {
         return t.getOperation() == null
-                && t.getData() != null
-                && t.getData().length == 1
+                && t.getFlatDataSize() == 1
                 && !t.getRequiresGrad();
     }
 
     private boolean isConstant(Tensor t, double val) {
-        return isConstant(t) && t.getData()[0] == val;
+        return isConstant(t) && t.scalarAsDouble() == val;
     }
 
     private boolean isOp(Tensor t, String opName) {

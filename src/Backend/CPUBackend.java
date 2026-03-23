@@ -5,6 +5,7 @@ import Backend.kernels.cpu.CpuKernel;
 import Backend.kernels.cpu.CpuExecutionConfig;
 import Backend.kernels.cpu.CpuStridedElementWise;
 import Backend.registry.CpuKernelRegistry;
+import Tensor.DataType;
 import Tensor.Tensor;
 import Tensor.TensorRemap;
 import Operations.Operation;
@@ -36,8 +37,19 @@ public class CPUBackend {
             return;
         }
 
-        List<Tensor> preparedInputs = prepareInputs(op, inputs);
-        kernel.forward(op, preparedInputs, node, executionConfig);
+        DataType dataType = node.getDataType();
+        if (dataType == null) {
+            dataType = DataType.FLOAT32;
+        }
+        List<Tensor> preparedInputs = prepareInputs(op, inputs, dataType);
+        switch (dataType) {
+            case FLOAT64 -> kernel.forwardF64(op, preparedInputs, node, executionConfig);
+            case FLOAT32 -> kernel.forwardF32(op, preparedInputs, node, executionConfig);
+            case FLOAT16 -> kernel.forwardF16(op, preparedInputs, node, executionConfig);
+        }
+        if (dataType != DataType.FLOAT64) {
+            node.markDataViewStale();
+        }
     }
 
     private boolean canUseStridedPath(Operation op, List<Tensor> inputs, Tensor node) {
@@ -51,9 +63,19 @@ public class CPUBackend {
             return false;
         }
 
+        DataType targetType = node.getDataType() == null ? DataType.FLOAT32 : node.getDataType();
         boolean hasNonContiguousInput = false;
         for (Tensor input : inputs) {
-            if (input == null || input.getData() == null) {
+            if (input == null) {
+                return false;
+            }
+            if (input.getDataType() != targetType) {
+                return false;
+            }
+            if (targetType == DataType.FLOAT32 && input.getFloat32Data() == null) {
+                return false;
+            }
+            if (targetType == DataType.FLOAT16 && input.getFloat16Data() == null) {
                 return false;
             }
             if (!input.isContiguous()) {
@@ -69,7 +91,7 @@ public class CPUBackend {
         return size < threshold;
     }
 
-    private List<Tensor> prepareInputs(Operation op, List<Tensor> inputs) {
+    private List<Tensor> prepareInputs(Operation op, List<Tensor> inputs, DataType targetType) {
         if (inputs == null || inputs.isEmpty()) {
             return inputs;
         }
@@ -83,10 +105,12 @@ public class CPUBackend {
         for (int i = 0; i < inputs.size(); i++) {
             Tensor input = inputs.get(i);
             boolean needsMaterialization = input != null
-                    && input.getData() != null
                     && !input.isContiguous();
+            boolean needsTypeConversion = input != null
+                    && targetType != null
+                    && input.getDataType() != targetType;
 
-            if (!needsMaterialization) {
+            if (!needsMaterialization && !needsTypeConversion) {
                 if (prepared != null) {
                     prepared.add(input);
                 }
@@ -100,9 +124,11 @@ public class CPUBackend {
                 }
             }
 
-            Tensor contiguousInput = new Tensor(input.getShape(), null, input.getLabel() + "_contiguous_tmp");
-            TensorRemap.apply(input, contiguousInput, materializeThreshold);
-            prepared.add(contiguousInput);
+            String tmpSuffix = needsMaterialization ? "_contiguous_tmp" : "_dtype_tmp";
+            DataType tmpType = needsTypeConversion ? targetType : input.getDataType();
+            Tensor remappedInput = new Tensor(input.getShape(), null, input.getLabel() + tmpSuffix, tmpType);
+            TensorRemap.apply(input, remappedInput, materializeThreshold);
+            prepared.add(remappedInput);
         }
 
         return prepared == null ? inputs : prepared;

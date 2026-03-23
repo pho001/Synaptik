@@ -3,6 +3,8 @@ package Tensor;
 import java.util.Arrays;
 
 public final class TensorMetadata {
+    public static final DataType DEFAULT_DATA_TYPE = DataType.FLOAT32;
+
     private final int[] shape;
     private final int[] strides;
     private String label;
@@ -10,7 +12,7 @@ public final class TensorMetadata {
     private DataType dataType;
 
     public TensorMetadata(int[] shape, String label, boolean requiresGrad) {
-        this(shape, label, requiresGrad, DataType.FLOAT64);
+        this(shape, label, requiresGrad, DEFAULT_DATA_TYPE);
     }
 
     public TensorMetadata(int[] shape, String label, boolean requiresGrad, DataType dataType) {
@@ -19,11 +21,11 @@ public final class TensorMetadata {
         this.strides = computeStrides(normalizedShape);
         this.label = label;
         this.requiresGrad = requiresGrad;
-        this.dataType = dataType == null ? DataType.FLOAT64 : dataType;
+        this.dataType = dataType == null ? DEFAULT_DATA_TYPE : dataType;
     }
 
     public TensorMetadata(int[] shape, int[] strides, String label, boolean requiresGrad) {
-        this(shape, strides, label, requiresGrad, DataType.FLOAT64);
+        this(shape, strides, label, requiresGrad, DEFAULT_DATA_TYPE);
     }
 
     public TensorMetadata(int[] shape, int[] strides, String label, boolean requiresGrad, DataType dataType) {
@@ -45,7 +47,7 @@ public final class TensorMetadata {
         this.strides = normalizedStrides;
         this.label = label;
         this.requiresGrad = requiresGrad;
-        this.dataType = dataType == null ? DataType.FLOAT64 : dataType;
+        this.dataType = dataType == null ? DEFAULT_DATA_TYPE : dataType;
     }
 
     public int[] getShape() {
@@ -97,7 +99,7 @@ public final class TensorMetadata {
     }
 
     public void setDataType(DataType dataType) {
-        this.dataType = dataType == null ? DataType.FLOAT64 : dataType;
+        this.dataType = dataType == null ? DEFAULT_DATA_TYPE : dataType;
     }
 
     public boolean isContiguous() {

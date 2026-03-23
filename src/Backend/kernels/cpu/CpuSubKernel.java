@@ -1,82 +1,45 @@
 package Backend.kernels.cpu;
 
+import Backend.kernels.cpu.f16.SubF16;
+import Backend.kernels.cpu.f32.SubF32;
+import Backend.kernels.cpu.f64.SubF64;
 import Operations.Operation;
 import Tensor.Tensor;
-import jdk.incubator.vector.DoubleVector;
-import jdk.incubator.vector.VectorSpecies;
 
 import java.util.List;
 
 public class CpuSubKernel implements CpuKernel {
-    private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
-
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forward(op, inputs, node, CpuExecutionConfig.defaults());
+        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
     }
 
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        double[] a = inputs.get(0).getData();
-        double[] b = inputs.get(1).getData();
-        double[] out = node.getData();
-        CpuExecutionMode mode = config.modeFor(op, node);
-        switch (mode) {
-            case VECTOR -> vectorSub(a, b, out);
-            case PARALLEL -> parallelSub(a, b, out, config);
-            case PARALLEL_VECTOR -> parallelVectorSub(a, b, out, config);
-            case SCALAR -> scalarSub(a, b, out);
-        }
+        forwardF64(op, inputs, node, config);
     }
 
-    private static void scalarSub(double[] a, double[] b, double[] out) {
-        for (int i = 0; i < out.length; i++) {
-            out[i] = a[i] - b[i];
-        }
+    @Override
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        double[] a = inputs.get(0).getFloat64Data();
+        double[] b = inputs.get(1).getFloat64Data();
+        double[] out = node.getFloat64Data();
+        SubF64.run(a, b, out, config.modeFor(op, node), config);
     }
 
-    private static void vectorSub(double[] a, double[] b, double[] out) {
-        int i = 0;
-        int upper = SPECIES.loopBound(out.length);
-        for (; i < upper; i += SPECIES.length()) {
-            DoubleVector va = DoubleVector.fromArray(SPECIES, a, i);
-            DoubleVector vb = DoubleVector.fromArray(SPECIES, b, i);
-            va.sub(vb).intoArray(out, i);
-        }
-        for (; i < out.length; i++) {
-            out[i] = a[i] - b[i];
-        }
+    @Override
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        float[] a = inputs.get(0).getFloat32Data();
+        float[] b = inputs.get(1).getFloat32Data();
+        float[] out = node.getFloat32Data();
+        SubF32.run(a, b, out, config.modeFor(op, node), config);
     }
 
-    private static void parallelSub(double[] a, double[] b, double[] out, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
-        int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
-            int start = chunk * chunkSize;
-            int end = Math.min(start + chunkSize, out.length);
-            for (int i = start; i < end; i++) {
-                out[i] = a[i] - b[i];
-            }
-        });
-    }
-
-    private static void parallelVectorSub(double[] a, double[] b, double[] out, CpuExecutionConfig config) {
-        int width = SPECIES.length();
-        int chunkSize = config.computeChunkSize(out.length, width);
-        int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
-            int start = chunk * chunkSize;
-            int end = Math.min(start + chunkSize, out.length);
-            int i = start;
-            int upper = end - ((end - start) % width);
-            for (; i < upper; i += width) {
-                DoubleVector va = DoubleVector.fromArray(SPECIES, a, i);
-                DoubleVector vb = DoubleVector.fromArray(SPECIES, b, i);
-                va.sub(vb).intoArray(out, i);
-            }
-            for (; i < end; i++) {
-                out[i] = a[i] - b[i];
-            }
-        });
+    @Override
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        short[] a = inputs.get(0).getFloat16Data();
+        short[] b = inputs.get(1).getFloat16Data();
+        short[] out = node.getFloat16Data();
+        SubF16.run(a, b, out, config.modeFor(op, node), config);
     }
 }

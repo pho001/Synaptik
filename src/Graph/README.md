@@ -11,7 +11,9 @@ The Graph module compiles tensor expression DAGs into executable plans, runs for
 - Legacy ASM sample generator:
   - [src/Graph/ByteCodeGenerator.java](src/Graph/ByteCodeGenerator.java)
 - Fused operation codegen:
-  - [src/Graph/codegen/DFusedOperationGenerator.java](src/Graph/codegen/DFusedOperationGenerator.java)
+  - [src/Graph/codegen/FusedOperationGenerator.java](src/Graph/codegen/FusedOperationGenerator.java) (F32/F64)
+  - [src/Graph/codegen/HFusedOperationGenerator.java](src/Graph/codegen/HFusedOperationGenerator.java) (F16)
+  - [src/Graph/codegen/FusedOperationGeneratorRouter.java](src/Graph/codegen/FusedOperationGeneratorRouter.java)
 - Optimizer module:
   - [src/Graph/optimizer/README.md](src/Graph/optimizer/README.md)
 
@@ -69,8 +71,10 @@ Backward nodes are collected from gradients attached to forward nodes, traversed
 When optimizer fuses element-wise clusters:
 
 1. Fusion rule produces `FusedOperation` node(s).
-2. `DFusedOperationGenerator` generates bytecode for fused `apply(...)`.
-3. CPU fused kernel executes fused op in runtime path.
+2. `FusedOperationGeneratorRouter` selects dtype-specific codegen.
+3. `FusedOperationGenerator` generates fused `apply(...)` bytecode for `FLOAT32/FLOAT64`.
+4. `HFusedOperationGenerator` handles `FLOAT16`.
+5. CPU fused kernel executes fused op in runtime path.
 
 Related files:
 

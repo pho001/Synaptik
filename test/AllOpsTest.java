@@ -1,6 +1,7 @@
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import Tensor.DataType;
 import Tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -10,7 +11,7 @@ public class AllOpsTest {
     private Tensor a, b, c;
 
     private Tensor tensor(double[] data) {
-        Tensor t = new Tensor(data, new int[]{data.length}, null, "t");
+        Tensor t = new Tensor(data, new int[]{data.length}, null, "t", DataType.FLOAT64);
         t.setRequiresGrad(true);
         return t;
     }
@@ -28,12 +29,12 @@ public class AllOpsTest {
         c.compute();
         c.getCompiledGraph().setTrainingModeOff();
         c.compute();
-        assertArrayEquals(new double[]{4.0, 6.0}, c.getData(), 1e-9);
+        assertArrayEquals(new double[]{4.0, 6.0}, c.toDoubleArrayCopy(), 1e-9);
 
         c.getCompiledGraph().setTrainingModeOn();
         c.compute();
-        assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().getData(), 1e-9);
-        assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test
@@ -44,12 +45,12 @@ public class AllOpsTest {
         c.compute();
         c.getCompiledGraph().setTrainingModeOff();
         c.compute();
-        assertArrayEquals(new double[]{3.0, 4.0}, c.getData(), 1e-9);
+        assertArrayEquals(new double[]{3.0, 4.0}, c.toDoubleArrayCopy(), 1e-9);
 
         c.getCompiledGraph().setTrainingModeOn();
         c.compute();
-        assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().getData(), 1e-9);
-        assertArrayEquals(new double[]{-1.0, -1.0}, b.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{-1.0, -1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test
@@ -60,12 +61,12 @@ public class AllOpsTest {
         c.compute();
         c.getCompiledGraph().setTrainingModeOff();
         c.compute();
-        assertArrayEquals(new double[]{8.0, 15.0}, c.getData(), 1e-9);
+        assertArrayEquals(new double[]{8.0, 15.0}, c.toDoubleArrayCopy(), 1e-9);
 
         c.getCompiledGraph().setTrainingModeOn();
         c.compute();
-        assertArrayEquals(new double[]{4.0, 5.0}, a.getGradient().getData(), 1e-9);
-        assertArrayEquals(new double[]{2.0, 3.0}, b.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{4.0, 5.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{2.0, 3.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test
@@ -76,12 +77,46 @@ public class AllOpsTest {
         c.compute();
         c.getCompiledGraph().setTrainingModeOff();
         c.compute();
-        assertArrayEquals(new double[]{4.0, 3.0}, c.getData(), 1e-9);
+        assertArrayEquals(new double[]{4.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
 
         c.getCompiledGraph().setTrainingModeOn();
         c.compute();
-        assertArrayEquals(new double[]{0.5, 0.3333333333}, a.getGradient().getData(), 1e-9);
-        assertArrayEquals(new double[]{-2.0, -1.0}, b.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{0.5, 0.3333333333}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{-2.0, -1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void testMinForwardAndBackward() {
+        a = tensor(new double[]{1.0, 5.0, 3.0});
+        b = tensor(new double[]{2.0, 4.0, 3.0});
+        c = a.min(b);
+        c.compute();
+        c.getCompiledGraph().setTrainingModeOff();
+        c.compute();
+        assertArrayEquals(new double[]{1.0, 4.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
+
+        c.getCompiledGraph().setTrainingModeOn();
+        c.compute();
+        // tie splits gradient equally
+        assertArrayEquals(new double[]{1.0, 0.0, 0.5}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{0.0, 1.0, 0.5}, b.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void testMaxForwardAndBackward() {
+        a = tensor(new double[]{1.0, 5.0, 3.0});
+        b = tensor(new double[]{2.0, 4.0, 3.0});
+        c = a.max(b);
+        c.compute();
+        c.getCompiledGraph().setTrainingModeOff();
+        c.compute();
+        assertArrayEquals(new double[]{2.0, 5.0, 3.0}, c.toDoubleArrayCopy(), 1e-9);
+
+        c.getCompiledGraph().setTrainingModeOn();
+        c.compute();
+        // tie splits gradient equally
+        assertArrayEquals(new double[]{0.0, 1.0, 0.5}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 0.0, 0.5}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test
@@ -91,11 +126,11 @@ public class AllOpsTest {
         c.compute();
         c.getCompiledGraph().setTrainingModeOff();
         c.compute();
-        assertArrayEquals(new double[]{1.0, 2.0}, c.getData(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 2.0}, c.toDoubleArrayCopy(), 1e-9);
 
         c.getCompiledGraph().setTrainingModeOn();
         c.compute();
-        assertArrayEquals(new double[]{1.0 / Math.E, 1.0 / (Math.E * Math.E)}, a.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{1.0 / Math.E, 1.0 / (Math.E * Math.E)}, a.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test
@@ -105,11 +140,11 @@ public class AllOpsTest {
         c.compute();
         c.getCompiledGraph().setTrainingModeOff();
         c.compute();
-        assertArrayEquals(new double[]{1.0, Math.exp(1.0)}, c.getData(), 1e-9);
+        assertArrayEquals(new double[]{1.0, Math.exp(1.0)}, c.toDoubleArrayCopy(), 1e-9);
 
         c.getCompiledGraph().setTrainingModeOn();
         c.compute();
-        assertArrayEquals(new double[]{1.0, Math.exp(1.0)}, a.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{1.0, Math.exp(1.0)}, a.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test
@@ -119,11 +154,11 @@ public class AllOpsTest {
         c.compute();
         c.getCompiledGraph().setTrainingModeOff();
         c.compute();
-        assertArrayEquals(new double[]{8.0, 27.0}, c.getData(), 1e-9);
+        assertArrayEquals(new double[]{8.0, 27.0}, c.toDoubleArrayCopy(), 1e-9);
 
         c.getCompiledGraph().setTrainingModeOn();
         c.compute();
-        assertArrayEquals(new double[]{12.0, 27.0}, a.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{12.0, 27.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test
@@ -133,6 +168,6 @@ public class AllOpsTest {
         s.compute();
 
         assertEquals(1, s.getShape().length);
-        assertArrayEquals(new double[]{10.0}, s.getData(), 1e-9);
+        assertArrayEquals(new double[]{10.0}, s.toDoubleArrayCopy(), 1e-9);
     }
 }

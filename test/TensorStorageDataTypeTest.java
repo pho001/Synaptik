@@ -3,6 +3,7 @@ import Graph.optimizer.GraphOptimizer;
 import Tensor.DataType;
 import Tensor.Float16Storage;
 import Tensor.Float32Storage;
+import Tensor.Float64Storage;
 import Tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
@@ -21,12 +22,14 @@ public class TensorStorageDataTypeTest {
 
         assertTrue(out.getStorage() instanceof Float32Storage, "Output tensor should use Float32Storage");
 
-        double[] expected = new double[out.getData().length];
+        double[] expected = new double[out.toDoubleArrayCopy().length];
+        double[] aVals = a.toDoubleArrayCopy();
+        double[] bVals = b.toDoubleArrayCopy();
         for (int i = 0; i < expected.length; i++) {
-            double s = FusedDTypeOps.add(a.getData()[i], b.getData()[i], FusedDTypeOps.MODE_F32);
-            expected[i] = FusedDTypeOps.mul(s, a.getData()[i], FusedDTypeOps.MODE_F32);
+            double s = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_F32);
+            expected[i] = FusedDTypeOps.mul(s, aVals[i], FusedDTypeOps.MODE_F32);
         }
-        assertArrayEquals(expected, out.getData(), 1e-6);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test
@@ -41,11 +44,61 @@ public class TensorStorageDataTypeTest {
 
         assertTrue(out.getStorage() instanceof Float16Storage, "Output tensor should use Float16Storage");
 
-        double[] expected = new double[out.getData().length];
+        double[] expected = new double[out.toDoubleArrayCopy().length];
+        double[] aVals = a.toDoubleArrayCopy();
+        double[] bVals = b.toDoubleArrayCopy();
         for (int i = 0; i < expected.length; i++) {
-            double s = FusedDTypeOps.add(a.getData()[i], b.getData()[i], FusedDTypeOps.MODE_F16);
+            double s = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_F16);
             expected[i] = FusedDTypeOps.sigmoid(s, FusedDTypeOps.MODE_F16);
         }
-        assertArrayEquals(expected, out.getData(), 2e-3);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-3);
+    }
+
+    @Test
+    void float64UsesFloat64StorageByDefault() {
+        Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "a64");
+        Tensor b = new Tensor(new double[]{4.0, 5.0, 6.0}, new int[]{3}, null, "b64", DataType.FLOAT64);
+
+        assertTrue(a.getStorage() instanceof Float32Storage, "Default dtype should map to Float32Storage");
+        assertTrue(b.getStorage() instanceof Float64Storage, "Explicit FLOAT64 should map to Float64Storage");
+    }
+
+    @Test
+    void float32AddReadsTypedStorageNotStaleDoubleCache() {
+        Tensor a = new Tensor(new double[]{1.25, 2.5, -3.75}, new int[]{3}, null, "a32", DataType.FLOAT32);
+        Tensor b = new Tensor(new double[]{0.5, -1.0, 2.0}, new int[]{3}, null, "b32", DataType.FLOAT32);
+
+        float[] aStorage = ((Float32Storage) a.getStorage()).getFloatArray().clone();
+        float[] bStorage = ((Float32Storage) b.getStorage()).getFloatArray().clone();
+
+        // Typed path must read typed storage directly.
+
+        Tensor out = a.add(b);
+        out.compute(new GraphOptimizer());
+
+        double[] expected = new double[aStorage.length];
+        for (int i = 0; i < expected.length; i++) {
+            expected[i] = (double) (aStorage[i] + bStorage[i]);
+        }
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void float16NonFusedAddAppliesPerOpPrecision() {
+        Tensor a = new Tensor(new double[]{0.1000123, 0.2000456, -0.3000789}, new int[]{3}, null, "a16Strict");
+        Tensor b = new Tensor(new double[]{0.000031, -0.000047, 0.000059}, new int[]{3}, null, "b16Strict");
+        a.setDataType(DataType.FLOAT16);
+        b.setDataType(DataType.FLOAT16);
+
+        Tensor out = a.add(b);
+        out.compute(new GraphOptimizer());
+
+        double[] expected = new double[out.toDoubleArrayCopy().length];
+        double[] aVals = a.toDoubleArrayCopy();
+        double[] bVals = b.toDoubleArrayCopy();
+        for (int i = 0; i < expected.length; i++) {
+            expected[i] = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_F16);
+        }
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 0.0);
     }
 }

@@ -8,6 +8,18 @@ public final class TensorRemap {
     private TensorRemap() {}
 
     public static void apply(Tensor src, Tensor dst, int parallelThreshold) {
+        if (src.getDataType() == DataType.FLOAT32
+                && src.getFloat32Data() != null
+                && dst.getFloat32Data() != null) {
+            applyF32(src, dst, parallelThreshold);
+            return;
+        }
+        if (src.getDataType() == DataType.FLOAT16
+                && src.getFloat16Data() != null
+                && dst.getFloat16Data() != null) {
+            applyF16(src, dst, parallelThreshold);
+            return;
+        }
         int logicalSize = logicalSize(src.getShape());
         if (logicalSize > parallelThreshold) {
             parallelApply(src, dst);
@@ -26,15 +38,15 @@ public final class TensorRemap {
             throw new IllegalArgumentException("Source and destination tensors must have the same shape.");
         }
 
-        double[] srcData = src.getData();
-        double[] dstData = dst.getData();
+        TensorStorage srcStorage = src.getStorage();
+        TensorStorage dstStorage = dst.getStorage();
         int[] denseStrides = denseStrides(srcShape);
         int logicalSize = logicalSize(srcShape);
 
         for (int logicalIndex = 0; logicalIndex < logicalSize; logicalIndex++) {
             int srcOffset = logicalToOffset(logicalIndex, srcShape, srcStrides, denseStrides);
             int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, denseStrides);
-            dstData[dstOffset] = srcData[srcOffset];
+            dstStorage.setAsDoubleAt(dstOffset, srcStorage.getAsDoubleAt(srcOffset));
         }
     }
 
@@ -48,8 +60,8 @@ public final class TensorRemap {
             throw new IllegalArgumentException("Source and destination tensors must have the same shape.");
         }
 
-        double[] srcData = src.getData();
-        double[] dstData = dst.getData();
+        TensorStorage srcStorage = src.getStorage();
+        TensorStorage dstStorage = dst.getStorage();
         int[] denseStrides = denseStrides(srcShape);
         int logicalSize = logicalSize(srcShape);
 
@@ -58,7 +70,7 @@ public final class TensorRemap {
             customPool.submit(() -> IntStream.range(0, logicalSize).parallel().forEach(logicalIndex -> {
                 int srcOffset = logicalToOffset(logicalIndex, srcShape, srcStrides, denseStrides);
                 int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, denseStrides);
-                dstData[dstOffset] = srcData[srcOffset];
+                dstStorage.setAsDoubleAt(dstOffset, srcStorage.getAsDoubleAt(srcOffset));
             })).get();
         } catch (Exception e) {
             throw new RuntimeException("Parallel remap failed", e);
@@ -94,5 +106,113 @@ public final class TensorRemap {
             size *= dim;
         }
         return size;
+    }
+
+    private static void applyF32(Tensor src, Tensor dst, int parallelThreshold) {
+        int logicalSize = logicalSize(src.getShape());
+        if (logicalSize > parallelThreshold) {
+            parallelApplyF32(src, dst);
+        } else {
+            sequentialApplyF32(src, dst);
+        }
+    }
+
+    private static void sequentialApplyF32(Tensor src, Tensor dst) {
+        int[] srcShape = src.getShape();
+        int[] dstShape = dst.getShape();
+        int[] srcStrides = src.getStrides();
+        int[] dstStrides = dst.getStrides();
+        if (!Arrays.equals(srcShape, dstShape)) {
+            throw new IllegalArgumentException("Source and destination tensors must have the same shape.");
+        }
+        float[] srcData = src.getFloat32Data();
+        float[] dstData = dst.getFloat32Data();
+        int[] denseStrides = denseStrides(srcShape);
+        int logicalSize = logicalSize(srcShape);
+        for (int logicalIndex = 0; logicalIndex < logicalSize; logicalIndex++) {
+            int srcOffset = logicalToOffset(logicalIndex, srcShape, srcStrides, denseStrides);
+            int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, denseStrides);
+            dstData[dstOffset] = srcData[srcOffset];
+        }
+    }
+
+    private static void parallelApplyF32(Tensor src, Tensor dst) {
+        int[] srcShape = src.getShape();
+        int[] dstShape = dst.getShape();
+        int[] srcStrides = src.getStrides();
+        int[] dstStrides = dst.getStrides();
+        if (!Arrays.equals(srcShape, dstShape)) {
+            throw new IllegalArgumentException("Source and destination tensors must have the same shape.");
+        }
+        float[] srcData = src.getFloat32Data();
+        float[] dstData = dst.getFloat32Data();
+        int[] denseStrides = denseStrides(srcShape);
+        int logicalSize = logicalSize(srcShape);
+        ForkJoinPool customPool = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
+        try {
+            customPool.submit(() -> IntStream.range(0, logicalSize).parallel().forEach(logicalIndex -> {
+                int srcOffset = logicalToOffset(logicalIndex, srcShape, srcStrides, denseStrides);
+                int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, denseStrides);
+                dstData[dstOffset] = srcData[srcOffset];
+            })).get();
+        } catch (Exception e) {
+            throw new RuntimeException("Parallel remap failed", e);
+        } finally {
+            customPool.shutdown();
+        }
+    }
+
+    private static void applyF16(Tensor src, Tensor dst, int parallelThreshold) {
+        int logicalSize = logicalSize(src.getShape());
+        if (logicalSize > parallelThreshold) {
+            parallelApplyF16(src, dst);
+        } else {
+            sequentialApplyF16(src, dst);
+        }
+    }
+
+    private static void sequentialApplyF16(Tensor src, Tensor dst) {
+        int[] srcShape = src.getShape();
+        int[] dstShape = dst.getShape();
+        int[] srcStrides = src.getStrides();
+        int[] dstStrides = dst.getStrides();
+        if (!Arrays.equals(srcShape, dstShape)) {
+            throw new IllegalArgumentException("Source and destination tensors must have the same shape.");
+        }
+        short[] srcData = src.getFloat16Data();
+        short[] dstData = dst.getFloat16Data();
+        int[] denseStrides = denseStrides(srcShape);
+        int logicalSize = logicalSize(srcShape);
+        for (int logicalIndex = 0; logicalIndex < logicalSize; logicalIndex++) {
+            int srcOffset = logicalToOffset(logicalIndex, srcShape, srcStrides, denseStrides);
+            int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, denseStrides);
+            dstData[dstOffset] = srcData[srcOffset];
+        }
+    }
+
+    private static void parallelApplyF16(Tensor src, Tensor dst) {
+        int[] srcShape = src.getShape();
+        int[] dstShape = dst.getShape();
+        int[] srcStrides = src.getStrides();
+        int[] dstStrides = dst.getStrides();
+        if (!Arrays.equals(srcShape, dstShape)) {
+            throw new IllegalArgumentException("Source and destination tensors must have the same shape.");
+        }
+        short[] srcData = src.getFloat16Data();
+        short[] dstData = dst.getFloat16Data();
+        int[] denseStrides = denseStrides(srcShape);
+        int logicalSize = logicalSize(srcShape);
+        ForkJoinPool customPool = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
+        try {
+            customPool.submit(() -> IntStream.range(0, logicalSize).parallel().forEach(logicalIndex -> {
+                int srcOffset = logicalToOffset(logicalIndex, srcShape, srcStrides, denseStrides);
+                int dstOffset = logicalToOffset(logicalIndex, dstShape, dstStrides, denseStrides);
+                dstData[dstOffset] = srcData[srcOffset];
+            })).get();
+        } catch (Exception e) {
+            throw new RuntimeException("Parallel remap failed", e);
+        } finally {
+            customPool.shutdown();
+        }
     }
 }

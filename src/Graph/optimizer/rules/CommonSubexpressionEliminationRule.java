@@ -145,8 +145,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         }
 
         // Konstantní scalar leaf: strukturální podpis podle hodnoty.
-        if (t.getOperation() == null && !t.getRequiresGrad() && t.getData() != null && t.getData().length == 1) {
-            long bits = Double.doubleToLongBits(t.getData()[0]);
+        if (t.getOperation() == null && !t.getRequiresGrad() && t.getFlatDataSize() == 1) {
+            long bits = Double.doubleToLongBits(t.scalarAsDouble());
             int[] shape = t.getShape();
             String shapeKey = (shape == null) ? "null" : Arrays.toString(shape);
             return "const_scalar#" + bits + "_shape=" + shapeKey;

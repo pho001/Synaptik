@@ -1,5 +1,8 @@
 package Backend.kernels.cpu;
 
+import Backend.kernels.cpu.f16.PowF16;
+import Backend.kernels.cpu.f32.PowF32;
+import Backend.kernels.cpu.f64.PowF64;
 import Operations.Operation;
 import Operations.pow;
 import Tensor.Tensor;
@@ -9,37 +12,33 @@ import java.util.List;
 public class CpuPowKernel implements CpuKernel {
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forward(op, inputs, node, CpuExecutionConfig.defaults());
+        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
     }
 
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        forwardF64(op, inputs, node, config);
+    }
+
+    @Override
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         double exponent = ((pow) op).getExponent();
-        double[] in = inputs.get(0).getData();
-        double[] out = node.getData();
-        CpuExecutionMode mode = config.modeFor(op, node);
-        switch (mode) {
-            case VECTOR, SCALAR -> scalarPow(in, out, exponent, 0, out.length);
-            case PARALLEL, PARALLEL_VECTOR -> parallelPow(in, out, exponent, config);
-        }
+        double[] in = inputs.get(0).getFloat64Data();
+        double[] out = node.getFloat64Data();
+        PowF64.run(in, exponent, out, config.modeFor(op, node), config);
     }
 
-    private static void parallelPow(double[] in, double[] out, double exponent, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
-        int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
-            int start = chunk * chunkSize;
-            int end = Math.min(start + chunkSize, out.length);
-            scalarPow(in, out, exponent, start, end);
-        });
+    @Override
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        float[] in = inputs.get(0).getFloat32Data();
+        float[] out = node.getFloat32Data();
+        PowF32.run(in, ((pow) op).getExponent(), out, config.modeFor(op, node), config);
     }
 
-    private static void scalarPow(double[] in, double[] out, double exponent, int start, int end) {
-        for (int i = start; i < end; i++) {
-            if (exponent == 0.0) out[i] = 1.0;
-            else if (exponent == 1.0) out[i] = in[i];
-            else if (exponent == 2.0) out[i] = in[i] * in[i];
-            else out[i] = Math.pow(in[i], exponent);
-        }
+    @Override
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        short[] in = inputs.get(0).getFloat16Data();
+        short[] out = node.getFloat16Data();
+        PowF16.run(in, ((pow) op).getExponent(), out, config.modeFor(op, node), config);
     }
 }

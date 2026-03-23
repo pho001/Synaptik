@@ -1,8 +1,8 @@
 package Operations;
 
 import Backend.ComputeBackend;
-import Graph.codegen.DFusedOperationGenerator;
 import Graph.codegen.FusedDTypeOps;
+import Graph.codegen.FusedOperationGeneratorRouter;
 import Tensor.Tensor;
 import Tensor.DataType;
 import Utils.CustomClassLoader;
@@ -42,11 +42,12 @@ public class FusedOperation implements Operation {
             String binaryName = "Operations.fused.GeneratedFusedOp" + id;
             String internalName = binaryName.replace('.', '/');
 
-            byte[] bytecode = DFusedOperationGenerator.generate(
+            byte[] bytecode = FusedOperationGeneratorRouter.generate(
                     internalName,
                     cluster,
                     root,
-                    externalInputsInOrder
+                    externalInputsInOrder,
+                    this.precisionMode
             );
 
             CustomClassLoader loader = new CustomClassLoader();

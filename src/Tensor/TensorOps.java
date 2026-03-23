@@ -23,6 +23,14 @@ public final class TensorOps {
         return TensorBinaryOps.div(first, second);
     }
 
+    public static Tensor min(Tensor first, Tensor second) {
+        return TensorBinaryOps.min(first, second);
+    }
+
+    public static Tensor max(Tensor first, Tensor second) {
+        return TensorBinaryOps.max(first, second);
+    }
+
     public static Tensor neg(Tensor input) {
         return TensorUnaryOps.neg(input);
     }

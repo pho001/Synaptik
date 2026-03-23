@@ -3,6 +3,8 @@ package Tensor;
 import Operations.Operation;
 import Operations.add;
 import Operations.div;
+import Operations.max;
+import Operations.min;
 import Operations.mul;
 import Operations.sub;
 
@@ -115,6 +117,86 @@ final class TensorBinaryOps {
                 } else {
                     second.setGradient(second.getGradient().add(gradForSecond));
                 }
+            }
+        });
+        return out;
+    }
+
+    static Tensor min(Tensor first, Tensor second) {
+        Operation op = new min();
+        Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "min");
+        out.setDataType(TensorDataTypeUtil.binary(first, second));
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+
+            double[] a = first.toDoubleArrayCopy();
+            double[] b = second.toDoubleArrayCopy();
+            double[] og = outGrad.toDoubleArrayCopy();
+            double[] ga = new double[og.length];
+            double[] gb = new double[og.length];
+
+            for (int i = 0; i < og.length; i++) {
+                if (a[i] < b[i]) {
+                    ga[i] = og[i];
+                } else if (a[i] > b[i]) {
+                    gb[i] = og[i];
+                } else {
+                    double half = 0.5 * og[i];
+                    ga[i] = half;
+                    gb[i] = half;
+                }
+            }
+
+            if (first.getRequiresGrad()) {
+                Tensor gradForFirst = new Tensor(ga, first.getShape().clone(), null, "min_grad_a", first.getDataType());
+                if (first.getGradient() == null) first.setGradient(gradForFirst);
+                else first.setGradient(first.getGradient().add(gradForFirst));
+            }
+            if (second.getRequiresGrad()) {
+                Tensor gradForSecond = new Tensor(gb, second.getShape().clone(), null, "min_grad_b", second.getDataType());
+                if (second.getGradient() == null) second.setGradient(gradForSecond);
+                else second.setGradient(second.getGradient().add(gradForSecond));
+            }
+        });
+        return out;
+    }
+
+    static Tensor max(Tensor first, Tensor second) {
+        Operation op = new max();
+        Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "max");
+        out.setDataType(TensorDataTypeUtil.binary(first, second));
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+
+            double[] a = first.toDoubleArrayCopy();
+            double[] b = second.toDoubleArrayCopy();
+            double[] og = outGrad.toDoubleArrayCopy();
+            double[] ga = new double[og.length];
+            double[] gb = new double[og.length];
+
+            for (int i = 0; i < og.length; i++) {
+                if (a[i] > b[i]) {
+                    ga[i] = og[i];
+                } else if (a[i] < b[i]) {
+                    gb[i] = og[i];
+                } else {
+                    double half = 0.5 * og[i];
+                    ga[i] = half;
+                    gb[i] = half;
+                }
+            }
+
+            if (first.getRequiresGrad()) {
+                Tensor gradForFirst = new Tensor(ga, first.getShape().clone(), null, "max_grad_a", first.getDataType());
+                if (first.getGradient() == null) first.setGradient(gradForFirst);
+                else first.setGradient(first.getGradient().add(gradForFirst));
+            }
+            if (second.getRequiresGrad()) {
+                Tensor gradForSecond = new Tensor(gb, second.getShape().clone(), null, "max_grad_b", second.getDataType());
+                if (second.getGradient() == null) second.setGradient(gradForSecond);
+                else second.setGradient(second.getGradient().add(gradForSecond));
             }
         });
         return out;

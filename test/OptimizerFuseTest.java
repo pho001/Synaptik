@@ -37,7 +37,7 @@ public class OptimizerFuseTest {
         e.getCompiledGraph().setTrainingModeOff();
         e.compute(optimizer);
 
-        assertArrayEquals(new double[]{9.0, 12.0}, e.getData(), 1e-9);
+        assertArrayEquals(new double[]{9.0, 12.0}, e.toDoubleArrayCopy(), 1e-9);
 
         assertNotNull(e.getOperation(), "Final tensor should have an operation");
         int fusedGraphSize = e.getCompiledGraph().getCompiledGraphAsList().size();
@@ -47,8 +47,8 @@ public class OptimizerFuseTest {
         e.getCompiledGraph().setTrainingModeOn();
         e.compute(optimizer);
 
-        assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().getData(), 1e-9);
-        assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().getData(), 1e-9);
-        assertArrayEquals(new double[]{1.0, 1.0}, c.getGradient().getData(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 1.0}, c.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 }

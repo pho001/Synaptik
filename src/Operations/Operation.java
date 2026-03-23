@@ -10,6 +10,8 @@ public interface Operation {
         SUB,
         MUL,
         DIV,
+        MIN,
+        MAX,
         NEG,
         INV,
         LOG,

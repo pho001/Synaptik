@@ -17,22 +17,12 @@ public class ComputeEngine {
         if (backend == null) {
             backend = tensor.resolveBackend();
         }
-        if (tensor.getPrevTensors() != null) {
-            for (Tensor input : tensor.getPrevTensors()) {
-                if (input == null) continue;
-                // Persist potential user updates and re-materialize dtype-quantized values.
-                input.syncDataToStorage();
-                input.syncStorageToData();
-            }
-        }
         switch (backend) {
             case CPU -> CPU_BACKEND.execute(tensor.getOperation(), tensor.getPrevTensors(), tensor);
             case GPU_CUDA -> CUDA_BACKEND.execute(tensor.getOperation(), tensor.getPrevTensors(), tensor);
             case GPU_OPENCL -> OPENCL_BACKEND.execute(tensor.getOperation(), tensor.getPrevTensors(), tensor);
             default -> throw new UnsupportedOperationException("Backend " + backend + " is not available");
         }
-        tensor.syncDataToStorage();
-        tensor.syncStorageToData();
     }
 
     public static void setCpuKernelConfig(CpuKernelConfig config) {

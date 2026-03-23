@@ -151,7 +151,7 @@ Additional optimizer-specific notes are documented in [`src/Graph/optimizer/READ
 
 ### Fused Code Generation
 
-Fused element-wise regions are materialized through runtime code generation in [`DFusedOperationGenerator`](src/Graph/codegen/DFusedOperationGenerator.java). Generated fused classes are then used by [`FusedOperation`](src/Operations/FusedOperation.java) during compiled graph execution.
+Fused element-wise regions are materialized through runtime code generation via [`FusedOperationGeneratorRouter`](src/Graph/codegen/FusedOperationGeneratorRouter.java), which dispatches to [`FusedOperationGenerator`](src/Graph/codegen/FusedOperationGenerator.java) for `FLOAT32/FLOAT64` and [`HFusedOperationGenerator`](src/Graph/codegen/HFusedOperationGenerator.java) for `FLOAT16`. Generated fused classes are then used by [`FusedOperation`](src/Operations/FusedOperation.java) during compiled graph execution.
 
 This path is intended to reduce dispatch overhead and improve locality for chains of simple operations.
 

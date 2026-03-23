@@ -1,25 +1,45 @@
 package Backend.kernels.cpu;
 
-import Backend.kernels.cpu.elementwise.AddExecutor;
+import Backend.kernels.cpu.f16.AddF16;
+import Backend.kernels.cpu.f32.AddF32;
+import Backend.kernels.cpu.f64.AddF64;
 import Operations.Operation;
 import Tensor.Tensor;
 
 import java.util.List;
 
 public class CpuAddKernel implements CpuKernel {
-    private static final AddExecutor EXECUTOR = new AddExecutor();
-
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forward(op, inputs, node, CpuExecutionConfig.defaults());
+        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
     }
 
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        double[] a = inputs.get(0).getData();
-        double[] b = inputs.get(1).getData();
-        double[] out = node.getData();
-        CpuExecutionMode mode = config.modeFor(op, node);
-        EXECUTOR.execute(a, b, out, mode, config);
+        forwardF64(op, inputs, node, config);
+    }
+
+    @Override
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        double[] a = inputs.get(0).getFloat64Data();
+        double[] b = inputs.get(1).getFloat64Data();
+        double[] out = node.getFloat64Data();
+        AddF64.run(a, b, out, config.modeFor(op, node), config);
+    }
+
+    @Override
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        float[] a = inputs.get(0).getFloat32Data();
+        float[] b = inputs.get(1).getFloat32Data();
+        float[] out = node.getFloat32Data();
+        AddF32.run(a, b, out, config.modeFor(op, node), config);
+    }
+
+    @Override
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        short[] a = inputs.get(0).getFloat16Data();
+        short[] b = inputs.get(1).getFloat16Data();
+        short[] out = node.getFloat16Data();
+        AddF16.run(a, b, out, config.modeFor(op, node), config);
     }
 }

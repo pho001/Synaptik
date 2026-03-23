@@ -148,9 +148,10 @@ public class CompiledGraph {
         // Její 0-tý vstup je VŽDYCKY ten skutečný, zoptimalizovaný výsledek dopředného chodu!
         Tensor actualRoot = this.forwardOutput.getPrevTensors().get(0);
 
-        // Pokud optimalizátor nahradil původní root něčím novým (fúzí), ukradneme data
-        if (actualRoot != this.rootTensor && actualRoot.getData() != null) {
-            System.arraycopy(actualRoot.getData(), 0, this.rootTensor.getData(), 0, actualRoot.getData().length);
+        // Pokud optimalizátor nahradil původní root něčím novým (fúzí),
+        // pouze přepneme runtime alias místo kopírování dat.
+        if (actualRoot != this.rootTensor) {
+            this.rootTensor.aliasRuntimeFrom(actualRoot);
         }
     }
 
@@ -164,7 +165,7 @@ public class CompiledGraph {
         }
         zeroGrad();
         if (rootTensor.getGradient() != null) {
-            Arrays.fill(rootTensor.getGradient().getData(), 1.0);
+            fillGradientOnes(rootTensor.getGradient());
         }
 
         for (int i = backwardStartIndex; i < finalGraph.size(); i++) {
@@ -178,8 +179,27 @@ public class CompiledGraph {
     public void zeroGrad() {
         for (Tensor t : finalGraph) {
             if (t.getGradient() != null) {
-                Arrays.fill(t.getGradient().getData(), 0.0);
+                fillGradientZeros(t.getGradient());
             }
+        }
+    }
+
+    private static void fillGradientOnes(Tensor gradient) {
+        switch (gradient.getDataType()) {
+            case FLOAT64 -> Arrays.fill(gradient.getFloat64Data(), 1.0);
+            case FLOAT32 -> Arrays.fill(gradient.getFloat32Data(), 1.0f);
+            case FLOAT16 -> {
+                short one = Backend.kernels.cpu.CpuDTypeOps.toHalfBits(1.0f);
+                Arrays.fill(gradient.getFloat16Data(), one);
+            }
+        }
+    }
+
+    private static void fillGradientZeros(Tensor gradient) {
+        switch (gradient.getDataType()) {
+            case FLOAT64 -> Arrays.fill(gradient.getFloat64Data(), 0.0);
+            case FLOAT32 -> Arrays.fill(gradient.getFloat32Data(), 0.0f);
+            case FLOAT16 -> Arrays.fill(gradient.getFloat16Data(), (short) 0);
         }
     }
 

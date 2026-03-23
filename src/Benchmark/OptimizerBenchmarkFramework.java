@@ -588,15 +588,15 @@ public final class OptimizerBenchmarkFramework {
         double expectedGradB = -48.0;
         double expectedGradC = 41.6;
 
-        checkClose("Scalar no-opt Te7", Te7No.getData()[0], expectedTe7, 1e-9);
-        checkClose("Scalar no-opt gradA", A0.getGradient().getData()[0], expectedGradA, 1e-9);
-        checkClose("Scalar no-opt gradB", B0.getGradient().getData()[0], expectedGradB, 1e-9);
-        checkClose("Scalar no-opt gradC", C0.getGradient().getData()[0], expectedGradC, 1e-9);
+        checkClose("Scalar no-opt Te7", Te7No.toDoubleArrayCopy()[0], expectedTe7, 1e-9);
+        checkClose("Scalar no-opt gradA", A0.getGradient().toDoubleArrayCopy()[0], expectedGradA, 1e-9);
+        checkClose("Scalar no-opt gradB", B0.getGradient().toDoubleArrayCopy()[0], expectedGradB, 1e-9);
+        checkClose("Scalar no-opt gradC", C0.getGradient().toDoubleArrayCopy()[0], expectedGradC, 1e-9);
 
-        checkClose("Scalar opt Te7", Te7Opt.getData()[0], expectedTe7, 1e-9);
-        checkClose("Scalar opt gradA", A1.getGradient().getData()[0], expectedGradA, 1e-9);
-        checkClose("Scalar opt gradB", B1.getGradient().getData()[0], expectedGradB, 1e-9);
-        checkClose("Scalar opt gradC", C1.getGradient().getData()[0], expectedGradC, 1e-9);
+        checkClose("Scalar opt Te7", Te7Opt.toDoubleArrayCopy()[0], expectedTe7, 1e-9);
+        checkClose("Scalar opt gradA", A1.getGradient().toDoubleArrayCopy()[0], expectedGradA, 1e-9);
+        checkClose("Scalar opt gradB", B1.getGradient().toDoubleArrayCopy()[0], expectedGradB, 1e-9);
+        checkClose("Scalar opt gradC", C1.getGradient().toDoubleArrayCopy()[0], expectedGradC, 1e-9);
     }
 
     private static void checkClose(String name, double actual, double expected, double tol) {
@@ -614,10 +614,10 @@ public final class OptimizerBenchmarkFramework {
         s.ta7.getCompiledGraph().setTrainingModeOn();
         s.compute();
         return new RunResult(
-                s.ta7.getData().clone(),
-                s.A.getGradient().getData().clone(),
-                s.B.getGradient().getData().clone(),
-                s.C.getGradient().getData().clone()
+                s.ta7.toDoubleArrayCopy().clone(),
+                s.A.getGradient().toDoubleArrayCopy().clone(),
+                s.B.getGradient().toDoubleArrayCopy().clone(),
+                s.C.getGradient().toDoubleArrayCopy().clone()
         );
     }
 

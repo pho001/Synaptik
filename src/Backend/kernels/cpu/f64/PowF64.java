@@ -1,0 +1,93 @@
+package Backend.kernels.cpu.f64;
+
+import Backend.kernels.cpu.CpuExecutionConfig;
+import Backend.kernels.cpu.CpuExecutionMode;
+import Backend.kernels.cpu.CpuThreadPool;
+import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.VectorOperators;
+import jdk.incubator.vector.VectorSpecies;
+
+public final class PowF64 {
+    private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
+
+    private PowF64() {}
+
+    public static void run(double[] in, double exponent, double[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+        switch (mode) {
+            case VECTOR -> vector(in, exponent, out);
+            case PARALLEL -> parallel(in, exponent, out, config);
+            case PARALLEL_VECTOR -> parallelVector(in, exponent, out, config);
+            case SCALAR -> scalar(in, exponent, out, 0, out.length);
+        }
+    }
+
+    private static void scalar(double[] in, double exponent, double[] out, int start, int end) {
+        for (int i = start; i < end; i++) {
+            if (exponent == 0.0) out[i] = 1.0;
+            else if (exponent == 1.0) out[i] = in[i];
+            else if (exponent == 2.0) out[i] = in[i] * in[i];
+            else if (exponent == 0.5) out[i] = Math.sqrt(in[i]);
+            else if (exponent == -1.0) out[i] = 1.0 / in[i];
+            else out[i] = Math.pow(in[i], exponent);
+        }
+    }
+
+    private static void vector(double[] in, double exponent, double[] out) {
+        if (exponent != 0.0 && exponent != 1.0 && exponent != 2.0 && exponent != 0.5 && exponent != -1.0) {
+            scalar(in, exponent, out, 0, out.length);
+            return;
+        }
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        DoubleVector ones = DoubleVector.broadcast(SPECIES, 1.0);
+        for (; i < upper; i += SPECIES.length()) {
+            DoubleVector vi = DoubleVector.fromArray(SPECIES, in, i);
+            DoubleVector vo;
+            if (exponent == 0.0) vo = ones;
+            else if (exponent == 1.0) vo = vi;
+            else if (exponent == 2.0) vo = vi.mul(vi);
+            else if (exponent == 0.5) vo = vi.lanewise(VectorOperators.SQRT);
+            else vo = ones.div(vi);
+            vo.intoArray(out, i);
+        }
+        scalar(in, exponent, out, i, out.length);
+    }
+
+    private static void parallel(double[] in, double exponent, double[] out, CpuExecutionConfig config) {
+        int chunkSize = config.computeChunkSize(out.length, 1);
+        int chunks = (out.length + chunkSize - 1) / chunkSize;
+        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            int start = chunk * chunkSize;
+            int end = Math.min(start + chunkSize, out.length);
+            scalar(in, exponent, out, start, end);
+        });
+    }
+
+    private static void parallelVector(double[] in, double exponent, double[] out, CpuExecutionConfig config) {
+        if (exponent != 0.0 && exponent != 1.0 && exponent != 2.0 && exponent != 0.5 && exponent != -1.0) {
+            parallel(in, exponent, out, config);
+            return;
+        }
+        int width = SPECIES.length();
+        int chunkSize = config.computeChunkSize(out.length, width);
+        int chunks = (out.length + chunkSize - 1) / chunkSize;
+        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            int start = chunk * chunkSize;
+            int end = Math.min(start + chunkSize, out.length);
+            int i = start;
+            int upper = end - ((end - start) % width);
+            DoubleVector ones = DoubleVector.broadcast(SPECIES, 1.0);
+            for (; i < upper; i += width) {
+                DoubleVector vi = DoubleVector.fromArray(SPECIES, in, i);
+                DoubleVector vo;
+                if (exponent == 0.0) vo = ones;
+                else if (exponent == 1.0) vo = vi;
+                else if (exponent == 2.0) vo = vi.mul(vi);
+                else if (exponent == 0.5) vo = vi.lanewise(VectorOperators.SQRT);
+                else vo = ones.div(vi);
+                vo.intoArray(out, i);
+            }
+            scalar(in, exponent, out, i, end);
+        });
+    }
+}

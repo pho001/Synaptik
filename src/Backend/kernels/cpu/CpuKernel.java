@@ -11,4 +11,16 @@ public interface CpuKernel {
     default void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         forward(op, inputs, node);
     }
+
+    default void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        forward(op, inputs, node, config);
+    }
+
+    default void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        forward(op, inputs, node, config);
+    }
+
+    default void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        forward(op, inputs, node, config);
+    }
 }

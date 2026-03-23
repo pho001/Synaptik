@@ -25,12 +25,12 @@ public class FusedExecutionModesTest {
         double[] bVals = buildInput(8192, -0.07);
         double[] cVals = buildInput(8192, 0.03);
 
-        Tensor aBase = new Tensor(aVals.clone(), new int[]{aVals.length}, null, "aBase");
-        Tensor bBase = new Tensor(bVals.clone(), new int[]{bVals.length}, null, "bBase");
-        Tensor cBase = new Tensor(cVals.clone(), new int[]{cVals.length}, null, "cBase");
-        Tensor baseline = aBase.add(bBase).mul(cBase).add(aBase.mul(0.25)).sigmoid();
+        Tensor aBase = new Tensor(aVals.clone(), new int[]{aVals.length}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bVals.clone(), new int[]{bVals.length}, null, "bBase", DataType.FLOAT64);
+        Tensor cBase = new Tensor(cVals.clone(), new int[]{cVals.length}, null, "cBase", DataType.FLOAT64);
+        Tensor baseline = aBase.add(bBase).mul(cBase).add(aBase.mul(0.25)).max(bBase).min(cBase).sigmoid();
         baseline.compute(new GraphOptimizer());
-        double[] expected = baseline.getData().clone();
+        double[] expected = baseline.toDoubleArrayCopy().clone();
 
         GraphOptimizer fuseOnly = new GraphOptimizer();
         fuseOnly.addRule(new FuseElementWiseRule());
@@ -79,17 +79,17 @@ public class FusedExecutionModesTest {
     ) {
         ComputeEngine.setCpuKernelConfig(config);
 
-        Tensor a = new Tensor(aVals.clone(), new int[]{aVals.length}, null, "a");
-        Tensor b = new Tensor(bVals.clone(), new int[]{bVals.length}, null, "b");
-        Tensor c = new Tensor(cVals.clone(), new int[]{cVals.length}, null, "c");
+        Tensor a = new Tensor(aVals.clone(), new int[]{aVals.length}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(bVals.clone(), new int[]{bVals.length}, null, "b", DataType.FLOAT64);
+        Tensor c = new Tensor(cVals.clone(), new int[]{cVals.length}, null, "c", DataType.FLOAT64);
 
-        Tensor out = a.add(b).mul(c).add(a.mul(0.25)).sigmoid();
+        Tensor out = a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
         out.compute(fuseOnly);
 
         boolean hasFused = out.getCompiledGraph().getCompiledGraphAsList().stream()
                 .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == Operations.Operation.OpType.FUSED);
         assertTrue(hasFused, "Expected fused node in compiled graph");
-        assertArrayEquals(expected, out.getData(), EPS);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
     }
 
     private static double[] buildInput(int size, double scale) {
@@ -114,9 +114,9 @@ public class FusedExecutionModesTest {
         b.setDataType(dataType);
         c.setDataType(dataType);
 
-        Tensor out = a.add(b).mul(c).add(a.mul(0.25)).sigmoid();
+        Tensor out = a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
         out.compute(fuseOnly);
-        return out.getData().clone();
+        return out.toDoubleArrayCopy().clone();
     }
 
     private static double[] expectedTyped(double[] a, double[] b, double[] c, int mode) {
@@ -126,7 +126,9 @@ public class FusedExecutionModesTest {
             double v2 = FusedDTypeOps.mul(v1, c[i], mode);
             double v3 = FusedDTypeOps.mulScalar(a[i], 0.25, mode);
             double v4 = FusedDTypeOps.add(v2, v3, mode);
-            out[i] = FusedDTypeOps.sigmoid(v4, mode);
+            double v5 = FusedDTypeOps.max(v4, b[i], mode);
+            double v6 = FusedDTypeOps.min(v5, c[i], mode);
+            out[i] = FusedDTypeOps.sigmoid(v6, mode);
         }
         return out;
     }

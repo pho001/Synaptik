@@ -33,7 +33,7 @@ public class SumExecutionModesTest {
         Tensor s = a.sum();
         s.compute(new GraphOptimizer());
 
-        assertEquals(referenceSumContiguous(values), s.getData()[0], EPS);
+        assertEquals(referenceSumContiguous(values), s.toDoubleArrayCopy()[0], EPS);
     }
 
     @Test
@@ -63,7 +63,7 @@ public class SumExecutionModesTest {
             }
             expected[r] = acc;
         }
-        assertArrayEquals(expected, s.getData(), EPS);
+        assertArrayEquals(expected, s.toDoubleArrayCopy(), EPS);
     }
 
     @Test
@@ -88,9 +88,9 @@ public class SumExecutionModesTest {
         Tensor materializedAxis = a.sum(1);
         materializedAxis.compute(new GraphOptimizer());
 
-        assertArrayEquals(stridedAll.getData(), materializedAll.getData(), EPS);
-        assertArrayEquals(stridedAxis.getData(), materializedAxis.getData(), EPS);
-        assertArrayEquals(new double[]{9.0, 12.0}, stridedAxis.getData(), EPS);
+        assertArrayEquals(stridedAll.toDoubleArrayCopy(), materializedAll.toDoubleArrayCopy(), EPS);
+        assertArrayEquals(stridedAxis.toDoubleArrayCopy(), materializedAxis.toDoubleArrayCopy(), EPS);
+        assertArrayEquals(new double[]{9.0, 12.0}, stridedAxis.toDoubleArrayCopy(), EPS);
     }
 
     @Test
@@ -125,9 +125,9 @@ public class SumExecutionModesTest {
         neumaier.compute(new GraphOptimizer());
 
         double ref = referenceSumContiguous(values);
-        assertEquals(ref, fast.getData()[0], 1e-6);
-        assertEquals(ref, kahan.getData()[0], 1e-9);
-        assertEquals(ref, neumaier.getData()[0], 1e-9);
+        assertEquals(ref, fast.toDoubleArrayCopy()[0], 1e-6);
+        assertEquals(ref, kahan.toDoubleArrayCopy()[0], 1e-9);
+        assertEquals(ref, neumaier.toDoubleArrayCopy()[0], 1e-9);
     }
 
     private static double referenceSumContiguous(double[] values) {

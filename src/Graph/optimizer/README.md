@@ -18,7 +18,9 @@
   - [src/Graph/optimizer/rules/FuseElementWiseRule.java](src/Graph/optimizer/rules/FuseElementWiseRule.java)
   - [src/Graph/optimizer/rules/MemoryOptimizerRule.java](src/Graph/optimizer/rules/MemoryOptimizerRule.java)
 - Fused codegen:
-  - [src/Graph/codegen/DFusedOperationGenerator.java](src/Graph/codegen/DFusedOperationGenerator.java)
+  - [src/Graph/codegen/FusedOperationGenerator.java](src/Graph/codegen/FusedOperationGenerator.java) (F32/F64)
+  - [src/Graph/codegen/HFusedOperationGenerator.java](src/Graph/codegen/HFusedOperationGenerator.java) (F16)
+  - [src/Graph/codegen/FusedOperationGeneratorRouter.java](src/Graph/codegen/FusedOperationGeneratorRouter.java)
   - [src/Operations/FusedOperation.java](src/Operations/FusedOperation.java)
 
 ## Data Flow
@@ -73,7 +75,9 @@ Rules must:
 Files:
 - [src/Graph/optimizer/rules/FuseElementWiseRule.java](src/Graph/optimizer/rules/FuseElementWiseRule.java)
 - [src/Backend/kernels/cpu/CpuFusedKernel.java](src/Backend/kernels/cpu/CpuFusedKernel.java)
-- [src/Graph/codegen/DFusedOperationGenerator.java](src/Graph/codegen/DFusedOperationGenerator.java)
+- [src/Graph/codegen/FusedOperationGeneratorRouter.java](src/Graph/codegen/FusedOperationGeneratorRouter.java)
+- [src/Graph/codegen/FusedOperationGenerator.java](src/Graph/codegen/FusedOperationGenerator.java)
+- [src/Graph/codegen/HFusedOperationGenerator.java](src/Graph/codegen/HFusedOperationGenerator.java)
 
 ## Benchmark/Autotune Integration
 

@@ -1,82 +1,45 @@
 package Backend.kernels.cpu;
 
+import Backend.kernels.cpu.f16.DivF16;
+import Backend.kernels.cpu.f32.DivF32;
+import Backend.kernels.cpu.f64.DivF64;
 import Operations.Operation;
 import Tensor.Tensor;
-import jdk.incubator.vector.DoubleVector;
-import jdk.incubator.vector.VectorSpecies;
 
 import java.util.List;
 
 public class CpuDivKernel implements CpuKernel {
-    private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
-
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forward(op, inputs, node, CpuExecutionConfig.defaults());
+        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
     }
 
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        double[] a = inputs.get(0).getData();
-        double[] b = inputs.get(1).getData();
-        double[] out = node.getData();
-        CpuExecutionMode mode = config.modeFor(op, node);
-        switch (mode) {
-            case VECTOR -> vectorDiv(a, b, out);
-            case PARALLEL -> parallelDiv(a, b, out, config);
-            case PARALLEL_VECTOR -> parallelVectorDiv(a, b, out, config);
-            case SCALAR -> scalarDiv(a, b, out);
-        }
+        forwardF64(op, inputs, node, config);
     }
 
-    private static void scalarDiv(double[] a, double[] b, double[] out) {
-        for (int i = 0; i < out.length; i++) {
-            out[i] = a[i] / b[i];
-        }
+    @Override
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        double[] a = inputs.get(0).getFloat64Data();
+        double[] b = inputs.get(1).getFloat64Data();
+        double[] out = node.getFloat64Data();
+        DivF64.run(a, b, out, config.modeFor(op, node), config);
     }
 
-    private static void vectorDiv(double[] a, double[] b, double[] out) {
-        int i = 0;
-        int upper = SPECIES.loopBound(out.length);
-        for (; i < upper; i += SPECIES.length()) {
-            DoubleVector va = DoubleVector.fromArray(SPECIES, a, i);
-            DoubleVector vb = DoubleVector.fromArray(SPECIES, b, i);
-            va.div(vb).intoArray(out, i);
-        }
-        for (; i < out.length; i++) {
-            out[i] = a[i] / b[i];
-        }
+    @Override
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        float[] a = inputs.get(0).getFloat32Data();
+        float[] b = inputs.get(1).getFloat32Data();
+        float[] out = node.getFloat32Data();
+        DivF32.run(a, b, out, config.modeFor(op, node), config);
     }
 
-    private static void parallelDiv(double[] a, double[] b, double[] out, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
-        int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
-            int start = chunk * chunkSize;
-            int end = Math.min(start + chunkSize, out.length);
-            for (int i = start; i < end; i++) {
-                out[i] = a[i] / b[i];
-            }
-        });
-    }
-
-    private static void parallelVectorDiv(double[] a, double[] b, double[] out, CpuExecutionConfig config) {
-        int width = SPECIES.length();
-        int chunkSize = config.computeChunkSize(out.length, width);
-        int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
-            int start = chunk * chunkSize;
-            int end = Math.min(start + chunkSize, out.length);
-            int i = start;
-            int upper = end - ((end - start) % width);
-            for (; i < upper; i += width) {
-                DoubleVector va = DoubleVector.fromArray(SPECIES, a, i);
-                DoubleVector vb = DoubleVector.fromArray(SPECIES, b, i);
-                va.div(vb).intoArray(out, i);
-            }
-            for (; i < end; i++) {
-                out[i] = a[i] / b[i];
-            }
-        });
+    @Override
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        short[] a = inputs.get(0).getFloat16Data();
+        short[] b = inputs.get(1).getFloat16Data();
+        short[] out = node.getFloat16Data();
+        DivF16.run(a, b, out, config.modeFor(op, node), config);
     }
 }

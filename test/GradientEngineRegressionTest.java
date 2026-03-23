@@ -1,5 +1,6 @@
 import Graph.optimizer.GraphOptimizer;
 import Graph.optimizer.OptimizerFactory;
+import Tensor.DataType;
 import Tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
@@ -63,6 +64,9 @@ public class GradientEngineRegressionTest {
         Tensor A = Tensor.scalar(10.0);
         Tensor B = Tensor.scalar(2.0);
         Tensor C = Tensor.scalar(5.0);
+        A.setDataType(DataType.FLOAT64);
+        B.setDataType(DataType.FLOAT64);
+        C.setDataType(DataType.FLOAT64);
         A.setRequiresGrad(true);
         B.setRequiresGrad(true);
         C.setRequiresGrad(true);
@@ -80,17 +84,17 @@ public class GradientEngineRegressionTest {
         }
 
         return new RunResult(
-                Te7.getData()[0],
-                A.getGradient().getData()[0],
-                B.getGradient().getData()[0],
-                C.getGradient().getData()[0]
+                Te7.toDoubleArrayCopy()[0],
+                A.getGradient().toDoubleArrayCopy()[0],
+                B.getGradient().toDoubleArrayCopy()[0],
+                C.getGradient().toDoubleArrayCopy()[0]
         );
     }
 
     private static RunResultVec runSequenceVec(double[] aData, double[] bData, double[] cData, boolean withOptimizer, GraphOptimizer optimizer) {
-        Tensor A = new Tensor(aData.clone(), new int[]{aData.length}, null, "A");
-        Tensor B = new Tensor(bData.clone(), new int[]{bData.length}, null, "B");
-        Tensor C = new Tensor(cData.clone(), new int[]{cData.length}, null, "C");
+        Tensor A = new Tensor(aData.clone(), new int[]{aData.length}, null, "A", DataType.FLOAT64);
+        Tensor B = new Tensor(bData.clone(), new int[]{bData.length}, null, "B", DataType.FLOAT64);
+        Tensor C = new Tensor(cData.clone(), new int[]{cData.length}, null, "C", DataType.FLOAT64);
         A.setRequiresGrad(true);
         B.setRequiresGrad(true);
         C.setRequiresGrad(true);
@@ -108,10 +112,10 @@ public class GradientEngineRegressionTest {
         }
 
         return new RunResultVec(
-                Te7.getData().clone(),
-                A.getGradient().getData().clone(),
-                B.getGradient().getData().clone(),
-                C.getGradient().getData().clone()
+                Te7.toDoubleArrayCopy().clone(),
+                A.getGradient().toDoubleArrayCopy().clone(),
+                B.getGradient().toDoubleArrayCopy().clone(),
+                C.getGradient().toDoubleArrayCopy().clone()
         );
     }
 

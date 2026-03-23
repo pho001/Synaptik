@@ -23,6 +23,14 @@ public final class FusedDTypeOps {
         return cast(cast(a, mode) / cast(b, mode), mode);
     }
 
+    public static double min(double a, double b, int mode) {
+        return cast(Math.min(cast(a, mode), cast(b, mode)), mode);
+    }
+
+    public static double max(double a, double b, int mode) {
+        return cast(Math.max(cast(a, mode), cast(b, mode)), mode);
+    }
+
     public static double neg(double a, int mode) {
         return cast(-cast(a, mode), mode);
     }

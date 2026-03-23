@@ -1,9 +1,9 @@
 package Backend.kernels.cpu;
 
+import Backend.kernels.cpu.reduction.SumExecutor;
 import Operations.Operation;
 import Operations.sum;
 import Tensor.Tensor;
-import Backend.kernels.cpu.reduction.SumExecutor;
 
 import java.util.List;
 
@@ -12,11 +12,16 @@ public class CpuSumKernel implements CpuKernel {
 
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forward(op, inputs, node, CpuExecutionConfig.defaults());
+        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
     }
 
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        forwardF64(op, inputs, node, config);
+    }
+
+    @Override
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         if (!(op instanceof sum reduction)) {
             throw new IllegalArgumentException("CpuSumKernel requires sum operation");
         }
@@ -24,5 +29,27 @@ public class CpuSumKernel implements CpuKernel {
             throw new IllegalArgumentException("Sum expects exactly one input tensor");
         }
         EXECUTOR.execute(reduction, inputs.getFirst(), node, config);
+    }
+
+    @Override
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        if (!(op instanceof sum reduction)) {
+            throw new IllegalArgumentException("CpuSumKernel requires sum operation");
+        }
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException("Sum expects exactly one input tensor");
+        }
+        EXECUTOR.executeF32(reduction, inputs.getFirst(), node, config);
+    }
+
+    @Override
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+        if (!(op instanceof sum reduction)) {
+            throw new IllegalArgumentException("CpuSumKernel requires sum operation");
+        }
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException("Sum expects exactly one input tensor");
+        }
+        EXECUTOR.executeF16(reduction, inputs.getFirst(), node, config);
     }
 }

@@ -13,7 +13,7 @@ public final class CpuStridedElementWise {
     public static boolean supports(Operation op) {
         if (op == null) return false;
         return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, NEG, INV, LOG, EXP, TANH, POW, SQRT, MUL_SCALAR, RELU, SIGMOID -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, TANH, POW, SQRT, MUL_SCALAR, RELU, SIGMOID -> true;
             default -> false;
         };
     }
@@ -22,6 +22,20 @@ public final class CpuStridedElementWise {
         if (op == null) {
             return;
         }
+        switch (node.getDataType()) {
+            case FLOAT32 -> {
+                forwardF32(op, inputs, node);
+                return;
+            }
+            case FLOAT16 -> {
+                forwardF16(op, inputs, node);
+                return;
+            }
+            case FLOAT64 -> {
+                // continue with existing F64 path below
+            }
+        }
+
         double[] out = node.getData();
         if (out == null) {
             return;
@@ -55,6 +69,92 @@ public final class CpuStridedElementWise {
             int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
             int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
             out[i] = eval(op, a, b, aIdx, bIdx);
+        }
+    }
+
+    private static void forwardF32(Operation op, List<Tensor> inputs, Tensor node) {
+        float[] out = node.getFloat32Data();
+        if (out == null) {
+            return;
+        }
+
+        int[] outShape = node.getShape();
+        int[] outStrides = node.getStrides();
+        int rank = outShape.length;
+
+        float[] a = null;
+        float[] b = null;
+        int[] aStrides = null;
+        int[] bStrides = null;
+        if (!inputs.isEmpty()) {
+            Tensor ta = inputs.get(0);
+            a = ta.getFloat32Data();
+            aStrides = ta.getStrides();
+        }
+        if (inputs.size() > 1) {
+            Tensor tb = inputs.get(1);
+            b = tb.getFloat32Data();
+            bStrides = tb.getStrides();
+        }
+
+        if (rank == 1) {
+            int strideA = a != null ? aStrides[0] : 0;
+            int strideB = b != null ? bStrides[0] : 0;
+            for (int i = 0; i < out.length; i++) {
+                int aIdx = a != null ? i * strideA : -1;
+                int bIdx = b != null ? i * strideB : -1;
+                out[i] = evalF32(op, a, b, aIdx, bIdx);
+            }
+            return;
+        }
+
+        for (int i = 0; i < out.length; i++) {
+            int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
+            int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
+            out[i] = evalF32(op, a, b, aIdx, bIdx);
+        }
+    }
+
+    private static void forwardF16(Operation op, List<Tensor> inputs, Tensor node) {
+        short[] out = node.getFloat16Data();
+        if (out == null) {
+            return;
+        }
+
+        int[] outShape = node.getShape();
+        int[] outStrides = node.getStrides();
+        int rank = outShape.length;
+
+        short[] a = null;
+        short[] b = null;
+        int[] aStrides = null;
+        int[] bStrides = null;
+        if (!inputs.isEmpty()) {
+            Tensor ta = inputs.get(0);
+            a = ta.getFloat16Data();
+            aStrides = ta.getStrides();
+        }
+        if (inputs.size() > 1) {
+            Tensor tb = inputs.get(1);
+            b = tb.getFloat16Data();
+            bStrides = tb.getStrides();
+        }
+
+        if (rank == 1) {
+            int strideA = a != null ? aStrides[0] : 0;
+            int strideB = b != null ? bStrides[0] : 0;
+            for (int i = 0; i < out.length; i++) {
+                int aIdx = a != null ? i * strideA : -1;
+                int bIdx = b != null ? i * strideB : -1;
+                out[i] = evalF16(op, a, b, aIdx, bIdx);
+            }
+            return;
+        }
+
+        for (int i = 0; i < out.length; i++) {
+            int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
+            int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
+            out[i] = evalF16(op, a, b, aIdx, bIdx);
         }
     }
 
@@ -92,6 +192,8 @@ public final class CpuStridedElementWise {
             case SUB -> a[aIdx] - b[bIdx];
             case MUL -> a[aIdx] * b[bIdx];
             case DIV -> a[aIdx] / b[bIdx];
+            case MIN -> Math.min(a[aIdx], b[bIdx]);
+            case MAX -> Math.max(a[aIdx], b[bIdx]);
             case NEG -> -a[aIdx];
             case INV -> 1.0 / a[aIdx];
             case LOG -> Math.log(a[aIdx]);
@@ -111,5 +213,65 @@ public final class CpuStridedElementWise {
             }
             default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
         };
+    }
+
+    private static float evalF32(Operation op, float[] a, float[] b, int aIdx, int bIdx) {
+        return switch (op.opType()) {
+            case ADD -> a[aIdx] + b[bIdx];
+            case SUB -> a[aIdx] - b[bIdx];
+            case MUL -> a[aIdx] * b[bIdx];
+            case DIV -> a[aIdx] / b[bIdx];
+            case MIN -> Math.min(a[aIdx], b[bIdx]);
+            case MAX -> Math.max(a[aIdx], b[bIdx]);
+            case NEG -> -a[aIdx];
+            case INV -> 1.0f / a[aIdx];
+            case LOG -> (float) Math.log(a[aIdx]);
+            case EXP -> (float) Math.exp(a[aIdx]);
+            case TANH -> (float) Math.tanh(a[aIdx]);
+            case SQRT -> (float) Math.sqrt(a[aIdx]);
+            case RELU -> Math.max(0.0f, a[aIdx]);
+            case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-a[aIdx])));
+            case MUL_SCALAR -> a[aIdx] * (float) ((mulScalar) op).getScalar();
+            case POW -> {
+                float exponent = (float) ((pow) op).getExponent();
+                float v = a[aIdx];
+                if (exponent == 0.0f) yield 1.0f;
+                if (exponent == 1.0f) yield v;
+                if (exponent == 2.0f) yield v * v;
+                yield (float) Math.pow(v, exponent);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
+        };
+    }
+
+    private static short evalF16(Operation op, short[] a, short[] b, int aIdx, int bIdx) {
+        float av = a != null ? CpuDTypeOps.fromHalfBits(a[aIdx]) : 0.0f;
+        float bv = b != null ? CpuDTypeOps.fromHalfBits(b[bIdx]) : 0.0f;
+        float value = switch (op.opType()) {
+            case ADD -> av + bv;
+            case SUB -> av - bv;
+            case MUL -> av * bv;
+            case DIV -> av / bv;
+            case MIN -> Math.min(av, bv);
+            case MAX -> Math.max(av, bv);
+            case NEG -> -av;
+            case INV -> 1.0f / av;
+            case LOG -> (float) Math.log(av);
+            case EXP -> (float) Math.exp(av);
+            case TANH -> (float) Math.tanh(av);
+            case SQRT -> (float) Math.sqrt(av);
+            case RELU -> Math.max(0.0f, av);
+            case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-av)));
+            case MUL_SCALAR -> av * (float) ((mulScalar) op).getScalar();
+            case POW -> {
+                float exponent = (float) ((pow) op).getExponent();
+                if (exponent == 0.0f) yield 1.0f;
+                if (exponent == 1.0f) yield av;
+                if (exponent == 2.0f) yield av * av;
+                yield (float) Math.pow(av, exponent);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
+        };
+        return CpuDTypeOps.toHalfBits(value);
     }
 }
