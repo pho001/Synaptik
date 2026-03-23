@@ -181,6 +181,29 @@ Quick operation catalog on `Tensor`:
 - Reduction: `sum()`, `sum(axis)`
 - Layout: `contiguous()`
 
+## Quick Start Tensor Ops
+
+```java
+import Tensor.Tensor;
+
+Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{4.0, 5.0, 6.0}, new int[]{3}, null, "b");
+
+// Element-wise arithmetic
+Tensor y = a.add(b).mul(0.5);
+
+// Reduction
+Tensor s = y.sum();
+
+// Exact vs approximate unary ops
+Tensor e1 = y.exp();
+Tensor e2 = y.fastExp();
+
+// Execute graph + autodiff
+Tensor out = s.compute();
+out.backward();
+```
+
 ## Entry Points
 
 - [`Main`](src/Main.java)
