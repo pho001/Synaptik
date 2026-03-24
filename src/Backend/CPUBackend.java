@@ -9,6 +9,12 @@ import Tensor.DataType;
 import Tensor.Tensor;
 import Tensor.TensorRemap;
 import Operations.Operation;
+import Operations.add;
+import Operations.div;
+import Operations.max;
+import Operations.min;
+import Operations.mul;
+import Operations.sub;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,9 +71,19 @@ public class CPUBackend {
 
         DataType targetType = node.getDataType() == null ? DataType.FLOAT32 : node.getDataType();
         boolean hasNonContiguousInput = false;
+        int[] outShape = node.getShape();
         for (Tensor input : inputs) {
             if (input == null) {
                 return false;
+            }
+            int[] inShape = input.getShape();
+            if (inShape.length != outShape.length) {
+                return false;
+            }
+            for (int d = 0; d < outShape.length; d++) {
+                if (inShape[d] != outShape[d]) {
+                    return false;
+                }
             }
             if (input.getDataType() != targetType) {
                 return false;
@@ -95,8 +111,16 @@ public class CPUBackend {
         if (inputs == null || inputs.isEmpty()) {
             return inputs;
         }
-        // CONTIGUOUS and SUM kernels are responsible for their own layout strategy.
-        if (op != null && (op.opType() == Operation.OpType.CONTIGUOUS || op.opType() == Operation.OpType.SUM)) {
+        boolean preserveBroadcastStrides = isBroadcastOpWithPlan(op);
+        // Layout/reduction kernels are responsible for their own input layout strategy.
+        if (op != null && (
+                op.opType() == Operation.OpType.CONTIGUOUS
+                        || op.opType() == Operation.OpType.SUM
+                        || op.opType() == Operation.OpType.RESHAPE
+                        || op.opType() == Operation.OpType.PERMUTE
+                        || op.opType() == Operation.OpType.EXPAND_DIMS
+                        || op.opType() == Operation.OpType.SQUEEZE
+        )) {
             return inputs;
         }
 
@@ -105,7 +129,8 @@ public class CPUBackend {
         for (int i = 0; i < inputs.size(); i++) {
             Tensor input = inputs.get(i);
             boolean needsMaterialization = input != null
-                    && !input.isContiguous();
+                    && !input.isContiguous()
+                    && !preserveBroadcastStrides;
             boolean needsTypeConversion = input != null
                     && targetType != null
                     && input.getDataType() != targetType;
@@ -126,12 +151,34 @@ public class CPUBackend {
 
             String tmpSuffix = needsMaterialization ? "_contiguous_tmp" : "_dtype_tmp";
             DataType tmpType = needsTypeConversion ? targetType : input.getDataType();
-            Tensor remappedInput = new Tensor(input.getShape(), null, input.getLabel() + tmpSuffix, tmpType);
+            Tensor remappedInput;
+            if (preserveBroadcastStrides && input != null && !input.isContiguous()) {
+                int size = input.getFlatDataSize();
+                remappedInput = switch (tmpType) {
+                    case FLOAT64 -> new Tensor(new double[size], input.getShape(), input.getStrides(), null, input.getLabel() + tmpSuffix, tmpType);
+                    case FLOAT32 -> new Tensor(new float[size], input.getShape(), input.getStrides(), null, input.getLabel() + tmpSuffix, tmpType);
+                    case FLOAT16 -> new Tensor(new short[size], input.getShape(), input.getStrides(), null, input.getLabel() + tmpSuffix, tmpType);
+                };
+            } else {
+                remappedInput = new Tensor(input.getShape(), null, input.getLabel() + tmpSuffix, tmpType);
+            }
             TensorRemap.apply(input, remappedInput, materializeThreshold);
             prepared.add(remappedInput);
         }
 
         return prepared == null ? inputs : prepared;
+    }
+
+    private static boolean isBroadcastOpWithPlan(Operation op) {
+        if (op == null) {
+            return false;
+        }
+        return (op instanceof add a && a.getBroadcastPlan() != null && !a.getBroadcastPlan().isNoBroadcast())
+                || (op instanceof sub s && s.getBroadcastPlan() != null && !s.getBroadcastPlan().isNoBroadcast())
+                || (op instanceof mul m && m.getBroadcastPlan() != null && !m.getBroadcastPlan().isNoBroadcast())
+                || (op instanceof div d && d.getBroadcastPlan() != null && !d.getBroadcastPlan().isNoBroadcast())
+                || (op instanceof min mi && mi.getBroadcastPlan() != null && !mi.getBroadcastPlan().isNoBroadcast())
+                || (op instanceof max ma && ma.getBroadcastPlan() != null && !ma.getBroadcastPlan().isNoBroadcast());
     }
 
     public void setExecutionConfig(CpuExecutionConfig executionConfig) {

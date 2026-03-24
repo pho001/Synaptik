@@ -14,191 +14,134 @@ final class TensorBinaryOps {
     private TensorBinaryOps() {}
 
     static Tensor add(Tensor first, Tensor second) {
-        Operation op = new add();
-        Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "+");
+        BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
+        Operation op = new add(plan);
+        Tensor out = new Tensor(plan.outShape(), List.of(first, second), op, "+");
         out.setDataType(TensorDataTypeUtil.binary(first, second));
-
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
             if (first.getRequiresGrad()) {
-                if (first.getGradient() == null) {
-                    first.setGradient(outGrad);
-                } else {
-                    first.setGradient(first.getGradient().add(outGrad));
-                }
+                Tensor gradForFirst = TensorBroadcastOps.sumToShape(outGrad, first.getShape());
+                accumulateGradient(first, gradForFirst);
             }
-
             if (second.getRequiresGrad()) {
-                if (second.getGradient() == null) {
-                    second.setGradient(outGrad);
-                } else {
-                    second.setGradient(second.getGradient().add(outGrad));
-                }
+                Tensor gradForSecond = TensorBroadcastOps.sumToShape(outGrad, second.getShape());
+                accumulateGradient(second, gradForSecond);
             }
         });
         return out;
     }
 
     static Tensor sub(Tensor first, Tensor second) {
-        Operation op = new sub();
-        Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "-");
+        BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
+        Operation op = new sub(plan);
+        Tensor out = new Tensor(plan.outShape(), List.of(first, second), op, "-");
         out.setDataType(TensorDataTypeUtil.binary(first, second));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
             if (first.getRequiresGrad()) {
-                if (first.getGradient() == null) {
-                    first.setGradient(outGrad);
-                } else {
-                    first.setGradient(first.getGradient().add(outGrad));
-                }
+                Tensor gradForFirst = TensorBroadcastOps.sumToShape(outGrad, first.getShape());
+                accumulateGradient(first, gradForFirst);
             }
-
             if (second.getRequiresGrad()) {
-                Tensor gradForSecond = outGrad.neg();
-                if (second.getGradient() == null) {
-                    second.setGradient(gradForSecond);
-                } else {
-                    second.setGradient(second.getGradient().add(gradForSecond));
-                }
+                Tensor gradForSecond = TensorBroadcastOps.sumToShape(outGrad.neg(), second.getShape());
+                accumulateGradient(second, gradForSecond);
             }
         });
         return out;
     }
 
     static Tensor mul(Tensor first, Tensor second) {
-        Operation op = new mul();
-        Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "*");
+        BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
+        Operation op = new mul(plan);
+        Tensor out = new Tensor(plan.outShape(), List.of(first, second), op, "*");
         out.setDataType(TensorDataTypeUtil.binary(first, second));
-
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
             if (first.getRequiresGrad()) {
-                Tensor gradForFirst = outGrad.mul(second);
-                if (first.getGradient() == null) {
-                    first.setGradient(gradForFirst);
-                } else {
-                    first.setGradient(first.getGradient().add(gradForFirst));
-                }
+                Tensor gradForFirst = TensorBroadcastOps.sumToShape(outGrad.mul(second), first.getShape());
+                accumulateGradient(first, gradForFirst);
             }
-
             if (second.getRequiresGrad()) {
-                Tensor gradForSecond = outGrad.mul(first);
-                if (second.getGradient() == null) {
-                    second.setGradient(gradForSecond);
-                } else {
-                    second.setGradient(second.getGradient().add(gradForSecond));
-                }
+                Tensor gradForSecond = TensorBroadcastOps.sumToShape(outGrad.mul(first), second.getShape());
+                accumulateGradient(second, gradForSecond);
             }
         });
-
         return out;
     }
 
     static Tensor div(Tensor first, Tensor second) {
-        Operation op = new div();
-        Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "/");
+        BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
+        Operation op = new div(plan);
+        Tensor out = new Tensor(plan.outShape(), List.of(first, second), op, "/");
         out.setDataType(TensorDataTypeUtil.binary(first, second));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
-
+            if (outGrad == null) return;
             if (first.getRequiresGrad()) {
-                Tensor gradForFirst = outGrad.div(second);
-                if (first.getGradient() == null) {
-                    first.setGradient(gradForFirst);
-                } else {
-                    first.setGradient(first.getGradient().add(gradForFirst));
-                }
+                Tensor gradForFirst = TensorBroadcastOps.sumToShape(outGrad.div(second), first.getShape());
+                accumulateGradient(first, gradForFirst);
             }
-
             if (second.getRequiresGrad()) {
-                Tensor gradForSecond = outGrad.neg().mul(first).div(second.pow(2));
-                if (second.getGradient() == null) {
-                    second.setGradient(gradForSecond);
-                } else {
-                    second.setGradient(second.getGradient().add(gradForSecond));
-                }
+                Tensor gradForSecond = TensorBroadcastOps.sumToShape(
+                        outGrad.neg().mul(first).div(second.pow(2)),
+                        second.getShape()
+                );
+                accumulateGradient(second, gradForSecond);
             }
         });
         return out;
     }
 
     static Tensor min(Tensor first, Tensor second) {
-        Operation op = new min();
-        Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "min");
+        BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
+        Operation op = new min(plan);
+        Tensor out = new Tensor(plan.outShape(), List.of(first, second), op, "min");
         out.setDataType(TensorDataTypeUtil.binary(first, second));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
-
-            double[] a = first.toDoubleArrayCopy();
-            double[] b = second.toDoubleArrayCopy();
-            double[] og = outGrad.toDoubleArrayCopy();
-            double[] ga = new double[og.length];
-            double[] gb = new double[og.length];
-
-            for (int i = 0; i < og.length; i++) {
-                if (a[i] < b[i]) {
-                    ga[i] = og[i];
-                } else if (a[i] > b[i]) {
-                    gb[i] = og[i];
-                } else {
-                    double half = 0.5 * og[i];
-                    ga[i] = half;
-                    gb[i] = half;
-                }
-            }
-
             if (first.getRequiresGrad()) {
-                Tensor gradForFirst = new Tensor(ga, first.getShape().clone(), null, "min_grad_a", first.getDataType());
-                if (first.getGradient() == null) first.setGradient(gradForFirst);
-                else first.setGradient(first.getGradient().add(gradForFirst));
+                Tensor gradForFirst = TensorBroadcastOps.minMaxGradForInput(first, second, outGrad, plan, true, false);
+                accumulateGradient(first, gradForFirst);
             }
             if (second.getRequiresGrad()) {
-                Tensor gradForSecond = new Tensor(gb, second.getShape().clone(), null, "min_grad_b", second.getDataType());
-                if (second.getGradient() == null) second.setGradient(gradForSecond);
-                else second.setGradient(second.getGradient().add(gradForSecond));
+                Tensor gradForSecond = TensorBroadcastOps.minMaxGradForInput(first, second, outGrad, plan, false, false);
+                accumulateGradient(second, gradForSecond);
             }
         });
         return out;
     }
 
     static Tensor max(Tensor first, Tensor second) {
-        Operation op = new max();
-        Tensor out = new Tensor(first.getShape(), List.of(first, second), op, "max");
+        BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
+        Operation op = new max(plan);
+        Tensor out = new Tensor(plan.outShape(), List.of(first, second), op, "max");
         out.setDataType(TensorDataTypeUtil.binary(first, second));
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
-
-            double[] a = first.toDoubleArrayCopy();
-            double[] b = second.toDoubleArrayCopy();
-            double[] og = outGrad.toDoubleArrayCopy();
-            double[] ga = new double[og.length];
-            double[] gb = new double[og.length];
-
-            for (int i = 0; i < og.length; i++) {
-                if (a[i] > b[i]) {
-                    ga[i] = og[i];
-                } else if (a[i] < b[i]) {
-                    gb[i] = og[i];
-                } else {
-                    double half = 0.5 * og[i];
-                    ga[i] = half;
-                    gb[i] = half;
-                }
-            }
-
             if (first.getRequiresGrad()) {
-                Tensor gradForFirst = new Tensor(ga, first.getShape().clone(), null, "max_grad_a", first.getDataType());
-                if (first.getGradient() == null) first.setGradient(gradForFirst);
-                else first.setGradient(first.getGradient().add(gradForFirst));
+                Tensor gradForFirst = TensorBroadcastOps.minMaxGradForInput(first, second, outGrad, plan, true, true);
+                accumulateGradient(first, gradForFirst);
             }
             if (second.getRequiresGrad()) {
-                Tensor gradForSecond = new Tensor(gb, second.getShape().clone(), null, "max_grad_b", second.getDataType());
-                if (second.getGradient() == null) second.setGradient(gradForSecond);
-                else second.setGradient(second.getGradient().add(gradForSecond));
+                Tensor gradForSecond = TensorBroadcastOps.minMaxGradForInput(first, second, outGrad, plan, false, true);
+                accumulateGradient(second, gradForSecond);
             }
         });
         return out;
     }
+
+    private static void accumulateGradient(Tensor input, Tensor gradientDelta) {
+        if (input.getGradient() == null) {
+            input.setGradient(gradientDelta);
+        } else {
+            input.setGradient(input.getGradient().add(gradientDelta));
+        }
+    }
+
 }

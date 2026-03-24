@@ -63,6 +63,21 @@ public class NonContiguousExecutionTest {
         assertArrayEquals(strided, materialized, EPS);
     }
 
+    @Test
+    public void testAddBroadcastWithNonContiguousInput() {
+        ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 100));
+
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "b_broadcast", DataType.FLOAT64);
+
+        Tensor c = a.add(b);
+        c.compute(new GraphOptimizer());
+
+        Tensor ref = a.contiguous().add(b);
+        ref.compute(new GraphOptimizer());
+        assertArrayEquals(ref.toDoubleArrayCopy(), c.toDoubleArrayCopy(), EPS);
+    }
+
     private static double[] add(double[] left, double[] right) {
         double[] out = new double[left.length];
         for (int i = 0; i < out.length; i++) {
