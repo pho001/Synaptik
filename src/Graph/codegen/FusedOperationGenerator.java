@@ -1,7 +1,10 @@
 package Graph.codegen;
 
 import Operations.Operation;
+import Tensor.BroadcastPlan;
+import Tensor.BroadcastPlanner;
 import Tensor.Tensor;
+import Tensor.TensorMetadata;
 import Utils.SlotKey;
 import Utils.SlotManager;
 import org.objectweb.asm.*;
@@ -9,6 +12,7 @@ import org.objectweb.asm.*;
 import java.util.*;
 
 public class FusedOperationGenerator implements Opcodes {
+    private record ExternalInputAccessMeta(boolean directIndex, int[] outShape, int[] outStrides, int[] effStrides) {}
 
     public static byte[] generate(
             String internalClassName,
@@ -103,6 +107,7 @@ public class FusedOperationGenerator implements Opcodes {
         List<Tensor> externalInputs = externalInputsInOrder != null
                 ? new ArrayList<>(externalInputsInOrder)
                 : findExternalInputs(topoCluster);
+        List<ExternalInputAccessMeta> inputAccess = buildExternalInputAccessMeta(externalInputs, outputTensor);
         Map<Tensor, Integer> externalInputIndex = new HashMap<>();
         for (int i = 0; i < externalInputs.size(); i++) {
             externalInputIndex.put(externalInputs.get(i), i);
@@ -117,6 +122,7 @@ public class FusedOperationGenerator implements Opcodes {
 
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
         List<Integer> cachedInputVectorSlots = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS);
+        List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
         for (int i = 0; i < externalInputs.size(); i++) {
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
             mv.visitLdcInsn(i);
@@ -128,6 +134,25 @@ public class FusedOperationGenerator implements Opcodes {
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
         emitGetRawArrayFromTensorCall(mv, precisionMode);
         mv.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+
+        for (int i = 0; i < externalInputs.size(); i++) {
+            ExternalInputAccessMeta meta = inputAccess.get(i);
+            if (meta.directIndex()) {
+                continue;
+            }
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
+            emitIntArrayConstant(mv, meta.outShape());
+            emitIntArrayConstant(mv, meta.outStrides());
+            emitIntArrayConstant(mv, meta.effStrides());
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "Graph/codegen/FusedBroadcastCursor",
+                    "atStart",
+                    "(I[I[I[I)LGraph/codegen/FusedBroadcastCursor;",
+                    false
+            );
+            mv.visitVarInsn(ASTORE, cursorSlots.get(i));
+        }
 
         // width
         emitVectorWidthCall(mv, precisionMode);
@@ -157,9 +182,16 @@ public class FusedOperationGenerator implements Opcodes {
 
         // Local CSE: load each external input vector once per iteration.
         for (int i = 0; i < externalInputs.size(); i++) {
-            mv.visitVarInsn(ALOAD, inputSlots.get(i));
-            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-            emitLoadVectorFromArrayCall(mv, precisionMode);
+            ExternalInputAccessMeta meta = inputAccess.get(i);
+            if (meta.directIndex()) {
+                mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+                emitLoadVectorFromArrayCall(mv, precisionMode);
+            } else {
+                mv.visitVarInsn(ALOAD, cursorSlots.get(i));
+                mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                emitLoadVectorFromCursorCall(mv, precisionMode);
+            }
             mv.visitVarInsn(ASTORE, cachedInputVectorSlots.get(i));
         }
 
@@ -233,6 +265,7 @@ public class FusedOperationGenerator implements Opcodes {
         List<Tensor> externalInputs = externalInputsInOrder != null
                 ? new ArrayList<>(externalInputsInOrder)
                 : findExternalInputs(topoCluster);
+        List<ExternalInputAccessMeta> inputAccess = buildExternalInputAccessMeta(externalInputs, outputTensor);
         Map<Tensor, Integer> externalInputIndex = new HashMap<>();
         for (int i = 0; i < externalInputs.size(); i++) {
             externalInputIndex.put(externalInputs.get(i), i);
@@ -246,6 +279,7 @@ public class FusedOperationGenerator implements Opcodes {
         }
 
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
+        List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
         for (int i = 0; i < externalInputs.size(); i++) {
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
             mv.visitLdcInsn(i);
@@ -261,6 +295,25 @@ public class FusedOperationGenerator implements Opcodes {
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
         mv.visitVarInsn(ISTORE, sm.get(SlotKey.LOOP_COUNTER));
 
+        for (int i = 0; i < externalInputs.size(); i++) {
+            ExternalInputAccessMeta meta = inputAccess.get(i);
+            if (meta.directIndex()) {
+                continue;
+            }
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
+            emitIntArrayConstant(mv, meta.outShape());
+            emitIntArrayConstant(mv, meta.outStrides());
+            emitIntArrayConstant(mv, meta.effStrides());
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "Graph/codegen/FusedBroadcastCursor",
+                    "atStart",
+                    "(I[I[I[I)LGraph/codegen/FusedBroadcastCursor;",
+                    false
+            );
+            mv.visitVarInsn(ASTORE, cursorSlots.get(i));
+        }
+
         Label loopStart = new Label();
         Label loopEnd = new Label();
         mv.visitLabel(loopStart);
@@ -270,13 +323,22 @@ public class FusedOperationGenerator implements Opcodes {
         mv.visitJumpInsn(IF_ICMPGE, loopEnd);
 
         for (Tensor node : topoCluster) {
-            generateNodeEvaluationBytecode(mv, className, node, clusterSet, externalInputIndex, nodeSlotMap, sm, precisionMode);
+            generateNodeEvaluationBytecode(mv, className, node, clusterSet, externalInputIndex, nodeSlotMap, sm, precisionMode, inputAccess, cursorSlots);
             emitScalarStoreInsn(mv, nodeSlotMap.get(node), precisionMode);
         }
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
         emitScalarLoadInsn(mv, nodeSlotMap.get(outputTensor), precisionMode);
         emitScalarArrayStoreInsn(mv, precisionMode);
+
+        for (int i = 0; i < externalInputs.size(); i++) {
+            ExternalInputAccessMeta meta = inputAccess.get(i);
+            if (meta.directIndex()) {
+                continue;
+            }
+            mv.visitVarInsn(ALOAD, cursorSlots.get(i));
+            mv.visitMethodInsn(INVOKEVIRTUAL, "Graph/codegen/FusedBroadcastCursor", "step", "()V", false);
+        }
 
         mv.visitIincInsn(sm.get(SlotKey.LOOP_COUNTER), 1);
         mv.visitJumpInsn(GOTO, loopStart);
@@ -295,7 +357,9 @@ public class FusedOperationGenerator implements Opcodes {
             Map<Tensor, Integer> externalInputIndex,
             Map<Tensor, Integer> nodeSlotMap,
             SlotManager sm,
-            int precisionMode
+            int precisionMode,
+            List<ExternalInputAccessMeta> inputAccess,
+            List<Integer> cursorSlots
     ) {
         if (!clusterSet.contains(current)) {
             throw new IllegalArgumentException("Tensor is not in fused cluster.");
@@ -304,7 +368,7 @@ public class FusedOperationGenerator implements Opcodes {
         List<Tensor> parents = current.getPrevTensors();
         if (parents != null) {
             for (Tensor p : parents) {
-                loadTensorValue(mv, className, p, clusterSet, externalInputIndex, nodeSlotMap, sm, precisionMode);
+                loadTensorValue(mv, className, p, clusterSet, externalInputIndex, nodeSlotMap, sm, precisionMode, inputAccess, cursorSlots);
             }
         }
 
@@ -458,7 +522,9 @@ public class FusedOperationGenerator implements Opcodes {
             Map<Tensor, Integer> externalInputIndex,
             Map<Tensor, Integer> nodeSlotMap,
             SlotManager sm,
-            int precisionMode
+            int precisionMode,
+            List<ExternalInputAccessMeta> inputAccess,
+            List<Integer> cursorSlots
     ) {
         if (clusterSet.contains(tensor)) {
             Integer slot = nodeSlotMap.get(tensor);
@@ -475,7 +541,13 @@ public class FusedOperationGenerator implements Opcodes {
         }
         int inputSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS).get(inputIdx);
         mv.visitVarInsn(ALOAD, inputSlot);
-        mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+        ExternalInputAccessMeta meta = inputAccess.get(inputIdx);
+        if (meta.directIndex()) {
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+        } else {
+            mv.visitVarInsn(ALOAD, cursorSlots.get(inputIdx));
+            mv.visitMethodInsn(INVOKEVIRTUAL, "Graph/codegen/FusedBroadcastCursor", "idx", "()I", false);
+        }
         emitScalarArrayLoadInsn(mv, precisionMode);
     }
 
@@ -705,6 +777,28 @@ public class FusedOperationGenerator implements Opcodes {
         }
     }
 
+    private static void emitLoadVectorFromCursorCall(MethodVisitor mv, int precisionMode) {
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "Graph/codegen/FusedBroadcastVectorOps",
+                    "loadVectorF32",
+                    "(LGraph/codegen/FusedBroadcastCursor;[F)Ljdk/incubator/vector/FloatVector;",
+                    false
+            );
+        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "Graph/codegen/FusedBroadcastVectorOps",
+                    "loadVectorF64",
+                    "(LGraph/codegen/FusedBroadcastCursor;[D)Ljdk/incubator/vector/DoubleVector;",
+                    false
+            );
+        } else {
+            throw new UnsupportedOperationException("FusedOperationGenerator vector cursor load is supported only for F32/F64.");
+        }
+    }
+
     private static void emitStoreVectorToArrayCall(MethodVisitor mv, int precisionMode) {
         if (precisionMode == FusedDTypeOps.MODE_F32) {
             mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/FloatVector");
@@ -915,6 +1009,7 @@ public class FusedOperationGenerator implements Opcodes {
         sm.define(SlotKey.CLUSTER_TENSOR_VALUES);
         sm.define(SlotKey.LOOP_COUNTER);
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS, externalInputCount);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.FUSED_NODE_VALUES, nodeCount);
         sm.define(SlotKey.TMP_REGISTER);
         return sm;
@@ -931,9 +1026,37 @@ public class FusedOperationGenerator implements Opcodes {
         sm.define(SlotKey.SECOND_LOOP_COUNTER);
         sm.define(SlotKey.RANGE_UPPER);
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS, externalInputCount);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.FUSED_NODE_VECTOR_VALUES, nodeCount);
         return sm;
+    }
+
+    private static List<ExternalInputAccessMeta> buildExternalInputAccessMeta(List<Tensor> externalInputs, Tensor outputTensor) {
+        int[] outShape = outputTensor.getShape();
+        int[] outStrides = TensorMetadata.computeStrides(outShape);
+        List<ExternalInputAccessMeta> metas = new ArrayList<>(externalInputs.size());
+        for (Tensor input : externalInputs) {
+            BroadcastPlan plan = BroadcastPlanner.plan(input.getShape(), input.getStrides(), outShape, outStrides);
+            if (!Arrays.equals(plan.outShape(), outShape)) {
+                throw new IllegalArgumentException("Fused broadcast shape mismatch for external input.");
+            }
+            int[] eff = plan.aEffStrides();
+            boolean direct = Arrays.equals(eff, outStrides);
+            metas.add(new ExternalInputAccessMeta(direct, outShape.clone(), outStrides.clone(), eff));
+        }
+        return metas;
+    }
+
+    private static void emitIntArrayConstant(MethodVisitor mv, int[] values) {
+        mv.visitLdcInsn(values.length);
+        mv.visitIntInsn(NEWARRAY, T_INT);
+        for (int i = 0; i < values.length; i++) {
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(i);
+            mv.visitLdcInsn(values[i]);
+            mv.visitInsn(IASTORE);
+        }
     }
 
     private static void emitPrecisionMode(MethodVisitor mv, int precisionMode) {
