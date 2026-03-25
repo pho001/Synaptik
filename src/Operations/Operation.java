@@ -12,6 +12,7 @@ public interface Operation {
         DIV,
         MIN,
         MAX,
+        MATMUL,
         NEG,
         INV,
         LOG,
@@ -26,6 +27,10 @@ public interface Operation {
         RELU,
         SIGMOID,
         CONTIGUOUS,
+        RESHAPE,
+        PERMUTE,
+        EXPAND_DIMS,
+        SQUEEZE,
         NOOP,
         FUSED,
         UNKNOWN

@@ -4,6 +4,8 @@ import Backend.kernels.cpu.f16.DivF16;
 import Backend.kernels.cpu.f32.DivF32;
 import Backend.kernels.cpu.f64.DivF64;
 import Operations.Operation;
+import Operations.div;
+import Tensor.BroadcastPlan;
 import Tensor.Tensor;
 
 import java.util.List;
@@ -24,7 +26,13 @@ public class CpuDivKernel implements CpuKernel {
         double[] a = inputs.get(0).getFloat64Data();
         double[] b = inputs.get(1).getFloat64Data();
         double[] out = node.getFloat64Data();
-        DivF64.run(a, b, out, config.modeFor(op, node), config);
+        CpuExecutionMode mode = config.modeFor(op, node);
+        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        if (plan != null && !plan.isNoBroadcast()) {
+            BroadcastBinaryKernel.runF64(Operation.OpType.DIV, a, b, out, plan, mode, config);
+            return;
+        }
+        DivF64.run(a, b, out, mode, config);
     }
 
     @Override
@@ -32,7 +40,13 @@ public class CpuDivKernel implements CpuKernel {
         float[] a = inputs.get(0).getFloat32Data();
         float[] b = inputs.get(1).getFloat32Data();
         float[] out = node.getFloat32Data();
-        DivF32.run(a, b, out, config.modeFor(op, node), config);
+        CpuExecutionMode mode = config.modeFor(op, node);
+        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        if (plan != null && !plan.isNoBroadcast()) {
+            BroadcastBinaryKernel.runF32(Operation.OpType.DIV, a, b, out, plan, mode, config);
+            return;
+        }
+        DivF32.run(a, b, out, mode, config);
     }
 
     @Override
@@ -40,6 +54,27 @@ public class CpuDivKernel implements CpuKernel {
         short[] a = inputs.get(0).getFloat16Data();
         short[] b = inputs.get(1).getFloat16Data();
         short[] out = node.getFloat16Data();
-        DivF16.run(a, b, out, config.modeFor(op, node), config);
+        CpuExecutionMode mode = config.modeFor(op, node);
+        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        if (plan != null && !plan.isNoBroadcast()) {
+            BroadcastBinaryKernel.runF16(Operation.OpType.DIV, a, b, out, plan, mode, config);
+            return;
+        }
+        DivF16.run(a, b, out, mode, config);
+    }
+
+    private static ResolvedBroadcastPlan resolvePlan(Operation op, Tensor node) {
+        ResolvedBroadcastPlan resolved = node.getResolvedBroadcastPlan();
+        if (resolved != null) {
+            return resolved;
+        }
+        return ResolvedBroadcastPlan.from(extractPlan(op));
+    }
+
+    private static BroadcastPlan extractPlan(Operation op) {
+        if (op instanceof div divOp) {
+            return divOp.getBroadcastPlan();
+        }
+        return null;
     }
 }

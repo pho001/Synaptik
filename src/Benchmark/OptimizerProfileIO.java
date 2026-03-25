@@ -79,6 +79,7 @@ public final class OptimizerProfileIO {
                 "      \"cpuMatMulTileK\": " + k.cpu().matMulTileK() + ",\n" +
                 "      \"cpuVectorMinSize\": " + k.cpu().vectorMinSize() + ",\n" +
                 "      \"cpuParallelMinSize\": " + k.cpu().parallelMinSize() + ",\n" +
+                "      \"cpuMatMulParallelMinSize\": " + k.cpu().matMulParallelMinSize() + ",\n" +
                 "      \"cpuParallelism\": " + k.cpu().parallelism() + ",\n" +
                 "      \"cpuChunksPerWorker\": " + k.cpu().chunksPerWorker() + ",\n" +
                 "      \"cpuMinChunkSize\": " + k.cpu().minChunkSize() + ",\n" +
@@ -148,7 +149,12 @@ public final class OptimizerProfileIO {
                             d.kernelConfig().cpu().vectorPolicyTranscendental(),
                             VectorPolicy.class
                     ),
-                    findEnum(json, "cpuVectorPolicyReduction", d.kernelConfig().cpu().vectorPolicyReduction(), VectorPolicy.class)
+                    findEnum(json, "cpuVectorPolicyReduction", d.kernelConfig().cpu().vectorPolicyReduction(), VectorPolicy.class),
+                    findInt(
+                            json,
+                            "cpuMatMulParallelMinSize",
+                            d.kernelConfig().cpu().matMulParallelMinSize()
+                    )
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", d.kernelConfig().cuda().loopUnrollFactor()),

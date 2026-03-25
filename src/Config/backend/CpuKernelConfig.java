@@ -3,6 +3,7 @@ package Config.backend;
 public final class CpuKernelConfig {
     private static final int DEFAULT_VECTOR_MIN_SIZE = 1_024;
     private static final int DEFAULT_PARALLEL_MIN_SIZE = 100_000;
+    private static final int DEFAULT_MATMUL_PARALLEL_MIN_SIZE = 2_000_000;
     private static final int DEFAULT_PARALLELISM = 0;
     private static final int DEFAULT_CHUNKS_PER_WORKER = 4;
     private static final int DEFAULT_MIN_CHUNK_SIZE = 4_096;
@@ -17,6 +18,7 @@ public final class CpuKernelConfig {
     private final int matMulTileK;
     private final int vectorMinSize;
     private final int parallelMinSize;
+    private final int matMulParallelMinSize;
     private final int parallelism;
     private final int chunksPerWorker;
     private final int minChunkSize;
@@ -173,12 +175,51 @@ public final class CpuKernelConfig {
             VectorPolicy vectorPolicyTranscendental,
             VectorPolicy vectorPolicyReduction
     ) {
+        this(
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                vectorMinSize,
+                parallelMinSize,
+                parallelism,
+                chunksPerWorker,
+                minChunkSize,
+                contiguousMaterializeThreshold,
+                sumAccuracyMode,
+                lowCostNsPerElementThreshold,
+                vectorPolicyCheap,
+                vectorPolicyTranscendental,
+                vectorPolicyReduction,
+                DEFAULT_MATMUL_PARALLEL_MIN_SIZE
+        );
+    }
+
+    public CpuKernelConfig(
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int vectorMinSize,
+            int parallelMinSize,
+            int parallelism,
+            int chunksPerWorker,
+            int minChunkSize,
+            int contiguousMaterializeThreshold,
+            SumAccuracyMode sumAccuracyMode,
+            double lowCostNsPerElementThreshold,
+            VectorPolicy vectorPolicyCheap,
+            VectorPolicy vectorPolicyTranscendental,
+            VectorPolicy vectorPolicyReduction,
+            int matMulParallelMinSize
+    ) {
         this.loopUnrollFactor = loopUnrollFactor;
         this.matMulTileM = matMulTileM;
         this.matMulTileN = matMulTileN;
         this.matMulTileK = matMulTileK;
         this.vectorMinSize = vectorMinSize;
         this.parallelMinSize = parallelMinSize;
+        this.matMulParallelMinSize = matMulParallelMinSize > 0 ? matMulParallelMinSize : DEFAULT_MATMUL_PARALLEL_MIN_SIZE;
         this.parallelism = parallelism;
         this.chunksPerWorker = chunksPerWorker;
         this.minChunkSize = minChunkSize;
@@ -218,6 +259,10 @@ public final class CpuKernelConfig {
 
     public int parallelism() {
         return parallelism;
+    }
+
+    public int matMulParallelMinSize() {
+        return matMulParallelMinSize;
     }
 
     public int chunksPerWorker() {

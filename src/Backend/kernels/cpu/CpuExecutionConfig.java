@@ -8,8 +8,32 @@ import Operations.Operation;
 import Tensor.Tensor;
 
 public final class  CpuExecutionConfig {
+    public static final class ResolvedDispatchHints {
+        private final int totalLength;
+        private final CpuExecutionMode mode;
+        private final int scalarChunkSize;
+        private final int vectorChunkSize;
+
+        public ResolvedDispatchHints(int totalLength, CpuExecutionMode mode, int scalarChunkSize, int vectorChunkSize) {
+            this.totalLength = Math.max(0, totalLength);
+            this.mode = mode == null ? CpuExecutionMode.SCALAR : mode;
+            this.scalarChunkSize = Math.max(1, scalarChunkSize);
+            this.vectorChunkSize = Math.max(1, vectorChunkSize);
+        }
+
+        private boolean matchesLength(int length) {
+            return totalLength == Math.max(0, length);
+        }
+    }
+
+    private static final ThreadLocal<ResolvedDispatchHints> RESOLVED_HINTS = new ThreadLocal<>();
+
+    private final int matMulTileM;
+    private final int matMulTileN;
+    private final int matMulTileK;
     private final int vectorMinSize;
     private final int parallelMinSize;
+    private final int matMulParallelMinSize;
     private final int parallelism;
     private final int chunksPerWorker;
     private final int minChunkSize;
@@ -22,7 +46,11 @@ public final class  CpuExecutionConfig {
 
     public CpuExecutionConfig(
             int vectorMinSize,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
             int parallelMinSize,
+            int matMulParallelMinSize,
             int parallelism,
             int chunksPerWorker,
             int minChunkSize,
@@ -34,7 +62,11 @@ public final class  CpuExecutionConfig {
             VectorPolicy vectorPolicyReduction
     ) {
         this.vectorMinSize = vectorMinSize;
+        this.matMulTileM = matMulTileM;
+        this.matMulTileN = matMulTileN;
+        this.matMulTileK = matMulTileK;
         this.parallelMinSize = parallelMinSize;
+        this.matMulParallelMinSize = matMulParallelMinSize;
         this.parallelism = parallelism;
         this.chunksPerWorker = chunksPerWorker;
         this.minChunkSize = minChunkSize;
@@ -56,7 +88,11 @@ public final class  CpuExecutionConfig {
         }
         return new CpuExecutionConfig(
                 config.vectorMinSize(),
+                config.matMulTileM(),
+                config.matMulTileN(),
+                config.matMulTileK(),
                 config.parallelMinSize(),
+                config.matMulParallelMinSize(),
                 config.parallelism(),
                 config.chunksPerWorker(),
                 config.minChunkSize(),
@@ -70,6 +106,10 @@ public final class  CpuExecutionConfig {
     }
 
     public CpuExecutionMode modeFor(Operation op, Tensor node) {
+        ResolvedDispatchHints hints = RESOLVED_HINTS.get();
+        if (node != null && hints != null && hints.matchesLength(node.getFlatDataSize())) {
+            return hints.mode;
+        }
         if (op == null || node == null || !op.isElementWise()) {
             return CpuExecutionMode.SCALAR;
         }
@@ -94,6 +134,13 @@ public final class  CpuExecutionConfig {
     }
 
     public int computeChunkSize(int totalLength, int vectorWidth) {
+        ResolvedDispatchHints hints = RESOLVED_HINTS.get();
+        if (hints != null && hints.matchesLength(totalLength)) {
+            if (vectorWidth > 1) {
+                return hints.vectorChunkSize;
+            }
+            return hints.scalarChunkSize;
+        }
         int length = Math.max(1, totalLength);
         int workers = plannedWorkers();
         int targets = Math.max(workers, workers * Math.max(1, chunksPerWorker));
@@ -110,6 +157,26 @@ public final class  CpuExecutionConfig {
 
     public int contiguousMaterializeThreshold() {
         return contiguousMaterializeThreshold;
+    }
+
+    public int matMulTileM() {
+        return matMulTileM;
+    }
+
+    public int matMulTileN() {
+        return matMulTileN;
+    }
+
+    public int matMulTileK() {
+        return matMulTileK;
+    }
+
+    public int parallelMinSize() {
+        return parallelMinSize;
+    }
+
+    public int matMulParallelMinSize() {
+        return matMulParallelMinSize;
     }
 
     public SumAccuracyMode sumAccuracyMode() {
@@ -162,6 +229,18 @@ public final class  CpuExecutionConfig {
                 return vectorPolicyCheap;
             }
         }
+    }
+
+    public static void pushResolvedHints(ResolvedDispatchHints hints) {
+        if (hints == null) {
+            RESOLVED_HINTS.remove();
+            return;
+        }
+        RESOLVED_HINTS.set(hints);
+    }
+
+    public static void clearResolvedHints() {
+        RESOLVED_HINTS.remove();
     }
 
 }

@@ -4,6 +4,8 @@ import Backend.kernels.cpu.f16.MaxF16;
 import Backend.kernels.cpu.f32.MaxF32;
 import Backend.kernels.cpu.f64.MaxF64;
 import Operations.Operation;
+import Operations.max;
+import Tensor.BroadcastPlan;
 import Tensor.Tensor;
 
 import java.util.List;
@@ -24,7 +26,13 @@ public class CpuMaxKernel implements CpuKernel {
         double[] a = inputs.get(0).getFloat64Data();
         double[] b = inputs.get(1).getFloat64Data();
         double[] out = node.getFloat64Data();
-        MaxF64.run(a, b, out, config.modeFor(op, node), config);
+        CpuExecutionMode mode = config.modeFor(op, node);
+        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        if (plan != null && !plan.isNoBroadcast()) {
+            BroadcastBinaryKernel.runF64(Operation.OpType.MAX, a, b, out, plan, mode, config);
+            return;
+        }
+        MaxF64.run(a, b, out, mode, config);
     }
 
     @Override
@@ -32,7 +40,13 @@ public class CpuMaxKernel implements CpuKernel {
         float[] a = inputs.get(0).getFloat32Data();
         float[] b = inputs.get(1).getFloat32Data();
         float[] out = node.getFloat32Data();
-        MaxF32.run(a, b, out, config.modeFor(op, node), config);
+        CpuExecutionMode mode = config.modeFor(op, node);
+        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        if (plan != null && !plan.isNoBroadcast()) {
+            BroadcastBinaryKernel.runF32(Operation.OpType.MAX, a, b, out, plan, mode, config);
+            return;
+        }
+        MaxF32.run(a, b, out, mode, config);
     }
 
     @Override
@@ -40,6 +54,27 @@ public class CpuMaxKernel implements CpuKernel {
         short[] a = inputs.get(0).getFloat16Data();
         short[] b = inputs.get(1).getFloat16Data();
         short[] out = node.getFloat16Data();
-        MaxF16.run(a, b, out, config.modeFor(op, node), config);
+        CpuExecutionMode mode = config.modeFor(op, node);
+        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        if (plan != null && !plan.isNoBroadcast()) {
+            BroadcastBinaryKernel.runF16(Operation.OpType.MAX, a, b, out, plan, mode, config);
+            return;
+        }
+        MaxF16.run(a, b, out, mode, config);
+    }
+
+    private static ResolvedBroadcastPlan resolvePlan(Operation op, Tensor node) {
+        ResolvedBroadcastPlan resolved = node.getResolvedBroadcastPlan();
+        if (resolved != null) {
+            return resolved;
+        }
+        return ResolvedBroadcastPlan.from(extractPlan(op));
+    }
+
+    private static BroadcastPlan extractPlan(Operation op) {
+        if (op instanceof max maxOp) {
+            return maxOp.getBroadcastPlan();
+        }
+        return null;
     }
 }

@@ -37,3 +37,7 @@ build/
 
 ### Git (generated artifacts) ###
 /*.class
+**/*.class
+.tmp*
+.tmp_*/
+.tools/

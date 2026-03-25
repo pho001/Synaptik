@@ -3,10 +3,24 @@ import java.util.Arrays;
 import java.util.List;
 
 import Backend.ComputeBackend;
+import Tensor.BroadcastPlan;
 import Tensor.Tensor;
 
 
 public class sub implements Operation {
+    private final BroadcastPlan broadcastPlan;
+
+    public sub() {
+        this(null);
+    }
+
+    public sub(BroadcastPlan broadcastPlan) {
+        this.broadcastPlan = broadcastPlan;
+    }
+
+    public BroadcastPlan getBroadcastPlan() {
+        return broadcastPlan;
+    }
 
     //default implementation - CPU
     @Override
@@ -15,13 +29,39 @@ public class sub implements Operation {
         if (inputs.size() != 2) {
             throw new IllegalArgumentException("The input array must contain exactly 2 elements");
         }
+        if ((broadcastPlan == null || broadcastPlan.isNoBroadcast())
+                && !Arrays.equals(inputs.getFirst().getShape(), inputs.getLast().getShape())) {
+            throw new IllegalArgumentException("Input shapes must match");
+        }
         double[] inputA=inputs.getFirst().getData();
         double[] inputB=inputs.getLast().getData();
         double[] result=node.getData();
-        for (int i = 0; i < result.length; i++) {
-            result[i] = inputA[i] - inputB[i];
+        if (broadcastPlan == null || broadcastPlan.isNoBroadcast()) {
+            for (int i = 0; i < result.length; i++) {
+                result[i] = inputA[i] - inputB[i];
+            }
+        } else {
+            int[] outStrides = broadcastPlan.outStrides();
+            int[] aEffStrides = broadcastPlan.aEffStrides();
+            int[] bEffStrides = broadcastPlan.bEffStrides();
+            for (int i = 0; i < result.length; i++) {
+                int aIdx = remap(i, outStrides, aEffStrides);
+                int bIdx = remap(i, outStrides, bEffStrides);
+                result[i] = inputA[aIdx] - inputB[bIdx];
+            }
         }
         node.setData(result);
+    }
+
+    private static int remap(int flatOut, int[] outStrides, int[] inEffStrides) {
+        int idx = flatOut;
+        int inFlat = 0;
+        for (int d = 0; d < outStrides.length; d++) {
+            int coord = idx / outStrides[d];
+            idx %= outStrides[d];
+            inFlat += coord * inEffStrides[d];
+        }
+        return inFlat;
     }
 
     @Override

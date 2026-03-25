@@ -1,7 +1,10 @@
 package Backend;
 
 import Config.backend.CpuKernelConfig;
+import Backend.kernels.cpu.CpuExecutionConfig;
 import Tensor.Tensor;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ComputeEngine {
     private static final CPUBackend CPU_BACKEND = new CPUBackend();
@@ -9,6 +12,7 @@ public class ComputeEngine {
     private static final OpenClBackend OPENCL_BACKEND = new OpenClBackend();
     private static volatile ApproxMode approxMode = ApproxMode.OFF;
     private static final ThreadLocal<Boolean> TRAINING_EXECUTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final AtomicLong CPU_CONFIG_EPOCH = new AtomicLong(1L);
 
     public static void compute(Tensor tensor) {
         ComputeBackend backend = tensor.resolveBackend();
@@ -29,6 +33,15 @@ public class ComputeEngine {
 
     public static void setCpuKernelConfig(CpuKernelConfig config) {
         CPU_BACKEND.setKernelConfig(config);
+        CPU_CONFIG_EPOCH.incrementAndGet();
+    }
+
+    public static CpuExecutionConfig getCpuExecutionConfig() {
+        return CPU_BACKEND.getExecutionConfig();
+    }
+
+    public static long getCpuConfigEpoch() {
+        return CPU_CONFIG_EPOCH.get();
     }
 
     public static void setApproxMode(ApproxMode mode) {

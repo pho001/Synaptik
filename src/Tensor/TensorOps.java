@@ -7,6 +7,22 @@ public final class TensorOps {
         return TensorLayoutOps.contiguous(input);
     }
 
+    public static Tensor reshape(Tensor input, int[] newShape) {
+        return TensorLayoutOps.reshape(input, newShape);
+    }
+
+    public static Tensor permute(Tensor input, int[] axes) {
+        return TensorLayoutOps.permute(input, axes);
+    }
+
+    public static Tensor expandDims(Tensor input, int axis) {
+        return TensorLayoutOps.expandDims(input, axis);
+    }
+
+    public static Tensor squeeze(Tensor input, int axis) {
+        return TensorLayoutOps.squeeze(input, axis);
+    }
+
     public static Tensor add(Tensor first, Tensor second) {
         return TensorBinaryOps.add(first, second);
     }
@@ -29,6 +45,10 @@ public final class TensorOps {
 
     public static Tensor max(Tensor first, Tensor second) {
         return TensorBinaryOps.max(first, second);
+    }
+
+    public static Tensor matmul(Tensor first, Tensor second) {
+        return TensorMatMulOps.matmul(first, second);
     }
 
     public static Tensor neg(Tensor input) {

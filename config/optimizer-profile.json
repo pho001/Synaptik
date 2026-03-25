@@ -1,5 +1,5 @@
 {
-  "candidateName": "AUTO_1392",
+  "candidateName": "AUTO_98226",
   "strictCseSafety": false,
   "kernel": {
     "cpu": {
@@ -7,11 +7,18 @@
       "cpuMatMulTileM": 32,
       "cpuMatMulTileN": 32,
       "cpuMatMulTileK": 32,
-      "cpuVectorMinSize": 1000000000,
-      "cpuParallelMinSize": 1000000000,
+      "cpuVectorMinSize": 2048,
+      "cpuParallelMinSize": 250000,
+      "cpuMatMulParallelMinSize": 2000000,
       "cpuParallelism": 0,
-      "cpuChunksPerWorker": 4,
-      "cpuMinChunkSize": 4096
+      "cpuChunksPerWorker": 8,
+      "cpuMinChunkSize": 8192,
+      "cpuContiguousMaterializeThreshold": 65536,
+      "cpuSumAccuracyMode": "FAST",
+      "cpuLowCostNsPerElementThreshold": 2.0,
+      "cpuVectorPolicyCheap": "AUTO",
+      "cpuVectorPolicyTranscendental": "AUTO",
+      "cpuVectorPolicyReduction": "AUTO"
     },
     "cuda": {
       "cudaLoopUnrollFactor": 8,

@@ -16,6 +16,7 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.DIV, new CpuDivKernel());
         KERNELS.put(Operation.OpType.MIN, new CpuMinKernel());
         KERNELS.put(Operation.OpType.MAX, new CpuMaxKernel());
+        KERNELS.put(Operation.OpType.MATMUL, new CpuMatMulKernel());
         KERNELS.put(Operation.OpType.NEG, new CpuNegKernel());
         KERNELS.put(Operation.OpType.INV, new CpuInvKernel());
         KERNELS.put(Operation.OpType.LOG, new CpuLogKernel());
@@ -30,6 +31,10 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.RELU, new CpuReluKernel());
         KERNELS.put(Operation.OpType.SIGMOID, new CpuSigmoidKernel());
         KERNELS.put(Operation.OpType.CONTIGUOUS, new CpuContiguousKernel());
+        KERNELS.put(Operation.OpType.RESHAPE, new CpuReshapeLikeKernel());
+        KERNELS.put(Operation.OpType.EXPAND_DIMS, new CpuReshapeLikeKernel());
+        KERNELS.put(Operation.OpType.SQUEEZE, new CpuReshapeLikeKernel());
+        KERNELS.put(Operation.OpType.PERMUTE, new CpuPermuteKernel());
         KERNELS.put(Operation.OpType.NOOP, new CpuNoopKernel());
         KERNELS.put(Operation.OpType.FUSED, new CpuFusedKernel());
     }

@@ -130,6 +130,8 @@ Total stage-order variants per knob profile:
   - minimum tensor length to allow vector path
 - `kernel.cpu.parallelMinSize` [50000, 100000, 250000, 1000000, 2000000, 1000000000]
   - minimum tensor length to allow parallel path
+- `kernel.cpu.matMulParallelMinSize` [100000, 500000, 2000000, 8000000]
+  - minimum matmul work size (`M*N*K`) to allow parallel matmul path
 - `kernel.cpu.parallelism` [0]
   - worker count (`0` = auto from available processors)
 - `kernel.cpu.chunksPerWorker` [2, 4, 8]

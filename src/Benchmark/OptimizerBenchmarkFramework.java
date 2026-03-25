@@ -33,9 +33,15 @@ public final class OptimizerBenchmarkFramework {
     private static final int AUTOTUNE_REFINE_WARMUP_ITERS = 50;
     private static final int AUTOTUNE_REFINE_MEASURE_ITERS = 300;
     private static final int AUTOTUNE_REFINE_REPEATS = 3;
-    private static final boolean ENABLE_AUTOTUNE = true;
+    private static final int AUTOTUNE_BROADCAST_B0 = 128;
+    private static final int AUTOTUNE_BROADCAST_B1 = 8;
+    private static final int AUTOTUNE_BROADCAST_F = 128;
+    private static final boolean ENABLE_AUTOTUNE =
+            Boolean.parseBoolean(System.getProperty("benchmark.enableAutotune", "true"));
     private static final double ABS_TOL = 1e-9;
     private static final double REL_TOL = 1e-7;
+    private static final double AUTOTUNE_TRAIN_BROADCAST_WEIGHT = 0.15;
+    private static final double AUTOTUNE_INF_BROADCAST_WEIGHT = 0.30;
     private static final Random RNG = new Random(42);
     private static final DataType BENCH_DTYPE = resolveBenchDataType();
 
@@ -180,6 +186,7 @@ public final class OptimizerBenchmarkFramework {
 
         try {
             runScalarSanityCore(OptimizerBuilder.build(profiledRecommended));
+            runScalarSanityCore(OptimizerBuilder.build(findByName(out, "INFERENCE_PERF")));
             if (Files.exists(AUTOTUNE_BEST_TRAINING_PATH)) {
                 System.out.println(GRAY + "Using autotune training profile from " + AUTOTUNE_BEST_TRAINING_PATH.toAbsolutePath() + RESET);
             } else if (Files.exists(PROFILE_PATH)) {
@@ -306,6 +313,7 @@ public final class OptimizerBenchmarkFramework {
                 + ", tileK=" + rkc.cpu().matMulTileK()
                 + ", vecMin=" + rkc.cpu().vectorMinSize()
                 + ", parMin=" + rkc.cpu().parallelMinSize()
+                + ", matMulParMin=" + rkc.cpu().matMulParallelMinSize()
                 + ", par=" + rkc.cpu().parallelism()
                 + ", chunksPerWorker=" + rkc.cpu().chunksPerWorker()
                 + ", minChunk=" + rkc.cpu().minChunkSize()
@@ -344,6 +352,7 @@ public final class OptimizerBenchmarkFramework {
                 + ", tileK=" + ikc.cpu().matMulTileK()
                 + ", vecMin=" + ikc.cpu().vectorMinSize()
                 + ", parMin=" + ikc.cpu().parallelMinSize()
+                + ", matMulParMin=" + ikc.cpu().matMulParallelMinSize()
                 + ", par=" + ikc.cpu().parallelism()
                 + ", chunksPerWorker=" + ikc.cpu().chunksPerWorker()
                 + ", minChunk=" + ikc.cpu().minChunkSize()
@@ -367,8 +376,17 @@ public final class OptimizerBenchmarkFramework {
         double[] baseA = randomData(AUTOTUNE_SIZE);
         double[] baseB = randomData(AUTOTUNE_SIZE);
         double[] baseC = randomData(AUTOTUNE_SIZE);
+        double[] baseBroadcastA = randomData(AUTOTUNE_BROADCAST_B0 * AUTOTUNE_BROADCAST_F);
+        double[] baseBroadcastB = randomData(AUTOTUNE_BROADCAST_B1 * AUTOTUNE_BROADCAST_F);
+        double[] baseBroadcastC = randomData(AUTOTUNE_BROADCAST_B0 * AUTOTUNE_BROADCAST_B1 * AUTOTUNE_BROADCAST_F);
 
         RunResult baseline = runFresh(baseA, baseB, baseC, new OptimizerCandidate("NO_OPT", List.of(), TuningKnobs.trainingDefaults()));
+        BroadcastRunResult baselineBroadcast = runBroadcastFresh(
+                baseBroadcastA,
+                baseBroadcastB,
+                baseBroadcastC,
+                new OptimizerCandidate("NO_OPT", List.of(), TuningKnobs.trainingDefaults())
+        );
         List<OptimizerCandidate> all = OptimizerCandidateFactory.autotuneCandidates();
         List<OptimizerCandidate> candidates = capCandidatesDeterministic(all, AUTOTUNE_MAX_CANDIDATES);
 
@@ -383,6 +401,7 @@ public final class OptimizerBenchmarkFramework {
         System.out.println(GRAY + "Candidates total=" + all.size()
                 + ", evaluated=" + candidates.size()
                 + ", size=" + AUTOTUNE_SIZE
+                + ", broadcastShape=[" + AUTOTUNE_BROADCAST_B0 + ",1," + AUTOTUNE_BROADCAST_F + "]x[1," + AUTOTUNE_BROADCAST_B1 + "," + AUTOTUNE_BROADCAST_F + "]"
                 + ", warmup=" + AUTOTUNE_WARMUP_ITERS
                 + ", measure=" + AUTOTUNE_MEASURE_ITERS
                 + ", refineTopK=" + AUTOTUNE_REFINE_TOP_K
@@ -410,12 +429,21 @@ public final class OptimizerBenchmarkFramework {
             long t1 = System.nanoTime();
             double trainMs = (t1 - t0) / 1_000_000.0 / AUTOTUNE_MEASURE_ITERS;
 
+            BroadcastBenchState stateBroadcast = newBroadcastBenchState(baseBroadcastA, baseBroadcastB, baseBroadcastC, candidate);
+            for (int i = 0; i < AUTOTUNE_WARMUP_ITERS; i++) stateBroadcast.compute();
+            long b0 = System.nanoTime();
+            for (int i = 0; i < AUTOTUNE_MEASURE_ITERS; i++) stateBroadcast.compute();
+            long b1 = System.nanoTime();
+            double broadcastMs = (b1 - b0) / 1_000_000.0 / AUTOTUNE_MEASURE_ITERS;
+
             RunResult rr = runFresh(baseA, baseB, baseC, candidate);
             Diff dOut = diff(baseline.ta7, rr.ta7);
             Diff dA = diff(baseline.gradA, rr.gradA);
             Diff dB = diff(baseline.gradB, rr.gradB);
             Diff dC = diff(baseline.gradC, rr.gradC);
-            boolean ok = dOut.ok() && dA.ok() && dB.ok() && dC.ok();
+            BroadcastRunResult br = runBroadcastFresh(baseBroadcastA, baseBroadcastB, baseBroadcastC, candidate);
+            Diff dBroadcast = diff(baselineBroadcast.out, br.out);
+            boolean ok = dOut.ok() && dA.ok() && dB.ok() && dC.ok() && dBroadcast.ok();
 
             if (!ok) {
                 mismatchCount++;
@@ -423,8 +451,8 @@ public final class OptimizerBenchmarkFramework {
             }
             validCount++;
 
-            double score = scoreCandidate(fwdMs, trainMs, graphInfSize, graphTrnSize, TuneObjective.TRAINING);
-            AutoTuneResult cur = new AutoTuneResult(candidate, graphInfSize, graphTrnSize, fwdMs, trainMs, score);
+            double score = scoreCandidate(fwdMs, trainMs, broadcastMs, graphInfSize, graphTrnSize, TuneObjective.TRAINING);
+            AutoTuneResult cur = new AutoTuneResult(candidate, graphInfSize, graphTrnSize, fwdMs, trainMs, broadcastMs, score);
             validPhase1.add(cur);
         }
 
@@ -435,13 +463,13 @@ public final class OptimizerBenchmarkFramework {
 
         List<AutoTuneResult> byTraining = new ArrayList<>(validPhase1);
         byTraining.sort((a, b) -> Double.compare(
-                scoreCandidate(a.forwardMs, a.trainMs, a.graphInfSize, a.graphTrnSize, TuneObjective.TRAINING),
-                scoreCandidate(b.forwardMs, b.trainMs, b.graphInfSize, b.graphTrnSize, TuneObjective.TRAINING)
+                scoreCandidate(a.forwardMs, a.trainMs, a.broadcastMs, a.graphInfSize, a.graphTrnSize, TuneObjective.TRAINING),
+                scoreCandidate(b.forwardMs, b.trainMs, b.broadcastMs, b.graphInfSize, b.graphTrnSize, TuneObjective.TRAINING)
         ));
         List<AutoTuneResult> byInference = new ArrayList<>(validPhase1);
         byInference.sort((a, b) -> Double.compare(
-                scoreCandidate(a.forwardMs, a.trainMs, a.graphInfSize, a.graphTrnSize, TuneObjective.INFERENCE),
-                scoreCandidate(b.forwardMs, b.trainMs, b.graphInfSize, b.graphTrnSize, TuneObjective.INFERENCE)
+                scoreCandidate(a.forwardMs, a.trainMs, a.broadcastMs, a.graphInfSize, a.graphTrnSize, TuneObjective.INFERENCE),
+                scoreCandidate(b.forwardMs, b.trainMs, b.broadcastMs, b.graphInfSize, b.graphTrnSize, TuneObjective.INFERENCE)
         ));
         Set<OptimizerCandidate> finalistsSet = new LinkedHashSet<>();
         int kTrain = Math.min(AUTOTUNE_REFINE_TOP_K, byTraining.size());
@@ -457,6 +485,7 @@ public final class OptimizerBenchmarkFramework {
             OptimizerCandidate candidate = finalistsList.get(i);
             double sumFwdMs = 0.0;
             double sumTrainMs = 0.0;
+            double sumBroadcastMs = 0.0;
             int graphInfSize = -1;
             int graphTrnSize = -1;
 
@@ -479,15 +508,23 @@ public final class OptimizerBenchmarkFramework {
                 for (int j = 0; j < AUTOTUNE_REFINE_MEASURE_ITERS; j++) stateTrain.compute();
                 long t1 = System.nanoTime();
                 sumTrainMs += (t1 - t0) / 1_000_000.0 / AUTOTUNE_REFINE_MEASURE_ITERS;
+
+                BroadcastBenchState stateBroadcast = newBroadcastBenchState(baseBroadcastA, baseBroadcastB, baseBroadcastC, candidate);
+                for (int j = 0; j < AUTOTUNE_REFINE_WARMUP_ITERS; j++) stateBroadcast.compute();
+                long b0 = System.nanoTime();
+                for (int j = 0; j < AUTOTUNE_REFINE_MEASURE_ITERS; j++) stateBroadcast.compute();
+                long b1 = System.nanoTime();
+                sumBroadcastMs += (b1 - b0) / 1_000_000.0 / AUTOTUNE_REFINE_MEASURE_ITERS;
             }
 
             double fwdMs = sumFwdMs / AUTOTUNE_REFINE_REPEATS;
             double trainMs = sumTrainMs / AUTOTUNE_REFINE_REPEATS;
-            double trainScore = scoreCandidate(fwdMs, trainMs, graphInfSize, graphTrnSize, TuneObjective.TRAINING);
-            double infScore = scoreCandidate(fwdMs, trainMs, graphInfSize, graphTrnSize, TuneObjective.INFERENCE);
+            double broadcastMs = sumBroadcastMs / AUTOTUNE_REFINE_REPEATS;
+            double trainScore = scoreCandidate(fwdMs, trainMs, broadcastMs, graphInfSize, graphTrnSize, TuneObjective.TRAINING);
+            double infScore = scoreCandidate(fwdMs, trainMs, broadcastMs, graphInfSize, graphTrnSize, TuneObjective.INFERENCE);
 
-            AutoTuneResult refinedTraining = new AutoTuneResult(candidate, graphInfSize, graphTrnSize, fwdMs, trainMs, trainScore);
-            AutoTuneResult refinedInference = new AutoTuneResult(candidate, graphInfSize, graphTrnSize, fwdMs, trainMs, infScore);
+            AutoTuneResult refinedTraining = new AutoTuneResult(candidate, graphInfSize, graphTrnSize, fwdMs, trainMs, broadcastMs, trainScore);
+            AutoTuneResult refinedInference = new AutoTuneResult(candidate, graphInfSize, graphTrnSize, fwdMs, trainMs, broadcastMs, infScore);
             if (bestTraining == null || refinedTraining.score < bestTraining.score) {
                 bestTraining = refinedTraining;
             }
@@ -500,10 +537,12 @@ public final class OptimizerBenchmarkFramework {
                 + " | graph_trn=" + bestTraining.graphTrnSize
                 + " | fwd=" + String.format("%.4f", bestTraining.forwardMs) + " ms"
                 + " | train=" + String.format("%.4f", bestTraining.trainMs) + " ms"
+                + " | bcast=" + String.format("%.4f", bestTraining.broadcastMs) + " ms"
                 + " | score=" + String.format("%.4f", bestTraining.score) + RESET);
         System.out.println(GREEN + "Best (INFERENCE): " + bestInference.candidate.name()
                 + " | graph_inf=" + bestInference.graphInfSize
                 + " | fwd=" + String.format("%.4f", bestInference.forwardMs) + " ms"
+                + " | bcast=" + String.format("%.4f", bestInference.broadcastMs) + " ms"
                 + " | score=" + String.format("%.4f", bestInference.score) + RESET);
         System.out.println(GRAY + "Valid=" + validCount + ", mismatch=" + mismatchCount + RESET);
 
@@ -544,12 +583,24 @@ public final class OptimizerBenchmarkFramework {
         System.out.println();
     }
 
-    private static double scoreCandidate(double forwardMs, double trainMs, int graphInfSize, int graphTrnSize, TuneObjective objective) {
+    private static double scoreCandidate(
+            double forwardMs,
+            double trainMs,
+            double broadcastMs,
+            int graphInfSize,
+            int graphTrnSize,
+            TuneObjective objective
+    ) {
         if (objective == TuneObjective.INFERENCE) {
-            return forwardMs + (0.0005 * graphInfSize);
+            double weightedForward = (1.0 - AUTOTUNE_INF_BROADCAST_WEIGHT) * forwardMs;
+            double weightedBroadcast = AUTOTUNE_INF_BROADCAST_WEIGHT * broadcastMs;
+            return weightedForward + weightedBroadcast + (0.0005 * graphInfSize);
         }
-        // Training objective: training is weighted higher, with mild graph-size preference.
-        return (0.35 * forwardMs) + (0.65 * trainMs) + (0.0005 * graphTrnSize);
+        // Training objective: training dominates, with broadcast pressure and mild graph-size preference.
+        return (0.35 * forwardMs)
+                + (0.50 * trainMs)
+                + (AUTOTUNE_TRAIN_BROADCAST_WEIGHT * broadcastMs)
+                + (0.0005 * graphTrnSize);
     }
 
     private static List<OptimizerCandidate> capCandidatesDeterministic(List<OptimizerCandidate> all, int maxCount) {
@@ -632,6 +683,17 @@ public final class OptimizerBenchmarkFramework {
         );
     }
 
+    private static BroadcastRunResult runBroadcastFresh(
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            OptimizerCandidate candidate
+    ) {
+        BroadcastBenchState s = newBroadcastBenchState(baseA, baseB, baseC, candidate);
+        s.compute();
+        return new BroadcastRunResult(s.out.toDoubleArrayCopy().clone());
+    }
+
     private static BenchState newBenchState(double[] baseA, double[] baseB, double[] baseC, OptimizerCandidate candidate, boolean requiresGrad) {
         ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
 
@@ -646,6 +708,25 @@ public final class OptimizerBenchmarkFramework {
         return new BenchState(A, B, C, Ta7, optimizer);
     }
 
+    private static BroadcastBenchState newBroadcastBenchState(
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            OptimizerCandidate candidate
+    ) {
+        ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
+
+        Tensor A = inputTensor("BA", baseA, false, new int[]{AUTOTUNE_BROADCAST_B0, 1, AUTOTUNE_BROADCAST_F});
+        Tensor B = inputTensor("BB", baseB, false, new int[]{1, AUTOTUNE_BROADCAST_B1, AUTOTUNE_BROADCAST_F});
+        Tensor C = inputTensor("BC", baseC, false, new int[]{AUTOTUNE_BROADCAST_B0, AUTOTUNE_BROADCAST_B1, AUTOTUNE_BROADCAST_F});
+        Tensor out = buildBroadcastExpr(A, B, C);
+
+        GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
+        out.compute(optimizer);
+
+        return new BroadcastBenchState(out, optimizer);
+    }
+
     private static Tensor buildTa7(Tensor A, Tensor B, Tensor C) {
         Tensor Ta1 = A.div(B);
         Tensor Ta2 = A.sub(C);
@@ -656,8 +737,19 @@ public final class OptimizerBenchmarkFramework {
         return Ta6.pow(2);
     }
 
+    private static Tensor buildBroadcastExpr(Tensor A, Tensor B, Tensor C) {
+        return A.add(B).mul(C).add(A).sigmoid();
+    }
+
     private static Tensor inputTensor(String label, double[] data, boolean requiresGrad) {
         Tensor t = new Tensor(new int[]{data.length}, null, label, BENCH_DTYPE);
+        t.setData(data.clone());
+        t.setRequiresGrad(requiresGrad);
+        return t;
+    }
+
+    private static Tensor inputTensor(String label, double[] data, boolean requiresGrad, int[] shape) {
+        Tensor t = new Tensor(shape, null, label, BENCH_DTYPE);
         t.setData(data.clone());
         t.setRequiresGrad(requiresGrad);
         return t;
@@ -750,6 +842,14 @@ public final class OptimizerBenchmarkFramework {
         }
     }
 
+    private static final class BroadcastRunResult {
+        private final double[] out;
+
+        private BroadcastRunResult(double[] out) {
+            this.out = out;
+        }
+    }
+
     private static final class BenchState {
         private final Tensor A;
         private final Tensor B;
@@ -770,20 +870,44 @@ public final class OptimizerBenchmarkFramework {
         }
     }
 
+    private static final class BroadcastBenchState {
+        private final Tensor out;
+        private final GraphOptimizer optimizer;
+
+        private BroadcastBenchState(Tensor out, GraphOptimizer optimizer) {
+            this.out = out;
+            this.optimizer = optimizer;
+        }
+
+        private void compute() {
+            out.compute(optimizer);
+        }
+    }
+
     private static final class AutoTuneResult {
         private final OptimizerCandidate candidate;
         private final int graphInfSize;
         private final int graphTrnSize;
         private final double forwardMs;
         private final double trainMs;
+        private final double broadcastMs;
         private final double score;
 
-        private AutoTuneResult(OptimizerCandidate candidate, int graphInfSize, int graphTrnSize, double forwardMs, double trainMs, double score) {
+        private AutoTuneResult(
+                OptimizerCandidate candidate,
+                int graphInfSize,
+                int graphTrnSize,
+                double forwardMs,
+                double trainMs,
+                double broadcastMs,
+                double score
+        ) {
             this.candidate = candidate;
             this.graphInfSize = graphInfSize;
             this.graphTrnSize = graphTrnSize;
             this.forwardMs = forwardMs;
             this.trainMs = trainMs;
+            this.broadcastMs = broadcastMs;
             this.score = score;
         }
 
@@ -806,6 +930,7 @@ public final class OptimizerBenchmarkFramework {
             sb.append("        \"cpuMatMulTileK\": ").append(kernels.cpu().matMulTileK()).append(",\n");
             sb.append("        \"cpuVectorMinSize\": ").append(kernels.cpu().vectorMinSize()).append(",\n");
             sb.append("        \"cpuParallelMinSize\": ").append(kernels.cpu().parallelMinSize()).append(",\n");
+            sb.append("        \"cpuMatMulParallelMinSize\": ").append(kernels.cpu().matMulParallelMinSize()).append(",\n");
             sb.append("        \"cpuParallelism\": ").append(kernels.cpu().parallelism()).append(",\n");
             sb.append("        \"cpuChunksPerWorker\": ").append(kernels.cpu().chunksPerWorker()).append(",\n");
             sb.append("        \"cpuMinChunkSize\": ").append(kernels.cpu().minChunkSize()).append(",\n");
@@ -843,6 +968,7 @@ public final class OptimizerBenchmarkFramework {
             sb.append("    \"graphTrnSize\": ").append(graphTrnSize).append(",\n");
             sb.append("    \"forwardMs\": ").append(String.format(Locale.US, "%.8f", forwardMs)).append(",\n");
             sb.append("    \"trainMs\": ").append(String.format(Locale.US, "%.8f", trainMs)).append(",\n");
+            sb.append("    \"broadcastMs\": ").append(String.format(Locale.US, "%.8f", broadcastMs)).append(",\n");
             sb.append("    \"score\": ").append(String.format(Locale.US, "%.8f", score)).append(",\n");
             sb.append("    \"validCandidates\": ").append(validCount).append(",\n");
             sb.append("    \"mismatchedCandidates\": ").append(mismatchCount).append("\n");

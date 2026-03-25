@@ -138,7 +138,7 @@ public class FuseElementWiseRule implements OptimizationRule {
      */
     private List<Tensor> buildCluster(Tensor root, Set<Tensor> materializationPoints) {
         List<Tensor> cluster = new ArrayList<>();
-        Queue<Tensor> queue = new LinkedList<>();
+        Queue<Tensor> queue = new ArrayDeque<>();
         queue.add(root);
 
         while (!queue.isEmpty()) {

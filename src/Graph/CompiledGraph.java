@@ -2,6 +2,7 @@ package Graph;
 
 import Backend.ComputeEngine;
 import Backend.ComputeBackend;
+import Backend.CPUBackend;
 import Backend.kernels.cpu.CpuKernel;
 import Backend.registry.CpuKernelRegistry;
 import Operations.Operation;
@@ -11,6 +12,8 @@ import Graph.optimizer.GraphOptimizer;
 import java.util.*;
 
 public class CompiledGraph {
+    private static final boolean DISABLE_CPU_EXECUTION_HINTS =
+            Boolean.getBoolean("cg.cpu.disableResolveExecutionHints");
     private Tensor rootTensor; // Kořenový tensor grafu
     List<Tensor> finalGraph= new ArrayList<>();
     List<Tensor> forwardGraph = new ArrayList<>();
@@ -291,12 +294,31 @@ public class CompiledGraph {
             Operation operation = tensor.getOperation();
             ComputeBackend backend = tensor.resolveBackend();
             tensor.setResolvedBackend(backend);
+            if (DISABLE_CPU_EXECUTION_HINTS) {
+                tensor.setResolvedCpuKernel(null);
+                tensor.setResolvedCpuExecutionPlan(null);
+                tensor.setResolvedBroadcastPlan(null);
+                tensor.setResolvedCpuConfigEpoch(0L);
+                continue;
+            }
             if (operation == null || backend != ComputeBackend.CPU) {
                 tensor.setResolvedCpuKernel(null);
+                tensor.setResolvedCpuExecutionPlan(null);
+                tensor.setResolvedBroadcastPlan(null);
+                tensor.setResolvedCpuConfigEpoch(0L);
                 continue;
             }
             CpuKernel kernel = CpuKernelRegistry.resolve(operation.opType());
             tensor.setResolvedCpuKernel(kernel);
+            CPUBackend.CpuNodeExecutionPlan plan = CPUBackend.buildExecutionPlan(
+                    operation,
+                    tensor.getPrevTensors(),
+                    tensor,
+                    ComputeEngine.getCpuExecutionConfig()
+            );
+            tensor.setResolvedCpuExecutionPlan(plan);
+            tensor.setResolvedBroadcastPlan(plan != null ? plan.broadcastPlan() : null);
+            tensor.setResolvedCpuConfigEpoch(ComputeEngine.getCpuConfigEpoch());
         }
     }
 
