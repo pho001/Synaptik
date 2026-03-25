@@ -9,11 +9,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -56,6 +60,9 @@ public final class OptimizerBenchmarkFramework {
     private static final Path AUTOTUNE_BEST_PATH = Path.of("build", "optimizer-autotune", "best-profile.json");
     private static final Path AUTOTUNE_BEST_TRAINING_PATH = Path.of("build", "optimizer-autotune", "best-profile-training.json");
     private static final Path AUTOTUNE_BEST_INFERENCE_PATH = Path.of("build", "optimizer-autotune", "best-profile-inference.json");
+    private static final Path AUTOTUNE_HISTORY_PATH = Path.of("build", "optimizer-autotune", "candidate-history.tsv");
+    private static final int AUTOTUNE_HISTORY_SCHEMA_VERSION = 1;
+    private static final int AUTOTUNE_ENGINE_VERSION = 2;
 
     public static void run() {
         List<OptimizerCandidate> candidates = applyProfileToDefaults(OptimizerCandidateFactory.defaultCandidates());
@@ -389,11 +396,14 @@ public final class OptimizerBenchmarkFramework {
         );
         List<OptimizerCandidate> all = OptimizerCandidateFactory.autotuneCandidates();
         List<OptimizerCandidate> candidates = capCandidatesDeterministic(all, AUTOTUNE_MAX_CANDIDATES);
+        String historyContext = autoTuneHistoryContextSignature();
+        CandidateHistory history = CandidateHistory.load(AUTOTUNE_HISTORY_PATH, historyContext);
 
         AutoTuneResult bestTraining = null;
         AutoTuneResult bestInference = null;
         int validCount = 0;
         int mismatchCount = 0;
+        int skippedUnsafeCount = 0;
         List<AutoTuneResult> validPhase1 = new ArrayList<>();
 
         System.out.println(BOLD + CYAN + "[Auto-Tune]" + RESET);
@@ -407,9 +417,15 @@ public final class OptimizerBenchmarkFramework {
                 + ", refineTopK=" + AUTOTUNE_REFINE_TOP_K
                 + ", refineWarmup=" + AUTOTUNE_REFINE_WARMUP_ITERS
                 + ", refineMeasure=" + AUTOTUNE_REFINE_MEASURE_ITERS
-                + ", refineRepeats=" + AUTOTUNE_REFINE_REPEATS + RESET);
+                + ", refineRepeats=" + AUTOTUNE_REFINE_REPEATS
+                + ", unsafeHistory=" + AUTOTUNE_HISTORY_PATH.toAbsolutePath() + RESET);
 
         for (OptimizerCandidate candidate : candidates) {
+            String candidateKey = candidateFingerprint(candidate);
+            if (history.isUnsafe(candidateKey)) {
+                skippedUnsafeCount++;
+                continue;
+            }
             BenchState stateForward = newBenchState(baseA, baseB, baseC, candidate, false);
             int graphInfSize = stateForward.ta7.getCompiledGraph().getCompiledGraphAsList().size();
 
@@ -447,6 +463,7 @@ public final class OptimizerBenchmarkFramework {
 
             if (!ok) {
                 mismatchCount++;
+                history.markUnsafe(candidateKey, candidate.name(), "MISMATCH");
                 continue;
             }
             validCount++;
@@ -479,6 +496,7 @@ public final class OptimizerBenchmarkFramework {
         List<OptimizerCandidate> finalistsList = new ArrayList<>(finalistsSet);
         int finalists = finalistsList.size();
         System.out.println(GRAY + "Phase1 valid=" + validCount + ", mismatch=" + mismatchCount
+                + ", skippedUnsafe=" + skippedUnsafeCount
                 + ", finalists=" + finalists + RESET);
 
         for (int i = 0; i < finalists; i++) {
@@ -580,6 +598,7 @@ public final class OptimizerBenchmarkFramework {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to write autotune profile", e);
         }
+        history.save(AUTOTUNE_HISTORY_PATH);
         System.out.println();
     }
 
@@ -801,6 +820,214 @@ public final class OptimizerBenchmarkFramework {
             if (c.name().equals(name)) return c;
         }
         throw new IllegalStateException("Missing candidate: " + name);
+    }
+
+    private static String autoTuneHistoryContextSignature() {
+        String osName = normalizeContextValue(System.getProperty("os.name", "unknown"));
+        String osArch = normalizeContextValue(System.getProperty("os.arch", "unknown"));
+        String javaVersion = normalizeContextValue(System.getProperty("java.version", "unknown"));
+        String vmName = normalizeContextValue(System.getProperty("java.vm.name", "unknown"));
+        String vmVendor = normalizeContextValue(System.getProperty("java.vendor", "unknown"));
+        int cores = Runtime.getRuntime().availableProcessors();
+        return "schema=" + AUTOTUNE_HISTORY_SCHEMA_VERSION
+                + "|engine=" + AUTOTUNE_ENGINE_VERSION
+                + "|dtype=" + BENCH_DTYPE
+                + "|absTol=" + ABS_TOL
+                + "|relTol=" + REL_TOL
+                + "|size=" + AUTOTUNE_SIZE
+                + "|bshape=" + AUTOTUNE_BROADCAST_B0 + "x" + AUTOTUNE_BROADCAST_B1 + "x" + AUTOTUNE_BROADCAST_F
+                + "|os=" + osName
+                + "|arch=" + osArch
+                + "|jvm=" + vmName
+                + "|java=" + javaVersion
+                + "|vendor=" + vmVendor
+                + "|cores=" + cores;
+    }
+
+    private static String normalizeContextValue(String value) {
+        if (value == null || value.isBlank()) {
+            return "unknown";
+        }
+        String cleaned = value.replace('|', '_')
+                .replace('\t', '_')
+                .replace('\n', '_')
+                .replace('\r', '_')
+                .trim();
+        return cleaned.isEmpty() ? "unknown" : cleaned;
+    }
+
+    private static String candidateFingerprint(OptimizerCandidate candidate) {
+        String canonical = candidateCanonicalSpec(candidate);
+        return sha256Hex(canonical);
+    }
+
+    private static String candidateCanonicalSpec(OptimizerCandidate candidate) {
+        StringBuilder sb = new StringBuilder(512);
+        sb.append("name=").append(candidate.name()).append('|');
+        sb.append("stageOrder=");
+        for (OptimizationStage stage : candidate.stageOrder()) {
+            sb.append(stage.name()).append(',');
+        }
+        sb.append('|');
+
+        TuningKnobs knobs = candidate.knobs();
+        sb.append("strictCseSafety=").append(knobs.strictCseSafety()).append('|');
+
+        var fuse = knobs.fuseConfig();
+        sb.append("fuse.maxClusterNodes=").append(fuse.maxClusterNodes()).append('|');
+        sb.append("fuse.scoreThreshold=").append(String.format(Locale.US, "%.12f", fuse.scoreThreshold())).append('|');
+        sb.append("fuse.internalEdgeBonus=").append(String.format(Locale.US, "%.12f", fuse.internalEdgeBonus())).append('|');
+        sb.append("fuse.externalInputPenalty=").append(String.format(Locale.US, "%.12f", fuse.externalInputPenalty())).append('|');
+        sb.append("fuse.sharedExpensivePenalty=").append(String.format(Locale.US, "%.12f", fuse.sharedExpensivePenalty())).append('|');
+        sb.append("fuse.nonCheapBonus=").append(String.format(Locale.US, "%.12f", fuse.nonCheapBonus())).append('|');
+        sb.append("fuse.preserveSharedExpensiveNodes=").append(fuse.preserveSharedExpensiveNodes()).append('|');
+
+        var kernel = knobs.kernelConfig();
+        var cpu = kernel.cpu();
+        sb.append("cpu.unroll=").append(cpu.loopUnrollFactor()).append('|');
+        sb.append("cpu.tileM=").append(cpu.matMulTileM()).append('|');
+        sb.append("cpu.tileN=").append(cpu.matMulTileN()).append('|');
+        sb.append("cpu.tileK=").append(cpu.matMulTileK()).append('|');
+        sb.append("cpu.vecMin=").append(cpu.vectorMinSize()).append('|');
+        sb.append("cpu.parMin=").append(cpu.parallelMinSize()).append('|');
+        sb.append("cpu.matMulParMin=").append(cpu.matMulParallelMinSize()).append('|');
+        sb.append("cpu.parallelism=").append(cpu.parallelism()).append('|');
+        sb.append("cpu.chunksPerWorker=").append(cpu.chunksPerWorker()).append('|');
+        sb.append("cpu.minChunk=").append(cpu.minChunkSize()).append('|');
+        sb.append("cpu.contigThreshold=").append(cpu.contiguousMaterializeThreshold()).append('|');
+        sb.append("cpu.sumAcc=").append(cpu.sumAccuracyMode()).append('|');
+        sb.append("cpu.lowCostNs=").append(String.format(Locale.US, "%.12f", cpu.lowCostNsPerElementThreshold())).append('|');
+        sb.append("cpu.vecPolicyCheap=").append(cpu.vectorPolicyCheap()).append('|');
+        sb.append("cpu.vecPolicyTrans=").append(cpu.vectorPolicyTranscendental()).append('|');
+        sb.append("cpu.vecPolicyRed=").append(cpu.vectorPolicyReduction()).append('|');
+
+        var cuda = kernel.cuda();
+        sb.append("cuda.unroll=").append(cuda.loopUnrollFactor()).append('|');
+        sb.append("cuda.tileM=").append(cuda.matMulTileM()).append('|');
+        sb.append("cuda.tileN=").append(cuda.matMulTileN()).append('|');
+        sb.append("cuda.tileK=").append(cuda.matMulTileK()).append('|');
+
+        var opencl = kernel.opencl();
+        sb.append("opencl.unroll=").append(opencl.loopUnrollFactor()).append('|');
+        sb.append("opencl.tileM=").append(opencl.matMulTileM()).append('|');
+        sb.append("opencl.tileN=").append(opencl.matMulTileN()).append('|');
+        sb.append("opencl.tileK=").append(opencl.matMulTileK());
+        return sb.toString();
+    }
+
+    private static String sha256Hex(String text) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Missing SHA-256 algorithm", e);
+        }
+    }
+
+    private static final class CandidateHistory {
+        private final String contextSignature;
+        private final Map<String, UnsafeCandidateRecord> unsafeByFingerprint;
+        private boolean dirty;
+
+        private CandidateHistory(String contextSignature, Map<String, UnsafeCandidateRecord> unsafeByFingerprint) {
+            this.contextSignature = contextSignature;
+            this.unsafeByFingerprint = unsafeByFingerprint;
+        }
+
+        private static CandidateHistory load(Path path, String contextSignature) {
+            if (!Files.exists(path)) {
+                return new CandidateHistory(contextSignature, new HashMap<>());
+            }
+            Map<String, UnsafeCandidateRecord> unsafe = new HashMap<>();
+            try {
+                List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+                for (String line : lines) {
+                    if (line == null || line.isBlank() || line.startsWith("#")) {
+                        continue;
+                    }
+                    String[] cols = line.split("\t", 5);
+                    if (cols.length < 5) {
+                        continue;
+                    }
+                    if (!"UNSAFE".equals(cols[1])) {
+                        continue;
+                    }
+                    if (!contextSignature.equals(cols[4])) {
+                        continue;
+                    }
+                    unsafe.put(cols[0], new UnsafeCandidateRecord(cols[0], cols[2], cols[3], cols[4]));
+                }
+                return new CandidateHistory(contextSignature, unsafe);
+            } catch (IOException e) {
+                return new CandidateHistory(contextSignature, new HashMap<>());
+            }
+        }
+
+        private boolean isUnsafe(String fingerprint) {
+            return unsafeByFingerprint.containsKey(fingerprint);
+        }
+
+        private void markUnsafe(String fingerprint, String candidateName, String reason) {
+            if (unsafeByFingerprint.containsKey(fingerprint)) {
+                return;
+            }
+            String now = OffsetDateTime.now().toString();
+            String cleanReason = sanitize(reason + " candidate=" + candidateName);
+            unsafeByFingerprint.put(
+                    fingerprint,
+                    new UnsafeCandidateRecord(fingerprint, cleanReason, now, contextSignature)
+            );
+            dirty = true;
+        }
+
+        private void save(Path path) {
+            if (!dirty) {
+                return;
+            }
+            try {
+                Files.createDirectories(path.getParent());
+                List<String> lines = new ArrayList<>();
+                lines.add("# fingerprint\tstatus\treason\ttimestamp\tcontext");
+                for (UnsafeCandidateRecord record : unsafeByFingerprint.values()) {
+                    lines.add(record.toLine());
+                }
+                Files.write(path, lines, StandardCharsets.UTF_8);
+                dirty = false;
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to write autotune candidate history", e);
+            }
+        }
+
+        private static String sanitize(String value) {
+            return value
+                    .replace('\t', ' ')
+                    .replace('\n', ' ')
+                    .replace('\r', ' ');
+        }
+    }
+
+    private static final class UnsafeCandidateRecord {
+        private final String fingerprint;
+        private final String reason;
+        private final String timestamp;
+        private final String context;
+
+        private UnsafeCandidateRecord(String fingerprint, String reason, String timestamp, String context) {
+            this.fingerprint = fingerprint;
+            this.reason = reason;
+            this.timestamp = timestamp;
+            this.context = context;
+        }
+
+        private String toLine() {
+            return fingerprint + "\tUNSAFE\t" + reason + "\t" + timestamp + "\t" + context;
+        }
     }
 
     private static final class Diff {
