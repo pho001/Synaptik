@@ -17,6 +17,7 @@ import java.util.List;
 
 public final class OptimizerFactory {
     private static final Path PROFILE_PATH = Path.of("config", "optimizer-profile.json");
+    private static final Path HW_PROFILE_PATH = Path.of("config", "optimizer-hw-profiles.tsv");
     private static final Path AUTOTUNE_BEST_TRAINING_PATH = Path.of("build", "optimizer-autotune", "best-profile-training.json");
     private static final Path AUTOTUNE_BEST_INFERENCE_PATH = Path.of("build", "optimizer-autotune", "best-profile-inference.json");
 
@@ -69,6 +70,16 @@ public final class OptimizerFactory {
                     AUTOTUNE_BEST_INFERENCE_PATH,
                     baseInference
             );
+            effective = OptimizerProfileIO.loadArchitectureDefaultOverrideOrDefault(
+                    "INFERENCE",
+                    effective
+            );
+            effective = OptimizerProfileIO.loadHardwareOverrideOrDefault(
+                    HW_PROFILE_PATH,
+                    OptimizerProfileIO.hardwareBucketKey(),
+                    "INFERENCE",
+                    effective
+            );
             ComputeEngine.setCpuKernelConfig(effective.knobs().kernelConfig().cpu());
             return OptimizerBuilder.build(effective);
         } catch (Exception ignored) {
@@ -99,6 +110,16 @@ public final class OptimizerFactory {
             OptimizerCandidate effective = OptimizerProfileIO.loadRecommendedOverrideOrDefault(
                     AUTOTUNE_BEST_TRAINING_PATH,
                     profileCandidate
+            );
+            effective = OptimizerProfileIO.loadArchitectureDefaultOverrideOrDefault(
+                    "TRAINING",
+                    effective
+            );
+            effective = OptimizerProfileIO.loadHardwareOverrideOrDefault(
+                    HW_PROFILE_PATH,
+                    OptimizerProfileIO.hardwareBucketKey(),
+                    "TRAINING",
+                    effective
             );
             ComputeEngine.setCpuKernelConfig(effective.knobs().kernelConfig().cpu());
             return OptimizerBuilder.build(effective);

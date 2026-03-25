@@ -12,13 +12,21 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class OptimizerProfileIO {
     private OptimizerProfileIO() {}
+
+    private static final String HW_PROFILE_HEADER =
+            "# bucket\tmode\tscore\tupdatedAt\tcandidateName\tstageOrder\tprofileJsonBase64";
 
     public static TuningKnobs loadKnobsOrDefault(Path path, TuningKnobs defaultKnobs) {
         if (!Files.exists(path)) return defaultKnobs;
@@ -53,6 +61,95 @@ public final class OptimizerProfileIO {
         } catch (Exception e) {
             return Double.POSITIVE_INFINITY;
         }
+    }
+
+    public static String hardwareBucketKey() {
+        String os = normalizeValue(System.getProperty("os.name", "unknown"));
+        String arch = normalizeValue(System.getProperty("os.arch", "unknown"));
+        String vm = normalizeValue(System.getProperty("java.vm.name", "unknown"));
+        String vendor = normalizeValue(System.getProperty("java.vendor", "unknown"));
+        int cores = Runtime.getRuntime().availableProcessors();
+        return "os=" + os + "|arch=" + arch + "|vm=" + vm + "|vendor=" + vendor + "|cores=" + cores;
+    }
+
+    public static OptimizerCandidate loadHardwareOverrideOrDefault(
+            Path path,
+            String bucket,
+            String mode,
+            OptimizerCandidate defaultCandidate
+    ) {
+        if (!Files.exists(path)) return defaultCandidate;
+        HwProfileEntry best = null;
+        for (HwProfileEntry entry : readHardwareEntries(path)) {
+            if (!entry.bucket.equals(bucket) || !entry.mode.equals(mode)) {
+                continue;
+            }
+            if (best == null || entry.score < best.score) {
+                best = entry;
+            }
+        }
+        if (best == null) {
+            return defaultCandidate;
+        }
+        try {
+            String json = new String(Base64.getDecoder().decode(best.profileJsonBase64), StandardCharsets.UTF_8);
+            TuningKnobs knobs = fromJsonOrDefault(json, defaultCandidate.knobs());
+            List<OptimizationStage> stages = parseStageOrderCsvOrDefault(best.stageOrderCsv, defaultCandidate.stageOrder());
+            String name = best.candidateName == null || best.candidateName.isBlank()
+                    ? defaultCandidate.name()
+                    : best.candidateName;
+            return new OptimizerCandidate(name, stages, knobs);
+        } catch (IllegalArgumentException ignored) {
+            return defaultCandidate;
+        }
+    }
+
+    public static boolean saveHardwareProfileIfImproved(
+            Path path,
+            String bucket,
+            String mode,
+            OptimizerCandidate candidate,
+            double score,
+            int maxBuckets
+    ) {
+        List<HwProfileEntry> entries = readHardwareEntries(path);
+        int existingIndex = -1;
+        for (int i = 0; i < entries.size(); i++) {
+            HwProfileEntry e = entries.get(i);
+            if (e.bucket.equals(bucket) && e.mode.equals(mode)) {
+                existingIndex = i;
+                break;
+            }
+        }
+        if (existingIndex >= 0) {
+            HwProfileEntry existing = entries.get(existingIndex);
+            if (score + 1e-12 >= existing.score) {
+                return false;
+            }
+            entries.set(existingIndex, HwProfileEntry.fromCandidate(bucket, mode, candidate, score));
+        } else {
+            entries.add(HwProfileEntry.fromCandidate(bucket, mode, candidate, score));
+        }
+        trimToMaxBuckets(entries, Math.max(1, maxBuckets));
+        writeHardwareEntries(path, entries);
+        return true;
+    }
+
+    public static OptimizerCandidate loadArchitectureDefaultOverrideOrDefault(
+            String mode,
+            OptimizerCandidate defaultCandidate
+    ) {
+        if (defaultCandidate == null) {
+            return null;
+        }
+        String arch = normalizeValue(System.getProperty("os.arch", "unknown")).toLowerCase(Locale.ROOT);
+        if (isArmArch(arch)) {
+            return applyArmPreset(mode, defaultCandidate);
+        }
+        if (isX86Arch(arch)) {
+            return applyX86Preset(mode, defaultCandidate);
+        }
+        return defaultCandidate;
     }
 
     public static void saveKnobs(Path path, TuningKnobs knobs, String candidateName) {
@@ -202,6 +299,233 @@ public final class OptimizerProfileIO {
             }
         }
         return out.isEmpty() ? defaultStages : List.copyOf(out);
+    }
+
+    private static List<OptimizationStage> parseStageOrderCsvOrDefault(String csv, List<OptimizationStage> defaultStages) {
+        if (csv == null || csv.isBlank()) return defaultStages;
+        String[] parts = csv.split(",");
+        List<OptimizationStage> out = new ArrayList<>();
+        for (String part : parts) {
+            String token = part.trim();
+            if (token.isEmpty()) continue;
+            try {
+                out.add(OptimizationStage.valueOf(token));
+            } catch (IllegalArgumentException ignored) {
+                return defaultStages;
+            }
+        }
+        return out.isEmpty() ? defaultStages : List.copyOf(out);
+    }
+
+    private static List<HwProfileEntry> readHardwareEntries(Path path) {
+        if (!Files.exists(path)) return new ArrayList<>();
+        List<HwProfileEntry> out = new ArrayList<>();
+        try {
+            List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+            for (String line : lines) {
+                if (line == null || line.isBlank() || line.startsWith("#")) {
+                    continue;
+                }
+                String[] cols = line.split("\t", 7);
+                if (cols.length < 7) {
+                    continue;
+                }
+                double score;
+                try {
+                    score = Double.parseDouble(cols[2]);
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+                out.add(new HwProfileEntry(
+                        cols[0],
+                        cols[1],
+                        score,
+                        cols[3],
+                        cols[4],
+                        cols[5],
+                        cols[6]
+                ));
+            }
+        } catch (IOException ignored) {
+            return new ArrayList<>();
+        }
+        return out;
+    }
+
+    private static void writeHardwareEntries(Path path, List<HwProfileEntry> entries) {
+        try {
+            Files.createDirectories(path.getParent());
+            List<String> lines = new ArrayList<>(entries.size() + 1);
+            lines.add(HW_PROFILE_HEADER);
+            for (HwProfileEntry e : entries) {
+                lines.add(e.toLine());
+            }
+            Files.write(path, lines, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to write HW optimizer profiles to " + path, e);
+        }
+    }
+
+    private static void trimToMaxBuckets(List<HwProfileEntry> entries, int maxBuckets) {
+        Map<String, String> latestByBucket = new HashMap<>();
+        for (HwProfileEntry entry : entries) {
+            String latest = latestByBucket.get(entry.bucket);
+            if (latest == null || entry.updatedAt.compareTo(latest) > 0) {
+                latestByBucket.put(entry.bucket, entry.updatedAt);
+            }
+        }
+        while (latestByBucket.size() > maxBuckets) {
+            String oldestBucket = null;
+            String oldestTs = null;
+            for (Map.Entry<String, String> kv : latestByBucket.entrySet()) {
+                if (oldestTs == null || kv.getValue().compareTo(oldestTs) < 0) {
+                    oldestTs = kv.getValue();
+                    oldestBucket = kv.getKey();
+                }
+            }
+            if (oldestBucket == null) {
+                break;
+            }
+            String bucketToRemove = oldestBucket;
+            entries.removeIf(e -> e.bucket.equals(bucketToRemove));
+            latestByBucket.remove(bucketToRemove);
+        }
+    }
+
+    private static String normalizeValue(String value) {
+        if (value == null || value.isBlank()) {
+            return "unknown";
+        }
+        return value
+                .replace('|', '_')
+                .replace('\t', '_')
+                .replace('\n', '_')
+                .replace('\r', '_')
+                .trim();
+    }
+
+    private static boolean isArmArch(String arch) {
+        return "aarch64".equals(arch) || "arm64".equals(arch);
+    }
+
+    private static boolean isX86Arch(String arch) {
+        return "x86_64".equals(arch) || "amd64".equals(arch);
+    }
+
+    private static OptimizerCandidate applyArmPreset(String mode, OptimizerCandidate base) {
+        boolean inference = "INFERENCE".equalsIgnoreCase(mode);
+        List<OptimizationStage> stageOrder = inference
+                ? List.of(OptimizationStage.CSE, OptimizationStage.FUSE, OptimizationStage.MEM)
+                : List.of(OptimizationStage.FUSE, OptimizationStage.CSE);
+        var src = base.knobs();
+        var ksrc = src.kernelConfig();
+        CpuKernelConfig cpu = inference
+                ? new CpuKernelConfig(
+                        4, 32, 32, 32,
+                        512, 100_000, 0, 4, 4_096, 65_536,
+                        SumAccuracyMode.FAST, 4.0d,
+                        VectorPolicy.FORCE_ON, VectorPolicy.FORCE_OFF, VectorPolicy.AUTO,
+                        2_000_000
+                )
+                : new CpuKernelConfig(
+                        4, 32, 32, 32,
+                        256, 50_000, 0, 2, 2_048, 16_384,
+                        SumAccuracyMode.FAST, 1.0d,
+                        VectorPolicy.FORCE_ON, VectorPolicy.FORCE_OFF, VectorPolicy.AUTO,
+                        8_000_000
+                );
+        KernelTuningConfig kernel = new KernelTuningConfig(cpu, ksrc.cuda(), ksrc.opencl());
+        TuningKnobs knobs = new TuningKnobs(src.strictCseSafety(), src.fuseConfig(), kernel);
+        return new OptimizerCandidate(base.name(), stageOrder, knobs);
+    }
+
+    private static OptimizerCandidate applyX86Preset(String mode, OptimizerCandidate base) {
+        boolean inference = "INFERENCE".equalsIgnoreCase(mode);
+        List<OptimizationStage> stageOrder = inference
+                ? List.of(OptimizationStage.AR, OptimizationStage.CSE, OptimizationStage.FUSE, OptimizationStage.MEM)
+                : List.of(OptimizationStage.AR, OptimizationStage.CSE, OptimizationStage.MEM);
+        var src = base.knobs();
+        var ksrc = src.kernelConfig();
+        CpuKernelConfig cpu = inference
+                ? new CpuKernelConfig(
+                        4, 32, 32, 32,
+                        1_024, 100_000, 0, 4, 4_096, 1_000_000_000,
+                        SumAccuracyMode.FAST, 2.0d,
+                        VectorPolicy.AUTO, VectorPolicy.AUTO, VectorPolicy.AUTO,
+                        2_000_000
+                )
+                : new CpuKernelConfig(
+                        4, 32, 32, 32,
+                        1_024, 100_000, 0, 4, 4_096, 65_536,
+                        SumAccuracyMode.FAST, 2.0d,
+                        VectorPolicy.AUTO, VectorPolicy.AUTO, VectorPolicy.AUTO,
+                        2_000_000
+                );
+        KernelTuningConfig kernel = new KernelTuningConfig(cpu, ksrc.cuda(), ksrc.opencl());
+        TuningKnobs knobs = new TuningKnobs(src.strictCseSafety(), src.fuseConfig(), kernel);
+        return new OptimizerCandidate(base.name(), stageOrder, knobs);
+    }
+
+    private static final class HwProfileEntry {
+        private final String bucket;
+        private final String mode;
+        private final double score;
+        private final String updatedAt;
+        private final String candidateName;
+        private final String stageOrderCsv;
+        private final String profileJsonBase64;
+
+        private HwProfileEntry(
+                String bucket,
+                String mode,
+                double score,
+                String updatedAt,
+                String candidateName,
+                String stageOrderCsv,
+                String profileJsonBase64
+        ) {
+            this.bucket = bucket;
+            this.mode = mode;
+            this.score = score;
+            this.updatedAt = updatedAt;
+            this.candidateName = candidateName;
+            this.stageOrderCsv = stageOrderCsv;
+            this.profileJsonBase64 = profileJsonBase64;
+        }
+
+        private static HwProfileEntry fromCandidate(String bucket, String mode, OptimizerCandidate candidate, double score) {
+            String profileJson = toJson(candidate.knobs(), candidate.name());
+            String payload = Base64.getEncoder().encodeToString(profileJson.getBytes(StandardCharsets.UTF_8));
+            String stageCsv = String.join(",", candidate.stageOrder().stream().map(Enum::name).toList());
+            return new HwProfileEntry(
+                    sanitize(bucket),
+                    sanitize(mode),
+                    score,
+                    OffsetDateTime.now().toString(),
+                    sanitize(candidate.name()),
+                    sanitize(stageCsv),
+                    payload
+            );
+        }
+
+        private String toLine() {
+            return bucket
+                    + "\t" + mode
+                    + "\t" + String.format(Locale.US, "%.12f", score)
+                    + "\t" + updatedAt
+                    + "\t" + candidateName
+                    + "\t" + stageOrderCsv
+                    + "\t" + profileJsonBase64;
+        }
+
+        private static String sanitize(String value) {
+            if (value == null) {
+                return "";
+            }
+            return value.replace('\t', ' ')
+                    .replace('\n', ' ')
+                    .replace('\r', ' ');
+        }
     }
 
     private static boolean findBoolean(String json, String key, boolean defaultValue) {

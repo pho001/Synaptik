@@ -60,9 +60,11 @@ public final class OptimizerBenchmarkFramework {
     private static final Path AUTOTUNE_BEST_PATH = Path.of("build", "optimizer-autotune", "best-profile.json");
     private static final Path AUTOTUNE_BEST_TRAINING_PATH = Path.of("build", "optimizer-autotune", "best-profile-training.json");
     private static final Path AUTOTUNE_BEST_INFERENCE_PATH = Path.of("build", "optimizer-autotune", "best-profile-inference.json");
+    private static final Path HW_PROFILE_PATH = Path.of("config", "optimizer-hw-profiles.tsv");
     private static final Path AUTOTUNE_HISTORY_PATH = Path.of("build", "optimizer-autotune", "candidate-history.tsv");
     private static final int AUTOTUNE_HISTORY_SCHEMA_VERSION = 1;
     private static final int AUTOTUNE_ENGINE_VERSION = 2;
+    private static final int HW_PROFILE_MAX_BUCKETS = 10;
 
     public static void run() {
         List<OptimizerCandidate> candidates = applyProfileToDefaults(OptimizerCandidateFactory.defaultCandidates());
@@ -171,6 +173,7 @@ public final class OptimizerBenchmarkFramework {
     private static List<OptimizerCandidate> applyProfileToDefaults(List<OptimizerCandidate> defaults) {
         List<OptimizerCandidate> out = new ArrayList<>(defaults.size());
         TuningKnobs tuned = OptimizerProfileIO.loadKnobsOrDefault(PROFILE_PATH, TuningKnobs.trainingDefaults());
+        String hwBucket = OptimizerProfileIO.hardwareBucketKey();
         for (OptimizerCandidate c : defaults) {
             if ("RECOMMENDED".equals(c.name())) {
                 out.add(new OptimizerCandidate(c.name(), c.stageOrder(), tuned));
@@ -190,6 +193,30 @@ public final class OptimizerBenchmarkFramework {
         if (overriddenInference != profiledInference) {
             replaceCandidate(out, overriddenInference);
         }
+        OptimizerCandidate currentRecommended = findByName(out, "RECOMMENDED");
+        OptimizerCandidate archRecommended = OptimizerProfileIO.loadArchitectureDefaultOverrideOrDefault("TRAINING", currentRecommended);
+        if (archRecommended != currentRecommended) {
+            replaceCandidate(out, archRecommended);
+        }
+        OptimizerCandidate currentInference = findByName(out, "INFERENCE_PERF");
+        OptimizerCandidate archInference = OptimizerProfileIO.loadArchitectureDefaultOverrideOrDefault("INFERENCE", currentInference);
+        if (archInference != currentInference) {
+            replaceCandidate(out, archInference);
+        }
+        OptimizerCandidate hwRecommended = OptimizerProfileIO.loadHardwareOverrideOrDefault(
+                HW_PROFILE_PATH,
+                hwBucket,
+                "TRAINING",
+                findByName(out, "RECOMMENDED")
+        );
+        replaceCandidate(out, hwRecommended);
+        OptimizerCandidate hwInference = OptimizerProfileIO.loadHardwareOverrideOrDefault(
+                HW_PROFILE_PATH,
+                hwBucket,
+                "INFERENCE",
+                findByName(out, "INFERENCE_PERF")
+        );
+        replaceCandidate(out, hwInference);
 
         try {
             runScalarSanityCore(OptimizerBuilder.build(profiledRecommended));
@@ -201,6 +228,11 @@ public final class OptimizerBenchmarkFramework {
             }
             if (Files.exists(AUTOTUNE_BEST_INFERENCE_PATH)) {
                 System.out.println(GRAY + "Using autotune inference profile from " + AUTOTUNE_BEST_INFERENCE_PATH.toAbsolutePath() + RESET);
+            }
+            if (Files.exists(HW_PROFILE_PATH)) {
+                System.out.println(GRAY + "Using HW bucket profile from " + HW_PROFILE_PATH.toAbsolutePath() + " (" + hwBucket + ")" + RESET);
+            } else {
+                System.out.println(GRAY + "Using architecture preset for os.arch=" + System.getProperty("os.arch", "unknown") + RESET);
             }
             return out;
         } catch (IllegalStateException e) {
@@ -570,6 +602,7 @@ public final class OptimizerBenchmarkFramework {
             double previousInferenceScore = OptimizerProfileIO.loadScoreOrInfinity(AUTOTUNE_BEST_INFERENCE_PATH);
             boolean trainingImproved = bestTraining.score + 1e-12 < previousTrainingScore;
             boolean inferenceImproved = bestInference.score + 1e-12 < previousInferenceScore;
+            String hwBucket = OptimizerProfileIO.hardwareBucketKey();
 
             if (trainingImproved) {
                 Files.writeString(AUTOTUNE_BEST_TRAINING_PATH, bestTraining.toJson(validCount, mismatchCount), StandardCharsets.UTF_8);
@@ -594,6 +627,29 @@ public final class OptimizerBenchmarkFramework {
                         + String.format("%.6f", previousInferenceScore)
                         + " <= new score="
                         + String.format("%.6f", bestInference.score) + ")." + RESET);
+            }
+
+            boolean hwTrainingImproved = OptimizerProfileIO.saveHardwareProfileIfImproved(
+                    HW_PROFILE_PATH,
+                    hwBucket,
+                    "TRAINING",
+                    bestTraining.candidate,
+                    bestTraining.score,
+                    HW_PROFILE_MAX_BUCKETS
+            );
+            boolean hwInferenceImproved = OptimizerProfileIO.saveHardwareProfileIfImproved(
+                    HW_PROFILE_PATH,
+                    hwBucket,
+                    "INFERENCE",
+                    bestInference.candidate,
+                    bestInference.score,
+                    HW_PROFILE_MAX_BUCKETS
+            );
+            if (hwTrainingImproved || hwInferenceImproved) {
+                System.out.println(CYAN + "Updated HW profiles: " + RESET + HW_PROFILE_PATH.toAbsolutePath()
+                        + " (bucket=" + hwBucket + ")");
+            } else {
+                System.out.println(GRAY + "HW profiles kept (no score improvement for bucket " + hwBucket + ")." + RESET);
             }
         } catch (IOException e) {
             throw new IllegalStateException("Failed to write autotune profile", e);
