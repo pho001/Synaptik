@@ -238,6 +238,10 @@ public class Tensor {
         return metadata.getStrides();
     }
 
+    public int[] getStridesUnsafe() {
+        return metadata.stridesRef();
+    }
+
     public void setData(double[] data) {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
@@ -280,6 +284,10 @@ public class Tensor {
 
     public int[] getShape() {
         return metadata.getShape();
+    }
+
+    public int[] getShapeUnsafe() {
+        return metadata.shapeRef();
     }
 
     public List<Tensor> getPrevTensors() {

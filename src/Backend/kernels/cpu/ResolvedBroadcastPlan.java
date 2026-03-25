@@ -7,6 +7,8 @@ public final class ResolvedBroadcastPlan {
     private final int[] outStrides;
     private final int[] aEffStrides;
     private final int[] bEffStrides;
+    private final int[] aResets;
+    private final int[] bResets;
     private final boolean noBroadcast;
 
     private ResolvedBroadcastPlan(
@@ -14,12 +16,16 @@ public final class ResolvedBroadcastPlan {
             int[] outStrides,
             int[] aEffStrides,
             int[] bEffStrides,
+            int[] aResets,
+            int[] bResets,
             boolean noBroadcast
     ) {
         this.outShape = outShape;
         this.outStrides = outStrides;
         this.aEffStrides = aEffStrides;
         this.bEffStrides = bEffStrides;
+        this.aResets = aResets;
+        this.bResets = bResets;
         this.noBroadcast = noBroadcast;
     }
 
@@ -27,11 +33,22 @@ public final class ResolvedBroadcastPlan {
         if (plan == null) {
             return null;
         }
+        int[] outShape = plan.outShape();
+        int[] aEffStrides = plan.aEffStrides();
+        int[] bEffStrides = plan.bEffStrides();
+        int[] aResets = new int[outShape.length];
+        int[] bResets = new int[outShape.length];
+        for (int d = 0; d < outShape.length; d++) {
+            aResets[d] = outShape[d] * aEffStrides[d];
+            bResets[d] = outShape[d] * bEffStrides[d];
+        }
         return new ResolvedBroadcastPlan(
-                plan.outShape(),
+                outShape,
                 plan.outStrides(),
-                plan.aEffStrides(),
-                plan.bEffStrides(),
+                aEffStrides,
+                bEffStrides,
+                aResets,
+                bResets,
                 plan.isNoBroadcast()
         );
     }
@@ -50,6 +67,14 @@ public final class ResolvedBroadcastPlan {
 
     public int[] bEffStrides() {
         return bEffStrides;
+    }
+
+    public int[] aResets() {
+        return aResets;
+    }
+
+    public int[] bResets() {
+        return bResets;
     }
 
     public boolean isNoBroadcast() {

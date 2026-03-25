@@ -36,13 +36,13 @@ public final class TensorRemap {
         if (src == null || dst == null) {
             return null;
         }
-        int[] srcShape = src.getShape();
-        int[] dstShape = dst.getShape();
+        int[] srcShape = src.getShapeUnsafe();
+        int[] dstShape = dst.getShapeUnsafe();
         if (!Arrays.equals(srcShape, dstShape)) {
             throw new IllegalArgumentException("Source and destination tensors must have the same shape.");
         }
-        int[] srcStrides = src.getStrides();
-        int[] dstStrides = dst.getStrides();
+        int[] srcStrides = src.getStridesUnsafe();
+        int[] dstStrides = dst.getStridesUnsafe();
         int[] denseStrides = denseStrides(srcShape);
         int logicalSize = logicalSize(srcShape);
         return new RemapPlan(
@@ -60,11 +60,8 @@ public final class TensorRemap {
     }
 
     public static void apply(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
-        if (src == null || dst == null) {
-            throw new IllegalArgumentException("Source and destination tensors cannot be null.");
-        }
-        RemapPlan effectivePlan = resolvePlan(src, dst, plan);
-        if (src == dst) {
+        RemapPlan effectivePlan = applyResolved(src, dst, plan, parallelThreshold);
+        if (effectivePlan == null) {
             return;
         }
 
@@ -95,6 +92,50 @@ public final class TensorRemap {
         }
     }
 
+    public static void applyTrusted(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
+        RemapPlan effectivePlan = applyResolved(src, dst, plan, parallelThreshold);
+        if (effectivePlan == null) {
+            return;
+        }
+
+        if (src.getDataType() == DataType.FLOAT32
+                && src.getFloat32Data() != null
+                && dst.getFloat32Data() != null) {
+            applyF32(src, dst, effectivePlan, parallelThreshold);
+            return;
+        }
+        if (src.getDataType() == DataType.FLOAT16
+                && src.getFloat16Data() != null
+                && dst.getFloat16Data() != null) {
+            applyF16(src, dst, effectivePlan, parallelThreshold);
+            return;
+        }
+
+        if (tryFastCopyF64(src, dst, effectivePlan.logicalSize)) {
+            return;
+        }
+        if (tryFastCopyStorage(src, dst)) {
+            return;
+        }
+
+        if (effectivePlan.logicalSize > parallelThreshold) {
+            parallelApply(src, dst, effectivePlan);
+        } else {
+            sequentialApply(src, dst, effectivePlan);
+        }
+    }
+
+    private static RemapPlan applyResolved(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
+        if (src == null || dst == null) {
+            throw new IllegalArgumentException("Source and destination tensors cannot be null.");
+        }
+        RemapPlan effectivePlan = resolvePlan(src, dst, plan);
+        if (src == dst) {
+            return null;
+        }
+        return effectivePlan;
+    }
+
     private static RemapPlan resolvePlan(Tensor src, Tensor dst, RemapPlan plan) {
         if (plan != null && matches(src, dst, plan)) {
             return plan;
@@ -106,10 +147,10 @@ public final class TensorRemap {
         if (plan == null || src == null || dst == null) {
             return false;
         }
-        return Arrays.equals(src.getShape(), plan.srcShape)
-                && Arrays.equals(dst.getShape(), plan.dstShape)
-                && Arrays.equals(src.getStrides(), plan.srcStrides)
-                && Arrays.equals(dst.getStrides(), plan.dstStrides);
+        return Arrays.equals(src.getShapeUnsafe(), plan.srcShape)
+                && Arrays.equals(dst.getShapeUnsafe(), plan.dstShape)
+                && Arrays.equals(src.getStridesUnsafe(), plan.srcStrides)
+                && Arrays.equals(dst.getStridesUnsafe(), plan.dstStrides);
     }
 
     private static void sequentialApply(Tensor src, Tensor dst, RemapPlan plan) {
@@ -306,7 +347,7 @@ public final class TensorRemap {
         if (src.getStorage() == null || dst.getStorage() == null) {
             return false;
         }
-        if (!Arrays.equals(src.getStrides(), dst.getStrides())) {
+        if (!Arrays.equals(src.getStridesUnsafe(), dst.getStridesUnsafe())) {
             return false;
         }
         int size = Math.min(src.getFlatDataSize(), dst.getFlatDataSize());
@@ -318,7 +359,7 @@ public final class TensorRemap {
 
     private static boolean canUseRawCopy(Tensor src, Tensor dst, int logicalSize) {
         return (src.isContiguous() && dst.isContiguous())
-                || Arrays.equals(src.getStrides(), dst.getStrides())
+                || Arrays.equals(src.getStridesUnsafe(), dst.getStridesUnsafe())
                 || logicalSize <= 1;
     }
 

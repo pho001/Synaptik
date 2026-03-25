@@ -20,7 +20,7 @@ final class SumLoops {
     private SumLoops() {}
 
     static void execute(Tensor input, Tensor node, int dimension, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
+        int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
         }
@@ -42,7 +42,7 @@ final class SumLoops {
     }
 
     static void executeF32(Tensor input, Tensor node, int dimension, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
+        int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
         }
@@ -70,7 +70,7 @@ final class SumLoops {
     }
 
     static void executeF16(Tensor input, Tensor node, int dimension, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
+        int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
         }
@@ -141,8 +141,8 @@ final class SumLoops {
     }
 
     private static double sumAllStrided(Tensor input, int logicalSize, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
-        int[] strides = input.getStrides();
+        int[] shape = input.getShapeUnsafe();
+        int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
         double[] data = input.getData();
         SumAccuracyMode accuracy = config.sumAccuracyMode();
@@ -207,8 +207,8 @@ final class SumLoops {
     }
 
     private static double sumAllStridedF32(Tensor input, float[] data, int logicalSize, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
-        int[] strides = input.getStrides();
+        int[] shape = input.getShapeUnsafe();
+        int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
         SumAccuracyMode accuracy = config.sumAccuracyMode();
         CpuExecutionMode mode = config.modeForReduction(logicalSize);
@@ -262,8 +262,8 @@ final class SumLoops {
     }
 
     private static double sumAllStridedF16(Tensor input, short[] data, int logicalSize, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
-        int[] strides = input.getStrides();
+        int[] shape = input.getShapeUnsafe();
+        int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
         SumAccuracyMode accuracy = config.sumAccuracyMode();
         CpuExecutionMode mode = config.modeForReduction(logicalSize);
@@ -282,7 +282,7 @@ final class SumLoops {
     }
 
     private static void sumAxis(Tensor input, double[] out, int logicalSize, int dimension, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
+        int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
         if (out.length != outSize) {
@@ -302,8 +302,8 @@ final class SumLoops {
     }
 
     private static void sumAxisContiguous(Tensor input, double[] out, int dimension, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
-        int[] strides = input.getStrides();
+        int[] shape = input.getShapeUnsafe();
+        int[] strides = input.getStridesUnsafe();
         int reducedDim = shape[dimension];
         int outSize = out.length;
         double[] data = input.getData();
@@ -329,8 +329,8 @@ final class SumLoops {
     }
 
     private static void sumAxisStrided(Tensor input, double[] out, int dimension, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
-        int[] strides = input.getStrides();
+        int[] shape = input.getShapeUnsafe();
+        int[] strides = input.getStridesUnsafe();
         int reducedDim = shape[dimension];
         int outSize = out.length;
         CpuExecutionMode mode = config.modeForReduction(logicalSize(shape));
@@ -349,7 +349,7 @@ final class SumLoops {
     }
 
     private static void sumAxisF32(Tensor input, float[] data, float[] out, int logicalSize, int dimension, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
+        int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
         if (out.length != outSize) {
@@ -358,13 +358,13 @@ final class SumLoops {
         if (!input.isContiguous()) {
             if (logicalSize >= config.contiguousMaterializeThreshold()) {
                 Tensor contiguous = materializeContiguousTyped(input, config, DataType.FLOAT32);
-                sumAxisContiguousF32(contiguous.getFloat32Data(), contiguous.getShape(), contiguous.getStrides(), out, dimension, config);
+                sumAxisContiguousF32(contiguous.getFloat32Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), out, dimension, config);
                 return;
             }
-            sumAxisStridedF32(data, shape, input.getStrides(), out, dimension, config);
+            sumAxisStridedF32(data, shape, input.getStridesUnsafe(), out, dimension, config);
             return;
         }
-        sumAxisContiguousF32(data, shape, input.getStrides(), out, dimension, config);
+        sumAxisContiguousF32(data, shape, input.getStridesUnsafe(), out, dimension, config);
     }
 
     private static void sumAxisContiguousF32(float[] data, int[] shape, int[] strides, float[] out, int dimension, CpuExecutionConfig config) {
@@ -408,7 +408,7 @@ final class SumLoops {
     }
 
     private static void sumAxisF16(Tensor input, short[] data, short[] out, int logicalSize, int dimension, CpuExecutionConfig config) {
-        int[] shape = input.getShape();
+        int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
         if (out.length != outSize) {
@@ -417,13 +417,13 @@ final class SumLoops {
         if (!input.isContiguous()) {
             if (logicalSize >= config.contiguousMaterializeThreshold()) {
                 Tensor contiguous = materializeContiguousTyped(input, config, DataType.FLOAT16);
-                sumAxisContiguousF16(contiguous.getFloat16Data(), contiguous.getShape(), contiguous.getStrides(), out, dimension, config);
+                sumAxisContiguousF16(contiguous.getFloat16Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), out, dimension, config);
                 return;
             }
-            sumAxisStridedF16(data, shape, input.getStrides(), out, dimension, config);
+            sumAxisStridedF16(data, shape, input.getStridesUnsafe(), out, dimension, config);
             return;
         }
-        sumAxisContiguousF16(data, shape, input.getStrides(), out, dimension, config);
+        sumAxisContiguousF16(data, shape, input.getStridesUnsafe(), out, dimension, config);
     }
 
     private static void sumAxisContiguousF16(short[] data, int[] shape, int[] strides, short[] out, int dimension, CpuExecutionConfig config) {
@@ -976,11 +976,11 @@ final class SumLoops {
     }
 
     private static Tensor materializeContiguous(Tensor input, CpuExecutionConfig config) {
-        Tensor contiguous = new Tensor(input.getShape(), null, input.getLabel() + "_sum_contiguous_tmp", DataType.FLOAT64);
+        Tensor contiguous = new Tensor(input.getShapeUnsafe(), null, input.getLabel() + "_sum_contiguous_tmp", DataType.FLOAT64);
         double[] src = input.getData();
         double[] dst = contiguous.getData();
-        int[] shape = input.getShape();
-        int[] strides = input.getStrides();
+        int[] shape = input.getShapeUnsafe();
+        int[] strides = input.getStridesUnsafe();
         int[] dense = denseStrides(shape);
         int logical = logicalSize(shape);
         for (int i = 0; i < logical; i++) {
@@ -990,7 +990,7 @@ final class SumLoops {
     }
 
     private static Tensor materializeContiguousTyped(Tensor input, CpuExecutionConfig config, DataType dataType) {
-        Tensor contiguous = new Tensor(input.getShape(), null, input.getLabel() + "_sum_contiguous_tmp", dataType);
+        Tensor contiguous = new Tensor(input.getShapeUnsafe(), null, input.getLabel() + "_sum_contiguous_tmp", dataType);
         TensorRemap.apply(input, contiguous, config.contiguousMaterializeThreshold());
         return contiguous;
     }

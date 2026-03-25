@@ -7,6 +7,7 @@ public final class TensorMetadata {
 
     private final int[] shape;
     private final int[] strides;
+    private final boolean contiguous;
     private String label;
     private boolean requiresGrad;
     private DataType dataType;
@@ -19,6 +20,7 @@ public final class TensorMetadata {
         int[] normalizedShape = normalizeShape(shape);
         this.shape = normalizedShape;
         this.strides = computeStrides(normalizedShape);
+        this.contiguous = computeContiguous(this.shape, this.strides);
         this.label = label;
         this.requiresGrad = requiresGrad;
         this.dataType = dataType == null ? DEFAULT_DATA_TYPE : dataType;
@@ -45,6 +47,7 @@ public final class TensorMetadata {
 
         this.shape = normalizedShape;
         this.strides = normalizedStrides;
+        this.contiguous = computeContiguous(this.shape, this.strides);
         this.label = label;
         this.requiresGrad = requiresGrad;
         this.dataType = dataType == null ? DEFAULT_DATA_TYPE : dataType;
@@ -54,8 +57,16 @@ public final class TensorMetadata {
         return shape.clone();
     }
 
+    int[] shapeRef() {
+        return shape;
+    }
+
     public int[] getStrides() {
         return strides.clone();
+    }
+
+    int[] stridesRef() {
+        return strides;
     }
 
     public int getStride(int index) {
@@ -103,6 +114,10 @@ public final class TensorMetadata {
     }
 
     public boolean isContiguous() {
+        return contiguous;
+    }
+
+    private static boolean computeContiguous(int[] shape, int[] strides) {
         int expectedStride = 1;
         for (int i = shape.length - 1; i >= 0; i--) {
             if (strides[i] != expectedStride) {

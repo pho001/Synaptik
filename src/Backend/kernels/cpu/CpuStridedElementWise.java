@@ -43,8 +43,8 @@ public final class CpuStridedElementWise {
             return;
         }
 
-        int[] outShape = node.getShape();
-        int[] outStrides = node.getStrides();
+        int[] outShape = node.getShapeUnsafe();
+        int[] outStrides = node.getStridesUnsafe();
         int rank = outShape.length;
 
         double[] a = null;
@@ -54,12 +54,12 @@ public final class CpuStridedElementWise {
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
             a = ta.getData();
-            aStrides = ta.getStrides();
+            aStrides = ta.getStridesUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
             b = tb.getData();
-            bStrides = tb.getStrides();
+            bStrides = tb.getStridesUnsafe();
         }
 
         if (rank == 1) {
@@ -80,8 +80,8 @@ public final class CpuStridedElementWise {
             return;
         }
 
-        int[] outShape = node.getShape();
-        int[] outStrides = node.getStrides();
+        int[] outShape = node.getShapeUnsafe();
+        int[] outStrides = node.getStridesUnsafe();
         int rank = outShape.length;
 
         float[] a = null;
@@ -91,12 +91,12 @@ public final class CpuStridedElementWise {
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
             a = ta.getFloat32Data();
-            aStrides = ta.getStrides();
+            aStrides = ta.getStridesUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
             b = tb.getFloat32Data();
-            bStrides = tb.getStrides();
+            bStrides = tb.getStridesUnsafe();
         }
 
         if (rank == 1) {
@@ -123,8 +123,8 @@ public final class CpuStridedElementWise {
             return;
         }
 
-        int[] outShape = node.getShape();
-        int[] outStrides = node.getStrides();
+        int[] outShape = node.getShapeUnsafe();
+        int[] outStrides = node.getStridesUnsafe();
         int rank = outShape.length;
 
         short[] a = null;
@@ -134,12 +134,12 @@ public final class CpuStridedElementWise {
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
             a = ta.getFloat16Data();
-            aStrides = ta.getStrides();
+            aStrides = ta.getStridesUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
             b = tb.getFloat16Data();
-            bStrides = tb.getStrides();
+            bStrides = tb.getStridesUnsafe();
         }
 
         if (rank == 1) {

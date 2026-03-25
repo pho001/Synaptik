@@ -27,8 +27,8 @@ public class CpuMatMulKernel implements CpuKernel {
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         Tensor a = inputs.get(0);
         Tensor b = inputs.get(1);
-        int[] as = a.getShape();
-        int[] bs = b.getShape();
+        int[] as = a.getShapeUnsafe();
+        int[] bs = b.getShapeUnsafe();
         int m = as[0];
         int k = as[1];
         int n = bs[1];
@@ -44,8 +44,8 @@ public class CpuMatMulKernel implements CpuKernel {
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         Tensor a = inputs.get(0);
         Tensor b = inputs.get(1);
-        int[] as = a.getShape();
-        int[] bs = b.getShape();
+        int[] as = a.getShapeUnsafe();
+        int[] bs = b.getShapeUnsafe();
         int m = as[0];
         int k = as[1];
         int n = bs[1];
@@ -61,8 +61,8 @@ public class CpuMatMulKernel implements CpuKernel {
     public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         Tensor a = inputs.get(0);
         Tensor b = inputs.get(1);
-        int[] as = a.getShape();
-        int[] bs = b.getShape();
+        int[] as = a.getShapeUnsafe();
+        int[] bs = b.getShapeUnsafe();
         int m = as[0];
         int k = as[1];
         int n = bs[1];

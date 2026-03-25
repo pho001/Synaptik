@@ -95,7 +95,7 @@ public class CPUBackend {
             }
             for (CpuPreparedInput preparedInput : remapInputs) {
                 Tensor source = originalInputs.get(preparedInput.inputIndex);
-                TensorRemap.apply(source, preparedInput.tensor, preparedInput.remapPlan, materializeThreshold);
+                TensorRemap.applyTrusted(source, preparedInput.tensor, preparedInput.remapPlan, materializeThreshold);
             }
             return runtimeInputs;
         }
@@ -238,12 +238,12 @@ public class CPUBackend {
         }
 
         boolean hasNonContiguousInput = false;
-        int[] outShape = node.getShape();
+        int[] outShape = node.getShapeUnsafe();
         for (Tensor input : inputs) {
             if (input == null) {
                 return false;
             }
-            int[] inShape = input.getShape();
+            int[] inShape = input.getShapeUnsafe();
             if (inShape.length != outShape.length) {
                 return false;
             }
@@ -326,12 +326,12 @@ public class CPUBackend {
             if (preserveBroadcastStrides && input != null && !input.isContiguous()) {
                 int size = input.getFlatDataSize();
                 remappedInput = switch (tmpType) {
-                    case FLOAT64 -> new Tensor(new double[size], input.getShape(), input.getStrides(), null, "_tmp", tmpType);
-                    case FLOAT32 -> new Tensor(new float[size], input.getShape(), input.getStrides(), null, "_tmp", tmpType);
-                    case FLOAT16 -> new Tensor(new short[size], input.getShape(), input.getStrides(), null, "_tmp", tmpType);
+                    case FLOAT64 -> new Tensor(new double[size], input.getShapeUnsafe(), input.getStridesUnsafe(), null, "_tmp", tmpType);
+                    case FLOAT32 -> new Tensor(new float[size], input.getShapeUnsafe(), input.getStridesUnsafe(), null, "_tmp", tmpType);
+                    case FLOAT16 -> new Tensor(new short[size], input.getShapeUnsafe(), input.getStridesUnsafe(), null, "_tmp", tmpType);
                 };
             } else {
-                remappedInput = new Tensor(input.getShape(), null, "_tmp", tmpType);
+                remappedInput = new Tensor(input.getShapeUnsafe(), null, "_tmp", tmpType);
             }
             TensorRemap.RemapPlan remapPlan = TensorRemap.buildPlan(input, remappedInput);
             CpuPreparedInput preparedInput = new CpuPreparedInput(i, remappedInput, remapPlan);

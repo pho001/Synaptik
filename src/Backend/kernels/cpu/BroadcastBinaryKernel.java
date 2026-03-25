@@ -14,6 +14,9 @@ public final class BroadcastBinaryKernel {
             CpuExecutionMode mode,
             CpuExecutionConfig config
     ) {
+        if (rank1F64(type, a, b, out, plan)) {
+            return;
+        }
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
             parallelF64(type, a, b, out, plan, config);
             return;
@@ -30,6 +33,9 @@ public final class BroadcastBinaryKernel {
             CpuExecutionMode mode,
             CpuExecutionConfig config
     ) {
+        if (rank1F32(type, a, b, out, plan)) {
+            return;
+        }
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
             parallelF32(type, a, b, out, plan, config);
             return;
@@ -46,11 +52,137 @@ public final class BroadcastBinaryKernel {
             CpuExecutionMode mode,
             CpuExecutionConfig config
     ) {
+        if (rank1F16(type, a, b, out, plan)) {
+            return;
+        }
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
             parallelF16(type, a, b, out, plan, config);
             return;
         }
         scalarF16(type, a, b, out, plan, 0, out.length);
+    }
+
+    private static boolean rank1F64(Operation.OpType type, double[] a, double[] b, double[] out, ResolvedBroadcastPlan plan) {
+        int[] outShape = plan.outShape();
+        if (outShape.length != 1) {
+            return false;
+        }
+        int strideA = plan.aEffStrides()[0];
+        int strideB = plan.bEffStrides()[0];
+        switch (type) {
+            case ADD -> {
+                for (int i = 0; i < out.length; i++) out[i] = a[i * strideA] + b[i * strideB];
+            }
+            case SUB -> {
+                for (int i = 0; i < out.length; i++) out[i] = a[i * strideA] - b[i * strideB];
+            }
+            case MUL -> {
+                for (int i = 0; i < out.length; i++) out[i] = a[i * strideA] * b[i * strideB];
+            }
+            case DIV -> {
+                for (int i = 0; i < out.length; i++) out[i] = a[i * strideA] / b[i * strideB];
+            }
+            case MIN -> {
+                for (int i = 0; i < out.length; i++) out[i] = Math.min(a[i * strideA], b[i * strideB]);
+            }
+            case MAX -> {
+                for (int i = 0; i < out.length; i++) out[i] = Math.max(a[i * strideA], b[i * strideB]);
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean rank1F32(Operation.OpType type, float[] a, float[] b, float[] out, ResolvedBroadcastPlan plan) {
+        int[] outShape = plan.outShape();
+        if (outShape.length != 1) {
+            return false;
+        }
+        int strideA = plan.aEffStrides()[0];
+        int strideB = plan.bEffStrides()[0];
+        switch (type) {
+            case ADD -> {
+                for (int i = 0; i < out.length; i++) out[i] = a[i * strideA] + b[i * strideB];
+            }
+            case SUB -> {
+                for (int i = 0; i < out.length; i++) out[i] = a[i * strideA] - b[i * strideB];
+            }
+            case MUL -> {
+                for (int i = 0; i < out.length; i++) out[i] = a[i * strideA] * b[i * strideB];
+            }
+            case DIV -> {
+                for (int i = 0; i < out.length; i++) out[i] = a[i * strideA] / b[i * strideB];
+            }
+            case MIN -> {
+                for (int i = 0; i < out.length; i++) out[i] = Math.min(a[i * strideA], b[i * strideB]);
+            }
+            case MAX -> {
+                for (int i = 0; i < out.length; i++) out[i] = Math.max(a[i * strideA], b[i * strideB]);
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean rank1F16(Operation.OpType type, short[] a, short[] b, short[] out, ResolvedBroadcastPlan plan) {
+        int[] outShape = plan.outShape();
+        if (outShape.length != 1) {
+            return false;
+        }
+        int strideA = plan.aEffStrides()[0];
+        int strideB = plan.bEffStrides()[0];
+        switch (type) {
+            case ADD -> {
+                for (int i = 0; i < out.length; i++) {
+                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toHalfBits(av + bv);
+                }
+            }
+            case SUB -> {
+                for (int i = 0; i < out.length; i++) {
+                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toHalfBits(av - bv);
+                }
+            }
+            case MUL -> {
+                for (int i = 0; i < out.length; i++) {
+                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toHalfBits(av * bv);
+                }
+            }
+            case DIV -> {
+                for (int i = 0; i < out.length; i++) {
+                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toHalfBits(av / bv);
+                }
+            }
+            case MIN -> {
+                for (int i = 0; i < out.length; i++) {
+                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toHalfBits(Math.min(av, bv));
+                }
+            }
+            case MAX -> {
+                for (int i = 0; i < out.length; i++) {
+                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toHalfBits(Math.max(av, bv));
+                }
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void parallelF64(Operation.OpType type, double[] a, double[] b, double[] out, ResolvedBroadcastPlan plan, CpuExecutionConfig config) {
@@ -92,6 +224,8 @@ public final class BroadcastBinaryKernel {
         int[] outShape = plan.outShape();
         int[] aEffStrides = plan.aEffStrides();
         int[] bEffStrides = plan.bEffStrides();
+        int[] aResets = plan.aResets();
+        int[] bResets = plan.bResets();
         int rank = outStrides.length;
 
         int[] coords = new int[rank];
@@ -120,8 +254,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -136,8 +270,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -152,8 +286,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -168,8 +302,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -184,8 +318,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -200,8 +334,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -218,6 +352,8 @@ public final class BroadcastBinaryKernel {
         int[] outShape = plan.outShape();
         int[] aEffStrides = plan.aEffStrides();
         int[] bEffStrides = plan.bEffStrides();
+        int[] aResets = plan.aResets();
+        int[] bResets = plan.bResets();
         int rank = outStrides.length;
 
         // Decode start index once per chunk.
@@ -247,8 +383,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -263,8 +399,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -279,8 +415,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -295,8 +431,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -311,8 +447,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -327,8 +463,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -345,6 +481,8 @@ public final class BroadcastBinaryKernel {
         int[] outShape = plan.outShape();
         int[] aEffStrides = plan.aEffStrides();
         int[] bEffStrides = plan.bEffStrides();
+        int[] aResets = plan.aResets();
+        int[] bResets = plan.bResets();
         int rank = outStrides.length;
 
         int[] coords = new int[rank];
@@ -375,8 +513,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -393,8 +531,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -411,8 +549,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -429,8 +567,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -447,8 +585,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
@@ -465,8 +603,8 @@ public final class BroadcastBinaryKernel {
                             break;
                         }
                         coords[d] = 0;
-                        aIdx -= outShape[d] * aEffStrides[d];
-                        bIdx -= outShape[d] * bEffStrides[d];
+                        aIdx -= aResets[d];
+                        bIdx -= bResets[d];
                     }
                 }
             }
