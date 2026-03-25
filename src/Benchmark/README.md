@@ -10,6 +10,7 @@ Primary goals:
 - report forward/training latency and speedups
 - enforce numeric equivalence checks
 - persist winning profiles for runtime reuse
+- cache context-specific unsafe candidates to prune future autotune runs
 
 ## Main Components
 
@@ -28,7 +29,10 @@ Primary goals:
 ## Run Flow
 
 1. Build default candidates (`NO_OPT`, staged variants, `RECOMMENDED`, `INFERENCE_PERF`).
-2. Apply persisted profile overrides to recommended/inference candidates.
+2. Apply profile chain to recommended/inference candidates:
+  - persisted best-profile overrides
+  - architecture presets (`os.arch`, including ARM/aarch64 and x86_64/amd64)
+  - HW-bucket override for current machine (`config/optimizer-hw-profiles.tsv`)
 3. Run scalar sanity check.
 4. Run main benchmark:
   - forward-only measurement
@@ -40,8 +44,15 @@ Primary goals:
 ## Candidate Semantics
 
 - `NO_OPT`: empty stage list, executed via explicit empty `GraphOptimizer` baseline.
-- `RECOMMENDED`: training-oriented candidate, profile-overridden by persisted training winner.
-- `INFERENCE_PERF`: inference-oriented candidate, profile-overridden by persisted inference winner.
+- `RECOMMENDED`: training-oriented candidate, finalized via profile chain.
+- `INFERENCE_PERF`: inference-oriented candidate, finalized via profile chain.
+
+At runtime and benchmark startup, final candidate params are selected with this priority:
+
+1. HW-bucket profile (`optimizer-hw-profiles.tsv`) for current bucket.
+2. Architecture preset (`os.arch`).
+3. Persisted best-profile override (`best-profile-*.json`).
+4. Built-in defaults.
 
 ## Correctness Checks
 
@@ -72,7 +83,16 @@ Persist behavior:
   - `config/optimizer-profile.json` (runtime training profile)
 - save improved inference winner:
   - `build/optimizer-autotune/best-profile-inference.json`
+- update improved HW-bucket entries:
+  - `config/optimizer-hw-profiles.tsv` (`TRAINING` + `INFERENCE`)
 - keep previous winner if new score is not better
+
+Unsafe-candidate cache:
+
+- `build/optimizer-autotune/candidate-history.tsv`
+- stores `UNSAFE` fingerprints (currently mismatch-based) with context signature
+- context includes dtype, tolerances, workload shape/size, schema/engine versions, OS/arch/JVM/vendor/core count
+- candidates marked unsafe in matching context are skipped on next autotune run
 
 ## Tuning Knobs
 
@@ -220,9 +240,9 @@ These knobs influence benchmark behavior, but they are not part of `TuningKnobs`
 
 Current autotune candidate construction:
 
-- `874` knob profiles
+- `3466` knob profiles
 - `65` stage-order variants per profile
-- total generated candidates: `874 * 65 = 56810`
+- total generated candidates: `3466 * 65 = 225290`
 
 Benchmark cap is controlled by `AUTOTUNE_MAX_CANDIDATES` in:
 

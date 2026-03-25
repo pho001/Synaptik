@@ -43,12 +43,29 @@ Related files:
 
 ## Compile-Time Resolution and Runtime Overhead
 
-During graph compilation, backend and CPU kernel are pre-resolved per node:
+During graph compilation, backend and CPU execution metadata are pre-resolved per node:
 
 - `Tensor.setResolvedBackend(...)`
 - `Tensor.setResolvedCpuKernel(...)`
+- `Tensor.setResolvedCpuExecutionPlan(...)`
+- `Tensor.setResolvedBroadcastPlan(...)`
+- `Tensor.setResolvedCpuConfigEpoch(...)`
 
 `CPUBackend.execute(...)` first uses pre-resolved kernel from node cache and only falls back to `CpuKernelRegistry.resolve(...)` if cache is missing. This keeps hot-path dispatch overhead low.
+
+Execution plan currently precomputes:
+
+- target dtype
+- non-contiguous remap preparation (`TensorRemap.RemapPlan`)
+- broadcast stride plan (`ResolvedBroadcastPlan`) for binary broadcast kernels
+- dispatch hints (mode + chunk sizing) used by `CpuExecutionConfig`
+
+Plan staleness is guarded by `ComputeEngine` CPU-config epoch, so runtime rebuild happens only when kernel config changes.
+
+Debug toggles:
+
+- `-Dcg.cpu.disableResolveExecutionHints=true` disables compile-time resolve in `CompiledGraph`.
+- `-Dcg.cpu.disablePreResolvedExecutionPlan=true` disables execution-plan reuse in `CPUBackend`.
 
 ## CPU Backend Details
 
@@ -148,15 +165,23 @@ The same policy is honored in:
 Optimizer profiles are used as runtime source of tuning knobs:
 
 - training profile path: `config/optimizer-profile.json`
+- hardware-bucket profile path: `config/optimizer-hw-profiles.tsv`
 - autotune training winner: `build/optimizer-autotune/best-profile-training.json`
 - autotune inference winner: `build/optimizer-autotune/best-profile-inference.json`
 
 [src/Graph/optimizer/OptimizerFactory.java](../Graph/optimizer/OptimizerFactory.java):
 
-- `createRecommendedTrainingOptimizer()` loads recommended/training profile and applies CPU kernel config.
-- `createInferencePerformanceOptimizer()` loads inference profile and applies CPU kernel config.
+- `createRecommendedTrainingOptimizer()` loads profile chain and applies CPU kernel config.
+- `createInferencePerformanceOptimizer()` loads profile chain and applies CPU kernel config.
 
-This means backend dispatch thresholds/chunking are profile-driven, with defaults acting as fallback.
+Profile chain priority:
+
+1. HW-bucket profile (`optimizer-hw-profiles.tsv`) for current machine.
+2. Architecture preset (`os.arch`, including ARM/aarch64 and x86_64/amd64).
+3. Persisted best-profile override (`best-profile-*.json`).
+4. Defaults.
+
+This means backend dispatch thresholds/chunking are profile-driven, with robust fallbacks before autotune is run.
 
 ## CUDA and OpenCL Status
 

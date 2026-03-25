@@ -92,10 +92,19 @@ Autotune is two-phase:
 
 Winning profiles are persisted:
 - `config/optimizer-profile.json` (runtime training profile),
+- `config/optimizer-hw-profiles.tsv` (runtime HW-bucket profiles),
 - `build/optimizer-autotune/best-profile-training.json`,
 - `build/optimizer-autotune/best-profile-inference.json`.
+- `build/optimizer-autotune/candidate-history.tsv` (context-aware unsafe candidate cache).
 
-`RECOMMENDED` is profile-overridden by the autotune training winner.
+Runtime profile selection priority is:
+
+1. HW-bucket profile (`optimizer-hw-profiles.tsv`).
+2. Architecture preset (`os.arch`, includes ARM/aarch64 and x86_64/amd64).
+3. Best-profile overrides (`best-profile-*.json`).
+4. Defaults.
+
+Autotune now records context-specific unsafe candidates (mismatch-based) and skips them on subsequent runs with matching context.
 
 CPU dispatch-related tuned knobs include:
 

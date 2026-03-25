@@ -233,10 +233,17 @@ Autotuning is two-phase:
 Winning profiles are persisted and reused on startup:
 
 - runtime training profile: [`config/optimizer-profile.json`](config/optimizer-profile.json)
+- runtime HW-bucket profiles: [`config/optimizer-hw-profiles.tsv`](config/optimizer-hw-profiles.tsv)
 - autotune best training: [`build/optimizer-autotune/best-profile-training.json`](build/optimizer-autotune/best-profile-training.json)
 - autotune best inference: [`build/optimizer-autotune/best-profile-inference.json`](build/optimizer-autotune/best-profile-inference.json)
+- autotune unsafe candidate history: [`build/optimizer-autotune/candidate-history.tsv`](build/optimizer-autotune/candidate-history.tsv)
 
-`RECOMMENDED` is treated as a profile-backed runtime configuration and can be overridden by persisted autotune winners.
+Runtime profile priority is:
+
+1. HW-bucket profile (`optimizer-hw-profiles.tsv`) for current machine bucket.
+2. Architecture preset (`os.arch`, includes ARM/aarch64 and x86_64/amd64 fallbacks).
+3. Persisted autotune winners (`best-profile-*.json`).
+4. Built-in defaults.
 
 ## Testing
 

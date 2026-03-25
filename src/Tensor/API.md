@@ -82,13 +82,14 @@ Primary class:
 - `setDataAt(int flatIndex, double value)`
 - `getData()` (`FLOAT64` only)
 - `setData(double[] data)`
+- `setData(float[] data)`
+- `setData(short[] data)`
+- `setFloat32Data(float[] data)` (`FLOAT32` only)
 - `getFloat64Data()`
 - `getFloat32Data()`
 - `getFloat16Data()`
 - `toDoubleArrayCopy()`
 - `scalarAsDouble()`
-- `syncDataToStorage()`
-- `syncStorageToData()` (`FLOAT64` only)
 - `markDataViewStale()`
 - `aliasRuntimeFrom(Tensor source)`
 
@@ -116,6 +117,12 @@ Primary class:
 - `setResolvedBackend(ComputeBackend resolvedBackend)`
 - `getResolvedCpuKernel()`
 - `setResolvedCpuKernel(CpuKernel resolvedCpuKernel)`
+- `getResolvedCpuExecutionPlan()`
+- `setResolvedCpuExecutionPlan(CPUBackend.CpuNodeExecutionPlan plan)`
+- `getResolvedBroadcastPlan()`
+- `setResolvedBroadcastPlan(ResolvedBroadcastPlan plan)`
+- `getResolvedCpuConfigEpoch()`
+- `setResolvedCpuConfigEpoch(long epoch)`
 
 ## Label / Grad / Type / Storage
 

@@ -48,6 +48,9 @@ It combines:
 - cached compiled execution data:
   - resolved backend (`resolvedBackend`)
   - resolved CPU kernel (`resolvedCpuKernel`)
+  - resolved CPU execution plan (`resolvedCpuExecutionPlan`)
+  - resolved broadcast plan (`resolvedBroadcastPlan`)
+  - resolved CPU config epoch (`resolvedCpuConfigEpoch`)
   - compiled graph handle (`compiledGraph`)
 
 `TensorMetadata` handles:
@@ -105,9 +108,10 @@ During compile, resolved backend and CPU kernel are cached per node to reduce ru
 
 Current remap behavior:
 
-- iterates over logical dense index space (`prod(shape)`)
-- maps each logical index to source/destination offsets via respective strides
-- supports sequential and parallel remap paths
+- compile-time remap plan support (`TensorRemap.RemapPlan`) reused in backend hot path
+- typed fast paths for contiguous/same-stride copies (`System.arraycopy` for F64/F32/F16)
+- odometer/range-walker offset traversal (avoids per-element `logicalToOffset` recomputation)
+- supports sequential and parallel remap paths via `CpuThreadPool`
 
 This avoids stride-indexing out-of-bounds issues on non-contiguous tensors and is used by backend materialization paths.
 

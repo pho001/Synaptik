@@ -31,6 +31,8 @@ The Graph module compiles tensor expression DAGs into executable plans, runs for
 4. Pre-resolve per-node execution metadata:
   - resolved backend
   - resolved CPU kernel
+  - resolved CPU execution plan (dtype/remap/dispatch/broadcast hints)
+  - CPU config epoch for staleness checks
 5. Cache forward boundary index for two-phase execution (forward first, backward section after).
 
 ## Execution Pipeline
@@ -48,6 +50,11 @@ Dispatch uses:
 - [src/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)
 
 with pre-resolved backend per node for low-overhead execution.
+
+Debug switches for pre-resolve behavior:
+
+- `-Dcg.cpu.disableResolveExecutionHints=true` disables compile-time resolve pass in `CompiledGraph`.
+- `-Dcg.cpu.disablePreResolvedExecutionPlan=true` disables cached CPU execution-plan reuse in `CPUBackend`.
 
 Approximation-aware fused path:
 
