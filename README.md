@@ -15,7 +15,7 @@ Synaptik is a lightweight Java computational graph and autodiff playground focus
 ## Requirements
 
 - JDK 25
-- Gradle 9.x compatible environment, or the included Gradle Wrapper
+- Gradle 8.14+ compatible environment, or the included Gradle Wrapper
 - macOS, Linux, or Windows
 
 Vector API note:
@@ -60,6 +60,9 @@ On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
 - [`src/Benchmark/`](src/Benchmark)
   - Benchmark harness, candidate selection, profile I/O, and tuning utilities
   - Module documentation: [`src/Benchmark/README.md`](src/Benchmark/README.md)
+- [`src/Numerics/`](src/Numerics)
+  - Standalone numerics A/B harness for stability diagnostics
+  - Module documentation: [`src/Numerics/README.md`](src/Numerics/README.md)
 - [`src/Config/`](src/Config)
   - Backend and optimizer tuning configuration objects
 - [`config/`](config)
@@ -76,6 +79,7 @@ Detailed per-module docs:
 - Graph: [`src/Graph/README.md`](src/Graph/README.md)
 - Optimizer: [`src/Graph/optimizer/README.md`](src/Graph/optimizer/README.md)
 - Benchmark: [`src/Benchmark/README.md`](src/Benchmark/README.md)
+- Numerics: [`src/Numerics/README.md`](src/Numerics/README.md)
 
 ### Tensor Runtime
 
@@ -236,7 +240,8 @@ Winning profiles are persisted and reused on startup:
 - runtime HW-bucket profiles: [`config/optimizer-hw-profiles.tsv`](config/optimizer-hw-profiles.tsv)
 - autotune best training: [`build/optimizer-autotune/best-profile-training.json`](build/optimizer-autotune/best-profile-training.json)
 - autotune best inference: [`build/optimizer-autotune/best-profile-inference.json`](build/optimizer-autotune/best-profile-inference.json)
-- autotune unsafe candidate history: [`build/optimizer-autotune/candidate-history.tsv`](build/optimizer-autotune/candidate-history.tsv)
+- autotune unsafe candidate history (mismatch + numerics post-check unsafe): [`build/optimizer-autotune/candidate-history.tsv`](build/optimizer-autotune/candidate-history.tsv)
+- numerics post-check reports: [`build/numerics/`](build/numerics)
 
 Runtime profile priority is:
 

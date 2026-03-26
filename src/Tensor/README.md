@@ -79,6 +79,7 @@ Related files:
 - [src/Graph/optimizer/OptimizerFactory.java](../Graph/optimizer/OptimizerFactory.java)
 - [src/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)
 - [src/Tensor/TensorUnaryOps.java](../Tensor/TensorUnaryOps.java)
+- Numerics diagnostics harness: [src/Numerics/README.md](../Numerics/README.md)
 
 ## Gradient and Backward
 

@@ -110,3 +110,4 @@ In training graphs (`requiresGrad=true` path), this rewrite is intentionally ski
 
 - `ByteCodeGenerator` is a minimal ASM sample/utility and not the primary fused execution path.
 - Optimizer configuration and profile-driven runtime knobs are handled via `OptimizerFactory` and benchmark profile files.
+- Numerics stability diagnostics and post-check tooling are documented in [src/Numerics/README.md](../Numerics/README.md).

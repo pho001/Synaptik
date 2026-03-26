@@ -183,6 +183,10 @@ Profile chain priority:
 
 This means backend dispatch thresholds/chunking are profile-driven, with robust fallbacks before autotune is run.
 
+Related numerics diagnostics tooling:
+
+- [src/Numerics/README.md](../Numerics/README.md)
+
 ## CUDA and OpenCL Status
 
 CUDA and OpenCL backends are intentionally scaffolded.
