@@ -1,5 +1,7 @@
 package Backend.kernels.cpu;
 
+import Backend.blas.BlasRuntime;
+import Backend.blas.OpenBlasFfmBridge;
 import Operations.Operation;
 import Tensor.Tensor;
 import jdk.incubator.vector.DoubleVector;
@@ -12,6 +14,7 @@ import java.util.List;
 public class CpuMatMulKernel implements CpuKernel {
     private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
+    private static volatile boolean blasAvailabilityLogged;
 
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
@@ -36,6 +39,9 @@ public class CpuMatMulKernel implements CpuKernel {
         double[] ad = a.getFloat64Data();
         double[] bd = b.getFloat64Data();
         double[] out = node.getFloat64Data();
+        if (tryBlasF64(a, b, node, ad, bd, out, m, n, k)) {
+            return;
+        }
         Arrays.fill(out, 0.0d);
         runF64(ad, bd, out, m, n, k, config);
     }
@@ -53,6 +59,9 @@ public class CpuMatMulKernel implements CpuKernel {
         float[] ad = a.getFloat32Data();
         float[] bd = b.getFloat32Data();
         float[] out = node.getFloat32Data();
+        if (tryBlasF32(a, b, node, ad, bd, out, m, n, k)) {
+            return;
+        }
         Arrays.fill(out, 0.0f);
         runF32(ad, bd, out, m, n, k, config);
     }
@@ -234,6 +243,101 @@ public class CpuMatMulKernel implements CpuKernel {
 
     private static int positiveTile(int value, int fallback) {
         return value > 0 ? value : fallback;
+    }
+
+    private static boolean tryBlasF64(
+            Tensor a,
+            Tensor b,
+            Tensor out,
+            double[] ad,
+            double[] bd,
+            double[] od,
+            int m,
+            int n,
+            int k
+    ) {
+        if (!shouldUseBlas(a, b, out, m, n, k)) {
+            return false;
+        }
+        try {
+            OpenBlasFfmBridge.dgemmRowMajorNoTrans(
+                    m, n, k,
+                    1.0d,
+                    ad, k,
+                    bd, n,
+                    0.0d,
+                    od, n
+            );
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] DGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
+    }
+
+    private static boolean tryBlasF32(
+            Tensor a,
+            Tensor b,
+            Tensor out,
+            float[] ad,
+            float[] bd,
+            float[] od,
+            int m,
+            int n,
+            int k
+    ) {
+        if (!shouldUseBlas(a, b, out, m, n, k)) {
+            return false;
+        }
+        try {
+            OpenBlasFfmBridge.sgemmRowMajorNoTrans(
+                    m, n, k,
+                    1.0f,
+                    ad, k,
+                    bd, n,
+                    0.0f,
+                    od, n
+            );
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] SGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
+    }
+
+    private static boolean shouldUseBlas(Tensor a, Tensor b, Tensor out, int m, int n, int k) {
+        if (!BlasRuntime.isOpenBlasFfmEnabled()) {
+            return false;
+        }
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            maybeLogBlasUnavailable();
+            return false;
+        }
+        if (!a.isContiguous() || !b.isContiguous() || !out.isContiguous()) {
+            return false;
+        }
+        long work = (long) m * n * k;
+        return work >= BlasRuntime.matMulMinWork();
+    }
+
+    private static void maybeLogBlasUnavailable() {
+        if (blasAvailabilityLogged) {
+            return;
+        }
+        synchronized (CpuMatMulKernel.class) {
+            if (blasAvailabilityLogged) {
+                return;
+            }
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] OpenBLAS FFM unavailable, using Java matmul fallback. Reason: "
+                        + OpenBlasFfmBridge.unavailableReason());
+            }
+            blasAvailabilityLogged = true;
+        }
     }
 
     @Override

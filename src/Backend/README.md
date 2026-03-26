@@ -160,6 +160,26 @@ The same policy is honored in:
 - strided fallback path
 - fused codegen helper operations
 
+## Experimental BLAS (FFM)
+
+CPU matmul can optionally route to OpenBLAS via Java FFM API.
+
+Runtime properties:
+
+- `cg.cpu.blas.provider=NONE|OPENBLAS_FFM` (default `NONE`)
+- `cg.cpu.blas.matmulMinWork=<long>` (default `2000000`)
+- `cg.cpu.blas.debug=true|false` (default `false`)
+- optional library override:
+  - `-Dopenblas.lib=<absolute-path-to-library>`
+  - or `OPENBLAS_LIB` environment variable
+
+Notes:
+
+- current BLAS routing is used only for contiguous matmul tensors and large enough workloads
+- fallback to Java kernel is automatic on any lookup/call failure
+- FFM native access warning can be suppressed by running with:
+  - `--enable-native-access=ALL-UNNAMED`
+
 ## Profile-Driven Runtime Configuration
 
 Optimizer profiles are used as runtime source of tuning knobs:
