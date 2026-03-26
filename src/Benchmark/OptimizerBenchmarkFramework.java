@@ -2,6 +2,10 @@ package Benchmark;
 
 import Backend.ComputeEngine;
 import Graph.optimizer.GraphOptimizer;
+import Numerics.NumericsHarness;
+import Numerics.NumericsMetrics;
+import Numerics.NumericsPolicy;
+import Numerics.NumericsReport;
 import Tensor.DataType;
 import Tensor.Tensor;
 
@@ -11,7 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -93,6 +99,12 @@ public final class OptimizerBenchmarkFramework {
             System.getProperty("benchmark.autotunePrintCandidates", "").trim();
     private static final String AUTOTUNE_COMPARE_NOOPT_MEM_CANDIDATES =
             System.getProperty("benchmark.autotuneCompareNoOptMemCandidates", "").trim();
+    private static final boolean AUTOTUNE_NUMERICS_POSTCHECK =
+            Boolean.parseBoolean(System.getProperty("benchmark.autotuneNumericsPostcheck", "false"));
+    private static final int AUTOTUNE_NUMERICS_POSTCHECK_TOP_N =
+            Math.max(1, Integer.getInteger("benchmark.autotuneNumericsPostcheckTopN", Integer.MAX_VALUE));
+    private static final long AUTOTUNE_NUMERICS_POSTCHECK_SEED =
+            Long.getLong("benchmark.autotuneNumericsPostcheckSeed", 42L);
     private static final double ABS_TOL_FLOAT64 = 1e-12;
     private static final double REL_TOL_FLOAT64 = 1e-12;
     private static final double ABS_TOL_FLOAT32 = 1e-5;
@@ -119,9 +131,12 @@ public final class OptimizerBenchmarkFramework {
     private static final Path AUTOTUNE_BEST_INFERENCE_PATH = Path.of("build", "optimizer-autotune", "best-profile-inference.json");
     private static final Path HW_PROFILE_PATH = Path.of("config", "optimizer-hw-profiles.tsv");
     private static final Path AUTOTUNE_HISTORY_PATH = Path.of("build", "optimizer-autotune", "candidate-history.tsv");
+    private static final Path AUTOTUNE_NUMERICS_REPORT_DIR = Path.of("build", "numerics");
     private static final int AUTOTUNE_HISTORY_SCHEMA_VERSION = 1;
     private static final int AUTOTUNE_ENGINE_VERSION = 3;
     private static final int HW_PROFILE_MAX_BUCKETS = 10;
+    private static final DateTimeFormatter AUTOTUNE_NUMERICS_TS_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     public static void run() {
         List<OptimizerCandidate> candidates = applyProfileToDefaults(OptimizerCandidateFactory.defaultCandidates());
@@ -765,6 +780,14 @@ public final class OptimizerBenchmarkFramework {
         for (int i = 0; i < kTrain; i++) finalistsSet.add(byTraining.get(i).candidate);
         for (int i = 0; i < kInf; i++) finalistsSet.add(byInference.get(i).candidate);
         List<OptimizerCandidate> finalistsList = new ArrayList<>(finalistsSet);
+        if (AUTOTUNE_NUMERICS_POSTCHECK) {
+            finalistsList = applyNumericsPostcheck(finalistsList, history);
+            if (finalistsList.isEmpty()) {
+                System.out.println(RED + "No finalist left after numerics post-check." + RESET);
+                history.save(AUTOTUNE_HISTORY_PATH);
+                return;
+            }
+        }
         int finalists = finalistsList.size();
         System.out.println(GRAY + "Phase1 valid=" + validCount + ", mismatch=" + mismatchCount
                 + " (safety=" + mismatchSafetyCount + ", full=" + mismatchFullCount + ")"
@@ -917,6 +940,144 @@ public final class OptimizerBenchmarkFramework {
                 + (0.50 * trainMs)
                 + (AUTOTUNE_TRAIN_BROADCAST_WEIGHT * broadcastMs)
                 + (0.0005 * graphTrnSize);
+    }
+
+    private static List<OptimizerCandidate> applyNumericsPostcheck(
+            List<OptimizerCandidate> finalistsList,
+            CandidateHistory history
+    ) {
+        NumericsHarness.Config cfg = new NumericsHarness.Config();
+        cfg.dtype = BENCH_DTYPE;
+        cfg.size = AUTOTUNE_SIZE;
+        cfg.graphBlocks = AUTOTUNE_GRAPH_BLOCKS;
+        cfg.b0 = AUTOTUNE_BROADCAST_B0;
+        cfg.b1 = AUTOTUNE_BROADCAST_B1;
+        cfg.f = AUTOTUNE_BROADCAST_F;
+        cfg.seed = AUTOTUNE_NUMERICS_POSTCHECK_SEED;
+
+        NumericsHarness harness = new NumericsHarness(cfg);
+        NumericsPolicy policy = NumericsPolicy.defaultsFor(BENCH_DTYPE);
+        List<OptimizerCandidate> out = new ArrayList<>();
+        List<NumericsPostcheckRow> rows = new ArrayList<>();
+
+        int checked = 0;
+        int markedUnsafe = 0;
+        for (OptimizerCandidate finalist : finalistsList) {
+            if (checked >= AUTOTUNE_NUMERICS_POSTCHECK_TOP_N) {
+                out.add(finalist);
+                continue;
+            }
+            OptimizerCandidate baselineNoOptSameKnobs = new OptimizerCandidate(
+                    finalist.name() + "_NUM_NOOPT",
+                    List.of(),
+                    finalist.knobs()
+            );
+            NumericsReport report = harness.run(baselineNoOptSameKnobs, finalist, policy);
+            checked++;
+            rows.add(NumericsPostcheckRow.of(finalist.name(), report));
+            if (report.verdict.status == NumericsPolicy.Status.UNSAFE) {
+                history.markUnsafe(
+                        candidateFingerprint(finalist),
+                        finalist.name(),
+                        "NUMERICS_POSTCHECK_UNSAFE: " + report.verdict.reason
+                );
+                markedUnsafe++;
+                System.out.println(YELLOW + "Numerics post-check filtered finalist=" + finalist.name()
+                        + " | reason=" + report.verdict.reason + RESET);
+                continue;
+            }
+            out.add(finalist);
+        }
+        Path reportPath = writeNumericsPostcheckTsv(rows);
+        System.out.println(GRAY + "Numerics post-check enabled: checked=" + checked
+                + ", kept=" + out.size()
+                + ", dropped=" + (finalistsList.size() - out.size())
+                + ", markedUnsafe=" + markedUnsafe + RESET);
+        if (reportPath != null) {
+            System.out.println(CYAN + "Numerics post-check report: " + RESET + reportPath.toAbsolutePath());
+        }
+        return out;
+    }
+
+    private static Path writeNumericsPostcheckTsv(List<NumericsPostcheckRow> rows) {
+        if (rows.isEmpty()) {
+            return null;
+        }
+        String ts = LocalDateTime.now().format(AUTOTUNE_NUMERICS_TS_FORMAT);
+        String dtype = BENCH_DTYPE.name().toLowerCase(Locale.ROOT);
+        Path path = AUTOTUNE_NUMERICS_REPORT_DIR.resolve("autotune-postcheck-" + dtype + "-" + ts + ".tsv");
+        List<String> lines = new ArrayList<>(rows.size() + 1);
+        lines.add("candidate\tstatus\treason\taggMaxAbs\taggMaxRel\taggMaxUlp\taggInvalid"
+                + "\toutMaxAbs\toutMaxRel\toutMaxUlp\toutInvalid"
+                + "\tgradAMaxAbs\tgradAMaxRel\tgradAMaxUlp\tgradAInvalid"
+                + "\tgradBMaxAbs\tgradBMaxRel\tgradBMaxUlp\tgradBInvalid"
+                + "\tgradCMaxAbs\tgradCMaxRel\tgradCMaxUlp\tgradCInvalid"
+                + "\tbroadcastMaxAbs\tbroadcastMaxRel\tbroadcastMaxUlp\tbroadcastInvalid");
+        for (NumericsPostcheckRow row : rows) {
+            lines.add(row.toLine());
+        }
+        try {
+            Files.createDirectories(path.getParent());
+            Files.write(path, lines, StandardCharsets.UTF_8);
+            return path;
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to write numerics post-check report", e);
+        }
+    }
+
+    private static String sanitizeTsv(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace('\t', ' ')
+                .replace('\n', ' ')
+                .replace('\r', ' ');
+    }
+
+    private static String fmtDouble(double v) {
+        return String.format(Locale.US, "%.12e", v);
+    }
+
+    private static final class NumericsPostcheckRow {
+        private final String candidateName;
+        private final NumericsReport report;
+
+        private NumericsPostcheckRow(String candidateName, NumericsReport report) {
+            this.candidateName = candidateName;
+            this.report = report;
+        }
+
+        private static NumericsPostcheckRow of(String candidateName, NumericsReport report) {
+            return new NumericsPostcheckRow(candidateName, report);
+        }
+
+        private String toLine() {
+            StringBuilder sb = new StringBuilder(512);
+            sb.append(sanitizeTsv(candidateName)).append('\t');
+            sb.append(report.verdict.status).append('\t');
+            sb.append(sanitizeTsv(report.verdict.reason)).append('\t');
+            appendAggregate(sb, report.aggregate);
+            appendSignal(sb, report.out);
+            appendSignal(sb, report.gradA);
+            appendSignal(sb, report.gradB);
+            appendSignal(sb, report.gradC);
+            appendSignal(sb, report.broadcast);
+            return sb.toString();
+        }
+
+        private static void appendAggregate(StringBuilder sb, NumericsMetrics.AggregateMetrics m) {
+            sb.append(fmtDouble(m.maxAbs)).append('\t');
+            sb.append(fmtDouble(m.maxRel)).append('\t');
+            sb.append(m.maxUlp).append('\t');
+            sb.append(m.invalidCount).append('\t');
+        }
+
+        private static void appendSignal(StringBuilder sb, NumericsMetrics.SignalMetrics m) {
+            sb.append(fmtDouble(m.maxAbs)).append('\t');
+            sb.append(fmtDouble(m.maxRel)).append('\t');
+            sb.append(m.maxUlp).append('\t');
+            sb.append(m.invalidCount).append('\t');
+        }
     }
 
     private static List<OptimizerCandidate> capCandidatesDeterministic(List<OptimizerCandidate> all, int maxCount) {
