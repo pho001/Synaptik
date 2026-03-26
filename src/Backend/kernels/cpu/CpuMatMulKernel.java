@@ -256,7 +256,7 @@ public class CpuMatMulKernel implements CpuKernel {
             int n,
             int k
     ) {
-        if (!shouldUseBlas(a, b, out, m, n, k)) {
+        if (!shouldUseBlas(a, b, out, m, n, k, false)) {
             return false;
         }
         try {
@@ -288,7 +288,7 @@ public class CpuMatMulKernel implements CpuKernel {
             int n,
             int k
     ) {
-        if (!shouldUseBlas(a, b, out, m, n, k)) {
+        if (!shouldUseBlas(a, b, out, m, n, k, true)) {
             return false;
         }
         try {
@@ -309,7 +309,7 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static boolean shouldUseBlas(Tensor a, Tensor b, Tensor out, int m, int n, int k) {
+    private static boolean shouldUseBlas(Tensor a, Tensor b, Tensor out, int m, int n, int k, boolean f32) {
         if (!BlasRuntime.isOpenBlasFfmEnabled()) {
             return false;
         }
@@ -318,6 +318,10 @@ public class CpuMatMulKernel implements CpuKernel {
             return false;
         }
         if (!a.isContiguous() || !b.isContiguous() || !out.isContiguous()) {
+            return false;
+        }
+        // Empirical guard: for FLOAT32 on short-fat A (m < k), OpenBLAS can regress due bridge/call overhead.
+        if (f32 && BlasRuntime.f32RequireMgeK() && m < k) {
             return false;
         }
         long work = (long) m * n * k;

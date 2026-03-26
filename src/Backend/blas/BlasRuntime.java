@@ -11,6 +11,9 @@ public final class BlasRuntime {
     private static final boolean DEBUG = Boolean.parseBoolean(
             System.getProperty("cg.cpu.blas.debug", "false")
     );
+    private static final boolean F32_REQUIRE_M_GE_K = Boolean.parseBoolean(
+            System.getProperty("cg.cpu.blas.f32RequireMgeK", "true")
+    );
 
     private BlasRuntime() {}
 
@@ -24,6 +27,10 @@ public final class BlasRuntime {
 
     public static boolean debug() {
         return DEBUG;
+    }
+
+    public static boolean f32RequireMgeK() {
+        return F32_REQUIRE_M_GE_K;
     }
 
     public static boolean isOpenBlasFfmEnabled() {
