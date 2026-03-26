@@ -91,7 +91,9 @@ final class TensorUnaryOps {
     }
 
     static Tensor pow(Tensor input, double exponent) {
-        Operation op = new pow(exponent);
+        boolean isF32 = input.getDataType() == DataType.FLOAT32;
+        final double exponentForGrad = isF32 ? (float) exponent : exponent;
+        final Operation op = isF32 ? new pow((float) exponent) : new pow(exponent);
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "pow");
         out.setDataType(TensorDataTypeUtil.unary(input));
 
@@ -99,8 +101,8 @@ final class TensorUnaryOps {
             Tensor outGrad = out.getGradient();
             if (input.getRequiresGrad()) {
                 Tensor gradForInput = outGrad
-                        .mul(exponent)
-                        .mul(input.pow(exponent - 1.0));
+                        .mul(exponentForGrad)
+                        .mul(input.pow(exponentForGrad - 1.0));
 
                 if (input.getGradient() == null) {
                     input.setGradient(gradForInput);
@@ -114,14 +116,16 @@ final class TensorUnaryOps {
     }
 
     static Tensor mulScalar(Tensor input, double scalar) {
-        Operation op = new mulScalar(scalar);
+        boolean isF32 = input.getDataType() == DataType.FLOAT32;
+        final double scalarForGrad = isF32 ? (float) scalar : scalar;
+        final Operation op = isF32 ? new mulScalar((float) scalar) : new mulScalar(scalar);
         Tensor out = new Tensor(input.getShape(), List.of(input), op, "* constant");
         out.setDataType(TensorDataTypeUtil.unary(input));
 
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (input.getRequiresGrad()) {
-                Tensor gradForInput = outGrad.mul(scalar);
+                Tensor gradForInput = outGrad.mul(scalarForGrad);
                 if (input.getGradient() == null) {
                     input.setGradient(gradForInput);
                 } else {

@@ -569,14 +569,22 @@ public class HFusedOperationGenerator implements Opcodes {
             case "noop" -> emitVectorUnaryOpCall(mv, "noop", precisionMode);
             case "mulscalar" -> {
                 Operations.mulScalar ms = (Operations.mulScalar) current.getOperation();
-                mv.visitLdcInsn(ms.getScalar());
+                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn(ms.getScalarF32());
+                } else {
+                    mv.visitLdcInsn(ms.getScalar());
+                }
                 emitVectorMulScalarCall(mv, precisionMode);
             }
             case "pow" -> {
                 if (!(current.getOperation() instanceof Operations.pow p)) {
                     throw new UnsupportedOperationException("pow operation instance is missing exponent metadata.");
                 }
-                mv.visitLdcInsn(p.getExponent());
+                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn(p.getExponentF32());
+                } else {
+                    mv.visitLdcInsn(p.getExponent());
+                }
                 emitVectorPowCall(mv, precisionMode);
             }
             default -> throw new UnsupportedOperationException("Operation " + op + " is not supported for fused vector execution.");
@@ -718,9 +726,12 @@ public class HFusedOperationGenerator implements Opcodes {
             mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalar", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
         String vd = vectorTypeDesc(precisionMode);
-        mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalar" + suffix, "(" + vd + "D)" + vd, false);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalarF32", "(" + vd + "F)" + vd, false);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalarF64", "(" + vd + "D)" + vd, false);
+        }
     }
 
     private static void emitVectorPowCall(MethodVisitor mv, int precisionMode) {
@@ -729,9 +740,12 @@ public class HFusedOperationGenerator implements Opcodes {
             mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "pow", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
         String vd = vectorTypeDesc(precisionMode);
-        mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "pow" + suffix, "(" + vd + "D)" + vd, false);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "powF32", "(" + vd + "F)" + vd, false);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "powF64", "(" + vd + "D)" + vd, false);
+        }
     }
 
     private static List<Tensor> findExternalInputs(List<Tensor> cluster) {

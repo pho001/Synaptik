@@ -6,10 +6,17 @@ import Backend.ComputeBackend;
 
 public class pow implements Operation {
 
-    double exponent;
+    private final double exponent;
+    private final float exponentF32;
 
     //default implementation - CPU
     public pow(double exponent) {
+        this.exponent = exponent;
+        this.exponentF32 = (float) exponent;
+    }
+
+    public pow(float exponent) {
+        this.exponentF32 = exponent;
         this.exponent = exponent;
     }
 
@@ -91,6 +98,10 @@ public class pow implements Operation {
 
     public double getExponent() {
         return exponent;
+    }
+
+    public float getExponentF32() {
+        return exponentF32;
     }
 
     @Override

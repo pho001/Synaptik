@@ -237,9 +237,9 @@ public final class CpuStridedElementWise {
             case SQRT -> (float) Math.sqrt(a[aIdx]);
             case RELU -> Math.max(0.0f, a[aIdx]);
             case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-a[aIdx])));
-            case MUL_SCALAR -> a[aIdx] * (float) ((mulScalar) op).getScalar();
+            case MUL_SCALAR -> a[aIdx] * ((mulScalar) op).getScalarF32();
             case POW -> {
-                float exponent = (float) ((pow) op).getExponent();
+                float exponent = ((pow) op).getExponentF32();
                 float v = a[aIdx];
                 if (exponent == 0.0f) yield 1.0f;
                 if (exponent == 1.0f) yield v;
@@ -270,9 +270,9 @@ public final class CpuStridedElementWise {
             case SQRT -> (float) Math.sqrt(av);
             case RELU -> Math.max(0.0f, av);
             case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-av)));
-            case MUL_SCALAR -> av * (float) ((mulScalar) op).getScalar();
+            case MUL_SCALAR -> av * ((mulScalar) op).getScalarF32();
             case POW -> {
-                float exponent = (float) ((pow) op).getExponent();
+                float exponent = ((pow) op).getExponentF32();
                 if (exponent == 0.0f) yield 1.0f;
                 if (exponent == 1.0f) yield av;
                 if (exponent == 2.0f) yield av * av;

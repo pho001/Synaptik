@@ -12,7 +12,7 @@ public final class PowF32 {
 
     private PowF32() {}
 
-    public static void run(float[] in, double exponent, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+    public static void run(float[] in, float exponent, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
         switch (mode) {
             case VECTOR -> vector(in, exponent, out);
             case PARALLEL -> parallel(in, exponent, out, config);
@@ -21,8 +21,8 @@ public final class PowF32 {
         }
     }
 
-    private static void scalar(float[] in, double exponent, float[] out, int start, int end) {
-        float e = (float) exponent;
+    private static void scalar(float[] in, float exponent, float[] out, int start, int end) {
+        float e = exponent;
         for (int i = start; i < end; i++) {
             if (e == 0.0f) out[i] = 1.0f;
             else if (e == 1.0f) out[i] = in[i];
@@ -33,8 +33,8 @@ public final class PowF32 {
         }
     }
 
-    private static void vector(float[] in, double exponent, float[] out) {
-        float e = (float) exponent;
+    private static void vector(float[] in, float exponent, float[] out) {
+        float e = exponent;
         if (e != 0.0f && e != 1.0f && e != 2.0f && e != 0.5f && e != -1.0f) {
             scalar(in, exponent, out, 0, out.length);
             return;
@@ -55,7 +55,7 @@ public final class PowF32 {
         scalar(in, exponent, out, i, out.length);
     }
 
-    private static void parallel(float[] in, double exponent, float[] out, CpuExecutionConfig config) {
+    private static void parallel(float[] in, float exponent, float[] out, CpuExecutionConfig config) {
         int chunkSize = config.computeChunkSize(out.length, 1);
         int chunks = (out.length + chunkSize - 1) / chunkSize;
         CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
@@ -65,8 +65,8 @@ public final class PowF32 {
         });
     }
 
-    private static void parallelVector(float[] in, double exponent, float[] out, CpuExecutionConfig config) {
-        float e = (float) exponent;
+    private static void parallelVector(float[] in, float exponent, float[] out, CpuExecutionConfig config) {
+        float e = exponent;
         if (e != 0.0f && e != 1.0f && e != 2.0f && e != 0.5f && e != -1.0f) {
             parallel(in, exponent, out, config);
             return;

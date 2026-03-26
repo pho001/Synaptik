@@ -13,6 +13,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,9 +31,16 @@ public final class OptimizerBenchmarkFramework {
     private static final int STAGE_WARMUP_ITERS = 50;
     private static final int STAGE_MEASURE_ITERS = 300;
     private static final int AUTOTUNE_SIZE = 200_000;
+    private static final int AUTOTUNE_SAFETY_SIZE = Math.max(
+            4096,
+            Integer.getInteger("benchmark.autotuneSafetySize", 128)
+    );
     private static final int AUTOTUNE_WARMUP_ITERS = 12;
     private static final int AUTOTUNE_MEASURE_ITERS = 40;
-    private static final int AUTOTUNE_MAX_CANDIDATES = 500;
+    private static final int AUTOTUNE_MAX_CANDIDATES = Math.max(
+            1,
+            Integer.getInteger("benchmark.autotuneMaxCandidates", 500)
+    );
     private static final int AUTOTUNE_REFINE_TOP_K = 8;
     private static final int AUTOTUNE_REFINE_WARMUP_ITERS = 50;
     private static final int AUTOTUNE_REFINE_MEASURE_ITERS = 300;
@@ -40,14 +48,63 @@ public final class OptimizerBenchmarkFramework {
     private static final int AUTOTUNE_BROADCAST_B0 = 128;
     private static final int AUTOTUNE_BROADCAST_B1 = 8;
     private static final int AUTOTUNE_BROADCAST_F = 128;
+    private static final int AUTOTUNE_SAFETY_BROADCAST_B0 = Math.max(
+            1,
+            Integer.getInteger("benchmark.autotuneSafetyBroadcastB0", Math.min(16, AUTOTUNE_BROADCAST_B0))
+    );
+    private static final int AUTOTUNE_SAFETY_BROADCAST_B1 = Math.max(
+            1,
+            Integer.getInteger("benchmark.autotuneSafetyBroadcastB1", Math.min(4, AUTOTUNE_BROADCAST_B1))
+    );
+    private static final int AUTOTUNE_SAFETY_BROADCAST_F = Math.max(
+            1,
+            Integer.getInteger("benchmark.autotuneSafetyBroadcastF", Math.min(16, AUTOTUNE_BROADCAST_F))
+    );
+    private static final boolean AUTOTUNE_ENABLE_SAFETY_PRECHECK =
+            Boolean.parseBoolean(System.getProperty("benchmark.autotuneSafetyPrecheck", "true"));
+    private static final int BENCH_LINEAR_BATCH = 64;
+    private static final int BENCH_LINEAR_IN = 64;
+    private static final int BENCH_LINEAR_H1 = 64;
+    private static final int BENCH_LINEAR_H2 = 64;
+    private static final int BENCH_LINEAR_OUT = 64;
+    private static final int BENCH_GRAPH_BLOCKS = Math.max(
+            1,
+            Integer.getInteger("benchmark.graphBlocks", 12)
+    );
+    private static final int AUTOTUNE_GRAPH_BLOCKS = Math.max(
+            1,
+            Integer.getInteger("benchmark.autotuneGraphBlocks", Math.max(2, BENCH_GRAPH_BLOCKS / 2))
+    );
     private static final boolean ENABLE_AUTOTUNE =
             Boolean.parseBoolean(System.getProperty("benchmark.enableAutotune", "true"));
-    private static final double ABS_TOL = 1e-9;
-    private static final double REL_TOL = 1e-7;
+    private static final boolean AUTOTUNE_SCAN_ALL_CANDIDATES =
+            Boolean.parseBoolean(System.getProperty("benchmark.autotuneScanAllCandidates", "false"));
+    private static final boolean AUTOTUNE_SAFETY_SWEEP_ONLY =
+            Boolean.parseBoolean(System.getProperty("benchmark.autotuneSafetySweepOnly", "false"));
+    private static final boolean AUTOTUNE_RESCAN_UNSAFE =
+            Boolean.parseBoolean(System.getProperty("benchmark.autotuneRescanUnsafe", "false"));
+    private static final boolean AUTOTUNE_MEM_ONLY_REPLAY_UNSAFE =
+            Boolean.parseBoolean(System.getProperty("benchmark.autotuneMemOnlyReplayUnsafe", "false"));
+    private static final int AUTOTUNE_MEM_ONLY_REPLAY_LIMIT =
+            Integer.getInteger("benchmark.autotuneMemOnlyReplayLimit", Integer.MAX_VALUE);
+    private static final String AUTOTUNE_REPLAY_STAGE =
+            System.getProperty("benchmark.autotuneReplayStage", "MEM").trim().toUpperCase(Locale.ROOT);
+    private static final String AUTOTUNE_PRINT_CANDIDATES =
+            System.getProperty("benchmark.autotunePrintCandidates", "").trim();
+    private static final String AUTOTUNE_COMPARE_NOOPT_MEM_CANDIDATES =
+            System.getProperty("benchmark.autotuneCompareNoOptMemCandidates", "").trim();
+    private static final double ABS_TOL_FLOAT64 = 1e-12;
+    private static final double REL_TOL_FLOAT64 = 1e-12;
+    private static final double ABS_TOL_FLOAT32 = 1e-5;
+    private static final double REL_TOL_FLOAT32 = 1e-5;
     private static final double AUTOTUNE_TRAIN_BROADCAST_WEIGHT = 0.15;
     private static final double AUTOTUNE_INF_BROADCAST_WEIGHT = 0.30;
     private static final Random RNG = new Random(42);
     private static final DataType BENCH_DTYPE = resolveBenchDataType();
+    private static final double ABS_TOL =
+            BENCH_DTYPE == DataType.FLOAT64 ? ABS_TOL_FLOAT64 : ABS_TOL_FLOAT32;
+    private static final double REL_TOL =
+            BENCH_DTYPE == DataType.FLOAT64 ? REL_TOL_FLOAT64 : REL_TOL_FLOAT32;
 
     private static final String RESET = "\u001B[0m";
     private static final String BOLD = "\u001B[1m";
@@ -63,7 +120,7 @@ public final class OptimizerBenchmarkFramework {
     private static final Path HW_PROFILE_PATH = Path.of("config", "optimizer-hw-profiles.tsv");
     private static final Path AUTOTUNE_HISTORY_PATH = Path.of("build", "optimizer-autotune", "candidate-history.tsv");
     private static final int AUTOTUNE_HISTORY_SCHEMA_VERSION = 1;
-    private static final int AUTOTUNE_ENGINE_VERSION = 2;
+    private static final int AUTOTUNE_ENGINE_VERSION = 3;
     private static final int HW_PROFILE_MAX_BUCKETS = 10;
 
     public static void run() {
@@ -79,11 +136,11 @@ public final class OptimizerBenchmarkFramework {
         double[] baseC = randomData(SIZE);
 
         // Forward benchmark běží přes inference-only pipeline (bez backward grafu).
-        BenchState noOptForward = newBenchState(baseA, baseB, baseC, noOptCandidate, false);
-        BenchState optForward = newBenchState(baseA, baseB, baseC, inferencePerf, false);
+        BenchState noOptForward = newBenchState(baseA, baseB, baseC, noOptCandidate, false, BENCH_GRAPH_BLOCKS);
+        BenchState optForward = newBenchState(baseA, baseB, baseC, inferencePerf, false, BENCH_GRAPH_BLOCKS);
         // Training benchmark běží přes training pipeline.
-        BenchState noOptTrain = newBenchState(baseA, baseB, baseC, noOptCandidate, true);
-        BenchState optTrain = newBenchState(baseA, baseB, baseC, recommended, true);
+        BenchState noOptTrain = newBenchState(baseA, baseB, baseC, noOptCandidate, true, BENCH_GRAPH_BLOCKS);
+        BenchState optTrain = newBenchState(baseA, baseB, baseC, recommended, true, BENCH_GRAPH_BLOCKS);
 
         int compiledNoOpt = noOptTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
         int compiledOpt = optTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
@@ -122,8 +179,8 @@ public final class OptimizerBenchmarkFramework {
         double trainOptMs = (t5 - t4) / 1_000_000.0 / MEASURE_ITERS;
         double trainSpeedup = trainOptMs == 0.0 ? Double.POSITIVE_INFINITY : trainNoOptMs / trainOptMs;
 
-        RunResult freshNoOpt = runFresh(baseA, baseB, baseC, noOptCandidate);
-        RunResult freshOpt = runFresh(baseA, baseB, baseC, recommended);
+        RunResult freshNoOpt = runFresh(baseA, baseB, baseC, noOptCandidate, BENCH_GRAPH_BLOCKS);
+        RunResult freshOpt = runFresh(baseA, baseB, baseC, recommended, BENCH_GRAPH_BLOCKS);
 
         Diff ta7Diff = diff(freshNoOpt.ta7, freshOpt.ta7);
         Diff gradADiff = diff(freshNoOpt.gradA, freshOpt.gradA);
@@ -140,7 +197,8 @@ public final class OptimizerBenchmarkFramework {
 
         System.out.println(BOLD + CYAN + "=== Optimizer Benchmark ===" + RESET);
         System.out.println(GRAY + "DType=" + BENCH_DTYPE + RESET);
-        System.out.println(GRAY + "Size=" + SIZE + ", warmup=" + WARMUP_ITERS + ", measure=" + MEASURE_ITERS + RESET);
+        System.out.println(GRAY + "Size=" + SIZE + ", graphBlocks=" + BENCH_GRAPH_BLOCKS
+                + ", warmup=" + WARMUP_ITERS + ", measure=" + MEASURE_ITERS + RESET);
         System.out.println();
         System.out.println(BOLD + CYAN + "[Graph Size]" + RESET);
         System.out.println(YELLOW + "Compiled graph no-opt: " + RESET + compiledNoOpt);
@@ -252,14 +310,14 @@ public final class OptimizerBenchmarkFramework {
     }
 
     private static void benchmarkByStage(double[] baseA, double[] baseB, double[] baseC, List<OptimizerCandidate> stages) {
-        RunResult baseline = runFresh(baseA, baseB, baseC, findByName(stages, "NO_OPT"));
+        RunResult baseline = runFresh(baseA, baseB, baseC, findByName(stages, "NO_OPT"), BENCH_GRAPH_BLOCKS);
 
         System.out.println();
         System.out.println(BOLD + CYAN + "[Stage Breakdown]" + RESET);
         System.out.println(GRAY + "Per-stage benchmark: warmup=" + STAGE_WARMUP_ITERS + ", measure=" + STAGE_MEASURE_ITERS + RESET);
-        final String headerFmt = "%-18s %8s %10s %12s %12s %9s %9s %10s";
-        final String rowFmt = "%-18s %8d %10d %12.4f %12.4f %9s %9s %10s";
-        String header = String.format(headerFmt, "NAME", "GRAPH_INF", "GRAPH_TRN", "FWD_MS", "TRAIN_MS", "FWD_X", "TRN_X", "CHECK");
+        final String headerFmt = "%-18s %8s %10s %12s %12s %9s %9s %10s %12s";
+        final String rowFmt = "%-18s %8d %10d %12.4f %12.4f %9s %9s %10s %12s";
+        String header = String.format(headerFmt, "NAME", "GRAPH_INF", "GRAPH_TRN", "FWD_MS", "TRAIN_MS", "FWD_X", "TRN_X", "CHECK", "MAX_ABS");
         System.out.println(GRAY + header + RESET);
         System.out.println(GRAY + "-".repeat(header.length()) + RESET);
 
@@ -268,7 +326,7 @@ public final class OptimizerBenchmarkFramework {
 
         for (int idx = 0; idx < stages.size(); idx++) {
             OptimizerCandidate stage = stages.get(idx);
-            BenchState stateForward = newBenchState(baseA, baseB, baseC, stage, false);
+            BenchState stateForward = newBenchState(baseA, baseB, baseC, stage, false, BENCH_GRAPH_BLOCKS);
             int graphSize = stateForward.ta7.getCompiledGraph().getCompiledGraphAsList().size();
 
             stateForward.ta7.getCompiledGraph().setTrainingModeOff();
@@ -278,7 +336,7 @@ public final class OptimizerBenchmarkFramework {
             long t1 = System.nanoTime();
             double forwardMs = (t1 - t0) / 1_000_000.0 / STAGE_MEASURE_ITERS;
 
-            BenchState stateTrain = newBenchState(baseA, baseB, baseC, stage, true);
+            BenchState stateTrain = newBenchState(baseA, baseB, baseC, stage, true, BENCH_GRAPH_BLOCKS);
             int trainingGraphSize = stateTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
             stateTrain.ta7.getCompiledGraph().setTrainingModeOn();
             for (int i = 0; i < STAGE_WARMUP_ITERS; i++) stateTrain.compute();
@@ -287,11 +345,13 @@ public final class OptimizerBenchmarkFramework {
             long t3 = System.nanoTime();
             double trainMs = (t3 - t2) / 1_000_000.0 / STAGE_MEASURE_ITERS;
 
-            RunResult current = runFresh(baseA, baseB, baseC, stage);
-            boolean ok = diff(baseline.ta7, current.ta7).ok()
-                    && diff(baseline.gradA, current.gradA).ok()
-                    && diff(baseline.gradB, current.gradB).ok()
-                    && diff(baseline.gradC, current.gradC).ok();
+            RunResult current = runFresh(baseA, baseB, baseC, stage, BENCH_GRAPH_BLOCKS);
+            Diff dOut = diff(baseline.ta7, current.ta7);
+            Diff dA = diff(baseline.gradA, current.gradA);
+            Diff dB = diff(baseline.gradB, current.gradB);
+            Diff dC = diff(baseline.gradC, current.gradC);
+            boolean ok = dOut.ok() && dA.ok() && dB.ok() && dC.ok();
+            double maxAbs = Math.max(Math.max(dOut.maxAbs, dA.maxAbs), Math.max(dB.maxAbs, dC.maxAbs));
 
             if (idx == 0) {
                 baseForward = forwardMs;
@@ -311,8 +371,17 @@ public final class OptimizerBenchmarkFramework {
                     trainMs,
                     String.format("%.3fx", fwdSpeed),
                     String.format("%.3fx", trainSpeed),
-                    ok ? "OK" : "MISMATCH"
+                    ok ? "OK" : "MISMATCH",
+                    String.format(Locale.US, "%.3e", maxAbs)
             ) + RESET);
+            if (!ok) {
+                System.out.println(RED + "  diff[" + stage.name() + "]"
+                        + " out=" + String.format(Locale.US, "%.3e", dOut.maxAbs)
+                        + ", gradA=" + String.format(Locale.US, "%.3e", dA.maxAbs)
+                        + ", gradB=" + String.format(Locale.US, "%.3e", dB.maxAbs)
+                        + ", gradC=" + String.format(Locale.US, "%.3e", dC.maxAbs)
+                        + RESET);
+            }
         }
 
         System.out.println();
@@ -325,6 +394,7 @@ public final class OptimizerBenchmarkFramework {
         System.out.println(GRAY + "  FWD_X    = forward speedup vs NO_OPT (higher is better)" + RESET);
         System.out.println(GRAY + "  TRN_X    = training speedup vs NO_OPT (higher is better)" + RESET);
         System.out.println(GRAY + "  CHECK    = matches Ta7 + grad(A,B,C) vs NO_OPT (OK/MISMATCH)" + RESET);
+        System.out.println(GRAY + "  MAX_ABS  = max absolute diff across {Ta7, gradA, gradB, gradC}" + RESET);
         System.out.println();
 
         System.out.println(GRAY + "Tuning knobs note:" + RESET);
@@ -418,16 +488,73 @@ public final class OptimizerBenchmarkFramework {
         double[] baseBroadcastA = randomData(AUTOTUNE_BROADCAST_B0 * AUTOTUNE_BROADCAST_F);
         double[] baseBroadcastB = randomData(AUTOTUNE_BROADCAST_B1 * AUTOTUNE_BROADCAST_F);
         double[] baseBroadcastC = randomData(AUTOTUNE_BROADCAST_B0 * AUTOTUNE_BROADCAST_B1 * AUTOTUNE_BROADCAST_F);
+        double[] safetyA = randomData(AUTOTUNE_SAFETY_SIZE);
+        double[] safetyB = randomData(AUTOTUNE_SAFETY_SIZE);
+        double[] safetyC = randomData(AUTOTUNE_SAFETY_SIZE);
+        double[] safetyBroadcastA = randomData(AUTOTUNE_SAFETY_BROADCAST_B0 * AUTOTUNE_SAFETY_BROADCAST_F);
+        double[] safetyBroadcastB = randomData(AUTOTUNE_SAFETY_BROADCAST_B1 * AUTOTUNE_SAFETY_BROADCAST_F);
+        double[] safetyBroadcastC = randomData(AUTOTUNE_SAFETY_BROADCAST_B0 * AUTOTUNE_SAFETY_BROADCAST_B1 * AUTOTUNE_SAFETY_BROADCAST_F);
 
-        RunResult baseline = runFresh(baseA, baseB, baseC, new OptimizerCandidate("NO_OPT", List.of(), TuningKnobs.trainingDefaults()));
+        RunResult baseline = runFresh(
+                baseA,
+                baseB,
+                baseC,
+                new OptimizerCandidate("NO_OPT", List.of(), TuningKnobs.trainingDefaults()),
+                AUTOTUNE_GRAPH_BLOCKS
+        );
         BroadcastRunResult baselineBroadcast = runBroadcastFresh(
                 baseBroadcastA,
                 baseBroadcastB,
                 baseBroadcastC,
                 new OptimizerCandidate("NO_OPT", List.of(), TuningKnobs.trainingDefaults())
         );
+        RunResult safetyBaseline = runFresh(
+                safetyA,
+                safetyB,
+                safetyC,
+                new OptimizerCandidate("NO_OPT", List.of(), TuningKnobs.trainingDefaults()),
+                AUTOTUNE_GRAPH_BLOCKS
+        );
+        BroadcastRunResult safetyBaselineBroadcast = runBroadcastFresh(
+                safetyBroadcastA,
+                safetyBroadcastB,
+                safetyBroadcastC,
+                new OptimizerCandidate("NO_OPT", List.of(), TuningKnobs.trainingDefaults()),
+                AUTOTUNE_SAFETY_BROADCAST_B0,
+                AUTOTUNE_SAFETY_BROADCAST_B1,
+                AUTOTUNE_SAFETY_BROADCAST_F
+        );
         List<OptimizerCandidate> all = OptimizerCandidateFactory.autotuneCandidates();
-        List<OptimizerCandidate> candidates = capCandidatesDeterministic(all, AUTOTUNE_MAX_CANDIDATES);
+        if (!AUTOTUNE_PRINT_CANDIDATES.isEmpty()) {
+            printCandidatesByName(all, AUTOTUNE_PRINT_CANDIDATES);
+            return;
+        }
+        if (!AUTOTUNE_COMPARE_NOOPT_MEM_CANDIDATES.isEmpty()) {
+            compareNoOptVsMemForCandidates(
+                    all,
+                    AUTOTUNE_COMPARE_NOOPT_MEM_CANDIDATES,
+                    baseline,
+                    baselineBroadcast,
+                    safetyBaseline,
+                    safetyBaselineBroadcast,
+                    baseA,
+                    baseB,
+                    baseC,
+                    baseBroadcastA,
+                    baseBroadcastB,
+                    baseBroadcastC,
+                    safetyA,
+                    safetyB,
+                    safetyC,
+                    safetyBroadcastA,
+                    safetyBroadcastB,
+                    safetyBroadcastC
+            );
+            return;
+        }
+        List<OptimizerCandidate> candidates = AUTOTUNE_SCAN_ALL_CANDIDATES
+                ? all
+                : capCandidatesDeterministic(all, AUTOTUNE_MAX_CANDIDATES);
         String historyContext = autoTuneHistoryContextSignature();
         CandidateHistory history = CandidateHistory.load(AUTOTUNE_HISTORY_PATH, historyContext);
 
@@ -435,7 +562,10 @@ public final class OptimizerBenchmarkFramework {
         AutoTuneResult bestInference = null;
         int validCount = 0;
         int mismatchCount = 0;
+        int mismatchSafetyCount = 0;
+        int mismatchFullCount = 0;
         int skippedUnsafeCount = 0;
+        int safetySweepSafeCount = 0;
         List<AutoTuneResult> validPhase1 = new ArrayList<>();
 
         System.out.println(BOLD + CYAN + "[Auto-Tune]" + RESET);
@@ -443,22 +573,106 @@ public final class OptimizerBenchmarkFramework {
         System.out.println(GRAY + "Candidates total=" + all.size()
                 + ", evaluated=" + candidates.size()
                 + ", size=" + AUTOTUNE_SIZE
+                + ", graphBlocks=" + AUTOTUNE_GRAPH_BLOCKS
                 + ", broadcastShape=[" + AUTOTUNE_BROADCAST_B0 + ",1," + AUTOTUNE_BROADCAST_F + "]x[1," + AUTOTUNE_BROADCAST_B1 + "," + AUTOTUNE_BROADCAST_F + "]"
+                + ", safetyPrecheck=" + AUTOTUNE_ENABLE_SAFETY_PRECHECK
+                + ", safetySweepOnly=" + AUTOTUNE_SAFETY_SWEEP_ONLY
+                + ", scanAllCandidates=" + AUTOTUNE_SCAN_ALL_CANDIDATES
+                + ", rescanUnsafe=" + AUTOTUNE_RESCAN_UNSAFE
+                + ", safetySize=" + AUTOTUNE_SAFETY_SIZE
+                + ", safetyBroadcastShape=[" + AUTOTUNE_SAFETY_BROADCAST_B0 + ",1," + AUTOTUNE_SAFETY_BROADCAST_F + "]x[1," + AUTOTUNE_SAFETY_BROADCAST_B1 + "," + AUTOTUNE_SAFETY_BROADCAST_F + "]"
                 + ", warmup=" + AUTOTUNE_WARMUP_ITERS
                 + ", measure=" + AUTOTUNE_MEASURE_ITERS
                 + ", refineTopK=" + AUTOTUNE_REFINE_TOP_K
                 + ", refineWarmup=" + AUTOTUNE_REFINE_WARMUP_ITERS
                 + ", refineMeasure=" + AUTOTUNE_REFINE_MEASURE_ITERS
                 + ", refineRepeats=" + AUTOTUNE_REFINE_REPEATS
+                + ", memOnlyReplayUnsafe=" + AUTOTUNE_MEM_ONLY_REPLAY_UNSAFE
+                + ", replayStage=" + AUTOTUNE_REPLAY_STAGE
                 + ", unsafeHistory=" + AUTOTUNE_HISTORY_PATH.toAbsolutePath() + RESET);
 
+        if (AUTOTUNE_MEM_ONLY_REPLAY_UNSAFE) {
+            runMemOnlyReplayForUnsafeCandidates(
+                    all,
+                    history,
+                    baseline,
+                    baselineBroadcast,
+                    safetyBaseline,
+                    safetyBaselineBroadcast,
+                    baseA,
+                    baseB,
+                    baseC,
+                    baseBroadcastA,
+                    baseBroadcastB,
+                    baseBroadcastC,
+                    safetyA,
+                    safetyB,
+                    safetyC,
+                    safetyBroadcastA,
+                    safetyBroadcastB,
+                    safetyBroadcastC
+            );
+            return;
+        }
+
+        int processedCandidates = 0;
         for (OptimizerCandidate candidate : candidates) {
             String candidateKey = candidateFingerprint(candidate);
-            if (history.isUnsafe(candidateKey)) {
+            if (!AUTOTUNE_RESCAN_UNSAFE && history.isUnsafe(candidateKey)) {
                 skippedUnsafeCount++;
+                processedCandidates++;
+                if (AUTOTUNE_SAFETY_SWEEP_ONLY && (processedCandidates % 1000 == 0)) {
+                    System.out.println(GRAY + "Safety sweep progress: " + processedCandidates + "/" + candidates.size()
+                            + " | safe=" + safetySweepSafeCount
+                            + ", unsafe=" + mismatchSafetyCount
+                            + ", skippedUnsafe=" + skippedUnsafeCount + RESET);
+                }
                 continue;
             }
-            BenchState stateForward = newBenchState(baseA, baseB, baseC, candidate, false);
+
+            if (AUTOTUNE_ENABLE_SAFETY_PRECHECK) {
+                CorrectnessCheck safety = checkCandidateCorrectness(
+                        safetyBaseline,
+                        safetyBaselineBroadcast,
+                        safetyA,
+                        safetyB,
+                        safetyC,
+                        safetyBroadcastA,
+                        safetyBroadcastB,
+                        safetyBroadcastC,
+                        candidate,
+                        AUTOTUNE_GRAPH_BLOCKS,
+                        AUTOTUNE_SAFETY_BROADCAST_B0,
+                        AUTOTUNE_SAFETY_BROADCAST_B1,
+                        AUTOTUNE_SAFETY_BROADCAST_F
+                );
+                if (!safety.ok()) {
+                    mismatchCount++;
+                    mismatchSafetyCount++;
+                    history.markUnsafe(candidateKey, candidate.name(), "MISMATCH_SAFETY");
+                    processedCandidates++;
+                    if (AUTOTUNE_SAFETY_SWEEP_ONLY && (processedCandidates % 1000 == 0)) {
+                        System.out.println(GRAY + "Safety sweep progress: " + processedCandidates + "/" + candidates.size()
+                                + " | safe=" + safetySweepSafeCount
+                                + ", unsafe=" + mismatchSafetyCount
+                                + ", skippedUnsafe=" + skippedUnsafeCount + RESET);
+                    }
+                    continue;
+                }
+                if (AUTOTUNE_SAFETY_SWEEP_ONLY) {
+                    safetySweepSafeCount++;
+                    processedCandidates++;
+                    if (processedCandidates % 1000 == 0) {
+                        System.out.println(GRAY + "Safety sweep progress: " + processedCandidates + "/" + candidates.size()
+                                + " | safe=" + safetySweepSafeCount
+                                + ", unsafe=" + mismatchSafetyCount
+                                + ", skippedUnsafe=" + skippedUnsafeCount + RESET);
+                    }
+                    continue;
+                }
+            }
+
+            BenchState stateForward = newBenchState(baseA, baseB, baseC, candidate, false, AUTOTUNE_GRAPH_BLOCKS);
             int graphInfSize = stateForward.ta7.getCompiledGraph().getCompiledGraphAsList().size();
 
             stateForward.ta7.getCompiledGraph().setTrainingModeOff();
@@ -468,7 +682,7 @@ public final class OptimizerBenchmarkFramework {
             long f1 = System.nanoTime();
             double fwdMs = (f1 - f0) / 1_000_000.0 / AUTOTUNE_MEASURE_ITERS;
 
-            BenchState stateTrain = newBenchState(baseA, baseB, baseC, candidate, true);
+            BenchState stateTrain = newBenchState(baseA, baseB, baseC, candidate, true, AUTOTUNE_GRAPH_BLOCKS);
             int graphTrnSize = stateTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
             stateTrain.ta7.getCompiledGraph().setTrainingModeOn();
             for (int i = 0; i < AUTOTUNE_WARMUP_ITERS; i++) stateTrain.compute();
@@ -484,18 +698,27 @@ public final class OptimizerBenchmarkFramework {
             long b1 = System.nanoTime();
             double broadcastMs = (b1 - b0) / 1_000_000.0 / AUTOTUNE_MEASURE_ITERS;
 
-            RunResult rr = runFresh(baseA, baseB, baseC, candidate);
-            Diff dOut = diff(baseline.ta7, rr.ta7);
-            Diff dA = diff(baseline.gradA, rr.gradA);
-            Diff dB = diff(baseline.gradB, rr.gradB);
-            Diff dC = diff(baseline.gradC, rr.gradC);
-            BroadcastRunResult br = runBroadcastFresh(baseBroadcastA, baseBroadcastB, baseBroadcastC, candidate);
-            Diff dBroadcast = diff(baselineBroadcast.out, br.out);
-            boolean ok = dOut.ok() && dA.ok() && dB.ok() && dC.ok() && dBroadcast.ok();
+            CorrectnessCheck full = checkCandidateCorrectness(
+                    baseline,
+                    baselineBroadcast,
+                    baseA,
+                    baseB,
+                    baseC,
+                    baseBroadcastA,
+                    baseBroadcastB,
+                    baseBroadcastC,
+                    candidate,
+                    AUTOTUNE_GRAPH_BLOCKS,
+                    AUTOTUNE_BROADCAST_B0,
+                    AUTOTUNE_BROADCAST_B1,
+                    AUTOTUNE_BROADCAST_F
+            );
+            boolean ok = full.ok();
 
             if (!ok) {
                 mismatchCount++;
-                history.markUnsafe(candidateKey, candidate.name(), "MISMATCH");
+                mismatchFullCount++;
+                history.markUnsafe(candidateKey, candidate.name(), "MISMATCH_FULL");
                 continue;
             }
             validCount++;
@@ -503,6 +726,22 @@ public final class OptimizerBenchmarkFramework {
             double score = scoreCandidate(fwdMs, trainMs, broadcastMs, graphInfSize, graphTrnSize, TuneObjective.TRAINING);
             AutoTuneResult cur = new AutoTuneResult(candidate, graphInfSize, graphTrnSize, fwdMs, trainMs, broadcastMs, score);
             validPhase1.add(cur);
+            processedCandidates++;
+        }
+
+        if (AUTOTUNE_SAFETY_SWEEP_ONLY) {
+            history.save(AUTOTUNE_HISTORY_PATH);
+            int checked = candidates.size() - skippedUnsafeCount;
+            int unsafe = mismatchSafetyCount;
+            int safe = safetySweepSafeCount;
+            System.out.println(CYAN + "Safety sweep completed." + RESET);
+            System.out.println(GRAY + "Checked=" + checked
+                    + ", safe=" + safe
+                    + ", unsafe(mismatch)=" + unsafe
+                    + ", skippedUnsafe=" + skippedUnsafeCount + RESET);
+            System.out.println(CYAN + "Unsafe history updated: " + RESET + AUTOTUNE_HISTORY_PATH.toAbsolutePath());
+            System.out.println();
+            return;
         }
 
         if (validPhase1.isEmpty()) {
@@ -528,6 +767,7 @@ public final class OptimizerBenchmarkFramework {
         List<OptimizerCandidate> finalistsList = new ArrayList<>(finalistsSet);
         int finalists = finalistsList.size();
         System.out.println(GRAY + "Phase1 valid=" + validCount + ", mismatch=" + mismatchCount
+                + " (safety=" + mismatchSafetyCount + ", full=" + mismatchFullCount + ")"
                 + ", skippedUnsafe=" + skippedUnsafeCount
                 + ", finalists=" + finalists + RESET);
 
@@ -540,7 +780,7 @@ public final class OptimizerBenchmarkFramework {
             int graphTrnSize = -1;
 
             for (int r = 0; r < AUTOTUNE_REFINE_REPEATS; r++) {
-                BenchState stateForward = newBenchState(baseA, baseB, baseC, candidate, false);
+                BenchState stateForward = newBenchState(baseA, baseB, baseC, candidate, false, AUTOTUNE_GRAPH_BLOCKS);
                 graphInfSize = stateForward.ta7.getCompiledGraph().getCompiledGraphAsList().size();
 
                 stateForward.ta7.getCompiledGraph().setTrainingModeOff();
@@ -550,7 +790,7 @@ public final class OptimizerBenchmarkFramework {
                 long f1 = System.nanoTime();
                 sumFwdMs += (f1 - f0) / 1_000_000.0 / AUTOTUNE_REFINE_MEASURE_ITERS;
 
-                BenchState stateTrain = newBenchState(baseA, baseB, baseC, candidate, true);
+                BenchState stateTrain = newBenchState(baseA, baseB, baseC, candidate, true, AUTOTUNE_GRAPH_BLOCKS);
                 graphTrnSize = stateTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
                 stateTrain.ta7.getCompiledGraph().setTrainingModeOn();
                 for (int j = 0; j < AUTOTUNE_REFINE_WARMUP_ITERS; j++) stateTrain.compute();
@@ -594,7 +834,8 @@ public final class OptimizerBenchmarkFramework {
                 + " | fwd=" + String.format("%.4f", bestInference.forwardMs) + " ms"
                 + " | bcast=" + String.format("%.4f", bestInference.broadcastMs) + " ms"
                 + " | score=" + String.format("%.4f", bestInference.score) + RESET);
-        System.out.println(GRAY + "Valid=" + validCount + ", mismatch=" + mismatchCount + RESET);
+        System.out.println(GRAY + "Valid=" + validCount + ", mismatch=" + mismatchCount
+                + " (safety=" + mismatchSafetyCount + ", full=" + mismatchFullCount + ")" + RESET);
 
         try {
             Files.createDirectories(AUTOTUNE_BEST_TRAINING_PATH.getParent());
@@ -746,8 +987,14 @@ public final class OptimizerBenchmarkFramework {
         }
     }
 
-    private static RunResult runFresh(double[] baseA, double[] baseB, double[] baseC, OptimizerCandidate candidate) {
-        BenchState s = newBenchState(baseA, baseB, baseC, candidate, true);
+    private static RunResult runFresh(
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            OptimizerCandidate candidate,
+            int graphBlocks
+    ) {
+        BenchState s = newBenchState(baseA, baseB, baseC, candidate, true, graphBlocks);
         s.ta7.getCompiledGraph().setTrainingModeOn();
         s.compute();
         return new RunResult(
@@ -764,18 +1011,56 @@ public final class OptimizerBenchmarkFramework {
             double[] baseC,
             OptimizerCandidate candidate
     ) {
-        BroadcastBenchState s = newBroadcastBenchState(baseA, baseB, baseC, candidate);
+        BroadcastBenchState s = newBroadcastBenchState(
+                baseA,
+                baseB,
+                baseC,
+                candidate,
+                AUTOTUNE_BROADCAST_B0,
+                AUTOTUNE_BROADCAST_B1,
+                AUTOTUNE_BROADCAST_F
+        );
         s.compute();
         return new BroadcastRunResult(s.out.toDoubleArrayCopy().clone());
     }
 
-    private static BenchState newBenchState(double[] baseA, double[] baseB, double[] baseC, OptimizerCandidate candidate, boolean requiresGrad) {
+    private static BroadcastRunResult runBroadcastFresh(
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            OptimizerCandidate candidate,
+            int b0,
+            int b1,
+            int f
+    ) {
+        BroadcastBenchState s = newBroadcastBenchState(baseA, baseB, baseC, candidate, b0, b1, f);
+        s.compute();
+        return new BroadcastRunResult(s.out.toDoubleArrayCopy().clone());
+    }
+
+    private static BenchState newBenchState(
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            OptimizerCandidate candidate,
+            boolean requiresGrad,
+            int graphBlocks
+    ) {
         ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
 
         Tensor A = inputTensor("A", baseA, requiresGrad);
         Tensor B = inputTensor("B", baseB, requiresGrad);
         Tensor C = inputTensor("C", baseC, requiresGrad);
-        Tensor Ta7 = buildTa7(A, B, C);
+
+        Tensor linearIn = inputTensorWithShapePrefix("LIN_IN", baseA, requiresGrad, BENCH_LINEAR_BATCH, BENCH_LINEAR_IN);
+        Tensor w1 = inputTensorWithShapePrefix("LIN_W1", baseB, false, BENCH_LINEAR_IN, BENCH_LINEAR_H1);
+        Tensor b1 = inputTensorWithShapePrefix("LIN_B1", baseC, false, BENCH_LINEAR_BATCH, BENCH_LINEAR_H1);
+        Tensor w2 = inputTensorWithShapePrefix("LIN_W2", baseC, false, BENCH_LINEAR_H1, BENCH_LINEAR_H2);
+        Tensor b2 = inputTensorWithShapePrefix("LIN_B2", baseA, false, BENCH_LINEAR_BATCH, BENCH_LINEAR_H2);
+        Tensor w3 = inputTensorWithShapePrefix("LIN_W3", baseA, false, BENCH_LINEAR_H2, BENCH_LINEAR_OUT);
+        Tensor b3 = inputTensorWithShapePrefix("LIN_B3", baseB, false, BENCH_LINEAR_BATCH, BENCH_LINEAR_OUT);
+
+        Tensor Ta7 = buildBenchmarkGraph(A, B, C, linearIn, w1, b1, w2, b2, w3, b3, graphBlocks);
 
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
         Ta7.compute(optimizer);
@@ -789,17 +1074,401 @@ public final class OptimizerBenchmarkFramework {
             double[] baseC,
             OptimizerCandidate candidate
     ) {
+        return newBroadcastBenchState(
+                baseA,
+                baseB,
+                baseC,
+                candidate,
+                AUTOTUNE_BROADCAST_B0,
+                AUTOTUNE_BROADCAST_B1,
+                AUTOTUNE_BROADCAST_F
+        );
+    }
+
+    private static BroadcastBenchState newBroadcastBenchState(
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            OptimizerCandidate candidate,
+            int b0,
+            int b1,
+            int f
+    ) {
         ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
 
-        Tensor A = inputTensor("BA", baseA, false, new int[]{AUTOTUNE_BROADCAST_B0, 1, AUTOTUNE_BROADCAST_F});
-        Tensor B = inputTensor("BB", baseB, false, new int[]{1, AUTOTUNE_BROADCAST_B1, AUTOTUNE_BROADCAST_F});
-        Tensor C = inputTensor("BC", baseC, false, new int[]{AUTOTUNE_BROADCAST_B0, AUTOTUNE_BROADCAST_B1, AUTOTUNE_BROADCAST_F});
+        Tensor A = inputTensor("BA", baseA, false, new int[]{b0, 1, f});
+        Tensor B = inputTensor("BB", baseB, false, new int[]{1, b1, f});
+        Tensor C = inputTensor("BC", baseC, false, new int[]{b0, b1, f});
         Tensor out = buildBroadcastExpr(A, B, C);
 
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
         out.compute(optimizer);
 
         return new BroadcastBenchState(out, optimizer);
+    }
+
+    private static CorrectnessCheck checkCandidateCorrectness(
+            RunResult baseline,
+            BroadcastRunResult baselineBroadcast,
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            double[] baseBroadcastA,
+            double[] baseBroadcastB,
+            double[] baseBroadcastC,
+            OptimizerCandidate candidate,
+            int graphBlocks,
+            int b0,
+            int b1,
+            int f
+    ) {
+        RunResult rr = runFresh(baseA, baseB, baseC, candidate, graphBlocks);
+        Diff dOut = diff(baseline.ta7, rr.ta7);
+        Diff dA = diff(baseline.gradA, rr.gradA);
+        Diff dB = diff(baseline.gradB, rr.gradB);
+        Diff dC = diff(baseline.gradC, rr.gradC);
+        BroadcastRunResult br = runBroadcastFresh(baseBroadcastA, baseBroadcastB, baseBroadcastC, candidate, b0, b1, f);
+        Diff dBroadcast = diff(baselineBroadcast.out, br.out);
+        return new CorrectnessCheck(dOut, dA, dB, dC, dBroadcast);
+    }
+
+    private static void runMemOnlyReplayForUnsafeCandidates(
+            List<OptimizerCandidate> allCandidates,
+            CandidateHistory history,
+            RunResult baselineFull,
+            BroadcastRunResult baselineBroadcastFull,
+            RunResult baselineSafety,
+            BroadcastRunResult baselineBroadcastSafety,
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            double[] baseBroadcastA,
+            double[] baseBroadcastB,
+            double[] baseBroadcastC,
+            double[] safetyA,
+            double[] safetyB,
+            double[] safetyC,
+            double[] safetyBroadcastA,
+            double[] safetyBroadcastB,
+            double[] safetyBroadcastC
+    ) {
+        List<OptimizerCandidate> unsafeCandidates = new ArrayList<>();
+        for (OptimizerCandidate c : allCandidates) {
+            if (history.isUnsafe(candidateFingerprint(c))) {
+                unsafeCandidates.add(c);
+            }
+        }
+
+        int totalUnsafe = unsafeCandidates.size();
+        int limit = Math.max(1, AUTOTUNE_MEM_ONLY_REPLAY_LIMIT);
+        int toCheck = Math.min(totalUnsafe, limit);
+        int okBoth = 0;
+        int failedSafety = 0;
+        int failedFull = 0;
+        int failedAny = 0;
+        int printed = 0;
+        List<Double> failSafetyAbs = new ArrayList<>();
+        List<Double> failFullAbs = new ArrayList<>();
+        List<MemReplayFailure> failures = new ArrayList<>();
+
+        System.out.println(CYAN + "Mem-only replay over UNSAFE history candidates" + RESET);
+        System.out.println(GRAY + "Unsafe in history=" + totalUnsafe + ", replayLimit=" + limit + ", checking=" + toCheck + RESET);
+        OptimizationStage replayStage = resolveReplayStage();
+        if (replayStage == null && !"NONE".equals(AUTOTUNE_REPLAY_STAGE)) {
+            System.out.println(RED + "Invalid benchmark.autotuneReplayStage=" + AUTOTUNE_REPLAY_STAGE
+                    + " (allowed: MEM, FUSE, AR, CSE, NONE)" + RESET);
+            return;
+        }
+        if (replayStage == null) {
+            System.out.println(GRAY + "Replay stage override=[NONE]" + RESET);
+        } else {
+            System.out.println(GRAY + "Replay stage override=[" + replayStage + "]" + RESET);
+        }
+
+        for (int i = 0; i < toCheck; i++) {
+            OptimizerCandidate original = unsafeCandidates.get(i);
+            OptimizerCandidate memOnly = new OptimizerCandidate(
+                    "MEM_REPLAY_" + i,
+                    replayStage == null ? List.of() : List.of(replayStage),
+                    original.knobs()
+            );
+
+            CorrectnessCheck safety = checkCandidateCorrectness(
+                    baselineSafety,
+                    baselineBroadcastSafety,
+                    safetyA,
+                    safetyB,
+                    safetyC,
+                    safetyBroadcastA,
+                    safetyBroadcastB,
+                    safetyBroadcastC,
+                    memOnly,
+                    AUTOTUNE_GRAPH_BLOCKS,
+                    AUTOTUNE_SAFETY_BROADCAST_B0,
+                    AUTOTUNE_SAFETY_BROADCAST_B1,
+                    AUTOTUNE_SAFETY_BROADCAST_F
+            );
+            CorrectnessCheck full = checkCandidateCorrectness(
+                    baselineFull,
+                    baselineBroadcastFull,
+                    baseA,
+                    baseB,
+                    baseC,
+                    baseBroadcastA,
+                    baseBroadcastB,
+                    baseBroadcastC,
+                    memOnly,
+                    AUTOTUNE_GRAPH_BLOCKS,
+                    AUTOTUNE_BROADCAST_B0,
+                    AUTOTUNE_BROADCAST_B1,
+                    AUTOTUNE_BROADCAST_F
+            );
+
+            boolean safetyOk = safety.ok();
+            boolean fullOk = full.ok();
+            if (safetyOk && fullOk) {
+                okBoth++;
+                continue;
+            }
+
+            failedAny++;
+            if (!safetyOk) {
+                failedSafety++;
+                failSafetyAbs.add(maxAbs(safety));
+            }
+            if (!fullOk) {
+                failedFull++;
+                failFullAbs.add(maxAbs(full));
+            }
+            failures.add(new MemReplayFailure(original.name(), safetyOk, fullOk, maxAbs(safety), maxAbs(full)));
+
+            if (printed < 20) {
+                printed++;
+                double maxSafety = maxAbs(safety);
+                double maxFull = maxAbs(full);
+                System.out.println(RED + "MEM replay fail"
+                        + " | original=" + original.name()
+                        + " | safetyOk=" + safetyOk
+                        + " | fullOk=" + fullOk
+                        + " | maxAbsSafety=" + String.format(Locale.US, "%.3e", maxSafety)
+                        + " | maxAbsFull=" + String.format(Locale.US, "%.3e", maxFull)
+                        + RESET);
+            }
+        }
+
+        System.out.println(CYAN + "Mem-only replay completed." + RESET);
+        System.out.println(GRAY + "Checked=" + toCheck
+                + ", okBoth=" + okBoth
+                + ", failedAny=" + failedAny
+                + ", failedSafety=" + failedSafety
+                + ", failedFull=" + failedFull + RESET);
+        if (!failSafetyAbs.isEmpty()) {
+            System.out.println(GRAY + "Safety maxAbs stats"
+                    + " | min=" + String.format(Locale.US, "%.3e", min(failSafetyAbs))
+                    + ", p50=" + String.format(Locale.US, "%.3e", percentile(failSafetyAbs, 0.50))
+                    + ", p95=" + String.format(Locale.US, "%.3e", percentile(failSafetyAbs, 0.95))
+                    + ", max=" + String.format(Locale.US, "%.3e", max(failSafetyAbs))
+                    + RESET);
+        }
+        if (!failFullAbs.isEmpty()) {
+            System.out.println(GRAY + "Full maxAbs stats"
+                    + " | min=" + String.format(Locale.US, "%.3e", min(failFullAbs))
+                    + ", p50=" + String.format(Locale.US, "%.3e", percentile(failFullAbs, 0.50))
+                    + ", p95=" + String.format(Locale.US, "%.3e", percentile(failFullAbs, 0.95))
+                    + ", max=" + String.format(Locale.US, "%.3e", max(failFullAbs))
+                    + RESET);
+        }
+        if (!failures.isEmpty()) {
+            failures.sort((a, b) -> Double.compare(b.maxAbsFull, a.maxAbsFull));
+            int n = Math.min(10, failures.size());
+            System.out.println(GRAY + "Top MEM replay failures by full maxAbs:" + RESET);
+            for (int i = 0; i < n; i++) {
+                MemReplayFailure f = failures.get(i);
+                System.out.println(GRAY + "  " + (i + 1) + ". " + f.originalName
+                        + " | safetyOk=" + f.safetyOk
+                        + ", fullOk=" + f.fullOk
+                        + ", maxAbsSafety=" + String.format(Locale.US, "%.3e", f.maxAbsSafety)
+                        + ", maxAbsFull=" + String.format(Locale.US, "%.3e", f.maxAbsFull)
+                        + RESET);
+            }
+        }
+        if (toCheck < totalUnsafe) {
+            System.out.println(YELLOW + "Replay truncated by benchmark.autotuneMemOnlyReplayLimit." + RESET);
+        }
+        System.out.println();
+    }
+
+    private static double maxAbs(CorrectnessCheck c) {
+        return Math.max(
+                Math.max(c.out.maxAbs, c.gradA.maxAbs),
+                Math.max(Math.max(c.gradB.maxAbs, c.gradC.maxAbs), c.broadcast.maxAbs)
+        );
+    }
+
+    private static double min(List<Double> values) {
+        double m = Double.POSITIVE_INFINITY;
+        for (double v : values) {
+            m = Math.min(m, v);
+        }
+        return m;
+    }
+
+    private static double max(List<Double> values) {
+        double m = Double.NEGATIVE_INFINITY;
+        for (double v : values) {
+            m = Math.max(m, v);
+        }
+        return m;
+    }
+
+    private static double percentile(List<Double> values, double p) {
+        if (values.isEmpty()) {
+            return Double.NaN;
+        }
+        List<Double> sorted = new ArrayList<>(values);
+        Collections.sort(sorted);
+        int idx = (int) Math.floor((sorted.size() - 1) * p);
+        idx = Math.max(0, Math.min(sorted.size() - 1, idx));
+        return sorted.get(idx);
+    }
+
+    private static void printCandidatesByName(List<OptimizerCandidate> all, String csvNames) {
+        Set<String> requested = new LinkedHashSet<>();
+        for (String raw : csvNames.split(",")) {
+            String name = raw.trim();
+            if (!name.isEmpty()) {
+                requested.add(name);
+            }
+        }
+        if (requested.isEmpty()) {
+            System.out.println(YELLOW + "No candidate names provided in benchmark.autotunePrintCandidates." + RESET);
+            return;
+        }
+        Map<String, OptimizerCandidate> byName = new HashMap<>();
+        for (OptimizerCandidate c : all) {
+            byName.put(c.name(), c);
+        }
+        System.out.println(CYAN + "Auto-tune candidate debug dump" + RESET);
+        for (String name : requested) {
+            OptimizerCandidate c = byName.get(name);
+            if (c == null) {
+                System.out.println(RED + "Missing candidate: " + name + RESET);
+                continue;
+            }
+            System.out.println(GRAY + "candidate=" + c.name() + RESET);
+            System.out.println(GRAY + "  stageOrder=" + c.stageOrder() + RESET);
+            System.out.println(GRAY + "  " + candidateCanonicalSpec(c) + RESET);
+        }
+        System.out.println();
+    }
+
+    private static void compareNoOptVsMemForCandidates(
+            List<OptimizerCandidate> all,
+            String csvNames,
+            RunResult baselineFull,
+            BroadcastRunResult baselineBroadcastFull,
+            RunResult baselineSafety,
+            BroadcastRunResult baselineBroadcastSafety,
+            double[] baseA,
+            double[] baseB,
+            double[] baseC,
+            double[] baseBroadcastA,
+            double[] baseBroadcastB,
+            double[] baseBroadcastC,
+            double[] safetyA,
+            double[] safetyB,
+            double[] safetyC,
+            double[] safetyBroadcastA,
+            double[] safetyBroadcastB,
+            double[] safetyBroadcastC
+    ) {
+        Set<String> requested = new LinkedHashSet<>();
+        for (String raw : csvNames.split(",")) {
+            String name = raw.trim();
+            if (!name.isEmpty()) {
+                requested.add(name);
+            }
+        }
+        if (requested.isEmpty()) {
+            System.out.println(YELLOW + "No candidate names provided in benchmark.autotuneCompareNoOptMemCandidates." + RESET);
+            return;
+        }
+        Map<String, OptimizerCandidate> byName = new HashMap<>();
+        for (OptimizerCandidate c : all) {
+            byName.put(c.name(), c);
+        }
+        System.out.println(CYAN + "Compare NO_OPT(same knobs) vs MEM_ONLY(same knobs)" + RESET);
+        for (String name : requested) {
+            OptimizerCandidate c = byName.get(name);
+            if (c == null) {
+                System.out.println(RED + "Missing candidate: " + name + RESET);
+                continue;
+            }
+            OptimizerCandidate noOptSameKnobs = new OptimizerCandidate(name + "_NOOPT", List.of(), c.knobs());
+            OptimizerCandidate memOnlySameKnobs = new OptimizerCandidate(name + "_MEM", List.of(OptimizationStage.MEM), c.knobs());
+
+            CorrectnessCheck noOptSafety = checkCandidateCorrectness(
+                    baselineSafety, baselineBroadcastSafety,
+                    safetyA, safetyB, safetyC, safetyBroadcastA, safetyBroadcastB, safetyBroadcastC,
+                    noOptSameKnobs, AUTOTUNE_GRAPH_BLOCKS,
+                    AUTOTUNE_SAFETY_BROADCAST_B0, AUTOTUNE_SAFETY_BROADCAST_B1, AUTOTUNE_SAFETY_BROADCAST_F
+            );
+            CorrectnessCheck memSafety = checkCandidateCorrectness(
+                    baselineSafety, baselineBroadcastSafety,
+                    safetyA, safetyB, safetyC, safetyBroadcastA, safetyBroadcastB, safetyBroadcastC,
+                    memOnlySameKnobs, AUTOTUNE_GRAPH_BLOCKS,
+                    AUTOTUNE_SAFETY_BROADCAST_B0, AUTOTUNE_SAFETY_BROADCAST_B1, AUTOTUNE_SAFETY_BROADCAST_F
+            );
+
+            CorrectnessCheck noOptFull = checkCandidateCorrectness(
+                    baselineFull, baselineBroadcastFull,
+                    baseA, baseB, baseC, baseBroadcastA, baseBroadcastB, baseBroadcastC,
+                    noOptSameKnobs, AUTOTUNE_GRAPH_BLOCKS,
+                    AUTOTUNE_BROADCAST_B0, AUTOTUNE_BROADCAST_B1, AUTOTUNE_BROADCAST_F
+            );
+            CorrectnessCheck memFull = checkCandidateCorrectness(
+                    baselineFull, baselineBroadcastFull,
+                    baseA, baseB, baseC, baseBroadcastA, baseBroadcastB, baseBroadcastC,
+                    memOnlySameKnobs, AUTOTUNE_GRAPH_BLOCKS,
+                    AUTOTUNE_BROADCAST_B0, AUTOTUNE_BROADCAST_B1, AUTOTUNE_BROADCAST_F
+            );
+
+            System.out.println(GRAY + "candidate=" + name + RESET);
+            System.out.println(GRAY + "  noopt: safetyOk=" + noOptSafety.ok() + ", fullOk=" + noOptFull.ok()
+                    + ", maxSafety=" + String.format(Locale.US, "%.3e", maxAbs(noOptSafety))
+                    + ", maxFull=" + String.format(Locale.US, "%.3e", maxAbs(noOptFull)) + RESET);
+            System.out.println(GRAY + "  mem  : safetyOk=" + memSafety.ok() + ", fullOk=" + memFull.ok()
+                    + ", maxSafety=" + String.format(Locale.US, "%.3e", maxAbs(memSafety))
+                    + ", maxFull=" + String.format(Locale.US, "%.3e", maxAbs(memFull)) + RESET);
+        }
+        System.out.println();
+    }
+
+    private static final class MemReplayFailure {
+        private final String originalName;
+        private final boolean safetyOk;
+        private final boolean fullOk;
+        private final double maxAbsSafety;
+        private final double maxAbsFull;
+
+        private MemReplayFailure(String originalName, boolean safetyOk, boolean fullOk, double maxAbsSafety, double maxAbsFull) {
+            this.originalName = originalName;
+            this.safetyOk = safetyOk;
+            this.fullOk = fullOk;
+            this.maxAbsSafety = maxAbsSafety;
+            this.maxAbsFull = maxAbsFull;
+        }
+    }
+
+    private static OptimizationStage resolveReplayStage() {
+        if ("NONE".equals(AUTOTUNE_REPLAY_STAGE)) {
+            return null;
+        }
+        try {
+            return OptimizationStage.valueOf(AUTOTUNE_REPLAY_STAGE);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private static Tensor buildTa7(Tensor A, Tensor B, Tensor C) {
@@ -810,6 +1479,34 @@ public final class OptimizerBenchmarkFramework {
         Tensor Ta5 = Ta3.mul(Ta4);
         Tensor Ta6 = Ta4.add(Ta5);
         return Ta6.pow(2);
+    }
+
+    private static Tensor buildBenchmarkGraph(
+            Tensor A,
+            Tensor B,
+            Tensor C,
+            Tensor linearIn,
+            Tensor w1,
+            Tensor b1,
+            Tensor w2,
+            Tensor b2,
+            Tensor w3,
+            Tensor b3,
+            int graphBlocks
+    ) {
+        int blocks = Math.max(1, graphBlocks);
+        Tensor x = A.mul(0.50).add(B.mul(0.30)).sub(C.mul(0.20));
+        for (int i = 0; i < blocks; i++) {
+            x = x.mul(0.70).add(B.mul(0.20));
+            x = x.sub(C.mul(0.10));
+            x = x.add(A.mul(0.05));
+            x = x.mul(0.95).add(B.mul(0.03)).sub(C.mul(0.02));
+        }
+        Tensor linear1 = linearIn.matmul(w1).add(b1);
+        Tensor linear2 = linear1.matmul(w2).add(b2);
+        Tensor linear3 = linear2.matmul(w3).add(b3);
+        Tensor linearScalar = linear3.sum();
+        return x.mul(x).add(B.mul(0.01)).add(linearScalar);
     }
 
     private static Tensor buildBroadcastExpr(Tensor A, Tensor B, Tensor C) {
@@ -826,6 +1523,25 @@ public final class OptimizerBenchmarkFramework {
     private static Tensor inputTensor(String label, double[] data, boolean requiresGrad, int[] shape) {
         Tensor t = new Tensor(shape, null, label, BENCH_DTYPE);
         t.setData(data.clone());
+        t.setRequiresGrad(requiresGrad);
+        return t;
+    }
+
+    private static Tensor inputTensorWithShapePrefix(String label, double[] data, boolean requiresGrad, int... shape) {
+        int size = 1;
+        for (int dim : shape) {
+            size *= dim;
+        }
+        if (size <= 0) {
+            throw new IllegalArgumentException("Invalid shape size for " + label);
+        }
+        if (data.length < size) {
+            throw new IllegalArgumentException("Input data too small for " + label + ": required=" + size + ", available=" + data.length);
+        }
+        double[] sliced = new double[size];
+        System.arraycopy(data, 0, sliced, 0, size);
+        Tensor t = new Tensor(shape, null, label, BENCH_DTYPE);
+        t.setData(sliced);
         t.setRequiresGrad(requiresGrad);
         return t;
     }
@@ -891,7 +1607,14 @@ public final class OptimizerBenchmarkFramework {
                 + "|absTol=" + ABS_TOL
                 + "|relTol=" + REL_TOL
                 + "|size=" + AUTOTUNE_SIZE
+                + "|safetyPrecheck=" + AUTOTUNE_ENABLE_SAFETY_PRECHECK
+                + "|safetySweepOnly=" + AUTOTUNE_SAFETY_SWEEP_ONLY
+                + "|scanAllCandidates=" + AUTOTUNE_SCAN_ALL_CANDIDATES
+                + "|rescanUnsafe=" + AUTOTUNE_RESCAN_UNSAFE
+                + "|safetySize=" + AUTOTUNE_SAFETY_SIZE
+                + "|graphBlocks=" + AUTOTUNE_GRAPH_BLOCKS
                 + "|bshape=" + AUTOTUNE_BROADCAST_B0 + "x" + AUTOTUNE_BROADCAST_B1 + "x" + AUTOTUNE_BROADCAST_F
+                + "|safetyBshape=" + AUTOTUNE_SAFETY_BROADCAST_B0 + "x" + AUTOTUNE_SAFETY_BROADCAST_B1 + "x" + AUTOTUNE_SAFETY_BROADCAST_F
                 + "|os=" + osName
                 + "|arch=" + osArch
                 + "|jvm=" + vmName
@@ -1108,6 +1831,26 @@ public final class OptimizerBenchmarkFramework {
         @Override
         public String toString() {
             return "Diff[maxAbs=" + maxAbs + ", avgAbs=" + avgAbs + ", finiteCount=" + finiteCount + ", invalidCount=" + invalidCount + "]";
+        }
+    }
+
+    private static final class CorrectnessCheck {
+        private final Diff out;
+        private final Diff gradA;
+        private final Diff gradB;
+        private final Diff gradC;
+        private final Diff broadcast;
+
+        private CorrectnessCheck(Diff out, Diff gradA, Diff gradB, Diff gradC, Diff broadcast) {
+            this.out = out;
+            this.gradA = gradA;
+            this.gradB = gradB;
+            this.gradC = gradC;
+            this.broadcast = broadcast;
+        }
+
+        private boolean ok() {
+            return out.ok() && gradA.ok() && gradB.ok() && gradC.ok() && broadcast.ok();
         }
     }
 

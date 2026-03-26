@@ -32,7 +32,7 @@ public class CpuMulScalarKernel implements CpuKernel {
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         float[] in = inputs.get(0).getFloat32Data();
         float[] out = node.getFloat32Data();
-        MulScalarF32.run(in, (float) ((mulScalar) op).getScalar(), out, config.modeFor(op, node), config);
+        MulScalarF32.run(in, ((mulScalar) op).getScalarF32(), out, config.modeFor(op, node), config);
     }
 
     @Override

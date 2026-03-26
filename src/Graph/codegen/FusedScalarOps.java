@@ -54,4 +54,12 @@ public final class FusedScalarOps {
         return FastExp.fastTanhF64(x);
     }
 
+    public static float powF32(float x, float exponent) {
+        return (float) Math.pow(x, exponent);
+    }
+
+    public static double powF64(double x, double exponent) {
+        return Math.pow(x, exponent);
+    }
+
 }

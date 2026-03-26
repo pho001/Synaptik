@@ -7,8 +7,16 @@ import java.util.List;
 
 public class mulScalar implements Operation{
 
-    double scalar;
+    private final double scalar;
+    private final float scalarF32;
+
     public mulScalar(double exponent) {
+        this.scalar = exponent;
+        this.scalarF32 = (float) exponent;
+    }
+
+    public mulScalar(float exponent) {
+        this.scalarF32 = exponent;
         this.scalar = exponent;
     }
 
@@ -57,5 +65,9 @@ public class mulScalar implements Operation{
 
     public double getScalar() {
         return scalar;
+    }
+
+    public float getScalarF32() {
+        return scalarF32;
     }
 }

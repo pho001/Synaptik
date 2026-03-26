@@ -32,7 +32,7 @@ public class CpuPowKernel implements CpuKernel {
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
         float[] in = inputs.get(0).getFloat32Data();
         float[] out = node.getFloat32Data();
-        PowF32.run(in, ((pow) op).getExponent(), out, config.modeFor(op, node), config);
+        PowF32.run(in, ((pow) op).getExponentF32(), out, config.modeFor(op, node), config);
     }
 
     @Override

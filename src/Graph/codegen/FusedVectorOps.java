@@ -145,7 +145,7 @@ public final class FusedVectorOps {
     }
 
     public static DoubleVector mulScalarF64(DoubleVector a, double scalar) { return a.mul(scalar); }
-    public static FloatVector mulScalarF32(FloatVector a, double scalar) { return a.mul((float) scalar); }
+    public static FloatVector mulScalarF32(FloatVector a, float scalar) { return a.mul(scalar); }
 
     public static Object relu(Object a, int mode) {
         return switch (mode) {
@@ -281,7 +281,7 @@ public final class FusedVectorOps {
     }
 
     public static DoubleVector powF64(DoubleVector a, double exponent) { return (DoubleVector) mapUnaryD(a, x -> Math.pow(x, exponent)); }
-    public static FloatVector powF32(FloatVector a, double exponent) { return (FloatVector) mapUnaryF(a, x -> (float) Math.pow(x, exponent)); }
+    public static FloatVector powF32(FloatVector a, float exponent) { return (FloatVector) mapUnaryF(a, x -> (float) Math.pow(x, exponent)); }
 
     private static Object mapUnaryD(Object vector, DoubleUnaryOperator fn) {
         DoubleVector v = (DoubleVector) vector;

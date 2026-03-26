@@ -555,67 +555,67 @@ public class FusedOperationGenerator implements Opcodes {
         if (!(current.getOperation() instanceof Operations.pow p)) {
             throw new UnsupportedOperationException("pow operation instance is missing exponent metadata.");
         }
-        double exponent = p.getExponent();
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            float exponent = p.getExponentF32();
 
-        // x^0 = 1
-        if (Double.compare(exponent, 0.0d) == 0) {
-            mv.visitInsn(precisionMode == FusedDTypeOps.MODE_F32 ? POP : POP2);
-            if (precisionMode == FusedDTypeOps.MODE_F32) {
+            if (Float.compare(exponent, 0.0f) == 0) {
+                mv.visitInsn(POP);
                 mv.visitInsn(FCONST_1);
-            } else {
-                mv.visitInsn(DCONST_1);
+                return;
             }
-            return;
-        }
-
-        // x^1 = x
-        if (Double.compare(exponent, 1.0d) == 0) {
-            return;
-        }
-
-        // x^-1 = 1 / x
-        if (Double.compare(exponent, -1.0d) == 0) {
-            if (precisionMode == FusedDTypeOps.MODE_F32) {
+            if (Float.compare(exponent, 1.0f) == 0) {
+                return;
+            }
+            if (Float.compare(exponent, -1.0f) == 0) {
                 mv.visitInsn(FCONST_1);
                 mv.visitInsn(SWAP);
                 mv.visitInsn(FDIV);
-            } else {
-                emitScalarStoreInsn(mv, sm.get(SlotKey.TMP_REGISTER), precisionMode);
-                mv.visitInsn(DCONST_1);
-                emitScalarLoadInsn(mv, sm.get(SlotKey.TMP_REGISTER), precisionMode);
-                mv.visitInsn(DDIV);
+                return;
             }
-            return;
-        }
-
-        // x^2 = x * x
-        if (Double.compare(exponent, 2.0d) == 0) {
-            mv.visitInsn(precisionMode == FusedDTypeOps.MODE_F32 ? DUP : DUP2);
-            mv.visitInsn(precisionMode == FusedDTypeOps.MODE_F32 ? FMUL : DMUL);
-            return;
-        }
-
-        // x^0.5 = sqrt(x)
-        if (Double.compare(exponent, 0.5d) == 0) {
-            if (precisionMode == FusedDTypeOps.MODE_F32) {
+            if (Float.compare(exponent, 2.0f) == 0) {
+                mv.visitInsn(DUP);
+                mv.visitInsn(FMUL);
+                return;
+            }
+            if (Float.compare(exponent, 0.5f) == 0) {
                 mv.visitInsn(F2D);
-            }
-            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
-            if (precisionMode == FusedDTypeOps.MODE_F32) {
+                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
                 mv.visitInsn(D2F);
+                return;
             }
+
+            mv.visitLdcInsn(exponent);
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedScalarOps", "powF32", "(FF)F", false);
             return;
         }
 
-        // generic pow
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
-            mv.visitInsn(F2D);
+        double exponent = p.getExponent();
+        if (Double.compare(exponent, 0.0d) == 0) {
+            mv.visitInsn(POP2);
+            mv.visitInsn(DCONST_1);
+            return;
+        }
+        if (Double.compare(exponent, 1.0d) == 0) {
+            return;
+        }
+        if (Double.compare(exponent, -1.0d) == 0) {
+            emitScalarStoreInsn(mv, sm.get(SlotKey.TMP_REGISTER), precisionMode);
+            mv.visitInsn(DCONST_1);
+            emitScalarLoadInsn(mv, sm.get(SlotKey.TMP_REGISTER), precisionMode);
+            mv.visitInsn(DDIV);
+            return;
+        }
+        if (Double.compare(exponent, 2.0d) == 0) {
+            mv.visitInsn(DUP2);
+            mv.visitInsn(DMUL);
+            return;
+        }
+        if (Double.compare(exponent, 0.5d) == 0) {
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
+            return;
         }
         mv.visitLdcInsn(exponent);
         mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
-            mv.visitInsn(D2F);
-        }
     }
 
     private static void generateMetadataMethods(ClassWriter cw, String className) {
@@ -711,14 +711,22 @@ public class FusedOperationGenerator implements Opcodes {
             case "noop" -> emitVectorUnaryOpCall(mv, "noop", precisionMode);
             case "mulscalar" -> {
                 Operations.mulScalar ms = (Operations.mulScalar) current.getOperation();
-                mv.visitLdcInsn(ms.getScalar());
+                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn(ms.getScalarF32());
+                } else {
+                    mv.visitLdcInsn(ms.getScalar());
+                }
                 emitVectorMulScalarCall(mv, precisionMode);
             }
             case "pow" -> {
                 if (!(current.getOperation() instanceof Operations.pow p)) {
                     throw new UnsupportedOperationException("pow operation instance is missing exponent metadata.");
                 }
-                mv.visitLdcInsn(p.getExponent());
+                if (precisionMode == FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn(p.getExponentF32());
+                } else {
+                    mv.visitLdcInsn(p.getExponent());
+                }
                 emitVectorPowCall(mv, precisionMode);
             }
             default -> throw new UnsupportedOperationException("Operation " + op + " is not supported for fused vector execution.");
@@ -882,9 +890,12 @@ public class FusedOperationGenerator implements Opcodes {
             mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalar", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
         String vd = vectorTypeDesc(precisionMode);
-        mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalar" + suffix, "(" + vd + "D)" + vd, false);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalarF32", "(" + vd + "F)" + vd, false);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "mulScalarF64", "(" + vd + "D)" + vd, false);
+        }
     }
 
     private static void emitVectorPowCall(MethodVisitor mv, int precisionMode) {
@@ -893,9 +904,12 @@ public class FusedOperationGenerator implements Opcodes {
             mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "pow", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
         }
-        String suffix = precisionMode == FusedDTypeOps.MODE_F32 ? "F32" : "F64";
         String vd = vectorTypeDesc(precisionMode);
-        mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "pow" + suffix, "(" + vd + "D)" + vd, false);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "powF32", "(" + vd + "F)" + vd, false);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, "Graph/codegen/FusedVectorOps", "powF64", "(" + vd + "D)" + vd, false);
+        }
     }
 
     private static void emitScalarLoadInsn(MethodVisitor mv, int slot, int precisionMode) {
