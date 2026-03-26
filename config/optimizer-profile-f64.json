@@ -1,5 +1,5 @@
 {
-  "candidateName": "AUTO_48212",
+  "candidateName": "AUTO_25683",
   "strictCseSafety": false,
   "kernel": {
     "cpu": {
@@ -7,17 +7,17 @@
       "cpuMatMulTileM": 32,
       "cpuMatMulTileN": 32,
       "cpuMatMulTileK": 32,
-      "cpuVectorMinSize": 512,
-      "cpuParallelMinSize": 100000,
-      "cpuMatMulParallelMinSize": 500000,
+      "cpuVectorMinSize": 256,
+      "cpuParallelMinSize": 50000,
+      "cpuMatMulParallelMinSize": 100000,
       "cpuParallelism": 0,
-      "cpuChunksPerWorker": 4,
-      "cpuMinChunkSize": 4096,
-      "cpuContiguousMaterializeThreshold": 4096,
+      "cpuChunksPerWorker": 2,
+      "cpuMinChunkSize": 2048,
+      "cpuContiguousMaterializeThreshold": 262144,
       "cpuSumAccuracyMode": "FAST",
-      "cpuLowCostNsPerElementThreshold": 2.0,
-      "cpuVectorPolicyCheap": "FORCE_ON",
-      "cpuVectorPolicyTranscendental": "FORCE_OFF",
+      "cpuLowCostNsPerElementThreshold": 0.5,
+      "cpuVectorPolicyCheap": "AUTO",
+      "cpuVectorPolicyTranscendental": "AUTO",
       "cpuVectorPolicyReduction": "AUTO"
     },
     "cuda": {
