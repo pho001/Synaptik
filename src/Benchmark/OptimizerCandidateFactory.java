@@ -18,6 +18,7 @@ public final class OptimizerCandidateFactory {
     public static List<OptimizerCandidate> defaultCandidates() {
         List<OptimizerCandidate> out = new ArrayList<>();
         out.add(new OptimizerCandidate("NO_OPT", List.of(), TuningKnobs.trainingDefaults()));
+        out.add(new OptimizerCandidate("MEM_ONLY", List.of(OptimizationStage.MEM), TuningKnobs.trainingDefaults()));
         out.add(new OptimizerCandidate("AR", List.of(OptimizationStage.AR), TuningKnobs.trainingDefaults()));
         out.add(new OptimizerCandidate("AR+CSE", List.of(OptimizationStage.AR, OptimizationStage.CSE), TuningKnobs.trainingDefaults()));
         out.add(new OptimizerCandidate("AR+CSE+MEM", List.of(OptimizationStage.AR, OptimizationStage.CSE, OptimizationStage.MEM), TuningKnobs.trainingDefaults()));

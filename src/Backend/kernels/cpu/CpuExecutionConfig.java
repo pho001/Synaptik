@@ -86,6 +86,7 @@ public final class  CpuExecutionConfig {
         if (config == null) {
             throw new IllegalArgumentException("config cannot be null");
         }
+        SumAccuracyMode sumAccuracyMode = resolveSumAccuracyOverride(config.sumAccuracyMode());
         return new CpuExecutionConfig(
                 config.vectorMinSize(),
                 config.matMulTileM(),
@@ -97,12 +98,24 @@ public final class  CpuExecutionConfig {
                 config.chunksPerWorker(),
                 config.minChunkSize(),
                 config.contiguousMaterializeThreshold(),
-                config.sumAccuracyMode(),
+                sumAccuracyMode,
                 config.lowCostNsPerElementThreshold(),
                 config.vectorPolicyCheap(),
                 config.vectorPolicyTranscendental(),
                 config.vectorPolicyReduction()
         );
+    }
+
+    private static SumAccuracyMode resolveSumAccuracyOverride(SumAccuracyMode fallback) {
+        String raw = System.getProperty("cg.cpu.sumAccuracyOverride");
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return SumAccuracyMode.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ignored) {
+            return fallback;
+        }
     }
 
     public CpuExecutionMode modeFor(Operation op, Tensor node) {

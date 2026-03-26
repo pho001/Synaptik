@@ -1,6 +1,9 @@
 package Utils;
 
 public final class FastExp {
+    private static final boolean FORCE_EXACT_TRANSCENDENTALS =
+            Boolean.parseBoolean(System.getProperty("cg.math.forceExactTranscendentals", "false"));
+
     private static final float FAST_EXP_F32_A = 12_102_203.1615614f;
     private static final float FAST_EXP_F32_B = 1_064_866_805.0f;
 
@@ -10,6 +13,9 @@ public final class FastExp {
     private FastExp() {}
 
     public static float fastExpF32(float x) {
+        if (FORCE_EXACT_TRANSCENDENTALS) {
+            return (float) Math.exp(x);
+        }
         if (Float.isNaN(x)) {
             return Float.NaN;
         }
@@ -24,6 +30,9 @@ public final class FastExp {
     }
 
     public static double fastExpF64(double x) {
+        if (FORCE_EXACT_TRANSCENDENTALS) {
+            return Math.exp(x);
+        }
         if (Double.isNaN(x)) {
             return Double.NaN;
         }
@@ -38,6 +47,9 @@ public final class FastExp {
     }
 
     public static float fastTanhF32(float x) {
+        if (FORCE_EXACT_TRANSCENDENTALS) {
+            return (float) Math.tanh(x);
+        }
         float ax = Math.abs(x);
         if (ax > 5.0f) {
             return Math.copySign(1.0f, x);
@@ -47,6 +59,9 @@ public final class FastExp {
     }
 
     public static double fastTanhF64(double x) {
+        if (FORCE_EXACT_TRANSCENDENTALS) {
+            return Math.tanh(x);
+        }
         double ax = Math.abs(x);
         if (ax > 5.0d) {
             return Math.copySign(1.0d, x);
