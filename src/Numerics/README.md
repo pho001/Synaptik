@@ -2,6 +2,11 @@
 
 Lightweight A/B harness for numerical-stability checks independent of the benchmark/autotuner flow.
 
+This module is also used by benchmark autotune finalists post-check when:
+
+- `-Dbenchmark.autotuneNumericsPostcheck=true`
+- reports are exported to `build/numerics/autotune-postcheck-<dtype>-<timestamp>.tsv`
+
 ## What It Compares
 - forward output (`out`)
 - gradients (`gradA`, `gradB`, `gradC`)
@@ -40,3 +45,14 @@ java --add-modules jdk.incubator.vector \
 - `numerics.broadcastB1` (default `8`)
 - `numerics.broadcastF` (default `128`)
 - `numerics.seed` (default `42`)
+
+## Default Policy
+
+- `FLOAT64`: `absTol=1e-12`, `relTol=1e-12`, `maxUlpTol=16`
+- `FLOAT32`: `absTol=1e-5`, `relTol=1e-5`, `maxUlpTol=128`
+
+Verdicts:
+
+- `SAFE`
+- `BORDERLINE`
+- `UNSAFE`

@@ -11,6 +11,7 @@ Primary goals:
 - enforce numeric equivalence checks
 - persist winning profiles for runtime reuse
 - cache context-specific unsafe candidates to prune future autotune runs
+- optionally run numerics post-check on finalists and export per-signal reports
 
 ## Main Components
 
@@ -90,9 +91,14 @@ Persist behavior:
 Unsafe-candidate cache:
 
 - `build/optimizer-autotune/candidate-history.tsv`
-- stores `UNSAFE` fingerprints (currently mismatch-based) with context signature
+- stores `UNSAFE` fingerprints (mismatch-based + numerics-postcheck unsafe) with context signature
 - context includes dtype, tolerances, workload shape/size, schema/engine versions, OS/arch/JVM/vendor/core count
 - candidates marked unsafe in matching context are skipped on next autotune run
+
+Numerics post-check report output:
+
+- `build/numerics/autotune-postcheck-<dtype>-<timestamp>.tsv`
+- one row per checked finalist (`status`, `reason`, aggregate + per-signal metrics)
 
 ## Tuning Knobs
 
@@ -203,9 +209,9 @@ These knobs influence benchmark behavior, but they are not part of `TuningKnobs`
 
 - `benchmark.dtype` [FLOAT32, FLOAT64]
   - benchmark input/output tensor dtype (system property: `-Dbenchmark.dtype=FLOAT32|FLOAT64`)
-- `ABS_TOL` [1e-9]
+- `ABS_TOL` [FLOAT32=1e-5, FLOAT64=1e-12]
   - absolute tolerance for benchmark diff checks
-- `REL_TOL` [1e-7]
+- `REL_TOL` [FLOAT32=1e-5, FLOAT64=1e-12]
   - relative tolerance for benchmark diff checks
 - `SIZE` [1000000]
   - vector length for main benchmark run
@@ -235,6 +241,12 @@ These knobs influence benchmark behavior, but they are not part of `TuningKnobs`
   - repeats used to average phase-2 timing
 - `ENABLE_AUTOTUNE` [true, false]
   - enables/disables autotune phase in benchmark run
+- `benchmark.autotuneNumericsPostcheck` [true, false]
+  - enables numerics post-check on phase-2 finalists
+- `benchmark.autotuneNumericsPostcheckTopN` [1..N]
+  - maximum number of finalists passed through numerics post-check
+- `benchmark.autotuneNumericsPostcheckSeed` [long]
+  - seed used for numerics post-check inputs
 
 ### Candidate Count Notes
 

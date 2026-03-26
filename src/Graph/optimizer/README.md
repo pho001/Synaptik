@@ -96,6 +96,7 @@ Winning profiles are persisted:
 - `build/optimizer-autotune/best-profile-training.json`,
 - `build/optimizer-autotune/best-profile-inference.json`.
 - `build/optimizer-autotune/candidate-history.tsv` (context-aware unsafe candidate cache).
+- `build/numerics/autotune-postcheck-<dtype>-<timestamp>.tsv` (numerics post-check report for checked finalists).
 
 Runtime profile selection priority is:
 
@@ -104,7 +105,7 @@ Runtime profile selection priority is:
 3. Best-profile overrides (`best-profile-*.json`).
 4. Defaults.
 
-Autotune now records context-specific unsafe candidates (mismatch-based) and skips them on subsequent runs with matching context.
+Autotune now records context-specific unsafe candidates (`MISMATCH_*` + `NUMERICS_POSTCHECK_UNSAFE`) and skips them on subsequent runs with matching context.
 
 CPU dispatch-related tuned knobs include:
 
