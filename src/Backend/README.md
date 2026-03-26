@@ -170,6 +170,7 @@ Runtime properties:
 - `cg.cpu.blas.matmulMinWork=<long>` (default `2000000`)
 - `cg.cpu.blas.debug=true|false` (default `false`)
 - `cg.cpu.blas.f32RequireMgeK=true|false` (default `true`)
+- `cg.cpu.blas.f32MaxNOverK=<double>` (default `3.0`)
 - optional library override:
   - `-Dopenblas.lib=<absolute-path-to-library>`
   - or `OPENBLAS_LIB` environment variable
@@ -177,7 +178,10 @@ Runtime properties:
 Notes:
 
 - current BLAS routing is used only for contiguous matmul tensors and large enough workloads
-- for `FLOAT32`, default heuristic requires `m >= k` (`f32RequireMgeK=true`) to avoid short-fat regressions
+- for `FLOAT32`, default heuristic also requires:
+  - `m >= k` (`f32RequireMgeK=true`)
+  - `n/k <= f32MaxNOverK` (`f32MaxNOverK=3.0`)
+  to avoid short-fat / extra-wide regressions
 - fallback to Java kernel is automatic on any lookup/call failure
 - FFM native access warning can be suppressed by running with:
   - `--enable-native-access=ALL-UNNAMED`

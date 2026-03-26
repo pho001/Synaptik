@@ -15,6 +15,7 @@ public class CpuMatMulKernel implements CpuKernel {
     private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
     private static volatile boolean blasAvailabilityLogged;
+    private static volatile boolean blasF32ShapeGuardLogged;
 
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
@@ -322,6 +323,11 @@ public class CpuMatMulKernel implements CpuKernel {
         }
         // Empirical guard: for FLOAT32 on short-fat A (m < k), OpenBLAS can regress due bridge/call overhead.
         if (f32 && BlasRuntime.f32RequireMgeK() && m < k) {
+            maybeLogF32ShapeGuard("m<k");
+            return false;
+        }
+        if (f32 && ((double) n / Math.max(1, k)) > BlasRuntime.f32MaxNOverK()) {
+            maybeLogF32ShapeGuard("n/k ratio too high");
             return false;
         }
         long work = (long) m * n * k;
@@ -341,6 +347,23 @@ public class CpuMatMulKernel implements CpuKernel {
                         + OpenBlasFfmBridge.unavailableReason());
             }
             blasAvailabilityLogged = true;
+        }
+    }
+
+    private static void maybeLogF32ShapeGuard(String reason) {
+        if (blasF32ShapeGuardLogged) {
+            return;
+        }
+        synchronized (CpuMatMulKernel.class) {
+            if (blasF32ShapeGuardLogged) {
+                return;
+            }
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] F32 shape guard disabled BLAS path: " + reason
+                        + " (requireMgeK=" + BlasRuntime.f32RequireMgeK()
+                        + ", maxNOverK=" + BlasRuntime.f32MaxNOverK() + ")");
+            }
+            blasF32ShapeGuardLogged = true;
         }
     }
 

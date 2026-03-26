@@ -14,6 +14,10 @@ public final class BlasRuntime {
     private static final boolean F32_REQUIRE_M_GE_K = Boolean.parseBoolean(
             System.getProperty("cg.cpu.blas.f32RequireMgeK", "true")
     );
+    private static final double F32_MAX_N_OVER_K = parseDoubleProperty(
+            "cg.cpu.blas.f32MaxNOverK",
+            3.0d
+    );
 
     private BlasRuntime() {}
 
@@ -33,6 +37,10 @@ public final class BlasRuntime {
         return F32_REQUIRE_M_GE_K;
     }
 
+    public static double f32MaxNOverK() {
+        return F32_MAX_N_OVER_K;
+    }
+
     public static boolean isOpenBlasFfmEnabled() {
         return PROVIDER == BlasProvider.OPENBLAS_FFM;
     }
@@ -45,6 +53,19 @@ public final class BlasRuntime {
         try {
             long parsed = Long.parseLong(raw.trim());
             return parsed > 0L ? parsed : fallback;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static double parseDoubleProperty(String key, double fallback) {
+        String raw = System.getProperty(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            double parsed = Double.parseDouble(raw.trim());
+            return parsed > 0.0d ? parsed : fallback;
         } catch (NumberFormatException ignored) {
             return fallback;
         }
