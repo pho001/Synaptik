@@ -1207,6 +1207,7 @@ public final class OptimizerBenchmarkFramework {
             boolean requiresGrad,
             int graphBlocks
     ) {
+        BlasPolicyConfigurer.apply(candidate.knobs());
         ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
 
         Tensor A = inputTensor("A", baseA, requiresGrad);
@@ -1255,6 +1256,7 @@ public final class OptimizerBenchmarkFramework {
             int b1,
             int f
     ) {
+        BlasPolicyConfigurer.apply(candidate.knobs());
         ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
 
         Tensor A = inputTensor("BA", baseA, false, new int[]{b0, 1, f});
@@ -1781,6 +1783,10 @@ public final class OptimizerBenchmarkFramework {
                 + "|jvm=" + vmName
                 + "|java=" + javaVersion
                 + "|vendor=" + vmVendor
+                + "|blasProviderProp=" + normalizeContextValue(System.getProperty("cg.cpu.blas.provider", "NONE"))
+                + "|blasMinWorkProp=" + normalizeContextValue(System.getProperty("cg.cpu.blas.matmulMinWork", "2000000"))
+                + "|blasF32RequireMgeKProp=" + normalizeContextValue(System.getProperty("cg.cpu.blas.f32RequireMgeK", "true"))
+                + "|blasF32MaxNOverKProp=" + normalizeContextValue(System.getProperty("cg.cpu.blas.f32MaxNOverK", "3.0"))
                 + "|cores=" + cores;
     }
 
@@ -1851,7 +1857,12 @@ public final class OptimizerBenchmarkFramework {
         sb.append("opencl.unroll=").append(opencl.loopUnrollFactor()).append('|');
         sb.append("opencl.tileM=").append(opencl.matMulTileM()).append('|');
         sb.append("opencl.tileN=").append(opencl.matMulTileN()).append('|');
-        sb.append("opencl.tileK=").append(opencl.matMulTileK());
+        sb.append("opencl.tileK=").append(opencl.matMulTileK()).append('|');
+
+        sb.append("blas.provider=").append(knobs.blasProvider()).append('|');
+        sb.append("blas.matmulMinWork=").append(knobs.blasMatMulMinWork()).append('|');
+        sb.append("blas.f32RequireMgeK=").append(knobs.blasF32RequireMgeK()).append('|');
+        sb.append("blas.f32MaxNOverK=").append(String.format(Locale.US, "%.12f", knobs.blasF32MaxNOverK()));
         return sb.toString();
     }
 
@@ -2139,6 +2150,12 @@ public final class OptimizerBenchmarkFramework {
             sb.append("        \"openclMatMulTileN\": ").append(kernels.opencl().matMulTileN()).append(",\n");
             sb.append("        \"openclMatMulTileK\": ").append(kernels.opencl().matMulTileK()).append("\n");
             sb.append("      }\n");
+            sb.append("    },\n");
+            sb.append("    \"blas\": {\n");
+            sb.append("      \"provider\": \"").append(knobs.blasProvider()).append("\",\n");
+            sb.append("      \"matmulMinWork\": ").append(knobs.blasMatMulMinWork()).append(",\n");
+            sb.append("      \"f32RequireMgeK\": ").append(knobs.blasF32RequireMgeK()).append(",\n");
+            sb.append("      \"f32MaxNOverK\": ").append(String.format(Locale.US, "%.8f", knobs.blasF32MaxNOverK())).append("\n");
             sb.append("    },\n");
             sb.append("    \"fuse\": {\n");
             sb.append("      \"maxClusterNodes\": ").append(fuse.maxClusterNodes()).append(",\n");

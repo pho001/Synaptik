@@ -200,6 +200,12 @@ public final class OptimizerProfileIO {
                 "      \"openclMatMulTileK\": " + k.opencl().matMulTileK() + "\n" +
                 "    }\n" +
                 "  },\n" +
+                "  \"blas\": {\n" +
+                "    \"provider\": \"" + knobs.blasProvider() + "\",\n" +
+                "    \"matmulMinWork\": " + knobs.blasMatMulMinWork() + ",\n" +
+                "    \"f32RequireMgeK\": " + knobs.blasF32RequireMgeK() + ",\n" +
+                "    \"f32MaxNOverK\": " + knobs.blasF32MaxNOverK() + "\n" +
+                "  },\n" +
                 "  \"fuse\": {\n" +
                 "    \"maxClusterNodes\": " + f.maxClusterNodes() + ",\n" +
                 "    \"scoreThreshold\": " + f.scoreThreshold() + ",\n" +
@@ -278,7 +284,23 @@ public final class OptimizerProfileIO {
                     findBoolean(json, "preserveSharedExpensiveNodes", df.preserveSharedExpensiveNodes())
             );
 
-            return new TuningKnobs(strictCse, fuse, kernel);
+            String blasProvider = findString(json, "provider", "NONE");
+            long blasMatMulMinWork = Math.max(
+                    1L,
+                    Math.round(findDouble(json, "matmulMinWork", 2_000_000d))
+            );
+            boolean blasF32RequireMgeK = findBoolean(json, "f32RequireMgeK", true);
+            double blasF32MaxNOverK = findDouble(json, "f32MaxNOverK", 3.0d);
+
+            return new TuningKnobs(
+                    strictCse,
+                    fuse,
+                    kernel,
+                    blasProvider,
+                    blasMatMulMinWork,
+                    blasF32RequireMgeK,
+                    blasF32MaxNOverK
+            );
         } catch (Exception e) {
             return d;
         }
@@ -435,7 +457,15 @@ public final class OptimizerProfileIO {
                         8_000_000
                 );
         KernelTuningConfig kernel = new KernelTuningConfig(cpu, ksrc.cuda(), ksrc.opencl());
-        TuningKnobs knobs = new TuningKnobs(src.strictCseSafety(), src.fuseConfig(), kernel);
+        TuningKnobs knobs = new TuningKnobs(
+                src.strictCseSafety(),
+                src.fuseConfig(),
+                kernel,
+                src.blasProvider(),
+                src.blasMatMulMinWork(),
+                src.blasF32RequireMgeK(),
+                src.blasF32MaxNOverK()
+        );
         return new OptimizerCandidate(base.name(), stageOrder, knobs);
     }
 
@@ -462,7 +492,15 @@ public final class OptimizerProfileIO {
                         2_000_000
                 );
         KernelTuningConfig kernel = new KernelTuningConfig(cpu, ksrc.cuda(), ksrc.opencl());
-        TuningKnobs knobs = new TuningKnobs(src.strictCseSafety(), src.fuseConfig(), kernel);
+        TuningKnobs knobs = new TuningKnobs(
+                src.strictCseSafety(),
+                src.fuseConfig(),
+                kernel,
+                src.blasProvider(),
+                src.blasMatMulMinWork(),
+                src.blasF32RequireMgeK(),
+                src.blasF32MaxNOverK()
+        );
         return new OptimizerCandidate(base.name(), stageOrder, knobs);
     }
 
@@ -538,6 +576,13 @@ public final class OptimizerProfileIO {
         Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(-?\\d+)").matcher(json);
         if (!m.find()) return defaultValue;
         return Integer.parseInt(m.group(1));
+    }
+
+    private static String findString(String json, String key, String defaultValue) {
+        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\"([^\"]*)\"").matcher(json);
+        if (!m.find()) return defaultValue;
+        String v = m.group(1);
+        return (v == null || v.isBlank()) ? defaultValue : v;
     }
 
     private static double findDouble(String json, String key, double defaultValue) {

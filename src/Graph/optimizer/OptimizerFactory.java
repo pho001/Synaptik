@@ -7,6 +7,7 @@ import Benchmark.OptimizerCandidate;
 import Benchmark.OptimizerCandidateFactory;
 import Benchmark.OptimizerProfileIO;
 import Benchmark.TuningKnobs;
+import Benchmark.BlasPolicyConfigurer;
 import Graph.optimizer.rules.AlgebraicRewritingRule;
 import Graph.optimizer.rules.CommonSubexpressionEliminationRule;
 import Graph.optimizer.rules.FuseElementWiseRule;
@@ -80,6 +81,7 @@ public final class OptimizerFactory {
                     "INFERENCE",
                     effective
             );
+            BlasPolicyConfigurer.apply(effective.knobs());
             ComputeEngine.setCpuKernelConfig(effective.knobs().kernelConfig().cpu());
             return OptimizerBuilder.build(effective);
         } catch (Exception ignored) {
@@ -121,6 +123,7 @@ public final class OptimizerFactory {
                     "TRAINING",
                     effective
             );
+            BlasPolicyConfigurer.apply(effective.knobs());
             ComputeEngine.setCpuKernelConfig(effective.knobs().kernelConfig().cpu());
             return OptimizerBuilder.build(effective);
         } catch (Exception ignored) {

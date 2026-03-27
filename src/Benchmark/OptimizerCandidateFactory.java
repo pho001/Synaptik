@@ -13,6 +13,9 @@ import java.util.EnumSet;
 import java.util.List;
 
 public final class OptimizerCandidateFactory {
+    private static final boolean AUTOTUNE_INCLUDE_BLAS_POLICIES =
+            Boolean.parseBoolean(System.getProperty("benchmark.autotuneIncludeBlasPolicies", "false"));
+
     private OptimizerCandidateFactory() {}
 
     public static List<OptimizerCandidate> defaultCandidates() {
@@ -169,6 +172,10 @@ public final class OptimizerCandidateFactory {
             ));
         }
 
+        if (AUTOTUNE_INCLUDE_BLAS_POLICIES) {
+            knobGrid = expandWithBlasPolicies(knobGrid);
+        }
+
         for (TuningKnobs knobs : knobGrid) {
             for (OptimizerCandidate base : generateCombinationsAndOrders(knobs)) {
                 out.add(new OptimizerCandidate("AUTO_" + (nameId++), base.stageOrder(), knobs));
@@ -188,5 +195,15 @@ public final class OptimizerCandidateFactory {
             permute(arr, idx + 1, out);
             Collections.swap(arr, idx, i);
         }
+    }
+
+    private static List<TuningKnobs> expandWithBlasPolicies(List<TuningKnobs> base) {
+        List<TuningKnobs> out = new ArrayList<>(base.size() * 3);
+        for (TuningKnobs knobs : base) {
+            out.add(knobs);
+            out.add(knobs.withBlasPolicy("OPENBLAS_FFM", 2_000_000L, true, 3.0d));
+            out.add(knobs.withBlasPolicy("OPENBLAS_FFM", 4_000_000L, true, 2.0d));
+        }
+        return out;
     }
 }

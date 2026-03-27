@@ -247,6 +247,17 @@ These knobs influence benchmark behavior, but they are not part of `TuningKnobs`
   - maximum number of finalists passed through numerics post-check
 - `benchmark.autotuneNumericsPostcheckSeed` [long]
   - seed used for numerics post-check inputs
+- `benchmark.autotuneIncludeBlasPolicies` [true, false]
+  - when `true`, autotune candidate grid expands with BLAS policy variants (can significantly increase candidate count)
+
+### BLAS Policy Knobs (Candidate-Level)
+
+These knobs are part of `TuningKnobs` and participate in candidate fingerprinting/history context:
+
+- `blas.provider` [`NONE`, `OPENBLAS_FFM`]
+- `blas.matmulMinWork` [`long`]
+- `blas.f32RequireMgeK` [`true|false`]
+- `blas.f32MaxNOverK` [`double`]
 
 ### Candidate Count Notes
 
