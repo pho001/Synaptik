@@ -39,27 +39,39 @@ public final class OptimizerCandidateFactory {
      * Useful for future auto-tuning beyond fixed presets.
      */
     public static List<OptimizerCandidate> generateCombinationsAndOrders(TuningKnobs knobs) {
+        return generateCombinationsMemLast(knobs);
+    }
+
+    private static List<OptimizerCandidate> generateCombinationsMemLast(TuningKnobs knobs) {
         List<OptimizerCandidate> out = new ArrayList<>();
-        List<OptimizationStage> all = new ArrayList<>(EnumSet.allOf(OptimizationStage.class));
+        List<OptimizationStage> nonMem = new ArrayList<>(EnumSet.allOf(OptimizationStage.class));
+        nonMem.remove(OptimizationStage.MEM);
 
         int nameId = 0;
-        for (int mask = 0; mask < (1 << all.size()); mask++) {
+        for (int mask = 0; mask < (1 << nonMem.size()); mask++) {
             List<OptimizationStage> subset = new ArrayList<>();
-            for (int i = 0; i < all.size(); i++) {
-                if ((mask & (1 << i)) != 0) subset.add(all.get(i));
-            }
-            if (subset.isEmpty()) {
-                out.add(new OptimizerCandidate("SEARCH_" + (nameId++), List.of(), knobs));
-                continue;
+            for (int i = 0; i < nonMem.size(); i++) {
+                if ((mask & (1 << i)) != 0) {
+                    subset.add(nonMem.get(i));
+                }
             }
 
             List<List<OptimizationStage>> permutations = new ArrayList<>();
-            permute(subset, 0, permutations);
+            if (subset.isEmpty()) {
+                permutations.add(List.of());
+            } else {
+                permute(subset, 0, permutations);
+            }
+
             for (List<OptimizationStage> p : permutations) {
                 out.add(new OptimizerCandidate("SEARCH_" + (nameId++), p, knobs));
+
+                List<OptimizationStage> withMemLast = new ArrayList<>(p.size() + 1);
+                withMemLast.addAll(p);
+                withMemLast.add(OptimizationStage.MEM);
+                out.add(new OptimizerCandidate("SEARCH_" + (nameId++), withMemLast, knobs));
             }
         }
-
         return out;
     }
 
