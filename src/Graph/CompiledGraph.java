@@ -156,14 +156,18 @@ public class CompiledGraph {
         // Její 0-tý vstup je VŽDYCKY ten skutečný, zoptimalizovaný výsledek dopředného chodu!
         Tensor actualRoot = this.forwardOutput.getPrevTensors().get(0);
 
-        // Pokud optimalizátor nahradil původní root něčím novým (fúzí),
-        // pouze přepneme runtime alias místo kopírování dat.
-        if (actualRoot != this.rootTensor) {
-            this.rootTensor.aliasRuntimeFrom(actualRoot);
+        // In training mode we must always detach the user-visible root output from the runtime
+        // storage, even when the optimized result still lives in rootTensor itself. Backward /
+        // memory-reuse can overwrite that storage later in the same execute() call.
+        // In inference mode we only need to synchronize when optimization replaced the root node.
+        if (!this.inferenceMode || actualRoot != this.rootTensor) {
+            switch (actualRoot.getDataType()) {
+                case FLOAT64 -> this.rootTensor.setData(actualRoot.getFloat64Data().clone());
+                case FLOAT32 -> this.rootTensor.setData(actualRoot.getFloat32Data().clone());
+                case FLOAT16 -> this.rootTensor.setData(actualRoot.getFloat16Data().clone());
+            }
         }
     }
-
-
 
     // Backward pass
     public void backward() {

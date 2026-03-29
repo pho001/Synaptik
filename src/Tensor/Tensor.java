@@ -580,14 +580,17 @@ public class Tensor {
 
 
     public void compute(GraphOptimizer optimizer) {
-        if (this.compiledGraph==null){
-
-            compiledGraph=new CompiledGraph(this,optimizer);
-        }
+        prepareCompiledGraph(optimizer);
         //compiledGraph.forward();
         compiledGraph.execute();
 
 
+    }
+
+    public void prepareCompiledGraph(GraphOptimizer optimizer) {
+        if (this.compiledGraph == null) {
+            compiledGraph = new CompiledGraph(this, optimizer);
+        }
     }
 
 
