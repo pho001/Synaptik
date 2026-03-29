@@ -1,4 +1,4 @@
-# Graph (src/Graph)
+# Graph (src/main/java/Graph)
 
 ## Purpose
 
@@ -7,15 +7,15 @@ The Graph module compiles tensor expression DAGs into executable plans, runs for
 ## Main Components
 
 - Compiled execution plan:
-  - [src/Graph/CompiledGraph.java](../Graph/CompiledGraph.java)
+  - [src/main/java/Graph/CompiledGraph.java](../Graph/CompiledGraph.java)
 - Legacy ASM sample generator:
-  - [src/Graph/ByteCodeGenerator.java](../Graph/ByteCodeGenerator.java)
+  - [src/main/java/Graph/ByteCodeGenerator.java](../Graph/ByteCodeGenerator.java)
 - Fused operation codegen:
-  - [src/Graph/codegen/FusedOperationGenerator.java](../Graph/codegen/FusedOperationGenerator.java) (F32/F64)
-  - [src/Graph/codegen/HFusedOperationGenerator.java](../Graph/codegen/HFusedOperationGenerator.java) (F16)
-  - [src/Graph/codegen/FusedOperationGeneratorRouter.java](../Graph/codegen/FusedOperationGeneratorRouter.java)
+  - [src/main/java/Graph/codegen/FusedOperationGenerator.java](../Graph/codegen/FusedOperationGenerator.java) (F32/F64)
+  - [src/main/java/Graph/codegen/HFusedOperationGenerator.java](../Graph/codegen/HFusedOperationGenerator.java) (F16)
+  - [src/main/java/Graph/codegen/FusedOperationGeneratorRouter.java](../Graph/codegen/FusedOperationGeneratorRouter.java)
 - Optimizer module:
-  - [src/Graph/optimizer/README.md](../Graph/optimizer/README.md)
+  - [src/main/java/Graph/optimizer/README.md](../Graph/optimizer/README.md)
 
 ## Compile Pipeline
 
@@ -47,7 +47,7 @@ During execution, graph runtime also sets training context in `ComputeEngine`, s
 
 Dispatch uses:
 
-- [src/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)
+- [src/main/java/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)
 
 with pre-resolved backend per node for low-overhead execution.
 
@@ -93,9 +93,9 @@ When optimizer fuses element-wise clusters:
 
 Related files:
 
-- [src/Graph/optimizer/rules/FuseElementWiseRule.java](../Graph/optimizer/rules/FuseElementWiseRule.java)
-- [src/Operations/FusedOperation.java](../Operations/FusedOperation.java)
-- [src/Backend/kernels/cpu/CpuFusedKernel.java](../Backend/kernels/cpu/CpuFusedKernel.java)
+- [src/main/java/Graph/optimizer/rules/FuseElementWiseRule.java](../Graph/optimizer/rules/FuseElementWiseRule.java)
+- [src/main/java/Operations/FusedOperation.java](../Operations/FusedOperation.java)
+- [src/main/java/Backend/kernels/cpu/CpuFusedKernel.java](../Backend/kernels/cpu/CpuFusedKernel.java)
 
 ## Canonicalization Notes
 
@@ -110,4 +110,4 @@ In training graphs (`requiresGrad=true` path), this rewrite is intentionally ski
 
 - `ByteCodeGenerator` is a minimal ASM sample/utility and not the primary fused execution path.
 - Optimizer configuration and profile-driven runtime knobs are handled via `OptimizerFactory` and benchmark profile files.
-- Numerics stability diagnostics and post-check tooling are documented in [src/Numerics/README.md](../Numerics/README.md).
+- Numerics stability diagnostics and post-check tooling are documented in [src/main/java/Numerics/README.md](../Numerics/README.md).

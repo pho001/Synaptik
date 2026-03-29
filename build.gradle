@@ -11,11 +11,8 @@ repositories {
 }
 
 dependencies {
-    // ASM for bytecode generation used across Graph/*
-    // Using the original org.objectweb.asm coordinates to match import statements
     implementation 'org.ow2.asm:asm:9.6'
     implementation 'org.ow2.asm:asm-commons:9.6'
-
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -29,7 +26,6 @@ java {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    // Required because code imports jdk.incubator.vector.*
     options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
 }
 
@@ -39,22 +35,44 @@ tasks.withType(Test).configureEach {
 }
 
 application {
-    // Main class is in the default package
-    mainClass = 'Main'
-    // Ensure vector API module is available at runtime
+    mainClass = 'synaptik.app.Main'
     applicationDefaultJvmArgs = ['--add-modules=jdk.incubator.vector']
 }
 
-// Use non-standard source layout: sources live in ./src
-sourceSets {
-    main {
-        java {
-            srcDirs = ['src']
+def sourceArtifactRoots = [layout.projectDirectory.dir('src'), layout.projectDirectory.dir('test')]
+def sourceArtifactPatterns = ['**/*.class', '**/.tmp*', '**/*.tmp*', '**/.DS_Store']
+
+tasks.register('verifySourceTreeClean') {
+    group = 'verification'
+    description = 'Fails when generated artifacts exist inside src/ or test/.'
+    doLast {
+        def offenders = sourceArtifactRoots.findAll { it.asFile.exists() }
+                .collectMany { root ->
+                    fileTree(root) {
+                        sourceArtifactPatterns.each { include it }
+                    }.files.collect { project.relativePath(it) }
+                }
+                .sort()
+        if (!offenders.isEmpty()) {
+            throw new GradleException('Generated artifacts found in source tree: ' + offenders)
         }
     }
-    test {
-        java {
-            srcDirs = ['test']
-        }
+}
+
+tasks.register('cleanSourceArtifacts', Delete) {
+    group = 'build setup'
+    description = 'Deletes generated artifacts accidentally written into src/ or test/.'
+    delete sourceArtifactRoots.collectMany { root ->
+        fileTree(root) {
+            sourceArtifactPatterns.each { include it }
+        }.files
     }
+}
+
+tasks.named('clean') {
+    dependsOn tasks.named('cleanSourceArtifacts')
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifySourceTreeClean')
 }

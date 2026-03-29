@@ -1,4 +1,4 @@
-# Benchmark (src/Benchmark)
+# Benchmark (src/main/java/Benchmark)
 
 ## Purpose
 
@@ -16,16 +16,16 @@ Primary goals:
 ## Main Components
 
 - Entry framework:
-  - [src/Benchmark/OptimizerBenchmarkFramework.java](../Benchmark/OptimizerBenchmarkFramework.java)
+  - [src/main/java/Benchmark/OptimizerBenchmarkFramework.java](../Benchmark/OptimizerBenchmarkFramework.java)
 - Candidate model/factory:
-  - [src/Benchmark/OptimizerCandidate.java](../Benchmark/OptimizerCandidate.java)
-  - [src/Benchmark/OptimizerCandidateFactory.java](../Benchmark/OptimizerCandidateFactory.java)
-  - [src/Benchmark/OptimizationStage.java](../Benchmark/OptimizationStage.java)
+  - [src/main/java/Benchmark/OptimizerCandidate.java](../Benchmark/OptimizerCandidate.java)
+  - [src/main/java/Benchmark/OptimizerCandidateFactory.java](../Benchmark/OptimizerCandidateFactory.java)
+  - [src/main/java/Benchmark/OptimizationStage.java](../Benchmark/OptimizationStage.java)
 - Optimizer assembly:
-  - [src/Benchmark/OptimizerBuilder.java](../Benchmark/OptimizerBuilder.java)
+  - [src/main/java/Benchmark/OptimizerBuilder.java](../Benchmark/OptimizerBuilder.java)
 - Knobs and profile I/O:
-  - [src/Benchmark/TuningKnobs.java](../Benchmark/TuningKnobs.java)
-  - [src/Benchmark/OptimizerProfileIO.java](../Benchmark/OptimizerProfileIO.java)
+  - [src/main/java/Benchmark/TuningKnobs.java](../Benchmark/TuningKnobs.java)
+  - [src/main/java/Benchmark/OptimizerProfileIO.java](../Benchmark/OptimizerProfileIO.java)
 
 ## Run Flow
 
@@ -111,7 +111,7 @@ Numerics post-check report output:
 
 This section reflects the current candidate generation in:
 
-- [src/Benchmark/OptimizerCandidateFactory.java](../Benchmark/OptimizerCandidateFactory.java)
+- [src/main/java/Benchmark/OptimizerCandidateFactory.java](../Benchmark/OptimizerCandidateFactory.java)
 
 ### Stage Order
 
@@ -269,12 +269,12 @@ Current autotune candidate construction:
 
 Benchmark cap is controlled by `AUTOTUNE_MAX_CANDIDATES` in:
 
-- [src/Benchmark/OptimizerBenchmarkFramework.java](../Benchmark/OptimizerBenchmarkFramework.java)
+- [src/main/java/Benchmark/OptimizerBenchmarkFramework.java](../Benchmark/OptimizerBenchmarkFramework.java)
 
 ## Integration Points
 
 - Optimizer construction:
-  - [src/Graph/optimizer/GraphOptimizer.java](../Graph/optimizer/GraphOptimizer.java)
-  - [src/Graph/optimizer/OptimizerFactory.java](../Graph/optimizer/OptimizerFactory.java)
+  - [src/main/java/Graph/optimizer/GraphOptimizer.java](../Graph/optimizer/GraphOptimizer.java)
+  - [src/main/java/Graph/optimizer/OptimizerFactory.java](../Graph/optimizer/OptimizerFactory.java)
 - Runtime backend config application:
-  - [src/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)
+  - [src/main/java/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)

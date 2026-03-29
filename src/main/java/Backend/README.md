@@ -1,4 +1,4 @@
-# Backend (src/Backend)
+# Backend (src/main/java/Backend)
 
 ## Purpose
 
@@ -13,20 +13,20 @@ Current backend targets:
 ## Main Components
 
 - Dispatcher:
-  - [src/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)
-  - [src/Backend/ComputeBackend.java](../Backend/ComputeBackend.java)
+  - [src/main/java/Backend/ComputeEngine.java](../Backend/ComputeEngine.java)
+  - [src/main/java/Backend/ComputeBackend.java](../Backend/ComputeBackend.java)
 - Per-device backends:
-  - [src/Backend/CPUBackend.java](../Backend/CPUBackend.java)
-  - [src/Backend/CudaBackend.java](../Backend/CudaBackend.java)
-  - [src/Backend/OpenClBackend.java](../Backend/OpenClBackend.java)
+  - [src/main/java/Backend/CPUBackend.java](../Backend/CPUBackend.java)
+  - [src/main/java/Backend/CudaBackend.java](../Backend/CudaBackend.java)
+  - [src/main/java/Backend/OpenClBackend.java](../Backend/OpenClBackend.java)
 - Kernel registries:
-  - [src/Backend/registry/CpuKernelRegistry.java](../Backend/registry/CpuKernelRegistry.java)
-  - [src/Backend/registry/CudaKernelRegistry.java](../Backend/registry/CudaKernelRegistry.java)
-  - [src/Backend/registry/OpenClKernelRegistry.java](../Backend/registry/OpenClKernelRegistry.java)
+  - [src/main/java/Backend/registry/CpuKernelRegistry.java](../Backend/registry/CpuKernelRegistry.java)
+  - [src/main/java/Backend/registry/CudaKernelRegistry.java](../Backend/registry/CudaKernelRegistry.java)
+  - [src/main/java/Backend/registry/OpenClKernelRegistry.java](../Backend/registry/OpenClKernelRegistry.java)
 - Kernel interfaces/impls:
-  - [src/Backend/kernels/cpu/](../Backend/kernels/cpu)
-  - [src/Backend/kernels/cuda/](../Backend/kernels/cuda)
-  - [src/Backend/kernels/opencl/](../Backend/kernels/opencl)
+  - [src/main/java/Backend/kernels/cpu/](../Backend/kernels/cpu)
+  - [src/main/java/Backend/kernels/cuda/](../Backend/kernels/cuda)
+  - [src/main/java/Backend/kernels/opencl/](../Backend/kernels/opencl)
 
 ## Execution Flow
 
@@ -38,8 +38,8 @@ Current backend targets:
 
 Related files:
 
-- [src/Graph/CompiledGraph.java](../Graph/CompiledGraph.java)
-- [src/Tensor/Tensor.java](../Tensor/Tensor.java)
+- [src/main/java/Graph/CompiledGraph.java](../Graph/CompiledGraph.java)
+- [src/main/java/Tensor/Tensor.java](../Tensor/Tensor.java)
 
 ## Compile-Time Resolution and Runtime Overhead
 
@@ -78,7 +78,7 @@ Dispatch modes:
 - `PARALLEL`
 - `PARALLEL_VECTOR`
 
-Element-wise mode selection is threshold-based in [src/Backend/kernels/cpu/CpuExecutionConfig.java](../Backend/kernels/cpu/CpuExecutionConfig.java):
+Element-wise mode selection is threshold-based in [src/main/java/Backend/kernels/cpu/CpuExecutionConfig.java](../Backend/kernels/cpu/CpuExecutionConfig.java):
 
 - `vectorMinSize`
 - `parallelMinSize`
@@ -92,7 +92,7 @@ Parallel chunking knobs:
 - `chunksPerWorker`
 - `minChunkSize`
 
-Parallel execution uses [src/Backend/kernels/cpu/CpuThreadPool.java](../Backend/kernels/cpu/CpuThreadPool.java) with per-parallelism `ForkJoinPool` reuse.
+Parallel execution uses [src/main/java/Backend/kernels/cpu/CpuThreadPool.java](../Backend/kernels/cpu/CpuThreadPool.java) with per-parallelism `ForkJoinPool` reuse.
 
 Vector dispatch policy can be controlled per operation group via `CpuKernelConfig`:
 
@@ -105,7 +105,7 @@ Each policy supports `AUTO | FORCE_ON | FORCE_OFF`.
 Non-contiguous input handling is hybrid:
 
 - `size < contiguousMaterializeThreshold`:
-  - use strided fallback path in [src/Backend/kernels/cpu/CpuStridedElementWise.java](../Backend/kernels/cpu/CpuStridedElementWise.java)
+  - use strided fallback path in [src/main/java/Backend/kernels/cpu/CpuStridedElementWise.java](../Backend/kernels/cpu/CpuStridedElementWise.java)
 - `size >= contiguousMaterializeThreshold`:
   - materialize non-contiguous input to temporary contiguous tensor and run regular fast kernel path
 
@@ -113,9 +113,9 @@ Non-contiguous input handling is hybrid:
 
 `SUM` is also excluded from generic preprocessing and handled by its own reduction pipeline:
 
-- [src/Backend/kernels/cpu/CpuSumKernel.java](../Backend/kernels/cpu/CpuSumKernel.java)
-- [src/Backend/kernels/cpu/reduction/SumExecutor.java](../Backend/kernels/cpu/reduction/SumExecutor.java)
-- [src/Backend/kernels/cpu/reduction/SumLoops.java](../Backend/kernels/cpu/reduction/SumLoops.java)
+- [src/main/java/Backend/kernels/cpu/CpuSumKernel.java](../Backend/kernels/cpu/CpuSumKernel.java)
+- [src/main/java/Backend/kernels/cpu/reduction/SumExecutor.java](../Backend/kernels/cpu/reduction/SumExecutor.java)
+- [src/main/java/Backend/kernels/cpu/reduction/SumLoops.java](../Backend/kernels/cpu/reduction/SumLoops.java)
 
 The reduction pipeline supports:
 
@@ -129,12 +129,12 @@ The reduction pipeline supports:
 
 CPU kernel dispatch parameters are represented by:
 
-- [src/Config/backend/CpuKernelConfig.java](../Config/backend/CpuKernelConfig.java)
-- [src/Config/backend/SumAccuracyMode.java](../Config/backend/SumAccuracyMode.java)
+- [src/main/java/Config/backend/CpuKernelConfig.java](../Config/backend/CpuKernelConfig.java)
+- [src/main/java/Config/backend/SumAccuracyMode.java](../Config/backend/SumAccuracyMode.java)
 
 Cross-backend tuning container:
 
-- [src/Config/backend/KernelTuningConfig.java](../Config/backend/KernelTuningConfig.java)
+- [src/main/java/Config/backend/KernelTuningConfig.java](../Config/backend/KernelTuningConfig.java)
 
 At runtime, CPU backend config is applied through:
 
@@ -143,7 +143,7 @@ At runtime, CPU backend config is applied through:
 Approximation policy is applied through:
 
 - `ComputeEngine.setApproxMode(...)`
-- enum: [src/Backend/ApproxMode.java](../Backend/ApproxMode.java)
+- enum: [src/main/java/Backend/ApproxMode.java](../Backend/ApproxMode.java)
 - modes:
   - `OFF` (always exact)
   - `TRAINING_ONLY` (fast approximation only during training execution)
@@ -195,7 +195,7 @@ Optimizer profiles are used as runtime source of tuning knobs:
 - autotune training winner: `build/optimizer-autotune/best-profile-training.json`
 - autotune inference winner: `build/optimizer-autotune/best-profile-inference.json`
 
-[src/Graph/optimizer/OptimizerFactory.java](../Graph/optimizer/OptimizerFactory.java):
+[src/main/java/Graph/optimizer/OptimizerFactory.java](../Graph/optimizer/OptimizerFactory.java):
 
 - `createRecommendedTrainingOptimizer()` loads profile chain and applies CPU kernel config.
 - `createInferencePerformanceOptimizer()` loads profile chain and applies CPU kernel config.
@@ -211,7 +211,7 @@ This means backend dispatch thresholds/chunking are profile-driven, with robust 
 
 Related numerics diagnostics tooling:
 
-- [src/Numerics/README.md](../Numerics/README.md)
+- [src/main/java/Numerics/README.md](../Numerics/README.md)
 
 ## CUDA and OpenCL Status
 
@@ -219,14 +219,14 @@ CUDA and OpenCL backends are intentionally scaffolded.
 
 Current registries map only `NOOP`:
 
-- [src/Backend/registry/CudaKernelRegistry.java](../Backend/registry/CudaKernelRegistry.java)
-- [src/Backend/registry/OpenClKernelRegistry.java](../Backend/registry/OpenClKernelRegistry.java)
+- [src/main/java/Backend/registry/CudaKernelRegistry.java](../Backend/registry/CudaKernelRegistry.java)
+- [src/main/java/Backend/registry/OpenClKernelRegistry.java](../Backend/registry/OpenClKernelRegistry.java)
 
 Missing kernels throw `UnsupportedOperationException` at execution time.
 
 ## Adding a New CPU Operation Kernel
 
-1. Implement `CpuKernel` in `src/Backend/kernels/cpu/` (forward path and mode dispatch).
+1. Implement `CpuKernel` in `src/main/java/Backend/kernels/cpu/` (forward path and mode dispatch).
 2. Register new op type in `CpuKernelRegistry`.
 3. Ensure operation class reports correct `opType`.
 4. Add regression tests and benchmark coverage.

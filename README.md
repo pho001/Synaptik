@@ -36,71 +36,71 @@ On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
 
 ## Project Structure
 
-- [`src/Tensor/`](src/Tensor)
+- [`src/main/java/Tensor/`](src/main/java/Tensor)
   - Core tensor implementation, storage, shape/stride logic, execution state, and autodiff plumbing
-  - Module documentation: [`src/Tensor/README.md`](src/Tensor/README.md)
-- [`src/Operations/`](src/Operations)
+  - Module documentation: [`src/main/java/Tensor/README.md`](src/main/java/Tensor/README.md)
+- [`src/main/java/Operations/`](src/main/java/Operations)
   - Primitive tensor operations such as add, sub, mul, div, pow, exp, log, tanh, relu, sigmoid, contiguous, sum, and newer unary/scalar helpers
-- [`src/Backend/`](src/Backend)
+- [`src/main/java/Backend/`](src/main/java/Backend)
   - Backend execution layer and per-platform dispatch integration
-  - Module documentation: [`src/Backend/README.md`](src/Backend/README.md)
-- [`src/Backend/kernels/`](src/Backend/kernels)
+  - Module documentation: [`src/main/java/Backend/README.md`](src/main/java/Backend/README.md)
+- [`src/main/java/Backend/kernels/`](src/main/java/Backend/kernels)
   - Backend kernel interfaces and concrete CPU kernel implementations
-  - Includes dedicated CPU reduction pipeline in [`src/Backend/kernels/cpu/reduction/`](src/Backend/kernels/cpu/reduction)
-- [`src/Backend/registry/`](src/Backend/registry)
+  - Includes dedicated CPU reduction pipeline in [`src/main/java/Backend/kernels/cpu/reduction/`](src/main/java/Backend/kernels/cpu/reduction)
+- [`src/main/java/Backend/registry/`](src/main/java/Backend/registry)
   - Operation-to-kernel registries used by CPU, CUDA, and OpenCL backends
-- [`src/Graph/`](src/Graph)
+- [`src/main/java/Graph/`](src/main/java/Graph)
   - Compiled graph execution and graph-level orchestration
-  - Module documentation: [`src/Graph/README.md`](src/Graph/README.md)
-- [`src/Graph/optimizer/`](src/Graph/optimizer)
+  - Module documentation: [`src/main/java/Graph/README.md`](src/main/java/Graph/README.md)
+- [`src/main/java/Graph/optimizer/`](src/main/java/Graph/optimizer)
   - Optimizer entry points, factory wiring, rule composition, and optimizer documentation
-  - Module documentation: [`src/Graph/optimizer/README.md`](src/Graph/optimizer/README.md)
-- [`src/Graph/codegen/`](src/Graph/codegen)
+  - Module documentation: [`src/main/java/Graph/optimizer/README.md`](src/main/java/Graph/optimizer/README.md)
+- [`src/main/java/Graph/codegen/`](src/main/java/Graph/codegen)
   - Runtime fused code generation for specialized fused operations
-- [`src/Benchmark/`](src/Benchmark)
+- [`src/main/java/Benchmark/`](src/main/java/Benchmark)
   - Benchmark harness, candidate selection, profile I/O, and tuning utilities
-  - Module documentation: [`src/Benchmark/README.md`](src/Benchmark/README.md)
-- [`src/Numerics/`](src/Numerics)
+  - Module documentation: [`src/main/java/Benchmark/README.md`](src/main/java/Benchmark/README.md)
+- [`src/main/java/Numerics/`](src/main/java/Numerics)
   - Standalone numerics A/B harness for stability diagnostics
-  - Module documentation: [`src/Numerics/README.md`](src/Numerics/README.md)
-- [`src/Config/`](src/Config)
+  - Module documentation: [`src/main/java/Numerics/README.md`](src/main/java/Numerics/README.md)
+- [`src/main/java/Config/`](src/main/java/Config)
   - Backend and optimizer tuning configuration objects
 - [`config/`](config)
   - Persisted benchmark and optimizer profile data
-- [`test/`](test)
+- [`src/test/java/`](src/test/java)
   - Regression and functional tests
 
 ## Core Architecture
 
 Detailed per-module docs:
 
-- Tensor: [`src/Tensor/README.md`](src/Tensor/README.md)
-- Backend: [`src/Backend/README.md`](src/Backend/README.md)
-- Graph: [`src/Graph/README.md`](src/Graph/README.md)
-- Optimizer: [`src/Graph/optimizer/README.md`](src/Graph/optimizer/README.md)
-- Benchmark: [`src/Benchmark/README.md`](src/Benchmark/README.md)
-- Numerics: [`src/Numerics/README.md`](src/Numerics/README.md)
+- Tensor: [`src/main/java/Tensor/README.md`](src/main/java/Tensor/README.md)
+- Backend: [`src/main/java/Backend/README.md`](src/main/java/Backend/README.md)
+- Graph: [`src/main/java/Graph/README.md`](src/main/java/Graph/README.md)
+- Optimizer: [`src/main/java/Graph/optimizer/README.md`](src/main/java/Graph/optimizer/README.md)
+- Benchmark: [`src/main/java/Benchmark/README.md`](src/main/java/Benchmark/README.md)
+- Numerics: [`src/main/java/Numerics/README.md`](src/main/java/Numerics/README.md)
 
 ### Tensor Runtime
 
-[`Tensor`](src/Tensor/Tensor.java) is the central runtime object. It carries:
+[`Tensor`](src/main/java/Tensor/Tensor.java) is the central runtime object. It carries:
 
 - execution/node state (operation, graph links, compiled execution cache)
 - tensor values for runtime execution
-- shape/stride/label/requires-grad metadata in [`TensorMetadata`](src/Tensor/TensorMetadata.java)
+- shape/stride/label/requires-grad metadata in [`TensorMetadata`](src/main/java/Tensor/TensorMetadata.java)
 - graph links to producer inputs
 - gradient storage and backward propagation helpers
 - execution hooks used by optimized and fused graphs
 
-Operations are represented through the [`Operation`](src/Operations/Operation.java) abstraction and a shared op-type enum. This allows the optimizer and backends to reason about operations generically while keeping per-op forward and gradient behavior localized in individual classes.
+Operations are represented through the [`Operation`](src/main/java/Operations/Operation.java) abstraction and a shared op-type enum. This allows the optimizer and backends to reason about operations generically while keeping per-op forward and gradient behavior localized in individual classes.
 
 ### Backend Model
 
 The backend layer separates graph execution from device-specific kernels.
 
-- [`CPUBackend`](src/Backend/CPUBackend.java) resolves operation kernels from [`CpuKernelRegistry`](src/Backend/registry/CpuKernelRegistry.java)
-- [`CudaBackend`](src/Backend/CudaBackend.java) and [`OpenClBackend`](src/Backend/OpenClBackend.java) follow the same registry-oriented structure
-- CPU kernels under [`src/Backend/kernels/cpu/`](src/Backend/kernels/cpu) provide concrete implementations for the currently supported ops
+- [`CPUBackend`](src/main/java/Backend/CPUBackend.java) resolves operation kernels from [`CpuKernelRegistry`](src/main/java/Backend/registry/CpuKernelRegistry.java)
+- [`CudaBackend`](src/main/java/Backend/CudaBackend.java) and [`OpenClBackend`](src/main/java/Backend/OpenClBackend.java) follow the same registry-oriented structure
+- CPU kernels under [`src/main/java/Backend/kernels/cpu/`](src/main/java/Backend/kernels/cpu) provide concrete implementations for the currently supported ops
 - CUDA/OpenCL kernel packages are currently scaffolding for future implementations
 
 This makes it easier to extend support for new operations without embedding all execution logic directly inside backend classes.
@@ -116,8 +116,8 @@ CPU execution supports mode-based dispatch for both element-wise and reduction o
 
 Dispatch thresholds and parallel chunking behavior are configured through:
 
-- [`CpuKernelConfig`](src/Config/backend/CpuKernelConfig.java)
-- [`CpuExecutionConfig`](src/Backend/kernels/cpu/CpuExecutionConfig.java)
+- [`CpuKernelConfig`](src/main/java/Config/backend/CpuKernelConfig.java)
+- [`CpuExecutionConfig`](src/main/java/Backend/kernels/cpu/CpuExecutionConfig.java)
 
 Reduction (`sum`) also supports configurable numerical-accuracy modes:
 
@@ -127,13 +127,13 @@ Reduction (`sum`) also supports configurable numerical-accuracy modes:
 
 Compiled graphs pre-resolve backend and CPU kernels per node to reduce runtime dispatch overhead:
 
-- [`CompiledGraph`](src/Graph/CompiledGraph.java)
-- [`Tensor`](src/Tensor/Tensor.java)
-- [`CPUBackend`](src/Backend/CPUBackend.java)
+- [`CompiledGraph`](src/main/java/Graph/CompiledGraph.java)
+- [`Tensor`](src/main/java/Tensor/Tensor.java)
+- [`CPUBackend`](src/main/java/Backend/CPUBackend.java)
 
 Parallel CPU execution uses a dedicated pool helper instead of `IntStream.parallel()`:
 
-- [`CpuThreadPool`](src/Backend/kernels/cpu/CpuThreadPool.java)
+- [`CpuThreadPool`](src/main/java/Backend/kernels/cpu/CpuThreadPool.java)
 
 Non-contiguous execution uses hybrid routing:
 
@@ -142,20 +142,20 @@ Non-contiguous execution uses hybrid routing:
 
 ### Optimizer Pipeline
 
-The optimizer was reorganized into a dedicated module rooted at [`GraphOptimizer`](src/Graph/optimizer/GraphOptimizer.java) and built by [`OptimizerFactory`](src/Graph/optimizer/OptimizerFactory.java).
+The optimizer was reorganized into a dedicated module rooted at [`GraphOptimizer`](src/main/java/Graph/optimizer/GraphOptimizer.java) and built by [`OptimizerFactory`](src/main/java/Graph/optimizer/OptimizerFactory.java).
 
 Current rule set includes files such as:
 
-- [`FuseElementWiseRule`](src/Graph/optimizer/rules/FuseElementWiseRule.java)
-- [`AlgebraicRewritingRule`](src/Graph/optimizer/rules/AlgebraicRewritingRule.java)
-- [`CommonSubexpressionEliminationRule`](src/Graph/optimizer/rules/CommonSubexpressionEliminationRule.java)
-- [`MemoryOptimizerRule`](src/Graph/optimizer/rules/MemoryOptimizerRule.java)
+- [`FuseElementWiseRule`](src/main/java/Graph/optimizer/rules/FuseElementWiseRule.java)
+- [`AlgebraicRewritingRule`](src/main/java/Graph/optimizer/rules/AlgebraicRewritingRule.java)
+- [`CommonSubexpressionEliminationRule`](src/main/java/Graph/optimizer/rules/CommonSubexpressionEliminationRule.java)
+- [`MemoryOptimizerRule`](src/main/java/Graph/optimizer/rules/MemoryOptimizerRule.java)
 
-Additional optimizer-specific notes are documented in [`src/Graph/optimizer/README.md`](src/Graph/optimizer/README.md).
+Additional optimizer-specific notes are documented in [`src/main/java/Graph/optimizer/README.md`](src/main/java/Graph/optimizer/README.md).
 
 ### Fused Code Generation
 
-Fused element-wise regions are materialized through runtime code generation via [`FusedOperationGeneratorRouter`](src/Graph/codegen/FusedOperationGeneratorRouter.java), which dispatches to [`FusedOperationGenerator`](src/Graph/codegen/FusedOperationGenerator.java) for `FLOAT32/FLOAT64` and [`HFusedOperationGenerator`](src/Graph/codegen/HFusedOperationGenerator.java) for `FLOAT16`. Generated fused classes are then used by [`FusedOperation`](src/Operations/FusedOperation.java) during compiled graph execution.
+Fused element-wise regions are materialized through runtime code generation via [`FusedOperationGeneratorRouter`](src/main/java/Graph/codegen/FusedOperationGeneratorRouter.java), which dispatches to [`FusedOperationGenerator`](src/main/java/Graph/codegen/FusedOperationGenerator.java) for `FLOAT32/FLOAT64` and [`HFusedOperationGenerator`](src/main/java/Graph/codegen/HFusedOperationGenerator.java) for `FLOAT16`. Generated fused classes are then used by [`FusedOperation`](src/main/java/Operations/FusedOperation.java) during compiled graph execution.
 
 This path is intended to reduce dispatch overhead and improve locality for chains of simple operations.
 
@@ -176,7 +176,7 @@ The runtime now includes support for a wider set of operations, including:
 
 Full Tensor public API and operation list is documented in:
 
-- [`src/Tensor/API.md`](src/Tensor/API.md)
+- [`src/main/java/Tensor/API.md`](src/main/java/Tensor/API.md)
 
 Quick operation catalog on `Tensor`:
 
@@ -215,14 +215,14 @@ out.backward();
 
 ## Entry Points
 
-- [`Main`](src/Main.java)
+- [`Main`](src/main/java/synaptik/app/Main.java)
   - Small runnable demo for building and executing a graph
-- [`OptimizerBenchmark`](src/OptimizerBenchmark.java)
+- [`OptimizerBenchmark`](src/main/java/synaptik/app/OptimizerBenchmark.java)
   - Benchmark entry point for optimizer and fusion experiments
 
 ## Benchmarks and Profiles
 
-The benchmarking subsystem under [`src/Benchmark/`](src/Benchmark) provides:
+The benchmarking subsystem under [`src/main/java/Benchmark/`](src/main/java/Benchmark) provides:
 
 - optimizer candidate generation
 - benchmark orchestration across optimization stages
@@ -252,12 +252,12 @@ Runtime profile priority is:
 
 ## Testing
 
-The [`test/`](test) directory contains coverage for key execution and regression scenarios, including:
+The [`src/test/java/`](src/test/java) directory contains coverage for key execution and regression scenarios, including:
 
-- [`TensorAddTest`](test/TensorAddTest.java)
-- [`AllOpsTest`](test/AllOpsTest.java)
-- [`OptimizerFuseTest`](test/OptimizerFuseTest.java)
-- [`GradientEngineRegressionTest`](test/GradientEngineRegressionTest.java)
+- [`TensorAddTest`](src/test/java/TensorAddTest.java)
+- [`AllOpsTest`](src/test/java/AllOpsTest.java)
+- [`OptimizerFuseTest`](src/test/java/OptimizerFuseTest.java)
+- [`GradientEngineRegressionTest`](src/test/java/GradientEngineRegressionTest.java)
 
 Run them with:
 
