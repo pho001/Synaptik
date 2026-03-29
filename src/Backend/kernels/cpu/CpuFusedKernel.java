@@ -1,5 +1,6 @@
 package Backend.kernels.cpu;
 
+import Backend.kernels.cpu.FusedExecutionProfiler;
 import Operations.FusedCompiledOperation;
 import Operations.FusedOperation;
 import Operations.Operation;
@@ -12,7 +13,9 @@ public class CpuFusedKernel implements CpuKernel {
     @Override
     public CpuKernelCostClass costClass(Operation op) {
         if (op instanceof FusedOperation fused) {
-            return fused.isLowCostHint() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
+            return fused.isLowCostHint() && fused.getDispatchScale() == 1
+                    ? CpuKernelCostClass.LOW
+                    : CpuKernelCostClass.MEDIUM;
         }
         return CpuKernel.super.costClass(op);
     }
@@ -42,23 +45,31 @@ public class CpuFusedKernel implements CpuKernel {
 
         int length = node.getFlatDataSize();
         CpuExecutionMode mode = config.modeFor(op, node);
-        CpuKernelCostClass costClass = fused.isLowCostHint() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
+        CpuKernelCostClass costClass = fused.isLowCostHint() && fused.getDispatchScale() == 1
+                ? CpuKernelCostClass.LOW
+                : CpuKernelCostClass.MEDIUM;
         String schedulerKey = fused.getSchedulerSignature();
         boolean recommendVector = true;
         if (fused != null) {
             recommendVector = FusedVectorOps.isRecommended(fused.getPrecisionMode());
         }
+        long t0 = FusedExecutionProfiler.enabled() ? System.nanoTime() : 0L;
         switch (mode) {
-            case SCALAR -> ranged.applyRangeScalar(inputs, node, 0, length);
+            case SCALAR -> {
+                ranged.applyRangeScalar(inputs, node, 0, length);
+                recordProfile(fused, mode, length, 1, false, false, t0);
+            }
             case VECTOR -> {
                 if (recommendVector) {
                     ranged.applyRangeVector(inputs, node, 0, length);
+                    recordProfile(fused, mode, length, 1, false, true, t0);
                 } else {
                     ranged.applyRangeScalar(inputs, node, 0, length);
+                    recordProfile(fused, mode, length, 1, false, false, t0);
                 }
             }
-            case PARALLEL -> runParallel(ranged, inputs, node, config, false, fused.getPrecisionMode(), costClass, schedulerKey);
-            case PARALLEL_VECTOR -> runParallel(ranged, inputs, node, config, recommendVector, fused.getPrecisionMode(), costClass, schedulerKey);
+            case PARALLEL -> runParallel(ranged, inputs, node, config, false, fused, mode, costClass, schedulerKey);
+            case PARALLEL_VECTOR -> runParallel(ranged, inputs, node, config, recommendVector, fused, mode, costClass, schedulerKey);
         }
     }
 
@@ -78,11 +89,13 @@ public class CpuFusedKernel implements CpuKernel {
             Tensor node,
             CpuExecutionConfig config,
             boolean preferVector,
-            int precisionMode,
+            FusedOperation fused,
+            CpuExecutionMode mode,
             CpuKernelCostClass costClass,
             String schedulerKey
     ) {
         int length = node.getFlatDataSize();
+        int precisionMode = fused.getPrecisionMode();
         int width = preferVector ? Math.max(1, FusedVectorOps.width(precisionMode)) : 1;
         int chunkSize = config.computeChunkSize(length, width);
         int chunks = (length + chunkSize - 1) / chunkSize;
@@ -97,6 +110,41 @@ public class CpuFusedKernel implements CpuKernel {
                 ranged.applyRangeScalar(inputs, node, start, end);
             }
         }, useCommonPool);
-        CpuSchedulerAdvisor.recordSample(schedulerKey, length, System.nanoTime() - t0);
+        long elapsed = System.nanoTime() - t0;
+        CpuSchedulerAdvisor.recordSample(schedulerKey, length, elapsed);
+        if (FusedExecutionProfiler.enabled()) {
+            FusedExecutionProfiler.recordRun(
+                    fused.getSchedulerSignature(),
+                    mode,
+                    length,
+                    chunks,
+                    useCommonPool,
+                    preferVector,
+                    elapsed
+            );
+        }
+    }
+
+    private static void recordProfile(
+            FusedOperation fused,
+            CpuExecutionMode mode,
+            int length,
+            int chunks,
+            boolean useCommonPool,
+            boolean preferVector,
+            long startedNs
+    ) {
+        if (!FusedExecutionProfiler.enabled()) {
+            return;
+        }
+        FusedExecutionProfiler.recordRun(
+                fused.getSchedulerSignature(),
+                mode,
+                length,
+                chunks,
+                useCommonPool,
+                preferVector,
+                System.nanoTime() - startedNs
+        );
     }
 }

@@ -314,6 +314,10 @@ public class CpuMatMulKernel implements CpuKernel {
         if (!BlasRuntime.isOpenBlasFfmEnabled()) {
             return false;
         }
+        long work = (long) m * n * k;
+        if (work < BlasRuntime.matMulMinWork()) {
+            return false;
+        }
         if (!OpenBlasFfmBridge.isAvailable()) {
             maybeLogBlasUnavailable();
             return false;
@@ -330,8 +334,7 @@ public class CpuMatMulKernel implements CpuKernel {
             maybeLogF32ShapeGuard("n/k ratio too high");
             return false;
         }
-        long work = (long) m * n * k;
-        return work >= BlasRuntime.matMulMinWork();
+        return true;
     }
 
     private static void maybeLogBlasUnavailable() {

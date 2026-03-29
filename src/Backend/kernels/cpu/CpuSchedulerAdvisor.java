@@ -42,9 +42,12 @@ public final class CpuSchedulerAdvisor {
         });
     }
 
+    public static void reset() {
+        EWMA_NS_PER_ELEM.clear();
+    }
+
     private static final class Ewma {
         private volatile double value;
         private volatile boolean initialized;
     }
 }
-

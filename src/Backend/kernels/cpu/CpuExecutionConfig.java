@@ -128,8 +128,8 @@ public final class  CpuExecutionConfig {
         }
         int size = node.getFlatDataSize();
         VectorPolicy vectorPolicy = resolveElementWisePolicy(op);
-        boolean vectorAllowed = isVectorAllowed(vectorPolicy, size);
-        if (size >= parallelMinSize) {
+        boolean vectorAllowed = isVectorAllowed(vectorPolicy, size, effectiveVectorMinSize(op));
+        if (size >= effectiveParallelMinSize(op)) {
             if (vectorAllowed) {
                 return CpuExecutionMode.PARALLEL_VECTOR;
             }
@@ -202,7 +202,7 @@ public final class  CpuExecutionConfig {
 
     public CpuExecutionMode modeForReduction(int workSize) {
         int size = Math.max(1, workSize);
-        boolean vectorAllowed = isVectorAllowed(vectorPolicyReduction, size);
+        boolean vectorAllowed = isVectorAllowed(vectorPolicyReduction, size, vectorMinSize);
         if (size >= parallelMinSize) {
             if (vectorAllowed) {
                 return CpuExecutionMode.PARALLEL_VECTOR;
@@ -215,12 +215,34 @@ public final class  CpuExecutionConfig {
         return CpuExecutionMode.SCALAR;
     }
 
-    private boolean isVectorAllowed(VectorPolicy policy, int size) {
+    private boolean isVectorAllowed(VectorPolicy policy, int size, int effectiveVectorMinSize) {
         return switch (policy) {
             case FORCE_ON -> true;
             case FORCE_OFF -> false;
-            case AUTO -> size >= vectorMinSize;
+            case AUTO -> size >= effectiveVectorMinSize;
         };
+    }
+
+    private int effectiveVectorMinSize(Operation op) {
+        int base = Math.max(1, vectorMinSize);
+        if (op instanceof FusedOperation fused) {
+            int scale = Math.max(1, fused.getDispatchScale());
+            if (scale > 1) {
+                return Math.max(1, base / scale);
+            }
+        }
+        return base;
+    }
+
+    private int effectiveParallelMinSize(Operation op) {
+        int base = Math.max(1, parallelMinSize);
+        if (op instanceof FusedOperation fused) {
+            int scale = Math.max(1, fused.getDispatchScale());
+            if (scale > 1) {
+                return Math.max(1, base / scale);
+            }
+        }
+        return base;
     }
 
     private VectorPolicy resolveElementWisePolicy(Operation op) {

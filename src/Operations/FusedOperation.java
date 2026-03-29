@@ -1,6 +1,7 @@
 package Operations;
 
 import Backend.ComputeBackend;
+import Backend.kernels.cpu.FusedExecutionProfiler;
 import Graph.codegen.FusedDTypeOps;
 import Graph.codegen.FusedOperationGeneratorRouter;
 import Tensor.Tensor;
@@ -23,6 +24,10 @@ public class FusedOperation implements Operation {
     private final int precisionMode;
     private final boolean lowCostHint;
     private final String schedulerSignature;
+    private final int clusterSize;
+    private final int externalInputCount;
+    private final int dispatchComplexity;
+    private final int dispatchScale;
 
     public FusedOperation(List<Tensor> cluster, Tensor root) {
         this(cluster, root, findExternalInputs(cluster));
@@ -40,8 +45,13 @@ public class FusedOperation implements Operation {
         this.precisionMode = resolvePrecisionMode(cluster, root, externalInputsInOrder);
         this.lowCostHint = resolveLowCostHint(cluster);
         this.schedulerSignature = buildSchedulerSignature(cluster, this.precisionMode);
+        this.clusterSize = cluster.size();
+        this.externalInputCount = externalInputsInOrder == null ? 0 : externalInputsInOrder.size();
+        this.dispatchComplexity = estimateDispatchComplexity(cluster);
+        this.dispatchScale = resolveDispatchScale(this.dispatchComplexity);
 
         try {
+            long t0 = FusedExecutionProfiler.enabled() ? System.nanoTime() : 0L;
             int id = CLASS_COUNTER.incrementAndGet();
             String binaryName = "Operations.fused.GeneratedFusedOp" + id;
             String internalName = binaryName.replace('.', '/');
@@ -58,6 +68,17 @@ public class FusedOperation implements Operation {
             Class<?> generatedClass = loader.define(binaryName, bytecode);
             Constructor<?> ctor = generatedClass.getConstructor(List.class, String.class, int.class);
             this.compiledInstance = (Operation) ctor.newInstance(cluster, this.expression, this.precisionMode);
+            if (FusedExecutionProfiler.enabled()) {
+                FusedExecutionProfiler.recordCompile(
+                        this.schedulerSignature,
+                        this.expression,
+                        this.clusterSize,
+                        this.externalInputCount,
+                        this.precisionMode,
+                        this.lowCostHint,
+                        System.nanoTime() - t0
+                );
+            }
         } catch (Throwable t) {
             throw new RuntimeException("Failed to generate fused operation class", t);
         }
@@ -92,6 +113,22 @@ public class FusedOperation implements Operation {
 
     public String getSchedulerSignature() {
         return schedulerSignature;
+    }
+
+    public int getClusterSize() {
+        return clusterSize;
+    }
+
+    public int getExternalInputCount() {
+        return externalInputCount;
+    }
+
+    public int getDispatchComplexity() {
+        return dispatchComplexity;
+    }
+
+    public int getDispatchScale() {
+        return dispatchScale;
     }
 
     @Override
@@ -190,6 +227,25 @@ public class FusedOperation implements Operation {
             }
         }
         return true;
+    }
+
+    private static int estimateDispatchComplexity(List<Tensor> cluster) {
+        if (cluster == null || cluster.isEmpty()) {
+            return 1;
+        }
+        int total = 0;
+        for (Tensor t : cluster) {
+            if (t == null || t.getOperation() == null) {
+                continue;
+            }
+            total += t.getOperation().isCheap() ? 1 : 4;
+        }
+        return Math.max(1, total);
+    }
+
+    private static int resolveDispatchScale(int dispatchComplexity) {
+        int normalized = (Math.max(1, dispatchComplexity) + 7) / 8;
+        return Math.max(1, Math.min(8, normalized));
     }
 
     private static String buildSchedulerSignature(List<Tensor> cluster, int precisionMode) {
