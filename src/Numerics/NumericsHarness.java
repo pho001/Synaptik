@@ -5,6 +5,8 @@ import Benchmark.OptimizationStage;
 import Benchmark.OptimizerBuilder;
 import Benchmark.OptimizerCandidate;
 import Benchmark.TuningKnobs;
+import Benchmark.scenario.BenchmarkGraphRecipes;
+import Benchmark.scenario.ScenarioTensorFactory;
 import Graph.optimizer.GraphOptimizer;
 import Tensor.DataType;
 import Tensor.Tensor;
@@ -64,27 +66,29 @@ public final class NumericsHarness {
         ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
 
-        Tensor A = inputTensor("A", input.baseA, true);
-        Tensor B = inputTensor("B", input.baseB, true);
-        Tensor C = inputTensor("C", input.baseC, true);
+        Tensor A = ScenarioTensorFactory.flatTensor("A", input.baseA, true, config.dtype);
+        Tensor B = ScenarioTensorFactory.flatTensor("B", input.baseB, true, config.dtype);
+        Tensor C = ScenarioTensorFactory.flatTensor("C", input.baseC, true, config.dtype);
 
-        Tensor linearIn = inputTensorWithShapePrefix("LIN_IN", input.baseA, true, 64, 64);
-        Tensor w1 = inputTensorWithShapePrefix("LIN_W1", input.baseB, false, 64, 64);
-        Tensor b1 = inputTensorWithShapePrefix("LIN_B1", input.baseC, false, 64, 64);
-        Tensor w2 = inputTensorWithShapePrefix("LIN_W2", input.baseC, false, 64, 64);
-        Tensor b2 = inputTensorWithShapePrefix("LIN_B2", input.baseA, false, 64, 64);
-        Tensor w3 = inputTensorWithShapePrefix("LIN_W3", input.baseA, false, 64, 64);
-        Tensor b3 = inputTensorWithShapePrefix("LIN_B3", input.baseB, false, 64, 64);
+        Tensor linearIn = ScenarioTensorFactory.prefixTensorWrap("LIN_IN", input.baseA, true, config.dtype, 64, 64);
+        Tensor w1 = ScenarioTensorFactory.prefixTensorWrap("LIN_W1", input.baseB, false, config.dtype, 64, 64);
+        Tensor b1 = ScenarioTensorFactory.prefixTensorWrap("LIN_B1", input.baseC, false, config.dtype, 64, 64);
+        Tensor w2 = ScenarioTensorFactory.prefixTensorWrap("LIN_W2", input.baseC, false, config.dtype, 64, 64);
+        Tensor b2 = ScenarioTensorFactory.prefixTensorWrap("LIN_B2", input.baseA, false, config.dtype, 64, 64);
+        Tensor w3 = ScenarioTensorFactory.prefixTensorWrap("LIN_W3", input.baseA, false, config.dtype, 64, 64);
+        Tensor b3 = ScenarioTensorFactory.prefixTensorWrap("LIN_B3", input.baseB, false, config.dtype, 64, 64);
 
-        Tensor out = buildBenchmarkGraph(A, B, C, linearIn, w1, b1, w2, b2, w3, b3, config.graphBlocks);
+        Tensor out = BenchmarkGraphRecipes.buildOptimizerBenchmarkGraph(
+                A, B, C, linearIn, w1, b1, w2, b2, w3, b3, config.graphBlocks
+        );
         out.compute(optimizer);
         out.getCompiledGraph().setTrainingModeOn();
         out.compute(optimizer);
 
-        Tensor BA = inputTensorWithShapePrefix("BA", input.baseA, false, config.b0, 1, config.f);
-        Tensor BB = inputTensorWithShapePrefix("BB", input.baseB, false, 1, config.b1, config.f);
-        Tensor BC = inputTensorWithShapePrefix("BC", input.baseC, false, config.b0, config.b1, config.f);
-        Tensor broadcastOut = BA.add(BB).mul(BC).add(BA).sigmoid();
+        Tensor BA = ScenarioTensorFactory.prefixTensorWrap("BA", input.baseA, false, config.dtype, config.b0, 1, config.f);
+        Tensor BB = ScenarioTensorFactory.prefixTensorWrap("BB", input.baseB, false, config.dtype, 1, config.b1, config.f);
+        Tensor BC = ScenarioTensorFactory.prefixTensorWrap("BC", input.baseC, false, config.dtype, config.b0, config.b1, config.f);
+        Tensor broadcastOut = BenchmarkGraphRecipes.buildBroadcastGraph(BA, BB, BC);
         broadcastOut.compute(optimizer);
 
         return new OutputSet(
@@ -94,70 +98,6 @@ public final class NumericsHarness {
                 C.getGradient().toDoubleArrayCopy().clone(),
                 broadcastOut.toDoubleArrayCopy().clone()
         );
-    }
-
-    private Tensor buildBenchmarkGraph(
-            Tensor A,
-            Tensor B,
-            Tensor C,
-            Tensor linearIn,
-            Tensor w1,
-            Tensor b1,
-            Tensor w2,
-            Tensor b2,
-            Tensor w3,
-            Tensor b3,
-            int graphBlocks
-    ) {
-        int blocks = Math.max(1, graphBlocks);
-        Tensor x = A.mul(0.50).add(B.mul(0.30)).sub(C.mul(0.20));
-        for (int i = 0; i < blocks; i++) {
-            x = x.mul(0.70).add(B.mul(0.20));
-            x = x.sub(C.mul(0.10));
-            x = x.add(A.mul(0.05));
-            x = x.mul(0.95).add(B.mul(0.03)).sub(C.mul(0.02));
-        }
-        Tensor linear1 = linearIn.matmul(w1).add(b1);
-        Tensor linear2 = linear1.matmul(w2).add(b2);
-        Tensor linear3 = linear2.matmul(w3).add(b3);
-        Tensor linearScalar = linear3.sum();
-        return x.mul(x).add(B.mul(0.01)).add(linearScalar);
-    }
-
-    private Tensor inputTensor(String label, double[] data, boolean requiresGrad) {
-        Tensor t = new Tensor(new int[]{data.length}, null, label, config.dtype);
-        t.setData(data.clone());
-        t.setRequiresGrad(requiresGrad);
-        return t;
-    }
-
-    private Tensor inputTensor(String label, double[] data, boolean requiresGrad, int[] shape) {
-        Tensor t = new Tensor(shape, null, label, config.dtype);
-        t.setData(data.clone());
-        t.setRequiresGrad(requiresGrad);
-        return t;
-    }
-
-    private Tensor inputTensorWithShapePrefix(String label, double[] data, boolean requiresGrad, int... shape) {
-        int size = 1;
-        for (int dim : shape) {
-            size *= dim;
-        }
-        if (size <= 0) {
-            throw new IllegalArgumentException("Invalid shape size for " + label);
-        }
-        double[] sliced = new double[size];
-        if (data.length >= size) {
-            System.arraycopy(data, 0, sliced, 0, size);
-        } else {
-            for (int i = 0; i < size; i++) {
-                sliced[i] = data[i % data.length];
-            }
-        }
-        Tensor t = new Tensor(shape, null, label, config.dtype);
-        t.setData(sliced);
-        t.setRequiresGrad(requiresGrad);
-        return t;
     }
 
     private static final class InputSet {
