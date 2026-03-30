@@ -1,8 +1,8 @@
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import Tensor.DataType;
-import Tensor.Tensor;
+import tensor.DataType;
+import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.*;
 

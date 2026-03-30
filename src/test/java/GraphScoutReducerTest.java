@@ -1,12 +1,12 @@
-import Benchmark.OptimizationStage;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.autotune.BeamSearchConfig;
-import Benchmark.autotune.CandidateEvalCache;
-import Benchmark.autotune.CandidatePerf;
-import Benchmark.autotune.CoarseKnobSignature;
-import Benchmark.autotune.GraphScoutConfig;
-import Benchmark.autotune.GraphScoutReducer;
+import benchmark.OptimizationStage;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.autotune.BeamSearchConfig;
+import benchmark.autotune.CandidateEvalCache;
+import benchmark.autotune.CandidatePerf;
+import benchmark.autotune.CoarseKnobSignature;
+import benchmark.autotune.GraphScoutConfig;
+import benchmark.autotune.GraphScoutReducer;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

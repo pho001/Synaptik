@@ -1,13 +1,13 @@
-import Benchmark.OptimizationStage;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.autotune.CandidateEvalCache;
-import Benchmark.autotune.CandidateGraphIndex;
-import Benchmark.autotune.CandidatePerf;
-import Benchmark.autotune.CoarseKnobSignature;
-import Benchmark.autotune.FamilyScoutStats;
-import Benchmark.autotune.RunningEstimate;
-import Benchmark.measure.CandidateMeasurementResult;
+import benchmark.OptimizationStage;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.autotune.CandidateEvalCache;
+import benchmark.autotune.CandidateGraphIndex;
+import benchmark.autotune.CandidatePerf;
+import benchmark.autotune.CoarseKnobSignature;
+import benchmark.autotune.FamilyScoutStats;
+import benchmark.autotune.RunningEstimate;
+import benchmark.measure.CandidateMeasurementResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

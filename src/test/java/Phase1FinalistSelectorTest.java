@@ -1,7 +1,7 @@
-import Benchmark.OptimizationStage;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.autotune.Phase1FinalistSelector;
+import benchmark.OptimizationStage;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.autotune.Phase1FinalistSelector;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

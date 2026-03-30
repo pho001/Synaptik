@@ -1,6 +1,6 @@
-import Benchmark.measure.MeasurementExecutor;
-import Benchmark.measure.MeasurementPolicy;
-import Benchmark.measure.NanoClock;
+import benchmark.measure.MeasurementExecutor;
+import benchmark.measure.MeasurementPolicy;
+import benchmark.measure.NanoClock;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;

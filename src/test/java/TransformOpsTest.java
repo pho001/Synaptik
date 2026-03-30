@@ -1,6 +1,6 @@
-import Graph.optimizer.GraphOptimizer;
-import Tensor.DataType;
-import Tensor.Tensor;
+import graph.optimizer.GraphOptimizer;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;

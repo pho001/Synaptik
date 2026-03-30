@@ -1,10 +1,10 @@
-import Backend.ComputeEngine;
-import Config.backend.CpuKernelConfig;
-import Graph.codegen.FusedDTypeOps;
-import Graph.optimizer.GraphOptimizer;
-import Graph.optimizer.rules.FuseElementWiseRule;
-import Tensor.DataType;
-import Tensor.Tensor;
+import backend.ComputeEngine;
+import config.backend.CpuKernelConfig;
+import graph.codegen.FusedDTypeOps;
+import graph.optimizer.GraphOptimizer;
+import graph.optimizer.rules.FuseElementWiseRule;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -124,7 +124,7 @@ public class FusedExecutionModesTest {
         out.compute(fuseOnly);
 
         boolean hasFused = out.getCompiledGraph().getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == Operations.Operation.OpType.FUSED);
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
         assertTrue(hasFused, "Expected fused node in compiled graph");
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
     }

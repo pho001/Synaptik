@@ -1,6 +1,6 @@
 import org.junit.jupiter.api.Test;
 
-import Tensor.Tensor;
+import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.*;
 

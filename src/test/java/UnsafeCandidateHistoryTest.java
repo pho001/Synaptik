@@ -1,4 +1,4 @@
-import Benchmark.autotune.UnsafeCandidateHistory;
+import benchmark.autotune.UnsafeCandidateHistory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

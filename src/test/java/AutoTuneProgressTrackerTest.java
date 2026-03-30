@@ -1,9 +1,9 @@
-import Benchmark.OptimizationStage;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.autotune.AutoTuneProgressTracker;
-import Benchmark.autotune.AutoTuneResult;
-import Tensor.DataType;
+import benchmark.OptimizationStage;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.autotune.AutoTuneProgressTracker;
+import benchmark.autotune.AutoTuneResult;
+import tensor.DataType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

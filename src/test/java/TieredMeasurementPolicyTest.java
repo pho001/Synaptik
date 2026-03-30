@@ -1,6 +1,6 @@
-import Benchmark.measure.MeasurementPolicy;
-import Benchmark.measure.MeasurementTier;
-import Benchmark.measure.TieredMeasurementPolicy;
+import benchmark.measure.MeasurementPolicy;
+import benchmark.measure.MeasurementTier;
+import benchmark.measure.TieredMeasurementPolicy;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

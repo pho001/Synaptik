@@ -1,8 +1,8 @@
-import Backend.ComputeEngine;
-import Config.backend.CpuKernelConfig;
-import Graph.optimizer.GraphOptimizer;
-import Tensor.DataType;
-import Tensor.Tensor;
+import backend.ComputeEngine;
+import config.backend.CpuKernelConfig;
+import graph.optimizer.GraphOptimizer;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

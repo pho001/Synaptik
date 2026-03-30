@@ -1,10 +1,10 @@
-import Graph.codegen.FusedDTypeOps;
-import Graph.optimizer.GraphOptimizer;
-import Tensor.DataType;
-import Tensor.Float16Storage;
-import Tensor.Float32Storage;
-import Tensor.Float64Storage;
-import Tensor.Tensor;
+import graph.codegen.FusedDTypeOps;
+import graph.optimizer.GraphOptimizer;
+import tensor.DataType;
+import tensor.Float16Storage;
+import tensor.Float32Storage;
+import tensor.Float64Storage;
+import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

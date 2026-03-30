@@ -1,5 +1,5 @@
-import Benchmark.measure.MeasurementObjective;
-import Benchmark.measure.MeasurementScoring;
+import benchmark.measure.MeasurementObjective;
+import benchmark.measure.MeasurementScoring;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

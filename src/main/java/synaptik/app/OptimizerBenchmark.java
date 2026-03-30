@@ -1,6 +1,6 @@
 package synaptik.app;
 
-import Benchmark.OptimizerBenchmarkFramework;
+import benchmark.OptimizerBenchmarkFramework;
 
 /**
  * Backward-compatible facade for the benchmark entrypoint.

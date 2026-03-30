@@ -1,8 +1,8 @@
-import Backend.ComputeEngine;
-import Config.backend.CpuKernelConfig;
-import Config.backend.SumAccuracyMode;
-import Graph.optimizer.GraphOptimizer;
-import Tensor.Tensor;
+import backend.ComputeEngine;
+import config.backend.CpuKernelConfig;
+import config.backend.SumAccuracyMode;
+import graph.optimizer.GraphOptimizer;
+import tensor.Tensor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

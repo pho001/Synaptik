@@ -1,17 +1,17 @@
-import Backend.ComputeEngine;
-import Benchmark.BlasPolicyConfigurer;
-import Benchmark.OptimizerBuilder;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.scenario.BenchmarkGraphRecipes;
-import Benchmark.scenario.BenchmarkScenarioFactory;
-import Benchmark.scenario.LinearGraphShape;
-import Benchmark.scenario.PreparedBenchmarkScenario;
-import Benchmark.scenario.PreparedBroadcastScenario;
-import Benchmark.scenario.ScenarioTensorFactory;
-import Graph.optimizer.GraphOptimizer;
-import Tensor.DataType;
-import Tensor.Tensor;
+import backend.ComputeEngine;
+import benchmark.BlasPolicyConfigurer;
+import benchmark.OptimizerBuilder;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.scenario.BenchmarkGraphRecipes;
+import benchmark.scenario.BenchmarkScenarioFactory;
+import benchmark.scenario.LinearGraphShape;
+import benchmark.scenario.PreparedBenchmarkScenario;
+import benchmark.scenario.PreparedBroadcastScenario;
+import benchmark.scenario.ScenarioTensorFactory;
+import graph.optimizer.GraphOptimizer;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +21,7 @@ public class BenchmarkScenarioFactoryTest {
 
     @AfterEach
     void resetBackendConfig() {
-        ComputeEngine.setCpuKernelConfig(Config.backend.CpuKernelConfig.defaultsTraining());
+        ComputeEngine.setCpuKernelConfig(config.backend.CpuKernelConfig.defaultsTraining());
     }
 
     @Test

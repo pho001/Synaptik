@@ -1,14 +1,14 @@
-import Benchmark.OptimizationStage;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.measure.BenchmarkScenarioSource;
-import Benchmark.measure.BroadcastScenarioSource;
-import Benchmark.measure.CandidateMeasurementCachePort;
-import Benchmark.measure.CandidateMeasurementHarness;
-import Benchmark.measure.CandidateMeasurementResult;
-import Benchmark.measure.MeasuredBenchmarkScenario;
-import Benchmark.measure.MeasuredBroadcastScenario;
-import Benchmark.measure.NanoClock;
+import benchmark.OptimizationStage;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.measure.BenchmarkScenarioSource;
+import benchmark.measure.BroadcastScenarioSource;
+import benchmark.measure.CandidateMeasurementCachePort;
+import benchmark.measure.CandidateMeasurementHarness;
+import benchmark.measure.CandidateMeasurementResult;
+import benchmark.measure.MeasuredBenchmarkScenario;
+import benchmark.measure.MeasuredBroadcastScenario;
+import benchmark.measure.NanoClock;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

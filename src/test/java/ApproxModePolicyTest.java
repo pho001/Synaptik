@@ -1,7 +1,7 @@
-import Backend.ApproxMode;
-import Backend.ComputeEngine;
-import Tensor.DataType;
-import Tensor.Tensor;
+import backend.ApproxMode;
+import backend.ComputeEngine;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

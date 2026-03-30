@@ -1,15 +1,15 @@
-import Benchmark.OptimizationStage;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.autotune.AutoTuneBestResults;
-import Benchmark.autotune.AutoTuneFinalizationConfig;
-import Benchmark.autotune.AutoTuneFinalizationResult;
-import Benchmark.autotune.AutoTuneFinalizer;
-import Benchmark.autotune.AutoTuneResult;
-import Benchmark.autotune.CandidatePerf;
-import Benchmark.autotune.CoarseKnobSignature;
-import Benchmark.autotune.RefineProgressUpdate;
-import Benchmark.autotune.RefineConfig;
+import benchmark.OptimizationStage;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.autotune.AutoTuneBestResults;
+import benchmark.autotune.AutoTuneFinalizationConfig;
+import benchmark.autotune.AutoTuneFinalizationResult;
+import benchmark.autotune.AutoTuneFinalizer;
+import benchmark.autotune.AutoTuneResult;
+import benchmark.autotune.CandidatePerf;
+import benchmark.autotune.CoarseKnobSignature;
+import benchmark.autotune.RefineProgressUpdate;
+import benchmark.autotune.RefineConfig;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

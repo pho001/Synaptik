@@ -1,15 +1,15 @@
-import Benchmark.OptimizationStage;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.autotune.NumericsPostcheckConfig;
-import Benchmark.autotune.NumericsPostcheckDrop;
-import Benchmark.autotune.NumericsPostcheckResult;
-import Benchmark.autotune.NumericsPostcheckRunner;
-import Benchmark.autotune.UnsafeCandidateHistory;
-import Numerics.NumericsMetrics;
-import Numerics.NumericsPolicy;
-import Numerics.NumericsReport;
-import Tensor.DataType;
+import benchmark.OptimizationStage;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.autotune.NumericsPostcheckConfig;
+import benchmark.autotune.NumericsPostcheckDrop;
+import benchmark.autotune.NumericsPostcheckResult;
+import benchmark.autotune.NumericsPostcheckRunner;
+import benchmark.autotune.UnsafeCandidateHistory;
+import numerics.NumericsMetrics;
+import numerics.NumericsPolicy;
+import numerics.NumericsReport;
+import tensor.DataType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

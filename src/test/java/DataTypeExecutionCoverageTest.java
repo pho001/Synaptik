@@ -1,8 +1,8 @@
-import Graph.codegen.FusedDTypeOps;
-import Graph.optimizer.GraphOptimizer;
-import Graph.optimizer.rules.FuseElementWiseRule;
-import Tensor.DataType;
-import Tensor.Tensor;
+import graph.codegen.FusedDTypeOps;
+import graph.optimizer.GraphOptimizer;
+import graph.optimizer.rules.FuseElementWiseRule;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 

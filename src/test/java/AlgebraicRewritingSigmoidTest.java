@@ -1,8 +1,8 @@
-import Graph.optimizer.GraphOptimizer;
-import Graph.optimizer.rules.AlgebraicRewritingRule;
-import Operations.Operation;
-import Tensor.DataType;
-import Tensor.Tensor;
+import graph.optimizer.GraphOptimizer;
+import graph.optimizer.rules.AlgebraicRewritingRule;
+import operations.Operation;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

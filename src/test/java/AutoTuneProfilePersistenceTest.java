@@ -1,9 +1,9 @@
-import Benchmark.OptimizationStage;
-import Benchmark.OptimizerCandidate;
-import Benchmark.TuningKnobs;
-import Benchmark.autotune.AutoTuneProfilePersistence;
-import Benchmark.autotune.AutoTuneProfilePersistenceResult;
-import Benchmark.autotune.AutoTuneResult;
+import benchmark.OptimizationStage;
+import benchmark.OptimizerCandidate;
+import benchmark.TuningKnobs;
+import benchmark.autotune.AutoTuneProfilePersistence;
+import benchmark.autotune.AutoTuneProfilePersistenceResult;
+import benchmark.autotune.AutoTuneResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

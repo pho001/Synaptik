@@ -1,7 +1,7 @@
-import Graph.optimizer.GraphOptimizer;
-import Backend.kernels.cpu.CpuDTypeOps;
-import Tensor.DataType;
-import Tensor.Tensor;
+import graph.optimizer.GraphOptimizer;
+import backend.kernels.cpu.CpuDTypeOps;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

@@ -1,6 +1,6 @@
-import Graph.optimizer.GraphOptimizer;
-import Tensor.DataType;
-import Tensor.Tensor;
+import graph.optimizer.GraphOptimizer;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -169,11 +169,11 @@ public class BroadcastBinaryOpsTest {
     @Test
     public void testMinAndMaxBroadcastBackwardFloat16() {
         Tensor a = new Tensor(new short[]{
-                Backend.kernels.cpu.CpuDTypeOps.toHalfBits(1f), Backend.kernels.cpu.CpuDTypeOps.toHalfBits(5f), Backend.kernels.cpu.CpuDTypeOps.toHalfBits(3f),
-                Backend.kernels.cpu.CpuDTypeOps.toHalfBits(7f), Backend.kernels.cpu.CpuDTypeOps.toHalfBits(2f), Backend.kernels.cpu.CpuDTypeOps.toHalfBits(9f)
+                backend.kernels.cpu.CpuDTypeOps.toHalfBits(1f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(5f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(3f),
+                backend.kernels.cpu.CpuDTypeOps.toHalfBits(7f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(2f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(9f)
         }, new int[]{2, 3}, null, "a", DataType.FLOAT16);
         Tensor b = new Tensor(new short[]{
-                Backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f), Backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f), Backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f)
+                backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f)
         }, new int[]{3}, null, "b", DataType.FLOAT16);
         a.setRequiresGrad(true);
         b.setRequiresGrad(true);

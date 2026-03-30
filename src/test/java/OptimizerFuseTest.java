@@ -1,6 +1,6 @@
-import Graph.optimizer.GraphOptimizer;
-import Graph.optimizer.rules.FuseElementWiseRule;
-import Tensor.Tensor;
+import graph.optimizer.GraphOptimizer;
+import graph.optimizer.rules.FuseElementWiseRule;
+import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

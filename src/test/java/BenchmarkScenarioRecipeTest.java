@@ -1,6 +1,6 @@
-import Benchmark.scenario.BenchmarkGraphRecipes;
-import Tensor.DataType;
-import Tensor.Tensor;
+import benchmark.scenario.BenchmarkGraphRecipes;
+import tensor.DataType;
+import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

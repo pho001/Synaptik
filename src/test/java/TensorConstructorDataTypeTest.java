@@ -1,9 +1,9 @@
-import Operations.noop;
-import Tensor.DataType;
-import Tensor.Float16Storage;
-import Tensor.Float32Storage;
-import Tensor.Float64Storage;
-import Tensor.Tensor;
+import operations.noop;
+import tensor.DataType;
+import tensor.Float16Storage;
+import tensor.Float32Storage;
+import tensor.Float64Storage;
+import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
@@ -44,7 +44,7 @@ public class TensorConstructorDataTypeTest {
         Constructor<Tensor> c1 = Tensor.class.getConstructor(double[].class, int[].class, List.class, String.class, DataType.class);
         Constructor<Tensor> c2 = Tensor.class.getConstructor(double[].class, int[].class, int[].class, List.class, String.class, DataType.class);
         Constructor<Tensor> c3 = Tensor.class.getConstructor(int[].class, List.class, String.class, DataType.class);
-        Constructor<Tensor> c4 = Tensor.class.getConstructor(int[].class, List.class, Operations.Operation.class, String.class, DataType.class);
+        Constructor<Tensor> c4 = Tensor.class.getConstructor(int[].class, List.class, operations.Operation.class, String.class, DataType.class);
         Constructor<Tensor> c5 = Tensor.class.getConstructor(Object.class, List.class, String.class, DataType.class);
 
         assertNotNull(c1);
