@@ -1,136 +1,157 @@
-# Optimizer (Graph/optimizer)
+# Optimizer (src/main/java/graph/optimizer)
 
 ## Goal
 
-- Transform the topologically sorted Tensor graph before execution.
-- Reduce node count, remove redundant expressions, and improve locality/throughput.
-- Preserve correctness for both forward and backward graph parts.
+The optimizer transforms a compiled tensor graph before runtime preparation.
+
+Main objectives:
+
+- reduce redundant work
+- simplify expressions
+- fuse profitable element-wise regions
+- preserve correctness across forward and backward graph sections
 
 ## Main Components
 
-- Orchestrator:
+- Orchestration:
   - [src/main/java/graph/optimizer/GraphOptimizer.java](../../graph/optimizer/GraphOptimizer.java)
   - [src/main/java/graph/optimizer/OptimizationRule.java](../../graph/optimizer/OptimizationRule.java)
   - [src/main/java/graph/optimizer/OptimizerFactory.java](../../graph/optimizer/OptimizerFactory.java)
+  - [src/main/java/graph/optimizer/OptimizerProfiles.java](../../graph/optimizer/OptimizerProfiles.java)
+- Config objects:
+  - [src/main/java/config/optimizer/OptimizerConfig.java](../../config/optimizer/OptimizerConfig.java)
+  - [src/main/java/config/optimizer/OptimizerStage.java](../../config/optimizer/OptimizerStage.java)
+  - [src/main/java/config/optimizer/CseConfig.java](../../config/optimizer/CseConfig.java)
+  - [src/main/java/config/optimizer/FuseConfig.java](../../config/optimizer/FuseConfig.java)
 - Rules:
   - [src/main/java/graph/optimizer/rules/AlgebraicRewritingRule.java](../../graph/optimizer/rules/AlgebraicRewritingRule.java)
   - [src/main/java/graph/optimizer/rules/CommonSubexpressionEliminationRule.java](../../graph/optimizer/rules/CommonSubexpressionEliminationRule.java)
   - [src/main/java/graph/optimizer/rules/FuseElementWiseRule.java](../../graph/optimizer/rules/FuseElementWiseRule.java)
   - [src/main/java/graph/optimizer/rules/MemoryOptimizerRule.java](../../graph/optimizer/rules/MemoryOptimizerRule.java)
-- Fused codegen:
-  - [src/main/java/operations/FusedOperation.java](../../operations/FusedOperation.java)
-  - [src/main/java/operations/FusedOperationFactory.java](../../operations/FusedOperationFactory.java)
-  - [src/main/java/graph/codegen/FusedExpressionPlan.java](../../graph/codegen/FusedExpressionPlan.java)
-  - [src/main/java/graph/codegen/CompiledFusedKernelFactory.java](../../graph/codegen/CompiledFusedKernelFactory.java)
-  - [src/main/java/graph/codegen/FusedKernelGeneratorRouter.java](../../graph/codegen/FusedKernelGeneratorRouter.java)
-  - [src/main/java/graph/codegen/FusedOperationGenerator.java](../../graph/codegen/FusedOperationGenerator.java) (F32/F64)
-  - [src/main/java/graph/codegen/HFusedOperationGenerator.java](../../graph/codegen/HFusedOperationGenerator.java) (F16)
+- Fusion support:
+  - [src/main/java/graph/optimizer/fusion/FusedCostModel.java](../../graph/optimizer/fusion/FusedCostModel.java)
+  - [src/main/java/graph/optimizer/fusion/FusedExternalInputCollector.java](../../graph/optimizer/fusion/FusedExternalInputCollector.java)
+  - [src/main/java/graph/optimizer/fusion/FusedPrecisionResolver.java](../../graph/optimizer/fusion/FusedPrecisionResolver.java)
+  - [src/main/java/graph/optimizer/fusion/FusedSignatureBuilder.java](../../graph/optimizer/fusion/FusedSignatureBuilder.java)
 
-## Data Flow
+## Placement in the Execution Flow
 
-1. `Tensor.compile(...)` creates `CompiledGraph`.
-2. `CompiledGraph.compile()` builds `finalGraph` and calls `optimizer.optimize(...)`.
-3. Rules run sequentially over a topologically sorted node list.
-4. `CompiledGraph.prepare(RuntimeConfig)` builds runtime-specific `PreparedExecution` steps and per-node metadata.
-5. `PreparedExecution.execute(...)` runs the optimized order for inference or training.
+Preferred flow today is:
 
-Files:
-- [src/main/java/tensor/Tensor.java](../../tensor/Tensor.java)
-- [src/main/java/graph/CompiledGraph.java](../../graph/CompiledGraph.java)
+1. construct tensor expression graph
+2. call `CompiledGraph.compile(root, optimizerConfig)`
+3. `CompiledGraph` builds forward/backward graph structure as needed
+4. optimizer runs over the assembled topologically sorted graph
+5. `CompiledGraph.prepare(runtimeConfig)` converts the optimized graph into runtime steps
 
-## Rule API Contract
+The optimizer does not own runtime execution.
+It only transforms the graph before preparation.
 
-Rule interface:
-- [src/main/java/graph/optimizer/OptimizationRule.java](../../graph/optimizer/OptimizationRule.java)
+## Rule Contract
 
-A rule:
-- accepts `List<Tensor>` (topologically sorted graph),
-- returns a new `List<Tensor>` representing the transformed graph.
+Each rule:
 
-Rules must:
-- preserve dependencies and execution order,
-- preserve gradient flow,
-- return a consistent topological order.
+- accepts `List<Tensor>` representing a topologically sorted graph
+- returns a transformed `List<Tensor>`
+
+Rules must preserve:
+
+- dependency ordering
+- graph reachability
+- backward-flow correctness
+- phase boundaries between forward and backward sections
 
 ## Rule Summary
 
-- `AlgebraicRewritingRule`
-  - local algebraic expression simplifications.
-  - includes inference-only canonical sigmoid rewrite:
-    - `inv(add(1, exp(neg(x)))) -> sigmoid(x)`
-    - `inv(add(1, exp(mulScalar(x, -1)))) -> sigmoid(x)`
-- `CommonSubexpressionEliminationRule`
-  - merges equivalent subexpressions (with optional strict safety).
-- `FuseElementWiseRule`
-  - groups element-wise nodes into fused clusters using a cost model.
-  - respects phase boundaries (forward/backward), materialization points, and shared-expensive policy.
-- `MemoryOptimizerRule`
-  - rewrites focused on improved memory behavior/reuse.
+### `AlgebraicRewritingRule`
+
+- local algebraic simplifications
+- canonical sigmoid rewrite in forward-only graphs:
+  - `inv(add(1, exp(neg(x)))) -> sigmoid(x)`
+  - `inv(add(1, exp(mulScalar(x, -1)))) -> sigmoid(x)`
+
+### `CommonSubexpressionEliminationRule`
+
+- merges equivalent subexpressions
+- can use stricter or more aggressive safety configuration through `CseConfig`
+
+### `FuseElementWiseRule`
+
+- groups profitable element-wise regions into fused clusters
+- respects forward/backward phase boundaries
+- uses explicit fuse policy from `FuseConfig`
+- cooperates with fusion support helpers for:
+  - external inputs
+  - precision resolution
+  - cluster signature building
+  - cost decisions
+
+### `MemoryOptimizerRule`
+
+- graph rewrites aimed at better memory behavior and reuse patterns
 
 ## Fused Operations
 
-`FuseElementWiseRule` can replace a cluster with a single `FusedOperation` node.
+The fused optimizer path now follows a descriptor + prepared-runtime split.
 
-- Fused node uses `OpType.FUSED`.
-- `FusedOperation` is a descriptor backed by `FusedExpressionPlan`.
-- Runtime execution goes through `CpuFusedKernel`, which executes a prepared `CompiledFusedKernel` from node metadata.
-- Fused bytecode is generated from plan IR, not from live `Tensor` graph nodes.
+Current model:
 
-Files:
-- [src/main/java/graph/optimizer/rules/FuseElementWiseRule.java](../../graph/optimizer/rules/FuseElementWiseRule.java)
-- [src/main/java/backend/kernels/cpu/CpuFusedKernel.java](../../backend/kernels/cpu/CpuFusedKernel.java)
-- [src/main/java/graph/codegen/FusedKernelGeneratorRouter.java](../../graph/codegen/FusedKernelGeneratorRouter.java)
-- [src/main/java/graph/codegen/CompiledFusedKernelFactory.java](../../graph/codegen/CompiledFusedKernelFactory.java)
-- [src/main/java/graph/codegen/FusedExpressionPlan.java](../../graph/codegen/FusedExpressionPlan.java)
-- [src/main/java/graph/codegen/FusedOperationGenerator.java](../../graph/codegen/FusedOperationGenerator.java)
-- [src/main/java/graph/codegen/HFusedOperationGenerator.java](../../graph/codegen/HFusedOperationGenerator.java)
+- optimizer replaces a cluster with a `FusedOperation` descriptor node
+- `FusedOperationFactory` builds `FusedExpressionPlan`
+- `CompiledGraph.prepare(...)` compiles a runtime fused executable through `CompiledFusedKernelFactory`
+- prepared fused executable is stored in `CompiledNodeExecutionMetadata`
+- `CpuFusedKernel` executes that prepared executable
 
-## Benchmark/Autotune Integration
+This means:
 
-Optimizer stage order and tuning knobs are controlled by the benchmark framework:
-- [src/main/java/benchmark/OptimizerBenchmarkFramework.java](../../benchmark/OptimizerBenchmarkFramework.java)
-- [src/main/java/benchmark/OptimizerCandidateFactory.java](../../benchmark/OptimizerCandidateFactory.java)
-- [src/main/java/benchmark/TuningKnobs.java](../../benchmark/TuningKnobs.java)
+- `FusedOperation` is not itself the compiled kernel
+- live `Tensor` graph nodes are not passed directly to generated runtime code
+- generated code consumes plan IR and prepared runtime bindings
 
-Autotune is two-phase:
-- Phase 1: coarse candidate screening.
-- Phase 2: refined re-measurement of finalists.
+## Config and Defaults
 
-Winning profiles are persisted:
-- `config/optimizer-profile.json` (runtime training profile),
-- `config/optimizer-hw-profiles.tsv` (runtime HW-bucket profiles),
-- `build/optimizer-autotune/best-profile-training.json`,
-- `build/optimizer-autotune/best-profile-inference.json`.
-- `build/optimizer-autotune/candidate-history.tsv` (context-aware unsafe candidate cache).
-- `build/numerics/autotune-postcheck-<dtype>-<timestamp>.tsv` (numerics post-check report for checked finalists).
+Primary compile-time config is:
 
-Runtime profile selection priority is:
+- `OptimizerConfig`
 
-1. HW-bucket profile (`optimizer-hw-profiles.tsv`).
-2. Architecture preset (`os.arch`, includes ARM/aarch64 and x86_64/amd64).
-3. Best-profile overrides (`best-profile-*.json`).
-4. Defaults.
+Default presets:
 
-Autotune now records context-specific unsafe candidates (`MISMATCH_*` + `NUMERICS_POSTCHECK_UNSAFE`) and skips them on subsequent runs with matching context.
+- `OptimizerConfig.noOptimization()`
+- `OptimizerConfig.trainingDefaults()`
+- `OptimizerConfig.inferenceDefaults()`
 
-CPU dispatch-related tuned knobs include:
+`OptimizerFactory` converts these config objects into concrete `GraphOptimizer` instances.
 
-- threshold knobs (`vectorMinSize`, `parallelMinSize`, `chunksPerWorker`, `minChunkSize`, `contiguousMaterializeThreshold`)
-- low-cost scheduler threshold (`lowCostNsPerElementThreshold`)
-- vector policies by op group (`vectorPolicyCheap`, `vectorPolicyTranscendental`, `vectorPolicyReduction`)
+## Benchmark / Autotune Integration
+
+The benchmark layer still owns persisted winning profiles and tuning history.
+
+Important persisted files:
+
+- `config/optimizer-profile.json`
+- `config/optimizer-profile-f32.json`
+- `config/optimizer-profile-f64.json`
+- `config/optimizer-hw-profiles.tsv`
+- `config/optimizer-hw-profiles-f32.tsv`
+- `config/optimizer-hw-profiles-f64.tsv`
+- `build/optimizer-autotune/best-profile-training.json`
+- `build/optimizer-autotune/best-profile-inference.json`
+- `build/optimizer-autotune/candidate-history.tsv`
+
+That benchmark/autotune layer is still transitional. The architectural direction is documented in the local TODO/planning notes, but the current persisted profile chain above is what the codebase still uses today.
 
 ## Adding a New Rule
 
-1. Add a class in `src/main/java/graph/optimizer/rules/` implementing `OptimizationRule`.
-2. Implement the transformation `List<Tensor> -> List<Tensor>`.
-3. Register the rule in `OptimizerFactory` or directly when assembling `GraphOptimizer`.
-4. Validate correctness:
-- numerical equivalence against baseline,
-- gradient preservation,
-- regression tests for edge cases.
+1. Add a new rule class under `src/main/java/graph/optimizer/rules/`.
+2. Implement `OptimizationRule`.
+3. Register it in `OptimizerFactory` or inject it manually into `GraphOptimizer`.
+4. Validate:
+   - numerical equivalence
+   - gradient preservation
+   - regressions for broadcasting, dtype handling, and fused boundaries
 
-## Build/Runtime Notes
+## Build / Runtime Notes
 
-- The project uses ASM (`org.ow2.asm`).
-- CPU vector path uses `jdk.incubator.vector`.
-- When running benchmark locally without Gradle, ASM must be on classpath.
+- Fused codegen uses ASM.
+- CPU vector execution uses `jdk.incubator.vector`.
+- Optimizer output is consumed by `CompiledGraph`, not directly by backend kernels.

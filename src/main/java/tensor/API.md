@@ -1,9 +1,31 @@
 # Tensor API Reference
 
-This document summarizes public constructors, factory methods, runtime methods, and tensor operations exposed by `Tensor`.
+This document summarizes the current public surface of `tensor.Tensor`.
 
 Primary class:
 - [src/main/java/tensor/Tensor.java](../tensor/Tensor.java)
+
+## Current API Shape
+
+`Tensor` still exposes two layers of execution API:
+
+- preferred profile/prepared-execution entry points
+- legacy optimizer-centric overloads kept as transitional compatibility shims
+
+If you are writing new code, prefer:
+
+- `prepare(ExecutionProfile profile)`
+- `compute(ExecutionProfile profile)`
+- `compute(PreparedExecution execution, ExecutionMode mode)`
+
+Avoid building new code on:
+
+- `compile(...)`
+- `prepare(GraphOptimizer, ...)`
+- `compute(GraphOptimizer, ...)`
+- `compute()`
+
+These remain in the class today, but are explicitly marked deprecated in code and are scheduled for cleanup.
 
 ## Constructors
 
@@ -17,6 +39,14 @@ Primary class:
 - `Tensor(double[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
 - `Tensor(double[] data, int[] shape, int[] strides, List<Tensor> previous, String label)`
 - `Tensor(double[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
+- `Tensor(float[] data, int[] shape, List<Tensor> previous, String label)`
+- `Tensor(float[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
+- `Tensor(float[] data, int[] shape, int[] strides, List<Tensor> previous, String label)`
+- `Tensor(float[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
+- `Tensor(short[] data, int[] shape, List<Tensor> previous, String label)`
+- `Tensor(short[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
+- `Tensor(short[] data, int[] shape, int[] strides, List<Tensor> previous, String label)`
+- `Tensor(short[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
 
 ## Static Factories
 
@@ -25,47 +55,87 @@ Primary class:
 - `onesLike(Tensor other)`
 - `zerosLike(Tensor other)`
 
-## Execution and Autodiff
+## Preferred Execution API
+
+- `prepare(RuntimeConfig runtimeConfig)`
+- `prepare(ExecutionProfile profile)`
+- `compute(RuntimeConfig runtimeConfig, ExecutionMode mode)`
+- `compute(ExecutionProfile profile)`
+- `compute(PreparedExecution execution, ExecutionMode mode)`
+- `backward()`
+
+Execution-mode values currently used by the engine:
+
+- `ExecutionMode.FORWARD`
+- `ExecutionMode.FORWARD_BACKWARD`
+
+## Legacy Execution / Compile API
+
+These methods still exist today, but are transitional and should not be used as the preferred public API:
 
 - `compute()`
 - `compute(GraphOptimizer optimizer)`
-- `backward()`
+- `prepareCompiledGraph(GraphOptimizer optimizer)`
+- `compile(GraphOptimizer optimizer)`
+- `compile(OptimizerConfig optimizerConfig)`
+- `prepare(GraphOptimizer optimizer, RuntimeConfig runtimeConfig)`
+- `compute(GraphOptimizer optimizer, RuntimeConfig runtimeConfig, ExecutionMode mode)`
+- `compute(GraphOptimizer optimizer, RuntimeConfig runtimeConfig)`
+- `getCompiledGraph()`
+- `resetCompiledGraph()`
+
+## Tensor Operations (Graph Building)
+
+### Layout
+
+- `contiguous()`
+- `reshape(int... newShape)`
+- `permute(int... axes)`
+- `transpose()`
+- `expandDims(int axis)`
+- `squeeze(int axis)`
+
+### Binary
+
+- `add(Tensor second)`
+- `sub(Tensor second)`
+- `mul(Tensor second)`
+- `div(Tensor second)`
+- `min(Tensor second)`
+- `max(Tensor second)`
+- `matmul(Tensor second)`
+
+### Unary / Scalar
+
+- `neg()`
+- `log()`
+- `exp()`
+- `fastExp()`
+- `tanh()`
+- `fastTanh()`
+- `pow(double exponent)`
+- `mul(double scalar)`
+- `inv()`
+- `sqrt()`
+- `sigmoid()`
+
+### Reduction
+
+- `sum(int dimension)`
+- `sum()`
+
+### Execution Anchor / Autodiff Helpers
+
+- `forwardOutput()`
 - `buildBackwardGraph()`
 - `setBackwardFunction(Runnable backwardFunction)`
-
-## Tensor Operations (Graph-Building)
-
-- Layout:
-  - `contiguous()`
-- Binary:
-  - `add(Tensor second)`
-  - `sub(Tensor second)`
-  - `mul(Tensor second)`
-  - `div(Tensor second)`
-  - `min(Tensor second)`
-  - `max(Tensor second)`
-- Unary:
-  - `neg()`
-  - `log()`
-  - `exp()`
-  - `fastExp()`
-  - `tanh()`
-  - `fastTanh()`
-  - `pow(double exponent)`
-  - `mul(double scalar)`
-  - `inv()`
-  - `sqrt()`
-  - `sigmoid()`
-- Reduction:
-  - `sum(int dimension)`
-  - `sum()`
-- Execution anchor:
-  - `forwardOutput()`
 
 ## Metadata and Layout Accessors
 
 - `getShape()`
+- `getShapeUnsafe()`
 - `getStrides()`
+- `getStridesUnsafe()`
 - `getStride(int index)`
 - `getDimensionAt(int index)`
 - `getFlatDataSize()`
@@ -100,8 +170,6 @@ Primary class:
 - `getPrevTensors()`
 - `setPrevTensors(List<Tensor> prevTensors)`
 - `topologicalSort()`
-- `getCompiledGraph()`
-- `resetCompiledGraph()`
 - `setGradient(Tensor gradient)`
 - `getGradient()`
 - `setBackward(boolean backward)`
@@ -109,18 +177,17 @@ Primary class:
 - `setIntermediates(double[] intermediates)`
 - `getIntermediates()`
 
-## Backend and Kernel Resolution
+## Backend Selection
 
 - `setBackend(ComputeBackend backend)`
 - `resolveBackend()`
 
-## Compile / Prepare / Execute
+Current fallback behavior:
 
-- `compile(GraphOptimizer optimizer)`
-- `prepare(GraphOptimizer optimizer, RuntimeConfig runtimeConfig)`
-- `compute(GraphOptimizer optimizer, RuntimeConfig runtimeConfig, ExecutionMode mode)`
-- `compute(GraphOptimizer optimizer, RuntimeConfig runtimeConfig)`
-- `compute(PreparedExecution execution, ExecutionMode mode)`
+- explicit `forcedBackend` if set
+- otherwise `CPU`
+
+`Operation` no longer participates in backend preference resolution.
 
 ## Label / Grad / Type / Storage
 
@@ -138,10 +205,10 @@ Primary class:
 
 ## Reduction Semantics
 
-- `sum()`:
-  - Reduces all elements to a single value.
-  - Output shape is `[1]`.
-- `sum(int dimension)`:
-  - Reduces along one axis.
-  - Output shape removes the selected axis (rank decreases by 1).
-  - `dimension` is zero-based (`0..rank-1`).
+- `sum()`
+  - reduces all elements to one scalar-shaped tensor
+  - current output shape is `[1]`
+- `sum(int dimension)`
+  - reduces one axis
+  - removes the selected axis from output shape
+  - `dimension` is zero-based

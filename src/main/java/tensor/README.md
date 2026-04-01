@@ -2,25 +2,32 @@
 
 ## Purpose
 
-The Tensor module provides the runtime tensor node abstraction used by graph execution, autodiff, and backend dispatch.
+The `tensor` package provides the core tensor node abstraction used by:
 
-It combines:
+- graph construction
+- runtime data storage
+- reverse-mode autodiff
+- backend dispatch entry
 
-- value container for runtime execution
-- metadata (`shape`, `strides`, `label`, `requiresGrad`)
-- graph links (`prevTensors`, producing operation)
-- gradient references and backward-graph hooks
-- compiled graph handle and explicit prepare/execute API
+`Tensor` is both:
+
+- a value container (`shape`, `strides`, dtype-specific storage)
+- a graph node (`operation`, `prevTensors`, gradient references, backward hook)
+
+It is not the primary owner of explicit compile/runtime artifacts. Those live in:
+
+- [src/main/java/graph/CompiledGraph.java](../graph/CompiledGraph.java)
+- [src/main/java/graph/execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
 
 ## Main Components
 
-- Core runtime tensor:
+- Core tensor type:
   - [src/main/java/tensor/Tensor.java](../tensor/Tensor.java)
 - API reference:
   - [src/main/java/tensor/API.md](../tensor/API.md)
 - Metadata:
   - [src/main/java/tensor/TensorMetadata.java](../tensor/TensorMetadata.java)
-- Operation helpers:
+- Graph-building helpers:
   - [src/main/java/tensor/TensorOps.java](../tensor/TensorOps.java)
   - [src/main/java/tensor/TensorBinaryOps.java](../tensor/TensorBinaryOps.java)
   - [src/main/java/tensor/TensorUnaryOps.java](../tensor/TensorUnaryOps.java)
@@ -29,90 +36,129 @@ It combines:
   - [src/main/java/tensor/TensorNaryOps.java](../tensor/TensorNaryOps.java)
 - Layout remap utility:
   - [src/main/java/tensor/TensorRemap.java](../tensor/TensorRemap.java)
-- Storage/type abstraction (currently auxiliary):
+- Storage/type abstractions:
   - [src/main/java/tensor/TensorStorage.java](../tensor/TensorStorage.java)
   - [src/main/java/tensor/DataType.java](../tensor/DataType.java)
   - [src/main/java/tensor/Float16Storage.java](../tensor/Float16Storage.java)
   - [src/main/java/tensor/Float32Storage.java](../tensor/Float32Storage.java)
   - [src/main/java/tensor/Float64Storage.java](../tensor/Float64Storage.java)
 
-## Runtime Data Model
+## Data Model
 
 `Tensor` stores:
 
-- operation (`Operation`) producing the node, or `null` for leaf/constant nodes
-- input links (`prevTensors`)
-- tensor values for execution
+- tensor storage (`FLOAT16`, `FLOAT32`, `FLOAT64`)
+- metadata (`shape`, `strides`, `label`, `requiresGrad`)
+- producing operation (`Operation`) or `null` for leaves/constants
+- graph input links (`prevTensors`)
 - gradient tensor reference (`gradient`)
-- metadata via `TensorMetadata`
-- compiled graph handle (`compiledGraph`)
+- backward lambda (`backwardFunction`)
+- optional forced backend (`forcedBackend`)
 
-`TensorMetadata` handles:
+There is also a transitional compile/execution cache in `Tensor` today:
 
-- shape normalization
-- stride computation and validation
-- contiguous check
-- flat index <-> spatial index mapping
-- `label` and `requiresGrad` flags
+- `compiledGraph`
+- `lastPreparedExecution`
 
-## Execution Flow
+This still exists in code for compatibility, but the intended architectural direction is to treat:
 
-1. Tensor expression graph is built through operations (`add`, `mul`, `pow`, `log`, etc.).
-2. `Tensor.compile(optimizer)` builds `CompiledGraph`.
-3. `Tensor.prepare(optimizer, runtimeConfig)` builds `PreparedExecution`.
-4. `Tensor.compute(..., runtimeConfig, mode)` executes explicit runtime configuration.
-5. Legacy `compute()` / `compute(optimizer)` remain wrapper entry points.
+- `CompiledGraph` as the explicit compile artifact
+- `PreparedExecution` as the explicit runtime artifact
 
-Unary transcendental APIs now include both exact and approximate variants:
+## Execution Model
 
-- exact: `exp()`, `tanh()`
-- approximate: `fastExp()`, `fastTanh()`
+Current execution flow is:
 
-Related files:
+1. Build a tensor expression graph through tensor operations.
+2. Compile the graph into [`CompiledGraph`](../graph/CompiledGraph.java).
+3. Prepare a runtime-bound [`PreparedExecution`](../graph/execution/PreparedExecution.java).
+4. Execute in one of the engine modes:
+   - `FORWARD`
+   - `FORWARD_BACKWARD`
 
-- [src/main/java/graph/CompiledGraph.java](../graph/CompiledGraph.java)
-- [src/main/java/graph/optimizer/OptimizerFactory.java](../graph/optimizer/OptimizerFactory.java)
-- [src/main/java/backend/ComputeEngine.java](../backend/ComputeEngine.java)
-- [src/main/java/tensor/TensorUnaryOps.java](../tensor/TensorUnaryOps.java)
-- Numerics diagnostics harness: [src/main/java/numerics/README.md](../numerics/README.md)
+Preferred high-level entry points on `Tensor` are:
+
+- `prepare(ExecutionProfile profile)`
+- `compute(ExecutionProfile profile)`
+- `compute(PreparedExecution execution, ExecutionMode mode)`
+
+Convenience overloads using only `RuntimeConfig` still exist and derive optimizer defaults from the graph shape / gradient requirements:
+
+- `prepare(RuntimeConfig runtimeConfig)`
+- `compute(RuntimeConfig runtimeConfig, ExecutionMode mode)`
+
+Legacy optimizer-centric methods are still present, but deprecated:
+
+- `compile(...)`
+- `prepare(GraphOptimizer, ...)`
+- `compute(GraphOptimizer, ...)`
+- `compute()`
 
 ## Gradient and Backward
 
-- During graph compilation, backward nodes are built from forward nodes (`buildBackwardGraph()` path).
-- Root gradient is seeded with `onesLike(root)`.
-- `CompiledGraph` executes backward section after forward section in training mode.
-- `Tensor.backward()` delegates to compiled graph backward execution.
+Autodiff is reverse-mode:
 
-Helpers:
+- forward nodes carry a backward lambda
+- compilation of a differentiable graph builds explicit backward nodes
+- root gradient is seeded with `onesLike(root)`
+- `PreparedExecution.execute(FORWARD_BACKWARD)` runs forward and then backward
 
-- `Tensor.onesLike(...)`
-- `Tensor.zerosLike(...)`
+`Tensor.backward()` currently delegates to the last prepared execution associated with this tensor.
 
-## Backend Selection
+Important consequence:
 
-Tensor backend decision is:
+- `Tensor.backward()` is a convenience API, not the primary explicit execution artifact
 
-1. `forcedBackend` if explicitly set on tensor.
-2. operation preferred backend if provided.
-3. fallback to `CPU`.
+The explicit form is:
 
-Runtime-specific execution metadata now lives in `PreparedExecution`, not on `Tensor`.
+- compile graph
+- prepare execution
+- call `PreparedExecution.backward()`
+
+## Backend Resolution
+
+Tensor-level backend selection is intentionally simple:
+
+1. use `forcedBackend` if explicitly set
+2. otherwise default to `CPU`
+
+`Operation` no longer advertises backend preference.
+Backend-specific runtime metadata is prepared later during graph preparation, not stored on the operation descriptor.
 
 ## Non-Contiguous Layout Handling
 
-`TensorRemap` provides layout remapping between tensors with identical shape and different strides.
+`TensorRemap` and backend remap plans support execution across non-contiguous layouts.
 
-Current remap behavior:
+Current behavior:
 
-- compile-time remap plan support (`TensorRemap.RemapPlan`) reused in backend hot path
-- typed fast paths for contiguous/same-stride copies (`System.arraycopy` for F64/F32/F16)
-- odometer/range-walker offset traversal (avoids per-element `logicalToOffset` recomputation)
-- supports sequential and parallel remap paths via `CpuThreadPool`
+- identical layout copies use fast typed paths
+- small non-contiguous tensors can use strided element-wise fallback
+- larger non-contiguous inputs can be materialized to temporary contiguous buffers
+- reduction and broadcast paths have their own resolved runtime metadata
 
-This avoids stride-indexing out-of-bounds issues on non-contiguous tensors and is used by backend materialization paths.
+This is handled in backend planning/execution, not directly in tensor graph construction.
 
-## Notes on DTypes and Storage
+## DType / Storage Notes
 
-`TensorStorage` and `DataType` abstractions exist and provide `FLOAT16/FLOAT32/FLOAT64` storage wrappers.
+Storage is dtype-native:
 
-Current execution path still operates on tensor runtime values used by existing kernels. Storage abstraction can be incrementally wired into kernels and tensor runtime as dtype support expands.
+- `Float16Storage`
+- `Float32Storage`
+- `Float64Storage`
+
+Important current behavior:
+
+- non-`FLOAT64` tensors do not maintain a mirrored `double[]` cache
+- `markDataViewStale()` is now effectively a no-op compatibility hook
+- `toDoubleArrayCopy()` is the canonical generic readback path
+
+## Related Modules
+
+- Graph orchestration:
+  - [src/main/java/graph/README.md](../graph/README.md)
+- Backend dispatch:
+  - [src/main/java/backend/README.md](../backend/README.md)
+- Optimizer:
+  - [src/main/java/graph/optimizer/README.md](../graph/optimizer/README.md)
+- Numerics harness:
+  - [src/main/java/numerics/README.md](../numerics/README.md)

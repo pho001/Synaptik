@@ -1,21 +1,21 @@
 # Synaptik
 
-Synaptik is a lightweight Java computational graph and autodiff playground focused on tensor execution, graph optimization, and runtime fusion of element-wise operations. The project combines a small tensor runtime with an optimizer pipeline, backend-specific kernel dispatch, and generated fused kernels for fast execution experiments.
+Synaptik is a lightweight Java computational graph and autodiff playground focused on tensor execution, graph optimization, and runtime fusion of element-wise operations. The project combines a tensor runtime, an explicit compiled/prepared execution pipeline, backend-specific kernel dispatch, and generated fused kernels for fast execution experiments.
 
 ## Highlights
 
-- Tensor runtime split into execution node state and dedicated metadata (`TensorMetadata`)
+- Tensor runtime with explicit shape/stride metadata (`TensorMetadata`)
 - Reverse-mode autodiff for a growing set of tensor operations
 - Optimizer pipeline with pluggable rewrite and fusion rules
-- Runtime fused-operation generation for element-wise subgraphs
+- Runtime fused-kernel generation for element-wise subgraphs
 - Backend abstraction with CPU kernels and CUDA/OpenCL scaffolding
-- Benchmarking and persisted optimizer profile support
+- Benchmarking, persisted optimizer profiles, and numerics diagnostics
 - Regression and operation-level test coverage
 
 ## Requirements
 
 - JDK 25
-- Gradle 8.14+ compatible environment, or the included Gradle Wrapper
+- Gradle 9.4.1 compatible environment, or the included Gradle Wrapper
 - macOS, Linux, or Windows
 
 Vector API note:
@@ -30,9 +30,14 @@ Using the Gradle Wrapper:
 - Run the demo app: `./gradlew run`
 - Build the project: `./gradlew build`
 - Run tests: `./gradlew test`
-- Run the optimizer benchmark entry point: `./gradlew run`
+- Compile classes for manual entry-point execution: `./gradlew classes`
 
 On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
+
+Alternative main classes can be started from compiled classes, for example:
+
+- benchmark entry point: `synaptik.app.OptimizerBenchmark`
+- numerics CLI: `numerics.NumericsCli`
 
 ## Project Structure
 
@@ -50,7 +55,7 @@ On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
 - [`src/main/java/backend/registry/`](src/main/java/backend/registry)
   - Operation-to-kernel registries used by CPU, CUDA, and OpenCL backends
 - [`src/main/java/graph/`](src/main/java/graph)
-  - Compiled graph execution and graph-level orchestration
+  - Compiled graph execution, runtime preparation, and graph-level orchestration
   - Module documentation: [`src/main/java/graph/README.md`](src/main/java/graph/README.md)
 - [`src/main/java/graph/optimizer/`](src/main/java/graph/optimizer)
   - Optimizer entry points, factory wiring, rule composition, and optimizer documentation
@@ -85,14 +90,13 @@ Detailed per-module docs:
 
 [`Tensor`](src/main/java/tensor/Tensor.java) is the central runtime object. It carries:
 
-- execution/node state (operation, graph links, compiled execution cache)
+- graph-node state (`operation`, `prevTensors`)
 - tensor values for runtime execution
 - shape/stride/label/requires-grad metadata in [`TensorMetadata`](src/main/java/tensor/TensorMetadata.java)
-- graph links to producer inputs
 - gradient storage and backward propagation helpers
-- execution hooks used by optimized and fused graphs
+- convenience execution entry points layered over explicit graph artifacts
 
-Operations are represented through the [`Operation`](src/main/java/operations/Operation.java) abstraction and a shared op-type enum. This allows the optimizer and backends to reason about operations generically while keeping per-op forward and gradient behavior localized in individual classes.
+Operations are represented through the [`Operation`](src/main/java/operations/Operation.java) abstraction and a shared op-type enum. Per-op graph-building and gradient wiring live in tensor helper classes, while backend kernels dispatch from `opType()`.
 
 ### Backend Model
 
@@ -117,7 +121,7 @@ CPU execution supports mode-based dispatch for both element-wise and reduction o
 Dispatch thresholds and parallel chunking behavior are configured through:
 
 - [`CpuKernelConfig`](src/main/java/config/backend/CpuKernelConfig.java)
-- [`CpuExecutionConfig`](src/main/java/backend/kernels/cpu/CpuExecutionConfig.java)
+- [`CpuExecutionPlanner`](src/main/java/backend/kernels/cpu/CpuExecutionPlanner.java)
 
 Reduction (`sum`) also supports configurable numerical-accuracy modes:
 
@@ -128,7 +132,7 @@ Reduction (`sum`) also supports configurable numerical-accuracy modes:
 Compiled graphs pre-resolve backend and CPU kernels per node to reduce runtime dispatch overhead:
 
 - [`CompiledGraph`](src/main/java/graph/CompiledGraph.java)
-- [`Tensor`](src/main/java/tensor/Tensor.java)
+- [`PreparedExecution`](src/main/java/graph/execution/PreparedExecution.java)
 - [`CPUBackend`](src/main/java/backend/CPUBackend.java)
 
 Parallel CPU execution uses a dedicated pool helper instead of `IntStream.parallel()`:
@@ -193,24 +197,29 @@ Reduction details:
 ## Quick Start Tensor Ops
 
 ```java
+import backend.runtime.ExecutionMode;
+import config.profile.ExecutionProfile;
+import config.optimizer.OptimizerConfig;
+import config.runtime.RuntimeConfig;
 import tensor.Tensor;
 
 Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "a");
 Tensor b = new Tensor(new double[]{4.0, 5.0, 6.0}, new int[]{3}, null, "b");
+a.setRequiresGrad(true);
+b.setRequiresGrad(true);
 
-// Element-wise arithmetic
-Tensor y = a.add(b).mul(0.5);
+Tensor y = a.add(b).mul(0.5).sum();
 
-// Reduction
-Tensor s = y.sum();
+ExecutionProfile profile = new ExecutionProfile(
+        "default",
+        "default",
+        y.getDataType(),
+        ExecutionMode.FORWARD_BACKWARD,
+        OptimizerConfig.trainingDefaults(),
+        RuntimeConfig.trainingDefaults()
+);
 
-// Exact vs approximate unary ops
-Tensor e1 = y.exp();
-Tensor e2 = y.fastExp();
-
-// Execute graph + autodiff
-Tensor out = s.compute();
-out.backward();
+y.compute(profile);
 ```
 
 ## Entry Points
