@@ -16,6 +16,7 @@ public enum SlotKey {
     SECOND_LOOP_COUNTER (Type.INT),
     RANGE_START (Type.INT),
     RANGE_END (Type.INT),
+    FUSED_OPTIONS (Type.LIST),
     RANGE_UPPER (Type.INT),
     TMP_REGISTER(Type.DOUBLE),
     TMP_REGISTER1(Type.DOUBLE),

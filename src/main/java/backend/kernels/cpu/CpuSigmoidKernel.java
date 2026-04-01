@@ -10,33 +10,17 @@ import java.util.List;
 
 public class CpuSigmoidKernel implements CpuKernel {
     @Override
-    public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        UnaryF64.sigmoid(inputs.get(0).getFloat64Data(), node.getFloat64Data(), context.dispatchHints());
     }
 
     @Override
-    public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        forwardF64(op, inputs, node, config);
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        UnaryF32.sigmoid(inputs.get(0).getFloat32Data(), node.getFloat32Data(), context.dispatchHints());
     }
 
     @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        double[] in = inputs.get(0).getFloat64Data();
-        double[] out = node.getFloat64Data();
-        UnaryF64.sigmoid(in, out, config.modeFor(op, node), config);
-    }
-
-    @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        float[] in = inputs.get(0).getFloat32Data();
-        float[] out = node.getFloat32Data();
-        UnaryF32.sigmoid(in, out, config.modeFor(op, node), config);
-    }
-
-    @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        short[] in = inputs.get(0).getFloat16Data();
-        short[] out = node.getFloat16Data();
-        UnaryF16.sigmoid(in, out, config.modeFor(op, node), config);
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        UnaryF16.sigmoid(inputs.get(0).getFloat16Data(), node.getFloat16Data(), context.dispatchHints());
     }
 }

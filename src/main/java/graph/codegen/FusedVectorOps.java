@@ -1,6 +1,5 @@
 package graph.codegen;
 
-import backend.ComputeEngine;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
@@ -179,7 +178,11 @@ public final class FusedVectorOps {
     public static FloatVector sqrtF32(FloatVector a) { return (FloatVector) mapUnaryF(a, x -> (float) Math.sqrt(x)); }
 
     public static Object exp(Object a, int mode) {
-        if (ComputeEngine.useFastExpApprox()) {
+        return exp(a, mode, false);
+    }
+
+    public static Object exp(Object a, int mode, boolean useFastExpApprox) {
+        if (useFastExpApprox) {
             return fastExp(a, mode);
         }
         return switch (mode) {
@@ -190,9 +193,16 @@ public final class FusedVectorOps {
         };
     }
 
-    public static DoubleVector expF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, Math::exp); }
-    public static FloatVector expF32(FloatVector a) {
-        if (ComputeEngine.useFastExpApprox()) {
+    public static DoubleVector expF64(DoubleVector a) { return expF64(a, false); }
+    public static DoubleVector expF64(DoubleVector a, boolean useFastExpApprox) {
+        if (useFastExpApprox) {
+            return fastExpF64(a);
+        }
+        return (DoubleVector) mapUnaryD(a, Math::exp);
+    }
+    public static FloatVector expF32(FloatVector a) { return expF32(a, false); }
+    public static FloatVector expF32(FloatVector a, boolean useFastExpApprox) {
+        if (useFastExpApprox) {
             return fastExpF32(a);
         }
         return (FloatVector) mapUnaryF(a, x -> (float) Math.exp(x));
@@ -223,7 +233,11 @@ public final class FusedVectorOps {
     public static FloatVector logF32(FloatVector a) { return (FloatVector) mapUnaryF(a, x -> (float) Math.log(x)); }
 
     public static Object tanh(Object a, int mode) {
-        if (ComputeEngine.useFastTanhApprox()) {
+        return tanh(a, mode, false);
+    }
+
+    public static Object tanh(Object a, int mode, boolean useFastTanhApprox) {
+        if (useFastTanhApprox) {
             return fastTanh(a, mode);
         }
         return switch (mode) {
@@ -234,14 +248,16 @@ public final class FusedVectorOps {
         };
     }
 
-    public static DoubleVector tanhF64(DoubleVector a) {
-        if (ComputeEngine.useFastTanhApprox()) {
+    public static DoubleVector tanhF64(DoubleVector a) { return tanhF64(a, false); }
+    public static DoubleVector tanhF64(DoubleVector a, boolean useFastTanhApprox) {
+        if (useFastTanhApprox) {
             return fastTanhF64(a);
         }
         return (DoubleVector) mapUnaryD(a, Math::tanh);
     }
-    public static FloatVector tanhF32(FloatVector a) {
-        if (ComputeEngine.useFastTanhApprox()) {
+    public static FloatVector tanhF32(FloatVector a) { return tanhF32(a, false); }
+    public static FloatVector tanhF32(FloatVector a, boolean useFastTanhApprox) {
+        if (useFastTanhApprox) {
             return fastTanhF32(a);
         }
         return (FloatVector) mapUnaryF(a, x -> (float) Math.tanh(x));

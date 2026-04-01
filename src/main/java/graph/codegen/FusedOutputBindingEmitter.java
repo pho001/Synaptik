@@ -1,0 +1,23 @@
+package graph.codegen;
+
+import org.objectweb.asm.MethodVisitor;
+import utils.SlotKey;
+import utils.SlotManager;
+
+import static org.objectweb.asm.Opcodes.*;
+
+public final class FusedOutputBindingEmitter {
+    private FusedOutputBindingEmitter() {}
+
+    public static void emitScalarBinding(MethodVisitor mv, FusedGenerationContext context, SlotManager sm) {
+        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.precisionMode());
+        mv.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+    }
+
+    public static void emitVectorBinding(MethodVisitor mv, FusedGenerationContext context, SlotManager sm) {
+        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.precisionMode());
+        mv.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
+    }
+}

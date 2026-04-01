@@ -1,6 +1,9 @@
 package benchmark.scenario;
 
-import backend.ComputeEngine;
+import backend.blas.BlasProvider;
+import config.runtime.ApproximationConfig;
+import config.runtime.BlasConfig;
+import config.runtime.RuntimeConfig;
 import benchmark.BlasPolicyConfigurer;
 import benchmark.OptimizerBuilder;
 import benchmark.OptimizerCandidate;
@@ -27,7 +30,7 @@ public final class BenchmarkScenarioFactory {
         LinearGraphShape shape = linearShape == null ? LinearGraphShape.square64() : linearShape;
 
         BlasPolicyConfigurer.apply(candidate.knobs());
-        ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
+        RuntimeConfig runtimeConfig = runtimeConfigFor(candidate);
 
         Tensor A = ScenarioTensorFactory.flatTensor("A", baseA, requiresGrad, dataType);
         Tensor B = ScenarioTensorFactory.flatTensor("B", baseB, requiresGrad, dataType);
@@ -46,7 +49,7 @@ public final class BenchmarkScenarioFactory {
         );
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
         out.prepareCompiledGraph(optimizer);
-        return new PreparedBenchmarkScenario(A, B, C, out, optimizer);
+        return new PreparedBenchmarkScenario(A, B, C, out, optimizer, runtimeConfig, requiresGrad);
     }
 
     public static PreparedBroadcastScenario createBroadcastScenario(
@@ -64,7 +67,7 @@ public final class BenchmarkScenarioFactory {
         }
 
         BlasPolicyConfigurer.apply(candidate.knobs());
-        ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
+        RuntimeConfig runtimeConfig = runtimeConfigFor(candidate);
 
         Tensor A = ScenarioTensorFactory.shapedTensor("BA", baseA, false, dataType, new int[]{b0, 1, f});
         Tensor B = ScenarioTensorFactory.shapedTensor("BB", baseB, false, dataType, new int[]{1, b1, f});
@@ -73,6 +76,20 @@ public final class BenchmarkScenarioFactory {
         Tensor out = BenchmarkGraphRecipes.buildBroadcastGraph(A, B, C);
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
         out.prepareCompiledGraph(optimizer);
-        return new PreparedBroadcastScenario(out, optimizer);
+        return new PreparedBroadcastScenario(out, optimizer, runtimeConfig);
+    }
+
+    private static RuntimeConfig runtimeConfigFor(OptimizerCandidate candidate) {
+        return new RuntimeConfig(
+                candidate.knobs().kernelConfig().cpu(),
+                ApproximationConfig.defaults(),
+                new BlasConfig(
+                        BlasProvider.fromProperty(candidate.knobs().blasProvider()),
+                        candidate.knobs().blasMatMulMinWork(),
+                        candidate.knobs().blasF32RequireMgeK(),
+                        candidate.knobs().blasF32MaxNOverK(),
+                        false
+                )
+        );
     }
 }

@@ -1,6 +1,5 @@
 package graph.codegen;
 
-import backend.ComputeEngine;
 import utils.FastExp;
 
 public final class FusedDTypeOps {
@@ -47,7 +46,11 @@ public final class FusedDTypeOps {
     }
 
     public static double exp(double a, int mode) {
-        if (ComputeEngine.useFastExpApprox()) {
+        return exp(a, mode, false);
+    }
+
+    public static double exp(double a, int mode, boolean useFastExpApprox) {
+        if (useFastExpApprox) {
             return fastExp(a, mode);
         }
         return cast(Math.exp(cast(a, mode)), mode);
@@ -63,7 +66,11 @@ public final class FusedDTypeOps {
     }
 
     public static double tanh(double a, int mode) {
-        if (ComputeEngine.useFastTanhApprox()) {
+        return tanh(a, mode, false);
+    }
+
+    public static double tanh(double a, int mode, boolean useFastTanhApprox) {
+        if (useFastTanhApprox) {
             return fastTanh(a, mode);
         }
         return cast(Math.tanh(cast(a, mode)), mode);

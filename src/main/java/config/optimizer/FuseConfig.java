@@ -1,58 +1,148 @@
 package config.optimizer;
 
-public final class FuseConfig {
-    private final int maxClusterNodes;
-    private final double scoreThreshold;
-    private final double internalEdgeBonus;
-    private final double externalInputPenalty;
-    private final double sharedExpensivePenalty;
-    private final double nonCheapBonus;
-    private final boolean preserveSharedExpensiveNodes;
-
-    public FuseConfig(
-            int maxClusterNodes,
-            double scoreThreshold,
-            double internalEdgeBonus,
-            double externalInputPenalty,
-            double sharedExpensivePenalty,
-            double nonCheapBonus,
-            boolean preserveSharedExpensiveNodes
-    ) {
-        this.maxClusterNodes = maxClusterNodes;
-        this.scoreThreshold = scoreThreshold;
-        this.internalEdgeBonus = internalEdgeBonus;
-        this.externalInputPenalty = externalInputPenalty;
-        this.sharedExpensivePenalty = sharedExpensivePenalty;
-        this.nonCheapBonus = nonCheapBonus;
-        this.preserveSharedExpensiveNodes = preserveSharedExpensiveNodes;
+public record FuseConfig(
+        int maxClusterNodes,
+        double scoreThreshold,
+        double internalEdgeBonus,
+        double externalInputPenalty,
+        double sharedExpensivePenalty,
+        double nonCheapBonus,
+        boolean preserveSharedExpensiveNodes
+) {
+    public FuseConfig {
+        if (maxClusterNodes <= 0) {
+            throw new IllegalArgumentException("maxClusterNodes must be > 0");
+        }
+        if (Double.isNaN(scoreThreshold) || Double.isInfinite(scoreThreshold)) {
+            throw new IllegalArgumentException("scoreThreshold must be finite");
+        }
+        if (Double.isNaN(internalEdgeBonus) || Double.isInfinite(internalEdgeBonus)) {
+            throw new IllegalArgumentException("internalEdgeBonus must be finite");
+        }
+        if (Double.isNaN(externalInputPenalty) || Double.isInfinite(externalInputPenalty)) {
+            throw new IllegalArgumentException("externalInputPenalty must be finite");
+        }
+        if (Double.isNaN(sharedExpensivePenalty) || Double.isInfinite(sharedExpensivePenalty)) {
+            throw new IllegalArgumentException("sharedExpensivePenalty must be finite");
+        }
+        if (Double.isNaN(nonCheapBonus) || Double.isInfinite(nonCheapBonus)) {
+            throw new IllegalArgumentException("nonCheapBonus must be finite");
+        }
+        if (scoreThreshold < 0.0d) {
+            throw new IllegalArgumentException("scoreThreshold must be >= 0");
+        }
+        if (internalEdgeBonus < 0.0d) {
+            throw new IllegalArgumentException("internalEdgeBonus must be >= 0");
+        }
+        if (externalInputPenalty < 0.0d) {
+            throw new IllegalArgumentException("externalInputPenalty must be >= 0");
+        }
+        if (sharedExpensivePenalty < 0.0d) {
+            throw new IllegalArgumentException("sharedExpensivePenalty must be >= 0");
+        }
+        if (nonCheapBonus < 0.0d) {
+            throw new IllegalArgumentException("nonCheapBonus must be >= 0");
+        }
     }
 
-    public int maxClusterNodes() {
-        return maxClusterNodes;
+    public static FuseConfig trainingDefaults() {
+        return new FuseConfig(
+                64,
+                0.55d,
+                0.30d,
+                0.20d,
+                1.00d,
+                0.35d,
+                true
+        );
     }
 
-    public double scoreThreshold() {
-        return scoreThreshold;
+    public static FuseConfig inferenceDefaults() {
+        return new FuseConfig(
+                96,
+                0.00d,
+                0.50d,
+                0.10d,
+                0.50d,
+                0.35d,
+                false
+        );
     }
 
-    public double internalEdgeBonus() {
-        return internalEdgeBonus;
+    public static FuseConfig inferencePerfDefaults() {
+        return inferenceDefaults();
     }
 
-    public double externalInputPenalty() {
-        return externalInputPenalty;
+    public FuseConfig withMaxClusterNodes(int value) {
+        return new FuseConfig(
+                value,
+                scoreThreshold,
+                internalEdgeBonus,
+                externalInputPenalty,
+                sharedExpensivePenalty,
+                nonCheapBonus,
+                preserveSharedExpensiveNodes
+        );
     }
 
-    public double sharedExpensivePenalty() {
-        return sharedExpensivePenalty;
+    public FuseConfig withScoreThreshold(double value) {
+        return new FuseConfig(
+                maxClusterNodes,
+                value,
+                internalEdgeBonus,
+                externalInputPenalty,
+                sharedExpensivePenalty,
+                nonCheapBonus,
+                preserveSharedExpensiveNodes
+        );
     }
 
-    public double nonCheapBonus() {
-        return nonCheapBonus;
+    public FuseConfig withInternalEdgeBonus(double value) {
+        return new FuseConfig(
+                maxClusterNodes,
+                scoreThreshold,
+                value,
+                externalInputPenalty,
+                sharedExpensivePenalty,
+                nonCheapBonus,
+                preserveSharedExpensiveNodes
+        );
     }
 
-    public boolean preserveSharedExpensiveNodes() {
-        return preserveSharedExpensiveNodes;
+    public FuseConfig withExternalInputPenalty(double value) {
+        return new FuseConfig(
+                maxClusterNodes,
+                scoreThreshold,
+                internalEdgeBonus,
+                value,
+                sharedExpensivePenalty,
+                nonCheapBonus,
+                preserveSharedExpensiveNodes
+        );
+    }
+
+    public FuseConfig withSharedExpensivePenalty(double value) {
+        return new FuseConfig(
+                maxClusterNodes,
+                scoreThreshold,
+                internalEdgeBonus,
+                externalInputPenalty,
+                value,
+                nonCheapBonus,
+                preserveSharedExpensiveNodes
+        );
+    }
+
+    public FuseConfig withNonCheapBonus(double value) {
+        return new FuseConfig(
+                maxClusterNodes,
+                scoreThreshold,
+                internalEdgeBonus,
+                externalInputPenalty,
+                sharedExpensivePenalty,
+                value,
+                preserveSharedExpensiveNodes
+        );
     }
 
     public FuseConfig withPreserveSharedExpensiveNodes(boolean value) {
@@ -64,30 +154,6 @@ public final class FuseConfig {
                 sharedExpensivePenalty,
                 nonCheapBonus,
                 value
-        );
-    }
-
-    public static FuseConfig trainingDefaults() {
-        return new FuseConfig(
-                64,
-                0.55,
-                0.25,
-                0.20,
-                1.00,
-                0.30,
-                true
-        );
-    }
-
-    public static FuseConfig inferencePerfDefaults() {
-        return new FuseConfig(
-                96,
-                0.6,
-                0.30,
-                0.10,
-                0.50,
-                0.35,
-                false
         );
     }
 }

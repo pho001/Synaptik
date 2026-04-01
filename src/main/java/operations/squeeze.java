@@ -21,23 +21,6 @@ public class squeeze implements Operation {
         return OpType.SQUEEZE;
     }
 
-    @Override
-    public boolean isElementWise() {
-        return false;
-    }
-
-    @Override
-    public void apply(List<Tensor> inputs, Tensor out) {}
-
-    @Override
-    public ComputeBackend getPreferredBackend() {
-        return ComputeBackend.CPU;
-    }
-
-    @Override
-    public boolean supportsBackend(ComputeBackend backend) {
-        return backend == ComputeBackend.CPU;
-    }
 
     @Override
     public String getExpression() {

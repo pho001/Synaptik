@@ -1,16 +1,21 @@
 package backend;
 
+import backend.runtime.ExecutionContext;
+import graph.execution.CompiledNodeExecutionMetadata;
+import operations.Operation;
+import tensor.Tensor;
 import backend.kernels.cuda.CudaKernel;
 import backend.registry.CudaKernelRegistry;
-import tensor.Tensor;
-import operations.Operation;
 
 import java.util.List;
 
-public class CudaBackend {
-
-
-    public void execute(Operation op, List<Tensor> inputs, Tensor node) {
+public final class CudaBackend {
+    public void execute(
+            Tensor node,
+            CompiledNodeExecutionMetadata metadata,
+            ExecutionContext context
+    ) {
+        Operation op = node.getOperation();
         if (op == null) {
             return;
         }
@@ -21,7 +26,6 @@ public class CudaBackend {
                             " (operation class: " + op.getClass().getName() + ")"
             );
         }
-        kernel.forward(op, inputs, node);
+        kernel.forward(op, node.getPrevTensors(), node);
     }
-
 }

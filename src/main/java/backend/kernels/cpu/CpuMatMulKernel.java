@@ -2,11 +2,11 @@ package backend.kernels.cpu;
 
 import backend.blas.BlasRuntime;
 import backend.blas.OpenBlasFfmBridge;
-import operations.Operation;
-import tensor.Tensor;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
+import operations.Operation;
+import tensor.Tensor;
 
 import java.util.Arrays;
 import java.util.List;
@@ -15,20 +15,9 @@ public class CpuMatMulKernel implements CpuKernel {
     private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
     private static volatile boolean blasAvailabilityLogged;
-    private static volatile boolean blasF32ShapeGuardLogged;
 
     @Override
-    public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
-    }
-
-    @Override
-    public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        forwardF64(op, inputs, node, config);
-    }
-
-    @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor a = inputs.get(0);
         Tensor b = inputs.get(1);
         int[] as = a.getShapeUnsafe();
@@ -40,15 +29,16 @@ public class CpuMatMulKernel implements CpuKernel {
         double[] ad = a.getFloat64Data();
         double[] bd = b.getFloat64Data();
         double[] out = node.getFloat64Data();
-        if (tryBlasF64(a, b, node, ad, bd, out, m, n, k)) {
+        ResolvedMatMulHints hints = requireHints(context);
+        if (hints.useBlas() && tryBlasF64(ad, bd, out, m, n, k)) {
             return;
         }
         Arrays.fill(out, 0.0d);
-        runF64(ad, bd, out, m, n, k, config);
+        runF64(ad, bd, out, m, n, k, hints);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor a = inputs.get(0);
         Tensor b = inputs.get(1);
         int[] as = a.getShapeUnsafe();
@@ -60,15 +50,16 @@ public class CpuMatMulKernel implements CpuKernel {
         float[] ad = a.getFloat32Data();
         float[] bd = b.getFloat32Data();
         float[] out = node.getFloat32Data();
-        if (tryBlasF32(a, b, node, ad, bd, out, m, n, k)) {
+        ResolvedMatMulHints hints = requireHints(context);
+        if (hints.useBlas() && tryBlasF32(ad, bd, out, m, n, k)) {
             return;
         }
         Arrays.fill(out, 0.0f);
-        runF32(ad, bd, out, m, n, k, config);
+        runF32(ad, bd, out, m, n, k, hints);
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor a = inputs.get(0);
         Tensor b = inputs.get(1);
         int[] as = a.getShapeUnsafe();
@@ -81,19 +72,18 @@ public class CpuMatMulKernel implements CpuKernel {
         short[] bd = b.getFloat16Data();
         short[] out = node.getFloat16Data();
         Arrays.fill(out, (short) 0);
-        runF16(ad, bd, out, m, n, k, config);
+        runF16(ad, bd, out, m, n, k, requireHints(context));
     }
 
-    private static void runF64(double[] a, double[] b, double[] out, int m, int n, int k, CpuExecutionConfig config) {
-        int tm = positiveTile(config.matMulTileM(), 32);
-        int tn = positiveTile(config.matMulTileN(), 64);
-        int tk = positiveTile(config.matMulTileK(), 64);
-        long work = (long) m * n * k;
-        boolean parallel = work >= config.matMulParallelMinSize() && config.plannedWorkers() > 1;
+    private static void runF64(double[] a, double[] b, double[] out, int m, int n, int k, ResolvedMatMulHints hints) {
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
 
         int blockRows = (m + tm - 1) / tm;
         if (parallel && blockRows > 1) {
-            CpuThreadPool.runChunks(blockRows, config.plannedWorkers(), block -> {
+            CpuThreadPool.runChunks(blockRows, hints.plannedWorkers(), block -> {
                 int i0 = block * tm;
                 int i1 = Math.min(i0 + tm, m);
                 computeBlockF64(a, b, out, i0, i1, 0, n, 0, k, n, k, tn, tk);
@@ -139,16 +129,15 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static void runF32(float[] a, float[] b, float[] out, int m, int n, int k, CpuExecutionConfig config) {
-        int tm = positiveTile(config.matMulTileM(), 32);
-        int tn = positiveTile(config.matMulTileN(), 64);
-        int tk = positiveTile(config.matMulTileK(), 64);
-        long work = (long) m * n * k;
-        boolean parallel = work >= config.matMulParallelMinSize() && config.plannedWorkers() > 1;
+    private static void runF32(float[] a, float[] b, float[] out, int m, int n, int k, ResolvedMatMulHints hints) {
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
 
         int blockRows = (m + tm - 1) / tm;
         if (parallel && blockRows > 1) {
-            CpuThreadPool.runChunks(blockRows, config.plannedWorkers(), block -> {
+            CpuThreadPool.runChunks(blockRows, hints.plannedWorkers(), block -> {
                 int i0 = block * tm;
                 int i1 = Math.min(i0 + tm, m);
                 computeBlockF32(a, b, out, i0, i1, 0, n, 0, k, n, k, tn, tk);
@@ -194,16 +183,15 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static void runF16(short[] a, short[] b, short[] out, int m, int n, int k, CpuExecutionConfig config) {
-        int tm = positiveTile(config.matMulTileM(), 32);
-        int tn = positiveTile(config.matMulTileN(), 64);
-        int tk = positiveTile(config.matMulTileK(), 64);
-        long work = (long) m * n * k;
-        boolean parallel = work >= config.matMulParallelMinSize() && config.plannedWorkers() > 1;
+    private static void runF16(short[] a, short[] b, short[] out, int m, int n, int k, ResolvedMatMulHints hints) {
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
 
         int blockRows = (m + tm - 1) / tm;
         if (parallel && blockRows > 1) {
-            CpuThreadPool.runChunks(blockRows, config.plannedWorkers(), block -> {
+            CpuThreadPool.runChunks(blockRows, hints.plannedWorkers(), block -> {
                 int i0 = block * tm;
                 int i1 = Math.min(i0 + tm, m);
                 computeBlockF16(a, b, out, i0, i1, 0, n, 0, k, n, k, tn, tk);
@@ -247,9 +235,6 @@ public class CpuMatMulKernel implements CpuKernel {
     }
 
     private static boolean tryBlasF64(
-            Tensor a,
-            Tensor b,
-            Tensor out,
             double[] ad,
             double[] bd,
             double[] od,
@@ -257,7 +242,8 @@ public class CpuMatMulKernel implements CpuKernel {
             int n,
             int k
     ) {
-        if (!shouldUseBlas(a, b, out, m, n, k, false)) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            maybeLogBlasUnavailable();
             return false;
         }
         try {
@@ -279,9 +265,6 @@ public class CpuMatMulKernel implements CpuKernel {
     }
 
     private static boolean tryBlasF32(
-            Tensor a,
-            Tensor b,
-            Tensor out,
             float[] ad,
             float[] bd,
             float[] od,
@@ -289,7 +272,8 @@ public class CpuMatMulKernel implements CpuKernel {
             int n,
             int k
     ) {
-        if (!shouldUseBlas(a, b, out, m, n, k, true)) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            maybeLogBlasUnavailable();
             return false;
         }
         try {
@@ -310,33 +294,6 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static boolean shouldUseBlas(Tensor a, Tensor b, Tensor out, int m, int n, int k, boolean f32) {
-        if (!BlasRuntime.isOpenBlasFfmEnabled()) {
-            return false;
-        }
-        long work = (long) m * n * k;
-        if (work < BlasRuntime.matMulMinWork()) {
-            return false;
-        }
-        if (!OpenBlasFfmBridge.isAvailable()) {
-            maybeLogBlasUnavailable();
-            return false;
-        }
-        if (!a.isContiguous() || !b.isContiguous() || !out.isContiguous()) {
-            return false;
-        }
-        // Empirical guard: for FLOAT32 on short-fat A (m < k), OpenBLAS can regress due bridge/call overhead.
-        if (f32 && BlasRuntime.f32RequireMgeK() && m < k) {
-            maybeLogF32ShapeGuard("m<k");
-            return false;
-        }
-        if (f32 && ((double) n / Math.max(1, k)) > BlasRuntime.f32MaxNOverK()) {
-            maybeLogF32ShapeGuard("n/k ratio too high");
-            return false;
-        }
-        return true;
-    }
-
     private static void maybeLogBlasUnavailable() {
         if (blasAvailabilityLogged) {
             return;
@@ -353,25 +310,16 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static void maybeLogF32ShapeGuard(String reason) {
-        if (blasF32ShapeGuardLogged) {
-            return;
-        }
-        synchronized (CpuMatMulKernel.class) {
-            if (blasF32ShapeGuardLogged) {
-                return;
-            }
-            if (BlasRuntime.debug()) {
-                System.err.println("[BLAS] F32 shape guard disabled BLAS path: " + reason
-                        + " (requireMgeK=" + BlasRuntime.f32RequireMgeK()
-                        + ", maxNOverK=" + BlasRuntime.f32MaxNOverK() + ")");
-            }
-            blasF32ShapeGuardLogged = true;
-        }
-    }
-
     @Override
     public CpuKernelCostClass costClass(Operation op) {
         return CpuKernelCostClass.HIGH;
+    }
+
+    private static ResolvedMatMulHints requireHints(CpuKernelContext context) {
+        ResolvedMatMulHints hints = context.matMulHints();
+        if (hints == null) {
+            throw new IllegalStateException("Missing ResolvedMatMulHints for matmul execution");
+        }
+        return hints;
     }
 }

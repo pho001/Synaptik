@@ -1,28 +1,29 @@
 package backend.kernels.cpu.f16;
 
 import backend.kernels.cpu.CpuDTypeOps;
-import backend.kernels.cpu.CpuExecutionConfig;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
+import backend.kernels.cpu.ResolvedDispatchHints;
 import utils.FastExp;
 
 public final class UnaryF16 {
     private UnaryF16() {}
 
-    public static void inv(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.INV); }
-    public static void relu(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.RELU); }
-    public static void exp(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.EXP); }
-    public static void fastExp(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.FAST_EXP); }
-    public static void log(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.LOG); }
-    public static void tanh(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.TANH); }
-    public static void fastTanh(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.FAST_TANH); }
-    public static void sqrt(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.SQRT); }
-    public static void sigmoid(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) { run(in, out, mode, config, Op.SIGMOID); }
+    public static void inv(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.INV); }
+    public static void relu(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.RELU); }
+    public static void exp(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.EXP); }
+    public static void fastExp(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.FAST_EXP); }
+    public static void log(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.LOG); }
+    public static void tanh(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.TANH); }
+    public static void fastTanh(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.FAST_TANH); }
+    public static void sqrt(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.SQRT); }
+    public static void sigmoid(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.SIGMOID); }
 
-    private static void run(short[] in, short[] out, CpuExecutionMode mode, CpuExecutionConfig config, Op op) {
+    private static void run(short[] in, short[] out, ResolvedDispatchHints hints, Op op) {
+        CpuExecutionMode mode = hints.mode();
         switch (mode) {
             case VECTOR, SCALAR -> scalar(in, out, 0, out.length, op);
-            case PARALLEL, PARALLEL_VECTOR -> parallel(in, out, config, op);
+            case PARALLEL, PARALLEL_VECTOR -> parallel(in, out, hints, op);
         }
     }
 
@@ -44,10 +45,10 @@ public final class UnaryF16 {
         }
     }
 
-    private static void parallel(short[] in, short[] out, CpuExecutionConfig config, Op op) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
+    private static void parallel(short[] in, short[] out, ResolvedDispatchHints hints, Op op) {
+        int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             scalar(in, out, start, end, op);

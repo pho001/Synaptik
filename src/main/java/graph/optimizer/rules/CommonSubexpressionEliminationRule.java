@@ -1,19 +1,21 @@
 package graph.optimizer.rules;
 
+import config.optimizer.CseConfig;
 import graph.optimizer.OptimizationRule;
 import operations.*;
 import tensor.Tensor;
 import java.util.*;
 
 public class CommonSubexpressionEliminationRule implements OptimizationRule {
-    private final boolean strictSafety;
 
-    public CommonSubexpressionEliminationRule() {
-        this(true);
+    private final CseConfig config;
+
+    public CommonSubexpressionEliminationRule(CseConfig config) {
+        this.config = Objects.requireNonNull(config, "config cannot be null");
     }
 
-    public CommonSubexpressionEliminationRule(boolean strictSafety) {
-        this.strictSafety = strictSafety;
+    public CseConfig config() {
+        return config;
     }
 
     @Override
@@ -22,6 +24,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         Map<String, Tensor> seenNodes = new HashMap<>();
         Map<Tensor, Tensor> replacements = new HashMap<>();
         Map<Tensor, String> structuralSignatures = new HashMap<>();
+
 
         for (Tensor t : sortedGraph) {
             // 1. Aktualizujeme vstupy uzlu, pokud nějaký jeho předek už byl smazán/nahrazen
@@ -66,6 +69,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
      */
     private String generateSignature(Tensor t, Map<Tensor, String> structuralSignatures) {
         Operation op = t.getOperation();
+        boolean strictSafety = config.strictSafety();
         // Konstanty a vstupy (bez operace) necháme být, ty se optimalizují jinde
         if (op == null) return null;
 

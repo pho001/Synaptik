@@ -1,17 +1,18 @@
 package backend.kernels.cpu.f16;
 
 import backend.kernels.cpu.CpuDTypeOps;
-import backend.kernels.cpu.CpuExecutionConfig;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
+import backend.kernels.cpu.ResolvedDispatchHints;
 
 public final class DivF16 {
     private DivF16() {}
 
-    public static void run(short[] a, short[] b, short[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+    public static void run(short[] a, short[] b, short[] out, ResolvedDispatchHints hints) {
+        CpuExecutionMode mode = hints.mode();
         switch (mode) {
             case VECTOR, SCALAR -> scalar(a, b, out, 0, out.length);
-            case PARALLEL, PARALLEL_VECTOR -> parallel(a, b, out, config);
+            case PARALLEL, PARALLEL_VECTOR -> parallel(a, b, out, hints);
         }
     }
 
@@ -21,10 +22,10 @@ public final class DivF16 {
         }
     }
 
-    private static void parallel(short[] a, short[] b, short[] out, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
+    private static void parallel(short[] a, short[] b, short[] out, ResolvedDispatchHints hints) {
+        int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             scalar(a, b, out, start, end);

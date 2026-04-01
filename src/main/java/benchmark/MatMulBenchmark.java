@@ -1,6 +1,9 @@
 package benchmark;
 
-import backend.ComputeEngine;
+import config.runtime.ApproximationConfig;
+import config.runtime.BlasConfig;
+import backend.runtime.ExecutionMode;
+import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
@@ -129,11 +132,11 @@ public final class MatMulBenchmark {
             int n,
             int k
     ) {
-        ComputeEngine.setCpuKernelConfig(config);
+        RuntimeConfig runtimeConfig = new RuntimeConfig(config, ApproximationConfig.defaults(), BlasConfig.disabled());
         Tensor a = tensorFrom(aData, new int[]{m, k}, "A", dtype);
         Tensor b = tensorFrom(bData, new int[]{k, n}, "B", dtype);
         Tensor out = a.matmul(b);
-        out.compute(new GraphOptimizer());
+        out.compute(new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
         return out.toDoubleArrayCopy();
     }
 
@@ -225,4 +228,3 @@ public final class MatMulBenchmark {
         }
     }
 }
-

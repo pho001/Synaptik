@@ -11,34 +11,24 @@ import java.util.List;
 
 public class CpuPowKernel implements CpuKernel {
     @Override
-    public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
-    }
-
-    @Override
-    public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        forwardF64(op, inputs, node, config);
-    }
-
-    @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         double exponent = ((pow) op).getExponent();
         double[] in = inputs.get(0).getFloat64Data();
         double[] out = node.getFloat64Data();
-        PowF64.run(in, exponent, out, config.modeFor(op, node), config);
+        PowF64.run(in, exponent, out, context.dispatchHints());
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         float[] in = inputs.get(0).getFloat32Data();
         float[] out = node.getFloat32Data();
-        PowF32.run(in, ((pow) op).getExponentF32(), out, config.modeFor(op, node), config);
+        PowF32.run(in, ((pow) op).getExponentF32(), out, context.dispatchHints());
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         short[] in = inputs.get(0).getFloat16Data();
         short[] out = node.getFloat16Data();
-        PowF16.run(in, ((pow) op).getExponent(), out, config.modeFor(op, node), config);
+        PowF16.run(in, ((pow) op).getExponent(), out, context.dispatchHints());
     }
 }

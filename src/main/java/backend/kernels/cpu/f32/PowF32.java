@@ -1,8 +1,8 @@
 package backend.kernels.cpu.f32;
 
-import backend.kernels.cpu.CpuExecutionConfig;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
+import backend.kernels.cpu.ResolvedDispatchHints;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
@@ -12,11 +12,12 @@ public final class PowF32 {
 
     private PowF32() {}
 
-    public static void run(float[] in, float exponent, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+    public static void run(float[] in, float exponent, float[] out, ResolvedDispatchHints hints) {
+        CpuExecutionMode mode = hints.mode();
         switch (mode) {
             case VECTOR -> vector(in, exponent, out);
-            case PARALLEL -> parallel(in, exponent, out, config);
-            case PARALLEL_VECTOR -> parallelVector(in, exponent, out, config);
+            case PARALLEL -> parallel(in, exponent, out, hints);
+            case PARALLEL_VECTOR -> parallelVector(in, exponent, out, hints);
             case SCALAR -> scalar(in, exponent, out, 0, out.length);
         }
     }
@@ -55,26 +56,26 @@ public final class PowF32 {
         scalar(in, exponent, out, i, out.length);
     }
 
-    private static void parallel(float[] in, float exponent, float[] out, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
+    private static void parallel(float[] in, float exponent, float[] out, ResolvedDispatchHints hints) {
+        int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             scalar(in, exponent, out, start, end);
         });
     }
 
-    private static void parallelVector(float[] in, float exponent, float[] out, CpuExecutionConfig config) {
+    private static void parallelVector(float[] in, float exponent, float[] out, ResolvedDispatchHints hints) {
         float e = exponent;
         if (e != 0.0f && e != 1.0f && e != 2.0f && e != 0.5f && e != -1.0f) {
-            parallel(in, exponent, out, config);
+            parallel(in, exponent, out, hints);
             return;
         }
         int width = SPECIES.length();
-        int chunkSize = config.computeChunkSize(out.length, width);
+        int chunkSize = hints.vectorChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             int i = start;

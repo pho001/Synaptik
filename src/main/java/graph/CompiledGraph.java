@@ -1,239 +1,240 @@
 package graph;
 
-import backend.ComputeEngine;
-import backend.ComputeBackend;
 import backend.CPUBackend;
+import backend.ComputeBackend;
+import backend.kernels.cpu.CpuExecutionPlanner;
 import backend.kernels.cpu.CpuKernel;
+import backend.kernels.cpu.CpuNodeExecutionPlan;
+import backend.kernels.cpu.fused.CompiledFusedKernel;
 import backend.registry.CpuKernelRegistry;
+import backend.runtime.ExecutionMode;
+import graph.codegen.CompiledFusedKernelFactory;
+import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.PreparedExecution;
+import graph.execution.PreparedNodeExecution;
+import graph.optimizer.GraphOptimizer;
+import operations.FusedOperation;
 import operations.Operation;
 import tensor.Tensor;
-import graph.optimizer.GraphOptimizer;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 public class CompiledGraph {
-    private static final boolean DISABLE_CPU_EXECUTION_HINTS =
-            Boolean.getBoolean("cg.cpu.disableResolveExecutionHints");
-    private Tensor rootTensor; // Kořenový tensor grafu
-    List<Tensor> finalGraph= new ArrayList<>();
-    List<Tensor> forwardGraph = new ArrayList<>();
-    List<Tensor> backwardGraph = new ArrayList<>();
-    int backwardStartIndex = -1;
+    private static final CompiledFusedKernelFactory FUSED_KERNEL_FACTORY = new CompiledFusedKernelFactory();
+    private final Tensor rootTensor;
+    private final GraphOptimizer optimizer;
+    private final List<Tensor> finalGraph = new ArrayList<>();
+    private final List<Tensor> forwardGraph = new ArrayList<>();
     private Tensor forwardOutput;
-    int forwardEndIndex = -1;
-    boolean inferenceMode = false;
-
-
-
-
-    GraphOptimizer optimizer;
-
+    private int forwardEndIndex = -1;
 
     public CompiledGraph(Tensor rootTensor, GraphOptimizer forwardOptimizer) {
         this.rootTensor = rootTensor;
-        this.optimizer=forwardOptimizer;
+        this.optimizer = forwardOptimizer;
         compile();
     }
 
-    public void compile() {
-        // 1. Forward graf ukotvený přes "yield" uzel
-        this.forwardOutput = rootTensor.forwardOutput();
-        this.forwardGraph.addAll(this.forwardOutput.topologicalSort());
+    public static CompiledGraph compile(Tensor rootTensor, config.optimizer.OptimizerConfig optimizerConfig) {
+        if (rootTensor == null) {
+            throw new IllegalArgumentException("rootTensor cannot be null");
+        }
+        if (optimizerConfig == null) {
+            throw new IllegalArgumentException("optimizerConfig cannot be null");
+        }
+        return new CompiledGraph(rootTensor, graph.optimizer.OptimizerFactory.create(optimizerConfig));
+    }
 
-        // Inference-only pipeline: pokud žádný leaf vstup nepožaduje gradient,
-        // kompilujeme jen forward graf bez backward části.
+    public static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer) {
+        if (rootTensor == null) {
+            throw new IllegalArgumentException("rootTensor cannot be null");
+        }
+        if (optimizer == null) {
+            throw new IllegalArgumentException("optimizer cannot be null");
+        }
+        return new CompiledGraph(rootTensor, optimizer);
+    }
+
+    public void compile() {
+        finalGraph.clear();
+        forwardGraph.clear();
+
+        forwardOutput = rootTensor.forwardOutput();
+        forwardGraph.addAll(forwardOutput.topologicalSort());
+
         if (!hasTrainableLeafInputs()) {
-            this.finalGraph = optimizer.optimize(new ArrayList<>(this.forwardGraph));
-            preResolveCpuKernels();
-            this.forwardEndIndex = this.finalGraph.indexOf(this.forwardOutput);
-            if (this.forwardEndIndex == -1) {
+            finalGraph.addAll(optimizer.optimize(new ArrayList<>(forwardGraph)));
+            forwardEndIndex = finalGraph.indexOf(forwardOutput);
+            if (forwardEndIndex == -1) {
                 throw new IllegalStateException("Forward output node not found in inference finalGraph.");
             }
-            this.backwardStartIndex = -1;
             return;
         }
 
-        // 2. Seed gradientu kořene a sestavení backward uzlů pomocí lambda pravidel
         rootTensor.setGradient(Tensor.onesLike(rootTensor));
-        for (int i = this.forwardGraph.size() - 1; i >= 0; i--) {
-            this.forwardGraph.get(i).buildBackwardGraph();
+        for (int i = forwardGraph.size() - 1; i >= 0; i--) {
+            forwardGraph.get(i).buildBackwardGraph();
         }
 
-        // 3. Backward targets: gradienty leaf vstupů, které požadují gradient
         List<Tensor> backwardTargets = collectBackwardTargets();
-
-        // Fallback: pokud není nic explicitně cíleno, sebereme všechny dostupné gradient uzly
         if (backwardTargets.isEmpty()) {
-            for (Tensor t : forwardGraph) {
-                if (t.getGradient() != null) {
-                    backwardTargets.add(t.getGradient());
+            for (Tensor tensor : forwardGraph) {
+                if (tensor.getGradient() != null) {
+                    backwardTargets.add(tensor.getGradient());
                 }
             }
         }
 
-        // 4. Označíme backward uzly (nezávisle na pořadí), aby šla po optimalizaci najít hranice fází.
-        // Důležité pro fusion/CSE na spojeném grafu: bez tohoto značení se může smíchat fw+bw část.
         collectBackwardNodes();
 
-        // 5. Super-root ukotví více výstupů pro optimalizaci (forward + všechny backward sinks)
         List<Tensor> targetsToSave = new ArrayList<>();
-        //this.backwardGraph = backwardTargets;
-        targetsToSave.add(this.forwardOutput);
+        targetsToSave.add(forwardOutput);
         targetsToSave.addAll(backwardTargets);
         Tensor superRoot = new Tensor(new int[]{1}, targetsToSave, new operations.noop(), "System_Super_Root");
 
-        // 6. Sjednocený graf přes super-root topologii; super-root samotný ve finalGraph nechceme
-        this.finalGraph = superRoot.topologicalSort();
-        this.finalGraph.remove(superRoot);
+        finalGraph.addAll(superRoot.topologicalSort());
+        finalGraph.remove(superRoot);
 
-        // 7. Optimalizace nad celým sjednoceným grafem
-        this.finalGraph = optimizer.optimize(this.finalGraph);
-        preResolveCpuKernels();
-        this.forwardEndIndex = this.finalGraph.indexOf(this.forwardOutput);
-        if (this.forwardEndIndex == -1) {
+        List<Tensor> optimized = optimizer.optimize(new ArrayList<>(finalGraph));
+        finalGraph.clear();
+        finalGraph.addAll(optimized);
+        forwardEndIndex = finalGraph.indexOf(forwardOutput);
+        if (forwardEndIndex == -1) {
             throw new IllegalStateException("Forward output node not found in finalGraph.");
         }
+    }
 
+    public boolean supportsBackward() {
+        return hasTrainableLeafInputs();
+    }
+
+    public PreparedExecution prepare(config.runtime.RuntimeConfig runtimeConfig) {
+        config.runtime.RuntimeConfig effectiveConfig = runtimeConfig == null
+                ? (supportsBackward() ? config.runtime.RuntimeConfig.trainingDefaults() : config.runtime.RuntimeConfig.inferenceDefaults())
+                : runtimeConfig;
+        CpuExecutionPlanner planner = CpuExecutionPlanner.from(effectiveConfig.cpuKernelConfig());
+        backend.runtime.RuntimeConfig backendRuntimeConfig = effectiveConfig.toBackendRuntimeConfig();
+
+        List<PreparedNodeExecution> forwardSteps = new ArrayList<>();
+        List<PreparedNodeExecution> backwardSteps = new ArrayList<>();
+        for (int i = 0; i < finalGraph.size(); i++) {
+            Tensor tensor = finalGraph.get(i);
+            if (tensor.getOperation() == null || tensor.getPrevTensors() == null) {
+                continue;
+            }
+            PreparedNodeExecution step = new PreparedNodeExecution(
+                    tensor,
+                    prepareMetadata(tensor, planner, backendRuntimeConfig)
+            );
+            if (i <= forwardEndIndex) {
+                forwardSteps.add(step);
+            } else {
+                backwardSteps.add(step);
+            }
+        }
+
+        return new PreparedExecution(
+                effectiveConfig,
+                supportsBackward(),
+                forwardSteps,
+                backwardSteps,
+                finalGraph,
+                rootTensor,
+                forwardOutput
+        );
+    }
+
+    public PreparedExecution prepare(config.profile.ExecutionProfile profile) {
+        if (profile == null) {
+            throw new IllegalArgumentException("profile cannot be null");
+        }
+        return prepare(profile.runtime());
+    }
+
+    public void execute(config.runtime.RuntimeConfig runtimeConfig, ExecutionMode mode) {
+        prepare(runtimeConfig).execute(mode);
+    }
+
+    public void execute(config.profile.ExecutionProfile profile) {
+        if (profile == null) {
+            throw new IllegalArgumentException("profile cannot be null");
+        }
+        prepare(profile.runtime()).execute(profile.mode());
+    }
+
+    public void executePrepared(PreparedExecution execution, ExecutionMode mode) {
+        execution.execute(mode);
+    }
+
+    public void zeroGrad() {
+        for (Tensor tensor : finalGraph) {
+            if (tensor.getGradient() == null) {
+                continue;
+            }
+            switch (tensor.getGradient().getDataType()) {
+                case FLOAT64 -> java.util.Arrays.fill(tensor.getGradient().getFloat64Data(), 0.0d);
+                case FLOAT32 -> java.util.Arrays.fill(tensor.getGradient().getFloat32Data(), 0.0f);
+                case FLOAT16 -> java.util.Arrays.fill(tensor.getGradient().getFloat16Data(), (short) 0);
+            }
+        }
+    }
+
+    public Tensor getRootTensor() {
+        return rootTensor;
+    }
+
+    public List<Tensor> getCompiledGraphAsList() {
+        return finalGraph;
+    }
+
+    private CompiledNodeExecutionMetadata prepareMetadata(
+            Tensor tensor,
+            CpuExecutionPlanner planner,
+            backend.runtime.RuntimeConfig runtimeConfig
+    ) {
+        ComputeBackend backend = tensor.resolveBackend();
+        if (backend != ComputeBackend.CPU) {
+            return new CompiledNodeExecutionMetadata(backend, null, null, null);
+        }
+
+        Operation operation = tensor.getOperation();
+        CpuKernel kernel = CpuKernelRegistry.resolve(operation.opType());
+        if (kernel == null) {
+            throw new IllegalStateException("Missing CPU kernel for opType=" + operation.opType());
+        }
+        CpuNodeExecutionPlan cpuPlan = CPUBackend.buildExecutionPlan(
+                operation,
+                tensor.getPrevTensors(),
+                tensor,
+                planner,
+                runtimeConfig.blasConfig()
+        );
+        CompiledFusedKernel fusedKernel = null;
+        if (operation.opType() == Operation.OpType.FUSED) {
+            fusedKernel = FUSED_KERNEL_FACTORY.create((FusedOperation) operation);
+        }
+        return new CompiledNodeExecutionMetadata(backend, kernel, cpuPlan, fusedKernel);
     }
 
     private boolean hasTrainableLeafInputs() {
-        for (Tensor t : forwardGraph) {
-            if (t.getOperation() == null && t.getRequiresGrad()) {
+        for (Tensor tensor : forwardGraph) {
+            if (tensor.getOperation() == null && tensor.getRequiresGrad()) {
                 return true;
             }
         }
         return false;
     }
 
-    public void setTrainingModeOn(){
-        this.inferenceMode=false;
-    }
-
-    public void setTrainingModeOff(){
-        this.inferenceMode=true;
-    }
-
-    // Nyní máme jen jednu exekuční metodu! Žádný forward a backward zvlášť.
-    public void execute() {
-        ComputeEngine.setTrainingExecution(!this.inferenceMode);
-        try {
-        // 1) Vždy nejdřív spočítáme forward část včetně forwardOutput kotvy.
-        for (int i = 0; i <= forwardEndIndex; i++) {
-            Tensor tensor = finalGraph.get(i);
-            if (tensor.getOperation() == null) {
-                continue;
-            }
-            if (tensor.getPrevTensors() == null) {
-                continue;
-            }
-            ComputeEngine.compute(tensor, tensor.getResolvedBackend());
-        }
-
-        // 2) Okamžitě synchronizujeme root výstup, aby ho případný backward/memory reuse
-        // už nemohl přepsat před přečtením uživatelem.
-        syncRootData();
-
-        // 3) V training režimu dopočítáme zbytek (backward část sjednoceného grafu).
-        if (!this.inferenceMode) {
-            for (int i = forwardEndIndex + 1; i < finalGraph.size(); i++) {
-                Tensor tensor = finalGraph.get(i);
-                if (tensor.getOperation() == null) {
-                    continue;
-                }
-                if (tensor.getPrevTensors() == null) {
-                    continue;
-                }
-                ComputeEngine.compute(tensor, tensor.getResolvedBackend());
-            }
-        }
-        } finally {
-            ComputeEngine.clearTrainingExecution();
-        }
-    }
-
-    private void syncRootData() {
-        // yieldNode je naše nezničitelná kotva.
-        // Její 0-tý vstup je VŽDYCKY ten skutečný, zoptimalizovaný výsledek dopředného chodu!
-        Tensor actualRoot = this.forwardOutput.getPrevTensors().get(0);
-
-        // In training mode we must always detach the user-visible root output from the runtime
-        // storage, even when the optimized result still lives in rootTensor itself. Backward /
-        // memory-reuse can overwrite that storage later in the same execute() call.
-        // In inference mode we only need to synchronize when optimization replaced the root node.
-        if (!this.inferenceMode || actualRoot != this.rootTensor) {
-            switch (actualRoot.getDataType()) {
-                case FLOAT64 -> this.rootTensor.setData(actualRoot.getFloat64Data().clone());
-                case FLOAT32 -> this.rootTensor.setData(actualRoot.getFloat32Data().clone());
-                case FLOAT16 -> this.rootTensor.setData(actualRoot.getFloat16Data().clone());
-            }
-        }
-    }
-
-    // Backward pass
-    public void backward() {
-        if (backwardStartIndex == -1) {
-            System.out.println("Info: No gradients to compute.");
-            return;
-        }
-        zeroGrad();
-        if (rootTensor.getGradient() != null) {
-            fillGradientOnes(rootTensor.getGradient());
-        }
-
-        ComputeEngine.setTrainingExecution(true);
-        try {
-            for (int i = backwardStartIndex; i < finalGraph.size(); i++) {
-                Tensor t = finalGraph.get(i);
-                if (t.getOperation() != null && t.isBackward()) {
-                    ComputeEngine.compute(t, t.getResolvedBackend());
-                }
-            }
-        } finally {
-            ComputeEngine.clearTrainingExecution();
-        }
-    }
-
-    public void zeroGrad() {
-        for (Tensor t : finalGraph) {
-            if (t.getGradient() != null) {
-                fillGradientZeros(t.getGradient());
-            }
-        }
-    }
-
-    private static void fillGradientOnes(Tensor gradient) {
-        switch (gradient.getDataType()) {
-            case FLOAT64 -> Arrays.fill(gradient.getFloat64Data(), 1.0);
-            case FLOAT32 -> Arrays.fill(gradient.getFloat32Data(), 1.0f);
-            case FLOAT16 -> {
-                short one = backend.kernels.cpu.CpuDTypeOps.toHalfBits(1.0f);
-                Arrays.fill(gradient.getFloat16Data(), one);
-            }
-        }
-    }
-
-    private static void fillGradientZeros(Tensor gradient) {
-        switch (gradient.getDataType()) {
-            case FLOAT64 -> Arrays.fill(gradient.getFloat64Data(), 0.0);
-            case FLOAT32 -> Arrays.fill(gradient.getFloat32Data(), 0.0f);
-            case FLOAT16 -> Arrays.fill(gradient.getFloat16Data(), (short) 0);
-        }
-    }
-
-
     private List<Tensor> collectBackwardNodes() {
         List<Tensor> backwardNodes = new ArrayList<>();
         Set<Tensor> visited = new HashSet<>();
         Set<Tensor> forwardSet = new HashSet<>(forwardGraph);
 
-        // Procházíme dopředný graf od konce (od loss) k začátku.
-        // Tím zajistíme, že začneme sbírat gradienty tam, kde vznikají jako první.
         for (int i = forwardGraph.size() - 1; i >= 0; i--) {
-            Tensor fwdTensor = forwardGraph.get(i);
-            Tensor gradTensor = fwdTensor.getGradient();
-
-            // Pokud má dopředný tenzor přiřazený gradient (díky lambdě),
-            // prozkoumáme celou historii jeho vzniku.
+            Tensor gradTensor = forwardGraph.get(i).getGradient();
             if (gradTensor != null) {
                 collectDFS(gradTensor, visited, backwardNodes, forwardSet);
             }
@@ -243,24 +244,17 @@ public class CompiledGraph {
     }
 
     private void collectDFS(Tensor tensor, Set<Tensor> visited, List<Tensor> sortedList, Set<Tensor> forwardSet) {
-        // Základní podmínky: uzel jsme už viděli nebo neexistuje
         if (tensor == null || visited.contains(tensor)) {
             return;
         }
 
         visited.add(tensor);
-
-        // Rekurze: Nejdříve prozkoumáme všechny předky (vstupy operace gradientu).
-        // Např. u grad = gradA + gradB musíme mít nejdřív gradA a gradB.
         if (tensor.getPrevTensors() != null) {
             for (Tensor parent : tensor.getPrevTensors()) {
                 collectDFS(parent, visited, sortedList, forwardSet);
             }
         }
 
-        // "Post-order" přidání: Teprve až jsou zpracováni všichni rodiče,
-        // přidáme samotný tenzor do seznamu pro výpočet.
-        // Přidáváme pouze ty, které mají operaci (konstanty/listy se nepočítají).
         if (tensor.getOperation() != null && !forwardSet.contains(tensor)) {
             tensor.setBackward(true);
             sortedList.add(tensor);
@@ -270,61 +264,12 @@ public class CompiledGraph {
     private List<Tensor> collectBackwardTargets() {
         List<Tensor> targets = new ArrayList<>();
         Set<Tensor> unique = new LinkedHashSet<>();
-
-        for (Tensor t : forwardGraph) {
-            // Leaf vstupy bez operace, které chtějí gradient
-            if (t.getOperation() == null && t.getRequiresGrad() && t.getGradient() != null) {
-                unique.add(t.getGradient());
+        for (Tensor tensor : forwardGraph) {
+            if (tensor.getOperation() == null && tensor.getRequiresGrad() && tensor.getGradient() != null) {
+                unique.add(tensor.getGradient());
             }
         }
-
         targets.addAll(unique);
         return targets;
     }
-
-
-
-
-    public Tensor getRootTensor() {
-        return rootTensor;
-    }
-
-    public List<Tensor> getCompiledGraphAsList() {
-        return this.finalGraph;
-    }
-
-    private void preResolveCpuKernels() {
-        for (Tensor tensor : finalGraph) {
-            Operation operation = tensor.getOperation();
-            ComputeBackend backend = tensor.resolveBackend();
-            tensor.setResolvedBackend(backend);
-            if (DISABLE_CPU_EXECUTION_HINTS) {
-                tensor.setResolvedCpuKernel(null);
-                tensor.setResolvedCpuExecutionPlan(null);
-                tensor.setResolvedBroadcastPlan(null);
-                tensor.setResolvedCpuConfigEpoch(0L);
-                continue;
-            }
-            if (operation == null || backend != ComputeBackend.CPU) {
-                tensor.setResolvedCpuKernel(null);
-                tensor.setResolvedCpuExecutionPlan(null);
-                tensor.setResolvedBroadcastPlan(null);
-                tensor.setResolvedCpuConfigEpoch(0L);
-                continue;
-            }
-            CpuKernel kernel = CpuKernelRegistry.resolve(operation.opType());
-            tensor.setResolvedCpuKernel(kernel);
-            CPUBackend.CpuNodeExecutionPlan plan = CPUBackend.buildExecutionPlan(
-                    operation,
-                    tensor.getPrevTensors(),
-                    tensor,
-                    ComputeEngine.getCpuExecutionConfig()
-            );
-            tensor.setResolvedCpuExecutionPlan(plan);
-            tensor.setResolvedBroadcastPlan(plan != null ? plan.broadcastPlan() : null);
-            tensor.setResolvedCpuConfigEpoch(ComputeEngine.getCpuConfigEpoch());
-        }
-    }
-
-
 }

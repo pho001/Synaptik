@@ -3,6 +3,7 @@ package graph.optimizer.rules;
 import graph.optimizer.OptimizationRule;
 import config.optimizer.FuseConfig;
 import operations.FusedOperation;
+import operations.FusedOperationFactory;
 import operations.Operation;
 import tensor.Tensor;
 import java.util.*;
@@ -19,7 +20,11 @@ public class FuseElementWiseRule implements OptimizationRule {
     }
 
     public FuseElementWiseRule(FuseConfig config) {
-        this.config = config;
+        this.config = Objects.requireNonNull(config, "config cannot be null");
+    }
+
+    public FuseConfig config() {
+        return config;
     }
 
     @Override
@@ -46,13 +51,13 @@ public class FuseElementWiseRule implements OptimizationRule {
         // 2. KROK: Najdeme uzly, které MUSÍ být v paměti zachovány (Materialization points)
         Set<Tensor> materializationPoints = new HashSet<>();
         for (Tensor t : sortedGraph) {
-            boolean isElementWise = t.getOperation() != null && t.getOperation().isElementWise();
+            boolean isElementWise = isElementWiseCandidate(t.getOperation());
             boolean isCheap = t.getOperation() != null && t.getOperation().isCheap();
             boolean isFused = t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED;
             int consumersAll = allConsumerCounts.getOrDefault(t, 0);
             boolean hasNonElementWiseConsumer = false;
             for (Tensor c : samePhaseConsumersMap.getOrDefault(t, Collections.emptyList())) {
-                if (c.getOperation() == null || !c.getOperation().isElementWise()) {
+                if (!isElementWiseCandidate(c.getOperation())) {
                     hasNonElementWiseConsumer = true;
                     break;
                 }
@@ -91,7 +96,7 @@ public class FuseElementWiseRule implements OptimizationRule {
         for (Tensor t : sortedGraph) {
             if (materializationPoints.contains(t)
                     && t.getOperation() != null
-                    && t.getOperation().isElementWise()
+                    && isElementWiseCandidate(t.getOperation())
                     && t.getOperation().opType() != Operation.OpType.FUSED) {
 
                 // Postavíme cluster (nabalíme do něj vše, co není materializační bod)
@@ -110,7 +115,7 @@ public class FuseElementWiseRule implements OptimizationRule {
                     boolean containsBackward = cluster.stream().anyMatch(Tensor::isBackward);
 
                     // MAGIE: Zmutujeme aktuální uzel. Všechny reference zvenčí zůstanou zachovány!
-                    t.setOperation(new FusedOperation(cluster, t, externalInputs));
+                    t.setOperation(FusedOperationFactory.create(cluster, t, externalInputs));
                     t.setPrevTensors(externalInputs);
                     if (containsBackward) {
                         t.setBackward(true);
@@ -152,6 +157,7 @@ public class FuseElementWiseRule implements OptimizationRule {
                         // Tady se přesně děje ten "Recompute" u isCheap operací.
                         if (!materializationPoints.contains(prev)
                                 && prev.getOperation() != null
+                                && isElementWiseCandidate(prev.getOperation())
                                 && prev.getOperation().opType() != Operation.OpType.FUSED
                                 && prev.isBackward() == curr.isBackward()) {
                             queue.add(prev);
@@ -220,5 +226,12 @@ public class FuseElementWiseRule implements OptimizationRule {
         double score = benefit - cost;
 
         return score >= config.scoreThreshold();
+    }
+
+    private boolean isElementWiseCandidate(Operation op) {
+        return op != null
+                && op.opType() != null
+                && op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
+                && op.opType().isFusable();
     }
 }

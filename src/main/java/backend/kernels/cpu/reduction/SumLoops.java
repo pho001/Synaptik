@@ -1,6 +1,7 @@
 package backend.kernels.cpu.reduction;
 
-import backend.kernels.cpu.CpuExecutionConfig;
+import backend.kernels.cpu.CpuKernelContext;
+import backend.kernels.cpu.ResolvedReductionHints;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuThreadPool;
@@ -19,7 +20,7 @@ final class SumLoops {
 
     private SumLoops() {}
 
-    static void execute(Tensor input, Tensor node, int dimension, CpuExecutionConfig config) {
+    static void execute(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
@@ -35,13 +36,13 @@ final class SumLoops {
         }
 
         if (dimension == -1) {
-            node.getData()[0] = sumAll(input, logicalSize, config);
+            node.getData()[0] = sumAll(input, logicalSize, context);
             return;
         }
-        sumAxis(input, node.getData(), logicalSize, dimension, config);
+        sumAxis(input, node.getData(), logicalSize, dimension, context);
     }
 
-    static void executeF32(Tensor input, Tensor node, int dimension, CpuExecutionConfig config) {
+    static void executeF32(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
@@ -63,13 +64,13 @@ final class SumLoops {
         }
 
         if (dimension == -1) {
-            out[0] = (float) sumAllF32(input, in, logicalSize, config);
+            out[0] = (float) sumAllF32(input, in, logicalSize, context);
             return;
         }
-        sumAxisF32(input, in, out, logicalSize, dimension, config);
+        sumAxisF32(input, in, out, logicalSize, dimension, context);
     }
 
-    static void executeF16(Tensor input, Tensor node, int dimension, CpuExecutionConfig config) {
+    static void executeF16(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
@@ -91,45 +92,44 @@ final class SumLoops {
         }
 
         if (dimension == -1) {
-            out[0] = CpuDTypeOps.toHalfBits((float) sumAllF16(input, in, logicalSize, config));
+            out[0] = CpuDTypeOps.toHalfBits((float) sumAllF16(input, in, logicalSize, context));
             return;
         }
-        sumAxisF16(input, in, out, logicalSize, dimension, config);
+        sumAxisF16(input, in, out, logicalSize, dimension, context);
     }
 
-    private static double sumAll(Tensor input, int logicalSize, CpuExecutionConfig config) {
+    private static double sumAll(Tensor input, int logicalSize, CpuKernelContext context) {
         if (!input.isContiguous()) {
-            if (logicalSize >= config.contiguousMaterializeThreshold()) {
-                Tensor contiguous = materializeContiguous(input, config);
-                return sumAllContiguous(contiguous.getData(), logicalSize, config);
+            if (logicalSize >= materializeThreshold(context)) {
+                Tensor contiguous = materializeContiguous(input);
+                return sumAllContiguous(contiguous.getData(), logicalSize, context);
             }
-            return sumAllStrided(input, logicalSize, config);
+            return sumAllStrided(input, logicalSize, context);
         }
-        return sumAllContiguous(input.getData(), logicalSize, config);
+        return sumAllContiguous(input.getData(), logicalSize, context);
     }
 
-    private static double sumAllContiguous(double[] data, int logicalSize, CpuExecutionConfig config) {
-        CpuExecutionMode mode = config.modeForReduction(logicalSize);
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
+    private static double sumAllContiguous(double[] data, int logicalSize, CpuKernelContext context) {
+        CpuExecutionMode mode = reductionMode(context);
+        SumAccuracyMode accuracy = reductionAccuracy(context);
         return switch (mode) {
             case SCALAR -> accumulateScalar(data, 0, logicalSize, accuracy);
             case VECTOR -> (accuracy == SumAccuracyMode.FAST)
                     ? accumulateVectorFast(data, 0, logicalSize)
                     : accumulateScalar(data, 0, logicalSize, accuracy);
-            case PARALLEL -> parallelSumContiguous(data, logicalSize, config, false);
-            case PARALLEL_VECTOR -> parallelSumContiguous(data, logicalSize, config, true);
+            case PARALLEL -> parallelSumContiguous(data, logicalSize, context, false);
+            case PARALLEL_VECTOR -> parallelSumContiguous(data, logicalSize, context, true);
         };
     }
 
-    private static double parallelSumContiguous(double[] data, int logicalSize, CpuExecutionConfig config, boolean preferVector) {
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
-        boolean useVector = preferVector && accuracy == SumAccuracyMode.FAST;
-        int vectorWidth = useVector ? SPECIES.length() : 1;
-        int chunkSize = config.computeChunkSize(logicalSize, vectorWidth);
+    private static double parallelSumContiguous(double[] data, int logicalSize, CpuKernelContext context, boolean preferVector) {
+        SumAccuracyMode accuracy = reductionAccuracy(context);
+        boolean useVector = preferVector && accuracy == SumAccuracyMode.FAST && reductionVectorWidth(context) > 1;
+        int chunkSize = reductionChunkSize(context);
         int chunks = (logicalSize + chunkSize - 1) / chunkSize;
         double[] partials = new double[chunks];
 
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, logicalSize);
             partials[chunk] = useVector
@@ -140,19 +140,19 @@ final class SumLoops {
         return mergePartials(partials, accuracy);
     }
 
-    private static double sumAllStrided(Tensor input, int logicalSize, CpuExecutionConfig config) {
+    private static double sumAllStrided(Tensor input, int logicalSize, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
         double[] data = input.getData();
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
-        CpuExecutionMode mode = config.modeForReduction(logicalSize);
+        SumAccuracyMode accuracy = reductionAccuracy(context);
+        CpuExecutionMode mode = reductionMode(context);
 
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            int chunkSize = config.computeChunkSize(logicalSize, 1);
+            int chunkSize = reductionChunkSize(context);
             int chunks = (logicalSize + chunkSize - 1) / chunkSize;
             double[] partials = new double[chunks];
-            CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, logicalSize);
                 partials[chunk] = accumulateStridedRange(data, start, end, shape, strides, denseStrides, accuracy);
@@ -163,40 +163,39 @@ final class SumLoops {
         return accumulateStridedRange(data, 0, logicalSize, shape, strides, denseStrides, accuracy);
     }
 
-    private static double sumAllF32(Tensor input, float[] data, int logicalSize, CpuExecutionConfig config) {
+    private static double sumAllF32(Tensor input, float[] data, int logicalSize, CpuKernelContext context) {
         if (!input.isContiguous()) {
-            if (logicalSize >= config.contiguousMaterializeThreshold()) {
-                Tensor contiguous = materializeContiguousTyped(input, config, DataType.FLOAT32);
+            if (logicalSize >= materializeThreshold(context)) {
+                Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT32);
                 float[] c = contiguous.getFloat32Data();
-                return sumAllContiguousF32(c, logicalSize, config);
+                return sumAllContiguousF32(c, logicalSize, context);
             }
-            return sumAllStridedF32(input, data, logicalSize, config);
+            return sumAllStridedF32(input, data, logicalSize, context);
         }
-        return sumAllContiguousF32(data, logicalSize, config);
+        return sumAllContiguousF32(data, logicalSize, context);
     }
 
-    private static double sumAllContiguousF32(float[] data, int logicalSize, CpuExecutionConfig config) {
-        CpuExecutionMode mode = config.modeForReduction(logicalSize);
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
+    private static double sumAllContiguousF32(float[] data, int logicalSize, CpuKernelContext context) {
+        CpuExecutionMode mode = reductionMode(context);
+        SumAccuracyMode accuracy = reductionAccuracy(context);
         return switch (mode) {
             case SCALAR -> accumulateScalarF32(data, 0, logicalSize, accuracy);
             case VECTOR -> (accuracy == SumAccuracyMode.FAST)
                     ? accumulateVectorFastF32(data, 0, logicalSize)
                     : accumulateScalarF32(data, 0, logicalSize, accuracy);
-            case PARALLEL -> parallelSumContiguousF32(data, logicalSize, config, false);
-            case PARALLEL_VECTOR -> parallelSumContiguousF32(data, logicalSize, config, true);
+            case PARALLEL -> parallelSumContiguousF32(data, logicalSize, context, false);
+            case PARALLEL_VECTOR -> parallelSumContiguousF32(data, logicalSize, context, true);
         };
     }
 
-    private static double parallelSumContiguousF32(float[] data, int logicalSize, CpuExecutionConfig config, boolean preferVector) {
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
-        boolean useVector = preferVector && accuracy == SumAccuracyMode.FAST;
-        int vectorWidth = useVector ? FLOAT_SPECIES.length() : 1;
-        int chunkSize = config.computeChunkSize(logicalSize, vectorWidth);
+    private static double parallelSumContiguousF32(float[] data, int logicalSize, CpuKernelContext context, boolean preferVector) {
+        SumAccuracyMode accuracy = reductionAccuracy(context);
+        boolean useVector = preferVector && accuracy == SumAccuracyMode.FAST && reductionVectorWidth(context) > 1;
+        int chunkSize = reductionChunkSize(context);
         int chunks = (logicalSize + chunkSize - 1) / chunkSize;
         double[] partials = new double[chunks];
 
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, logicalSize);
             partials[chunk] = useVector
@@ -206,18 +205,18 @@ final class SumLoops {
         return mergePartials(partials, accuracy);
     }
 
-    private static double sumAllStridedF32(Tensor input, float[] data, int logicalSize, CpuExecutionConfig config) {
+    private static double sumAllStridedF32(Tensor input, float[] data, int logicalSize, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
-        CpuExecutionMode mode = config.modeForReduction(logicalSize);
+        SumAccuracyMode accuracy = reductionAccuracy(context);
+        CpuExecutionMode mode = reductionMode(context);
 
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            int chunkSize = config.computeChunkSize(logicalSize, 1);
+            int chunkSize = reductionChunkSize(context);
             int chunks = (logicalSize + chunkSize - 1) / chunkSize;
             double[] partials = new double[chunks];
-            CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, logicalSize);
                 partials[chunk] = accumulateStridedRangeF32(data, start, end, shape, strides, denseStrides, accuracy);
@@ -227,33 +226,33 @@ final class SumLoops {
         return accumulateStridedRangeF32(data, 0, logicalSize, shape, strides, denseStrides, accuracy);
     }
 
-    private static double sumAllF16(Tensor input, short[] data, int logicalSize, CpuExecutionConfig config) {
+    private static double sumAllF16(Tensor input, short[] data, int logicalSize, CpuKernelContext context) {
         if (!input.isContiguous()) {
-            if (logicalSize >= config.contiguousMaterializeThreshold()) {
-                Tensor contiguous = materializeContiguousTyped(input, config, DataType.FLOAT16);
+            if (logicalSize >= materializeThreshold(context)) {
+                Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT16);
                 short[] c = contiguous.getFloat16Data();
-                return sumAllContiguousF16(c, logicalSize, config);
+                return sumAllContiguousF16(c, logicalSize, context);
             }
-            return sumAllStridedF16(input, data, logicalSize, config);
+            return sumAllStridedF16(input, data, logicalSize, context);
         }
-        return sumAllContiguousF16(data, logicalSize, config);
+        return sumAllContiguousF16(data, logicalSize, context);
     }
 
-    private static double sumAllContiguousF16(short[] data, int logicalSize, CpuExecutionConfig config) {
-        CpuExecutionMode mode = config.modeForReduction(logicalSize);
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
+    private static double sumAllContiguousF16(short[] data, int logicalSize, CpuKernelContext context) {
+        CpuExecutionMode mode = reductionMode(context);
+        SumAccuracyMode accuracy = reductionAccuracy(context);
         return switch (mode) {
             case SCALAR, VECTOR -> accumulateScalarF16(data, 0, logicalSize, accuracy);
-            case PARALLEL, PARALLEL_VECTOR -> parallelSumContiguousF16(data, logicalSize, config);
+            case PARALLEL, PARALLEL_VECTOR -> parallelSumContiguousF16(data, logicalSize, context);
         };
     }
 
-    private static double parallelSumContiguousF16(short[] data, int logicalSize, CpuExecutionConfig config) {
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
-        int chunkSize = config.computeChunkSize(logicalSize, 1);
+    private static double parallelSumContiguousF16(short[] data, int logicalSize, CpuKernelContext context) {
+        SumAccuracyMode accuracy = reductionAccuracy(context);
+        int chunkSize = reductionChunkSize(context);
         int chunks = (logicalSize + chunkSize - 1) / chunkSize;
         double[] partials = new double[chunks];
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, logicalSize);
             partials[chunk] = accumulateScalarF16(data, start, end, accuracy);
@@ -261,17 +260,17 @@ final class SumLoops {
         return mergePartials(partials, accuracy);
     }
 
-    private static double sumAllStridedF16(Tensor input, short[] data, int logicalSize, CpuExecutionConfig config) {
+    private static double sumAllStridedF16(Tensor input, short[] data, int logicalSize, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
-        SumAccuracyMode accuracy = config.sumAccuracyMode();
-        CpuExecutionMode mode = config.modeForReduction(logicalSize);
+        SumAccuracyMode accuracy = reductionAccuracy(context);
+        CpuExecutionMode mode = reductionMode(context);
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            int chunkSize = config.computeChunkSize(logicalSize, 1);
+            int chunkSize = reductionChunkSize(context);
             int chunks = (logicalSize + chunkSize - 1) / chunkSize;
             double[] partials = new double[chunks];
-            CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, logicalSize);
                 partials[chunk] = accumulateStridedRangeF16(data, start, end, shape, strides, denseStrides, accuracy);
@@ -281,7 +280,7 @@ final class SumLoops {
         return accumulateStridedRangeF16(data, 0, logicalSize, shape, strides, denseStrides, accuracy);
     }
 
-    private static void sumAxis(Tensor input, double[] out, int logicalSize, int dimension, CpuExecutionConfig config) {
+    private static void sumAxis(Tensor input, double[] out, int logicalSize, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
@@ -290,65 +289,66 @@ final class SumLoops {
         }
 
         if (!input.isContiguous()) {
-            if (logicalSize >= config.contiguousMaterializeThreshold()) {
-                Tensor contiguous = materializeContiguous(input, config);
-                sumAxisContiguous(contiguous, out, dimension, config);
+            if (logicalSize >= materializeThreshold(context)) {
+                Tensor contiguous = materializeContiguous(input);
+                sumAxisContiguous(contiguous, out, dimension, context);
                 return;
             }
-            sumAxisStrided(input, out, dimension, config);
+            sumAxisStrided(input, out, dimension, context);
             return;
         }
-        sumAxisContiguous(input, out, dimension, config);
+        sumAxisContiguous(input, out, dimension, context);
     }
 
-    private static void sumAxisContiguous(Tensor input, double[] out, int dimension, CpuExecutionConfig config) {
+    private static void sumAxisContiguous(Tensor input, double[] out, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int reducedDim = shape[dimension];
         int outSize = out.length;
         double[] data = input.getData();
 
-        boolean canVectorizeLastDim = (dimension == shape.length - 1) && config.sumAccuracyMode() == SumAccuracyMode.FAST;
-        CpuExecutionMode mode = config.modeForReduction(logicalSize(shape));
+        boolean canVectorizeLastDim = (dimension == shape.length - 1)
+                && reductionAccuracy(context) == SumAccuracyMode.FAST
+                && reductionVectorWidth(context) > 1;
+        CpuExecutionMode mode = reductionMode(context);
 
         switch (mode) {
             case PARALLEL, PARALLEL_VECTOR -> {
                 boolean useVector = mode == CpuExecutionMode.PARALLEL_VECTOR && canVectorizeLastDim;
-                int vectorWidth = useVector ? SPECIES.length() : 1;
-                int chunkSize = config.computeChunkSize(outSize, vectorWidth);
+                int chunkSize = reductionChunkSize(context);
                 int chunks = (outSize + chunkSize - 1) / chunkSize;
-                CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+                CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                     int start = chunk * chunkSize;
                     int end = Math.min(start + chunkSize, outSize);
-                    reduceOutputRange(data, out, start, end, shape, strides, dimension, reducedDim, useVector, config.sumAccuracyMode());
+                    reduceOutputRange(data, out, start, end, shape, strides, dimension, reducedDim, useVector, reductionAccuracy(context));
                 });
             }
-            case VECTOR -> reduceOutputRange(data, out, 0, outSize, shape, strides, dimension, reducedDim, canVectorizeLastDim, config.sumAccuracyMode());
-            case SCALAR -> reduceOutputRange(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, config.sumAccuracyMode());
+            case VECTOR -> reduceOutputRange(data, out, 0, outSize, shape, strides, dimension, reducedDim, canVectorizeLastDim, reductionAccuracy(context));
+            case SCALAR -> reduceOutputRange(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
         }
     }
 
-    private static void sumAxisStrided(Tensor input, double[] out, int dimension, CpuExecutionConfig config) {
+    private static void sumAxisStrided(Tensor input, double[] out, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int reducedDim = shape[dimension];
         int outSize = out.length;
-        CpuExecutionMode mode = config.modeForReduction(logicalSize(shape));
+        CpuExecutionMode mode = reductionMode(context);
 
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            int chunkSize = config.computeChunkSize(outSize, 1);
+            int chunkSize = reductionChunkSize(context);
             int chunks = (outSize + chunkSize - 1) / chunkSize;
-            CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRange(input.getData(), out, start, end, shape, strides, dimension, reducedDim, false, config.sumAccuracyMode());
+                reduceOutputRange(input.getData(), out, start, end, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
             });
             return;
         }
-        reduceOutputRange(input.getData(), out, 0, outSize, shape, strides, dimension, reducedDim, false, config.sumAccuracyMode());
+        reduceOutputRange(input.getData(), out, 0, outSize, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
     }
 
-    private static void sumAxisF32(Tensor input, float[] data, float[] out, int logicalSize, int dimension, CpuExecutionConfig config) {
+    private static void sumAxisF32(Tensor input, float[] data, float[] out, int logicalSize, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
@@ -356,58 +356,59 @@ final class SumLoops {
             throw new IllegalArgumentException("Output length does not match reduction size");
         }
         if (!input.isContiguous()) {
-            if (logicalSize >= config.contiguousMaterializeThreshold()) {
-                Tensor contiguous = materializeContiguousTyped(input, config, DataType.FLOAT32);
-                sumAxisContiguousF32(contiguous.getFloat32Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), out, dimension, config);
+            if (logicalSize >= materializeThreshold(context)) {
+                Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT32);
+                sumAxisContiguousF32(contiguous.getFloat32Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), out, dimension, context);
                 return;
             }
-            sumAxisStridedF32(data, shape, input.getStridesUnsafe(), out, dimension, config);
+            sumAxisStridedF32(data, shape, input.getStridesUnsafe(), out, dimension, context);
             return;
         }
-        sumAxisContiguousF32(data, shape, input.getStridesUnsafe(), out, dimension, config);
+        sumAxisContiguousF32(data, shape, input.getStridesUnsafe(), out, dimension, context);
     }
 
-    private static void sumAxisContiguousF32(float[] data, int[] shape, int[] strides, float[] out, int dimension, CpuExecutionConfig config) {
+    private static void sumAxisContiguousF32(float[] data, int[] shape, int[] strides, float[] out, int dimension, CpuKernelContext context) {
         int reducedDim = shape[dimension];
         int outSize = out.length;
-        boolean canVectorizeLastDim = (dimension == shape.length - 1) && config.sumAccuracyMode() == SumAccuracyMode.FAST;
-        CpuExecutionMode mode = config.modeForReduction(logicalSize(shape));
+        boolean canVectorizeLastDim = (dimension == shape.length - 1)
+                && reductionAccuracy(context) == SumAccuracyMode.FAST
+                && reductionVectorWidth(context) > 1;
+        CpuExecutionMode mode = reductionMode(context);
 
         switch (mode) {
             case PARALLEL, PARALLEL_VECTOR -> {
                 boolean useVector = mode == CpuExecutionMode.PARALLEL_VECTOR && canVectorizeLastDim;
-                int vectorWidth = useVector ? FLOAT_SPECIES.length() : 1;
-                int chunkSize = config.computeChunkSize(outSize, vectorWidth);
+                int chunkSize = reductionChunkSize(context);
                 int chunks = (outSize + chunkSize - 1) / chunkSize;
-                CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+                CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                     int start = chunk * chunkSize;
                     int end = Math.min(start + chunkSize, outSize);
-                    reduceOutputRangeF32(data, out, start, end, shape, strides, dimension, reducedDim, useVector, config.sumAccuracyMode());
+                    reduceOutputRangeF32(data, out, start, end, shape, strides, dimension, reducedDim, useVector, reductionAccuracy(context));
                 });
             }
-            case VECTOR -> reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, canVectorizeLastDim, config.sumAccuracyMode());
-            case SCALAR -> reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, config.sumAccuracyMode());
+            case VECTOR -> reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, canVectorizeLastDim, reductionAccuracy(context));
+            case SCALAR -> reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
         }
     }
 
-    private static void sumAxisStridedF32(float[] data, int[] shape, int[] strides, float[] out, int dimension, CpuExecutionConfig config) {
+    private static void sumAxisStridedF32(float[] data, int[] shape, int[] strides, float[] out, int dimension, CpuKernelContext context) {
         int reducedDim = shape[dimension];
         int outSize = out.length;
-        CpuExecutionMode mode = config.modeForReduction(logicalSize(shape));
+        CpuExecutionMode mode = reductionMode(context);
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            int chunkSize = config.computeChunkSize(outSize, 1);
+            int chunkSize = reductionChunkSize(context);
             int chunks = (outSize + chunkSize - 1) / chunkSize;
-            CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRangeF32(data, out, start, end, shape, strides, dimension, reducedDim, false, config.sumAccuracyMode());
+                reduceOutputRangeF32(data, out, start, end, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
             });
             return;
         }
-        reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, config.sumAccuracyMode());
+        reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
     }
 
-    private static void sumAxisF16(Tensor input, short[] data, short[] out, int logicalSize, int dimension, CpuExecutionConfig config) {
+    private static void sumAxisF16(Tensor input, short[] data, short[] out, int logicalSize, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
@@ -415,49 +416,49 @@ final class SumLoops {
             throw new IllegalArgumentException("Output length does not match reduction size");
         }
         if (!input.isContiguous()) {
-            if (logicalSize >= config.contiguousMaterializeThreshold()) {
-                Tensor contiguous = materializeContiguousTyped(input, config, DataType.FLOAT16);
-                sumAxisContiguousF16(contiguous.getFloat16Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), out, dimension, config);
+            if (logicalSize >= materializeThreshold(context)) {
+                Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT16);
+                sumAxisContiguousF16(contiguous.getFloat16Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), out, dimension, context);
                 return;
             }
-            sumAxisStridedF16(data, shape, input.getStridesUnsafe(), out, dimension, config);
+            sumAxisStridedF16(data, shape, input.getStridesUnsafe(), out, dimension, context);
             return;
         }
-        sumAxisContiguousF16(data, shape, input.getStridesUnsafe(), out, dimension, config);
+        sumAxisContiguousF16(data, shape, input.getStridesUnsafe(), out, dimension, context);
     }
 
-    private static void sumAxisContiguousF16(short[] data, int[] shape, int[] strides, short[] out, int dimension, CpuExecutionConfig config) {
+    private static void sumAxisContiguousF16(short[] data, int[] shape, int[] strides, short[] out, int dimension, CpuKernelContext context) {
         int reducedDim = shape[dimension];
         int outSize = out.length;
-        CpuExecutionMode mode = config.modeForReduction(logicalSize(shape));
+        CpuExecutionMode mode = reductionMode(context);
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            int chunkSize = config.computeChunkSize(outSize, 1);
+            int chunkSize = reductionChunkSize(context);
             int chunks = (outSize + chunkSize - 1) / chunkSize;
-            CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRangeF16(data, out, start, end, shape, strides, dimension, reducedDim, config.sumAccuracyMode());
+                reduceOutputRangeF16(data, out, start, end, shape, strides, dimension, reducedDim, reductionAccuracy(context));
             });
             return;
         }
-        reduceOutputRangeF16(data, out, 0, outSize, shape, strides, dimension, reducedDim, config.sumAccuracyMode());
+        reduceOutputRangeF16(data, out, 0, outSize, shape, strides, dimension, reducedDim, reductionAccuracy(context));
     }
 
-    private static void sumAxisStridedF16(short[] data, int[] shape, int[] strides, short[] out, int dimension, CpuExecutionConfig config) {
+    private static void sumAxisStridedF16(short[] data, int[] shape, int[] strides, short[] out, int dimension, CpuKernelContext context) {
         int reducedDim = shape[dimension];
         int outSize = out.length;
-        CpuExecutionMode mode = config.modeForReduction(logicalSize(shape));
+        CpuExecutionMode mode = reductionMode(context);
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            int chunkSize = config.computeChunkSize(outSize, 1);
+            int chunkSize = reductionChunkSize(context);
             int chunks = (outSize + chunkSize - 1) / chunkSize;
-            CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+            CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRangeF16(data, out, start, end, shape, strides, dimension, reducedDim, config.sumAccuracyMode());
+                reduceOutputRangeF16(data, out, start, end, shape, strides, dimension, reducedDim, reductionAccuracy(context));
             });
             return;
         }
-        reduceOutputRangeF16(data, out, 0, outSize, shape, strides, dimension, reducedDim, config.sumAccuracyMode());
+        reduceOutputRangeF16(data, out, 0, outSize, shape, strides, dimension, reducedDim, reductionAccuracy(context));
     }
 
     private static void reduceOutputRange(
@@ -975,7 +976,7 @@ final class SumLoops {
         return pairwiseFast(values, from, mid) + pairwiseFast(values, mid, to);
     }
 
-    private static Tensor materializeContiguous(Tensor input, CpuExecutionConfig config) {
+    private static Tensor materializeContiguous(Tensor input) {
         Tensor contiguous = new Tensor(input.getShapeUnsafe(), null, input.getLabel() + "_sum_contiguous_tmp", DataType.FLOAT64);
         double[] src = input.getData();
         double[] dst = contiguous.getData();
@@ -989,10 +990,42 @@ final class SumLoops {
         return contiguous;
     }
 
-    private static Tensor materializeContiguousTyped(Tensor input, CpuExecutionConfig config, DataType dataType) {
+    private static Tensor materializeContiguousTyped(Tensor input, CpuKernelContext context, DataType dataType) {
         Tensor contiguous = new Tensor(input.getShapeUnsafe(), null, input.getLabel() + "_sum_contiguous_tmp", dataType);
-        TensorRemap.apply(input, contiguous, config.contiguousMaterializeThreshold());
+        TensorRemap.apply(input, contiguous, materializeThreshold(context));
         return contiguous;
+    }
+
+    private static ResolvedReductionHints requireHints(CpuKernelContext context) {
+        ResolvedReductionHints hints = context.reductionHints();
+        if (hints == null) {
+            throw new IllegalStateException("Missing ResolvedReductionHints for sum execution");
+        }
+        return hints;
+    }
+
+    private static CpuExecutionMode reductionMode(CpuKernelContext context) {
+        return requireHints(context).mode();
+    }
+
+    private static SumAccuracyMode reductionAccuracy(CpuKernelContext context) {
+        return requireHints(context).accuracyMode();
+    }
+
+    private static int reductionChunkSize(CpuKernelContext context) {
+        return requireHints(context).chunkSize();
+    }
+
+    private static int reductionWorkers(CpuKernelContext context) {
+        return requireHints(context).plannedWorkers();
+    }
+
+    private static int reductionVectorWidth(CpuKernelContext context) {
+        return requireHints(context).vectorWidth();
+    }
+
+    private static int materializeThreshold(CpuKernelContext context) {
+        return context.planner().contiguousMaterializeThreshold();
     }
 
     private static int logicalToOffset(int logicalIndex, int[] shape, int[] strides, int[] denseStrides) {

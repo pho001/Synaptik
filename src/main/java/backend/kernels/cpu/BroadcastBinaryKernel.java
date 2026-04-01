@@ -11,14 +11,14 @@ public final class BroadcastBinaryKernel {
             double[] b,
             double[] out,
             ResolvedBroadcastPlan plan,
-            CpuExecutionMode mode,
-            CpuExecutionConfig config
+            ResolvedDispatchHints hints
     ) {
+        CpuExecutionMode mode = hints.mode();
         if (rank1F64(type, a, b, out, plan)) {
             return;
         }
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            parallelF64(type, a, b, out, plan, config);
+            parallelF64(type, a, b, out, plan, hints);
             return;
         }
         scalarF64(type, a, b, out, plan, 0, out.length);
@@ -30,14 +30,14 @@ public final class BroadcastBinaryKernel {
             float[] b,
             float[] out,
             ResolvedBroadcastPlan plan,
-            CpuExecutionMode mode,
-            CpuExecutionConfig config
+            ResolvedDispatchHints hints
     ) {
+        CpuExecutionMode mode = hints.mode();
         if (rank1F32(type, a, b, out, plan)) {
             return;
         }
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            parallelF32(type, a, b, out, plan, config);
+            parallelF32(type, a, b, out, plan, hints);
             return;
         }
         scalarF32(type, a, b, out, plan, 0, out.length);
@@ -49,14 +49,14 @@ public final class BroadcastBinaryKernel {
             short[] b,
             short[] out,
             ResolvedBroadcastPlan plan,
-            CpuExecutionMode mode,
-            CpuExecutionConfig config
+            ResolvedDispatchHints hints
     ) {
+        CpuExecutionMode mode = hints.mode();
         if (rank1F16(type, a, b, out, plan)) {
             return;
         }
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
-            parallelF16(type, a, b, out, plan, config);
+            parallelF16(type, a, b, out, plan, hints);
             return;
         }
         scalarF16(type, a, b, out, plan, 0, out.length);
@@ -185,30 +185,30 @@ public final class BroadcastBinaryKernel {
         return true;
     }
 
-    private static void parallelF64(Operation.OpType type, double[] a, double[] b, double[] out, ResolvedBroadcastPlan plan, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
+    private static void parallelF64(Operation.OpType type, double[] a, double[] b, double[] out, ResolvedBroadcastPlan plan, ResolvedDispatchHints hints) {
+        int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             scalarF64(type, a, b, out, plan, start, end);
         });
     }
 
-    private static void parallelF32(Operation.OpType type, float[] a, float[] b, float[] out, ResolvedBroadcastPlan plan, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
+    private static void parallelF32(Operation.OpType type, float[] a, float[] b, float[] out, ResolvedBroadcastPlan plan, ResolvedDispatchHints hints) {
+        int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             scalarF32(type, a, b, out, plan, start, end);
         });
     }
 
-    private static void parallelF16(Operation.OpType type, short[] a, short[] b, short[] out, ResolvedBroadcastPlan plan, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
+    private static void parallelF16(Operation.OpType type, short[] a, short[] b, short[] out, ResolvedBroadcastPlan plan, ResolvedDispatchHints hints) {
+        int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             scalarF16(type, a, b, out, plan, start, end);

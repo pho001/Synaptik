@@ -1,12 +1,17 @@
 package numerics;
 
-import backend.ComputeEngine;
+import backend.blas.BlasProvider;
+import config.runtime.ApproximationConfig;
+import config.runtime.BlasConfig;
+import backend.runtime.ExecutionMode;
+import config.runtime.RuntimeConfig;
 import benchmark.OptimizationStage;
 import benchmark.OptimizerBuilder;
 import benchmark.OptimizerCandidate;
 import benchmark.TuningKnobs;
 import benchmark.scenario.BenchmarkGraphRecipes;
 import benchmark.scenario.ScenarioTensorFactory;
+import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
 import tensor.Tensor;
@@ -63,7 +68,7 @@ public final class NumericsHarness {
     }
 
     private OutputSet runCandidate(OptimizerCandidate candidate, InputSet input) {
-        ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
+        RuntimeConfig runtimeConfig = runtimeConfigFor(candidate);
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
 
         Tensor A = ScenarioTensorFactory.flatTensor("A", input.baseA, true, config.dtype);
@@ -81,15 +86,15 @@ public final class NumericsHarness {
         Tensor out = BenchmarkGraphRecipes.buildOptimizerBenchmarkGraph(
                 A, B, C, linearIn, w1, b1, w2, b2, w3, b3, config.graphBlocks
         );
-        out.compute(optimizer);
-        out.getCompiledGraph().setTrainingModeOn();
-        out.compute(optimizer);
+        CompiledGraph trainingGraph = CompiledGraph.compile(out, optimizer);
+        trainingGraph.execute(runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
+        trainingGraph.execute(runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
 
         Tensor BA = ScenarioTensorFactory.prefixTensorWrap("BA", input.baseA, false, config.dtype, config.b0, 1, config.f);
         Tensor BB = ScenarioTensorFactory.prefixTensorWrap("BB", input.baseB, false, config.dtype, 1, config.b1, config.f);
         Tensor BC = ScenarioTensorFactory.prefixTensorWrap("BC", input.baseC, false, config.dtype, config.b0, config.b1, config.f);
         Tensor broadcastOut = BenchmarkGraphRecipes.buildBroadcastGraph(BA, BB, BC);
-        broadcastOut.compute(optimizer);
+        CompiledGraph.compile(broadcastOut, optimizer).execute(runtimeConfig, ExecutionMode.FORWARD);
 
         return new OutputSet(
                 out.toDoubleArrayCopy().clone(),
@@ -150,5 +155,19 @@ public final class NumericsHarness {
             out.add(OptimizationStage.valueOf(s.toUpperCase()));
         }
         return out;
+    }
+
+    private static RuntimeConfig runtimeConfigFor(OptimizerCandidate candidate) {
+        return new RuntimeConfig(
+                candidate.knobs().kernelConfig().cpu(),
+                ApproximationConfig.defaults(),
+                new BlasConfig(
+                        BlasProvider.fromProperty(candidate.knobs().blasProvider()),
+                        candidate.knobs().blasMatMulMinWork(),
+                        candidate.knobs().blasF32RequireMgeK(),
+                        candidate.knobs().blasF32MaxNOverK(),
+                        false
+                )
+        );
     }
 }

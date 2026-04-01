@@ -300,8 +300,6 @@ public final class OptimizerBenchmarkFramework {
         int compiledNoOpt = noOptTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
         int compiledOpt = optTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
 
-        noOptForward.ta7.getCompiledGraph().setTrainingModeOff();
-        optForward.ta7.getCompiledGraph().setTrainingModeOff();
         for (int i = 0; i < WARMUP_ITERS; i++) {
             noOptForward.compute();
             optForward.compute();
@@ -317,8 +315,6 @@ public final class OptimizerBenchmarkFramework {
         double forwardOptMs = (t2 - t1) / 1_000_000.0 / MEASURE_ITERS;
         double forwardSpeedup = forwardOptMs == 0.0 ? Double.POSITIVE_INFINITY : forwardNoOptMs / forwardOptMs;
 
-        noOptTrain.ta7.getCompiledGraph().setTrainingModeOn();
-        optTrain.ta7.getCompiledGraph().setTrainingModeOn();
         for (int i = 0; i < WARMUP_ITERS; i++) {
             noOptTrain.compute();
             optTrain.compute();
@@ -484,7 +480,6 @@ public final class OptimizerBenchmarkFramework {
             PreparedBenchmarkScenario stateForward = newBenchState(baseA, baseB, baseC, stage, false, BENCH_GRAPH_BLOCKS);
             int graphSize = stateForward.ta7.getCompiledGraph().getCompiledGraphAsList().size();
 
-            stateForward.ta7.getCompiledGraph().setTrainingModeOff();
             for (int i = 0; i < STAGE_WARMUP_ITERS; i++) stateForward.compute();
             long t0 = System.nanoTime();
             for (int i = 0; i < STAGE_MEASURE_ITERS; i++) stateForward.compute();
@@ -493,7 +488,6 @@ public final class OptimizerBenchmarkFramework {
 
             PreparedBenchmarkScenario stateTrain = newBenchState(baseA, baseB, baseC, stage, true, BENCH_GRAPH_BLOCKS);
             int trainingGraphSize = stateTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
-            stateTrain.ta7.getCompiledGraph().setTrainingModeOn();
             for (int i = 0; i < STAGE_WARMUP_ITERS; i++) stateTrain.compute();
             long t2 = System.nanoTime();
             for (int i = 0; i < STAGE_MEASURE_ITERS; i++) stateTrain.compute();
@@ -1395,11 +1389,7 @@ public final class OptimizerBenchmarkFramework {
 
             @Override
             public void setTrainingMode(boolean trainingMode) {
-                if (trainingMode) {
-                    scenario.ta7.getCompiledGraph().setTrainingModeOn();
-                } else {
-                    scenario.ta7.getCompiledGraph().setTrainingModeOff();
-                }
+                scenario.setTrainingMode(trainingMode);
             }
 
             @Override
@@ -1465,7 +1455,6 @@ public final class OptimizerBenchmarkFramework {
             return;
         }
         CpuSchedulerAdvisor.reset();
-        ComputeEngine.clearTrainingExecution();
     }
 
     private static String sanitizeTsv(String value) {
@@ -1588,9 +1577,7 @@ public final class OptimizerBenchmarkFramework {
         B0.setRequiresGrad(true);
         C0.setRequiresGrad(true);
         Tensor Te7No = buildTa7(A0, B0, C0);
-        Te7No.compute();
-        Te7No.getCompiledGraph().setTrainingModeOn();
-        Te7No.compute();
+        Te7No.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         Tensor A1 = Tensor.scalar(10.0, BENCH_DTYPE);
         Tensor B1 = Tensor.scalar(2.0, BENCH_DTYPE);
@@ -1599,9 +1586,7 @@ public final class OptimizerBenchmarkFramework {
         B1.setRequiresGrad(true);
         C1.setRequiresGrad(true);
         Tensor Te7Opt = buildTa7(A1, B1, C1);
-        Te7Opt.compute(optimizer);
-        Te7Opt.getCompiledGraph().setTrainingModeOn();
-        Te7Opt.compute(optimizer);
+        Te7Opt.compute(optimizer, config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         double expectedTe7 = 64.0;
         double expectedGradA = -12.8;
@@ -1637,7 +1622,6 @@ public final class OptimizerBenchmarkFramework {
             int graphBlocks
     ) {
         PreparedBenchmarkScenario s = newBenchState(baseA, baseB, baseC, candidate, true, graphBlocks);
-        s.ta7.getCompiledGraph().setTrainingModeOn();
         s.compute();
         return new RunResult(
                 s.ta7.toDoubleArrayCopy().clone(),

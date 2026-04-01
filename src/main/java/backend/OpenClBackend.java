@@ -1,14 +1,19 @@
 package backend;
 
+import backend.runtime.ExecutionContext;
 import backend.kernels.opencl.OpenClKernel;
 import backend.registry.OpenClKernelRegistry;
+import graph.execution.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
 import operations.Operation;
 
-import java.util.List;
-
 public class OpenClBackend {
-    public void execute(Operation op, List<Tensor> inputs, Tensor node) {
+    public void execute(
+            Tensor node,
+            CompiledNodeExecutionMetadata metadata,
+            ExecutionContext context
+    ) {
+        Operation op = node.getOperation();
         if (op == null) {
             return;
         }
@@ -19,7 +24,7 @@ public class OpenClBackend {
                             " (operation class: " + op.getClass().getName() + ")"
             );
         }
-        kernel.forward(op, inputs, node);
+        kernel.forward(op, node.getPrevTensors(), node);
     }
 
 }

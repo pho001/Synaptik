@@ -1,6 +1,9 @@
 package benchmark;
 
-import backend.ComputeEngine;
+import config.runtime.ApproximationConfig;
+import config.runtime.BlasConfig;
+import backend.runtime.ExecutionMode;
+import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rules.FuseElementWiseRule;
@@ -95,12 +98,12 @@ public final class FusedBroadcastBenchmark {
             double[] bVals,
             double[] cVals
     ) {
-        ComputeEngine.setCpuKernelConfig(config);
+        RuntimeConfig runtimeConfig = new RuntimeConfig(config, ApproximationConfig.defaults(), BlasConfig.disabled());
         Tensor a = new Tensor(aVals.clone(), new int[]{256, 1, 256}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(bVals.clone(), new int[]{1, 8, 256}, null, "b", DataType.FLOAT64);
         Tensor c = new Tensor(cVals.clone(), new int[]{256, 8, 256}, null, "c", DataType.FLOAT64);
         Tensor out = a.add(b).mul(c).add(a).sigmoid();
-        out.compute(optimizer);
+        out.compute(optimizer, runtimeConfig, ExecutionMode.FORWARD);
         return out.toDoubleArrayCopy();
     }
 
@@ -150,4 +153,3 @@ public final class FusedBroadcastBenchmark {
         return max;
     }
 }
-

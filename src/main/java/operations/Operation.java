@@ -1,55 +1,65 @@
 package operations;
-import backend.ComputeBackend;
-import tensor.Tensor;
-
-import java.util.List;
 
 public interface Operation {
+    enum OpArityClass {
+        ELEMENT_WISE,
+        REDUCTION,
+        LAYOUT,
+        LINEAR_ALGEBRA,
+        SPECIAL,
+        FUSED
+    };
     enum OpType {
-        ADD,
-        SUB,
-        MUL,
-        DIV,
-        MIN,
-        MAX,
-        MATMUL,
-        NEG,
-        INV,
-        LOG,
-        EXP,
-        FAST_EXP,
-        TANH,
-        FAST_TANH,
-        POW,
-        SQRT,
-        MUL_SCALAR,
-        SUM,
-        RELU,
-        SIGMOID,
-        CONTIGUOUS,
-        RESHAPE,
-        PERMUTE,
-        EXPAND_DIMS,
-        SQUEEZE,
-        NOOP,
-        FUSED,
-        UNKNOWN
+        ADD(OpArityClass.ELEMENT_WISE, true),
+        SUB(OpArityClass.ELEMENT_WISE, true),
+        MUL(OpArityClass.ELEMENT_WISE, true),
+        DIV(OpArityClass.ELEMENT_WISE, true),
+        MIN(OpArityClass.ELEMENT_WISE, true),
+        MAX(OpArityClass.ELEMENT_WISE, true),
+        MATMUL(OpArityClass.LINEAR_ALGEBRA, false),
+        NEG(OpArityClass.ELEMENT_WISE, true),
+        INV(OpArityClass.ELEMENT_WISE, true),
+        LOG(OpArityClass.ELEMENT_WISE, true),
+        EXP(OpArityClass.ELEMENT_WISE, true),
+        FAST_EXP(OpArityClass.ELEMENT_WISE, true),
+        TANH(OpArityClass.ELEMENT_WISE, true),
+        FAST_TANH(OpArityClass.ELEMENT_WISE, true),
+        POW(OpArityClass.ELEMENT_WISE, true),
+        SQRT(OpArityClass.ELEMENT_WISE, true),
+        MUL_SCALAR(OpArityClass.ELEMENT_WISE, true),
+        SUM(OpArityClass.REDUCTION, false),
+        RELU(OpArityClass.ELEMENT_WISE, true),
+        SIGMOID(OpArityClass.ELEMENT_WISE, false),
+        CONTIGUOUS(OpArityClass.LAYOUT, false),
+        RESHAPE(OpArityClass.LAYOUT, false),
+        PERMUTE(OpArityClass.LAYOUT, false),
+        EXPAND_DIMS(OpArityClass.LAYOUT, false),
+        SQUEEZE(OpArityClass.LAYOUT, false),
+        NOOP(OpArityClass.SPECIAL, false),
+        FUSED(OpArityClass.FUSED, false),
+        UNKNOWN(OpArityClass.SPECIAL, false);
+
+        private final OpArityClass category;
+        private final boolean fusable;
+
+        OpType(OpArityClass category, boolean fusable) {
+            this.category = category;
+            this.fusable = fusable;
+        }
+
+        public OpArityClass category() {
+            return category;
+        }
+
+        public boolean isFusable() {
+            return fusable;
+        }
     }
 
     OpType opType();
 
-    boolean isElementWise();
-    void apply(List<Tensor> inputs, Tensor out);
-
-    default void gradient(List<Tensor> inputs, Tensor out) {}
-    ComputeBackend getPreferredBackend();
-    boolean supportsBackend(ComputeBackend backend);
-
     String getExpression();
 
-    default boolean requiresOutputForGradient() { return false; }
-
     default boolean isCheap() { return false; }
-
 
 }

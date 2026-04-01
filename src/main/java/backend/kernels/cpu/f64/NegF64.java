@@ -1,8 +1,8 @@
 package backend.kernels.cpu.f64;
 
-import backend.kernels.cpu.CpuExecutionConfig;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
+import backend.kernels.cpu.ResolvedDispatchHints;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.VectorSpecies;
 
@@ -11,11 +11,12 @@ public final class NegF64 {
 
     private NegF64() {}
 
-    public static void run(double[] in, double[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
+    public static void run(double[] in, double[] out, ResolvedDispatchHints hints) {
+        CpuExecutionMode mode = hints.mode();
         switch (mode) {
             case VECTOR -> vector(in, out);
-            case PARALLEL -> parallel(in, out, config);
-            case PARALLEL_VECTOR -> parallelVector(in, out, config);
+            case PARALLEL -> parallel(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVector(in, out, hints);
             case SCALAR -> scalar(in, out, 0, out.length);
         }
     }
@@ -33,21 +34,21 @@ public final class NegF64 {
         scalar(in, out, i, out.length);
     }
 
-    private static void parallel(double[] in, double[] out, CpuExecutionConfig config) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
+    private static void parallel(double[] in, double[] out, ResolvedDispatchHints hints) {
+        int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             scalar(in, out, start, end);
         });
     }
 
-    private static void parallelVector(double[] in, double[] out, CpuExecutionConfig config) {
+    private static void parallelVector(double[] in, double[] out, ResolvedDispatchHints hints) {
         int width = SPECIES.length();
-        int chunkSize = config.computeChunkSize(out.length, width);
+        int chunkSize = hints.vectorChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             int i = start;

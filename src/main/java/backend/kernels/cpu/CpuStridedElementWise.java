@@ -1,6 +1,5 @@
 package backend.kernels.cpu;
 
-import backend.ComputeEngine;
 import operations.Operation;
 import operations.mulScalar;
 import operations.pow;
@@ -21,16 +20,22 @@ public final class CpuStridedElementWise {
     }
 
     public static void forward(Operation op, List<Tensor> inputs, Tensor node) {
+        forward(op, inputs, node, null);
+    }
+
+    public static void forward(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (op == null) {
             return;
         }
+        boolean useFastExpApprox = context != null && context.useFastExpApprox();
+        boolean useFastTanhApprox = context != null && context.useFastTanhApprox();
         switch (node.getDataType()) {
             case FLOAT32 -> {
-                forwardF32(op, inputs, node);
+                forwardF32(op, inputs, node, useFastExpApprox, useFastTanhApprox);
                 return;
             }
             case FLOAT16 -> {
-                forwardF16(op, inputs, node);
+                forwardF16(op, inputs, node, useFastExpApprox, useFastTanhApprox);
                 return;
             }
             case FLOAT64 -> {
@@ -63,18 +68,24 @@ public final class CpuStridedElementWise {
         }
 
         if (rank == 1) {
-            forwardRank1(op, a, b, aStrides, bStrides, out);
+            forwardRank1(op, a, b, aStrides, bStrides, out, useFastExpApprox, useFastTanhApprox);
             return;
         }
 
         for (int i = 0; i < out.length; i++) {
             int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
             int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
-            out[i] = eval(op, a, b, aIdx, bIdx);
+            out[i] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
         }
     }
 
-    private static void forwardF32(Operation op, List<Tensor> inputs, Tensor node) {
+    private static void forwardF32(
+            Operation op,
+            List<Tensor> inputs,
+            Tensor node,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         float[] out = node.getFloat32Data();
         if (out == null) {
             return;
@@ -105,7 +116,7 @@ public final class CpuStridedElementWise {
             for (int i = 0; i < out.length; i++) {
                 int aIdx = a != null ? i * strideA : -1;
                 int bIdx = b != null ? i * strideB : -1;
-                out[i] = evalF32(op, a, b, aIdx, bIdx);
+                out[i] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
             }
             return;
         }
@@ -113,11 +124,17 @@ public final class CpuStridedElementWise {
         for (int i = 0; i < out.length; i++) {
             int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
             int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
-            out[i] = evalF32(op, a, b, aIdx, bIdx);
+            out[i] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
         }
     }
 
-    private static void forwardF16(Operation op, List<Tensor> inputs, Tensor node) {
+    private static void forwardF16(
+            Operation op,
+            List<Tensor> inputs,
+            Tensor node,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         short[] out = node.getFloat16Data();
         if (out == null) {
             return;
@@ -148,7 +165,7 @@ public final class CpuStridedElementWise {
             for (int i = 0; i < out.length; i++) {
                 int aIdx = a != null ? i * strideA : -1;
                 int bIdx = b != null ? i * strideB : -1;
-                out[i] = evalF16(op, a, b, aIdx, bIdx);
+                out[i] = evalF16(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
             }
             return;
         }
@@ -156,7 +173,7 @@ public final class CpuStridedElementWise {
         for (int i = 0; i < out.length; i++) {
             int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
             int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
-            out[i] = evalF16(op, a, b, aIdx, bIdx);
+            out[i] = evalF16(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
         }
     }
 
@@ -166,14 +183,16 @@ public final class CpuStridedElementWise {
             double[] b,
             int[] aStrides,
             int[] bStrides,
-            double[] out
+            double[] out,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
     ) {
         int strideA = a != null ? aStrides[0] : 0;
         int strideB = b != null ? bStrides[0] : 0;
         for (int i = 0; i < out.length; i++) {
             int aIdx = a != null ? i * strideA : -1;
             int bIdx = b != null ? i * strideB : -1;
-            out[i] = eval(op, a, b, aIdx, bIdx);
+            out[i] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
         }
     }
 
@@ -188,7 +207,15 @@ public final class CpuStridedElementWise {
         return inFlat;
     }
 
-    private static double eval(Operation op, double[] a, double[] b, int aIdx, int bIdx) {
+    private static double eval(
+            Operation op,
+            double[] a,
+            double[] b,
+            int aIdx,
+            int bIdx,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         return switch (op.opType()) {
             case ADD -> a[aIdx] + b[bIdx];
             case SUB -> a[aIdx] - b[bIdx];
@@ -199,9 +226,9 @@ public final class CpuStridedElementWise {
             case NEG -> -a[aIdx];
             case INV -> 1.0 / a[aIdx];
             case LOG -> Math.log(a[aIdx]);
-            case EXP -> ComputeEngine.useFastExpApprox() ? FastExp.fastExpF64(a[aIdx]) : Math.exp(a[aIdx]);
+            case EXP -> useFastExpApprox ? FastExp.fastExpF64(a[aIdx]) : Math.exp(a[aIdx]);
             case FAST_EXP -> FastExp.fastExpF64(a[aIdx]);
-            case TANH -> ComputeEngine.useFastTanhApprox() ? FastExp.fastTanhF64(a[aIdx]) : Math.tanh(a[aIdx]);
+            case TANH -> useFastTanhApprox ? FastExp.fastTanhF64(a[aIdx]) : Math.tanh(a[aIdx]);
             case FAST_TANH -> FastExp.fastTanhF64(a[aIdx]);
             case SQRT -> Math.sqrt(a[aIdx]);
             case RELU -> Math.max(0.0, a[aIdx]);
@@ -219,7 +246,15 @@ public final class CpuStridedElementWise {
         };
     }
 
-    private static float evalF32(Operation op, float[] a, float[] b, int aIdx, int bIdx) {
+    private static float evalF32(
+            Operation op,
+            float[] a,
+            float[] b,
+            int aIdx,
+            int bIdx,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         return switch (op.opType()) {
             case ADD -> a[aIdx] + b[bIdx];
             case SUB -> a[aIdx] - b[bIdx];
@@ -230,9 +265,9 @@ public final class CpuStridedElementWise {
             case NEG -> -a[aIdx];
             case INV -> 1.0f / a[aIdx];
             case LOG -> (float) Math.log(a[aIdx]);
-            case EXP -> ComputeEngine.useFastExpApprox() ? FastExp.fastExpF32(a[aIdx]) : (float) Math.exp(a[aIdx]);
+            case EXP -> useFastExpApprox ? FastExp.fastExpF32(a[aIdx]) : (float) Math.exp(a[aIdx]);
             case FAST_EXP -> FastExp.fastExpF32(a[aIdx]);
-            case TANH -> ComputeEngine.useFastTanhApprox() ? FastExp.fastTanhF32(a[aIdx]) : (float) Math.tanh(a[aIdx]);
+            case TANH -> useFastTanhApprox ? FastExp.fastTanhF32(a[aIdx]) : (float) Math.tanh(a[aIdx]);
             case FAST_TANH -> FastExp.fastTanhF32(a[aIdx]);
             case SQRT -> (float) Math.sqrt(a[aIdx]);
             case RELU -> Math.max(0.0f, a[aIdx]);
@@ -250,7 +285,15 @@ public final class CpuStridedElementWise {
         };
     }
 
-    private static short evalF16(Operation op, short[] a, short[] b, int aIdx, int bIdx) {
+    private static short evalF16(
+            Operation op,
+            short[] a,
+            short[] b,
+            int aIdx,
+            int bIdx,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
         float av = a != null ? CpuDTypeOps.fromHalfBits(a[aIdx]) : 0.0f;
         float bv = b != null ? CpuDTypeOps.fromHalfBits(b[bIdx]) : 0.0f;
         float value = switch (op.opType()) {
@@ -263,9 +306,9 @@ public final class CpuStridedElementWise {
             case NEG -> -av;
             case INV -> 1.0f / av;
             case LOG -> (float) Math.log(av);
-            case EXP -> ComputeEngine.useFastExpApprox() ? FastExp.fastExpF32(av) : (float) Math.exp(av);
+            case EXP -> useFastExpApprox ? FastExp.fastExpF32(av) : (float) Math.exp(av);
             case FAST_EXP -> FastExp.fastExpF32(av);
-            case TANH -> ComputeEngine.useFastTanhApprox() ? FastExp.fastTanhF32(av) : (float) Math.tanh(av);
+            case TANH -> useFastTanhApprox ? FastExp.fastTanhF32(av) : (float) Math.tanh(av);
             case FAST_TANH -> FastExp.fastTanhF32(av);
             case SQRT -> (float) Math.sqrt(av);
             case RELU -> Math.max(0.0f, av);

@@ -1,6 +1,5 @@
 package graph.codegen;
 
-import backend.ComputeEngine;
 import utils.FastExp;
 
 public final class FusedScalarOps {
@@ -10,15 +9,15 @@ public final class FusedScalarOps {
         return (float) Math.log(x);
     }
 
-    public static float expF32(float x) {
-        if (ComputeEngine.useFastExpApprox()) {
+    public static float expF32(float x, boolean useFastExpApprox) {
+        if (useFastExpApprox) {
             return FastExp.fastExpF32(x);
         }
         return (float) Math.exp(x);
     }
 
-    public static double expF64(double x) {
-        if (ComputeEngine.useFastExpApprox()) {
+    public static double expF64(double x, boolean useFastExpApprox) {
+        if (useFastExpApprox) {
             return FastExp.fastExpF64(x);
         }
         return Math.exp(x);
@@ -32,15 +31,15 @@ public final class FusedScalarOps {
         return FastExp.fastExpF64(x);
     }
 
-    public static float tanhF32(float x) {
-        if (ComputeEngine.useFastTanhApprox()) {
+    public static float tanhF32(float x, boolean useFastTanhApprox) {
+        if (useFastTanhApprox) {
             return FastExp.fastTanhF32(x);
         }
         return (float) Math.tanh(x);
     }
 
-    public static double tanhF64(double x) {
-        if (ComputeEngine.useFastTanhApprox()) {
+    public static double tanhF64(double x, boolean useFastTanhApprox) {
+        if (useFastTanhApprox) {
             return FastExp.fastTanhF64(x);
         }
         return Math.tanh(x);

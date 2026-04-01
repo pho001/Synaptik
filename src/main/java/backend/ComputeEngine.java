@@ -1,78 +1,37 @@
 package backend;
 
-import config.backend.CpuKernelConfig;
-import backend.kernels.cpu.CpuExecutionConfig;
+import backend.runtime.ExecutionContext;
+import graph.execution.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
 
-import java.util.concurrent.atomic.AtomicLong;
-
-public class ComputeEngine {
+public final class ComputeEngine {
     private static final CPUBackend CPU_BACKEND = new CPUBackend();
     private static final CudaBackend CUDA_BACKEND = new CudaBackend();
     private static final OpenClBackend OPENCL_BACKEND = new OpenClBackend();
-    private static volatile ApproxMode approxMode = ApproxMode.OFF;
-    private static final ThreadLocal<Boolean> TRAINING_EXECUTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
-    private static final AtomicLong CPU_CONFIG_EPOCH = new AtomicLong(1L);
 
-    public static void compute(Tensor tensor) {
-        ComputeBackend backend = tensor.resolveBackend();
-        compute(tensor, backend);
-    }
+    private ComputeEngine() {}
 
-    public static void compute(Tensor tensor, ComputeBackend backend) {
-        if (backend == null) {
-            backend = tensor.resolveBackend();
+    public static void compute(
+            Tensor node,
+            CompiledNodeExecutionMetadata metadata,
+            ExecutionContext context
+    ) {
+        if (node == null) {
+            throw new IllegalArgumentException("node cannot be null");
         }
-        switch (backend) {
-            case CPU -> CPU_BACKEND.execute(tensor.getOperation(), tensor.getPrevTensors(), tensor);
-            case GPU_CUDA -> CUDA_BACKEND.execute(tensor.getOperation(), tensor.getPrevTensors(), tensor);
-            case GPU_OPENCL -> OPENCL_BACKEND.execute(tensor.getOperation(), tensor.getPrevTensors(), tensor);
-            default -> throw new UnsupportedOperationException("Backend " + backend + " is not available");
+        if (metadata == null) {
+            throw new IllegalArgumentException("metadata cannot be null");
         }
-    }
-
-    public static void setCpuKernelConfig(CpuKernelConfig config) {
-        CPU_BACKEND.setKernelConfig(config);
-        CPU_CONFIG_EPOCH.incrementAndGet();
-    }
-
-    public static CpuExecutionConfig getCpuExecutionConfig() {
-        return CPU_BACKEND.getExecutionConfig();
-    }
-
-    public static long getCpuConfigEpoch() {
-        return CPU_CONFIG_EPOCH.get();
-    }
-
-    public static void setApproxMode(ApproxMode mode) {
-        approxMode = mode == null ? ApproxMode.OFF : mode;
-    }
-
-    public static ApproxMode getApproxMode() {
-        return approxMode;
-    }
-
-    public static void setTrainingExecution(boolean trainingExecution) {
-        TRAINING_EXECUTION.set(trainingExecution);
-    }
-
-    public static void clearTrainingExecution() {
-        TRAINING_EXECUTION.remove();
-    }
-
-    public static boolean useFastExpApprox() {
-        return switch (approxMode) {
-            case OFF -> false;
-            case ALWAYS -> true;
-            case TRAINING_ONLY -> TRAINING_EXECUTION.get();
-        };
-    }
-
-    public static boolean useFastTanhApprox() {
-        return switch (approxMode) {
-            case OFF -> false;
-            case ALWAYS -> true;
-            case TRAINING_ONLY -> TRAINING_EXECUTION.get();
-        };
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
+        }
+        switch (metadata.backend()) {
+            case CPU -> CPU_BACKEND.execute(node, metadata, context);
+            case GPU_CUDA -> CUDA_BACKEND.execute(node, metadata, context);
+            case GPU_OPENCL -> OPENCL_BACKEND.execute(node, metadata, context);
+            default -> throw new UnsupportedOperationException(
+                    "Backend " + metadata.backend() + " is not available"
+            );
+        }
     }
 }

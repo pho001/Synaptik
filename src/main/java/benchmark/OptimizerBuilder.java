@@ -1,5 +1,6 @@
 package benchmark;
 
+import config.optimizer.CseConfig;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rules.AlgebraicRewritingRule;
 import graph.optimizer.rules.CommonSubexpressionEliminationRule;
@@ -14,7 +15,11 @@ public final class OptimizerBuilder {
         for (OptimizationStage stage : candidate.stageOrder()) {
             switch (stage) {
                 case AR -> optimizer.addRule(new AlgebraicRewritingRule());
-                case CSE -> optimizer.addRule(new CommonSubexpressionEliminationRule(candidate.knobs().strictCseSafety()));
+                case CSE -> optimizer.addRule(new CommonSubexpressionEliminationRule(
+                        candidate.knobs().strictCseSafety()
+                                ? CseConfig.strictDefaults()
+                                : CseConfig.aggressiveDefaults()
+                ));
                 case FUSE -> optimizer.addRule(new FuseElementWiseRule(candidate.knobs().fuseConfig()));
                 case MEM -> optimizer.addRule(new MemoryOptimizerRule());
             }

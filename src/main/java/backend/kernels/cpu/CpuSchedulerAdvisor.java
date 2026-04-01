@@ -12,16 +12,16 @@ public final class CpuSchedulerAdvisor {
             CpuKernelCostClass costClass,
             String key,
             int length,
-            CpuExecutionConfig config
+            double lowCostNsPerElementThreshold
     ) {
-        if (costClass != CpuKernelCostClass.LOW || key == null || config == null || length <= 0) {
+        if (costClass != CpuKernelCostClass.LOW || key == null || length <= 0 || lowCostNsPerElementThreshold <= 0.0d) {
             return false;
         }
         Ewma ewma = EWMA_NS_PER_ELEM.get(key);
         if (ewma == null || !ewma.initialized) {
             return true;
         }
-        return ewma.value <= config.lowCostNsPerElementThreshold();
+        return ewma.value <= lowCostNsPerElementThreshold;
     }
 
     public static void recordSample(String key, int length, long elapsedNs) {

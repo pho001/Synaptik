@@ -1,11 +1,16 @@
 package benchmark;
 
+import backend.ApproxMode;
+import backend.blas.BlasProvider;
+import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
 import config.backend.SumAccuracyMode;
 import config.backend.VectorPolicy;
+import config.profile.ExecutionProfile;
+import tensor.DataType;
 import config.optimizer.FuseConfig;
 
 import java.io.IOException;
@@ -35,6 +40,16 @@ public final class OptimizerProfileIO {
             return fromJsonOrDefault(json, defaultKnobs);
         } catch (IOException e) {
             return defaultKnobs;
+        }
+    }
+
+    public static ExecutionProfile loadExecutionProfileOrDefault(Path path, ExecutionProfile defaultProfile) {
+        if (!Files.exists(path)) return defaultProfile;
+        try {
+            String json = Files.readString(path, StandardCharsets.UTF_8);
+            return executionProfileFromJsonOrDefault(json, defaultProfile);
+        } catch (IOException e) {
+            return defaultProfile;
         }
     }
 
@@ -162,6 +177,16 @@ public final class OptimizerProfileIO {
         }
     }
 
+    public static void saveExecutionProfile(Path path, ExecutionProfile profile) {
+        String json = toJson(profile);
+        try {
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, json, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to save execution profile to " + path, e);
+        }
+    }
+
     public static String toJson(TuningKnobs knobs, String candidateName) {
         FuseConfig f = knobs.fuseConfig();
         KernelTuningConfig k = knobs.kernelConfig();
@@ -218,9 +243,91 @@ public final class OptimizerProfileIO {
                 "}\n";
     }
 
+    public static String toJson(ExecutionProfile profile) {
+        var optimizer = profile.optimizer();
+        var runtime = profile.runtime();
+        var kernel = runtime.kernel();
+        var cpu = kernel.cpu();
+        var cuda = kernel.cuda();
+        var opencl = kernel.opencl();
+        var blas = runtime.blas();
+        var approximation = runtime.approximation();
+
+        return "{\n" +
+                "  \"profileName\": \"" + escapeJson(profile.profileName()) + "\",\n" +
+                "  \"candidateName\": \"" + escapeJson(profile.candidateName()) + "\",\n" +
+                "  \"dataType\": \"" + profile.dataType().name() + "\",\n" +
+                "  \"mode\": \"" + profile.mode().name() + "\",\n" +
+                "  \"optimizer\": {\n" +
+                "    \"stageOrder\": " + jsonStageArray(profile.optimizer().stageOrder()) + ",\n" +
+                "    \"cse\": {\n" +
+                "      \"strictSafety\": " + optimizer.cse().strictSafety() + "\n" +
+                "    },\n" +
+                "    \"fuse\": {\n" +
+                "      \"maxClusterNodes\": " + optimizer.fuse().maxClusterNodes() + ",\n" +
+                "      \"scoreThreshold\": " + optimizer.fuse().scoreThreshold() + ",\n" +
+                "      \"internalEdgeBonus\": " + optimizer.fuse().internalEdgeBonus() + ",\n" +
+                "      \"externalInputPenalty\": " + optimizer.fuse().externalInputPenalty() + ",\n" +
+                "      \"sharedExpensivePenalty\": " + optimizer.fuse().sharedExpensivePenalty() + ",\n" +
+                "      \"nonCheapBonus\": " + optimizer.fuse().nonCheapBonus() + ",\n" +
+                "      \"preserveSharedExpensiveNodes\": " + optimizer.fuse().preserveSharedExpensiveNodes() + "\n" +
+                "    }\n" +
+                "  },\n" +
+                "  \"runtime\": {\n" +
+                "    \"approximation\": {\n" +
+                "      \"approxMode\": \"" + approximation.approxMode().name() + "\",\n" +
+                "      \"forceExactTranscendentals\": " + approximation.forceExactTranscendentals() + "\n" +
+                "    },\n" +
+                "    \"kernel\": {\n" +
+                "      \"cpu\": {\n" +
+                "        \"cpuLoopUnrollFactor\": " + cpu.loopUnrollFactor() + ",\n" +
+                "        \"cpuMatMulTileM\": " + cpu.matMulTileM() + ",\n" +
+                "        \"cpuMatMulTileN\": " + cpu.matMulTileN() + ",\n" +
+                "        \"cpuMatMulTileK\": " + cpu.matMulTileK() + ",\n" +
+                "        \"cpuVectorMinSize\": " + cpu.vectorMinSize() + ",\n" +
+                "        \"cpuParallelMinSize\": " + cpu.parallelMinSize() + ",\n" +
+                "        \"cpuMatMulParallelMinSize\": " + cpu.matMulParallelMinSize() + ",\n" +
+                "        \"cpuParallelism\": " + cpu.parallelism() + ",\n" +
+                "        \"cpuChunksPerWorker\": " + cpu.chunksPerWorker() + ",\n" +
+                "        \"cpuMinChunkSize\": " + cpu.minChunkSize() + ",\n" +
+                "        \"cpuContiguousMaterializeThreshold\": " + cpu.contiguousMaterializeThreshold() + ",\n" +
+                "        \"cpuSumAccuracyMode\": \"" + cpu.sumAccuracyMode().name() + "\",\n" +
+                "        \"cpuLowCostNsPerElementThreshold\": " + cpu.lowCostNsPerElementThreshold() + ",\n" +
+                "        \"cpuVectorPolicyCheap\": \"" + cpu.vectorPolicyCheap().name() + "\",\n" +
+                "        \"cpuVectorPolicyTranscendental\": \"" + cpu.vectorPolicyTranscendental().name() + "\",\n" +
+                "        \"cpuVectorPolicyReduction\": \"" + cpu.vectorPolicyReduction().name() + "\"\n" +
+                "      },\n" +
+                "      \"cuda\": {\n" +
+                "        \"cudaLoopUnrollFactor\": " + cuda.loopUnrollFactor() + ",\n" +
+                "        \"cudaMatMulTileM\": " + cuda.matMulTileM() + ",\n" +
+                "        \"cudaMatMulTileN\": " + cuda.matMulTileN() + ",\n" +
+                "        \"cudaMatMulTileK\": " + cuda.matMulTileK() + "\n" +
+                "      },\n" +
+                "      \"opencl\": {\n" +
+                "        \"openclLoopUnrollFactor\": " + opencl.loopUnrollFactor() + ",\n" +
+                "        \"openclMatMulTileM\": " + opencl.matMulTileM() + ",\n" +
+                "        \"openclMatMulTileN\": " + opencl.matMulTileN() + ",\n" +
+                "        \"openclMatMulTileK\": " + opencl.matMulTileK() + "\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"blas\": {\n" +
+                "      \"provider\": \"" + blas.provider().name() + "\",\n" +
+                "      \"matmulMinWork\": " + blas.matmulMinWork() + ",\n" +
+                "      \"f32RequireMgeK\": " + blas.f32RequireMgeK() + ",\n" +
+                "      \"f32MaxNOverK\": " + blas.f32MaxNOverK() + ",\n" +
+                "      \"debug\": " + blas.debug() + "\n" +
+                "    }\n" +
+                "  }\n" +
+                "}\n";
+    }
+
     private static TuningKnobs fromJsonOrDefault(String json, TuningKnobs d) {
         try {
-            boolean strictCse = findBoolean(json, "strictCseSafety", d.strictCseSafety());
+            boolean strictCse = findBoolean(
+                    json,
+                    "strictCseSafety",
+                    findBoolean(json, "strictSafety", d.strictCseSafety())
+            );
 
             // Backward-compatible fallback: if old global keys exist, use them as CPU defaults.
             int legacyUnroll = findInt(json, "loopUnrollFactor", d.kernelConfig().cpu().loopUnrollFactor());
@@ -306,6 +413,96 @@ public final class OptimizerProfileIO {
         }
     }
 
+    private static ExecutionProfile executionProfileFromJsonOrDefault(String json, ExecutionProfile d) {
+        try {
+            DataType dataType = findEnum(json, "dataType", d.dataType(), DataType.class);
+            ExecutionMode mode = findEnum(json, "mode", d.mode(), ExecutionMode.class);
+            String profileName = findString(json, "profileName", d.profileName());
+            String candidateName = findString(json, "candidateName", d.candidateName());
+
+            List<config.optimizer.OptimizerStage> stageOrder = parseConfigStageOrderOrDefault(
+                    json,
+                    d.optimizer().stageOrder()
+            );
+            boolean strictSafety = findBoolean(
+                    json,
+                    "strictSafety",
+                    findBoolean(json, "strictCseSafety", d.optimizer().cse().strictSafety())
+            );
+            FuseConfig df = d.optimizer().fuse();
+            FuseConfig fuse = new FuseConfig(
+                    findInt(json, "maxClusterNodes", df.maxClusterNodes()),
+                    findDouble(json, "scoreThreshold", df.scoreThreshold()),
+                    findDouble(json, "internalEdgeBonus", df.internalEdgeBonus()),
+                    findDouble(json, "externalInputPenalty", df.externalInputPenalty()),
+                    findDouble(json, "sharedExpensivePenalty", df.sharedExpensivePenalty()),
+                    findDouble(json, "nonCheapBonus", df.nonCheapBonus()),
+                    findBoolean(json, "preserveSharedExpensiveNodes", df.preserveSharedExpensiveNodes())
+            );
+            config.optimizer.OptimizerConfig optimizer = new config.optimizer.OptimizerConfig(
+                    stageOrder,
+                    strictSafety ? config.optimizer.CseConfig.strictDefaults() : config.optimizer.CseConfig.aggressiveDefaults(),
+                    fuse
+            );
+
+            KernelTuningConfig dk = d.runtime().kernel();
+            CpuKernelConfig cpu = new CpuKernelConfig(
+                    findInt(json, "cpuLoopUnrollFactor", dk.cpu().loopUnrollFactor()),
+                    findInt(json, "cpuMatMulTileM", dk.cpu().matMulTileM()),
+                    findInt(json, "cpuMatMulTileN", dk.cpu().matMulTileN()),
+                    findInt(json, "cpuMatMulTileK", dk.cpu().matMulTileK()),
+                    findInt(json, "cpuVectorMinSize", dk.cpu().vectorMinSize()),
+                    findInt(json, "cpuParallelMinSize", dk.cpu().parallelMinSize()),
+                    findInt(json, "cpuParallelism", dk.cpu().parallelism()),
+                    findInt(json, "cpuChunksPerWorker", dk.cpu().chunksPerWorker()),
+                    findInt(json, "cpuMinChunkSize", dk.cpu().minChunkSize()),
+                    findInt(json, "cpuContiguousMaterializeThreshold", dk.cpu().contiguousMaterializeThreshold()),
+                    findEnum(json, "cpuSumAccuracyMode", dk.cpu().sumAccuracyMode(), SumAccuracyMode.class),
+                    findDouble(json, "cpuLowCostNsPerElementThreshold", dk.cpu().lowCostNsPerElementThreshold()),
+                    findEnum(json, "cpuVectorPolicyCheap", dk.cpu().vectorPolicyCheap(), VectorPolicy.class),
+                    findEnum(json, "cpuVectorPolicyTranscendental", dk.cpu().vectorPolicyTranscendental(), VectorPolicy.class),
+                    findEnum(json, "cpuVectorPolicyReduction", dk.cpu().vectorPolicyReduction(), VectorPolicy.class),
+                    findInt(json, "cpuMatMulParallelMinSize", dk.cpu().matMulParallelMinSize())
+            );
+            CudaKernelConfig cuda = new CudaKernelConfig(
+                    findInt(json, "cudaLoopUnrollFactor", dk.cuda().loopUnrollFactor()),
+                    findInt(json, "cudaMatMulTileM", dk.cuda().matMulTileM()),
+                    findInt(json, "cudaMatMulTileN", dk.cuda().matMulTileN()),
+                    findInt(json, "cudaMatMulTileK", dk.cuda().matMulTileK())
+            );
+            OpenClKernelConfig opencl = new OpenClKernelConfig(
+                    findInt(json, "openclLoopUnrollFactor", dk.opencl().loopUnrollFactor()),
+                    findInt(json, "openclMatMulTileM", dk.opencl().matMulTileM()),
+                    findInt(json, "openclMatMulTileN", dk.opencl().matMulTileN()),
+                    findInt(json, "openclMatMulTileK", dk.opencl().matMulTileK())
+            );
+            config.runtime.ApproximationConfig approximation = new config.runtime.ApproximationConfig(
+                    findEnum(json, "approxMode", d.runtime().approximation().approxMode(), ApproxMode.class),
+                    findBoolean(
+                            json,
+                            "forceExactTranscendentals",
+                            d.runtime().approximation().forceExactTranscendentals()
+                    )
+            );
+            config.runtime.BlasConfig blas = new config.runtime.BlasConfig(
+                    BlasProvider.fromProperty(findString(json, "provider", d.runtime().blas().provider().name())),
+                    Math.max(1L, Math.round(findDouble(json, "matmulMinWork", d.runtime().blas().matmulMinWork()))),
+                    findBoolean(json, "f32RequireMgeK", d.runtime().blas().f32RequireMgeK()),
+                    findDouble(json, "f32MaxNOverK", d.runtime().blas().f32MaxNOverK()),
+                    findBoolean(json, "debug", d.runtime().blas().debug())
+            );
+            config.runtime.RuntimeConfig runtime = new config.runtime.RuntimeConfig(
+                    new KernelTuningConfig(cpu, cuda, opencl),
+                    approximation,
+                    blas
+            );
+
+            return new ExecutionProfile(profileName, candidateName, dataType, mode, optimizer, runtime);
+        } catch (Exception e) {
+            return d;
+        }
+    }
+
     private static List<OptimizationStage> parseStageOrderOrDefault(String json, List<OptimizationStage> defaultStages) {
         Matcher m = Pattern.compile("\"stageOrder\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL).matcher(json);
         if (!m.find()) return defaultStages;
@@ -332,6 +529,26 @@ public final class OptimizerProfileIO {
             if (token.isEmpty()) continue;
             try {
                 out.add(OptimizationStage.valueOf(token));
+            } catch (IllegalArgumentException ignored) {
+                return defaultStages;
+            }
+        }
+        return out.isEmpty() ? defaultStages : List.copyOf(out);
+    }
+
+    private static List<config.optimizer.OptimizerStage> parseConfigStageOrderOrDefault(
+            String json,
+            List<config.optimizer.OptimizerStage> defaultStages
+    ) {
+        Matcher m = Pattern.compile("\"stageOrder\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL).matcher(json);
+        if (!m.find()) return defaultStages;
+
+        String body = m.group(1);
+        Matcher tokens = Pattern.compile("\"([A-Z_]+)\"").matcher(body);
+        List<config.optimizer.OptimizerStage> out = new ArrayList<>();
+        while (tokens.find()) {
+            try {
+                out.add(config.optimizer.OptimizerStage.valueOf(tokens.group(1)));
             } catch (IllegalArgumentException ignored) {
                 return defaultStages;
             }
@@ -424,6 +641,20 @@ public final class OptimizerProfileIO {
                 .replace('\n', '_')
                 .replace('\r', '_')
                 .trim();
+    }
+
+    private static String jsonStageArray(List<config.optimizer.OptimizerStage> stages) {
+        if (stages == null || stages.isEmpty()) {
+            return "[]";
+        }
+        return "[" + String.join(", ", stages.stream().map(stage -> "\"" + stage.name() + "\"").toList()) + "]";
+    }
+
+    private static String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static boolean isArmArch(String arch) {
@@ -592,7 +823,7 @@ public final class OptimizerProfileIO {
     }
 
     private static <E extends Enum<E>> E findEnum(String json, String key, E defaultValue, Class<E> enumClass) {
-        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\"([A-Z_]+)\"").matcher(json);
+        Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\"([A-Z0-9_]+)\"").matcher(json);
         if (!m.find()) return defaultValue;
         try {
             return Enum.valueOf(enumClass, m.group(1));

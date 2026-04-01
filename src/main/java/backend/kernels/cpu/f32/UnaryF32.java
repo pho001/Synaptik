@@ -1,93 +1,91 @@
 package backend.kernels.cpu.f32;
 
-import backend.kernels.cpu.CpuExecutionConfig;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
-import utils.FastExp;
+import backend.kernels.cpu.ResolvedDispatchHints;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
+import utils.FastExp;
 
 public final class UnaryF32 {
     private static final VectorSpecies<Float> SPECIES = FloatVector.SPECIES_PREFERRED;
 
     private UnaryF32() {}
 
-    public static void inv(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
+    public static void inv(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
             case VECTOR -> vectorInv(in, out);
-            case PARALLEL -> parallelInv(in, out, config);
-            case PARALLEL_VECTOR -> parallelVectorInv(in, out, config);
+            case PARALLEL -> parallelInv(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorInv(in, out, hints);
             case SCALAR -> scalarInv(in, out, 0, out.length);
         }
     }
 
-    public static void relu(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
+    public static void relu(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
             case VECTOR -> vectorRelu(in, out);
-            case PARALLEL -> parallelRelu(in, out, config);
-            case PARALLEL_VECTOR -> parallelVectorRelu(in, out, config);
+            case PARALLEL -> parallelRelu(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorRelu(in, out, hints);
             case SCALAR -> scalarRelu(in, out, 0, out.length);
         }
     }
 
-    public static void exp(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
+    public static void exp(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
             case VECTOR -> vectorExp(in, out);
-            case PARALLEL -> parallelExp(in, out, config);
-            case PARALLEL_VECTOR -> parallelVectorExp(in, out, config);
+            case PARALLEL -> parallelExp(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorExp(in, out, hints);
             case SCALAR -> scalarExp(in, out, 0, out.length);
         }
     }
 
-    public static void fastExp(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
-            case VECTOR -> scalarFastExp(in, out, 0, out.length);
-            case PARALLEL, PARALLEL_VECTOR -> parallelFastExp(in, out, config);
-            case SCALAR -> scalarFastExp(in, out, 0, out.length);
+    public static void fastExp(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
+            case VECTOR, SCALAR -> scalarFastExp(in, out, 0, out.length);
+            case PARALLEL, PARALLEL_VECTOR -> parallelFastExp(in, out, hints);
         }
     }
 
-    public static void log(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
+    public static void log(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
             case VECTOR -> vectorLog(in, out);
-            case PARALLEL -> parallelLog(in, out, config);
-            case PARALLEL_VECTOR -> parallelVectorLog(in, out, config);
+            case PARALLEL -> parallelLog(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorLog(in, out, hints);
             case SCALAR -> scalarLog(in, out, 0, out.length);
         }
     }
 
-    public static void tanh(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
+    public static void tanh(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
             case VECTOR -> vectorTanh(in, out);
-            case PARALLEL -> parallelTanh(in, out, config);
-            case PARALLEL_VECTOR -> parallelVectorTanh(in, out, config);
+            case PARALLEL -> parallelTanh(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorTanh(in, out, hints);
             case SCALAR -> scalarTanh(in, out, 0, out.length);
         }
     }
 
-    public static void fastTanh(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
-            case VECTOR -> scalarFastTanh(in, out, 0, out.length);
-            case PARALLEL, PARALLEL_VECTOR -> parallelFastTanh(in, out, config);
-            case SCALAR -> scalarFastTanh(in, out, 0, out.length);
+    public static void fastTanh(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
+            case VECTOR, SCALAR -> scalarFastTanh(in, out, 0, out.length);
+            case PARALLEL, PARALLEL_VECTOR -> parallelFastTanh(in, out, hints);
         }
     }
 
-    public static void sqrt(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
+    public static void sqrt(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
             case VECTOR -> vectorSqrt(in, out);
-            case PARALLEL -> parallelSqrt(in, out, config);
-            case PARALLEL_VECTOR -> parallelVectorSqrt(in, out, config);
+            case PARALLEL -> parallelSqrt(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorSqrt(in, out, hints);
             case SCALAR -> scalarSqrt(in, out, 0, out.length);
         }
     }
 
-    public static void sigmoid(float[] in, float[] out, CpuExecutionMode mode, CpuExecutionConfig config) {
-        switch (mode) {
+    public static void sigmoid(float[] in, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
             case VECTOR -> vectorSigmoid(in, out);
-            case PARALLEL -> parallelSigmoid(in, out, config);
-            case PARALLEL_VECTOR -> parallelVectorSigmoid(in, out, config);
+            case PARALLEL -> parallelSigmoid(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorSigmoid(in, out, hints);
             case SCALAR -> scalarSigmoid(in, out, 0, out.length);
         }
     }
@@ -103,45 +101,64 @@ public final class UnaryF32 {
     private static void scalarSigmoid(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = 1.0f / (1.0f + (float) Math.exp(-in[i])); }
 
     private static void vectorInv(float[] in, float[] out) {
-        int i = 0, upper = SPECIES.loopBound(out.length);
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
         FloatVector ones = FloatVector.broadcast(SPECIES, 1.0f);
-        for (; i < upper; i += SPECIES.length()) ones.div(FloatVector.fromArray(SPECIES, in, i)).intoArray(out, i);
+        for (; i < upper; i += SPECIES.length()) {
+            ones.div(FloatVector.fromArray(SPECIES, in, i)).intoArray(out, i);
+        }
         scalarInv(in, out, i, out.length);
     }
 
     private static void vectorRelu(float[] in, float[] out) {
-        int i = 0, upper = SPECIES.loopBound(out.length);
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
         FloatVector zero = FloatVector.zero(SPECIES);
-        for (; i < upper; i += SPECIES.length()) FloatVector.fromArray(SPECIES, in, i).max(zero).intoArray(out, i);
+        for (; i < upper; i += SPECIES.length()) {
+            FloatVector.fromArray(SPECIES, in, i).max(zero).intoArray(out, i);
+        }
         scalarRelu(in, out, i, out.length);
     }
 
     private static void vectorExp(float[] in, float[] out) {
-        int i = 0, upper = SPECIES.loopBound(out.length);
-        for (; i < upper; i += SPECIES.length()) FloatVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.EXP).intoArray(out, i);
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        for (; i < upper; i += SPECIES.length()) {
+            FloatVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.EXP).intoArray(out, i);
+        }
         scalarExp(in, out, i, out.length);
     }
 
     private static void vectorLog(float[] in, float[] out) {
-        int i = 0, upper = SPECIES.loopBound(out.length);
-        for (; i < upper; i += SPECIES.length()) FloatVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.LOG).intoArray(out, i);
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        for (; i < upper; i += SPECIES.length()) {
+            FloatVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.LOG).intoArray(out, i);
+        }
         scalarLog(in, out, i, out.length);
     }
 
     private static void vectorTanh(float[] in, float[] out) {
-        int i = 0, upper = SPECIES.loopBound(out.length);
-        for (; i < upper; i += SPECIES.length()) FloatVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.TANH).intoArray(out, i);
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        for (; i < upper; i += SPECIES.length()) {
+            FloatVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.TANH).intoArray(out, i);
+        }
         scalarTanh(in, out, i, out.length);
     }
 
     private static void vectorSqrt(float[] in, float[] out) {
-        int i = 0, upper = SPECIES.loopBound(out.length);
-        for (; i < upper; i += SPECIES.length()) FloatVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.SQRT).intoArray(out, i);
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        for (; i < upper; i += SPECIES.length()) {
+            FloatVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.SQRT).intoArray(out, i);
+        }
         scalarSqrt(in, out, i, out.length);
     }
 
     private static void vectorSigmoid(float[] in, float[] out) {
-        int i = 0, upper = SPECIES.loopBound(out.length);
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
         FloatVector half = FloatVector.broadcast(SPECIES, 0.5f);
         FloatVector one = FloatVector.broadcast(SPECIES, 1.0f);
         for (; i < upper; i += SPECIES.length()) {
@@ -150,39 +167,39 @@ public final class UnaryF32 {
         scalarSigmoid(in, out, i, out.length);
     }
 
-    private static void parallelInv(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarInv); }
-    private static void parallelRelu(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarRelu); }
-    private static void parallelExp(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarExp); }
-    private static void parallelFastExp(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarFastExp); }
-    private static void parallelLog(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarLog); }
-    private static void parallelTanh(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarTanh); }
-    private static void parallelFastTanh(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarFastTanh); }
-    private static void parallelSqrt(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarSqrt); }
-    private static void parallelSigmoid(float[] in, float[] out, CpuExecutionConfig config) { parallelScalar(in, out, config, UnaryF32::scalarSigmoid); }
+    private static void parallelInv(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarInv); }
+    private static void parallelRelu(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarRelu); }
+    private static void parallelExp(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarExp); }
+    private static void parallelFastExp(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarFastExp); }
+    private static void parallelLog(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarLog); }
+    private static void parallelTanh(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarTanh); }
+    private static void parallelFastTanh(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarFastTanh); }
+    private static void parallelSqrt(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarSqrt); }
+    private static void parallelSigmoid(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarSigmoid); }
 
-    private static void parallelVectorInv(float[] in, float[] out, CpuExecutionConfig config) { parallelVector(in, out, config, UnaryF32::vectorInvChunk, UnaryF32::scalarInv); }
-    private static void parallelVectorRelu(float[] in, float[] out, CpuExecutionConfig config) { parallelVector(in, out, config, UnaryF32::vectorReluChunk, UnaryF32::scalarRelu); }
-    private static void parallelVectorExp(float[] in, float[] out, CpuExecutionConfig config) { parallelVector(in, out, config, UnaryF32::vectorExpChunk, UnaryF32::scalarExp); }
-    private static void parallelVectorLog(float[] in, float[] out, CpuExecutionConfig config) { parallelVector(in, out, config, UnaryF32::vectorLogChunk, UnaryF32::scalarLog); }
-    private static void parallelVectorTanh(float[] in, float[] out, CpuExecutionConfig config) { parallelVector(in, out, config, UnaryF32::vectorTanhChunk, UnaryF32::scalarTanh); }
-    private static void parallelVectorSqrt(float[] in, float[] out, CpuExecutionConfig config) { parallelVector(in, out, config, UnaryF32::vectorSqrtChunk, UnaryF32::scalarSqrt); }
-    private static void parallelVectorSigmoid(float[] in, float[] out, CpuExecutionConfig config) { parallelVector(in, out, config, UnaryF32::vectorSigmoidChunk, UnaryF32::scalarSigmoid); }
+    private static void parallelVectorInv(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorInvChunk, UnaryF32::scalarInv); }
+    private static void parallelVectorRelu(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorReluChunk, UnaryF32::scalarRelu); }
+    private static void parallelVectorExp(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorExpChunk, UnaryF32::scalarExp); }
+    private static void parallelVectorLog(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorLogChunk, UnaryF32::scalarLog); }
+    private static void parallelVectorTanh(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorTanhChunk, UnaryF32::scalarTanh); }
+    private static void parallelVectorSqrt(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorSqrtChunk, UnaryF32::scalarSqrt); }
+    private static void parallelVectorSigmoid(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorSigmoidChunk, UnaryF32::scalarSigmoid); }
 
-    private static void parallelScalar(float[] in, float[] out, CpuExecutionConfig config, ScalarOp op) {
-        int chunkSize = config.computeChunkSize(out.length, 1);
+    private static void parallelScalar(float[] in, float[] out, ResolvedDispatchHints hints, ScalarOp op) {
+        int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             op.apply(in, out, start, end);
         });
     }
 
-    private static void parallelVector(float[] in, float[] out, CpuExecutionConfig config, ChunkVectorOp vecOp, ScalarOp scalarOp) {
+    private static void parallelVector(float[] in, float[] out, ResolvedDispatchHints hints, ChunkVectorOp vecOp, ScalarOp scalarOp) {
         int width = SPECIES.length();
-        int chunkSize = config.computeChunkSize(out.length, width);
+        int chunkSize = hints.vectorChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
-        CpuThreadPool.runChunks(chunks, config.plannedWorkers(), chunk -> {
+        CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
             vecOp.apply(in, out, start, end, width);

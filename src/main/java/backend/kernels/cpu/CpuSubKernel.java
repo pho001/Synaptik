@@ -12,69 +12,44 @@ import java.util.List;
 
 public class CpuSubKernel implements CpuKernel {
     @Override
-    public void forward(Operation op, List<Tensor> inputs, Tensor node) {
-        forwardF64(op, inputs, node, CpuExecutionConfig.defaults());
-    }
-
-    @Override
-    public void forward(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
-        forwardF64(op, inputs, node, config);
-    }
-
-    @Override
-    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         double[] a = inputs.get(0).getFloat64Data();
         double[] b = inputs.get(1).getFloat64Data();
         double[] out = node.getFloat64Data();
-        CpuExecutionMode mode = config.modeFor(op, node);
-        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        ResolvedDispatchHints hints = context.dispatchHints();
+        ResolvedBroadcastPlan plan = context.broadcastPlan();
         if (plan != null && !plan.isNoBroadcast()) {
-            BroadcastBinaryKernel.runF64(Operation.OpType.SUB, a, b, out, plan, mode, config);
+            BroadcastBinaryKernel.runF64(Operation.OpType.SUB, a, b, out, plan, hints);
             return;
         }
-        SubF64.run(a, b, out, mode, config);
+        SubF64.run(a, b, out, hints);
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         float[] a = inputs.get(0).getFloat32Data();
         float[] b = inputs.get(1).getFloat32Data();
         float[] out = node.getFloat32Data();
-        CpuExecutionMode mode = config.modeFor(op, node);
-        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        ResolvedDispatchHints hints = context.dispatchHints();
+        ResolvedBroadcastPlan plan = context.broadcastPlan();
         if (plan != null && !plan.isNoBroadcast()) {
-            BroadcastBinaryKernel.runF32(Operation.OpType.SUB, a, b, out, plan, mode, config);
+            BroadcastBinaryKernel.runF32(Operation.OpType.SUB, a, b, out, plan, hints);
             return;
         }
-        SubF32.run(a, b, out, mode, config);
+        SubF32.run(a, b, out, hints);
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuExecutionConfig config) {
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         short[] a = inputs.get(0).getFloat16Data();
         short[] b = inputs.get(1).getFloat16Data();
         short[] out = node.getFloat16Data();
-        CpuExecutionMode mode = config.modeFor(op, node);
-        ResolvedBroadcastPlan plan = resolvePlan(op, node);
+        ResolvedDispatchHints hints = context.dispatchHints();
+        ResolvedBroadcastPlan plan = context.broadcastPlan();
         if (plan != null && !plan.isNoBroadcast()) {
-            BroadcastBinaryKernel.runF16(Operation.OpType.SUB, a, b, out, plan, mode, config);
+            BroadcastBinaryKernel.runF16(Operation.OpType.SUB, a, b, out, plan, hints);
             return;
         }
-        SubF16.run(a, b, out, mode, config);
-    }
-
-    private static ResolvedBroadcastPlan resolvePlan(Operation op, Tensor node) {
-        ResolvedBroadcastPlan resolved = node.getResolvedBroadcastPlan();
-        if (resolved != null) {
-            return resolved;
-        }
-        return ResolvedBroadcastPlan.from(extractPlan(op));
-    }
-
-    private static BroadcastPlan extractPlan(Operation op) {
-        if (op instanceof sub subOp) {
-            return subOp.getBroadcastPlan();
-        }
-        return null;
+        SubF16.run(a, b, out, hints);
     }
 }
