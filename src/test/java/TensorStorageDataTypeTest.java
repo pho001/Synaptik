@@ -18,7 +18,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.FLOAT32);
 
         Tensor out = a.add(b).mul(a);
-        out.compute(new GraphOptimizer());
+        TestGraphSupport.execute(out, new GraphOptimizer());
 
         assertTrue(out.getStorage() instanceof Float32Storage, "Output tensor should use Float32Storage");
 
@@ -40,7 +40,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.FLOAT16);
 
         Tensor out = a.add(b).sigmoid();
-        out.compute(new GraphOptimizer());
+        TestGraphSupport.execute(out, new GraphOptimizer());
 
         assertTrue(out.getStorage() instanceof Float16Storage, "Output tensor should use Float16Storage");
 
@@ -74,7 +74,7 @@ public class TensorStorageDataTypeTest {
         // Typed path must read typed storage directly.
 
         Tensor out = a.add(b);
-        out.compute(new GraphOptimizer());
+        TestGraphSupport.execute(out, new GraphOptimizer());
 
         double[] expected = new double[aStorage.length];
         for (int i = 0; i < expected.length; i++) {
@@ -91,7 +91,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.FLOAT16);
 
         Tensor out = a.add(b);
-        out.compute(new GraphOptimizer());
+        TestGraphSupport.execute(out, new GraphOptimizer());
 
         double[] expected = new double[out.toDoubleArrayCopy().length];
         double[] aVals = a.toDoubleArrayCopy();

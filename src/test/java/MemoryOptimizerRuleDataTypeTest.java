@@ -63,13 +63,9 @@ public class MemoryOptimizerRuleDataTypeTest {
 
         Tensor out = buildSequence(A, B, C);
         if (optimizer == null) {
-            out.compute();
-            out.getCompiledGraph().setTrainingModeOn();
-            out.compute();
+            out.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         } else {
-            out.compute(optimizer);
-            out.getCompiledGraph().setTrainingModeOn();
-            out.compute(optimizer);
+            TestGraphSupport.execute(out, optimizer, config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         }
 
         return new RunResult(
@@ -92,4 +88,3 @@ public class MemoryOptimizerRuleDataTypeTest {
 
     private record RunResult(double[] out, double[] gradA, double[] gradB, double[] gradC) {}
 }
-

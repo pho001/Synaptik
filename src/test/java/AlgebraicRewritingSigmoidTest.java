@@ -1,3 +1,4 @@
+import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rules.AlgebraicRewritingRule;
 import operations.Operation;
@@ -14,15 +15,15 @@ public class AlgebraicRewritingSigmoidTest {
     void rewritesCanonicalSigmoidNegFormInInference() {
         Tensor baselineInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         Tensor baselineOutput = baselineInput.neg().exp().add(Tensor.scalar(1.0)).inv();
-        baselineOutput.compute(new GraphOptimizer());
+        TestGraphSupport.execute(baselineOutput, new GraphOptimizer());
 
         Tensor optimizedInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         Tensor optimizedOutput = optimizedInput.neg().exp().add(Tensor.scalar(1.0)).inv();
         GraphOptimizer optimizer = new GraphOptimizer();
         optimizer.addRule(new AlgebraicRewritingRule());
-        optimizedOutput.compute(optimizer);
+        CompiledGraph compiledGraph = TestGraphSupport.execute(optimizedOutput, optimizer);
 
-        assertTrue(containsSigmoid(optimizedOutput),
+        assertTrue(containsSigmoid(compiledGraph),
                 "Algebraic rewriting should replace canonical sigmoid form in inference");
         assertArrayEquals(baselineOutput.toDoubleArrayCopy(), optimizedOutput.toDoubleArrayCopy(), 1e-9);
     }
@@ -31,15 +32,15 @@ public class AlgebraicRewritingSigmoidTest {
     void rewritesCanonicalSigmoidMulScalarFormInInference() {
         Tensor baselineInput = new Tensor(new double[]{1.3}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         Tensor baselineOutput = baselineInput.mul(-1.0).exp().add(Tensor.scalar(1.0)).inv();
-        baselineOutput.compute(new GraphOptimizer());
+        TestGraphSupport.execute(baselineOutput, new GraphOptimizer());
 
         Tensor optimizedInput = new Tensor(new double[]{1.3}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         Tensor optimizedOutput = optimizedInput.mul(-1.0).exp().add(Tensor.scalar(1.0)).inv();
         GraphOptimizer optimizer = new GraphOptimizer();
         optimizer.addRule(new AlgebraicRewritingRule());
-        optimizedOutput.compute(optimizer);
+        CompiledGraph compiledGraph = TestGraphSupport.execute(optimizedOutput, optimizer);
 
-        assertTrue(containsSigmoid(optimizedOutput),
+        assertTrue(containsSigmoid(compiledGraph),
                 "Algebraic rewriting should rewrite mulScalar(-1) sigmoid form in inference");
         assertArrayEquals(baselineOutput.toDoubleArrayCopy(), optimizedOutput.toDoubleArrayCopy(), 1e-9);
     }
@@ -49,23 +50,23 @@ public class AlgebraicRewritingSigmoidTest {
         Tensor baselineInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         baselineInput.setRequiresGrad(true);
         Tensor baselineOutput = baselineInput.neg().exp().add(Tensor.scalar(1.0)).inv();
-        baselineOutput.compute(new GraphOptimizer());
+        TestGraphSupport.execute(baselineOutput, new GraphOptimizer());
 
         Tensor optimizedInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         optimizedInput.setRequiresGrad(true);
         Tensor optimizedOutput = optimizedInput.neg().exp().add(Tensor.scalar(1.0)).inv();
         GraphOptimizer optimizer = new GraphOptimizer();
         optimizer.addRule(new AlgebraicRewritingRule());
-        optimizedOutput.compute(optimizer);
+        CompiledGraph compiledGraph = TestGraphSupport.execute(optimizedOutput, optimizer);
 
-        assertTrue(!containsSigmoid(optimizedOutput),
+        assertTrue(!containsSigmoid(compiledGraph),
                 "Sigmoid rewrite should be skipped when gradients are required");
         assertArrayEquals(baselineOutput.toDoubleArrayCopy(), optimizedOutput.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), optimizedInput.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
-    private static boolean containsSigmoid(Tensor output) {
-        return output.getCompiledGraph().getCompiledGraphAsList().stream()
+    private static boolean containsSigmoid(CompiledGraph compiledGraph) {
+        return compiledGraph.getCompiledGraphAsList().stream()
                 .map(Tensor::getOperation)
                 .filter(op -> op != null)
                 .map(Operation::opType)

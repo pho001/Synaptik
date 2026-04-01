@@ -1,30 +1,25 @@
 import backend.ApproxMode;
-import backend.ComputeEngine;
+import config.runtime.ApproximationConfig;
+import backend.runtime.ExecutionMode;
+import config.runtime.RuntimeConfig;
+import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
 import tensor.Tensor;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ApproxModePolicyTest {
-    @AfterEach
-    void resetMode() {
-        ComputeEngine.setApproxMode(ApproxMode.OFF);
-    }
-
     @Test
     void expUsesApproxWhenModeAlways() {
         Tensor x = new Tensor(new double[]{-2.0, -1.0, 0.5, 2.0}, new int[]{4}, null, "x", DataType.FLOAT64);
 
-        ComputeEngine.setApproxMode(ApproxMode.OFF);
         Tensor exact = x.exp();
-        exact.compute();
+        TestGraphSupport.execute(exact, new GraphOptimizer(), runtimeConfig(ApproxMode.OFF), ExecutionMode.FORWARD);
         double[] yExact = exact.toDoubleArrayCopy();
 
-        ComputeEngine.setApproxMode(ApproxMode.ALWAYS);
         Tensor approx = x.exp();
-        approx.compute();
+        TestGraphSupport.execute(approx, new GraphOptimizer(), runtimeConfig(ApproxMode.ALWAYS), ExecutionMode.FORWARD);
         double[] yApprox = approx.toDoubleArrayCopy();
 
         double delta = 0.0;
@@ -38,14 +33,12 @@ public class ApproxModePolicyTest {
     void tanhUsesApproxWhenModeAlways() {
         Tensor x = new Tensor(new double[]{-3.0, -1.0, 0.5, 3.0}, new int[]{4}, null, "x", DataType.FLOAT64);
 
-        ComputeEngine.setApproxMode(ApproxMode.OFF);
         Tensor exact = x.tanh();
-        exact.compute();
+        TestGraphSupport.execute(exact, new GraphOptimizer(), runtimeConfig(ApproxMode.OFF), ExecutionMode.FORWARD);
         double[] yExact = exact.toDoubleArrayCopy();
 
-        ComputeEngine.setApproxMode(ApproxMode.ALWAYS);
         Tensor approx = x.tanh();
-        approx.compute();
+        TestGraphSupport.execute(approx, new GraphOptimizer(), runtimeConfig(ApproxMode.ALWAYS), ExecutionMode.FORWARD);
         double[] yApprox = approx.toDoubleArrayCopy();
 
         double delta = 0.0;
@@ -54,5 +47,12 @@ public class ApproxModePolicyTest {
         }
         assertTrue(delta > 1e-4, "ALWAYS mode should alter tanh outputs via fast approximation");
     }
-}
 
+    private static RuntimeConfig runtimeConfig(ApproxMode approxMode) {
+        return new RuntimeConfig(
+                config.backend.CpuKernelConfig.defaultsTraining(),
+                new ApproximationConfig(approxMode, false),
+                config.runtime.BlasConfig.disabled()
+        );
+    }
+}

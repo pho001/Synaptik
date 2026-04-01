@@ -1,5 +1,6 @@
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rules.FuseElementWiseRule;
+import graph.CompiledGraph;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
@@ -15,10 +16,10 @@ public class OptimizerFuseTest {
         Tensor c0 = new Tensor(new double[]{5.0, 6.0}, new int[]{2}, null, "c0");
         a0.setRequiresGrad(true);
         b0.setRequiresGrad(true);
-        c0.setRequiresGrad(true);
+       c0.setRequiresGrad(true);
         Tensor e0 = a0.add(b0).add(c0);
-        e0.compute(new GraphOptimizer());
-        int baselineGraphSize = e0.getCompiledGraph().getCompiledGraphAsList().size();
+        CompiledGraph baselineGraph = TestGraphSupport.execute(e0, new GraphOptimizer());
+        int baselineGraphSize = baselineGraph.getCompiledGraphAsList().size();
 
         Tensor a = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "a");
         Tensor b = new Tensor(new double[]{3.0, 4.0}, new int[]{2}, null, "b");
@@ -33,19 +34,26 @@ public class OptimizerFuseTest {
         GraphOptimizer optimizer = new GraphOptimizer();
         optimizer.addRule(new FuseElementWiseRule());
 
-        e.compute(optimizer);
-        e.getCompiledGraph().setTrainingModeOff();
-        e.compute(optimizer);
+        CompiledGraph compiledGraph = TestGraphSupport.execute(
+                e,
+                optimizer,
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                backend.runtime.ExecutionMode.FORWARD
+        );
 
         assertArrayEquals(new double[]{9.0, 12.0}, e.toDoubleArrayCopy(), 1e-9);
 
         assertNotNull(e.getOperation(), "Final tensor should have an operation");
-        int fusedGraphSize = e.getCompiledGraph().getCompiledGraphAsList().size();
+        int fusedGraphSize = compiledGraph.getCompiledGraphAsList().size();
         assertTrue(fusedGraphSize < baselineGraphSize,
                 "Compiled graph should be smaller after fusion optimization");
 
-        e.getCompiledGraph().setTrainingModeOn();
-        e.compute(optimizer);
+        compiledGraph = TestGraphSupport.execute(
+                e,
+                optimizer,
+                config.runtime.RuntimeConfig.trainingDefaults(),
+                backend.runtime.ExecutionMode.FORWARD_BACKWARD
+        );
 
         assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);

@@ -155,7 +155,7 @@ Additional optimizer-specific notes are documented in [`src/main/java/graph/opti
 
 ### Fused Code Generation
 
-Fused element-wise regions are materialized through runtime code generation via [`FusedOperationGeneratorRouter`](src/main/java/graph/codegen/FusedOperationGeneratorRouter.java), which dispatches to [`FusedOperationGenerator`](src/main/java/graph/codegen/FusedOperationGenerator.java) for `FLOAT32/FLOAT64` and [`HFusedOperationGenerator`](src/main/java/graph/codegen/HFusedOperationGenerator.java) for `FLOAT16`. Generated fused classes are then used by [`FusedOperation`](src/main/java/operations/FusedOperation.java) during compiled graph execution.
+Fused element-wise regions are materialized through a plan-first codegen path. [`FusedOperationFactory`](src/main/java/operations/FusedOperationFactory.java) converts a fused cluster into a [`FusedExpressionPlan`](src/main/java/graph/codegen/FusedExpressionPlan.java). [`CompiledFusedKernelFactory`](src/main/java/graph/codegen/CompiledFusedKernelFactory.java) then creates a runtime executable through [`FusedKernelGeneratorRouter`](src/main/java/graph/codegen/FusedKernelGeneratorRouter.java), which dispatches to [`FusedOperationGenerator`](src/main/java/graph/codegen/FusedOperationGenerator.java) for `FLOAT32/FLOAT64` and [`HFusedOperationGenerator`](src/main/java/graph/codegen/HFusedOperationGenerator.java) for `FLOAT16`. The compiled fused executable is stored in prepared node metadata and executed by [`CpuFusedKernel`](src/main/java/backend/kernels/cpu/CpuFusedKernel.java).
 
 This path is intended to reduce dispatch overhead and improve locality for chains of simple operations.
 

@@ -14,9 +14,7 @@ public class TensorAddTest {
         b.setRequiresGrad(true);
 
         Tensor c = a.add(b);
-        c.compute();
-        c.getCompiledGraph().setTrainingModeOff();
-        c.compute();
+        c.compute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{4.0, 6.0}, c.toDoubleArrayCopy(), 1e-9);
     }
@@ -29,9 +27,7 @@ public class TensorAddTest {
         b.setRequiresGrad(true);
 
         Tensor c = a.add(b);
-        c.compute();
-        c.getCompiledGraph().setTrainingModeOn();
-        c.compute();
+        c.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         assertNotNull(a.getGradient());
         assertNotNull(b.getGradient());

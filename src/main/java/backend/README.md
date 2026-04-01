@@ -30,46 +30,33 @@ Current backend targets:
 
 ## Execution Flow
 
-1. `CompiledGraph.execute()` iterates compiled nodes.
-2. For each executable node, it calls `ComputeEngine.compute(tensor, tensor.getResolvedBackend())`.
-3. `ComputeEngine` routes to `CPUBackend`, `CudaBackend`, or `OpenClBackend`.
-4. Backend resolves kernel for `opType` (usually via registry).
-5. Kernel `forward(...)` performs the operation.
+1. `CompiledGraph.prepare(RuntimeConfig)` builds a runtime-specific `PreparedExecution`.
+2. `PreparedExecution.execute(...)` iterates prepared forward/backward steps.
+3. Each step calls `ComputeEngine.compute(node, metadata, context)`.
+4. `ComputeEngine` routes to `CPUBackend`, `CudaBackend`, or `OpenClBackend`.
+5. Backend uses prebuilt per-node metadata instead of resolving execution hints from `Tensor`.
 
 Related files:
 
 - [src/main/java/graph/CompiledGraph.java](../graph/CompiledGraph.java)
 - [src/main/java/tensor/Tensor.java](../tensor/Tensor.java)
 
-## Compile-Time Resolution and Runtime Overhead
+## Prepared Runtime Metadata
 
-During graph compilation, backend and CPU execution metadata are pre-resolved per node:
-
-- `Tensor.setResolvedBackend(...)`
-- `Tensor.setResolvedCpuKernel(...)`
-- `Tensor.setResolvedCpuExecutionPlan(...)`
-- `Tensor.setResolvedBroadcastPlan(...)`
-- `Tensor.setResolvedCpuConfigEpoch(...)`
-
-`CPUBackend.execute(...)` first uses pre-resolved kernel from node cache and only falls back to `CpuKernelRegistry.resolve(...)` if cache is missing. This keeps hot-path dispatch overhead low.
-
-Execution plan currently precomputes:
+`CPUBackend.buildExecutionPlan(...)` precomputes:
 
 - target dtype
 - non-contiguous remap preparation (`TensorRemap.RemapPlan`)
 - broadcast stride plan (`ResolvedBroadcastPlan`) for binary broadcast kernels
-- dispatch hints (mode + chunk sizing) used by `CpuExecutionConfig`
+- dispatch hints
+- reduction hints
+- matmul hints
 
-Plan staleness is guarded by `ComputeEngine` CPU-config epoch, so runtime rebuild happens only when kernel config changes.
-
-Debug toggles:
-
-- `-Dcg.cpu.disableResolveExecutionHints=true` disables compile-time resolve in `CompiledGraph`.
-- `-Dcg.cpu.disablePreResolvedExecutionPlan=true` disables execution-plan reuse in `CPUBackend`.
+These are stored in `PreparedExecution`, not on `Tensor`.
 
 ## CPU Backend Details
 
-`CPUBackend` executes through `CpuKernel` implementations and a runtime `CpuExecutionConfig`.
+`CPUBackend` executes through `CpuKernel` implementations, `CpuKernelContext`, and prepared per-node plans.
 
 Dispatch modes:
 
@@ -78,13 +65,13 @@ Dispatch modes:
 - `PARALLEL`
 - `PARALLEL_VECTOR`
 
-Element-wise mode selection is threshold-based in [src/main/java/backend/kernels/cpu/CpuExecutionConfig.java](../backend/kernels/cpu/CpuExecutionConfig.java):
+Element-wise mode selection is threshold-based in [src/main/java/backend/kernels/cpu/CpuExecutionPlanner.java](../backend/kernels/cpu/CpuExecutionPlanner.java):
 
 - `vectorMinSize`
 - `parallelMinSize`
 - `contiguousMaterializeThreshold` (non-contiguous input routing threshold)
 
-Reduction (`SUM`) mode selection uses the same mode set and threshold logic via `modeForReduction(...)`.
+Reduction (`SUM`) mode selection uses `ResolvedReductionHints`.
 
 Parallel chunking knobs:
 
@@ -136,25 +123,17 @@ Cross-backend tuning container:
 
 - [src/main/java/config/backend/KernelTuningConfig.java](../config/backend/KernelTuningConfig.java)
 
-At runtime, CPU backend config is applied through:
+At runtime, CPU backend config is carried explicitly in:
 
-- `ComputeEngine.setCpuKernelConfig(...)`
-
-Approximation policy is applied through:
-
-- `ComputeEngine.setApproxMode(...)`
-- enum: [src/main/java/backend/ApproxMode.java](../backend/ApproxMode.java)
-- modes:
-  - `OFF` (always exact)
-  - `TRAINING_ONLY` (fast approximation only during training execution)
-  - `ALWAYS` (fast approximation in both inference and training)
+- [src/main/java/backend/runtime/RuntimeConfig.java](../backend/runtime/RuntimeConfig.java)
+- [src/main/java/backend/runtime/ExecutionContext.java](../backend/runtime/ExecutionContext.java)
 
 Current policy-enabled operations:
 
 - `exp` (can route to `fastExp`)
 - `tanh` (can route to `fastTanh`)
 
-The same policy is honored in:
+The same policy is honored through explicit runtime context in:
 
 - standard CPU kernels
 - strided fallback path
@@ -197,8 +176,7 @@ Optimizer profiles are used as runtime source of tuning knobs:
 
 [src/main/java/graph/optimizer/OptimizerFactory.java](../graph/optimizer/OptimizerFactory.java):
 
-- `createRecommendedTrainingOptimizer()` loads profile chain and applies CPU kernel config.
-- `createInferencePerformanceOptimizer()` loads profile chain and applies CPU kernel config.
+- builds compile-time optimizers only
 
 Profile chain priority:
 

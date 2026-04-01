@@ -1,4 +1,8 @@
-import backend.ComputeEngine;
+import backend.blas.BlasProvider;
+import config.runtime.ApproximationConfig;
+import config.runtime.BlasConfig;
+import backend.runtime.ExecutionMode;
+import config.runtime.RuntimeConfig;
 import benchmark.BlasPolicyConfigurer;
 import benchmark.OptimizerBuilder;
 import benchmark.OptimizerCandidate;
@@ -12,17 +16,11 @@ import benchmark.scenario.ScenarioTensorFactory;
 import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
 import tensor.Tensor;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 public class BenchmarkScenarioFactoryTest {
-
-    @AfterEach
-    void resetBackendConfig() {
-        ComputeEngine.setCpuKernelConfig(config.backend.CpuKernelConfig.defaultsTraining());
-    }
 
     @Test
     void preparedBenchmarkScenarioMatchesManualAssembly() {
@@ -37,9 +35,9 @@ public class BenchmarkScenarioFactoryTest {
         PreparedBenchmarkScenario actual = BenchmarkScenarioFactory.createOptimizerBenchmarkScenario(
                 baseA, baseB, baseC, candidate, DataType.FLOAT64, true, 2, shape
         );
-        actual.output().compute(actual.optimizer());
-        actual.output().getCompiledGraph().setTrainingModeOn();
-        actual.output().compute(actual.optimizer());
+        actual.compute();
+        actual.setTrainingMode(true);
+        actual.compute();
 
         assertArrayEquals(expected.out, actual.output().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(expected.gradA, actual.a().getGradient().toDoubleArrayCopy(), 1e-9);
@@ -59,7 +57,7 @@ public class BenchmarkScenarioFactoryTest {
         PreparedBroadcastScenario actual = BenchmarkScenarioFactory.createBroadcastScenario(
                 baseA, baseB, baseC, candidate, DataType.FLOAT64, 2, 3, 4
         );
-        actual.output().compute(actual.optimizer());
+        actual.compute();
 
         assertArrayEquals(expected, actual.output().toDoubleArrayCopy(), 1e-9);
     }
@@ -74,7 +72,7 @@ public class BenchmarkScenarioFactoryTest {
             int graphBlocks
     ) {
         BlasPolicyConfigurer.apply(candidate.knobs());
-        ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
+        RuntimeConfig runtimeConfig = runtimeConfigFor(candidate);
 
         Tensor A = ScenarioTensorFactory.flatTensor("A", baseA, requiresGrad, DataType.FLOAT64);
         Tensor B = ScenarioTensorFactory.flatTensor("B", baseB, requiresGrad, DataType.FLOAT64);
@@ -90,9 +88,8 @@ public class BenchmarkScenarioFactoryTest {
         Tensor out = BenchmarkGraphRecipes.buildOptimizerBenchmarkGraph(A, B, C, linearIn, w1, b1, w2, b2, w3, b3, graphBlocks);
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
         out.prepareCompiledGraph(optimizer);
-        out.compute(optimizer);
-        out.getCompiledGraph().setTrainingModeOn();
-        out.compute(optimizer);
+        out.compute(optimizer, runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
+        out.compute(optimizer, runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
 
         return new RunResult(
                 out.toDoubleArrayCopy().clone(),
@@ -112,7 +109,7 @@ public class BenchmarkScenarioFactoryTest {
             int f
     ) {
         BlasPolicyConfigurer.apply(candidate.knobs());
-        ComputeEngine.setCpuKernelConfig(candidate.knobs().kernelConfig().cpu());
+        RuntimeConfig runtimeConfig = runtimeConfigFor(candidate);
 
         Tensor A = ScenarioTensorFactory.shapedTensor("BA", baseA, false, DataType.FLOAT64, new int[]{b0, 1, f});
         Tensor B = ScenarioTensorFactory.shapedTensor("BB", baseB, false, DataType.FLOAT64, new int[]{1, b1, f});
@@ -120,7 +117,7 @@ public class BenchmarkScenarioFactoryTest {
         Tensor out = BenchmarkGraphRecipes.buildBroadcastGraph(A, B, C);
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
         out.prepareCompiledGraph(optimizer);
-        out.compute(optimizer);
+        out.compute(optimizer, runtimeConfig, ExecutionMode.FORWARD);
         return out.toDoubleArrayCopy().clone();
     }
 
@@ -130,6 +127,20 @@ public class BenchmarkScenarioFactoryTest {
             out[i] = Math.sin(i * 0.09) + (i % 13) * scale;
         }
         return out;
+    }
+
+    private static RuntimeConfig runtimeConfigFor(OptimizerCandidate candidate) {
+        return new RuntimeConfig(
+                candidate.knobs().kernelConfig().cpu(),
+                ApproximationConfig.defaults(),
+                new BlasConfig(
+                        BlasProvider.fromProperty(candidate.knobs().blasProvider()),
+                        candidate.knobs().blasMatMulMinWork(),
+                        candidate.knobs().blasF32RequireMgeK(),
+                        candidate.knobs().blasF32MaxNOverK(),
+                        false
+                )
+        );
     }
 
     private record RunResult(double[] out, double[] gradA, double[] gradB, double[] gradC) {}

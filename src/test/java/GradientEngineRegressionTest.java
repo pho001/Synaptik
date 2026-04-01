@@ -74,13 +74,9 @@ public class GradientEngineRegressionTest {
         Tensor Te7 = buildSequence(A, B, C);
 
         if (withOptimizer) {
-            Te7.compute(optimizer);
-            Te7.getCompiledGraph().setTrainingModeOn();
-            Te7.compute(optimizer);
+            TestGraphSupport.execute(Te7, optimizer, config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         } else {
-            Te7.compute();
-            Te7.getCompiledGraph().setTrainingModeOn();
-            Te7.compute();
+            Te7.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         }
 
         return new RunResult(
@@ -102,13 +98,9 @@ public class GradientEngineRegressionTest {
         Tensor Te7 = buildSequence(A, B, C);
 
         if (withOptimizer) {
-            Te7.compute(optimizer);
-            Te7.getCompiledGraph().setTrainingModeOn();
-            Te7.compute(optimizer);
+            TestGraphSupport.execute(Te7, optimizer, config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         } else {
-            Te7.compute();
-            Te7.getCompiledGraph().setTrainingModeOn();
-            Te7.compute();
+            Te7.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         }
 
         return new RunResultVec(

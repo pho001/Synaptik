@@ -10,7 +10,7 @@ It combines:
 - metadata (`shape`, `strides`, `label`, `requiresGrad`)
 - graph links (`prevTensors`, producing operation)
 - gradient references and backward-graph hooks
-- compiled execution caches (resolved backend/kernel)
+- compiled graph handle and explicit prepare/execute API
 
 ## Main Components
 
@@ -45,13 +45,7 @@ It combines:
 - tensor values for execution
 - gradient tensor reference (`gradient`)
 - metadata via `TensorMetadata`
-- cached compiled execution data:
-  - resolved backend (`resolvedBackend`)
-  - resolved CPU kernel (`resolvedCpuKernel`)
-  - resolved CPU execution plan (`resolvedCpuExecutionPlan`)
-  - resolved broadcast plan (`resolvedBroadcastPlan`)
-  - resolved CPU config epoch (`resolvedCpuConfigEpoch`)
-  - compiled graph handle (`compiledGraph`)
+- compiled graph handle (`compiledGraph`)
 
 `TensorMetadata` handles:
 
@@ -64,9 +58,10 @@ It combines:
 ## Execution Flow
 
 1. Tensor expression graph is built through operations (`add`, `mul`, `pow`, `log`, etc.).
-2. `Tensor.compute(optimizer)` builds `CompiledGraph` once and executes it.
-3. `Tensor.compute()` uses profile-driven recommended optimizer from `OptimizerFactory`.
-4. `CompiledGraph` executes forward (and backward section in training mode) via backend dispatch.
+2. `Tensor.compile(optimizer)` builds `CompiledGraph`.
+3. `Tensor.prepare(optimizer, runtimeConfig)` builds `PreparedExecution`.
+4. `Tensor.compute(..., runtimeConfig, mode)` executes explicit runtime configuration.
+5. Legacy `compute()` / `compute(optimizer)` remain wrapper entry points.
 
 Unary transcendental APIs now include both exact and approximate variants:
 
@@ -101,7 +96,7 @@ Tensor backend decision is:
 2. operation preferred backend if provided.
 3. fallback to `CPU`.
 
-During compile, resolved backend and CPU kernel are cached per node to reduce runtime dispatch overhead.
+Runtime-specific execution metadata now lives in `PreparedExecution`, not on `Tensor`.
 
 ## Non-Contiguous Layout Handling
 

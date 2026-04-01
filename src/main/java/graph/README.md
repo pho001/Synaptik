@@ -13,7 +13,9 @@ The Graph module compiles tensor expression DAGs into executable plans, runs for
 - Fused operation codegen:
   - [src/main/java/graph/codegen/FusedOperationGenerator.java](../graph/codegen/FusedOperationGenerator.java) (F32/F64)
   - [src/main/java/graph/codegen/HFusedOperationGenerator.java](../graph/codegen/HFusedOperationGenerator.java) (F16)
-  - [src/main/java/graph/codegen/FusedOperationGeneratorRouter.java](../graph/codegen/FusedOperationGeneratorRouter.java)
+  - [src/main/java/graph/codegen/FusedKernelGeneratorRouter.java](../graph/codegen/FusedKernelGeneratorRouter.java)
+  - [src/main/java/graph/codegen/CompiledFusedKernelFactory.java](../graph/codegen/CompiledFusedKernelFactory.java)
+  - [src/main/java/graph/codegen/FusedExpressionPlan.java](../graph/codegen/FusedExpressionPlan.java)
 - Optimizer module:
   - [src/main/java/graph/optimizer/README.md](../graph/optimizer/README.md)
 
@@ -28,28 +30,27 @@ The Graph module compiles tensor expression DAGs into executable plans, runs for
   - mark backward nodes
   - create super-root to unify forward + backward sinks
 3. Run optimizer over unified graph.
-4. Pre-resolve per-node execution metadata:
-  - resolved backend
-  - resolved CPU kernel
-  - resolved CPU execution plan (dtype/remap/dispatch/broadcast hints)
-  - CPU config epoch for staleness checks
-5. Cache forward boundary index for two-phase execution (forward first, backward section after).
+4. Cache the forward boundary used later by `prepare(...)`.
+
+`CompiledGraph.prepare(RuntimeConfig)` then builds runtime-specific `PreparedExecution`:
+
+- forward steps
+- backward steps
+- per-node execution metadata (`CompiledNodeExecutionMetadata`)
 
 ## Execution Pipeline
 
-`CompiledGraph.execute()`:
+`PreparedExecution.execute(...)`:
 
 1. Execute forward section in topological order.
 2. Sync root tensor data from optimized/fused result node.
-3. If training mode is on, execute remaining backward section.
-
-During execution, graph runtime also sets training context in `ComputeEngine`, so backend approximation policy (`ApproxMode.TRAINING_ONLY`) can be applied consistently.
+3. If mode is `FORWARD_BACKWARD`, execute prepared backward section.
 
 Dispatch uses:
 
 - [src/main/java/backend/ComputeEngine.java](../backend/ComputeEngine.java)
 
-with pre-resolved backend per node for low-overhead execution.
+with prepared metadata per node for low-overhead execution.
 
 Debug switches for pre-resolve behavior:
 
@@ -58,8 +59,7 @@ Debug switches for pre-resolve behavior:
 
 Approximation-aware fused path:
 
-- fused generated ops for `exp`/`tanh` route through fused scalar/vector helpers
-- helpers honor current `ComputeEngine` approximation mode
+- fused generated ops for `exp`/`tanh` receive explicit fused execution options
 - explicit fused ops `fastExp` / `fastTanh` are also supported
 
 ## Training vs Inference Modes
@@ -70,10 +70,10 @@ Approximation-aware fused path:
 - Training mode:
   - forward section + backward section
 
-Switches:
+Primary explicit API:
 
-- `setTrainingModeOff()` for inference behavior
-- `setTrainingModeOn()` for training behavior
+- `PreparedExecution.execute(FORWARD)`
+- `PreparedExecution.execute(FORWARD_BACKWARD)`
 
 ## Backward Graph Handling
 
@@ -86,15 +86,21 @@ Backward nodes are collected from gradients attached to forward nodes, traversed
 When optimizer fuses element-wise clusters:
 
 1. Fusion rule produces `FusedOperation` node(s).
-2. `FusedOperationGeneratorRouter` selects dtype-specific codegen.
-3. `FusedOperationGenerator` generates fused `apply(...)` bytecode for `FLOAT32/FLOAT64`.
-4. `HFusedOperationGenerator` handles `FLOAT16`.
-5. CPU fused kernel executes fused op in runtime path.
+2. `FusedOperationFactory` converts the cluster into a `FusedExpressionPlan`-backed descriptor.
+3. `CompiledGraph.prepare(...)` asks `CompiledFusedKernelFactory` for a compiled fused runtime executable.
+4. `FusedKernelGeneratorRouter` selects dtype-specific codegen.
+5. `FusedOperationGenerator` generates the `FLOAT32/FLOAT64` fused executable from plan IR.
+6. `HFusedOperationGenerator` generates the `FLOAT16` fused executable from the same plan IR.
+7. `CpuFusedKernel` executes the prepared fused kernel from node metadata.
 
 Related files:
 
 - [src/main/java/graph/optimizer/rules/FuseElementWiseRule.java](../graph/optimizer/rules/FuseElementWiseRule.java)
 - [src/main/java/operations/FusedOperation.java](../operations/FusedOperation.java)
+- [src/main/java/operations/FusedOperationFactory.java](../operations/FusedOperationFactory.java)
+- [src/main/java/graph/codegen/FusedExpressionPlan.java](../graph/codegen/FusedExpressionPlan.java)
+- [src/main/java/graph/codegen/CompiledFusedKernelFactory.java](../graph/codegen/CompiledFusedKernelFactory.java)
+- [src/main/java/graph/codegen/FusedKernelGeneratorRouter.java](../graph/codegen/FusedKernelGeneratorRouter.java)
 - [src/main/java/backend/kernels/cpu/CpuFusedKernel.java](../backend/kernels/cpu/CpuFusedKernel.java)
 
 ## Canonicalization Notes

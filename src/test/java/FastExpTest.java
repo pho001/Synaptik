@@ -30,13 +30,10 @@ public class FastExpTest {
         a.setRequiresGrad(true);
         Tensor y = a.fastExp();
 
-        y.compute();
-        y.getCompiledGraph().setTrainingModeOff();
-        y.compute();
+        y.compute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
         double[] forward = y.toDoubleArrayCopy();
 
-        y.getCompiledGraph().setTrainingModeOn();
-        y.compute();
+        y.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         double[] grad = a.getGradient().toDoubleArrayCopy();
 
         for (int i = 0; i < grad.length; i++) {
@@ -45,4 +42,3 @@ public class FastExpTest {
         }
     }
 }
-

@@ -18,17 +18,17 @@ public class TransformOpsTest {
         Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", dataType);
 
         Tensor reshaped = base.reshape(3, 2);
-        reshaped.compute(new GraphOptimizer());
+        TestGraphSupport.execute(reshaped, new GraphOptimizer());
         assertArrayEquals(new int[]{3, 2}, reshaped.getShape());
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, reshaped.toDoubleArrayCopy(), eps(dataType));
 
         Tensor expanded = reshaped.expandDims(1);
-        expanded.compute(new GraphOptimizer());
+        TestGraphSupport.execute(expanded, new GraphOptimizer());
         assertArrayEquals(new int[]{3, 1, 2}, expanded.getShape());
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, expanded.toDoubleArrayCopy(), eps(dataType));
 
         Tensor squeezed = expanded.squeeze(1);
-        squeezed.compute(new GraphOptimizer());
+        TestGraphSupport.execute(squeezed, new GraphOptimizer());
         assertArrayEquals(new int[]{3, 2}, squeezed.getShape());
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, squeezed.toDoubleArrayCopy(), eps(dataType));
     }
@@ -39,18 +39,18 @@ public class TransformOpsTest {
         Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", dataType);
 
         Tensor permuted = base.permute(1, 0);
-        permuted.compute(new GraphOptimizer());
+        TestGraphSupport.execute(permuted, new GraphOptimizer());
         assertArrayEquals(new int[]{3, 2}, permuted.getShape());
         assertSame(base.getStorage(), permuted.getStorage());
         Tensor permutedContiguous = permuted.contiguous();
-        permutedContiguous.compute(new GraphOptimizer());
+        TestGraphSupport.execute(permutedContiguous, new GraphOptimizer());
         assertArrayEquals(new double[]{1, 4, 2, 5, 3, 6}, permutedContiguous.toDoubleArrayCopy(), eps(dataType));
 
         Tensor transposed = base.transpose();
-        transposed.compute(new GraphOptimizer());
+        TestGraphSupport.execute(transposed, new GraphOptimizer());
         assertArrayEquals(new int[]{3, 2}, transposed.getShape());
         Tensor transposedContiguous = transposed.contiguous();
-        transposedContiguous.compute(new GraphOptimizer());
+        TestGraphSupport.execute(transposedContiguous, new GraphOptimizer());
         assertArrayEquals(new double[]{1, 4, 2, 5, 3, 6}, transposedContiguous.toDoubleArrayCopy(), eps(dataType));
     }
 
@@ -58,7 +58,7 @@ public class TransformOpsTest {
     void reshapeWithInferredDimension() {
         Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", DataType.FLOAT32);
         Tensor reshaped = base.reshape(3, -1);
-        reshaped.compute(new GraphOptimizer());
+        TestGraphSupport.execute(reshaped, new GraphOptimizer());
         assertArrayEquals(new int[]{3, 2}, reshaped.getShape());
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, reshaped.toDoubleArrayCopy(), 1e-6);
     }

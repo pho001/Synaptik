@@ -113,16 +113,14 @@ Primary class:
 
 - `setBackend(ComputeBackend backend)`
 - `resolveBackend()`
-- `getResolvedBackend()`
-- `setResolvedBackend(ComputeBackend resolvedBackend)`
-- `getResolvedCpuKernel()`
-- `setResolvedCpuKernel(CpuKernel resolvedCpuKernel)`
-- `getResolvedCpuExecutionPlan()`
-- `setResolvedCpuExecutionPlan(CPUBackend.CpuNodeExecutionPlan plan)`
-- `getResolvedBroadcastPlan()`
-- `setResolvedBroadcastPlan(ResolvedBroadcastPlan plan)`
-- `getResolvedCpuConfigEpoch()`
-- `setResolvedCpuConfigEpoch(long epoch)`
+
+## Compile / Prepare / Execute
+
+- `compile(GraphOptimizer optimizer)`
+- `prepare(GraphOptimizer optimizer, RuntimeConfig runtimeConfig)`
+- `compute(GraphOptimizer optimizer, RuntimeConfig runtimeConfig, ExecutionMode mode)`
+- `compute(GraphOptimizer optimizer, RuntimeConfig runtimeConfig)`
+- `compute(PreparedExecution execution, ExecutionMode mode)`
 
 ## Label / Grad / Type / Storage
 

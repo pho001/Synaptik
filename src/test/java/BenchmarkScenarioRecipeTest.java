@@ -98,9 +98,7 @@ public class BenchmarkScenarioRecipeTest {
         Tensor linearScalar = linear3.sum();
         Tensor out = x.mul(x).add(B.mul(0.01)).add(linearScalar);
 
-        out.compute();
-        out.getCompiledGraph().setTrainingModeOn();
-        out.compute();
+        out.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         return new RunResult(
                 out.toDoubleArrayCopy().clone(),
                 A.getGradient().toDoubleArrayCopy().clone(),
@@ -128,9 +126,7 @@ public class BenchmarkScenarioRecipeTest {
         Tensor out = BenchmarkGraphRecipes.buildOptimizerBenchmarkGraph(
                 A, B, C, linearIn, w1, b1, w2, b2, w3, b3, graphBlocks
         );
-        out.compute();
-        out.getCompiledGraph().setTrainingModeOn();
-        out.compute();
+        out.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         return new RunResult(
                 out.toDoubleArrayCopy().clone(),
                 A.getGradient().toDoubleArrayCopy().clone(),

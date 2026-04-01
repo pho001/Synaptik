@@ -1,9 +1,9 @@
-import backend.ComputeEngine;
+import backend.runtime.ExecutionMode;
+import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
 import graph.optimizer.GraphOptimizer;
 import tensor.Tensor;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -12,14 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class SumExecutionModesTest {
     private static final double EPS = 1e-9;
 
-    @AfterEach
-    public void resetCpuConfig() {
-        ComputeEngine.setCpuKernelConfig(CpuKernelConfig.defaultsTraining());
-    }
-
     @Test
     public void testSumAllParallelVectorMatchesReference() {
-        ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(
+        RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1, 1, 0, 8, 256, 1_000_000_000, SumAccuracyMode.FAST
         ));
@@ -31,14 +26,14 @@ public class SumExecutionModesTest {
 
         Tensor a = new Tensor(values, new int[]{values.length}, null, "a");
         Tensor s = a.sum();
-        s.compute(new GraphOptimizer());
+        TestGraphSupport.execute(s, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
 
         assertEquals(referenceSumContiguous(values), s.toDoubleArrayCopy()[0], EPS);
     }
 
     @Test
     public void testSumAxisLastDimParallelVectorMatchesReference() {
-        ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(
+        RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1, 1, 0, 8, 128, 1_000_000_000, SumAccuracyMode.FAST
         ));
@@ -52,7 +47,7 @@ public class SumExecutionModesTest {
 
         Tensor a = new Tensor(values, new int[]{rows, cols}, null, "matrix");
         Tensor s = a.sum(1);
-        s.compute(new GraphOptimizer());
+        TestGraphSupport.execute(s, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
 
         double[] expected = new double[rows];
         for (int r = 0; r < rows; r++) {
@@ -70,23 +65,23 @@ public class SumExecutionModesTest {
     public void testSumNonContiguousStridedVsMaterializedEquivalence() {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig");
 
-        ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1_024, 100_000, 0, 4, 4_096, 1_000_000_000, SumAccuracyMode.FAST
         ));
         Tensor stridedAll = a.sum();
-        stridedAll.compute(new GraphOptimizer());
+        TestGraphSupport.execute(stridedAll, new GraphOptimizer(), stridedConfig, ExecutionMode.FORWARD);
         Tensor stridedAxis = a.sum(1);
-        stridedAxis.compute(new GraphOptimizer());
+        TestGraphSupport.execute(stridedAxis, new GraphOptimizer(), stridedConfig, ExecutionMode.FORWARD);
 
-        ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1_024, 100_000, 0, 4, 4_096, 0, SumAccuracyMode.FAST
         ));
         Tensor materializedAll = a.sum();
-        materializedAll.compute(new GraphOptimizer());
+        TestGraphSupport.execute(materializedAll, new GraphOptimizer(), materializedConfig, ExecutionMode.FORWARD);
         Tensor materializedAxis = a.sum(1);
-        materializedAxis.compute(new GraphOptimizer());
+        TestGraphSupport.execute(materializedAxis, new GraphOptimizer(), materializedConfig, ExecutionMode.FORWARD);
 
         assertArrayEquals(stridedAll.toDoubleArrayCopy(), materializedAll.toDoubleArrayCopy(), EPS);
         assertArrayEquals(stridedAxis.toDoubleArrayCopy(), materializedAxis.toDoubleArrayCopy(), EPS);
@@ -101,28 +96,28 @@ public class SumExecutionModesTest {
         }
 
         Tensor fastTensor = new Tensor(values.clone(), new int[]{values.length}, null, "fast");
-        ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(
+        RuntimeConfig fastConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.FAST
         ));
         Tensor fast = fastTensor.sum();
-        fast.compute(new GraphOptimizer());
+        TestGraphSupport.execute(fast, new GraphOptimizer(), fastConfig, ExecutionMode.FORWARD);
 
         Tensor kahanTensor = new Tensor(values.clone(), new int[]{values.length}, null, "kahan");
-        ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(
+        RuntimeConfig kahanConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.KAHAN
         ));
         Tensor kahan = kahanTensor.sum();
-        kahan.compute(new GraphOptimizer());
+        TestGraphSupport.execute(kahan, new GraphOptimizer(), kahanConfig, ExecutionMode.FORWARD);
 
         Tensor neumaierTensor = new Tensor(values.clone(), new int[]{values.length}, null, "neumaier");
-        ComputeEngine.setCpuKernelConfig(new CpuKernelConfig(
+        RuntimeConfig neumaierConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.NEUMAIER
         ));
         Tensor neumaier = neumaierTensor.sum();
-        neumaier.compute(new GraphOptimizer());
+        TestGraphSupport.execute(neumaier, new GraphOptimizer(), neumaierConfig, ExecutionMode.FORWARD);
 
         double ref = referenceSumContiguous(values);
         assertEquals(ref, fast.toDoubleArrayCopy()[0], 1e-6);
@@ -136,5 +131,9 @@ public class SumExecutionModesTest {
             acc += v;
         }
         return acc;
+    }
+
+    private static RuntimeConfig runtimeConfig(CpuKernelConfig cpuKernelConfig) {
+        return new RuntimeConfig(cpuKernelConfig, config.runtime.ApproximationConfig.defaults(), config.runtime.BlasConfig.disabled());
     }
 }
