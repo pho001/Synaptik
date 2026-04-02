@@ -39,6 +39,10 @@ Alternative main classes can be started from compiled classes, for example:
 - benchmark entry point: `synaptik.app.OptimizerBenchmark`
 - numerics CLI: `numerics.NumericsCli`
 
+Dependency note:
+
+- the Gradle Wrapper automatically downloads the configured Gradle distribution and declared dependencies from Maven Central, including ASM
+
 ## Project Structure
 
 - [`src/main/java/tensor/`](src/main/java/tensor)
