@@ -187,6 +187,9 @@ Profile chain priority:
 
 This means backend dispatch thresholds/chunking are profile-driven, with robust fallbacks before autotune is run.
 
+Optimizer-side memory planning now also exposes explain/summary hooks through the `graph.optimizer.memory` package.
+This is currently primarily an optimizer/planner concern rather than a backend runtime API, but it is relevant when investigating memory reuse behavior and peak-memory tradeoffs in prepared execution flows.
+
 Related numerics diagnostics tooling:
 
 - [src/main/java/numerics/README.md](../numerics/README.md)

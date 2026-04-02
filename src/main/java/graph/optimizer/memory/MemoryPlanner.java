@@ -1,23 +1,32 @@
 package graph.optimizer.memory;
 
 import operations.Operation;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.Collections;
 
 public final class MemoryPlanner {
     private MemoryPlanner() {
     }
 
     public static MemoryPlan plan(List<Tensor> sortedGraph) {
+        return plan(sortedGraph, MemoryPlannerPolicy.defaults());
+    }
+
+    public static MemoryPlan plan(List<Tensor> sortedGraph, MemoryPlannerPolicy policy) {
+        Objects.requireNonNull(policy, "policy cannot be null");
         if (sortedGraph == null || sortedGraph.isEmpty()) {
-            return new MemoryPlan(Map.of());
+            return new MemoryPlan(Map.of(), Map.of(), Map.of(), Map.of(), policy,
+                    new MemoryPlanSummary(0, 0, 0, 0L, 0L, 0L, 0, 0.0));
         }
 
         Map<Tensor, Integer> indexByTensor = new IdentityHashMap<>();
@@ -33,19 +42,17 @@ public final class MemoryPlanner {
 
         Set<Tensor> gradientTargets = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Tensor tensor : sortedGraph) {
-            if (tensor.getOperation() == null && tensor.getRequiresGrad() && tensor.getGradient() != null) {
+            if (tensor.getGradient() != null) {
                 gradientTargets.add(tensor.getGradient());
             }
         }
 
-        Map<Tensor, Integer> birthIndexByOwner = new IdentityHashMap<>();
         Map<Tensor, Integer> lastReadIndexByOwner = new IdentityHashMap<>();
         Map<Tensor, Integer> consumerCountsByOwner = new IdentityHashMap<>();
         Set<Tensor> savedForwardOwners = Collections.newSetFromMap(new IdentityHashMap<>());
 
         for (Tensor tensor : sortedGraph) {
             Tensor owner = storageOwnerByTensor.get(tensor);
-            birthIndexByOwner.merge(owner, indexByTensor.get(owner), Math::min);
             lastReadIndexByOwner.putIfAbsent(owner, -1);
             consumerCountsByOwner.putIfAbsent(owner, 0);
         }
@@ -84,7 +91,207 @@ public final class MemoryPlanner {
             lifetimes.put(tensor, new NodeLifetime(birthIndex, lastReadIndex, role, owner));
         }
 
-        return new MemoryPlan(lifetimes);
+        Map<Tensor, ReusableInterval> reusableIntervals = buildReusableIntervals(sortedGraph, lifetimes, policy);
+        SlotAssignment assignment = assignSlots(reusableIntervals.values().stream().toList(), forwardBoundaryIndex, policy);
+        MemoryPlanSummary summary = buildSummary(sortedGraph, lifetimes, reusableIntervals, assignment.slotByOwner(), assignment.slotSizes(), forwardBoundaryIndex);
+
+        return new MemoryPlan(lifetimes, reusableIntervals, assignment.slotByOwner(), assignment.slotSizes(), policy, summary);
+    }
+
+    private static Map<Tensor, ReusableInterval> buildReusableIntervals(
+            List<Tensor> sortedGraph,
+            Map<Tensor, NodeLifetime> lifetimes,
+            MemoryPlannerPolicy policy
+    ) {
+        Map<Tensor, ReusableInterval> out = new IdentityHashMap<>();
+        for (Tensor tensor : sortedGraph) {
+            NodeLifetime lifetime = lifetimes.get(tensor);
+            if (lifetime.storageOwner() != tensor) {
+                continue;
+            }
+            if (lifetime.role() != MemoryRole.FORWARD_TEMP
+                    && lifetime.role() != MemoryRole.BACKWARD_TEMP
+                    && lifetime.role() != MemoryRole.SAVED_FORWARD) {
+                continue;
+            }
+            int size = tensor.getFlatDataSize();
+            if (size < policy.minReusableBufferSize()) {
+                continue;
+            }
+            out.put(tensor, new ReusableInterval(
+                    tensor,
+                    lifetime.birthIndex(),
+                    lifetime.lastReadIndex(),
+                    size,
+                    tensor.getDataType(),
+                    lifetime.role()
+            ));
+        }
+        return out;
+    }
+
+    private static SlotAssignment assignSlots(
+            List<ReusableInterval> intervals,
+            int forwardBoundaryIndex,
+            MemoryPlannerPolicy policy
+    ) {
+        if (intervals.isEmpty()) {
+            return new SlotAssignment(Map.of(), Map.of());
+        }
+
+        List<ReusableInterval> sorted = new ArrayList<>(intervals);
+        sorted.sort(Comparator
+                .comparingInt(ReusableInterval::birthIndex)
+                .thenComparingInt(ReusableInterval::lastReadIndex));
+
+        Map<Tensor, Integer> slotByOwner = new IdentityHashMap<>();
+        Map<Integer, Integer> slotSizes = new HashMap<>();
+        List<SlotState> active = new ArrayList<>();
+        List<SlotState> free = new ArrayList<>();
+        int nextSlotId = 0;
+
+        for (ReusableInterval interval : sorted) {
+            releaseExpired(active, free, interval.birthIndex());
+
+            SlotState chosen = chooseSlot(free, interval, forwardBoundaryIndex, policy);
+            if (chosen == null) {
+                chosen = new SlotState(nextSlotId++, interval.size(), interval.dataType(), phaseOf(interval, forwardBoundaryIndex), Integer.MIN_VALUE);
+                slotSizes.put(chosen.slotId, chosen.size);
+            } else {
+                free.remove(chosen);
+            }
+
+            if (interval.role() == MemoryRole.SAVED_FORWARD) {
+                chosen.phase = "shared";
+            }
+            chosen.lastReadIndex = interval.lastReadIndex();
+            active.add(chosen);
+            slotByOwner.put(interval.owner(), chosen.slotId);
+        }
+
+        return new SlotAssignment(Map.copyOf(slotByOwner), Map.copyOf(slotSizes));
+    }
+
+    private static void releaseExpired(List<SlotState> active, List<SlotState> free, int currentBirth) {
+        List<SlotState> released = new ArrayList<>();
+        for (SlotState state : active) {
+            if (state.lastReadIndex < currentBirth) {
+                released.add(state);
+            }
+        }
+        active.removeAll(released);
+        free.addAll(released);
+    }
+
+    private static SlotState chooseSlot(
+            List<SlotState> free,
+            ReusableInterval interval,
+            int forwardBoundaryIndex,
+            MemoryPlannerPolicy policy
+    ) {
+        SlotState best = null;
+        String intervalPhase = phaseOf(interval, forwardBoundaryIndex);
+        for (SlotState state : free) {
+            if (state.dataType != interval.dataType()) {
+                continue;
+            }
+            if (policy.separateForwardBackwardPools() && !isPhaseCompatible(state.phase, intervalPhase)) {
+                continue;
+            }
+            if (!policy.allowLargerBufferReuse() && state.size != interval.size()) {
+                continue;
+            }
+            if (policy.allowLargerBufferReuse() && state.size < interval.size()) {
+                continue;
+            }
+            if (best == null || state.size < best.size) {
+                best = state;
+            }
+        }
+        return best;
+    }
+
+    private static String phaseOf(ReusableInterval interval, int forwardBoundaryIndex) {
+        if (interval.role() == MemoryRole.SAVED_FORWARD) {
+            return "shared";
+        }
+        return interval.birthIndex() <= forwardBoundaryIndex ? "forward" : "backward";
+    }
+
+    private static boolean isPhaseCompatible(String slotPhase, String intervalPhase) {
+        if (slotPhase.equals(intervalPhase)) {
+            return true;
+        }
+        return "shared".equals(slotPhase) || "shared".equals(intervalPhase);
+    }
+
+    private static MemoryPlanSummary buildSummary(
+            List<Tensor> sortedGraph,
+            Map<Tensor, NodeLifetime> lifetimes,
+            Map<Tensor, ReusableInterval> reusableIntervals,
+            Map<Tensor, Integer> slotByOwner,
+            Map<Integer, Integer> slotSizes,
+            int forwardBoundaryIndex
+    ) {
+        int savedForwardCount = 0;
+        long savedForwardHoldDistanceSum = 0L;
+        for (Map.Entry<Tensor, NodeLifetime> entry : lifetimes.entrySet()) {
+            if (entry.getValue().storageOwner() != entry.getKey()) {
+                continue;
+            }
+            if (entry.getValue().role() == MemoryRole.SAVED_FORWARD) {
+                savedForwardCount++;
+                savedForwardHoldDistanceSum += (long) entry.getValue().lastReadIndex() - entry.getValue().birthIndex();
+            }
+        }
+
+        long peakTotal = 0L;
+        long peakForward = 0L;
+        long peakBackward = 0L;
+        for (int i = 0; i < sortedGraph.size(); i++) {
+            long activeBytes = 0L;
+            long activeForwardBytes = 0L;
+            long activeBackwardBytes = 0L;
+
+            Set<Integer> countedSlots = new java.util.HashSet<>();
+            for (Map.Entry<Tensor, ReusableInterval> entry : reusableIntervals.entrySet()) {
+                ReusableInterval interval = entry.getValue();
+                if (interval.birthIndex() <= i && i <= interval.lastReadIndex()) {
+                    Integer slotId = slotByOwner.get(entry.getKey());
+                    if (slotId != null && countedSlots.add(slotId)) {
+                        long size = slotSizes.get(slotId);
+                        activeBytes += size;
+                        if (interval.birthIndex() <= forwardBoundaryIndex) {
+                            activeForwardBytes += size;
+                        } else {
+                            activeBackwardBytes += size;
+                        }
+                    }
+                }
+            }
+
+            peakTotal = Math.max(peakTotal, activeBytes);
+            peakForward = Math.max(peakForward, activeForwardBytes);
+            peakBackward = Math.max(peakBackward, activeBackwardBytes);
+        }
+
+        int intervalCount = reusableIntervals.size();
+        int slotCount = slotSizes.size();
+        int reuseCount = Math.max(0, intervalCount - slotCount);
+        double averageSavedForwardHoldDistance = savedForwardCount == 0
+                ? 0.0
+                : ((double) savedForwardHoldDistanceSum / savedForwardCount);
+
+        return new MemoryPlanSummary(
+                intervalCount,
+                slotCount,
+                reuseCount,
+                peakTotal,
+                peakForward,
+                peakBackward,
+                savedForwardCount,
+                averageSavedForwardHoldDistance
+        );
     }
 
     private static Tensor resolveStorageOwner(Tensor tensor, Map<Tensor, Tensor> storageOwnerByTensor) {
@@ -144,5 +351,27 @@ public final class MemoryPlanner {
             case RESHAPE, EXPAND_DIMS, SQUEEZE -> inputs.get(0).isContiguous();
             default -> false;
         };
+    }
+
+    private record SlotAssignment(
+            Map<Tensor, Integer> slotByOwner,
+            Map<Integer, Integer> slotSizes
+    ) {
+    }
+
+    private static final class SlotState {
+        private final int slotId;
+        private final int size;
+        private final DataType dataType;
+        private String phase;
+        private int lastReadIndex;
+
+        private SlotState(int slotId, int size, DataType dataType, String phase, int lastReadIndex) {
+            this.slotId = slotId;
+            this.size = size;
+            this.dataType = dataType;
+            this.phase = phase;
+            this.lastReadIndex = lastReadIndex;
+        }
     }
 }

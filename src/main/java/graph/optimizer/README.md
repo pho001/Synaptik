@@ -89,6 +89,29 @@ Rules must preserve:
 ### `MemoryOptimizerRule`
 
 - graph rewrites aimed at better memory behavior and reuse patterns
+- current planner is liveness-aware and slot-assignment-based
+- planner policy is modeled explicitly through `MemoryPlannerPolicy`
+- planner exposes internal liveness/slot metrics through `MemoryPlanSummary`
+- current debug dumps can explain:
+  - role per tensor
+  - storage owner
+  - birth / last-read interval
+  - slot assignment
+- current summary metrics include:
+  - reusable interval count
+  - slot count
+  - reuse count
+  - peak live bytes
+  - forward/backward peak live bytes
+  - saved-forward hold statistics
+
+Relevant files:
+
+- [src/main/java/graph/optimizer/rules/MemoryOptimizerRule.java](../../graph/optimizer/rules/MemoryOptimizerRule.java)
+- [src/main/java/graph/optimizer/memory/MemoryPlanner.java](../../graph/optimizer/memory/MemoryPlanner.java)
+- [src/main/java/graph/optimizer/memory/MemoryPlan.java](../../graph/optimizer/memory/MemoryPlan.java)
+- [src/main/java/graph/optimizer/memory/MemoryPlanSummary.java](../../graph/optimizer/memory/MemoryPlanSummary.java)
+- [src/main/java/graph/optimizer/memory/MemoryPlannerPolicy.java](../../graph/optimizer/memory/MemoryPlannerPolicy.java)
 
 ## Fused Operations
 

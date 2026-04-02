@@ -161,6 +161,8 @@ Current rule set includes files such as:
 - [`CommonSubexpressionEliminationRule`](src/main/java/graph/optimizer/rules/CommonSubexpressionEliminationRule.java)
 - [`MemoryOptimizerRule`](src/main/java/graph/optimizer/rules/MemoryOptimizerRule.java)
 
+The memory optimizer is now backed by an explicit liveness/slot planner with explain and summary metrics rather than a simple ad hoc reuse pool.
+
 Additional optimizer-specific notes are documented in [`src/main/java/graph/optimizer/README.md`](src/main/java/graph/optimizer/README.md).
 
 ### Fused Code Generation
