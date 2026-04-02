@@ -96,4 +96,47 @@ public class MemoryPlannerSummaryTest {
         MemoryOptimizerRule rule = new MemoryOptimizerRule(policy);
         assertEquals(policy, rule.policy());
     }
+
+    @Test
+    void defaultPolicyRemainsConservative() {
+        MemoryPlannerPolicy defaults = MemoryPlannerPolicy.defaults();
+        assertTrue(defaults.separateForwardBackwardPools());
+        assertTrue(!defaults.allowCrossPhaseReuse());
+        assertTrue(!defaults.allowLargerBufferReuse());
+        assertEquals(1, defaults.minReusableBufferSize());
+    }
+
+    @Test
+    void largerBufferReuseCanReduceSlotCountForIrregularIntervals() {
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "a");
+        Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{2, 2}, null, "b");
+        Tensor c = new Tensor(new double[]{9, 10}, new int[]{2}, null, "c");
+
+        Tensor t1 = a.add(b);                 // size 4
+        Tensor t2 = t1.sum(1, true);         // size 2
+        Tensor out = t2.add(c.reshape(2, 1)); // size 2
+
+        var graph = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).getCompiledGraphAsList();
+        MemoryPlan strict = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
+        MemoryPlan flexible = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, true, 1));
+
+        assertTrue(strict.summary().slotCount() >= flexible.summary().slotCount());
+        assertTrue(strict.summary().reuseCount() <= flexible.summary().reuseCount());
+    }
+
+    @Test
+    void minReusableBufferSizeCanExcludeSmallIntervalsFromReusePlanning() {
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "a");
+        Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{2, 2}, null, "b");
+
+        Tensor t1 = a.add(b);         // size 4
+        Tensor out = t1.sum(1, true); // size 2
+
+        var graph = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).getCompiledGraphAsList();
+        MemoryPlan allIntervals = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
+        MemoryPlan largerOnly = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 3));
+
+        assertTrue(allIntervals.summary().reusableIntervalCount() >= largerOnly.summary().reusableIntervalCount());
+        assertTrue(allIntervals.summary().slotCount() >= largerOnly.summary().slotCount());
+    }
 }
