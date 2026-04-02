@@ -1,5 +1,9 @@
 package benchmark;
 
+import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
 import tensor.Tensor;
@@ -48,11 +52,11 @@ public final class LayoutOpsBenchmark {
         Tensor expandSqueezeGraph = base.expandDims(0).squeeze(0);
 
         // JIT + graph compilation priming
-        reshapeGraph.compute(optimizer);
-        permuteGraph.compute(optimizer);
-        permuteContiguousGraph.compute(optimizer);
-        transposeGraph.compute(optimizer);
-        expandSqueezeGraph.compute(optimizer);
+        CompiledGraph.compile(reshapeGraph, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(permuteGraph, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(permuteContiguousGraph, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(transposeGraph, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(expandSqueezeGraph, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double reshapeMs = bench(() -> runAndTouch(reshapeGraph, optimizer));
         double permuteViewMs = bench(() -> runAndTouch(permuteGraph, optimizer));
@@ -70,7 +74,7 @@ public final class LayoutOpsBenchmark {
     }
 
     private static void runAndTouch(Tensor graph, GraphOptimizer optimizer) {
-        graph.compute(optimizer);
+        CompiledGraph.compile(graph, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         SINK += graph.getByFlatIndex(0);
     }
 

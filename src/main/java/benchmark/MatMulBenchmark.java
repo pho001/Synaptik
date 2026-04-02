@@ -5,6 +5,7 @@ import config.runtime.BlasConfig;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
+import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
 import tensor.Tensor;
@@ -136,7 +137,7 @@ public final class MatMulBenchmark {
         Tensor a = tensorFrom(aData, new int[]{m, k}, "A", dtype);
         Tensor b = tensorFrom(bData, new int[]{k, n}, "B", dtype);
         Tensor out = a.matmul(b);
-        out.compute(new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, new GraphOptimizer()).execute(runtimeConfig, ExecutionMode.FORWARD);
         return out.toDoubleArrayCopy();
     }
 

@@ -16,6 +16,8 @@ public interface Operation {
         DIV(OpArityClass.ELEMENT_WISE, true),
         MIN(OpArityClass.ELEMENT_WISE, true),
         MAX(OpArityClass.ELEMENT_WISE, true),
+        MIN_GRAD(OpArityClass.SPECIAL, false),
+        MAX_GRAD(OpArityClass.SPECIAL, false),
         MATMUL(OpArityClass.LINEAR_ALGEBRA, false),
         NEG(OpArityClass.ELEMENT_WISE, true),
         INV(OpArityClass.ELEMENT_WISE, true),

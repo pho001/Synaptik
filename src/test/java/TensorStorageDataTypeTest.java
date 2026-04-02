@@ -1,5 +1,8 @@
 import graph.codegen.FusedDTypeOps;
-import graph.optimizer.GraphOptimizer;
+import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Float16Storage;
 import tensor.Float32Storage;
@@ -18,7 +21,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.FLOAT32);
 
         Tensor out = a.add(b).mul(a);
-        TestGraphSupport.execute(out, new GraphOptimizer());
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertTrue(out.getStorage() instanceof Float32Storage, "Output tensor should use Float32Storage");
 
@@ -40,7 +43,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.FLOAT16);
 
         Tensor out = a.add(b).sigmoid();
-        TestGraphSupport.execute(out, new GraphOptimizer());
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertTrue(out.getStorage() instanceof Float16Storage, "Output tensor should use Float16Storage");
 
@@ -74,7 +77,7 @@ public class TensorStorageDataTypeTest {
         // Typed path must read typed storage directly.
 
         Tensor out = a.add(b);
-        TestGraphSupport.execute(out, new GraphOptimizer());
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] expected = new double[aStorage.length];
         for (int i = 0; i < expected.length; i++) {
@@ -91,7 +94,7 @@ public class TensorStorageDataTypeTest {
         b.setDataType(DataType.FLOAT16);
 
         Tensor out = a.add(b);
-        TestGraphSupport.execute(out, new GraphOptimizer());
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] expected = new double[out.toDoubleArrayCopy().length];
         double[] aVals = a.toDoubleArrayCopy();

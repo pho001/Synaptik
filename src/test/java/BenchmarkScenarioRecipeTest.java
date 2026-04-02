@@ -1,3 +1,7 @@
+import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
 import benchmark.scenario.BenchmarkGraphRecipes;
 import tensor.DataType;
 import tensor.Tensor;
@@ -42,7 +46,7 @@ public class BenchmarkScenarioRecipeTest {
         }, new int[]{2, 3, 4}, null, "cInline", DataType.FLOAT64);
 
         Tensor expected = aInline.add(bInline).mul(cInline).add(aInline).sigmoid();
-        expected.compute();
+        CompiledGraph.compile(expected, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         Tensor aRecipe = new Tensor(new double[]{
                 1, 2, 3, 4,
@@ -63,7 +67,7 @@ public class BenchmarkScenarioRecipeTest {
         }, new int[]{2, 3, 4}, null, "cRecipe", DataType.FLOAT64);
 
         Tensor actual = BenchmarkGraphRecipes.buildBroadcastGraph(aRecipe, bRecipe, cRecipe);
-        actual.compute();
+        CompiledGraph.compile(actual, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertArrayEquals(expected.toDoubleArrayCopy(), actual.toDoubleArrayCopy(), 1e-9);
     }
@@ -98,7 +102,7 @@ public class BenchmarkScenarioRecipeTest {
         Tensor linearScalar = linear3.sum();
         Tensor out = x.mul(x).add(B.mul(0.01)).add(linearScalar);
 
-        out.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         return new RunResult(
                 out.toDoubleArrayCopy().clone(),
                 A.getGradient().toDoubleArrayCopy().clone(),
@@ -126,7 +130,7 @@ public class BenchmarkScenarioRecipeTest {
         Tensor out = BenchmarkGraphRecipes.buildOptimizerBenchmarkGraph(
                 A, B, C, linearIn, w1, b1, w2, b2, w3, b3, graphBlocks
         );
-        out.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         return new RunResult(
                 out.toDoubleArrayCopy().clone(),
                 A.getGradient().toDoubleArrayCopy().clone(),

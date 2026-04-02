@@ -1,10 +1,10 @@
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.optimizer.OptimizerStage;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import graph.CompiledGraph;
 import graph.codegen.FusedDTypeOps;
-import graph.optimizer.GraphOptimizer;
-import graph.optimizer.rules.FuseElementWiseRule;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -25,23 +25,21 @@ public class FusedExecutionModesTest {
         Tensor bBase = new Tensor(bVals.clone(), new int[]{bVals.length}, null, "bBase", DataType.FLOAT64);
         Tensor cBase = new Tensor(cVals.clone(), new int[]{cVals.length}, null, "cBase", DataType.FLOAT64);
         Tensor baseline = aBase.add(bBase).mul(cBase).add(aBase.mul(0.25)).max(bBase).min(cBase).sigmoid();
-        TestGraphSupport.execute(baseline, new GraphOptimizer(), runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
-        GraphOptimizer fuseOnly = new GraphOptimizer();
-        fuseOnly.addRule(new FuseElementWiseRule());
-
         // SCALAR
-        assertModeMatches(expected, aVals, bVals, cVals, fuseOnly,
+        assertModeMatches(expected, aVals, bVals, cVals,
                 new CpuKernelConfig(4, 32, 32, 32, Integer.MAX_VALUE, Integer.MAX_VALUE));
         // VECTOR
-        assertModeMatches(expected, aVals, bVals, cVals, fuseOnly,
+        assertModeMatches(expected, aVals, bVals, cVals,
                 new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE));
         // PARALLEL
-        assertModeMatches(expected, aVals, bVals, cVals, fuseOnly,
+        assertModeMatches(expected, aVals, bVals, cVals,
                 new CpuKernelConfig(4, 32, 32, 32, Integer.MAX_VALUE, 1));
         // PARALLEL_VECTOR
-        assertModeMatches(expected, aVals, bVals, cVals, fuseOnly,
+        assertModeMatches(expected, aVals, bVals, cVals,
                 new CpuKernelConfig(4, 32, 32, 32, 1, 1));
     }
 
@@ -52,11 +50,8 @@ public class FusedExecutionModesTest {
         double[] bVals = buildInput(size, -0.02);
         double[] cVals = buildInput(size, 0.01);
 
-        GraphOptimizer fuseOnly = new GraphOptimizer();
-        fuseOnly.addRule(new FuseElementWiseRule());
-
-        double[] outF32 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT32, fuseOnly);
-        double[] outF16 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT16, fuseOnly);
+        double[] outF32 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT32);
+        double[] outF16 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT16);
 
         double[] expectedF32 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_F32);
         double[] expectedF16 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_F16);
@@ -86,27 +81,22 @@ public class FusedExecutionModesTest {
         }, new int[]{2, 3, 4}, null, "cBase", DataType.FLOAT64);
 
         Tensor baseline = aBase.add(bBase).mul(cBase).add(aBase).sigmoid();
-        TestGraphSupport.execute(baseline, new GraphOptimizer());
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
-        GraphOptimizer fuseOnly = new GraphOptimizer();
-        fuseOnly.addRule(new FuseElementWiseRule());
-
-        assertBroadcastModeMatches(expected, fuseOnly,
+        assertBroadcastModeMatches(expected,
                 new CpuKernelConfig(4, 32, 32, 32, Integer.MAX_VALUE, Integer.MAX_VALUE));
-        assertBroadcastModeMatches(expected, fuseOnly,
+        assertBroadcastModeMatches(expected,
                 new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE));
-        assertBroadcastModeMatches(expected, fuseOnly,
+        assertBroadcastModeMatches(expected,
                 new CpuKernelConfig(4, 32, 32, 32, Integer.MAX_VALUE, 1));
-        assertBroadcastModeMatches(expected, fuseOnly,
+        assertBroadcastModeMatches(expected,
                 new CpuKernelConfig(4, 32, 32, 32, 1, 1));
     }
 
     @Test
     void fusedFloat16MatchesBaselineWithBroadcastInputs() {
-        GraphOptimizer fuseOnly = new GraphOptimizer();
-        fuseOnly.addRule(new FuseElementWiseRule());
-
         Tensor aBase = new Tensor(new double[]{
                 1, 2, 3, 4,
                 5, 6, 7, 8
@@ -126,7 +116,8 @@ public class FusedExecutionModesTest {
         }, new int[]{2, 3, 4}, null, "cBase", DataType.FLOAT64);
 
         Tensor baseline = aBase.add(bBase).mul(cBase).add(aBase).sigmoid();
-        TestGraphSupport.execute(baseline, new GraphOptimizer(), runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(aBase.toDoubleArrayCopy(), new int[]{2, 1, 4}, null, "a", DataType.FLOAT64);
@@ -137,16 +128,14 @@ public class FusedExecutionModesTest {
         c.setDataType(DataType.FLOAT16);
 
         Tensor out = a.add(b).mul(c).add(a).sigmoid();
-        TestGraphSupport.execute(out, fuseOnly, runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 
     @Test
     void fusedFloat16MatchesBaselineWithNonContiguousInputs() {
-        GraphOptimizer fuseOnly = new GraphOptimizer();
-        fuseOnly.addRule(new FuseElementWiseRule());
-
         Tensor aBase = new Tensor(
                 new double[]{1, 2, 3, 4, 5, 6},
                 new int[]{2, 3},
@@ -164,7 +153,8 @@ public class FusedExecutionModesTest {
                 DataType.FLOAT64
         );
         Tensor baseline = aBase.add(bBase).mul(aBase).sigmoid();
-        TestGraphSupport.execute(baseline, new GraphOptimizer(), runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
         double[] expected = baseline.toDoubleArrayCopy().clone();
 
         Tensor a = new Tensor(
@@ -187,7 +177,8 @@ public class FusedExecutionModesTest {
         b.setDataType(DataType.FLOAT16);
 
         Tensor out = a.add(b).mul(a).sigmoid();
-        TestGraphSupport.execute(out, fuseOnly, runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
 
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
@@ -197,7 +188,6 @@ public class FusedExecutionModesTest {
             double[] aVals,
             double[] bVals,
             double[] cVals,
-            GraphOptimizer fuseOnly,
             CpuKernelConfig config
     ) {
         Tensor a = new Tensor(aVals.clone(), new int[]{aVals.length}, null, "a", DataType.FLOAT64);
@@ -205,7 +195,8 @@ public class FusedExecutionModesTest {
         Tensor c = new Tensor(cVals.clone(), new int[]{cVals.length}, null, "c", DataType.FLOAT64);
 
         Tensor out = a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
-        CompiledGraph compiledGraph = TestGraphSupport.execute(out, fuseOnly, runtimeConfig(config), ExecutionMode.FORWARD);
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(config), ExecutionMode.FORWARD);
 
         boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
                 .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
@@ -223,7 +214,6 @@ public class FusedExecutionModesTest {
 
     private static void assertBroadcastModeMatches(
             double[] expected,
-            GraphOptimizer fuseOnly,
             CpuKernelConfig config
     ) {
         Tensor a = new Tensor(new double[]{
@@ -245,7 +235,7 @@ public class FusedExecutionModesTest {
         }, new int[]{2, 3, 4}, null, "c", DataType.FLOAT64);
 
         Tensor out = a.add(b).mul(c).add(a).sigmoid();
-        TestGraphSupport.execute(out, fuseOnly, runtimeConfig(config), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, fuseOnlyInferenceConfig()).execute(runtimeConfig(config), ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
     }
 
@@ -253,8 +243,7 @@ public class FusedExecutionModesTest {
             double[] aVals,
             double[] bVals,
             double[] cVals,
-            DataType dataType,
-            GraphOptimizer fuseOnly
+            DataType dataType
     ) {
         Tensor a = new Tensor(aVals.clone(), new int[]{aVals.length}, null, "aTyped");
         Tensor b = new Tensor(bVals.clone(), new int[]{bVals.length}, null, "bTyped");
@@ -264,7 +253,8 @@ public class FusedExecutionModesTest {
         c.setDataType(dataType);
 
         Tensor out = a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
-        TestGraphSupport.execute(out, fuseOnly, runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, fuseOnlyInferenceConfig())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
         return out.toDoubleArrayCopy().clone();
     }
 
@@ -284,5 +274,9 @@ public class FusedExecutionModesTest {
 
     private static RuntimeConfig runtimeConfig(CpuKernelConfig cpuKernelConfig) {
         return new RuntimeConfig(cpuKernelConfig, config.runtime.ApproximationConfig.defaults(), config.runtime.BlasConfig.disabled());
+    }
+
+    private static OptimizerConfig fuseOnlyInferenceConfig() {
+        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.FUSE));
     }
 }

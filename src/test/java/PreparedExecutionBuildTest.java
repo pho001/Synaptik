@@ -1,8 +1,8 @@
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
-import graph.optimizer.GraphOptimizer;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -20,7 +20,7 @@ public class PreparedExecutionBuildTest {
         Tensor out = a.add(b).mul(a).sigmoid();
 
         RuntimeConfig runtimeConfig = RuntimeConfig.inferenceDefaults();
-        CompiledGraph compiledGraph = CompiledGraph.compile(out, new GraphOptimizer());
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
         PreparedExecution execution = compiledGraph.prepare(runtimeConfig);
 
         assertNotNull(execution);

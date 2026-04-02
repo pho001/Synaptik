@@ -1,5 +1,10 @@
-import graph.optimizer.GraphOptimizer;
-import graph.optimizer.OptimizerFactory;
+import backend.runtime.ExecutionMode;
+import config.optimizer.CseConfig;
+import config.optimizer.FuseConfig;
+import config.optimizer.OptimizerConfig;
+import config.optimizer.OptimizerStage;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -14,14 +19,9 @@ public class GradientEngineRegressionTest {
 
     @Test
     public void testScalarSequenceForwardAndGradientsNoOptVsOpt() {
-        RunResult noOpt = runSequence(false, null);
+        RunResult noOpt = runSequence(OptimizerConfig.trainingDefaults());
 
-        GraphOptimizer optimizer = new GraphOptimizer();
-        optimizer.addRule(OptimizerFactory.addAlgebraicRewritingRule());
-        optimizer.addRule(OptimizerFactory.addCommonSubexpressionEliminationRule());
-        optimizer.addRule(OptimizerFactory.addFuseElementWise());
-        optimizer.addRule(OptimizerFactory.addMemoryOptimizerRule());
-        RunResult opt = runSequence(true, optimizer);
+        RunResult opt = runSequence(optimizedTrainingConfig());
 
         assertEquals(64.0, noOpt.te7, SCALAR_EPS);
         assertEquals(-12.8, noOpt.gradA, SCALAR_EPS);
@@ -45,14 +45,9 @@ public class GradientEngineRegressionTest {
             cData[i] = 0.2 + i * 0.01;
         }
 
-        RunResultVec noOpt = runSequenceVec(aData, bData, cData, false, null);
+        RunResultVec noOpt = runSequenceVec(aData, bData, cData, OptimizerConfig.trainingDefaults());
 
-        GraphOptimizer optimizer = new GraphOptimizer();
-        optimizer.addRule(OptimizerFactory.addAlgebraicRewritingRule());
-        optimizer.addRule(OptimizerFactory.addCommonSubexpressionEliminationRule());
-        optimizer.addRule(OptimizerFactory.addFuseElementWise());
-        optimizer.addRule(OptimizerFactory.addMemoryOptimizerRule());
-        RunResultVec opt = runSequenceVec(aData, bData, cData, true, optimizer);
+        RunResultVec opt = runSequenceVec(aData, bData, cData, optimizedTrainingConfig());
 
         assertArrayEquals(noOpt.te7, opt.te7, VECTOR_EPS);
         assertArrayEquals(noOpt.gradA, opt.gradA, VECTOR_EPS);
@@ -60,7 +55,7 @@ public class GradientEngineRegressionTest {
         assertArrayEquals(noOpt.gradC, opt.gradC, VECTOR_EPS);
     }
 
-    private static RunResult runSequence(boolean withOptimizer, GraphOptimizer optimizer) {
+    private static RunResult runSequence(OptimizerConfig optimizerConfig) {
         Tensor A = Tensor.scalar(10.0);
         Tensor B = Tensor.scalar(2.0);
         Tensor C = Tensor.scalar(5.0);
@@ -73,11 +68,7 @@ public class GradientEngineRegressionTest {
 
         Tensor Te7 = buildSequence(A, B, C);
 
-        if (withOptimizer) {
-            TestGraphSupport.execute(Te7, optimizer, config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
-        } else {
-            Te7.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
-        }
+        CompiledGraph.compile(Te7, optimizerConfig).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         return new RunResult(
                 Te7.toDoubleArrayCopy()[0],
@@ -87,7 +78,7 @@ public class GradientEngineRegressionTest {
         );
     }
 
-    private static RunResultVec runSequenceVec(double[] aData, double[] bData, double[] cData, boolean withOptimizer, GraphOptimizer optimizer) {
+    private static RunResultVec runSequenceVec(double[] aData, double[] bData, double[] cData, OptimizerConfig optimizerConfig) {
         Tensor A = new Tensor(aData.clone(), new int[]{aData.length}, null, "A", DataType.FLOAT64);
         Tensor B = new Tensor(bData.clone(), new int[]{bData.length}, null, "B", DataType.FLOAT64);
         Tensor C = new Tensor(cData.clone(), new int[]{cData.length}, null, "C", DataType.FLOAT64);
@@ -97,11 +88,7 @@ public class GradientEngineRegressionTest {
 
         Tensor Te7 = buildSequence(A, B, C);
 
-        if (withOptimizer) {
-            TestGraphSupport.execute(Te7, optimizer, config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
-        } else {
-            Te7.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
-        }
+        CompiledGraph.compile(Te7, optimizerConfig).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         return new RunResultVec(
                 Te7.toDoubleArrayCopy().clone(),
@@ -124,4 +111,12 @@ public class GradientEngineRegressionTest {
     private record RunResult(double te7, double gradA, double gradB, double gradC) {}
 
     private record RunResultVec(double[] te7, double[] gradA, double[] gradB, double[] gradC) {}
+
+    private static OptimizerConfig optimizedTrainingConfig() {
+        return new OptimizerConfig(
+                java.util.List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
+                CseConfig.strictDefaults(),
+                FuseConfig.trainingDefaults()
+        );
+    }
 }

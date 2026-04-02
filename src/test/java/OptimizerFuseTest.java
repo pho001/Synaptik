@@ -1,5 +1,5 @@
-import graph.optimizer.GraphOptimizer;
-import graph.optimizer.rules.FuseElementWiseRule;
+import config.optimizer.OptimizerConfig;
+import config.optimizer.OptimizerStage;
 import graph.CompiledGraph;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,8 @@ public class OptimizerFuseTest {
         b0.setRequiresGrad(true);
        c0.setRequiresGrad(true);
         Tensor e0 = a0.add(b0).add(c0);
-        CompiledGraph baselineGraph = TestGraphSupport.execute(e0, new GraphOptimizer());
+        CompiledGraph baselineGraph = CompiledGraph.compile(e0, OptimizerConfig.noOptimization());
+        baselineGraph.execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
         int baselineGraphSize = baselineGraph.getCompiledGraphAsList().size();
 
         Tensor a = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "a");
@@ -31,15 +32,8 @@ public class OptimizerFuseTest {
         Tensor d = a.add(b);
         Tensor e = d.add(c);
 
-        GraphOptimizer optimizer = new GraphOptimizer();
-        optimizer.addRule(new FuseElementWiseRule());
-
-        CompiledGraph compiledGraph = TestGraphSupport.execute(
-                e,
-                optimizer,
-                config.runtime.RuntimeConfig.inferenceDefaults(),
-                backend.runtime.ExecutionMode.FORWARD
-        );
+        CompiledGraph compiledGraph = CompiledGraph.compile(e, fuseOnlyInferenceConfig());
+        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{9.0, 12.0}, e.toDoubleArrayCopy(), 1e-9);
 
@@ -48,15 +42,14 @@ public class OptimizerFuseTest {
         assertTrue(fusedGraphSize < baselineGraphSize,
                 "Compiled graph should be smaller after fusion optimization");
 
-        compiledGraph = TestGraphSupport.execute(
-                e,
-                optimizer,
-                config.runtime.RuntimeConfig.trainingDefaults(),
-                backend.runtime.ExecutionMode.FORWARD_BACKWARD
-        );
+        compiledGraph.execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 1.0}, c.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    private static OptimizerConfig fuseOnlyInferenceConfig() {
+        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.FUSE));
     }
 }

@@ -28,6 +28,7 @@ import benchmark.autotune.NumericsPostcheckConfig;
 import benchmark.autotune.NumericsPostcheckResult;
 import benchmark.autotune.NumericsPostcheckRunner;
 import benchmark.autotune.Phase1Counters;
+import graph.CompiledGraph;
 import benchmark.autotune.Phase1CandidateEvaluator;
 import benchmark.autotune.Phase1CandidateResult;
 import benchmark.autotune.Phase1Step;
@@ -297,8 +298,8 @@ public final class OptimizerBenchmarkFramework {
         PreparedBenchmarkScenario noOptTrain = newBenchState(baseA, baseB, baseC, noOptCandidate, true, BENCH_GRAPH_BLOCKS);
         PreparedBenchmarkScenario optTrain = newBenchState(baseA, baseB, baseC, recommended, true, BENCH_GRAPH_BLOCKS);
 
-        int compiledNoOpt = noOptTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
-        int compiledOpt = optTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
+        int compiledNoOpt = noOptTrain.compiledGraph().getCompiledGraphAsList().size();
+        int compiledOpt = optTrain.compiledGraph().getCompiledGraphAsList().size();
 
         for (int i = 0; i < WARMUP_ITERS; i++) {
             noOptForward.compute();
@@ -478,7 +479,7 @@ public final class OptimizerBenchmarkFramework {
         for (int idx = 0; idx < stages.size(); idx++) {
             OptimizerCandidate stage = stages.get(idx);
             PreparedBenchmarkScenario stateForward = newBenchState(baseA, baseB, baseC, stage, false, BENCH_GRAPH_BLOCKS);
-            int graphSize = stateForward.ta7.getCompiledGraph().getCompiledGraphAsList().size();
+            int graphSize = stateForward.compiledGraph().getCompiledGraphAsList().size();
 
             for (int i = 0; i < STAGE_WARMUP_ITERS; i++) stateForward.compute();
             long t0 = System.nanoTime();
@@ -487,7 +488,7 @@ public final class OptimizerBenchmarkFramework {
             double forwardMs = (t1 - t0) / 1_000_000.0 / STAGE_MEASURE_ITERS;
 
             PreparedBenchmarkScenario stateTrain = newBenchState(baseA, baseB, baseC, stage, true, BENCH_GRAPH_BLOCKS);
-            int trainingGraphSize = stateTrain.ta7.getCompiledGraph().getCompiledGraphAsList().size();
+            int trainingGraphSize = stateTrain.compiledGraph().getCompiledGraphAsList().size();
             for (int i = 0; i < STAGE_WARMUP_ITERS; i++) stateTrain.compute();
             long t2 = System.nanoTime();
             for (int i = 0; i < STAGE_MEASURE_ITERS; i++) stateTrain.compute();
@@ -1384,7 +1385,7 @@ public final class OptimizerBenchmarkFramework {
         return new MeasuredBenchmarkScenario() {
             @Override
             public int graphSize() {
-                return scenario.ta7.getCompiledGraph().getCompiledGraphAsList().size();
+                return scenario.compiledGraph().getCompiledGraphAsList().size();
             }
 
             @Override
@@ -1577,7 +1578,8 @@ public final class OptimizerBenchmarkFramework {
         B0.setRequiresGrad(true);
         C0.setRequiresGrad(true);
         Tensor Te7No = buildTa7(A0, B0, C0);
-        Te7No.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(Te7No, config.optimizer.OptimizerConfig.noOptimization())
+                .execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         Tensor A1 = Tensor.scalar(10.0, BENCH_DTYPE);
         Tensor B1 = Tensor.scalar(2.0, BENCH_DTYPE);
@@ -1586,7 +1588,8 @@ public final class OptimizerBenchmarkFramework {
         B1.setRequiresGrad(true);
         C1.setRequiresGrad(true);
         Tensor Te7Opt = buildTa7(A1, B1, C1);
-        Te7Opt.compute(optimizer, config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph.compile(Te7Opt, optimizer)
+                .execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         double expectedTe7 = 64.0;
         double expectedGradA = -12.8;

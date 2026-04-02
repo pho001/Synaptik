@@ -1,7 +1,8 @@
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
-import graph.optimizer.GraphOptimizer;
+import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -20,7 +21,7 @@ public class NonContiguousExecutionTest {
         Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig", DataType.FLOAT64);
 
         Tensor c = a.add(b);
-        TestGraphSupport.execute(c, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(c, OptimizerConfig.noOptimization()).execute(runtimeConfig, ExecutionMode.FORWARD);
 
         double[] expected = add(remapToContiguous(a), b.toDoubleArrayCopy());
         assertArrayEquals(expected, c.toDoubleArrayCopy(), EPS);
@@ -35,7 +36,7 @@ public class NonContiguousExecutionTest {
         Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig", DataType.FLOAT64);
 
         Tensor c = a.add(b);
-        TestGraphSupport.execute(c, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(c, OptimizerConfig.noOptimization()).execute(runtimeConfig, ExecutionMode.FORWARD);
 
         double[] expected = add(remapToContiguous(a), b.toDoubleArrayCopy());
         assertArrayEquals(expected, c.toDoubleArrayCopy(), EPS);
@@ -47,12 +48,12 @@ public class NonContiguousExecutionTest {
 
         RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 100));
         Tensor s = a.log();
-        TestGraphSupport.execute(s, new GraphOptimizer(), stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(s, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
         double[] strided = s.toDoubleArrayCopy().clone();
 
         RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 0));
         Tensor m = a.log();
-        TestGraphSupport.execute(m, new GraphOptimizer(), materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(m, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
         double[] materialized = m.toDoubleArrayCopy().clone();
 
         assertArrayEquals(strided, materialized, EPS);
@@ -66,10 +67,10 @@ public class NonContiguousExecutionTest {
         Tensor b = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "b_broadcast", DataType.FLOAT64);
 
         Tensor c = a.add(b);
-        TestGraphSupport.execute(c, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(c, OptimizerConfig.noOptimization()).execute(runtimeConfig, ExecutionMode.FORWARD);
 
         Tensor ref = a.contiguous().add(b);
-        TestGraphSupport.execute(ref, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(ref, OptimizerConfig.noOptimization()).execute(runtimeConfig, ExecutionMode.FORWARD);
         assertArrayEquals(ref.toDoubleArrayCopy(), c.toDoubleArrayCopy(), EPS);
     }
 

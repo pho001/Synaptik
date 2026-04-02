@@ -7,6 +7,7 @@ import benchmark.BlasPolicyConfigurer;
 import benchmark.OptimizerBuilder;
 import benchmark.OptimizerCandidate;
 import benchmark.TuningKnobs;
+import graph.CompiledGraph;
 import benchmark.scenario.BenchmarkGraphRecipes;
 import benchmark.scenario.BenchmarkScenarioFactory;
 import benchmark.scenario.LinearGraphShape;
@@ -87,9 +88,9 @@ public class BenchmarkScenarioFactoryTest {
 
         Tensor out = BenchmarkGraphRecipes.buildOptimizerBenchmarkGraph(A, B, C, linearIn, w1, b1, w2, b2, w3, b3, graphBlocks);
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
-        out.prepareCompiledGraph(optimizer);
-        out.compute(optimizer, runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
-        out.compute(optimizer, runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, optimizer);
+        compiledGraph.execute(runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
+        compiledGraph.execute(runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
 
         return new RunResult(
                 out.toDoubleArrayCopy().clone(),
@@ -116,8 +117,7 @@ public class BenchmarkScenarioFactoryTest {
         Tensor C = ScenarioTensorFactory.shapedTensor("BC", baseC, false, DataType.FLOAT64, new int[]{b0, b1, f});
         Tensor out = BenchmarkGraphRecipes.buildBroadcastGraph(A, B, C);
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
-        out.prepareCompiledGraph(optimizer);
-        out.compute(optimizer, runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, optimizer).execute(runtimeConfig, ExecutionMode.FORWARD);
         return out.toDoubleArrayCopy().clone();
     }
 

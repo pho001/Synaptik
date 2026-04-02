@@ -122,6 +122,9 @@ Default presets:
 
 `OptimizerFactory` converts these config objects into concrete `GraphOptimizer` instances.
 
+For public graph compilation, `OptimizerConfig` is the intended API surface.
+`GraphOptimizer` is a lower-level pipeline object used internally by optimizer/benchmark tooling, not the preferred public compile contract.
+
 ## Benchmark / Autotune Integration
 
 The benchmark layer still owns persisted winning profiles and tuning history.

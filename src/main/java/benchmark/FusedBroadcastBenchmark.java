@@ -5,6 +5,7 @@ import config.runtime.BlasConfig;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
+import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rules.FuseElementWiseRule;
 import tensor.DataType;
@@ -103,7 +104,7 @@ public final class FusedBroadcastBenchmark {
         Tensor b = new Tensor(bVals.clone(), new int[]{1, 8, 256}, null, "b", DataType.FLOAT64);
         Tensor c = new Tensor(cVals.clone(), new int[]{256, 8, 256}, null, "c", DataType.FLOAT64);
         Tensor out = a.add(b).mul(c).add(a).sigmoid();
-        out.compute(optimizer, runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(out, optimizer).execute(runtimeConfig, ExecutionMode.FORWARD);
         return out.toDoubleArrayCopy();
     }
 

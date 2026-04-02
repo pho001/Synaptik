@@ -1,3 +1,7 @@
+import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -10,7 +14,8 @@ public class FastTanhTest {
     void fastTanhForwardIsCloseToTanh() {
         Tensor a = new Tensor(new double[]{-5.0, -2.0, -1.0, 0.0, 1.0, 2.0, 5.0}, new int[]{7}, null, "a", DataType.FLOAT64);
         Tensor y = a.fastTanh();
-        y.compute();
+        CompiledGraph.compile(y, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         double[] x = a.toDoubleArrayCopy();
         double[] actual = y.toDoubleArrayCopy();
@@ -26,11 +31,12 @@ public class FastTanhTest {
         Tensor a = new Tensor(new double[]{-2.0, -0.5, 0.0, 0.5, 2.0}, new int[]{5}, null, "a", DataType.FLOAT64);
         a.setRequiresGrad(true);
         Tensor y = a.fastTanh();
+        CompiledGraph graph = CompiledGraph.compile(y, OptimizerConfig.trainingDefaults());
 
-        y.compute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         double[] forward = y.toDoubleArrayCopy();
 
-        y.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         double[] grad = a.getGradient().toDoubleArrayCopy();
 
         for (int i = 0; i < grad.length; i++) {

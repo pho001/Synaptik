@@ -1,6 +1,6 @@
 import graph.CompiledGraph;
-import graph.optimizer.GraphOptimizer;
-import graph.optimizer.rules.AlgebraicRewritingRule;
+import config.optimizer.OptimizerConfig;
+import config.optimizer.OptimizerStage;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -15,13 +15,13 @@ public class AlgebraicRewritingSigmoidTest {
     void rewritesCanonicalSigmoidNegFormInInference() {
         Tensor baselineInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         Tensor baselineOutput = baselineInput.neg().exp().add(Tensor.scalar(1.0)).inv();
-        TestGraphSupport.execute(baselineOutput, new GraphOptimizer());
+        CompiledGraph.compile(baselineOutput, OptimizerConfig.noOptimization())
+                .execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         Tensor optimizedOutput = optimizedInput.neg().exp().add(Tensor.scalar(1.0)).inv();
-        GraphOptimizer optimizer = new GraphOptimizer();
-        optimizer.addRule(new AlgebraicRewritingRule());
-        CompiledGraph compiledGraph = TestGraphSupport.execute(optimizedOutput, optimizer);
+        CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOutput, arOnlyInferenceConfig());
+        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         assertTrue(containsSigmoid(compiledGraph),
                 "Algebraic rewriting should replace canonical sigmoid form in inference");
@@ -32,13 +32,13 @@ public class AlgebraicRewritingSigmoidTest {
     void rewritesCanonicalSigmoidMulScalarFormInInference() {
         Tensor baselineInput = new Tensor(new double[]{1.3}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         Tensor baselineOutput = baselineInput.mul(-1.0).exp().add(Tensor.scalar(1.0)).inv();
-        TestGraphSupport.execute(baselineOutput, new GraphOptimizer());
+        CompiledGraph.compile(baselineOutput, OptimizerConfig.noOptimization())
+                .execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{1.3}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         Tensor optimizedOutput = optimizedInput.mul(-1.0).exp().add(Tensor.scalar(1.0)).inv();
-        GraphOptimizer optimizer = new GraphOptimizer();
-        optimizer.addRule(new AlgebraicRewritingRule());
-        CompiledGraph compiledGraph = TestGraphSupport.execute(optimizedOutput, optimizer);
+        CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOutput, arOnlyInferenceConfig());
+        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 
         assertTrue(containsSigmoid(compiledGraph),
                 "Algebraic rewriting should rewrite mulScalar(-1) sigmoid form in inference");
@@ -50,14 +50,14 @@ public class AlgebraicRewritingSigmoidTest {
         Tensor baselineInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         baselineInput.setRequiresGrad(true);
         Tensor baselineOutput = baselineInput.neg().exp().add(Tensor.scalar(1.0)).inv();
-        TestGraphSupport.execute(baselineOutput, new GraphOptimizer());
+        CompiledGraph.compile(baselineOutput, OptimizerConfig.noOptimization())
+                .execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         Tensor optimizedInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
         optimizedInput.setRequiresGrad(true);
         Tensor optimizedOutput = optimizedInput.neg().exp().add(Tensor.scalar(1.0)).inv();
-        GraphOptimizer optimizer = new GraphOptimizer();
-        optimizer.addRule(new AlgebraicRewritingRule());
-        CompiledGraph compiledGraph = TestGraphSupport.execute(optimizedOutput, optimizer);
+        CompiledGraph compiledGraph = CompiledGraph.compile(optimizedOutput, arOnlyInferenceConfig());
+        compiledGraph.execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
         assertTrue(!containsSigmoid(compiledGraph),
                 "Sigmoid rewrite should be skipped when gradients are required");
@@ -71,5 +71,9 @@ public class AlgebraicRewritingSigmoidTest {
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.SIGMOID);
+    }
+
+    private static OptimizerConfig arOnlyInferenceConfig() {
+        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.AR));
     }
 }

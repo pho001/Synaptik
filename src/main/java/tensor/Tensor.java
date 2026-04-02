@@ -6,12 +6,8 @@ import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.ResolvedBroadcastPlan;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
-import graph.optimizer.GraphOptimizer;
-import graph.optimizer.OptimizerFactory;
 import backend.runtime.ExecutionMode;
-import config.runtime.RuntimeConfig;
 import config.profile.ExecutionProfile;
-import config.optimizer.OptimizerConfig;
 import operations.*;
 
 import java.lang.reflect.Array;
@@ -19,16 +15,13 @@ import java.util.*;
 
 
 public class Tensor {
+    public static final String SYSTEM_FORWARD_OUTPUT_LABEL = "System_Forward_Output";
     private TensorStorage storage;
     private TensorMetadata metadata;
     private Runnable localgradients;
     public Tensor gradient;
     private Operation operation;
     private List<Tensor> prevTensors=new ArrayList<>();
-    private CompiledGraph compiledGraph;
-    private GraphOptimizer compiledWithOptimizer;
-    private OptimizerConfig compiledWithOptimizerConfig;
-    private PreparedExecution lastPreparedExecution;
     private ComputeBackend forcedBackend = null;
     private double [] intermediates;
     private Runnable backwardFunction;
@@ -471,17 +464,6 @@ public class Tensor {
         this.gradient=t;
     }
 
-    public CompiledGraph getCompiledGraph() {
-        return compiledGraph;
-    }
-
-    public void resetCompiledGraph() {
-        this.compiledGraph = null;
-        this.compiledWithOptimizer = null;
-        this.compiledWithOptimizerConfig = null;
-        this.lastPreparedExecution = null;
-    }
-
 
 
     public List<Tensor> topologicalSort() {
@@ -509,97 +491,11 @@ public class Tensor {
         }
     }
 
-    @Deprecated(forRemoval = true)
-    public void compute(GraphOptimizer optimizer) {
-        compute(optimizer, (RuntimeConfig) null);
-    }
-
-    @Deprecated(forRemoval = true)
-    public void prepareCompiledGraph(GraphOptimizer optimizer) {
-        compile(optimizer);
-    }
-
-
-    @Deprecated(forRemoval = true)
-    public void compute(){
-
-        compute((GraphOptimizer) null, (RuntimeConfig) null);
-    }
-
-
-    public void backward(){
-
-        if (lastPreparedExecution == null){
-            throw new RuntimeException("Can not compute gradients, forward pass must be done first");
-        }
-        lastPreparedExecution.backward();
-    }
-
-    @Deprecated(forRemoval = true)
-    public CompiledGraph compile(GraphOptimizer optimizer) {
-        if (optimizer == null) {
-            throw new IllegalArgumentException("optimizer cannot be null");
-        }
-        if (compiledGraph == null || compiledWithOptimizer != optimizer) {
-            compiledGraph = CompiledGraph.compile(this, optimizer);
-            compiledWithOptimizer = optimizer;
-            compiledWithOptimizerConfig = null;
-        }
-        return compiledGraph;
-    }
-
-    @Deprecated(forRemoval = true)
-    public CompiledGraph compile(config.optimizer.OptimizerConfig optimizerConfig) {
-        if (optimizerConfig == null) {
-            throw new IllegalArgumentException("optimizerConfig cannot be null");
-        }
-        if (compiledGraph == null || !optimizerConfig.equals(compiledWithOptimizerConfig)) {
-            compiledGraph = CompiledGraph.compile(this, optimizerConfig);
-            compiledWithOptimizer = null;
-            compiledWithOptimizerConfig = optimizerConfig;
-        }
-        return compiledGraph;
-    }
-
-    @Deprecated(forRemoval = true)
-    public PreparedExecution prepare(GraphOptimizer optimizer, RuntimeConfig runtimeConfig) {
-        CompiledGraph graph = compile(optimizer);
-        PreparedExecution execution = graph.prepare(runtimeConfig);
-        this.lastPreparedExecution = execution;
-        return execution;
-    }
-
-    public PreparedExecution prepare(RuntimeConfig runtimeConfig) {
-        return prepare(defaultOptimizerConfigForPrepare(), runtimeConfig);
-    }
-
     public PreparedExecution prepare(ExecutionProfile profile) {
         if (profile == null) {
             throw new IllegalArgumentException("profile cannot be null");
         }
-        CompiledGraph graph = compile(profile.optimizer());
-        PreparedExecution execution = graph.prepare(profile.runtime());
-        rememberExecution(graph, execution, profile.optimizer());
-        return execution;
-    }
-
-    @Deprecated(forRemoval = true)
-    public void compute(GraphOptimizer optimizer, RuntimeConfig runtimeConfig, ExecutionMode mode) {
-        PreparedExecution execution = prepare(optimizer, runtimeConfig);
-        compute(execution, mode);
-    }
-
-    public void compute(RuntimeConfig runtimeConfig, ExecutionMode mode) {
-        compute(prepare(runtimeConfig), mode);
-    }
-
-    @Deprecated(forRemoval = true)
-    public void compute(GraphOptimizer optimizer, RuntimeConfig runtimeConfig) {
-        GraphOptimizer effectiveOptimizer = optimizer == null ? OptimizerFactory.createTrainingOptimizer() : optimizer;
-        ExecutionMode mode = compile(effectiveOptimizer).supportsBackward()
-                ? ExecutionMode.FORWARD_BACKWARD
-                : ExecutionMode.FORWARD;
-        compute(effectiveOptimizer, runtimeConfig, mode);
+        return CompiledGraph.compile(this, profile.optimizer()).prepare(profile.runtime());
     }
 
     public void compute(ExecutionProfile profile) {
@@ -613,35 +509,7 @@ public class Tensor {
         if (execution == null) {
             throw new IllegalArgumentException("execution cannot be null");
         }
-        this.lastPreparedExecution = execution;
         execution.execute(mode);
-    }
-
-    private PreparedExecution prepare(OptimizerConfig optimizerConfig, RuntimeConfig runtimeConfig) {
-        CompiledGraph graph = compile(optimizerConfig);
-        PreparedExecution execution = graph.prepare(runtimeConfig);
-        rememberExecution(graph, execution, optimizerConfig);
-        return execution;
-    }
-
-    private void rememberExecution(CompiledGraph graph, PreparedExecution execution, OptimizerConfig optimizerConfig) {
-        this.compiledGraph = graph;
-        this.compiledWithOptimizer = null;
-        this.compiledWithOptimizerConfig = optimizerConfig;
-        this.lastPreparedExecution = execution;
-    }
-
-    private OptimizerConfig defaultOptimizerConfigForPrepare() {
-        return hasTrainableLeafInputs() ? OptimizerConfig.trainingDefaults() : OptimizerConfig.inferenceDefaults();
-    }
-
-    private boolean hasTrainableLeafInputs() {
-        for (Tensor tensor : topologicalSort()) {
-            if ((tensor.getPrevTensors() == null || tensor.getPrevTensors().isEmpty()) && tensor.getRequiresGrad()) {
-                return true;
-            }
-        }
-        return false;
     }
 
 
@@ -785,7 +653,7 @@ public class Tensor {
 
     public Tensor forwardOutput() {
         Operation op = new noop();
-        Tensor out = new Tensor(this.getShape(), List.of(this), op, "noop", this.getDataType());
+        Tensor out = new Tensor(this.getShape(), List.of(this), op, SYSTEM_FORWARD_OUTPUT_LABEL, this.getDataType());
         return out;
     }
 

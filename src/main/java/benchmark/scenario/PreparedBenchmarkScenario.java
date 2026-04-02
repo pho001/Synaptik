@@ -2,6 +2,7 @@ package benchmark.scenario;
 
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import tensor.Tensor;
 
@@ -10,6 +11,7 @@ public final class PreparedBenchmarkScenario {
     public final Tensor B;
     public final Tensor C;
     public final Tensor ta7;
+    private final CompiledGraph compiledGraph;
     public final GraphOptimizer optimizer;
     private final RuntimeConfig runtimeConfig;
     private ExecutionMode executionMode;
@@ -19,6 +21,7 @@ public final class PreparedBenchmarkScenario {
             Tensor b,
             Tensor c,
             Tensor output,
+            CompiledGraph compiledGraph,
             GraphOptimizer optimizer,
             RuntimeConfig runtimeConfig,
             boolean trainingMode
@@ -27,6 +30,7 @@ public final class PreparedBenchmarkScenario {
         this.B = b;
         this.C = c;
         this.ta7 = output;
+        this.compiledGraph = compiledGraph;
         this.optimizer = optimizer;
         this.runtimeConfig = runtimeConfig;
         this.executionMode = trainingMode ? ExecutionMode.FORWARD_BACKWARD : ExecutionMode.FORWARD;
@@ -52,11 +56,15 @@ public final class PreparedBenchmarkScenario {
         return optimizer;
     }
 
+    public CompiledGraph compiledGraph() {
+        return compiledGraph;
+    }
+
     public void setTrainingMode(boolean trainingMode) {
         this.executionMode = trainingMode ? ExecutionMode.FORWARD_BACKWARD : ExecutionMode.FORWARD;
     }
 
     public void compute() {
-        ta7.compute(optimizer, runtimeConfig, executionMode);
+        compiledGraph.execute(runtimeConfig, executionMode);
     }
 }

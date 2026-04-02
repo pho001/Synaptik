@@ -4,7 +4,9 @@ import operations.Operation;
 import operations.add;
 import operations.div;
 import operations.max;
+import operations.maxGrad;
 import operations.min;
+import operations.minGrad;
 import operations.mul;
 import operations.sub;
 
@@ -105,11 +107,15 @@ final class TensorBinaryOps {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
             if (first.getRequiresGrad()) {
-                Tensor gradForFirst = TensorBroadcastOps.minMaxGradForInput(first, second, outGrad, plan, true, false);
+                Tensor gradRaw = new Tensor(plan.outShape(), List.of(first, second, outGrad), new minGrad(plan, true), "min_grad_a");
+                gradRaw.setDataType(outGrad.getDataType());
+                Tensor gradForFirst = TensorBroadcastOps.sumToShape(gradRaw, first.getShape());
                 accumulateGradient(first, gradForFirst);
             }
             if (second.getRequiresGrad()) {
-                Tensor gradForSecond = TensorBroadcastOps.minMaxGradForInput(first, second, outGrad, plan, false, false);
+                Tensor gradRaw = new Tensor(plan.outShape(), List.of(first, second, outGrad), new minGrad(plan, false), "min_grad_b");
+                gradRaw.setDataType(outGrad.getDataType());
+                Tensor gradForSecond = TensorBroadcastOps.sumToShape(gradRaw, second.getShape());
                 accumulateGradient(second, gradForSecond);
             }
         });
@@ -125,11 +131,15 @@ final class TensorBinaryOps {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
             if (first.getRequiresGrad()) {
-                Tensor gradForFirst = TensorBroadcastOps.minMaxGradForInput(first, second, outGrad, plan, true, true);
+                Tensor gradRaw = new Tensor(plan.outShape(), List.of(first, second, outGrad), new maxGrad(plan, true), "max_grad_a");
+                gradRaw.setDataType(outGrad.getDataType());
+                Tensor gradForFirst = TensorBroadcastOps.sumToShape(gradRaw, first.getShape());
                 accumulateGradient(first, gradForFirst);
             }
             if (second.getRequiresGrad()) {
-                Tensor gradForSecond = TensorBroadcastOps.minMaxGradForInput(first, second, outGrad, plan, false, true);
+                Tensor gradRaw = new Tensor(plan.outShape(), List.of(first, second, outGrad), new maxGrad(plan, false), "max_grad_b");
+                gradRaw.setDataType(outGrad.getDataType());
+                Tensor gradForSecond = TensorBroadcastOps.sumToShape(gradRaw, second.getShape());
                 accumulateGradient(second, gradForSecond);
             }
         });

@@ -1,8 +1,8 @@
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
-import graph.optimizer.GraphOptimizer;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -19,7 +19,7 @@ public class PreparedExecutionTrainingCapabilityTest {
         Tensor b = new Tensor(new double[]{4.0, 5.0, 6.0}, new int[]{3}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b).tanh();
 
-        PreparedExecution execution = CompiledGraph.compile(out, new GraphOptimizer()).prepare(RuntimeConfig.inferenceDefaults());
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).prepare(RuntimeConfig.inferenceDefaults());
         assertThrows(IllegalStateException.class, () -> execution.execute(ExecutionMode.FORWARD_BACKWARD));
     }
 
@@ -32,7 +32,7 @@ public class PreparedExecutionTrainingCapabilityTest {
 
         Tensor out = a.mul(b).add(a);
         RuntimeConfig runtimeConfig = RuntimeConfig.trainingDefaults();
-        PreparedExecution execution = CompiledGraph.compile(out, new GraphOptimizer()).prepare(runtimeConfig);
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).prepare(runtimeConfig);
 
         assertTrue(execution.supportsBackward());
         execution.execute(ExecutionMode.FORWARD_BACKWARD);

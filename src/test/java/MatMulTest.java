@@ -1,7 +1,8 @@
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
-import graph.optimizer.GraphOptimizer;
+import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -18,10 +19,11 @@ public class MatMulTest {
         b.setRequiresGrad(true);
 
         Tensor c = a.matmul(b);
-        TestGraphSupport.execute(c, new GraphOptimizer(), RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph graph = CompiledGraph.compile(c, OptimizerConfig.noOptimization());
+        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{19, 22, 43, 50}, c.toDoubleArrayCopy(), 1e-9);
 
-        TestGraphSupport.execute(c, new GraphOptimizer(), RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        graph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         assertArrayEquals(new double[]{11, 15, 11, 15}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{4, 4, 6, 6}, b.getGradient().toDoubleArrayCopy(), 1e-9);
     }
@@ -37,7 +39,7 @@ public class MatMulTest {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor c = a.matmul(b);
-        TestGraphSupport.execute(c, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(c, OptimizerConfig.noOptimization()).execute(runtimeConfig, ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{58, 64, 139, 154}, c.toDoubleArrayCopy(), 1e-5);
     }

@@ -1,8 +1,9 @@
 import backend.ApproxMode;
-import config.runtime.ApproximationConfig;
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.profile.ExecutionProfile;
+import config.runtime.ApproximationConfig;
 import config.runtime.RuntimeConfig;
-import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -15,11 +16,11 @@ public class ApproxModePolicyTest {
         Tensor x = new Tensor(new double[]{-2.0, -1.0, 0.5, 2.0}, new int[]{4}, null, "x", DataType.FLOAT64);
 
         Tensor exact = x.exp();
-        TestGraphSupport.execute(exact, new GraphOptimizer(), runtimeConfig(ApproxMode.OFF), ExecutionMode.FORWARD);
+        exact.compute(profile(exact, runtimeConfig(ApproxMode.OFF)));
         double[] yExact = exact.toDoubleArrayCopy();
 
         Tensor approx = x.exp();
-        TestGraphSupport.execute(approx, new GraphOptimizer(), runtimeConfig(ApproxMode.ALWAYS), ExecutionMode.FORWARD);
+        approx.compute(profile(approx, runtimeConfig(ApproxMode.ALWAYS)));
         double[] yApprox = approx.toDoubleArrayCopy();
 
         double delta = 0.0;
@@ -34,11 +35,11 @@ public class ApproxModePolicyTest {
         Tensor x = new Tensor(new double[]{-3.0, -1.0, 0.5, 3.0}, new int[]{4}, null, "x", DataType.FLOAT64);
 
         Tensor exact = x.tanh();
-        TestGraphSupport.execute(exact, new GraphOptimizer(), runtimeConfig(ApproxMode.OFF), ExecutionMode.FORWARD);
+        exact.compute(profile(exact, runtimeConfig(ApproxMode.OFF)));
         double[] yExact = exact.toDoubleArrayCopy();
 
         Tensor approx = x.tanh();
-        TestGraphSupport.execute(approx, new GraphOptimizer(), runtimeConfig(ApproxMode.ALWAYS), ExecutionMode.FORWARD);
+        approx.compute(profile(approx, runtimeConfig(ApproxMode.ALWAYS)));
         double[] yApprox = approx.toDoubleArrayCopy();
 
         double delta = 0.0;
@@ -53,6 +54,17 @@ public class ApproxModePolicyTest {
                 config.backend.CpuKernelConfig.defaultsTraining(),
                 new ApproximationConfig(approxMode, false),
                 config.runtime.BlasConfig.disabled()
+        );
+    }
+
+    private static ExecutionProfile profile(Tensor root, RuntimeConfig runtimeConfig) {
+        return new ExecutionProfile(
+                "test",
+                "test",
+                root.getDataType(),
+                ExecutionMode.FORWARD,
+                OptimizerConfig.noOptimization(),
+                runtimeConfig
         );
     }
 }

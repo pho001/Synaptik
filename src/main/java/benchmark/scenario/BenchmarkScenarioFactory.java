@@ -7,6 +7,7 @@ import config.runtime.RuntimeConfig;
 import benchmark.BlasPolicyConfigurer;
 import benchmark.OptimizerBuilder;
 import benchmark.OptimizerCandidate;
+import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
 import tensor.Tensor;
@@ -48,8 +49,8 @@ public final class BenchmarkScenarioFactory {
                 A, B, C, linearIn, w1, b1, w2, b2, w3, b3, graphBlocks
         );
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
-        out.prepareCompiledGraph(optimizer);
-        return new PreparedBenchmarkScenario(A, B, C, out, optimizer, runtimeConfig, requiresGrad);
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, optimizer);
+        return new PreparedBenchmarkScenario(A, B, C, out, compiledGraph, optimizer, runtimeConfig, requiresGrad);
     }
 
     public static PreparedBroadcastScenario createBroadcastScenario(
@@ -75,8 +76,8 @@ public final class BenchmarkScenarioFactory {
 
         Tensor out = BenchmarkGraphRecipes.buildBroadcastGraph(A, B, C);
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
-        out.prepareCompiledGraph(optimizer);
-        return new PreparedBroadcastScenario(out, optimizer, runtimeConfig);
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, optimizer);
+        return new PreparedBroadcastScenario(out, compiledGraph, optimizer, runtimeConfig);
     }
 
     private static RuntimeConfig runtimeConfigFor(OptimizerCandidate candidate) {

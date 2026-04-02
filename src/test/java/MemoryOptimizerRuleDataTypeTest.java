@@ -1,4 +1,8 @@
-import graph.optimizer.GraphOptimizer;
+import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.optimizer.OptimizerStage;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
 import graph.optimizer.rules.MemoryOptimizerRule;
 import tensor.DataType;
 import tensor.Tensor;
@@ -20,11 +24,9 @@ public class MemoryOptimizerRuleDataTypeTest {
         double[] bData = new double[]{1.2, 1.22, 1.24, 1.26, 1.28, 1.30, 1.32, 1.34};
         double[] cData = new double[]{0.2, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26, 0.27};
 
-        RunResult baseline = runSequence(aData, bData, cData, dataType, null);
+        RunResult baseline = runSequence(aData, bData, cData, dataType, OptimizerConfig.trainingDefaults());
 
-        GraphOptimizer withMem = new GraphOptimizer();
-        withMem.addRule(new MemoryOptimizerRule());
-        RunResult mem = runSequence(aData, bData, cData, dataType, withMem);
+        RunResult mem = runSequence(aData, bData, cData, dataType, memOnlyTrainingConfig());
 
         double eps = dataType == DataType.FLOAT32 ? 1e-5 : 1e-9;
         assertArrayEquals(baseline.out, mem.out, eps);
@@ -53,7 +55,7 @@ public class MemoryOptimizerRuleDataTypeTest {
         assertSame(graph, out);
     }
 
-    private static RunResult runSequence(double[] aData, double[] bData, double[] cData, DataType dataType, GraphOptimizer optimizer) {
+    private static RunResult runSequence(double[] aData, double[] bData, double[] cData, DataType dataType, OptimizerConfig optimizerConfig) {
         Tensor A = new Tensor(aData.clone(), new int[]{aData.length}, null, "A", dataType);
         Tensor B = new Tensor(bData.clone(), new int[]{bData.length}, null, "B", dataType);
         Tensor C = new Tensor(cData.clone(), new int[]{cData.length}, null, "C", dataType);
@@ -62,11 +64,7 @@ public class MemoryOptimizerRuleDataTypeTest {
         C.setRequiresGrad(true);
 
         Tensor out = buildSequence(A, B, C);
-        if (optimizer == null) {
-            out.compute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
-        } else {
-            TestGraphSupport.execute(out, optimizer, config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
-        }
+        CompiledGraph.compile(out, optimizerConfig).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         return new RunResult(
                 out.toDoubleArrayCopy().clone(),
@@ -87,4 +85,8 @@ public class MemoryOptimizerRuleDataTypeTest {
     }
 
     private record RunResult(double[] out, double[] gradA, double[] gradB, double[] gradC) {}
+
+    private static OptimizerConfig memOnlyTrainingConfig() {
+        return OptimizerConfig.trainingDefaults().withStageOrder(java.util.List.of(OptimizerStage.MEM));
+    }
 }

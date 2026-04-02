@@ -48,7 +48,10 @@ This layer owns:
 The core public entry points are:
 
 - `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig)`
-- `CompiledGraph.compile(Tensor root, GraphOptimizer optimizer)` (legacy/bridge form)
+
+Internal / lower-level tooling may still construct a `GraphOptimizer` and pass it into package-local compile paths, but the supported public compile contract is config-based:
+
+- `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig)`
 
 ## Runtime Preparation
 

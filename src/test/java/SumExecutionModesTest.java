@@ -1,8 +1,9 @@
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
-import graph.optimizer.GraphOptimizer;
+import graph.CompiledGraph;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +27,7 @@ public class SumExecutionModesTest {
 
         Tensor a = new Tensor(values, new int[]{values.length}, null, "a");
         Tensor s = a.sum();
-        TestGraphSupport.execute(s, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(s, OptimizerConfig.noOptimization()).execute(runtimeConfig, ExecutionMode.FORWARD);
 
         assertEquals(referenceSumContiguous(values), s.toDoubleArrayCopy()[0], EPS);
     }
@@ -47,7 +48,7 @@ public class SumExecutionModesTest {
 
         Tensor a = new Tensor(values, new int[]{rows, cols}, null, "matrix");
         Tensor s = a.sum(1);
-        TestGraphSupport.execute(s, new GraphOptimizer(), runtimeConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(s, OptimizerConfig.noOptimization()).execute(runtimeConfig, ExecutionMode.FORWARD);
 
         double[] expected = new double[rows];
         for (int r = 0; r < rows; r++) {
@@ -70,18 +71,18 @@ public class SumExecutionModesTest {
                 1_024, 100_000, 0, 4, 4_096, 1_000_000_000, SumAccuracyMode.FAST
         ));
         Tensor stridedAll = a.sum();
-        TestGraphSupport.execute(stridedAll, new GraphOptimizer(), stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(stridedAll, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
         Tensor stridedAxis = a.sum(1);
-        TestGraphSupport.execute(stridedAxis, new GraphOptimizer(), stridedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(stridedAxis, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
 
         RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
                 1_024, 100_000, 0, 4, 4_096, 0, SumAccuracyMode.FAST
         ));
         Tensor materializedAll = a.sum();
-        TestGraphSupport.execute(materializedAll, new GraphOptimizer(), materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materializedAll, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
         Tensor materializedAxis = a.sum(1);
-        TestGraphSupport.execute(materializedAxis, new GraphOptimizer(), materializedConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(materializedAxis, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
 
         assertArrayEquals(stridedAll.toDoubleArrayCopy(), materializedAll.toDoubleArrayCopy(), EPS);
         assertArrayEquals(stridedAxis.toDoubleArrayCopy(), materializedAxis.toDoubleArrayCopy(), EPS);
@@ -101,7 +102,7 @@ public class SumExecutionModesTest {
                 1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.FAST
         ));
         Tensor fast = fastTensor.sum();
-        TestGraphSupport.execute(fast, new GraphOptimizer(), fastConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(fast, OptimizerConfig.noOptimization()).execute(fastConfig, ExecutionMode.FORWARD);
 
         Tensor kahanTensor = new Tensor(values.clone(), new int[]{values.length}, null, "kahan");
         RuntimeConfig kahanConfig = runtimeConfig(new CpuKernelConfig(
@@ -109,7 +110,7 @@ public class SumExecutionModesTest {
                 1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.KAHAN
         ));
         Tensor kahan = kahanTensor.sum();
-        TestGraphSupport.execute(kahan, new GraphOptimizer(), kahanConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(kahan, OptimizerConfig.noOptimization()).execute(kahanConfig, ExecutionMode.FORWARD);
 
         Tensor neumaierTensor = new Tensor(values.clone(), new int[]{values.length}, null, "neumaier");
         RuntimeConfig neumaierConfig = runtimeConfig(new CpuKernelConfig(
@@ -117,7 +118,7 @@ public class SumExecutionModesTest {
                 1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.NEUMAIER
         ));
         Tensor neumaier = neumaierTensor.sum();
-        TestGraphSupport.execute(neumaier, new GraphOptimizer(), neumaierConfig, ExecutionMode.FORWARD);
+        CompiledGraph.compile(neumaier, OptimizerConfig.noOptimization()).execute(neumaierConfig, ExecutionMode.FORWARD);
 
         double ref = referenceSumContiguous(values);
         assertEquals(ref, fast.toDoubleArrayCopy()[0], 1e-6);

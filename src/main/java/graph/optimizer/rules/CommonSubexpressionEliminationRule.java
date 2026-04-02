@@ -133,6 +133,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case pow p -> sig.append("_").append(p.getExponent());
             case mulScalar m -> sig.append("_").append(m.getScalar());
             case sum s -> sig.append("_dim=").append(s.getDimension());
+            case minGrad mg -> sig.append("_forFirst=").append(mg.isForFirstInput());
+            case maxGrad mg -> sig.append("_forFirst=").append(mg.isForFirstInput());
             default -> {
 
             }
