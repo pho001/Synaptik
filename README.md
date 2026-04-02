@@ -46,6 +46,7 @@ Alternative main classes can be started from compiled classes, for example:
   - Module documentation: [`src/main/java/tensor/README.md`](src/main/java/tensor/README.md)
 - [`src/main/java/operations/`](src/main/java/operations)
   - Primitive tensor operations such as add, sub, mul, div, pow, exp, log, tanh, relu, sigmoid, contiguous, sum, and newer unary/scalar helpers
+  - Module documentation: [`src/main/java/operations/README.md`](src/main/java/operations/README.md)
 - [`src/main/java/backend/`](src/main/java/backend)
   - Backend execution layer and per-platform dispatch integration
   - Module documentation: [`src/main/java/backend/README.md`](src/main/java/backend/README.md)
@@ -80,6 +81,7 @@ Alternative main classes can be started from compiled classes, for example:
 Detailed per-module docs:
 
 - Tensor: [`src/main/java/tensor/README.md`](src/main/java/tensor/README.md)
+- Operations: [`src/main/java/operations/README.md`](src/main/java/operations/README.md)
 - Backend: [`src/main/java/backend/README.md`](src/main/java/backend/README.md)
 - Graph: [`src/main/java/graph/README.md`](src/main/java/graph/README.md)
 - Optimizer: [`src/main/java/graph/optimizer/README.md`](src/main/java/graph/optimizer/README.md)

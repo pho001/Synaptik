@@ -130,6 +130,70 @@ These methods still exist today, but are transitional and should not be used as 
 - `buildBackwardGraph()`
 - `setBackwardFunction(Runnable backwardFunction)`
 
+## Complete Current Public Tensor Operation Catalog
+
+These are the instance-level graph-building operations currently exposed directly on `Tensor`.
+
+### Layout / Shape
+
+- `contiguous()`
+- `reshape(int... newShape)`
+- `permute(int... axes)`
+- `transpose()`
+- `expandDims(int axis)`
+- `squeeze(int axis)`
+
+### Binary Arithmetic / Comparison
+
+- `add(Tensor second)`
+- `sub(Tensor second)`
+- `mul(Tensor second)`
+- `div(Tensor second)`
+- `min(Tensor second)`
+- `max(Tensor second)`
+- `matmul(Tensor second)`
+
+### Unary / Scalar
+
+- `neg()`
+- `log()`
+- `exp()`
+- `fastExp()`
+- `tanh()`
+- `fastTanh()`
+- `pow(double exponent)`
+- `mul(double scalar)`
+- `inv()`
+- `sqrt()`
+- `sigmoid()`
+
+### Reduction
+
+- `sum(int dimension)`
+- `sum()`
+
+### Helper / Internal Execution Anchor
+
+- `forwardOutput()`
+
+## Descriptor Set vs Public Tensor Surface
+
+The `operations/` package contains more operation descriptors than are currently exposed as direct public `Tensor` instance methods.
+
+Examples:
+
+- `relu`
+- `noop`
+- `batchNorm` wiring exists in `TensorOps`, but there is no direct public `Tensor.batchNorm(...)` method today
+
+So there are three separate questions:
+
+1. does an operation descriptor exist?
+2. does a backend kernel exist?
+3. is the operation exposed as a public `Tensor` method?
+
+This document treats the third point as the source of truth for the user-facing `Tensor` operation surface.
+
 ## Metadata and Layout Accessors
 
 - `getShape()`

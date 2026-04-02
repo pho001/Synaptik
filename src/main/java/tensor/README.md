@@ -34,6 +34,8 @@ It is not the primary owner of explicit compile/runtime artifacts. Those live in
   - [src/main/java/tensor/TensorReduceOps.java](../tensor/TensorReduceOps.java)
   - [src/main/java/tensor/TensorLayoutOps.java](../tensor/TensorLayoutOps.java)
   - [src/main/java/tensor/TensorNaryOps.java](../tensor/TensorNaryOps.java)
+- Operation descriptors and addition guide:
+  - [src/main/java/operations/README.md](../operations/README.md)
 - Layout remap utility:
   - [src/main/java/tensor/TensorRemap.java](../tensor/TensorRemap.java)
 - Storage/type abstractions:
@@ -154,6 +156,8 @@ Important current behavior:
 
 ## Related Modules
 
+- Operation descriptors and "how to add a new operation":
+  - [src/main/java/operations/README.md](../operations/README.md)
 - Graph orchestration:
   - [src/main/java/graph/README.md](../graph/README.md)
 - Backend dispatch:
