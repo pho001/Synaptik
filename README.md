@@ -1,6 +1,6 @@
 # Synaptik
 
-Synaptik is a lightweight Java computational graph and autodiff playground focused on tensor execution, graph optimization, and runtime fusion of element-wise operations. The project combines a tensor runtime, an explicit compiled/prepared execution pipeline, backend-specific kernel dispatch, and generated fused kernels for fast execution experiments.
+Synaptik is an experimental Java tensor and autodiff framework built around explicit compiled-graph execution, optimizer-driven graph rewrites, and prepared runtime kernel dispatch. The project combines a tensor runtime, an explicit compiled/prepared execution pipeline, backend-specific kernel dispatch, and generated fused kernels for fast execution experiments.
 
 ## Highlights
 
