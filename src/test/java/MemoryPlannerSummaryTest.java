@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MemoryPlannerSummaryTest {
@@ -28,9 +29,16 @@ public class MemoryPlannerSummaryTest {
 
         assertTrue(plan.summary().reusableIntervalCount() > 0);
         assertTrue(plan.summary().slotCount() > 0);
-        assertTrue(explain.contains("MemoryPlanSummary"));
-        assertTrue(explain.contains("role="));
-        assertTrue(explain.contains("slot="));
+        assertTrue(plan.summary().peakReusableBytes() > 0);
+        assertTrue(plan.summary().savedForwardCount() > 0);
+        assertTrue(plan.summary().gradientTargetCount() > 0);
+        assertTrue(explain.contains("=== MemoryPlan Summary ==="));
+        assertTrue(explain.contains("peakReusableBytes="));
+        assertTrue(explain.contains("peakSavedForwardBytes="));
+        assertTrue(explain.contains("peakGradientTargetBytes="));
+        assertTrue(explain.contains("=== Slot Assignment ==="));
+        assertTrue(explain.contains("=== Node Assignment ==="));
+        assertTrue(explain.contains("=== Saved Forward Values ==="));
     }
 
     @Test
@@ -45,6 +53,47 @@ public class MemoryPlannerSummaryTest {
 
         assertNotNull(MemoryOptimizerRule.lastPlan());
         assertNotNull(MemoryOptimizerRule.lastSummary());
-        assertTrue(MemoryOptimizerRule.lastExplain().contains("MemoryPlanSummary"));
+        assertTrue(MemoryOptimizerRule.lastExplain().contains("=== MemoryPlan Summary ==="));
+    }
+
+    @Test
+    void largerBufferReusePolicyCanReduceSlotCount() {
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "a");
+        Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{2, 2}, null, "b");
+        Tensor c = new Tensor(new double[]{9, 10}, new int[]{2}, null, "c");
+
+        Tensor t1 = a.add(b);          // size 4
+        Tensor t2 = t1.sum(1, true);   // size 2
+        Tensor out = t2.add(c.reshape(2, 1)); // size 2
+
+        var graph = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).getCompiledGraphAsList();
+        MemoryPlan strict = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
+        MemoryPlan flexible = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, true, 1));
+
+        assertTrue(strict.summary().slotCount() >= flexible.summary().slotCount());
+        assertTrue(strict.summary().reuseCount() <= flexible.summary().reuseCount());
+    }
+
+    @Test
+    void minReusableBufferSizePolicyCanExcludeSmallTemporaries() {
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "a");
+        Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{2, 2}, null, "b");
+
+        Tensor t1 = a.add(b);          // size 4
+        Tensor out = t1.sum(1, true);  // size 2
+
+        var graph = CompiledGraph.compile(out, OptimizerConfig.noOptimization()).getCompiledGraphAsList();
+        MemoryPlan smallAllowed = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 1));
+        MemoryPlan smallExcluded = MemoryPlanner.plan(graph, new MemoryPlannerPolicy(true, false, false, 3));
+
+        assertTrue(smallAllowed.summary().reusableIntervalCount() >= smallExcluded.summary().reusableIntervalCount());
+        assertTrue(smallAllowed.summary().slotCount() >= smallExcluded.summary().slotCount());
+    }
+
+    @Test
+    void memoryRuleUsesInjectedPolicy() {
+        MemoryPlannerPolicy policy = new MemoryPlannerPolicy(true, false, true, 8);
+        MemoryOptimizerRule rule = new MemoryOptimizerRule(policy);
+        assertEquals(policy, rule.policy());
     }
 }

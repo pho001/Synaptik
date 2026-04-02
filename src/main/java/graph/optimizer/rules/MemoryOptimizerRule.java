@@ -5,6 +5,7 @@ import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.MemoryPlanner;
 import graph.optimizer.memory.MemoryRole;
 import graph.optimizer.memory.NodeLifetime;
+import graph.optimizer.memory.MemoryPlannerPolicy;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -17,6 +18,15 @@ public class MemoryOptimizerRule implements OptimizationRule {
     private static final boolean ENABLE_MEMORY_REUSE =
             Boolean.parseBoolean(System.getProperty("cg.optimizer.enableMemoryReuse", "true"));
     private static volatile MemoryPlan lastPlan;
+    private final MemoryPlannerPolicy policy;
+
+    public MemoryOptimizerRule() {
+        this(resolvePolicyFromProperties());
+    }
+
+    public MemoryOptimizerRule(MemoryPlannerPolicy policy) {
+        this.policy = policy == null ? MemoryPlannerPolicy.defaults() : policy;
+    }
 
     @Override
     public List<Tensor> apply(List<Tensor> sortedGraph) {
@@ -29,7 +39,7 @@ public class MemoryOptimizerRule implements OptimizationRule {
             return sortedGraph;
         }
 
-        MemoryPlan plan = MemoryPlanner.plan(sortedGraph);
+        MemoryPlan plan = MemoryPlanner.plan(sortedGraph, policy);
         lastPlan = plan;
         return switch (graphType) {
             case FLOAT64 -> applyFloat64(sortedGraph, plan);
@@ -58,6 +68,10 @@ public class MemoryOptimizerRule implements OptimizationRule {
 
     public static graph.optimizer.memory.MemoryPlanSummary lastSummary() {
         return lastPlan == null ? null : lastPlan.summary();
+    }
+
+    public MemoryPlannerPolicy policy() {
+        return policy;
     }
 
     private List<Tensor> applyFloat64(List<Tensor> sortedGraph, MemoryPlan plan) {
@@ -112,5 +126,26 @@ public class MemoryOptimizerRule implements OptimizationRule {
         }
 
         return sortedGraph;
+    }
+
+    private static MemoryPlannerPolicy resolvePolicyFromProperties() {
+        boolean separatePools = Boolean.parseBoolean(
+                System.getProperty("cg.optimizer.memory.separateForwardBackwardPools", "true")
+        );
+        boolean allowCrossPhaseReuse = Boolean.parseBoolean(
+                System.getProperty("cg.optimizer.memory.allowCrossPhaseReuse", "false")
+        );
+        boolean allowLargerBufferReuse = Boolean.parseBoolean(
+                System.getProperty("cg.optimizer.memory.allowLargerBufferReuse", "false")
+        );
+        int minReusableBufferSize = Integer.parseInt(
+                System.getProperty("cg.optimizer.memory.minReusableBufferSize", "1")
+        );
+        return new MemoryPlannerPolicy(
+                separatePools,
+                allowCrossPhaseReuse,
+                allowLargerBufferReuse,
+                minReusableBufferSize
+        );
     }
 }

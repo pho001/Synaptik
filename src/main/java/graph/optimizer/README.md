@@ -93,15 +93,20 @@ Rules must preserve:
 - planner policy is modeled explicitly through `MemoryPlannerPolicy`
 - planner exposes internal liveness/slot metrics through `MemoryPlanSummary`
 - current debug dumps can explain:
+  - summary metrics
+  - slot assignment
   - role per tensor
   - storage owner
   - birth / last-read interval
-  - slot assignment
+  - saved-forward report
 - current summary metrics include:
   - reusable interval count
   - slot count
   - reuse count
   - peak live bytes
+  - peak reusable bytes
+  - peak saved-forward bytes
+  - peak gradient-target bytes
   - forward/backward peak live bytes
   - saved-forward hold statistics
 

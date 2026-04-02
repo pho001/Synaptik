@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 public final class MemoryPlan {
     private final Map<Tensor, NodeLifetime> lifetimes;
@@ -87,18 +88,61 @@ public final class MemoryPlan {
 
     public String explain() {
         StringBuilder sb = new StringBuilder();
-        sb.append("MemoryPlanSummary{")
-                .append("reusableIntervals=").append(summary.reusableIntervalCount())
-                .append(", slots=").append(summary.slotCount())
-                .append(", reuseCount=").append(summary.reuseCount())
-                .append(", peakLiveBytes=").append(summary.peakLiveBytes())
-                .append(", peakForwardLiveBytes=").append(summary.peakForwardLiveBytes())
-                .append(", peakBackwardLiveBytes=").append(summary.peakBackwardLiveBytes())
-                .append(", savedForwardCount=").append(summary.savedForwardCount())
-                .append(", averageSavedForwardHoldDistance=").append(summary.averageSavedForwardHoldDistance())
-                .append(", policy=").append(policy)
-                .append("}\n");
+        appendSummary(sb);
+        appendSlots(sb);
+        appendNodes(sb);
+        appendSavedForward(sb);
+        return sb.toString();
+    }
 
+    private void appendSummary(StringBuilder sb) {
+        sb.append("=== MemoryPlan Summary ===\n");
+        sb.append("reusableIntervals=").append(summary.reusableIntervalCount()).append('\n');
+        sb.append("slotCount=").append(summary.slotCount()).append('\n');
+        sb.append("reuseCount=").append(summary.reuseCount()).append('\n');
+        sb.append("peakLiveBytes=").append(summary.peakLiveBytes()).append('\n');
+        sb.append("peakReusableBytes=").append(summary.peakReusableBytes()).append('\n');
+        sb.append("peakSavedForwardBytes=").append(summary.peakSavedForwardBytes()).append('\n');
+        sb.append("peakGradientTargetBytes=").append(summary.peakGradientTargetBytes()).append('\n');
+        sb.append("peakForwardLiveBytes=").append(summary.peakForwardLiveBytes()).append('\n');
+        sb.append("peakBackwardLiveBytes=").append(summary.peakBackwardLiveBytes()).append('\n');
+        sb.append("savedForwardCount=").append(summary.savedForwardCount()).append('\n');
+        sb.append("gradientTargetCount=").append(summary.gradientTargetCount()).append('\n');
+        sb.append("averageSavedForwardHoldDistance=").append(summary.averageSavedForwardHoldDistance()).append('\n');
+        sb.append("policy=").append(policy).append("\n\n");
+    }
+
+    private void appendSlots(StringBuilder sb) {
+        sb.append("=== Slot Assignment ===\n");
+        Map<Integer, List<ReusableInterval>> bySlot = new TreeMap<>();
+        for (Map.Entry<Tensor, ReusableInterval> entry : reusableIntervals.entrySet()) {
+            Integer slotId = slotByOwner.get(entry.getKey());
+            if (slotId == null) {
+                continue;
+            }
+            bySlot.computeIfAbsent(slotId, ignored -> new ArrayList<>()).add(entry.getValue());
+        }
+        for (Map.Entry<Integer, List<ReusableInterval>> entry : bySlot.entrySet()) {
+            int slotId = entry.getKey();
+            sb.append("slot ").append(slotId)
+                    .append(" size=").append(slotSizes.get(slotId))
+                    .append('\n');
+            entry.getValue().stream()
+                    .sorted(Comparator.comparingInt(ReusableInterval::birthIndex))
+                    .forEach(interval -> sb.append("  - ")
+                            .append(interval.owner().getLabel())
+                            .append(" role=").append(interval.role())
+                            .append(" [").append(interval.birthIndex()).append(", ").append(interval.lastReadIndex()).append("]")
+                            .append('\n'));
+        }
+        if (bySlot.isEmpty()) {
+            sb.append("(no reusable slots)\n");
+        }
+        sb.append('\n');
+    }
+
+    private void appendNodes(StringBuilder sb) {
+        sb.append("=== Node Assignment ===\n");
         List<Map.Entry<Tensor, NodeLifetime>> entries = new ArrayList<>(lifetimes.entrySet());
         entries.sort(Comparator.comparingInt(e -> e.getValue().birthIndex()));
         for (Map.Entry<Tensor, NodeLifetime> entry : entries) {
@@ -116,6 +160,29 @@ public final class MemoryPlan {
                     .append(", slot=").append(slotId == null ? "-" : slotId)
                     .append("\n");
         }
-        return sb.toString();
+        sb.append('\n');
+    }
+
+    private void appendSavedForward(StringBuilder sb) {
+        sb.append("=== Saved Forward Values ===\n");
+        List<Map.Entry<Tensor, NodeLifetime>> entries = new ArrayList<>(lifetimes.entrySet());
+        entries.sort(Comparator.comparingInt(e -> e.getValue().birthIndex()));
+        boolean any = false;
+        for (Map.Entry<Tensor, NodeLifetime> entry : entries) {
+            Tensor tensor = entry.getKey();
+            NodeLifetime lifetime = entry.getValue();
+            if (lifetime.storageOwner() != tensor || lifetime.role() != MemoryRole.SAVED_FORWARD) {
+                continue;
+            }
+            any = true;
+            sb.append("- ")
+                    .append(tensor.getLabel())
+                    .append(" [").append(lifetime.birthIndex()).append(", ").append(lifetime.lastReadIndex()).append("]")
+                    .append(" slot=").append(slotByOwner.get(tensor))
+                    .append('\n');
+        }
+        if (!any) {
+            sb.append("(none)\n");
+        }
     }
 }

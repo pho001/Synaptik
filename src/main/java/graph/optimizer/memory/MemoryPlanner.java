@@ -26,7 +26,7 @@ public final class MemoryPlanner {
         Objects.requireNonNull(policy, "policy cannot be null");
         if (sortedGraph == null || sortedGraph.isEmpty()) {
             return new MemoryPlan(Map.of(), Map.of(), Map.of(), Map.of(), policy,
-                    new MemoryPlanSummary(0, 0, 0, 0L, 0L, 0L, 0, 0.0));
+                    new MemoryPlanSummary(0, 0, 0, 0L, 0L, 0L, 0L, 0L, 0L, 0, 0, 0.0));
         }
 
         Map<Tensor, Integer> indexByTensor = new IdentityHashMap<>();
@@ -234,6 +234,7 @@ public final class MemoryPlanner {
             int forwardBoundaryIndex
     ) {
         int savedForwardCount = 0;
+        int gradientTargetCount = 0;
         long savedForwardHoldDistanceSum = 0L;
         for (Map.Entry<Tensor, NodeLifetime> entry : lifetimes.entrySet()) {
             if (entry.getValue().storageOwner() != entry.getKey()) {
@@ -243,13 +244,21 @@ public final class MemoryPlanner {
                 savedForwardCount++;
                 savedForwardHoldDistanceSum += (long) entry.getValue().lastReadIndex() - entry.getValue().birthIndex();
             }
+            if (entry.getValue().role() == MemoryRole.GRADIENT_TARGET) {
+                gradientTargetCount++;
+            }
         }
 
         long peakTotal = 0L;
+        long peakReusable = 0L;
+        long peakSavedForward = 0L;
+        long peakGradientTarget = 0L;
         long peakForward = 0L;
         long peakBackward = 0L;
         for (int i = 0; i < sortedGraph.size(); i++) {
-            long activeBytes = 0L;
+            long activeReusableBytes = 0L;
+            long activeSavedForwardBytes = 0L;
+            long activeGradientTargetBytes = 0L;
             long activeForwardBytes = 0L;
             long activeBackwardBytes = 0L;
 
@@ -260,7 +269,7 @@ public final class MemoryPlanner {
                     Integer slotId = slotByOwner.get(entry.getKey());
                     if (slotId != null && countedSlots.add(slotId)) {
                         long size = slotSizes.get(slotId);
-                        activeBytes += size;
+                        activeReusableBytes += size;
                         if (interval.birthIndex() <= forwardBoundaryIndex) {
                             activeForwardBytes += size;
                         } else {
@@ -270,7 +279,35 @@ public final class MemoryPlanner {
                 }
             }
 
+            Set<Tensor> countedOwners = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+            for (Map.Entry<Tensor, NodeLifetime> entry : lifetimes.entrySet()) {
+                Tensor tensor = entry.getKey();
+                NodeLifetime lifetime = entry.getValue();
+                if (lifetime.storageOwner() != tensor) {
+                    continue;
+                }
+                if (lifetime.birthIndex() > i || i > lifetime.lastReadIndex()) {
+                    continue;
+                }
+                if (!countedOwners.add(tensor)) {
+                    continue;
+                }
+                long bytes = bytesOf(tensor);
+                if (lifetime.role() == MemoryRole.SAVED_FORWARD) {
+                    activeSavedForwardBytes += bytes;
+                    activeForwardBytes += bytes;
+                } else if (lifetime.role() == MemoryRole.GRADIENT_TARGET) {
+                    activeGradientTargetBytes += bytes;
+                    activeBackwardBytes += bytes;
+                }
+            }
+
+            long activeBytes = activeReusableBytes + activeSavedForwardBytes + activeGradientTargetBytes;
+
             peakTotal = Math.max(peakTotal, activeBytes);
+            peakReusable = Math.max(peakReusable, activeReusableBytes);
+            peakSavedForward = Math.max(peakSavedForward, activeSavedForwardBytes);
+            peakGradientTarget = Math.max(peakGradientTarget, activeGradientTargetBytes);
             peakForward = Math.max(peakForward, activeForwardBytes);
             peakBackward = Math.max(peakBackward, activeBackwardBytes);
         }
@@ -287,11 +324,27 @@ public final class MemoryPlanner {
                 slotCount,
                 reuseCount,
                 peakTotal,
+                peakReusable,
+                peakSavedForward,
+                peakGradientTarget,
                 peakForward,
                 peakBackward,
                 savedForwardCount,
+                gradientTargetCount,
                 averageSavedForwardHoldDistance
         );
+    }
+
+    private static long bytesOf(Tensor tensor) {
+        return (long) tensor.getFlatDataSize() * bytesPerElement(tensor.getDataType());
+    }
+
+    private static int bytesPerElement(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> 8;
+            case FLOAT32 -> 4;
+            case FLOAT16 -> 2;
+        };
     }
 
     private static Tensor resolveStorageOwner(Tensor tensor, Map<Tensor, Tensor> storageOwnerByTensor) {
