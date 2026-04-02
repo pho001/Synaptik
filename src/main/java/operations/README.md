@@ -54,6 +54,7 @@ Current descriptor classes in this package:
 - `sigmoid`
 - `contiguous`
 - `reshape`
+- `expand`
 - `permute`
 - `expandDims`
 - `squeeze`

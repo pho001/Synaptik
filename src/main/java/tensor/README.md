@@ -104,6 +104,7 @@ The current public graph-building operation surface on `Tensor` is:
 
 - `contiguous()`
 - `reshape(int... newShape)`
+- `expand(int... newShape)`
 - `permute(int... axes)`
 - `transpose()`
 - `expandDims(int axis)`
@@ -136,6 +137,7 @@ The current public graph-building operation surface on `Tensor` is:
 ### Reduction
 
 - `sum(int dimension)`
+- `sum(int dimension, boolean keepDims)`
 - `sum()`
 
 ### Helper / Internal Execution Anchor
@@ -149,6 +151,55 @@ The full public API reference remains in:
 
 - [src/main/java/tensor/API.md](../tensor/API.md)
 
+## Broadcasting Contract
+
+Broadcast-aware binary operations in the current tensor surface are:
+
+- `add`
+- `sub`
+- `mul`
+- `div`
+- `min`
+- `max`
+
+Their shape contract is:
+
+- ranks align from the right
+- missing leading dimensions behave as `1`
+- dimensions are compatible if they are equal or one of them is `1`
+- output dimension size is the maximum of the two
+
+Examples:
+
+- `[2, 3, 4]` + `[3, 4]` -> `[2, 3, 4]`
+- `[2, 3, 4]` + `[4]` -> `[2, 3, 4]`
+- `[2, 1, 4]` + `[3, 4]` -> `[2, 3, 4]`
+
+Backward semantics:
+
+- gradients are reduced back to the original input shape for every operand that was broadcast in the forward pass
+
+Additional rank-mismatch examples:
+
+- `[3, 4]` + `[2, 1, 4]` -> `[2, 3, 4]`
+- `[1, 1, 2, 4]` + `[2, 3, 1, 4]` -> `[2, 3, 2, 4]`
+
+`expand(int... newShape)` is the first explicit broadcast-shape operation on `Tensor`.
+In the current implementation it produces a runtime-materialized expanded tensor rather than a pure aliasing broadcasted view.
+
+## Reduction Shape Policy
+
+Current reduction surface:
+
+- `sum()`
+- `sum(int dimension)`
+- `sum(int dimension, boolean keepDims)`
+
+For axis reduction:
+
+- `keepDims=false` removes the reduced axis
+- `keepDims=true` preserves the reduced axis with size `1`
+
 ## Gradient and Backward
 
 Autodiff is reverse-mode:
@@ -157,12 +208,6 @@ Autodiff is reverse-mode:
 - compilation of a differentiable graph builds explicit backward nodes
 - root gradient is seeded with `onesLike(root)`
 - `PreparedExecution.execute(FORWARD_BACKWARD)` runs forward and then backward
-
-`Tensor.backward()` currently delegates to the last prepared execution associated with this tensor.
-
-Important consequence:
-
-- `Tensor.backward()` is a convenience API, not the primary explicit execution artifact
 
 The explicit form is:
 

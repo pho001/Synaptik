@@ -568,6 +568,10 @@ public class Tensor {
         return TensorOps.reshape(this, newShape);
     }
 
+    public Tensor expand(int... newShape) {
+        return TensorOps.expand(this, newShape);
+    }
+
     public Tensor permute(int... axes) {
         return TensorOps.permute(this, axes);
     }
@@ -673,6 +677,10 @@ public class Tensor {
     public Tensor sum(int dimension){
         return TensorOps.sum(this, dimension);
 
+    }
+
+    public Tensor sum(int dimension, boolean keepDims) {
+        return TensorOps.sum(this, dimension, keepDims);
     }
 
     public Tensor sum(){

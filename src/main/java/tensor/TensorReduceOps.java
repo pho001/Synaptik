@@ -9,12 +9,23 @@ final class TensorReduceOps {
     private TensorReduceOps() {}
 
     static Tensor sum(Tensor input, int dimension) {
-        Operation op = new sum(dimension);
+        return sum(input, dimension, false);
+    }
+
+    static Tensor sum(Tensor input, int dimension, boolean keepDims) {
         int[] shape = input.getShape();
-        int[] newShape = new int[shape.length - 1];
-        for (int i = 0, j = 0; i < shape.length; i++) {
-            if (i != dimension) {
-                newShape[j++] = shape[i];
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, shape.length);
+        Operation op = new sum(normalizedDimension, keepDims);
+        int[] newShape;
+        if (keepDims) {
+            newShape = shape.clone();
+            newShape[normalizedDimension] = 1;
+        } else {
+            newShape = new int[shape.length - 1];
+            for (int i = 0, j = 0; i < shape.length; i++) {
+                if (i != normalizedDimension) {
+                    newShape[j++] = shape[i];
+                }
             }
         }
         Tensor out = new Tensor(newShape, List.of(input), op, "sum");

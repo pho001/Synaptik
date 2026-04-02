@@ -38,6 +38,35 @@ public class TransformOpsTest {
 
     @ParameterizedTest
     @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64"})
+    void expandBroadcastsSingletonDimensions(DataType dataType) {
+        Tensor base = new Tensor(new double[]{1, 2, 3}, new int[]{1, 3}, null, "base", dataType);
+        Tensor expanded = base.expand(2, 3);
+        CompiledGraph.compile(expanded, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        assertArrayEquals(new int[]{2, 3}, expanded.getShape());
+        assertArrayEquals(new double[]{1, 2, 3, 1, 2, 3}, expanded.toDoubleArrayCopy(), eps(dataType));
+    }
+
+    @Test
+    void expandSupportsLeadingRankExpansion() {
+        Tensor base = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "base", DataType.FLOAT64);
+        Tensor expanded = base.expand(2, 3);
+        CompiledGraph.compile(expanded, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        assertArrayEquals(new int[]{2, 3}, expanded.getShape());
+        assertArrayEquals(new double[]{1, 2, 3, 1, 2, 3}, expanded.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void expandBackwardReducesToOriginalShape() {
+        Tensor base = new Tensor(new double[]{1, 2, 3}, new int[]{1, 3}, null, "base", DataType.FLOAT64);
+        base.setRequiresGrad(true);
+        Tensor expanded = base.expand(2, 3);
+        CompiledGraph.compile(expanded, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        assertArrayEquals(new int[]{1, 3}, base.getGradient().getShape());
+        assertArrayEquals(new double[]{2.0, 2.0, 2.0}, base.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64"})
     void permuteAndTransposeDataAndShape(DataType dataType) {
         Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", dataType);
 
@@ -70,6 +99,12 @@ public class TransformOpsTest {
     void reshapeRejectsInvalidSize() {
         Tensor base = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "base", DataType.FLOAT32);
         assertThrows(IllegalArgumentException.class, () -> base.reshape(3, 2));
+    }
+
+    @Test
+    void expandRejectsNonSingletonExpansion() {
+        Tensor base = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "base", DataType.FLOAT32);
+        assertThrows(IllegalArgumentException.class, () -> base.expand(2, 3));
     }
 
     @Test

@@ -190,7 +190,7 @@ Full Tensor public API and operation list is documented in:
 
 Quick operation catalog on `Tensor`:
 
-- Layout / shape: `contiguous`, `reshape`, `permute`, `transpose`, `expandDims`, `squeeze`
+- Layout / shape: `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`
 - Binary: `add`, `sub`, `mul`, `div`, `min`, `max`, `matmul`
 - Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`
 - Reduction: `sum()`, `sum(axis)`
@@ -200,6 +200,21 @@ Reduction details:
 
 - `sum()` reduces the whole tensor to shape `[1]`
 - `sum(int dimension)` reduces one axis and removes that axis from output shape
+- `sum(int dimension, boolean keepDims)` can preserve the reduced axis as size `1`
+
+`expand(...)` is also available as an explicit broadcast-shape operation.
+Its current implementation materializes the expanded output at runtime instead of exposing a pure aliasing view.
+
+Broadcasting contract for binary element-wise ops:
+
+- ranks align from the right
+- missing leading dimensions behave as `1`
+- dimensions are compatible if they are equal or one side is `1`
+- gradients are reduced back to the original operand shape during backward execution
+- examples:
+  - `[2, 3, 4]` + `[3, 4]` -> `[2, 3, 4]`
+  - `[3, 4]` + `[2, 1, 4]` -> `[2, 3, 4]`
+  - `[1, 1, 2, 4]` + `[2, 3, 1, 4]` -> `[2, 3, 2, 4]`
 
 ## Quick Start Tensor Ops
 
@@ -290,7 +305,7 @@ Run them with:
 ## Roadmap Ideas
 
 - Complete CUDA/OpenCL kernel implementations
-- Expand broadcasting and reduction semantics
+- Broaden broadcast/reduction semantics beyond the current formalized core
 - Add more aggressive graph rewrites and cost modeling
 - Improve benchmark automation and profile-guided optimizer selection
 - Add packaging, publishing, and API documentation

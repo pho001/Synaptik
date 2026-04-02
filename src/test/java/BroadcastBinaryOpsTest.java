@@ -7,6 +7,7 @@ import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class BroadcastBinaryOpsTest {
@@ -88,6 +89,111 @@ public class BroadcastBinaryOpsTest {
         assertArrayEquals(new int[]{1, 3, 4}, b.getGradient().getShape());
         assertArrayEquals(new double[]{3, 3, 3, 3, 3, 3, 3, 3}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}, b.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void testBroadcastRankMismatchAlignsFromRight() {
+        Tensor a = new Tensor(new double[]{
+                1, 2, 3, 4,
+                5, 6, 7, 8
+        }, new int[]{2, 1, 4}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{
+                10, 20, 30, 40,
+                50, 60, 70, 80,
+                90, 100, 110, 120
+        }, new int[]{3, 4}, null, "b", DataType.FLOAT64);
+
+        Tensor out = a.add(b);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 3, 4}, out.getShape());
+        assertArrayEquals(new double[]{
+                11, 22, 33, 44,
+                51, 62, 73, 84,
+                91, 102, 113, 124,
+                15, 26, 37, 48,
+                55, 66, 77, 88,
+                95, 106, 117, 128
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void testBroadcastRankMismatchAlignsFromRightWhenLeftOperandHasLowerRank() {
+        Tensor a = new Tensor(new double[]{
+                10, 20, 30, 40,
+                50, 60, 70, 80,
+                90, 100, 110, 120
+        }, new int[]{3, 4}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{
+                1, 2, 3, 4,
+                5, 6, 7, 8
+        }, new int[]{2, 1, 4}, null, "b", DataType.FLOAT64);
+
+        Tensor out = a.add(b);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 3, 4}, out.getShape());
+        assertArrayEquals(new double[]{
+                11, 22, 33, 44,
+                51, 62, 73, 84,
+                91, 102, 113, 124,
+                15, 26, 37, 48,
+                55, 66, 77, 88,
+                95, 106, 117, 128
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void testBroadcastSupportsLeadingSingletonExpansionAcrossFourDimensions() {
+        Tensor a = new Tensor(new double[]{
+                1, 2, 3, 4,
+                5, 6, 7, 8
+        }, new int[]{1, 1, 2, 4}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{
+                10, 20, 30, 40,
+                50, 60, 70, 80,
+                90, 100, 110, 120,
+                130, 140, 150, 160,
+                170, 180, 190, 200,
+                210, 220, 230, 240
+        }, new int[]{2, 3, 1, 4}, null, "b", DataType.FLOAT64);
+
+        Tensor out = a.add(b);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 3, 2, 4}, out.getShape());
+        assertArrayEquals(new double[]{
+                11, 22, 33, 44, 15, 26, 37, 48,
+                51, 62, 73, 84, 55, 66, 77, 88,
+                91, 102, 113, 124, 95, 106, 117, 128,
+                131, 142, 153, 164, 135, 146, 157, 168,
+                171, 182, 193, 204, 175, 186, 197, 208,
+                211, 222, 233, 244, 215, 226, 237, 248
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    public void testBroadcastRejectsIncompatibleShapes() {
+        Tensor a = new Tensor(new double[2 * 3 * 4], new int[]{2, 3, 4}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[2 * 4], new int[]{2, 4}, null, "b", DataType.FLOAT64);
+        Tensor c = new Tensor(new double[1 * 2 * 4], new int[]{1, 2, 4}, null, "c", DataType.FLOAT64);
+
+        assertThrows(IllegalArgumentException.class, () -> a.add(b));
+        assertThrows(IllegalArgumentException.class, () -> a.sub(b));
+        assertThrows(IllegalArgumentException.class, () -> a.mul(b));
+        assertThrows(IllegalArgumentException.class, () -> a.div(b));
+        assertThrows(IllegalArgumentException.class, () -> a.min(b));
+        assertThrows(IllegalArgumentException.class, () -> a.max(b));
+
+        assertThrows(IllegalArgumentException.class, () -> a.add(c));
+        assertThrows(IllegalArgumentException.class, () -> a.sub(c));
+        assertThrows(IllegalArgumentException.class, () -> a.mul(c));
+        assertThrows(IllegalArgumentException.class, () -> a.div(c));
+        assertThrows(IllegalArgumentException.class, () -> a.min(c));
+        assertThrows(IllegalArgumentException.class, () -> a.max(c));
     }
 
     @Test

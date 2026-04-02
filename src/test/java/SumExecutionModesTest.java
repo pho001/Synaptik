@@ -63,6 +63,20 @@ public class SumExecutionModesTest {
     }
 
     @Test
+    public void testSumAxisKeepDimsPreservesReducedAxisAsSingleton() {
+        Tensor a = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "matrix");
+
+        Tensor s = a.sum(1, true);
+        CompiledGraph.compile(s, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 1}, s.getShape());
+        assertArrayEquals(new double[]{6.0, 15.0}, s.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
     public void testSumNonContiguousStridedVsMaterializedEquivalence() {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig");
 

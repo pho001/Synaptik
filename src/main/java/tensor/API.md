@@ -90,6 +90,7 @@ These methods still exist today, but are transitional and should not be used as 
 
 - `contiguous()`
 - `reshape(int... newShape)`
+- `expand(int... newShape)`
 - `permute(int... axes)`
 - `transpose()`
 - `expandDims(int axis)`
@@ -122,6 +123,7 @@ These methods still exist today, but are transitional and should not be used as 
 ### Reduction
 
 - `sum(int dimension)`
+- `sum(int dimension, boolean keepDims)`
 - `sum()`
 
 ### Execution Anchor / Autodiff Helpers
@@ -138,6 +140,7 @@ These are the instance-level graph-building operations currently exposed directl
 
 - `contiguous()`
 - `reshape(int... newShape)`
+- `expand(int... newShape)`
 - `permute(int... axes)`
 - `transpose()`
 - `expandDims(int axis)`
@@ -170,6 +173,7 @@ These are the instance-level graph-building operations currently exposed directl
 ### Reduction
 
 - `sum(int dimension)`
+- `sum(int dimension, boolean keepDims)`
 - `sum()`
 
 ### Helper / Internal Execution Anchor
@@ -276,3 +280,57 @@ Current fallback behavior:
   - reduces one axis
   - removes the selected axis from output shape
   - `dimension` is zero-based
+- `sum(int dimension, boolean keepDims)`
+  - when `keepDims=false`, removes the selected axis from output shape
+  - when `keepDims=true`, keeps the selected axis with size `1`
+  - `dimension` is zero-based
+
+## Broadcasting Contract
+
+Binary broadcast-aware tensor operations (`add`, `sub`, `mul`, `div`, `min`, `max`) follow this contract:
+
+- ranks are aligned from the right
+- missing leading dimensions are treated as `1`
+- two dimensions are compatible if:
+  - they are equal
+  - or one of them is `1`
+- output dimension size is `max(leftDim, rightDim)`
+
+Examples:
+
+- `[2, 3, 4]` + `[3, 4]` -> `[2, 3, 4]`
+- `[2, 3, 4]` + `[4]` -> `[2, 3, 4]`
+- `[2, 1, 4]` + `[3, 4]` -> `[2, 3, 4]`
+
+Incompatible example:
+
+- `[2, 3, 4]` + `[2, 4]`
+
+Backward contract:
+
+- if an operand was broadcast in forward execution, its gradient is reduced back to the original operand shape
+- reduction is applied across all axes that were introduced or expanded by broadcasting
+
+Additional examples:
+
+- `[3, 4]` + `[2, 1, 4]` -> `[2, 3, 4]`
+- `[1, 1, 2, 4]` + `[2, 3, 1, 4]` -> `[2, 3, 2, 4]`
+
+## Explicit Expand Operation
+
+`expand(int... newShape)` is a first-class shape/broadcast ergonomics op.
+
+Current contract:
+
+- output rank may be equal to or greater than input rank
+- rank alignment follows the same right-aligned broadcasting rules as binary broadcast ops
+- a dimension may be expanded only if:
+  - source dimension already matches target dimension
+  - or source dimension is `1`
+- expanding a non-singleton dimension to a different size is illegal
+
+Current implementation note:
+
+- `expand(...)` materializes an explicitly expanded tensor result at runtime
+- it is not yet a pure alias/view-style broadcasted storage wrapper
+- backward reduces gradients back to the original input shape via broadcast reduction semantics

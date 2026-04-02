@@ -11,6 +11,10 @@ public final class TensorOps {
         return TensorLayoutOps.reshape(input, newShape);
     }
 
+    public static Tensor expand(Tensor input, int[] newShape) {
+        return TensorLayoutOps.expand(input, newShape);
+    }
+
     public static Tensor permute(Tensor input, int[] axes) {
         return TensorLayoutOps.permute(input, axes);
     }
@@ -97,6 +101,10 @@ public final class TensorOps {
 
     public static Tensor sum(Tensor input, int dimension) {
         return TensorReduceOps.sum(input, dimension);
+    }
+
+    public static Tensor sum(Tensor input, int dimension, boolean keepDims) {
+        return TensorReduceOps.sum(input, dimension, keepDims);
     }
 
     public static Tensor sumAll(Tensor input) {

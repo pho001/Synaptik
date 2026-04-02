@@ -105,6 +105,40 @@ public final class TensorLayoutTransform {
         return out;
     }
 
+    public static int[] inferExpandShape(int[] oldShape, int[] requestedShape) {
+        if (requestedShape == null || requestedShape.length == 0) {
+            throw new IllegalArgumentException("Requested expand shape cannot be null/empty.");
+        }
+        int[] out = requestedShape.clone();
+        for (int dim : out) {
+            if (dim <= 0) {
+                throw new IllegalArgumentException("Expand dimensions must be positive.");
+            }
+        }
+
+        int oldRank = oldShape.length;
+        int newRank = out.length;
+        if (newRank < oldRank) {
+            throw new IllegalArgumentException("Expanded rank cannot be smaller than source rank.");
+        }
+
+        int offset = newRank - oldRank;
+        for (int d = 0; d < newRank; d++) {
+            int srcDimIndex = d - offset;
+            if (srcDimIndex < 0) {
+                continue;
+            }
+            int srcDim = oldShape[srcDimIndex];
+            int dstDim = out[d];
+            if (srcDim != dstDim && srcDim != 1) {
+                throw new IllegalArgumentException(
+                        "Cannot expand non-singleton dimension " + srcDim + " to " + dstDim
+                );
+            }
+        }
+        return out;
+    }
+
     public static int[] normalizeAxes(int rank, int[] axes) {
         if (axes == null || axes.length != rank) {
             throw new IllegalArgumentException("Axes length must equal tensor rank.");

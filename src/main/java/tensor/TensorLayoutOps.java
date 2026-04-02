@@ -2,6 +2,7 @@ package tensor;
 
 import operations.Operation;
 import operations.contiguous;
+import operations.expand;
 import operations.expandDims;
 import operations.permute;
 import operations.reshape;
@@ -29,6 +30,22 @@ final class TensorLayoutOps {
             if (outGrad == null) return;
             if (!input.getRequiresGrad()) return;
             Tensor grad = outGrad.reshape(input.getShape());
+            if (input.getGradient() == null) input.setGradient(grad);
+            else input.setGradient(input.getGradient().add(grad));
+        });
+        return out;
+    }
+
+    static Tensor expand(Tensor input, int[] requestedShape) {
+        int[] targetShape = TensorLayoutTransform.inferExpandShape(input.getShape(), requestedShape);
+        Operation op = new expand(targetShape);
+        Tensor out = new Tensor(targetShape, List.of(input), op, "expand");
+        out.setDataType(input.getDataType());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+            if (!input.getRequiresGrad()) return;
+            Tensor grad = TensorBroadcastOps.sumToShape(outGrad, input.getShape());
             if (input.getGradient() == null) input.setGradient(grad);
             else input.setGradient(input.getGradient().add(grad));
         });

@@ -3,9 +3,16 @@ package operations;
 import backend.ComputeBackend;
 
 public class sum implements Operation{
-    int dimension;
-    public sum(int dimension){
+    private final int dimension;
+    private final boolean keepDims;
+
+    public sum(int dimension) {
+        this(dimension, false);
+    }
+
+    public sum(int dimension, boolean keepDims){
         this.dimension = dimension;
+        this.keepDims = keepDims;
     }
 
     // Sum in direction of dim
@@ -24,6 +31,10 @@ public class sum implements Operation{
 
     public int getDimension() {
         return dimension;
+    }
+
+    public boolean keepDims() {
+        return keepDims;
     }
 
 
