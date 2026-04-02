@@ -128,6 +128,12 @@ These methods still exist today, but are transitional and should not be used as 
 - `mean(int dimension)`
 - `mean(int dimension, boolean keepDims)`
 - `mean()`
+- `min(int dimension)`
+- `min(int dimension, boolean keepDims)`
+- `min()`
+- `max(int dimension)`
+- `max(int dimension, boolean keepDims)`
+- `max()`
 
 ### Execution Anchor / Autodiff Helpers
 
@@ -181,6 +187,12 @@ These are the instance-level graph-building operations currently exposed directl
 - `mean(int dimension)`
 - `mean(int dimension, boolean keepDims)`
 - `mean()`
+- `min(int dimension)`
+- `min(int dimension, boolean keepDims)`
+- `min()`
+- `max(int dimension)`
+- `max(int dimension, boolean keepDims)`
+- `max()`
 
 ### Helper / Internal Execution Anchor
 
@@ -299,6 +311,25 @@ Current fallback behavior:
 - `mean(int dimension, boolean keepDims)`
   - same shape policy as `sum(int dimension, boolean keepDims)`
   - values are scaled by the reduced axis size
+- `min()`
+  - reduces all elements to shape `[1]`
+  - value is the minimum element
+- `min(int dimension)`
+  - reduces one axis and removes that axis from output shape
+  - value is the minimum along the selected axis
+- `min(int dimension, boolean keepDims)`
+  - same shape policy as `sum(int dimension, boolean keepDims)`
+- `max()`
+  - reduces all elements to shape `[1]`
+  - value is the maximum element
+- `max(int dimension)`
+  - reduces one axis and removes that axis from output shape
+  - value is the maximum along the selected axis
+- `max(int dimension, boolean keepDims)`
+  - same shape policy as `sum(int dimension, boolean keepDims)`
+- reduction gradient semantics for `min/max`
+  - gradient flows only to winning elements
+  - if multiple elements tie for the extremum, the gradient is split evenly across all winners
 
 ## Broadcasting Contract
 

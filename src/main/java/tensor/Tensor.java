@@ -715,6 +715,30 @@ public class Tensor {
         return TensorOps.meanAll(this);
     }
 
+    public Tensor min(int dimension) {
+        return TensorOps.min(this, dimension);
+    }
+
+    public Tensor min(int dimension, boolean keepDims) {
+        return TensorOps.min(this, dimension, keepDims);
+    }
+
+    public Tensor min() {
+        return TensorOps.minAll(this);
+    }
+
+    public Tensor max(int dimension) {
+        return TensorOps.max(this, dimension);
+    }
+
+    public Tensor max(int dimension, boolean keepDims) {
+        return TensorOps.max(this, dimension, keepDims);
+    }
+
+    public Tensor max() {
+        return TensorOps.maxAll(this);
+    }
+
 
     //lambda section
     public void buildBackwardGraph() {

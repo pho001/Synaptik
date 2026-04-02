@@ -108,7 +108,10 @@ public final class CPUBackend {
                         : null;
 
         ResolvedReductionHints reductionHints =
-                (op != null && op.opType() == Operation.OpType.SUM)
+                (op != null && switch (op.opType()) {
+                    case SUM, REDUCE_MIN, REDUCE_MAX -> true;
+                    default -> false;
+                })
                         ? planner.resolveReductionHints(estimateReductionLogicalSize(prepared.runtimeInputs(), node), targetType)
                         : null;
 
@@ -188,8 +191,8 @@ public final class CPUBackend {
         }
 
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, NOOP -> false;
-            case MIN_GRAD, MAX_GRAD -> !input.isContiguous();
+            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, REDUCE_MIN, REDUCE_MAX, NOOP -> false;
+            case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
             case MATMUL -> true;
             default -> op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
                     && planner.shouldMaterializeNonContiguous(node.getFlatDataSize());
@@ -290,7 +293,8 @@ public final class CPUBackend {
             return false;
         }
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, NOOP -> true;
+            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, REDUCE_MIN, REDUCE_MAX,
+                    REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, NOOP -> true;
             default -> false;
         };
     }

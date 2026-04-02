@@ -142,6 +142,12 @@ The current public graph-building operation surface on `Tensor` is:
 - `mean(int dimension)`
 - `mean(int dimension, boolean keepDims)`
 - `mean()`
+- `min(int dimension)`
+- `min(int dimension, boolean keepDims)`
+- `min()`
+- `max(int dimension)`
+- `max(int dimension, boolean keepDims)`
+- `max()`
 
 ### Helper / Internal Execution Anchor
 
@@ -201,6 +207,12 @@ Current reduction surface:
 - `mean()`
 - `mean(int dimension)`
 - `mean(int dimension, boolean keepDims)`
+- `min()`
+- `min(int dimension)`
+- `min(int dimension, boolean keepDims)`
+- `max()`
+- `max(int dimension)`
+- `max(int dimension, boolean keepDims)`
 
 For axis reduction:
 
@@ -208,6 +220,9 @@ For axis reduction:
 - `keepDims=true` preserves the reduced axis with size `1`
 
 `mean(...)` follows the same shape policy as `sum(...)`, but scales the reduced value by the size of the reduced axis (or by the total element count for `mean()`).
+
+`min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
+Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.
 
 ## Gradient and Backward
 

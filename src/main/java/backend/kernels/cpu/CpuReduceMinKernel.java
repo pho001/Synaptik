@@ -1,0 +1,36 @@
+package backend.kernels.cpu;
+
+import backend.kernels.cpu.reduction.MinMaxReduceExecutor;
+import operations.Operation;
+import operations.reduceMin;
+import tensor.Tensor;
+
+import java.util.List;
+
+public final class CpuReduceMinKernel implements CpuKernel {
+    private static final MinMaxReduceExecutor EXECUTOR = new MinMaxReduceExecutor();
+
+    @Override
+    public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        if (!(op instanceof reduceMin reduction)) {
+            throw new IllegalArgumentException("CpuReduceMinKernel requires reduceMin operation");
+        }
+        EXECUTOR.execute(reduction, inputs.getFirst(), node, context);
+    }
+
+    @Override
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        if (!(op instanceof reduceMin reduction)) {
+            throw new IllegalArgumentException("CpuReduceMinKernel requires reduceMin operation");
+        }
+        EXECUTOR.executeF32(reduction, inputs.getFirst(), node, context);
+    }
+
+    @Override
+    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        if (!(op instanceof reduceMin reduction)) {
+            throw new IllegalArgumentException("CpuReduceMinKernel requires reduceMin operation");
+        }
+        EXECUTOR.executeF16(reduction, inputs.getFirst(), node, context);
+    }
+}

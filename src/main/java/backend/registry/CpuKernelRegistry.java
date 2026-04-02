@@ -18,6 +18,10 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.MAX, new CpuMaxKernel());
         KERNELS.put(Operation.OpType.MIN_GRAD, new CpuMinGradKernel());
         KERNELS.put(Operation.OpType.MAX_GRAD, new CpuMaxGradKernel());
+        KERNELS.put(Operation.OpType.REDUCE_MIN, new CpuReduceMinKernel());
+        KERNELS.put(Operation.OpType.REDUCE_MAX, new CpuReduceMaxKernel());
+        KERNELS.put(Operation.OpType.REDUCE_MIN_GRAD, new CpuReduceMinGradKernel());
+        KERNELS.put(Operation.OpType.REDUCE_MAX_GRAD, new CpuReduceMaxGradKernel());
         KERNELS.put(Operation.OpType.MATMUL, new CpuMatMulKernel());
         KERNELS.put(Operation.OpType.NEG, new CpuNegKernel());
         KERNELS.put(Operation.OpType.INV, new CpuInvKernel());

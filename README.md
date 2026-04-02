@@ -195,7 +195,7 @@ Quick operation catalog on `Tensor`:
 - Layout / shape: `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`
 - Binary: `add`, `sub`, `mul`, `div`, `min`, `max`, `matmul`
 - Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`
-- Reduction: `sum()`, `sum(axis)`, `mean()`, `mean(axis)`
+- Reduction: `sum()`, `sum(axis)`, `mean()`, `mean(axis)`, `min()`, `min(axis)`, `max()`, `max(axis)`
 - Helper anchor: `forwardOutput()`
 
 Reduction details:
@@ -204,6 +204,8 @@ Reduction details:
 - `sum(int dimension)` reduces one axis and removes that axis from output shape
 - `sum(int dimension, boolean keepDims)` can preserve the reduced axis as size `1`
 - `mean(...)` follows the same shape policy as `sum(...)`, but divides by the reduced axis size (or total element count for `mean()`)
+- `min(...)` and `max(...)` follow the same shape policy as `sum(...)`
+- reduction `min/max` backward routes gradient only to winning elements; ties split gradient evenly
 
 `expand(...)` is also available as an explicit broadcast-shape operation.
 It is implemented as a zero-stride alias view.

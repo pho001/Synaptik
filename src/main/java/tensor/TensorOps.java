@@ -123,6 +123,30 @@ public final class TensorOps {
         return TensorReduceOps.meanAll(input);
     }
 
+    public static Tensor min(Tensor input, int dimension) {
+        return TensorReduceOps.min(input, dimension);
+    }
+
+    public static Tensor min(Tensor input, int dimension, boolean keepDims) {
+        return TensorReduceOps.min(input, dimension, keepDims);
+    }
+
+    public static Tensor minAll(Tensor input) {
+        return TensorReduceOps.minAll(input);
+    }
+
+    public static Tensor max(Tensor input, int dimension) {
+        return TensorReduceOps.max(input, dimension);
+    }
+
+    public static Tensor max(Tensor input, int dimension, boolean keepDims) {
+        return TensorReduceOps.max(input, dimension, keepDims);
+    }
+
+    public static Tensor maxAll(Tensor input) {
+        return TensorReduceOps.maxAll(input);
+    }
+
     public static Tensor batchNorm(
             Tensor input,
             Tensor gamma,
