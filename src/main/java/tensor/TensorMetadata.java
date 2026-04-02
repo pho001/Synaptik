@@ -117,6 +117,19 @@ public final class TensorMetadata {
         return contiguous;
     }
 
+    public boolean hasZeroStride() {
+        for (int stride : strides) {
+            if (stride == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isBroadcastView() {
+        return hasZeroStride();
+    }
+
     private static boolean computeContiguous(int[] shape, int[] strides) {
         int expectedStride = 1;
         for (int i = shape.length - 1; i >= 0; i--) {

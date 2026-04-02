@@ -69,6 +69,13 @@ public class Tensor {
         initEmptyStorage(totalSize);
     }
 
+    public Tensor(int[] shape, int[] strides, List<Tensor> previous, Operation operation, String label, DataType dataType) {
+        this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
+        this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
+        this.operation = operation;
+        initEmptyStorage();
+    }
+
     public Tensor(double[] data, int[] shape, List<Tensor> previous, String label) {
         this(data, shape, previous, label, TensorMetadata.DEFAULT_DATA_TYPE);
     }
@@ -222,11 +229,14 @@ public class Tensor {
         if (index < 0 || index >= getFlatDataSize()) {
             throw new IndexOutOfBoundsException("Index out of bounds.");
         }
-        return storage.getAsDoubleAt(index);
+        return storage.getAsDoubleAt(logicalFlatIndexToStorageOffset(index));
     }
 
     public void setDataAt(int flatindex,double value) {
-        storage.setAsDoubleAt(flatindex, value);
+        if (isBroadcastView()) {
+            throw new UnsupportedOperationException("Cannot write through broadcast view tensor.");
+        }
+        storage.setAsDoubleAt(logicalFlatIndexToStorageOffset(flatindex), value);
     }
 
     public int[] getStrides() {
@@ -352,6 +362,10 @@ public class Tensor {
     }
 
     public int getFlatDataSize(){
+        return metadata.getFlatSize();
+    }
+
+    int getStorageSize() {
         return storage != null ? storage.getSize() : metadata.getFlatSize();
     }
 
@@ -375,6 +389,10 @@ public class Tensor {
 
     public boolean isContiguous() {
         return metadata.isContiguous();
+    }
+
+    boolean isBroadcastView() {
+        return metadata.isBroadcastView();
     }
 
     public String toStructString(){
@@ -427,7 +445,7 @@ public class Tensor {
         double[] out = new double[n];
         if (storage != null) {
             for (int i = 0; i < n; i++) {
-                out[i] = storage.getAsDoubleAt(i);
+                out[i] = storage.getAsDoubleAt(logicalFlatIndexToStorageOffset(i));
             }
         }
         return out;
@@ -437,7 +455,7 @@ public class Tensor {
         if (getFlatDataSize() != 1) {
             throw new IllegalStateException("Tensor is not scalar.");
         }
-        return storage.getAsDoubleAt(0);
+        return getByFlatIndex(0);
     }
 
     public void setBackend(ComputeBackend backend) {
@@ -537,11 +555,10 @@ public class Tensor {
         Tensor out = new Tensor(
                 data,
                 other.getShape().clone(),
-                other.getStrides().clone(),
                 new java.util.ArrayList<>(), // Žádní předci (je to konstanta)
-                "ones_like"
+                "ones_like",
+                other.getDataType()
         );
-        out.setDataType(other.getDataType());
         return out;
     }
 
@@ -552,11 +569,10 @@ public class Tensor {
         Tensor out = new Tensor(
                 data,
                 other.getShape().clone(),
-                other.getStrides().clone(),
                 new java.util.ArrayList<>(),
-                "zeros_like"
+                "zeros_like",
+                other.getDataType()
         );
-        out.setDataType(other.getDataType());
         return out;
     }
 
@@ -805,6 +821,30 @@ public class Tensor {
         if (actual != expected) {
             throw new IllegalArgumentException(sourceName + " length mismatch. expected=" + expected + ", actual=" + actual);
         }
+    }
+
+    double getByStorageOffset(int offset) {
+        if (storage == null) {
+            throw new IllegalStateException("Tensor storage is not initialized.");
+        }
+        if (offset < 0 || offset >= getStorageSize()) {
+            throw new IndexOutOfBoundsException("Storage offset out of bounds.");
+        }
+        return storage.getAsDoubleAt(offset);
+    }
+
+    private int logicalFlatIndexToStorageOffset(int logicalIndex) {
+        int[] shape = metadata.shapeRef();
+        int[] strides = metadata.stridesRef();
+        int[] denseStrides = TensorMetadata.computeStrides(shape);
+        int rem = logicalIndex;
+        int offset = 0;
+        for (int dim = 0; dim < shape.length; dim++) {
+            int coord = rem / denseStrides[dim];
+            rem %= denseStrides[dim];
+            offset += coord * strides[dim];
+        }
+        return offset;
     }
 
     private DataType normalizeDataType(DataType dataType) {

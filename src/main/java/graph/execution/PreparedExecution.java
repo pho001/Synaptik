@@ -97,11 +97,7 @@ public final class PreparedExecution {
     private void syncRootData(ExecutionMode mode) {
         Tensor actualRoot = forwardOutput.getPrevTensors().get(0);
         if (mode == ExecutionMode.FORWARD_BACKWARD || actualRoot != rootTensor) {
-            switch (actualRoot.getDataType()) {
-                case FLOAT64 -> rootTensor.setData(actualRoot.getFloat64Data().clone());
-                case FLOAT32 -> rootTensor.setData(actualRoot.getFloat32Data().clone());
-                case FLOAT16 -> rootTensor.setData(actualRoot.getFloat16Data().clone());
-            }
+            rootTensor.setData(actualRoot.toDoubleArrayCopy());
         }
     }
 

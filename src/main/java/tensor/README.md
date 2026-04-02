@@ -188,7 +188,8 @@ Additional rank-mismatch examples:
 - `[1, 1, 2, 4]` + `[2, 3, 1, 4]` -> `[2, 3, 2, 4]`
 
 `expand(int... newShape)` is the first explicit broadcast-shape operation on `Tensor`.
-In the current implementation it produces a runtime-materialized expanded tensor rather than a pure aliasing broadcasted view.
+It is implemented as a true broadcasted alias view with zero strides on expanded axes.
+If a dense materialized tensor is required, use `contiguous()` explicitly.
 
 ## Reduction Shape Policy
 

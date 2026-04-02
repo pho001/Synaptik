@@ -43,6 +43,8 @@ public class TransformOpsTest {
         Tensor expanded = base.expand(2, 3);
         CompiledGraph.compile(expanded, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{2, 3}, expanded.getShape());
+        assertArrayEquals(new int[]{0, 1}, expanded.getStrides());
+        assertSame(base.getStorage(), expanded.getStorage());
         assertArrayEquals(new double[]{1, 2, 3, 1, 2, 3}, expanded.toDoubleArrayCopy(), eps(dataType));
     }
 
@@ -52,7 +54,22 @@ public class TransformOpsTest {
         Tensor expanded = base.expand(2, 3);
         CompiledGraph.compile(expanded, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{2, 3}, expanded.getShape());
+        assertArrayEquals(new int[]{0, 1}, expanded.getStrides());
+        assertSame(base.getStorage(), expanded.getStorage());
         assertArrayEquals(new double[]{1, 2, 3, 1, 2, 3}, expanded.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void expandContiguousMaterializesDenseCopy() {
+        Tensor base = new Tensor(new double[]{1, 2, 3}, new int[]{1, 3}, null, "base", DataType.FLOAT64);
+        Tensor expanded = base.expand(2, 3);
+        Tensor materialized = expanded.contiguous();
+
+        CompiledGraph.compile(materialized, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 3}, materialized.getShape());
+        assertArrayEquals(new int[]{3, 1}, materialized.getStrides());
+        assertArrayEquals(new double[]{1, 2, 3, 1, 2, 3}, materialized.toDoubleArrayCopy(), 1e-9);
     }
 
     @Test

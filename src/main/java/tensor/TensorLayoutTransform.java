@@ -18,19 +18,19 @@ public final class TensorLayoutTransform {
             case FLOAT64 -> {
                 double[] out = dst.getFloat64Data();
                 for (int i = 0; i < size; i++) {
-                    out[i] = src.getByFlatIndex(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
+                    out[i] = src.getByStorageOffset(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
                 }
             }
             case FLOAT32 -> {
                 float[] out = dst.getFloat32Data();
                 for (int i = 0; i < size; i++) {
-                    out[i] = (float) src.getByFlatIndex(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
+                    out[i] = (float) src.getByStorageOffset(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
                 }
             }
             case FLOAT16 -> {
                 short[] out = dst.getFloat16Data();
                 for (int i = 0; i < size; i++) {
-                    float value = (float) src.getByFlatIndex(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
+                    float value = (float) src.getByStorageOffset(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
                     out[i] = backend.kernels.cpu.CpuDTypeOps.toHalfBits(value);
                 }
             }

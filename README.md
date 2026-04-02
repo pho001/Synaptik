@@ -206,7 +206,8 @@ Reduction details:
 - `mean(...)` follows the same shape policy as `sum(...)`, but divides by the reduced axis size (or total element count for `mean()`)
 
 `expand(...)` is also available as an explicit broadcast-shape operation.
-Its current implementation materializes the expanded output at runtime instead of exposing a pure aliasing view.
+It is implemented as a zero-stride alias view.
+Use `contiguous()` when you want an explicitly materialized dense tensor.
 
 Broadcasting contract for binary element-wise ops:
 

@@ -188,7 +188,7 @@ public final class CPUBackend {
         }
 
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, NOOP -> false;
+            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, NOOP -> false;
             case MIN_GRAD, MAX_GRAD -> !input.isContiguous();
             case MATMUL -> true;
             default -> op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
@@ -290,7 +290,7 @@ public final class CPUBackend {
             return false;
         }
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, NOOP -> true;
+            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, NOOP -> true;
             default -> false;
         };
     }

@@ -346,6 +346,7 @@ Current contract:
 
 Current implementation note:
 
-- `expand(...)` materializes an explicitly expanded tensor result at runtime
-- it is not yet a pure alias/view-style broadcasted storage wrapper
+- `expand(...)` creates a zero-stride broadcast alias view
+- expanded axes are logical read views over shared backing storage
+- `contiguous()` is the canonical explicit materialization path
 - backward reduces gradients back to the original input shape via broadcast reduction semantics

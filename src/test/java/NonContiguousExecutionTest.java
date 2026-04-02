@@ -87,32 +87,6 @@ public class NonContiguousExecutionTest {
     }
 
     private static double[] remapToContiguous(Tensor src) {
-        int[] shape = src.getShape();
-        int[] srcStrides = src.getStrides();
-        int[] dstStrides = contiguousStrides(shape);
-        double[] srcData = src.toDoubleArrayCopy();
-        double[] out = new double[srcData.length];
-
-        for (int i = 0; i < out.length; i++) {
-            int idx = i;
-            int srcFlat = 0;
-            for (int d = 0; d < shape.length; d++) {
-                int coord = idx / dstStrides[d];
-                idx %= dstStrides[d];
-                srcFlat += coord * srcStrides[d];
-            }
-            out[i] = srcData[srcFlat];
-        }
-        return out;
-    }
-
-    private static int[] contiguousStrides(int[] shape) {
-        int[] strides = new int[shape.length];
-        int stride = 1;
-        for (int i = shape.length - 1; i >= 0; i--) {
-            strides[i] = stride;
-            stride *= shape[i];
-        }
-        return strides;
+        return src.toDoubleArrayCopy();
     }
 }

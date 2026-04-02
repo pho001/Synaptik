@@ -38,9 +38,9 @@ final class TensorLayoutOps {
 
     static Tensor expand(Tensor input, int[] requestedShape) {
         int[] targetShape = TensorLayoutTransform.inferExpandShape(input.getShape(), requestedShape);
+        int[] targetStrides = buildExpandedStrides(input.getShapeUnsafe(), input.getStridesUnsafe(), targetShape);
         Operation op = new expand(targetShape);
-        Tensor out = new Tensor(targetShape, List.of(input), op, "expand");
-        out.setDataType(input.getDataType());
+        Tensor out = new Tensor(targetShape, targetStrides, List.of(input), op, "expand", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -50,6 +50,25 @@ final class TensorLayoutOps {
             else input.setGradient(input.getGradient().add(grad));
         });
         return out;
+    }
+
+    private static int[] buildExpandedStrides(int[] sourceShape, int[] sourceStrides, int[] targetShape) {
+        int targetRank = targetShape.length;
+        int sourceRank = sourceShape.length;
+        int rankOffset = targetRank - sourceRank;
+        int[] outStrides = new int[targetRank];
+
+        for (int d = 0; d < targetRank; d++) {
+            int sourceDim = d - rankOffset;
+            if (sourceDim < 0) {
+                outStrides[d] = 0;
+                continue;
+            }
+            outStrides[d] = sourceShape[sourceDim] == 1 && targetShape[d] != 1
+                    ? 0
+                    : sourceStrides[sourceDim];
+        }
+        return outStrides;
     }
 
     static Tensor permute(Tensor input, int[] axes) {

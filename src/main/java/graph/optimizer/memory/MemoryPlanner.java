@@ -400,7 +400,7 @@ public final class MemoryPlanner {
             return false;
         }
         return switch (tensor.getOperation().opType()) {
-            case NOOP, PERMUTE -> true;
+            case NOOP, EXPAND, PERMUTE -> true;
             case RESHAPE, EXPAND_DIMS, SQUEEZE -> inputs.get(0).isContiguous();
             default -> false;
         };
