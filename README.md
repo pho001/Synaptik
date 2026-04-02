@@ -195,7 +195,7 @@ Quick operation catalog on `Tensor`:
 - Layout / shape: `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`
 - Binary: `add`, `sub`, `mul`, `div`, `min`, `max`, `matmul`
 - Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`
-- Reduction: `sum()`, `sum(axis)`
+- Reduction: `sum()`, `sum(axis)`, `mean()`, `mean(axis)`
 - Helper anchor: `forwardOutput()`
 
 Reduction details:
@@ -203,6 +203,7 @@ Reduction details:
 - `sum()` reduces the whole tensor to shape `[1]`
 - `sum(int dimension)` reduces one axis and removes that axis from output shape
 - `sum(int dimension, boolean keepDims)` can preserve the reduced axis as size `1`
+- `mean(...)` follows the same shape policy as `sum(...)`, but divides by the reduced axis size (or total element count for `mean()`)
 
 `expand(...)` is also available as an explicit broadcast-shape operation.
 Its current implementation materializes the expanded output at runtime instead of exposing a pure aliasing view.

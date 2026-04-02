@@ -111,6 +111,18 @@ public final class TensorOps {
         return TensorReduceOps.sumAll(input);
     }
 
+    public static Tensor mean(Tensor input, int dimension) {
+        return TensorReduceOps.mean(input, dimension);
+    }
+
+    public static Tensor mean(Tensor input, int dimension, boolean keepDims) {
+        return TensorReduceOps.mean(input, dimension, keepDims);
+    }
+
+    public static Tensor meanAll(Tensor input) {
+        return TensorReduceOps.meanAll(input);
+    }
+
     public static Tensor batchNorm(
             Tensor input,
             Tensor gamma,

@@ -687,6 +687,18 @@ public class Tensor {
         return TensorOps.sumAll(this);
     }
 
+    public Tensor mean(int dimension) {
+        return TensorOps.mean(this, dimension);
+    }
+
+    public Tensor mean(int dimension, boolean keepDims) {
+        return TensorOps.mean(this, dimension, keepDims);
+    }
+
+    public Tensor mean() {
+        return TensorOps.meanAll(this);
+    }
+
 
     //lambda section
     public void buildBackwardGraph() {

@@ -30,6 +30,14 @@ final class TensorReduceOps {
         }
         Tensor out = new Tensor(newShape, List.of(input), op, "sum");
         out.setDataType(input.getDataType());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) return;
+            Tensor aligned = keepDims ? outGrad : outGrad.expandDims(normalizedDimension);
+            Tensor grad = aligned.expand(input.getShape());
+            if (input.getGradient() == null) input.setGradient(grad);
+            else input.setGradient(input.getGradient().add(grad));
+        });
         return out;
     }
 
@@ -38,6 +46,28 @@ final class TensorReduceOps {
         int[] newShape = new int[]{1};
         Tensor out = new Tensor(newShape, List.of(input), op, "sum");
         out.setDataType(input.getDataType());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) return;
+            Tensor grad = outGrad.expand(input.getShape());
+            if (input.getGradient() == null) input.setGradient(grad);
+            else input.setGradient(input.getGradient().add(grad));
+        });
         return out;
+    }
+
+    static Tensor mean(Tensor input, int dimension) {
+        return mean(input, dimension, false);
+    }
+
+    static Tensor mean(Tensor input, int dimension, boolean keepDims) {
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
+        double divisor = input.getShape()[normalizedDimension];
+        return sum(input, normalizedDimension, keepDims).mul(1.0 / divisor);
+    }
+
+    static Tensor meanAll(Tensor input) {
+        double divisor = input.getFlatDataSize();
+        return sumAll(input).mul(1.0 / divisor);
     }
 }

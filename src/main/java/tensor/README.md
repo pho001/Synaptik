@@ -139,6 +139,9 @@ The current public graph-building operation surface on `Tensor` is:
 - `sum(int dimension)`
 - `sum(int dimension, boolean keepDims)`
 - `sum()`
+- `mean(int dimension)`
+- `mean(int dimension, boolean keepDims)`
+- `mean()`
 
 ### Helper / Internal Execution Anchor
 
@@ -194,11 +197,16 @@ Current reduction surface:
 - `sum()`
 - `sum(int dimension)`
 - `sum(int dimension, boolean keepDims)`
+- `mean()`
+- `mean(int dimension)`
+- `mean(int dimension, boolean keepDims)`
 
 For axis reduction:
 
 - `keepDims=false` removes the reduced axis
 - `keepDims=true` preserves the reduced axis with size `1`
+
+`mean(...)` follows the same shape policy as `sum(...)`, but scales the reduced value by the size of the reduced axis (or by the total element count for `mean()`).
 
 ## Gradient and Backward
 

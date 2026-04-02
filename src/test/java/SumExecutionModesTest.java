@@ -4,6 +4,7 @@ import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
 import graph.CompiledGraph;
+import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
@@ -74,6 +75,48 @@ public class SumExecutionModesTest {
 
         assertArrayEquals(new int[]{2, 1}, s.getShape());
         assertArrayEquals(new double[]{6.0, 15.0}, s.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    public void testMeanAxisKeepDimsPreservesReducedAxisAsSingleton() {
+        Tensor a = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "matrix", DataType.FLOAT64);
+
+        Tensor m = a.mean(1, true);
+        CompiledGraph.compile(m, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 1}, m.getShape());
+        assertArrayEquals(new double[]{2.0, 5.0}, m.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    public void testMeanAllMatchesReference() {
+        double[] values = new double[]{1, 2, 3, 4, 5, 6};
+        Tensor a = new Tensor(values.clone(), new int[]{values.length}, null, "a", DataType.FLOAT64);
+        Tensor mean = a.mean();
+        CompiledGraph.compile(mean, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{3.5}, mean.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    public void testMeanBackwardBroadcastsAndScalesGradient() {
+        Tensor a = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6
+        }, new int[]{2, 3}, null, "matrix", DataType.FLOAT64);
+        a.setRequiresGrad(true);
+
+        Tensor mean = a.mean(1, true);
+        CompiledGraph.compile(mean, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new int[]{2, 3}, a.getGradient().getShape());
+        assertArrayEquals(new double[]{
+                1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0,
+                1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0
+        }, a.getGradient().toDoubleArrayCopy(), EPS);
     }
 
     @Test

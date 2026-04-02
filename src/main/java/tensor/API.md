@@ -125,6 +125,9 @@ These methods still exist today, but are transitional and should not be used as 
 - `sum(int dimension)`
 - `sum(int dimension, boolean keepDims)`
 - `sum()`
+- `mean(int dimension)`
+- `mean(int dimension, boolean keepDims)`
+- `mean()`
 
 ### Execution Anchor / Autodiff Helpers
 
@@ -175,6 +178,9 @@ These are the instance-level graph-building operations currently exposed directl
 - `sum(int dimension)`
 - `sum(int dimension, boolean keepDims)`
 - `sum()`
+- `mean(int dimension)`
+- `mean(int dimension, boolean keepDims)`
+- `mean()`
 
 ### Helper / Internal Execution Anchor
 
@@ -284,6 +290,15 @@ Current fallback behavior:
   - when `keepDims=false`, removes the selected axis from output shape
   - when `keepDims=true`, keeps the selected axis with size `1`
   - `dimension` is zero-based
+- `mean()`
+  - reduces all elements to shape `[1]`
+  - value is `sum / numberOfElements`
+- `mean(int dimension)`
+  - reduces one axis and removes that axis from output shape
+  - value is `sumAlongAxis / axisSize`
+- `mean(int dimension, boolean keepDims)`
+  - same shape policy as `sum(int dimension, boolean keepDims)`
+  - values are scaled by the reduced axis size
 
 ## Broadcasting Contract
 
