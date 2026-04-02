@@ -190,10 +190,11 @@ Full Tensor public API and operation list is documented in:
 
 Quick operation catalog on `Tensor`:
 
-- Binary: `add`, `sub`, `mul`, `div`, `min`, `max`
-- Unary: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`
+- Layout / shape: `contiguous`, `reshape`, `permute`, `transpose`, `expandDims`, `squeeze`
+- Binary: `add`, `sub`, `mul`, `div`, `min`, `max`, `matmul`
+- Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`
 - Reduction: `sum()`, `sum(axis)`
-- Layout: `contiguous()`
+- Helper anchor: `forwardOutput()`
 
 Reduction details:
 

@@ -96,6 +96,59 @@ Legacy optimizer-centric methods are still present, but deprecated:
 - `compute(GraphOptimizer, ...)`
 - `compute()`
 
+## Public Tensor Operations
+
+The current public graph-building operation surface on `Tensor` is:
+
+### Layout / Shape
+
+- `contiguous()`
+- `reshape(int... newShape)`
+- `permute(int... axes)`
+- `transpose()`
+- `expandDims(int axis)`
+- `squeeze(int axis)`
+
+### Binary Arithmetic / Comparison
+
+- `add(Tensor second)`
+- `sub(Tensor second)`
+- `mul(Tensor second)`
+- `div(Tensor second)`
+- `min(Tensor second)`
+- `max(Tensor second)`
+- `matmul(Tensor second)`
+
+### Unary / Scalar
+
+- `neg()`
+- `log()`
+- `exp()`
+- `fastExp()`
+- `tanh()`
+- `fastTanh()`
+- `pow(double exponent)`
+- `mul(double scalar)`
+- `inv()`
+- `sqrt()`
+- `sigmoid()`
+
+### Reduction
+
+- `sum(int dimension)`
+- `sum()`
+
+### Helper / Internal Execution Anchor
+
+- `forwardOutput()`
+
+Not every operation descriptor in `src/main/java/operations/` is exposed as a direct public `Tensor` method.
+For example, some descriptors exist for backend/optimizer reasons even when there is no matching public `Tensor` convenience method yet.
+
+The full public API reference remains in:
+
+- [src/main/java/tensor/API.md](../tensor/API.md)
+
 ## Gradient and Backward
 
 Autodiff is reverse-mode:
