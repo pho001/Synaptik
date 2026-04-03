@@ -48,6 +48,16 @@ Preferred flow today is:
 The optimizer does not own runtime execution.
 It only transforms the graph before preparation.
 
+Operation-surface strategy is defined in:
+
+- [src/main/java/operations/README.md](../../operations/README.md)
+
+In particular, optimizer lowering should respect the difference between:
+
+- compositional API surface
+- canonical graph primitives
+- semantic-preserving lowering opportunities
+
 ## Rule Contract
 
 Each rule:
@@ -61,6 +71,7 @@ Rules must preserve:
 - graph reachability
 - backward-flow correctness
 - phase boundaries between forward and backward sections
+- semantic equivalence when lowering composed forms into specialized primitives
 
 Shared graph rewrite mechanics such as input replacement and topological-closure rebuild now live in:
 

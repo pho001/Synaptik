@@ -122,6 +122,177 @@ Those concerns live elsewhere:
 - backend kernels execute ops
 - compiled/prepared graph layers own runtime metadata
 
+## Operation Strategy
+
+Before adding a new user-facing tensor operation, decide which of these three architectural buckets it belongs to:
+
+- `composition-only`
+  - exposed as API ergonomics on `Tensor`
+  - represented in the graph as composition of existing primitives
+  - no dedicated canonical primitive is added
+- `specialized-only`
+  - exists as a first-class graph/backend primitive
+  - has dedicated runtime meaning
+  - should not be modeled as a permanent derived sugar graph if the specialized semantics are the real contract
+- `both`
+  - may exist as ergonomic surface and also as a specialized runtime primitive
+  - optimizer may lower the ergonomic/composed form into the specialized primitive
+  - only valid if semantics are exactly preserved
+
+Decision rule:
+
+- choose `composition-only` when the operation is mostly API sugar and does not need:
+  - unique gradient semantics
+  - dedicated planner/backend behavior
+  - hot-path specialization
+- choose `specialized-only` when the operation:
+  - has its own semantic contract
+  - has its own gradient/tie policy
+  - needs dedicated memory/runtime behavior
+  - is not naturally expressible without creating an artificial graph
+- choose `both` when:
+  - the public ergonomic form is useful
+  - but a dedicated primitive gives real execution benefit
+  - and the lowering from surface form to primitive does not change semantics
+
+## Current Strategy Matrix
+
+### Composition-Only Surface
+
+These should stay as derived tensor helpers unless a strong runtime reason appears later:
+
+- `minimum(second)`
+- `maximum(second)`
+- future piecewise helpers such as:
+  - `step`
+  - `isPositive`
+  - `isNegative`
+  - `isNonNegative`
+  - `isNonPositive`
+  - `signMask`
+
+Reasoning:
+
+- they are naturally expressed through compare/select algebra
+- they do not currently require their own backend/planner contract
+- keeping them derived prevents primitive-set bloat
+
+Important note:
+
+- `minimum/maximum` are intentionally not aliases for specialized `min/max`
+- their semantics are compare/select-based and follow `where(...)` branch behavior on ties
+- this is different from specialized `min/max` contracts
+
+### Specialized-Only Primitives
+
+These are canonical graph/runtime primitives and should remain first-class:
+
+- arithmetic/runtime core:
+  - `ADD`
+  - `SUB`
+  - `MUL`
+  - `DIV`
+  - `MUL_SCALAR`
+  - `POW`
+  - `NEG`
+  - `INV`
+  - `LOG`
+  - `EXP`
+  - `FAST_EXP`
+  - `TANH`
+  - `FAST_TANH`
+  - `SQRT`
+- compare/select/bool core:
+  - `GT`
+  - `GE`
+  - `LT`
+  - `LE`
+  - `EQ`
+  - `NE`
+  - `WHERE`
+  - `LOGICAL_AND`
+  - `LOGICAL_OR`
+  - `LOGICAL_NOT`
+- reductions:
+  - `SUM`
+  - `REDUCE_MIN`
+  - `REDUCE_MAX`
+  - `REDUCE_ALL`
+  - `REDUCE_ANY`
+  - `REDUCE_MIN_GRAD`
+  - `REDUCE_MAX_GRAD`
+  - `MIN_GRAD`
+  - `MAX_GRAD`
+- linear algebra:
+  - `MATMUL`
+- layout / storage semantics:
+  - `CONTIGUOUS`
+  - `RESHAPE`
+  - `EXPAND`
+  - `PERMUTE`
+  - `EXPAND_DIMS`
+  - `SQUEEZE`
+- execution/runtime anchors:
+  - `NOOP`
+  - `FUSED`
+
+Reasoning:
+
+- these ops already carry real backend/planner meaning
+- many of them have dedicated runtime kernels, reduction policies, memory behavior, or alias/materialization semantics
+- they form the current canonical primitive set the optimizer reasons over
+
+### Surface + Specialized Primitive (`both`)
+
+These ops are strong candidates for both a public surface and a dedicated canonical/runtime primitive:
+
+- `relu`
+- `clamp`
+- `clampMin`
+- `clampMax`
+
+Reasoning:
+
+- all of them can be expressed compositionally
+- all of them are plausible hot-path ops where specialization can reduce graph size and improve runtime behavior
+
+Current status:
+
+- `relu` already exists as a specialized primitive
+- `clamp*` currently exist as compositional surface over compare/select
+- if `clamp*` are promoted to dedicated primitives later, the lowering must preserve exact semantics
+
+Future likely `both` candidates:
+
+- `abs`
+- `leakyRelu`
+- `gelu`
+- `silu`
+- `hardSigmoid`
+- `hardSwish`
+
+## Lowering Policy
+
+The optimizer may lower a compositional surface into a specialized primitive only when semantics are identical.
+
+Examples:
+
+- allowed:
+  - `where(x > 0, x, 0)` -> `RELU`
+- not automatically allowed:
+  - `where(a < b, a, b)` -> specialized `MIN`
+  - `where(a > b, a, b)` -> specialized `MAX`
+
+Why:
+
+- specialized `min/max` carry different semantics than compare/select-based `minimum/maximum`, especially around gradient/tie behavior
+
+This means:
+
+- `Tensor` surface ergonomics do not automatically define canonical graph form
+- canonical graph form is the smaller primitive set with explicit runtime meaning
+- optimizer lowering is semantic-preserving normalization, not arbitrary graph shortening
+
 ## How to Add a New Operation
 
 This is the current end-to-end checklist for adding a new operation correctly.
@@ -140,6 +311,14 @@ First decide where the operation belongs:
 - n-ary / special-case op
 
 This determines which tensor helper class should build it.
+
+Before doing that, also decide whether the operation belongs to:
+
+- `composition-only`
+- `specialized-only`
+- `both`
+
+using the strategy rules above.
 
 Examples:
 
@@ -174,6 +353,9 @@ Why:
 - fused logic
 
 all reason over `opType()`, not over Java class names.
+
+Only add a new `OpType` when the operation is intended to be a canonical primitive.
+Do not add new primitive enum values for pure API sugar that should remain compositional.
 
 ### 3. Add the operation descriptor class
 
