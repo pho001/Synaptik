@@ -220,8 +220,6 @@ Backward note:
 
 - if an operand was broadcast in forward execution, its gradient is reduced back to the original operand shape
 
-## Broadcasting Contract
-
 Broadcast-aware binary operations in the current tensor surface are:
 
 - `add`
@@ -250,6 +248,13 @@ They produce `BOOL` tensors and are nondifferentiable.
 - returns the promoted numeric dtype of `x` and `y`
 - propagates gradient only through the selected data branches
 - does not propagate gradient through `condition`
+
+`minimum(second)` and `maximum(second)` are explicit compare/select-based piecewise surfaces:
+
+- `minimum(a, b)` behaves like `where(a < b, a, b)`
+- `maximum(a, b)` behaves like `where(a > b, a, b)`
+- they intentionally use where-style branch semantics on ties
+- that tie behavior is different from the specialized `min/max` ops, which keep their existing tie-gradient contract
 
 Logical bool ops:
 
@@ -323,16 +328,6 @@ It keeps values inside the interval and replaces values below/above the interval
 
 - `clampMin` only raises values below the lower bound
 - `clampMax` only lowers values above the upper bound
-
-`minimum(second)` and `maximum(second)` are explicit compare/select-based surfaces:
-
-- `minimum(a, b)` behaves like `where(a < b, a, b)`
-- `maximum(a, b)` behaves like `where(a > b, a, b)`
-
-Important:
-
-- they intentionally use where-style branch semantics for equal values
-- that tie behavior is different from the specialized `min/max` ops, which keep their existing tie-gradient contract
 
 ## Gradient and Backward
 

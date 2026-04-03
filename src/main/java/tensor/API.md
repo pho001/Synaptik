@@ -49,6 +49,8 @@ The focus here is practical API usage:
   - [`notEqualTo(Tensor second)`](#notequaltotensor-second)
 - [Select Operation](#select-operation)
   - [`where(Tensor condition, Tensor ifTrue, Tensor ifFalse)`](#wheretensor-condition-tensor-iftrue-tensor-iffalse-static)
+  - [`minimum(Tensor second)`](#minimumtensor-second)
+  - [`maximum(Tensor second)`](#maximumtensor-second)
 - [Logical Bool Operations](#logical-bool-operations)
   - [`logicalAnd(Tensor second)`](#logicalandtensor-second)
   - [`logicalOr(Tensor second)`](#logicalortensor-second)
