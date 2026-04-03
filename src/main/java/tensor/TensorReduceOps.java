@@ -1,6 +1,7 @@
 package tensor;
 
 import operations.Operation;
+import operations.mean;
 import operations.reduceAll;
 import operations.reduceAny;
 import operations.reduceMax;
@@ -67,14 +68,43 @@ final class TensorReduceOps {
     }
 
     static Tensor mean(Tensor input, int dimension, boolean keepDims) {
+        if (input == null) {
+            throw new IllegalArgumentException("mean input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("mean requires numeric input.");
+        }
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
-        double divisor = input.getShape()[normalizedDimension];
-        return sum(input, normalizedDimension, keepDims).mul(1.0 / divisor);
+        Tensor out = new Tensor(reduceShape(input.getShape(), normalizedDimension, keepDims), List.of(input), new mean(normalizedDimension, keepDims), "mean");
+        out.setDataType(input.getDataType());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) return;
+            Tensor aligned = keepDims ? outGrad : outGrad.expandDims(normalizedDimension);
+            Tensor grad = aligned.expand(input.getShape()).mul(1.0 / input.getShape()[normalizedDimension]);
+            if (input.getGradient() == null) input.setGradient(grad);
+            else input.setGradient(input.getGradient().add(grad));
+        });
+        return out;
     }
 
     static Tensor meanAll(Tensor input) {
-        double divisor = input.getFlatDataSize();
-        return sumAll(input).mul(1.0 / divisor);
+        if (input == null) {
+            throw new IllegalArgumentException("mean input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("mean requires numeric input.");
+        }
+        Tensor out = new Tensor(new int[]{1}, List.of(input), new mean(-1), "mean");
+        out.setDataType(input.getDataType());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) return;
+            Tensor grad = outGrad.expand(input.getShape()).mul(1.0 / input.getFlatDataSize());
+            if (input.getGradient() == null) input.setGradient(grad);
+            else input.setGradient(input.getGradient().add(grad));
+        });
+        return out;
     }
 
     static Tensor min(Tensor input, int dimension) {

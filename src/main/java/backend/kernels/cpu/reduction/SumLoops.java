@@ -14,13 +14,13 @@ import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 
-final class SumLoops {
+public final class SumLoops {
     private static final VectorSpecies<Double> SPECIES = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
 
     private SumLoops() {}
 
-    static void execute(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
+    public static void execute(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
@@ -42,7 +42,7 @@ final class SumLoops {
         sumAxis(input, node.getData(), logicalSize, dimension, context);
     }
 
-    static void executeF32(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
+    public static void executeF32(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
@@ -70,7 +70,7 @@ final class SumLoops {
         sumAxisF32(input, in, out, logicalSize, dimension, context);
     }
 
-    static void executeF16(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
+    public static void executeF16(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");

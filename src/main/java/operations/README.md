@@ -60,6 +60,7 @@ Current descriptor classes in this package:
 - `sqrt`
 - `mulScalar`
 - `sum`
+- `mean`
 - `reduceAll`
 - `reduceAny`
 - `reduceMin`
@@ -218,6 +219,7 @@ These are canonical graph/runtime primitives and should remain first-class:
   - `LOGICAL_NOT`
 - reductions:
   - `SUM`
+  - `MEAN`
   - `REDUCE_MIN`
   - `REDUCE_MAX`
   - `REDUCE_ALL`

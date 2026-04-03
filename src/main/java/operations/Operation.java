@@ -47,6 +47,7 @@ public interface Operation {
         ABS(OpArityClass.ELEMENT_WISE, false),
         MUL_SCALAR(OpArityClass.ELEMENT_WISE, true),
         SUM(OpArityClass.REDUCTION, false),
+        MEAN(OpArityClass.REDUCTION, false),
         RELU(OpArityClass.ELEMENT_WISE, true),
         CLAMP_MIN(OpArityClass.ELEMENT_WISE, false),
         CLAMP_MAX(OpArityClass.ELEMENT_WISE, false),

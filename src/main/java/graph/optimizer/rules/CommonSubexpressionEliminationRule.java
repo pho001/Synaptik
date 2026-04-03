@@ -10,6 +10,7 @@ import operations.clampMin;
 import operations.expand;
 import operations.expandDims;
 import operations.maxGrad;
+import operations.mean;
 import operations.minGrad;
 import operations.mulScalar;
 import operations.noop;
@@ -144,6 +145,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case CLAMP_MIN -> new DoubleValue(((clampMin) op).getMinValue());
             case CLAMP_MAX -> new DoubleValue(((clampMax) op).getMaxValue());
             case SUM -> new ReductionSignature(((sum) op).getDimension(), ((sum) op).keepDims());
+            case MEAN -> new ReductionSignature(((mean) op).getDimension(), ((mean) op).keepDims());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
             case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());
