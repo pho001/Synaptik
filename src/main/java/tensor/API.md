@@ -5,26 +5,43 @@ This document describes the current public surface of `tensor.Tensor`.
 Primary class:
 - [src/main/java/tensor/Tensor.java](../tensor/Tensor.java)
 
-This reference focuses on:
+The focus here is practical API usage:
 - what each public operation does
 - what parameters it accepts
 - what it returns
-- short usage examples
+- short commented examples
+
+## Contents
+
+- [Conventions](#conventions)
+- [Execution API](#execution-api)
+- [Static Factories](#static-factories)
+- [Layout / Shape Operations](#layout--shape-operations)
+- [Binary Arithmetic Operations](#binary-arithmetic-operations)
+- [Comparison Operations](#comparison-operations)
+- [Select Operation](#select-operation)
+- [Logical Bool Operations](#logical-bool-operations)
+- [Unary / Scalar Operations](#unary--scalar-operations)
+- [Reduction Operations](#reduction-operations)
+- [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
+- [Metadata and Data Access](#metadata-and-data-access)
+- [Backend Selection](#backend-selection)
+- [Debug Formatting](#debug-formatting)
 
 ## Conventions
 
 - Axis indices are zero-based.
-- Negative axes are accepted only where the underlying implementation explicitly supports them.
 - Shapes are written as arrays such as `[2, 3, 4]`.
 - `BOOL` tensors are logical tensors.
 - Comparison ops and logical bool ops are nondifferentiable.
 - `where(condition, x, y)` is differentiable only in the data branches.
+- `all` / `any` are `BOOL`-only reductions and are nondifferentiable.
 
-## Preferred Execution API
+## Execution API
 
 ### `prepare(ExecutionProfile profile)`
 
-Builds a prepared execution object for the current tensor graph using an execution profile.
+Builds a prepared execution for the graph rooted at this tensor.
 
 Parameters:
 - `profile`: execution profile containing optimizer, runtime config, and execution mode defaults
@@ -34,24 +51,28 @@ Returns:
 
 Example:
 ```java
+// Builds a prepared execution object for the graph rooted at y.
 ExecutionProfile profile = ExecutionProfile.inferenceDefaults();
 PreparedExecution execution = y.prepare(profile);
+// Returns: a PreparedExecution bound to the selected optimizer/runtime profile.
 ```
 
 ### `compute(ExecutionProfile profile)`
 
-Builds and runs the graph using the supplied execution profile.
+Builds and executes the graph using the supplied profile.
 
 Parameters:
 - `profile`: execution profile to use
 
 Returns:
-- nothing; the tensor graph is executed in place
+- nothing; the graph is executed in place
 
 Example:
 ```java
+// Compiles and executes the graph rooted at loss using the training profile.
 ExecutionProfile profile = ExecutionProfile.trainingDefaults();
 loss.compute(profile);
+// Returns: nothing; loss and all dependent tensors are executed in place.
 ```
 
 ### `compute(PreparedExecution execution, ExecutionMode mode)`
@@ -67,8 +88,10 @@ Returns:
 
 Example:
 ```java
+// Reuses a prepared execution and runs only the forward pass.
 PreparedExecution execution = y.prepare(profile);
 y.compute(execution, ExecutionMode.FORWARD);
+// Returns: nothing; the prepared execution is run in place.
 ```
 
 ## Static Factories
@@ -80,45 +103,52 @@ Creates a scalar tensor with shape `[1]`.
 
 Parameters:
 - `value`: scalar value
-- `dataType`: optional output dtype
+- `dataType`: optional dtype
 
 Returns:
 - scalar tensor
 
-Examples:
+Example:
 ```java
+// Creates a default scalar tensor with value 3.0 and shape [1].
 Tensor a = Tensor.scalar(3.0);
+// Creates a FLOAT64 scalar tensor with value 1.5 and shape [1].
 Tensor b = Tensor.scalar(1.5, DataType.FLOAT64);
+// Returns: scalar tensors.
 ```
 
 ### `onesLike(Tensor other)`
 
-Creates a dense numeric tensor filled with ones and matching `other.shape`.
+Creates a dense tensor of ones matching `other.shape` and `other.dtype`.
 
 Parameters:
 - `other`: reference tensor
 
 Returns:
-- tensor with the same shape and dtype as `other`
+- tensor filled with ones
 
 Example:
 ```java
+// Creates a tensor of ones with the same shape and dtype as x.
 Tensor mask = Tensor.onesLike(x);
+// Returns: a tensor full of ones.
 ```
 
 ### `zerosLike(Tensor other)`
 
-Creates a dense numeric tensor filled with zeros and matching `other.shape`.
+Creates a dense tensor of zeros matching `other.shape` and `other.dtype`.
 
 Parameters:
 - `other`: reference tensor
 
 Returns:
-- tensor with the same shape and dtype as `other`
+- tensor filled with zeros
 
 Example:
 ```java
+// Creates a tensor of zeros with the same shape and dtype as x.
 Tensor zeros = Tensor.zerosLike(x);
+// Returns: a tensor full of zeros.
 ```
 
 ## Layout / Shape Operations
@@ -133,10 +163,13 @@ Parameters:
 Returns:
 - tensor with the same logical shape and values, but contiguous storage
 
-Examples:
+Example:
 ```java
+// Materializes a non-contiguous view into dense contiguous storage.
 Tensor dense = view.contiguous();
+// Materializes an expanded zero-stride view into dense contiguous storage.
 Tensor materialized = expanded.contiguous();
+// Returns: contiguous tensors with the same logical values.
 ```
 
 ### `reshape(int... newShape)`
@@ -149,10 +182,13 @@ Parameters:
 Returns:
 - reshaped tensor
 
-Examples:
+Example:
 ```java
+// Reshapes x to shape [3, 2] without changing element count.
 Tensor y = x.reshape(3, 2);
+// Reshapes x to [3, inferred] using one -1 placeholder.
 Tensor z = x.reshape(3, -1);
+// Returns: reshaped tensors.
 ```
 
 ### `expand(int... newShape)`
@@ -166,10 +202,13 @@ Parameters:
 Returns:
 - expanded view tensor
 
-Examples:
+Example:
 ```java
+// Expands a singleton dimension to produce a broadcast view of shape [2, 3].
 Tensor y = x.expand(2, 3);
+// Broadcast-expands a bias tensor across the batch dimension.
 Tensor z = bias.expand(batch, features);
+// Returns: zero-stride broadcast views.
 ```
 
 ### `permute(int... axes)`
@@ -182,10 +221,13 @@ Parameters:
 Returns:
 - permuted view tensor
 
-Examples:
+Example:
 ```java
+// Swaps the two axes of a rank-2 tensor.
 Tensor y = x.permute(1, 0);
+// Reorders a rank-3 tensor from [N, C, H] to [N, H, C].
 Tensor z = x.permute(0, 2, 1);
+// Returns: permuted view tensors.
 ```
 
 ### `transpose()`
@@ -198,9 +240,11 @@ Parameters:
 Returns:
 - transposed rank-2 tensor
 
-Examples:
+Example:
 ```java
+// Convenience rank-2 transpose.
 Tensor y = matrix.transpose();
+// Returns: a transposed rank-2 tensor.
 ```
 
 ### `expandDims(int axis)`
@@ -213,10 +257,13 @@ Parameters:
 Returns:
 - tensor with one additional dimension of size `1`
 
-Examples:
+Example:
 ```java
+// Inserts a leading singleton axis, e.g. [3, 4] -> [1, 3, 4].
 Tensor y = x.expandDims(0);
+// Inserts a singleton axis at position 2.
 Tensor z = x.expandDims(2);
+// Returns: tensors with one extra size-1 axis.
 ```
 
 ### `squeeze(int axis)`
@@ -229,19 +276,22 @@ Parameters:
 Returns:
 - tensor with that dimension removed
 
-Examples:
+Example:
 ```java
+// Removes a leading singleton axis.
 Tensor y = x.squeeze(0);
+// Removes the singleton axis produced earlier by expandDims.
 Tensor z = expanded.squeeze(1);
+// Returns: tensors with one fewer axis.
 ```
 
 ## Binary Arithmetic Operations
 
-These operations follow the standard binary broadcasting contract:
-- ranks align from the right
-- missing leading dimensions behave as `1`
-- dimensions are compatible if equal or one side is `1`
-- gradients are reduced back to original operand shapes in backward execution
+These operations:
+- use standard binary broadcasting
+- align ranks from the right
+- treat missing leading dimensions as `1`
+- reduce broadcasted gradients back to original operand shapes during backward execution
 
 ### `add(Tensor second)`
 
@@ -253,10 +303,13 @@ Parameters:
 Returns:
 - broadcasted element-wise sum
 
-Examples:
+Example:
 ```java
+// Element-wise add with matching shapes.
 Tensor y = a.add(b);
+// Broadcast-adds bias across matrix rows.
 Tensor z = matrix.add(bias);
+// Returns: element-wise sums.
 ```
 
 ### `sub(Tensor second)`
@@ -269,10 +322,13 @@ Parameters:
 Returns:
 - broadcasted element-wise difference
 
-Examples:
+Example:
 ```java
+// Element-wise subtract with matching shapes.
 Tensor y = a.sub(b);
+// Computes residual error between prediction and target.
 Tensor z = prediction.sub(target);
+// Returns: element-wise differences.
 ```
 
 ### `mul(Tensor second)`
@@ -285,10 +341,13 @@ Parameters:
 Returns:
 - broadcasted element-wise product
 
-Examples:
+Example:
 ```java
+// Element-wise multiply with matching shapes.
 Tensor y = a.mul(b);
+// Multiplies x by a broadcast-compatible mask tensor.
 Tensor z = x.mul(mask);
+// Returns: element-wise products.
 ```
 
 ### `div(Tensor second)`
@@ -301,10 +360,13 @@ Parameters:
 Returns:
 - broadcasted element-wise quotient
 
-Examples:
+Example:
 ```java
+// Element-wise divide with matching shapes.
 Tensor y = a.div(b);
+// Divides x by a broadcast-compatible scale tensor.
 Tensor z = x.div(scale);
+// Returns: element-wise quotients.
 ```
 
 ### `min(Tensor second)`
@@ -317,10 +379,13 @@ Parameters:
 Returns:
 - broadcasted element-wise minimum
 
-Examples:
+Example:
 ```java
+// Element-wise minimum with matching shapes.
 Tensor y = a.min(b);
+// Clamps logits from above using an element-wise cap tensor.
 Tensor z = logits.min(cap);
+// Returns: element-wise minima.
 ```
 
 ### `max(Tensor second)`
@@ -333,10 +398,13 @@ Parameters:
 Returns:
 - broadcasted element-wise maximum
 
-Examples:
+Example:
 ```java
+// Element-wise maximum with matching shapes.
 Tensor y = a.max(b);
+// Clamps x from below using an element-wise floor tensor.
 Tensor z = x.max(floor);
+// Returns: element-wise maxima.
 ```
 
 ### `matmul(Tensor second)`
@@ -349,10 +417,13 @@ Parameters:
 Returns:
 - matrix product
 
-Examples:
+Example:
 ```java
+// Multiplies two rank-2 tensors.
 Tensor y = a.matmul(b);
+// Typical dense layer projection.
 Tensor logits = input.matmul(weights);
+// Returns: matrix products.
 ```
 
 ## Comparison Operations
@@ -373,10 +444,13 @@ Parameters:
 Returns:
 - `BOOL` tensor with `true` where `this > second`
 
-Examples:
+Example:
 ```java
+// Builds a BOOL mask where a is strictly greater than b.
 Tensor mask = a.greaterThan(b);
+// Builds an activation mask above the given threshold.
 Tensor active = scores.greaterThan(threshold);
+// Returns: BOOL tensors.
 ```
 
 ### `greaterOrEqual(Tensor second)`
@@ -389,9 +463,11 @@ Parameters:
 Returns:
 - `BOOL` tensor with `true` where `this >= second`
 
-Examples:
+Example:
 ```java
+// Builds a BOOL mask where a is greater than or equal to b.
 Tensor mask = a.greaterOrEqual(b);
+// Returns: a BOOL tensor.
 ```
 
 ### `lessThan(Tensor second)`
@@ -404,9 +480,11 @@ Parameters:
 Returns:
 - `BOOL` tensor with `true` where `this < second`
 
-Examples:
+Example:
 ```java
+// Builds a BOOL mask where a is strictly less than b.
 Tensor mask = a.lessThan(b);
+// Returns: a BOOL tensor.
 ```
 
 ### `lessOrEqual(Tensor second)`
@@ -419,9 +497,11 @@ Parameters:
 Returns:
 - `BOOL` tensor with `true` where `this <= second`
 
-Examples:
+Example:
 ```java
+// Builds a BOOL mask where a is less than or equal to b.
 Tensor mask = a.lessOrEqual(b);
+// Returns: a BOOL tensor.
 ```
 
 ### `equalTo(Tensor second)`
@@ -434,9 +514,11 @@ Parameters:
 Returns:
 - `BOOL` tensor with `true` where `this == second`
 
-Examples:
+Example:
 ```java
+// Builds a BOOL mask of exact equality.
 Tensor mask = a.equalTo(b);
+// Returns: a BOOL tensor.
 ```
 
 ### `notEqualTo(Tensor second)`
@@ -449,9 +531,11 @@ Parameters:
 Returns:
 - `BOOL` tensor with `true` where `this != second`
 
-Examples:
+Example:
 ```java
+// Builds a BOOL mask of exact inequality.
 Tensor mask = a.notEqualTo(b);
+// Returns: a BOOL tensor.
 ```
 
 ## Select Operation
@@ -474,10 +558,13 @@ Behavior:
 - gradient flows only through selected data branches
 - `condition` itself has no gradient
 
-Examples:
+Example:
 ```java
+// Selects x where mask is true, otherwise yFallback.
 Tensor y = Tensor.where(mask, x, yFallback);
+// Builds a simple upper clamp through compare/select composition.
 Tensor clipped = Tensor.where(x.greaterThan(cap), cap, x);
+// Returns: numeric tensors with the promoted branch dtype.
 ```
 
 ## Logical Bool Operations
@@ -497,10 +584,13 @@ Parameters:
 Returns:
 - `BOOL` tensor with `true` where both operands are true
 
-Examples:
+Example:
 ```java
+// Logical conjunction of two BOOL tensors.
 Tensor mask = a.logicalAnd(b);
+// Combines two BOOL masks into one.
 Tensor combined = gtMask.logicalAnd(eqMask);
+// Returns: BOOL tensors.
 ```
 
 ### `logicalOr(Tensor second)`
@@ -513,9 +603,11 @@ Parameters:
 Returns:
 - `BOOL` tensor with `true` where at least one operand is true
 
-Examples:
+Example:
 ```java
+// Logical disjunction of two BOOL tensors.
 Tensor mask = a.logicalOr(b);
+// Returns: a BOOL tensor.
 ```
 
 ### `logicalNot()`
@@ -528,9 +620,11 @@ Parameters:
 Returns:
 - `BOOL` tensor with inverted logical values
 
-Examples:
+Example:
 ```java
+// Logical negation of a BOOL tensor.
 Tensor inverted = mask.logicalNot();
+// Returns: a BOOL tensor.
 ```
 
 ## Unary / Scalar Operations
@@ -547,7 +641,9 @@ Returns:
 
 Example:
 ```java
+// Arithmetic negation.
 Tensor y = x.neg();
+// Returns: a tensor with all values multiplied by -1.
 ```
 
 ### `log()`
@@ -562,7 +658,9 @@ Returns:
 
 Example:
 ```java
+// Natural logarithm applied element-wise.
 Tensor y = x.log();
+// Returns: a tensor of ln(x) values.
 ```
 
 ### `exp()`
@@ -577,7 +675,9 @@ Returns:
 
 Example:
 ```java
+// Natural exponential applied element-wise.
 Tensor y = x.exp();
+// Returns: a tensor of exp(x) values.
 ```
 
 ### `fastExp()`
@@ -592,7 +692,9 @@ Returns:
 
 Example:
 ```java
+// Fast approximate exponential applied element-wise.
 Tensor y = x.fastExp();
+// Returns: a tensor of approximate exp(x) values.
 ```
 
 ### `tanh()`
@@ -607,7 +709,9 @@ Returns:
 
 Example:
 ```java
+// Hyperbolic tangent applied element-wise.
 Tensor y = x.tanh();
+// Returns: a tensor of tanh(x) values.
 ```
 
 ### `fastTanh()`
@@ -622,7 +726,9 @@ Returns:
 
 Example:
 ```java
+// Fast approximate hyperbolic tangent applied element-wise.
 Tensor y = x.fastTanh();
+// Returns: a tensor of approximate tanh(x) values.
 ```
 
 ### `pow(double exponent)`
@@ -635,10 +741,13 @@ Parameters:
 Returns:
 - tensor of `x^exponent`
 
-Examples:
+Example:
 ```java
+// Squares every element of x.
 Tensor y = x.pow(2.0);
+// Computes square roots through exponent 0.5.
 Tensor z = x.pow(0.5);
+// Returns: tensors of x^exponent.
 ```
 
 ### `mul(double scalar)`
@@ -651,10 +760,13 @@ Parameters:
 Returns:
 - scaled tensor
 
-Examples:
+Example:
 ```java
+// Scales x by one half.
 Tensor y = x.mul(0.5);
+// Doubles every element of x.
 Tensor z = x.mul(2.0);
+// Returns: scaled tensors.
 ```
 
 ### `inv()`
@@ -669,7 +781,9 @@ Returns:
 
 Example:
 ```java
+// Element-wise reciprocal.
 Tensor y = x.inv();
+// Returns: a tensor of 1 / x values.
 ```
 
 ### `sqrt()`
@@ -684,7 +798,9 @@ Returns:
 
 Example:
 ```java
+// Element-wise square root.
 Tensor y = x.sqrt();
+// Returns: a tensor of sqrt(x) values.
 ```
 
 ### `sigmoid()`
@@ -699,7 +815,32 @@ Returns:
 
 Example:
 ```java
+// Logistic sigmoid applied element-wise.
 Tensor y = logits.sigmoid();
+// Returns: a tensor of sigmoid(logits) values.
+```
+
+### `clamp(double minValue, double maxValue)`
+
+Clamps every numeric element into the closed interval `[minValue, maxValue]`.
+
+Parameters:
+- `minValue`: lower bound
+- `maxValue`: upper bound
+
+Returns:
+- clamped numeric tensor
+
+Behavior:
+- values below `minValue` become `minValue`
+- values above `maxValue` become `maxValue`
+- values already inside the interval stay unchanged
+
+Example:
+```java
+// Clips x into the interval [0.0, 1.0].
+Tensor y = x.clamp(0.0, 1.0);
+// Returns: a tensor whose values are limited to [0.0, 1.0].
 ```
 
 ## Reduction Operations
@@ -720,7 +861,9 @@ Returns:
 
 Example:
 ```java
+// Sums all elements of x into a scalar-shaped tensor [1].
 Tensor y = x.sum();
+// Returns: a scalar-shaped sum tensor.
 ```
 
 ### `sum(int dimension)`
@@ -735,7 +878,9 @@ Returns:
 
 Example:
 ```java
+// Reduces axis 1 and removes it from the result shape.
 Tensor y = x.sum(1);
+// Returns: an axis-reduced tensor.
 ```
 
 ### `sum(int dimension, boolean keepDims)`
@@ -749,10 +894,13 @@ Parameters:
 Returns:
 - reduced tensor
 
-Examples:
+Example:
 ```java
+// Reduces axis 1 and keeps it as size 1.
 Tensor y = x.sum(1, true);
+// Reduces axis 0 and removes it.
 Tensor z = x.sum(0, false);
+// Returns: reduced tensors.
 ```
 
 ### `mean()`
@@ -767,7 +915,9 @@ Returns:
 
 Example:
 ```java
+// Mean over all elements of x.
 Tensor y = x.mean();
+// Returns: a scalar-shaped mean tensor.
 ```
 
 ### `mean(int dimension)`
@@ -782,7 +932,9 @@ Returns:
 
 Example:
 ```java
+// Mean reduction over axis 1.
 Tensor y = x.mean(1);
+// Returns: an axis-reduced mean tensor.
 ```
 
 ### `mean(int dimension, boolean keepDims)`
@@ -798,7 +950,9 @@ Returns:
 
 Example:
 ```java
+// Mean reduction over axis 1 while keeping the axis.
 Tensor y = x.mean(1, true);
+// Returns: a reduced mean tensor.
 ```
 
 ### `min()`
@@ -813,7 +967,9 @@ Returns:
 
 Example:
 ```java
+// Global minimum of x.
 Tensor y = x.min();
+// Returns: a scalar-shaped minimum tensor.
 ```
 
 ### `min(int dimension)`
@@ -828,7 +984,9 @@ Returns:
 
 Example:
 ```java
+// Minimum reduction over axis 1.
 Tensor y = x.min(1);
+// Returns: an axis-reduced minimum tensor.
 ```
 
 ### `min(int dimension, boolean keepDims)`
@@ -844,7 +1002,9 @@ Returns:
 
 Example:
 ```java
+// Minimum reduction over axis 1 while keeping the axis.
 Tensor y = x.min(1, true);
+// Returns: a reduced minimum tensor.
 ```
 
 ### `max()`
@@ -859,7 +1019,9 @@ Returns:
 
 Example:
 ```java
+// Global maximum of x.
 Tensor y = x.max();
+// Returns: a scalar-shaped maximum tensor.
 ```
 
 ### `max(int dimension)`
@@ -874,7 +1036,9 @@ Returns:
 
 Example:
 ```java
+// Maximum reduction over axis 1.
 Tensor y = x.max(1);
+// Returns: an axis-reduced maximum tensor.
 ```
 
 ### `max(int dimension, boolean keepDims)`
@@ -890,7 +1054,113 @@ Returns:
 
 Example:
 ```java
+// Maximum reduction over axis 1 while keeping the axis.
 Tensor y = x.max(1, true);
+// Returns: a reduced maximum tensor.
+```
+
+### `all()`
+
+Reduces all elements of a `BOOL` tensor with logical conjunction.
+
+Parameters:
+- none
+
+Returns:
+- scalar-shaped `BOOL` tensor that is `true` only if all elements are `true`
+
+Example:
+```java
+// Returns true only if every element in mask is true.
+Tensor y = mask.all();
+// Returns: a scalar-shaped BOOL tensor.
+```
+
+### `all(int dimension)`
+
+Reduces one axis of a `BOOL` tensor with logical conjunction.
+
+Parameters:
+- `dimension`: axis to reduce
+
+Returns:
+- reduced `BOOL` tensor
+
+Example:
+```java
+// Reduces axis 1 with logical AND.
+Tensor y = mask.all(1);
+// Returns: an axis-reduced BOOL tensor.
+```
+
+### `all(int dimension, boolean keepDims)`
+
+Reduces one axis of a `BOOL` tensor with logical conjunction and optional axis preservation.
+
+Parameters:
+- `dimension`: axis to reduce
+- `keepDims`: whether to keep the reduced axis as size `1`
+
+Returns:
+- reduced `BOOL` tensor
+
+Example:
+```java
+// Reduces axis 1 and keeps it as size 1.
+Tensor y = mask.all(1, true);
+// Returns: a reduced BOOL tensor.
+```
+
+### `any()`
+
+Reduces all elements of a `BOOL` tensor with logical disjunction.
+
+Parameters:
+- none
+
+Returns:
+- scalar-shaped `BOOL` tensor that is `true` if any element is `true`
+
+Example:
+```java
+// Returns true if at least one element in mask is true.
+Tensor y = mask.any();
+// Returns: a scalar-shaped BOOL tensor.
+```
+
+### `any(int dimension)`
+
+Reduces one axis of a `BOOL` tensor with logical disjunction.
+
+Parameters:
+- `dimension`: axis to reduce
+
+Returns:
+- reduced `BOOL` tensor
+
+Example:
+```java
+// Reduces axis 1 with logical OR.
+Tensor y = mask.any(1);
+// Returns: an axis-reduced BOOL tensor.
+```
+
+### `any(int dimension, boolean keepDims)`
+
+Reduces one axis of a `BOOL` tensor with logical disjunction and optional axis preservation.
+
+Parameters:
+- `dimension`: axis to reduce
+- `keepDims`: whether to keep the reduced axis as size `1`
+
+Returns:
+- reduced `BOOL` tensor
+
+Example:
+```java
+// Reduces axis 1 and keeps it as size 1.
+Tensor y = mask.any(1, true);
+// Returns: a reduced BOOL tensor.
 ```
 
 Reduction gradient notes:
@@ -898,6 +1168,7 @@ Reduction gradient notes:
 - `mean` additionally scales by reduced-size reciprocal
 - `min` and `max` route gradients only to winning elements
 - ties split gradient evenly across winners
+- `all` and `any` are nondifferentiable
 
 ## Execution Anchor / Autodiff Helpers
 
@@ -913,7 +1184,9 @@ Returns:
 
 Example:
 ```java
+// Creates the explicit forward sink node for y.
 Tensor out = y.forwardOutput();
+// Returns: a tensor used as the forward execution anchor.
 ```
 
 ### `buildBackwardGraph()`
@@ -929,7 +1202,9 @@ Returns:
 
 Example:
 ```java
+// Executes the internal backward graph builder attached to loss.
 loss.buildBackwardGraph();
+// Returns: nothing; this is internal graph wiring.
 ```
 
 ### `setBackwardFunction(Runnable backwardFunction)`
@@ -945,7 +1220,9 @@ Returns:
 
 Example:
 ```java
+// Installs the internal backward graph builder for tensor t.
 t.setBackwardFunction(() -> { /* internal backward wiring */ });
+// Returns: nothing; this is internal graph wiring.
 ```
 
 ## Metadata and Data Access
@@ -957,7 +1234,9 @@ Returns a defensive copy of the tensor shape.
 
 Example:
 ```java
+// Reads the logical shape of x.
 int[] shape = x.getShape();
+// Returns: a copy of the shape array.
 ```
 
 #### `getShapeUnsafe()`
@@ -990,7 +1269,7 @@ Maps multi-dimensional indices to flat index according to current layout.
 Maps a flat index back to logical coordinates.
 
 #### `computeStrides(int[] shape)`
-Static-like helper on the instance for dense strides of `shape`.
+Returns dense strides for a requested shape.
 
 #### `computeStrides()`
 Returns a copy of current strides.
@@ -1008,7 +1287,7 @@ Changes dtype within numeric families.
 `BOOL <-> numeric` implicit conversion is not supported.
 
 #### `getStorage()`
-Returns backing storage object.
+Returns the backing storage object.
 This is mainly internal/runtime oriented.
 
 #### `getFloat64Data()`
@@ -1047,7 +1326,9 @@ Reads one logical element as `double`.
 
 Example:
 ```java
+// Reads one logical element from x.
 double v = x.getByFlatIndex(3);
+// Returns: the value at flat logical index 3 as double.
 ```
 
 #### `setDataAt(int flatIndex, double value)`
@@ -1133,5 +1414,7 @@ Returns a string representation of shape, strides, and logical values.
 
 Example:
 ```java
+// Formats x for debugging, including shape, strides, and logical values.
 System.out.println(x.toStructString());
+// Returns: a human-readable debug string.
 ```
