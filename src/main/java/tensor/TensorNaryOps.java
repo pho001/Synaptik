@@ -69,6 +69,16 @@ final class TensorNaryOps {
         return out;
     }
 
+    static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension) {
+        if (logits == null || targets == null) {
+            throw new IllegalArgumentException("crossEntropyLoss inputs cannot be null");
+        }
+        if (logits.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("crossEntropyLoss requires numeric inputs.");
+        }
+        return logits.logSoftmax(classDimension).nllLoss(targets, classDimension);
+    }
+
     private static int sampleCount(int[] shape, int classDimension) {
         int count = 1;
         for (int i = 0; i < shape.length; i++) {

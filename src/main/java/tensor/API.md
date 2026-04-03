@@ -95,6 +95,7 @@ The focus here is practical API usage:
   - [`any(int dimension, boolean keepDims)`](#anyint-dimension-boolean-keepdims)
 - [Loss / N-ary Operations](#loss--n-ary-operations)
   - [`nllLoss(Tensor targets, int classDimension)`](#nlllosstensor-targets-int-classdimension)
+  - [`crossEntropyLoss(Tensor targets, int classDimension)`](#crossentropylosstensor-targets-int-classdimension)
 - [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
   - [`forwardOutput()`](#forwardoutput)
   - [`buildBackwardGraph()`](#buildbackwardgraph)
@@ -1802,6 +1803,31 @@ Tensor loss = logProbs.nllLoss(targets, 1);
 // for the two samples in the batch.
 //
 // Returns: a scalar mean NLL loss tensor.
+```
+
+### `crossEntropyLoss(Tensor targets, int classDimension)`
+
+Computes mean cross-entropy loss directly from logits.
+
+Parameters:
+- `targets`: tensor with the same shape as `logits`; typically one-hot labels or a target distribution
+- `classDimension`: axis containing class logits
+
+Returns:
+- scalar-shaped loss tensor
+
+Behavior:
+- currently defined compositionally as `logits.logSoftmax(classDimension).nllLoss(targets, classDimension)`
+- this is the logits-facing ergonomic surface
+- there is not yet a dedicated `CROSS_ENTROPY_LOSS` primitive in this version
+
+Example:
+```java
+Tensor loss = logits.crossEntropyLoss(targets, 1);
+// Equivalent to:
+// Tensor loss = logits.logSoftmax(1).nllLoss(targets, 1);
+//
+// Returns: a scalar mean cross-entropy loss tensor.
 ```
 
 ## Execution Anchor / Autodiff Helpers

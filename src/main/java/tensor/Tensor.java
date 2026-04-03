@@ -877,6 +877,10 @@ public class Tensor {
         return TensorOps.nllLoss(this, targets, classDimension);
     }
 
+    public Tensor crossEntropyLoss(Tensor targets, int classDimension) {
+        return TensorOps.crossEntropyLoss(this, targets, classDimension);
+    }
+
     public Tensor min(int dimension) {
         return TensorOps.min(this, dimension);
     }

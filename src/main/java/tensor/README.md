@@ -168,6 +168,7 @@ The current public graph-building operation surface on `Tensor` is:
 ### Loss / N-ary
 
 - `nllLoss(Tensor targets, int classDimension)`
+- `crossEntropyLoss(Tensor targets, int classDimension)`
 
 ### Helper / Internal Execution Anchor
 
@@ -350,6 +351,12 @@ For axis reduction:
 - `targets` must have the same shape as `logProbs`
 - `targets` are interpreted as one-hot labels or more general target distributions along the class axis
 - output is a scalar mean loss across all sample positions outside the class axis
+
+`crossEntropyLoss(targets, classDimension)` is currently the ergonomic logits-facing surface:
+
+- input is raw logits
+- internally it is defined as `logSoftmax(classDimension).nllLoss(targets, classDimension)`
+- no dedicated `CROSS_ENTROPY_LOSS` primitive exists yet in this first version
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.

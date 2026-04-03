@@ -262,4 +262,8 @@ public final class TensorOps {
     public static Tensor nllLoss(Tensor logProbs, Tensor targets, int classDimension) {
         return TensorNaryOps.nllLoss(logProbs, targets, classDimension);
     }
+
+    public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension) {
+        return TensorNaryOps.crossEntropyLoss(logits, targets, classDimension);
+    }
 }
