@@ -11,6 +11,7 @@ public final class UnaryF16 {
 
     public static void inv(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.INV); }
     public static void relu(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.RELU); }
+    public static void abs(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.ABS); }
     public static void clampMin(short[] in, float minValue, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.CLAMP_MIN, minValue); }
     public static void clampMax(short[] in, float maxValue, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.CLAMP_MAX, maxValue); }
     public static void exp(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.EXP); }
@@ -39,6 +40,7 @@ public final class UnaryF16 {
             float y = switch (op) {
                 case INV -> 1.0f / x;
                 case RELU -> Math.max(0.0f, x);
+                case ABS -> Math.abs(x);
                 case CLAMP_MIN -> Math.max(scalar, x);
                 case CLAMP_MAX -> Math.min(scalar, x);
                 case EXP -> (float) Math.exp(x);
@@ -63,5 +65,5 @@ public final class UnaryF16 {
         });
     }
 
-    private enum Op { INV, RELU, CLAMP_MIN, CLAMP_MAX, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SQRT, SIGMOID }
+    private enum Op { INV, RELU, ABS, CLAMP_MIN, CLAMP_MAX, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SQRT, SIGMOID }
 }

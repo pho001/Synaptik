@@ -764,6 +764,10 @@ public class Tensor {
         return TensorOps.logicalNot(this);
     }
 
+    public Tensor abs() {
+        return TensorOps.abs(this);
+    }
+
     public Tensor matmul(Tensor second) {
         return TensorOps.matmul(this, second);
     }

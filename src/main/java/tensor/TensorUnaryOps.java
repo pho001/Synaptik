@@ -1,6 +1,7 @@
 package tensor;
 
 import operations.Operation;
+import operations.abs;
 import operations.clampMax;
 import operations.clampMin;
 import operations.exp;
@@ -34,6 +35,42 @@ final class TensorUnaryOps {
                 } else {
                     input.setGradient(input.getGradient().add(gradForInput));
                 }
+            }
+        });
+        return out;
+    }
+
+    static Tensor abs(Tensor input) {
+        if (input == null) {
+            throw new IllegalArgumentException("abs input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("abs requires numeric input.");
+        }
+
+        Operation op = new abs();
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "abs");
+        out.setDataType(TensorDataTypeUtil.unary(input));
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+            if (!input.getRequiresGrad()) return;
+
+            Tensor zero = Tensor.scalar(0.0, input.getDataType());
+            Tensor sign = Tensor.where(
+                    input.greaterThan(zero),
+                    Tensor.onesLike(input),
+                    Tensor.where(
+                            input.lessThan(zero),
+                            Tensor.onesLike(input).mul(-1.0),
+                            Tensor.zerosLike(input)
+                    )
+            );
+            Tensor gradForInput = outGrad.mul(sign);
+            if (input.getGradient() == null) {
+                input.setGradient(gradForInput);
+            } else {
+                input.setGradient(input.getGradient().add(gradForInput));
             }
         });
         return out;

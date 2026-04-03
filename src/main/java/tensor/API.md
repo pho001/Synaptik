@@ -57,6 +57,7 @@ The focus here is practical API usage:
   - [`logicalNot()`](#logicalnot)
 - [Unary / Scalar Operations](#unary--scalar-operations)
   - [`relu()`](#relu)
+  - [`abs()`](#abs)
   - [`neg()`](#neg)
   - [`log()`](#log)
   - [`exp()`](#exp)
@@ -1045,6 +1046,29 @@ Tensor y = x.relu();
 // y has shape [3] and values [0, 0, 3].
 //
 // Returns: a tensor after element-wise ReLU.
+```
+
+### `abs()`
+
+Element-wise absolute value.
+
+Parameters:
+- none
+
+Returns:
+- tensor of `|x|`
+
+Behavior:
+- uses the specialized `ABS` primitive
+- backward uses `sign(x)` with gradient `0` at `x == 0`
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{-3.0, -0.5, 0.0, 2.0}, new int[]{4}, null, "x");
+Tensor y = x.abs();
+// y has shape [4] and values [3.0, 0.5, 0.0, 2.0].
+//
+// Returns: a tensor after element-wise absolute value.
 ```
 
 ### `neg()`

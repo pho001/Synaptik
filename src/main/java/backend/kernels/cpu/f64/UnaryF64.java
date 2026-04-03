@@ -99,6 +99,15 @@ public final class UnaryF64 {
         }
     }
 
+    public static void abs(double[] in, double[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
+            case VECTOR -> vectorAbs(in, out);
+            case PARALLEL -> parallelAbs(in, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorAbs(in, out, hints);
+            case SCALAR -> scalarAbs(in, out, 0, out.length);
+        }
+    }
+
     public static void sigmoid(double[] in, double[] out, ResolvedDispatchHints hints) {
         switch (hints.mode()) {
             case VECTOR -> vectorSigmoid(in, out);
@@ -118,6 +127,7 @@ public final class UnaryF64 {
     private static void scalarTanh(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.tanh(in[i]); }
     private static void scalarFastTanh(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = FastExp.fastTanhF64(in[i]); }
     private static void scalarSqrt(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.sqrt(in[i]); }
+    private static void scalarAbs(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.abs(in[i]); }
     private static void scalarSigmoid(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = 1.0 / (1.0 + Math.exp(-in[i])); }
 
     private static void vectorInv(double[] in, double[] out) {
@@ -196,6 +206,15 @@ public final class UnaryF64 {
         scalarSqrt(in, out, i, out.length);
     }
 
+    private static void vectorAbs(double[] in, double[] out) {
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        for (; i < upper; i += SPECIES.length()) {
+            DoubleVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.ABS).intoArray(out, i);
+        }
+        scalarAbs(in, out, i, out.length);
+    }
+
     private static void vectorSigmoid(double[] in, double[] out) {
         int i = 0;
         int upper = SPECIES.loopBound(out.length);
@@ -217,6 +236,7 @@ public final class UnaryF64 {
     private static void parallelTanh(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarTanh); }
     private static void parallelFastTanh(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarFastTanh); }
     private static void parallelSqrt(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarSqrt); }
+    private static void parallelAbs(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarAbs); }
     private static void parallelSigmoid(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarSigmoid); }
 
     private static void parallelVectorInv(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorInvChunk, UnaryF64::scalarInv); }
@@ -227,6 +247,7 @@ public final class UnaryF64 {
     private static void parallelVectorLog(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorLogChunk, UnaryF64::scalarLog); }
     private static void parallelVectorTanh(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorTanhChunk, UnaryF64::scalarTanh); }
     private static void parallelVectorSqrt(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorSqrtChunk, UnaryF64::scalarSqrt); }
+    private static void parallelVectorAbs(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorAbsChunk, UnaryF64::scalarAbs); }
     private static void parallelVectorSigmoid(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorSigmoidChunk, UnaryF64::scalarSigmoid); }
 
     private static void parallelScalar(double[] in, double[] out, ResolvedDispatchHints hints, ScalarOp op) {
@@ -270,6 +291,12 @@ public final class UnaryF64 {
         DoubleVector ceil = DoubleVector.broadcast(SPECIES, maxValue);
         for (int i = start, upper = end - ((end - start) % width); i < upper; i += width) {
             DoubleVector.fromArray(SPECIES, in, i).min(ceil).intoArray(out, i);
+        }
+    }
+
+    private static void vectorAbsChunk(double[] in, double[] out, int start, int end, int width) {
+        for (int i = start, upper = end - ((end - start) % width); i < upper; i += width) {
+            DoubleVector.fromArray(SPECIES, in, i).lanewise(VectorOperators.ABS).intoArray(out, i);
         }
     }
 

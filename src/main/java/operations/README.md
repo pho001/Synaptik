@@ -69,6 +69,7 @@ Current descriptor classes in this package:
 - `relu`
 - `clampMin`
 - `clampMax`
+- `abs`
 - `sigmoid`
 - `contiguous`
 - `reshape`
@@ -252,6 +253,7 @@ These ops are strong candidates for both a public surface and a dedicated canoni
 - `clamp`
 - `clampMin`
 - `clampMax`
+- `abs`
 
 Reasoning:
 
@@ -264,6 +266,8 @@ Current status:
 - `clampMin` and `clampMax` now exist as specialized primitives
 - `clamp(...)` remains composition over those specialized one-sided primitives
 - optimizer lowering may normalize compare/select forms into `clampMin` / `clampMax` when semantics match exactly
+- `abs` now exists as a specialized primitive with an explicit backward contract (`sign(x)`, `0` at `x == 0`)
+- there is intentionally no automatic lowering from compare/select forms to `abs` yet, because the subgradient at `0` must stay explicit and consistent
 
 Future likely `both` candidates:
 

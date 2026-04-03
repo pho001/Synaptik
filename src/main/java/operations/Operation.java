@@ -44,6 +44,7 @@ public interface Operation {
         FAST_TANH(OpArityClass.ELEMENT_WISE, true),
         POW(OpArityClass.ELEMENT_WISE, true),
         SQRT(OpArityClass.ELEMENT_WISE, true),
+        ABS(OpArityClass.ELEMENT_WISE, false),
         MUL_SCALAR(OpArityClass.ELEMENT_WISE, true),
         SUM(OpArityClass.REDUCTION, false),
         RELU(OpArityClass.ELEMENT_WISE, true),

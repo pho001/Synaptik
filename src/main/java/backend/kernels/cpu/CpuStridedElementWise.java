@@ -16,7 +16,7 @@ public final class CpuStridedElementWise {
     public static boolean supports(Operation op) {
         if (op == null) return false;
         return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
             default -> false;
         };
     }
@@ -233,6 +233,7 @@ public final class CpuStridedElementWise {
             case TANH -> useFastTanhApprox ? FastExp.fastTanhF64(a[aIdx]) : Math.tanh(a[aIdx]);
             case FAST_TANH -> FastExp.fastTanhF64(a[aIdx]);
             case SQRT -> Math.sqrt(a[aIdx]);
+            case ABS -> Math.abs(a[aIdx]);
             case RELU -> Math.max(0.0, a[aIdx]);
             case CLAMP_MIN -> Math.max(((clampMin) op).getMinValue(), a[aIdx]);
             case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValue(), a[aIdx]);
@@ -274,6 +275,7 @@ public final class CpuStridedElementWise {
             case TANH -> useFastTanhApprox ? FastExp.fastTanhF32(a[aIdx]) : (float) Math.tanh(a[aIdx]);
             case FAST_TANH -> FastExp.fastTanhF32(a[aIdx]);
             case SQRT -> (float) Math.sqrt(a[aIdx]);
+            case ABS -> Math.abs(a[aIdx]);
             case RELU -> Math.max(0.0f, a[aIdx]);
             case CLAMP_MIN -> Math.max(((clampMin) op).getMinValueF32(), a[aIdx]);
             case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValueF32(), a[aIdx]);
@@ -317,6 +319,7 @@ public final class CpuStridedElementWise {
             case TANH -> useFastTanhApprox ? FastExp.fastTanhF32(av) : (float) Math.tanh(av);
             case FAST_TANH -> FastExp.fastTanhF32(av);
             case SQRT -> (float) Math.sqrt(av);
+            case ABS -> Math.abs(av);
             case RELU -> Math.max(0.0f, av);
             case CLAMP_MIN -> Math.max(((clampMin) op).getMinValueF32(), av);
             case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValueF32(), av);

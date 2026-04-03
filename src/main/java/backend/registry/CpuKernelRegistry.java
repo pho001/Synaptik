@@ -43,6 +43,7 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.FAST_TANH, new CpuFastTanhKernel());
         KERNELS.put(Operation.OpType.POW, new CpuPowKernel());
         KERNELS.put(Operation.OpType.SQRT, new CpuSqrtKernel());
+        KERNELS.put(Operation.OpType.ABS, new CpuAbsKernel());
         KERNELS.put(Operation.OpType.MUL_SCALAR, new CpuMulScalarKernel());
         KERNELS.put(Operation.OpType.SUM, new CpuSumKernel());
         KERNELS.put(Operation.OpType.RELU, new CpuReluKernel());

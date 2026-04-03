@@ -99,6 +99,10 @@ public final class TensorOps {
         return TensorBoolOps.logicalNot(input);
     }
 
+    public static Tensor abs(Tensor input) {
+        return TensorUnaryOps.abs(input);
+    }
+
     public static Tensor matmul(Tensor first, Tensor second) {
         return TensorMatMulOps.matmul(first, second);
     }
