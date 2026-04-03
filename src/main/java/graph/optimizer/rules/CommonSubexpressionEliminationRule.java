@@ -10,6 +10,8 @@ import operations.clampMin;
 import operations.crossEntropyLoss;
 import operations.expand;
 import operations.expandDims;
+import operations.gather;
+import operations.gatherGrad;
 import operations.maxGrad;
 import operations.mean;
 import operations.minGrad;
@@ -164,6 +166,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case PERMUTE -> IntArrayValue.copyOf(((permute) op).getAxes());
             case EXPAND -> IntArrayValue.copyOf(((expand) op).getTargetShape());
             case EXPAND_DIMS -> new AxisSignature(((expandDims) op).getAxis());
+            case GATHER -> new AxisSignature(((gather) op).getDimension());
+            case GATHER_GRAD -> new AxisSignature(((gatherGrad) op).getDimension());
             case SQUEEZE -> new AxisSignature(((squeeze) op).getAxis());
             default -> NoParamsSignature.INSTANCE;
         };

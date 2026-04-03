@@ -764,6 +764,10 @@ public class Tensor {
         return TensorOps.logicalNot(this);
     }
 
+    public Tensor gather(Tensor indices, int dimension) {
+        return TensorOps.gather(this, indices, dimension);
+    }
+
     public Tensor abs() {
         return TensorOps.abs(this);
     }

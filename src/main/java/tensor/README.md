@@ -170,6 +170,10 @@ The current public graph-building operation surface on `Tensor` is:
 - `nllLoss(Tensor targets, int classDimension)`
 - `crossEntropyLoss(Tensor targets, int classDimension)`
 
+### Indexing
+
+- `gather(Tensor indices, int dimension)`
+
 ### Helper / Internal Execution Anchor
 
 - `forwardOutput()`
@@ -358,6 +362,14 @@ For axis reduction:
 - internally it now maps to a dedicated `CROSS_ENTROPY_LOSS` primitive
 - semantic reference remains `logSoftmax(classDimension).nllLoss(targets, classDimension)`
 - current contract is still the narrow dense-target mean-reduction variant
+
+`gather(indices, dimension)` is the first narrow indexing primitive:
+
+- output shape is input shape with the selected axis removed
+- `indices` must have exactly that output shape
+- `indices` are currently numeric tensors with integral values
+- backward scatters upstream gradient back into selected input positions
+- this is intentionally a minimal first step before a broader indexing/gather family
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.

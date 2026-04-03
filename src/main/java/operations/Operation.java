@@ -37,6 +37,8 @@ public interface Operation {
         CROSS_ENTROPY_LOSS(OpArityClass.SPECIAL, false),
         REDUCE_MIN_GRAD(OpArityClass.SPECIAL, false),
         REDUCE_MAX_GRAD(OpArityClass.SPECIAL, false),
+        GATHER(OpArityClass.SPECIAL, false),
+        GATHER_GRAD(OpArityClass.SPECIAL, false),
         WHERE(OpArityClass.ELEMENT_WISE, false),
         MATMUL(OpArityClass.LINEAR_ALGEBRA, false),
         NEG(OpArityClass.ELEMENT_WISE, true),

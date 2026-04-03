@@ -51,6 +51,8 @@ The focus here is practical API usage:
   - [`where(Tensor condition, Tensor ifTrue, Tensor ifFalse)`](#wheretensor-condition-tensor-iftrue-tensor-iffalse-static)
   - [`minimum(Tensor second)`](#minimumtensor-second)
   - [`maximum(Tensor second)`](#maximumtensor-second)
+- [Indexing Operations](#indexing-operations)
+  - [`gather(Tensor indices, int dimension)`](#gathertensor-indices-int-dimension)
 - [Logical Bool Operations](#logical-bool-operations)
   - [`logicalAnd(Tensor second)`](#logicalandtensor-second)
   - [`logicalOr(Tensor second)`](#logicalortensor-second)
@@ -955,6 +957,34 @@ Tensor y = a.maximum(b);
 // On the tie at the last element, the where-style branch selects the second operand.
 //
 // Returns: a compare/select-based numeric maximum tensor.
+```
+
+## Indexing Operations
+
+### `gather(Tensor indices, int dimension)`
+
+Gathers one value per logical sample position along the chosen axis.
+
+Parameters:
+- `indices`: tensor whose shape equals the input shape with the gathered axis removed
+- `dimension`: axis to gather from
+
+Returns:
+- tensor whose shape equals `indices.shape`
+
+Behavior:
+- current first version expects `indices` to be numeric tensors with integral values
+- current first version is intentionally narrow and is meant as the minimal indexing primitive for future index-target losses
+- backward scatters upstream gradient back into the selected input positions
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
+Tensor indices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "indices");
+Tensor y = x.gather(indices, 1);
+// y has shape [2] and values [3, 4].
+//
+// Returns: a gathered tensor with one selected value per row.
 ```
 
 ## Logical Bool Operations

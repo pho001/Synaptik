@@ -45,6 +45,8 @@ Current descriptor classes in this package:
 - `equalTo`
 - `notEqualTo`
 - `where`
+- `gather`
+- `gatherGrad`
 - `logicalAnd`
 - `logicalOr`
 - `logicalNot`
@@ -123,6 +125,10 @@ Additional current descriptor notes:
 - logical bool descriptors (`logicalAnd`, `logicalOr`, `logicalNot`)
   - are `BOOL`-only ops
   - are nondifferentiable
+- `gather`
+  - is currently a deliberately narrow indexing primitive
+  - current first version expects numeric integral-valued index tensors
+  - it is introduced mainly as the minimal base for future index-target loss family work
 
 Those concerns live elsewhere:
 
@@ -221,6 +227,9 @@ These are canonical graph/runtime primitives and should remain first-class:
   - `LOGICAL_AND`
   - `LOGICAL_OR`
   - `LOGICAL_NOT`
+- indexing core:
+  - `GATHER`
+  - `GATHER_GRAD`
 - reductions:
   - `SUM`
   - `MEAN`

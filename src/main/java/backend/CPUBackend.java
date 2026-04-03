@@ -351,6 +351,8 @@ public final class CPUBackend {
             case LOGICAL_AND, LOGICAL_OR -> resolveLogicalBinaryContract(inputs);
             case LOGICAL_NOT -> resolveLogicalUnaryContract(inputs);
             case REDUCE_ALL, REDUCE_ANY -> resolveBoolReductionContract(node, inputs);
+            case GATHER -> resolveGatherContract(inputs);
+            case GATHER_GRAD -> resolveGatherGradContract(inputs);
             default -> {
                 DataType outputType = resolveTargetType(node, inputs);
                 yield uniformTypeContract(outputType, inputs == null ? 0 : inputs.size());
@@ -423,6 +425,30 @@ public final class CPUBackend {
             throw new IllegalArgumentException("BOOL reductions require BOOL input.");
         }
         return new PreparedTypeContract(DataType.BOOL, List.of(DataType.BOOL));
+    }
+
+    private static PreparedTypeContract resolveGatherContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 2) {
+            throw new IllegalArgumentException("gather expects exactly two inputs.");
+        }
+        DataType sourceType = inputs.get(0).getDataType();
+        DataType indexType = inputs.get(1).getDataType();
+        if (indexType == DataType.BOOL) {
+            throw new IllegalArgumentException("gather indices must be numeric integral values.");
+        }
+        return new PreparedTypeContract(sourceType, List.of(sourceType, indexType));
+    }
+
+    private static PreparedTypeContract resolveGatherGradContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 2) {
+            throw new IllegalArgumentException("gatherGrad expects exactly two inputs.");
+        }
+        DataType indexType = inputs.get(0).getDataType();
+        DataType gradType = inputs.get(1).getDataType();
+        if (indexType == DataType.BOOL || gradType == DataType.BOOL) {
+            throw new IllegalArgumentException("gatherGrad requires numeric indices and numeric gradient input.");
+        }
+        return new PreparedTypeContract(gradType, List.of(indexType, gradType));
     }
 
     private static DataType resolveTargetType(Tensor node, List<Tensor> inputs) {

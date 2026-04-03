@@ -99,6 +99,10 @@ public final class TensorOps {
         return TensorBoolOps.logicalNot(input);
     }
 
+    public static Tensor gather(Tensor input, Tensor indices, int dimension) {
+        return TensorIndexOps.gather(input, indices, dimension);
+    }
+
     public static Tensor abs(Tensor input) {
         return TensorUnaryOps.abs(input);
     }
