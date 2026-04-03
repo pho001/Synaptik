@@ -23,16 +23,21 @@ public class TransformOpsTest {
         Tensor reshaped = base.reshape(3, 2);
         CompiledGraph.compile(reshaped, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{3, 2}, reshaped.getShape());
+        assertArrayEquals(new int[]{2, 1}, reshaped.getStrides());
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, reshaped.toDoubleArrayCopy(), eps(dataType));
 
         Tensor expanded = reshaped.expandDims(1);
         CompiledGraph.compile(expanded, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{3, 1, 2}, expanded.getShape());
+        assertArrayEquals(new int[]{2, 2, 1}, expanded.getStrides());
+        assertSame(reshaped.getStorage(), expanded.getStorage());
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, expanded.toDoubleArrayCopy(), eps(dataType));
 
         Tensor squeezed = expanded.squeeze(1);
         CompiledGraph.compile(squeezed, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new int[]{3, 2}, squeezed.getShape());
+        assertArrayEquals(new int[]{2, 1}, squeezed.getStrides());
+        assertSame(expanded.getStorage(), squeezed.getStorage());
         assertArrayEquals(new double[]{1, 2, 3, 4, 5, 6}, squeezed.toDoubleArrayCopy(), eps(dataType));
     }
 
@@ -101,6 +106,40 @@ public class TransformOpsTest {
         Tensor transposedContiguous = transposed.contiguous();
         CompiledGraph.compile(transposedContiguous, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
         assertArrayEquals(new double[]{1, 4, 2, 5, 3, 6}, transposedContiguous.toDoubleArrayCopy(), eps(dataType));
+    }
+
+    @Test
+    void expandDimsAndSqueezePreserveNonContiguousViewLayout() {
+        Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", DataType.FLOAT64);
+        Tensor permuted = base.permute(1, 0);
+        Tensor expanded = permuted.expandDims(1);
+        Tensor squeezed = expanded.squeeze(1);
+
+        CompiledGraph.compile(squeezed, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{3, 2}, permuted.getShape());
+        assertArrayEquals(new int[]{1, 3}, permuted.getStrides());
+        assertArrayEquals(new int[]{3, 1, 2}, expanded.getShape());
+        assertArrayEquals(new int[]{1, 6, 3}, expanded.getStrides());
+        assertSame(permuted.getStorage(), expanded.getStorage());
+        assertArrayEquals(new int[]{3, 2}, squeezed.getShape());
+        assertArrayEquals(new int[]{1, 3}, squeezed.getStrides());
+        assertSame(expanded.getStorage(), squeezed.getStorage());
+        assertArrayEquals(new double[]{1, 4, 2, 5, 3, 6}, squeezed.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void expandDimsAndSqueezeBackwardPreserveViewSemantics() {
+        Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", DataType.FLOAT64);
+        base.setRequiresGrad(true);
+        Tensor out = base.permute(1, 0).expandDims(1).squeeze(1).sum();
+
+        CompiledGraph.compile(out, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new int[]{2, 3}, base.getGradient().getShape());
+        assertArrayEquals(new double[]{1, 1, 1, 1, 1, 1}, base.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
     @Test

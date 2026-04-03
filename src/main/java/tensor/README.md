@@ -183,7 +183,11 @@ Important current behavior:
 
 - `permute(...)` creates a view-like tensor with reordered strides
 - `expand(...)` creates a zero-stride broadcast alias view
+- `expandDims(...)` creates a stride-preserving alias view with one inserted size-`1` axis
+- `squeeze(...)` creates a stride-preserving alias view with one removed size-`1` axis
 - `reshape(...)` changes shape interpretation while preserving element count
+  - for contiguous inputs it aliases the same storage as a reshape view
+  - for non-contiguous inputs it may materialize a dense reshaped result at runtime
 - `contiguous()` is the canonical explicit materialization path
 
 Use `contiguous()` when:
@@ -293,6 +297,7 @@ Additional rank-mismatch examples:
 
 `expand(int... newShape)` is the first explicit broadcast-shape operation on `Tensor`.
 It is implemented as a true broadcasted alias view with zero strides on expanded axes.
+`expandDims(...)` and `squeeze(...)` follow the same view-oriented philosophy: they rewrite shape/stride metadata without forcing dense materialization.
 If a dense materialized tensor is required, use `contiguous()` explicitly.
 
 ## Reduction Shape Policy

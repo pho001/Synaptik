@@ -99,13 +99,21 @@ final class TensorLayoutOps {
         int rank = input.getShape().length;
         int normalizedAxis = TensorLayoutTransform.normalizeInsertAxis(axis, rank);
         int[] inShape = input.getShape();
+        int[] inStrides = input.getStridesUnsafe();
         int[] outShape = new int[rank + 1];
+        int[] outStrides = new int[rank + 1];
         for (int i = 0, j = 0; i < outShape.length; i++) {
-            if (i == normalizedAxis) outShape[i] = 1;
-            else outShape[i] = inShape[j++];
+            if (i == normalizedAxis) {
+                outShape[i] = 1;
+                outStrides[i] = insertedAxisStride(inShape, inStrides, normalizedAxis);
+            } else {
+                outShape[i] = inShape[j];
+                outStrides[i] = inStrides[j];
+                j++;
+            }
         }
         Operation op = new expandDims(normalizedAxis);
-        Tensor out = new Tensor(outShape, List.of(input), op, "expandDims", input.getDataType());
+        Tensor out = new Tensor(outShape, outStrides, List.of(input), op, "expandDims", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -124,12 +132,18 @@ final class TensorLayoutOps {
             throw new IllegalArgumentException("Cannot squeeze dimension " + normalizedAxis + " with size " + input.getShape()[normalizedAxis]);
         }
         int[] inShape = input.getShape();
+        int[] inStrides = input.getStridesUnsafe();
         int[] outShape = new int[rank - 1];
+        int[] outStrides = new int[rank - 1];
         for (int i = 0, j = 0; i < inShape.length; i++) {
-            if (i != normalizedAxis) outShape[j++] = inShape[i];
+            if (i != normalizedAxis) {
+                outShape[j] = inShape[i];
+                outStrides[j] = inStrides[i];
+                j++;
+            }
         }
         Operation op = new squeeze(normalizedAxis);
-        Tensor out = new Tensor(outShape, List.of(input), op, "squeeze", input.getDataType());
+        Tensor out = new Tensor(outShape, outStrides, List.of(input), op, "squeeze", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -139,5 +153,12 @@ final class TensorLayoutOps {
             else input.setGradient(input.getGradient().add(grad));
         });
         return out;
+    }
+
+    private static int insertedAxisStride(int[] shape, int[] strides, int axis) {
+        if (axis >= shape.length) {
+            return 1;
+        }
+        return strides[axis] * shape[axis];
     }
 }

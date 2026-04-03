@@ -148,7 +148,11 @@ Important current behavior:
 
 - `permute(...)` creates a view-like tensor with reordered strides
 - `expand(...)` creates a zero-stride broadcast alias view
+- `expandDims(...)` creates a stride-preserving alias view with one inserted size-`1` axis
+- `squeeze(...)` creates a stride-preserving alias view with one removed size-`1` axis
 - `reshape(...)` is a layout-level transform that preserves element count
+  - for contiguous inputs it aliases the same storage as a reshape view
+  - for non-contiguous inputs it may materialize a dense reshaped result
 - `contiguous()` is the canonical explicit materialization path
 
 `contiguous()` is useful when:
@@ -455,8 +459,8 @@ Tensor y = matrix.transpose();
 
 Inserts a singleton dimension at `axis`.
 
-This is a pure shape transform.
-It does not change values, only adds an axis of size `1`.
+This is a pure shape transform and a true alias view.
+It does not change values and does not materialize new dense storage; it only adds an axis of size `1` and updates shape/stride metadata.
 
 Parameters:
 - `axis`: insertion position
@@ -483,7 +487,7 @@ Tensor z = x.expandDims(2);
 // [[[1], [2]],
 //  [[3], [4]]]
 //
-// Returns: tensors with one extra size-1 axis.
+// Returns: alias-view tensors with one extra size-1 axis.
 ```
 
 ### `squeeze(int axis)`
@@ -491,6 +495,7 @@ Tensor z = x.expandDims(2);
 Removes a singleton dimension at `axis`.
 
 This is the inverse of `expandDims(...)` when the chosen axis has size `1`.
+It is also a true alias view and only rewrites shape/stride metadata.
 
 Parameters:
 - `axis`: axis that must currently have size `1`
@@ -516,7 +521,7 @@ Tensor z = expanded.squeeze(2);
 // z has shape [2, 2]
 // and keeps the same logical values.
 //
-// Returns: tensors with one fewer size-1 axis.
+// Returns: alias-view tensors with one fewer size-1 axis.
 ```
 
 ## Binary Arithmetic Operations
