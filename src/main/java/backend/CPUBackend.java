@@ -280,7 +280,7 @@ public final class CPUBackend {
             return false;
         }
         return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, GT, LT, EQ -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE -> true;
             default -> false;
         };
     }
@@ -346,7 +346,7 @@ public final class CPUBackend {
             return uniformTypeContract(outputType, inputs == null ? 0 : inputs.size());
         }
         return switch (op.opType()) {
-            case GT, LT, EQ -> resolveCompareContract(inputs);
+            case GT, GE, LT, LE, EQ, NE -> resolveCompareContract(inputs);
             case WHERE -> resolveWhereContract(inputs);
             default -> {
                 DataType outputType = resolveTargetType(node, inputs);

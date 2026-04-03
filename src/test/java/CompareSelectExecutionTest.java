@@ -38,6 +38,24 @@ public class CompareSelectExecutionTest {
     }
 
     @Test
+    void greaterOrEqualLessOrEqualAndNotEqualToWork() {
+        Tensor a = new Tensor(new double[]{1, 2, 2, 4}, new int[]{2, 2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{1, 3, 2, 0}, new int[]{2, 2}, null, "b", DataType.FLOAT64);
+
+        Tensor ge = a.greaterOrEqual(b);
+        Tensor le = a.lessOrEqual(b);
+        Tensor ne = a.notEqualTo(b);
+
+        CompiledGraph.compile(ge, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(le, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(ne, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new boolean[]{true, false, true, true}, ge.toBooleanArrayCopy());
+        assertArrayEquals(new boolean[]{true, true, true, false}, le.toBooleanArrayCopy());
+        assertArrayEquals(new boolean[]{false, true, false, true}, ne.toBooleanArrayCopy());
+    }
+
+    @Test
     void whereForwardSupportsBroadcastConditionAndBranchBroadcast() {
         Tensor condition = new Tensor(new byte[]{1, 0}, new int[]{2, 1}, null, "cond", DataType.BOOL);
         Tensor ifTrue = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x", DataType.FLOAT64);

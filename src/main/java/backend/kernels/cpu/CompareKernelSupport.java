@@ -127,8 +127,11 @@ final class CompareKernelSupport {
     private static byte compare(Operation.OpType type, double left, double right) {
         boolean value = switch (type) {
             case GT -> left > right;
+            case GE -> left >= right;
             case LT -> left < right;
+            case LE -> left <= right;
             case EQ -> left == right;
+            case NE -> left != right;
             default -> throw new IllegalArgumentException("Unsupported compare op: " + type);
         };
         return value ? (byte) 1 : (byte) 0;

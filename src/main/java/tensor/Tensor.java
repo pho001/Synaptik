@@ -724,8 +724,20 @@ public class Tensor {
         return TensorOps.lessThan(this, second);
     }
 
+    public Tensor greaterOrEqual(Tensor second) {
+        return TensorOps.greaterOrEqual(this, second);
+    }
+
+    public Tensor lessOrEqual(Tensor second) {
+        return TensorOps.lessOrEqual(this, second);
+    }
+
     public Tensor equalTo(Tensor second) {
         return TensorOps.equalTo(this, second);
+    }
+
+    public Tensor notEqualTo(Tensor second) {
+        return TensorOps.notEqualTo(this, second);
     }
 
     public static Tensor where(Tensor condition, Tensor ifTrue, Tensor ifFalse) {

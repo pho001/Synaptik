@@ -59,8 +59,20 @@ public final class TensorOps {
         return TensorCompareOps.lessThan(first, second);
     }
 
+    public static Tensor greaterOrEqual(Tensor first, Tensor second) {
+        return TensorCompareOps.greaterOrEqual(first, second);
+    }
+
+    public static Tensor lessOrEqual(Tensor first, Tensor second) {
+        return TensorCompareOps.lessOrEqual(first, second);
+    }
+
     public static Tensor equalTo(Tensor first, Tensor second) {
         return TensorCompareOps.equalTo(first, second);
+    }
+
+    public static Tensor notEqualTo(Tensor first, Tensor second) {
+        return TensorCompareOps.notEqualTo(first, second);
     }
 
     public static Tensor where(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
