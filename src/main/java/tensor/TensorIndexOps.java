@@ -2,6 +2,7 @@ package tensor;
 
 import operations.gather;
 import operations.gatherGrad;
+import operations.scatterAdd;
 
 import java.util.List;
 
@@ -28,6 +29,40 @@ final class TensorIndexOps {
             if (outGrad == null || !input.getRequiresGrad()) return;
             Tensor grad = new Tensor(input.getShape().clone(), List.of(indices, outGrad), new gatherGrad(normalizedDimension), "gather_grad", input.getDataType());
             accumulateGradient(input, grad);
+        });
+        return out;
+    }
+
+    static Tensor scatterAdd(Tensor base, Tensor indices, Tensor src, int dimension) {
+        if (base == null || indices == null || src == null) {
+            throw new IllegalArgumentException("scatterAdd inputs cannot be null");
+        }
+        if (base.getDataType() == DataType.BOOL || src.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("scatterAdd requires numeric base and source tensors.");
+        }
+        if (indices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("scatterAdd indices must be numeric integral values.");
+        }
+        if (base.getDataType() != src.getDataType()) {
+            throw new IllegalArgumentException("scatterAdd requires base and source tensors to have matching dtypes.");
+        }
+        int[] baseShape = base.getShape();
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, baseShape.length);
+        int[] expectedSrcShape = reduceShape(baseShape, normalizedDimension);
+        validateGatherIndicesShape(indices.getShape(), expectedSrcShape);
+        validateGatherIndicesShape(src.getShape(), expectedSrcShape);
+
+        Tensor out = new Tensor(base.getShape().clone(), List.of(base, indices, src), new scatterAdd(normalizedDimension), "scatterAdd", base.getDataType());
+        out.setRequiresGrad(base.getRequiresGrad() || src.getRequiresGrad());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+            if (base.getRequiresGrad()) {
+                accumulateGradient(base, outGrad);
+            }
+            if (src.getRequiresGrad()) {
+                accumulateGradient(src, outGrad.gather(indices, normalizedDimension));
+            }
         });
         return out;
     }

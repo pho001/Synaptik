@@ -768,6 +768,10 @@ public class Tensor {
         return TensorOps.gather(this, indices, dimension);
     }
 
+    public Tensor scatterAdd(Tensor indices, Tensor src, int dimension) {
+        return TensorOps.scatterAdd(this, indices, src, dimension);
+    }
+
     public Tensor abs() {
         return TensorOps.abs(this);
     }
@@ -883,6 +887,10 @@ public class Tensor {
 
     public Tensor crossEntropyLoss(Tensor targets, int classDimension) {
         return TensorOps.crossEntropyLoss(this, targets, classDimension);
+    }
+
+    public Tensor nllLossFromIndices(Tensor targetIndices, int classDimension) {
+        return TensorOps.nllLossFromIndices(this, targetIndices, classDimension);
     }
 
     public Tensor min(int dimension) {

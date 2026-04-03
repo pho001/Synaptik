@@ -173,6 +173,7 @@ The current public graph-building operation surface on `Tensor` is:
 ### Indexing
 
 - `gather(Tensor indices, int dimension)`
+- `scatterAdd(Tensor indices, Tensor src, int dimension)`
 
 ### Helper / Internal Execution Anchor
 
@@ -370,6 +371,20 @@ For axis reduction:
 - `indices` are currently numeric tensors with integral values
 - backward scatters upstream gradient back into selected input positions
 - this is intentionally a minimal first step before a broader indexing/gather family
+
+`scatterAdd(indices, src, dimension)` is the first explicit write/update indexing primitive:
+
+- output shape matches the base tensor shape
+- `indices` and `src` must have shape equal to the base shape without the scattered axis
+- values from `src` are added into positions selected by `indices`
+- this is the natural write-side pair to `gather`
+
+`nllLossFromIndices(targetIndices, classDimension)` is the first index-target loss surface:
+
+- input is `logProbs`
+- `targetIndices` shape equals `logProbs.shape` without the class axis
+- current implementation is composition-first over `gather(...).neg().mean()`
+- this is the bridge from dense-target loss family toward classic class-id target workflows
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.

@@ -47,6 +47,7 @@ Current descriptor classes in this package:
 - `where`
 - `gather`
 - `gatherGrad`
+- `scatterAdd`
 - `logicalAnd`
 - `logicalOr`
 - `logicalNot`
@@ -230,6 +231,7 @@ These are canonical graph/runtime primitives and should remain first-class:
 - indexing core:
   - `GATHER`
   - `GATHER_GRAD`
+  - `SCATTER_ADD`
 - reductions:
   - `SUM`
   - `MEAN`

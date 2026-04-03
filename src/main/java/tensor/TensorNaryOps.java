@@ -107,6 +107,20 @@ final class TensorNaryOps {
         return out;
     }
 
+    static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension) {
+        if (logProbs == null || targetIndices == null) {
+            throw new IllegalArgumentException("nllLossFromIndices inputs cannot be null");
+        }
+        if (logProbs.getDataType() == DataType.BOOL || targetIndices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("nllLossFromIndices requires numeric tensors and numeric integral indices.");
+        }
+        int[] logShape = logProbs.getShape();
+        int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logShape.length);
+        int[] expectedIndexShape = reduceShape(logShape, normalizedClassDimension);
+        validateShape(targetIndices.getShape(), expectedIndexShape, "nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
+        return logProbs.gather(targetIndices, normalizedClassDimension).neg().mean();
+    }
+
     private static int sampleCount(int[] shape, int classDimension) {
         int count = 1;
         for (int i = 0; i < shape.length; i++) {
@@ -122,6 +136,30 @@ final class TensorNaryOps {
             input.setGradient(gradientDelta);
         } else {
             input.setGradient(input.getGradient().add(gradientDelta));
+        }
+    }
+
+    private static int[] reduceShape(int[] shape, int axis) {
+        if (shape.length == 1) {
+            return new int[]{1};
+        }
+        int[] reduced = new int[shape.length - 1];
+        for (int i = 0, j = 0; i < shape.length; i++) {
+            if (i != axis) {
+                reduced[j++] = shape[i];
+            }
+        }
+        return reduced;
+    }
+
+    private static void validateShape(int[] actual, int[] expected, String message) {
+        if (actual.length != expected.length) {
+            throw new IllegalArgumentException(message);
+        }
+        for (int i = 0; i < actual.length; i++) {
+            if (actual[i] != expected[i]) {
+                throw new IllegalArgumentException(message);
+            }
         }
     }
 }

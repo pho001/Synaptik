@@ -53,6 +53,7 @@ The focus here is practical API usage:
   - [`maximum(Tensor second)`](#maximumtensor-second)
 - [Indexing Operations](#indexing-operations)
   - [`gather(Tensor indices, int dimension)`](#gathertensor-indices-int-dimension)
+  - [`scatterAdd(Tensor indices, Tensor src, int dimension)`](#scatteraddtensor-indices-tensor-src-int-dimension)
 - [Logical Bool Operations](#logical-bool-operations)
   - [`logicalAnd(Tensor second)`](#logicalandtensor-second)
   - [`logicalOr(Tensor second)`](#logicalortensor-second)
@@ -98,6 +99,7 @@ The focus here is practical API usage:
 - [Loss / N-ary Operations](#loss--n-ary-operations)
   - [`nllLoss(Tensor targets, int classDimension)`](#nlllosstensor-targets-int-classdimension)
   - [`crossEntropyLoss(Tensor targets, int classDimension)`](#crossentropylosstensor-targets-int-classdimension)
+  - [`nllLossFromIndices(Tensor targetIndices, int classDimension)`](#nlllossfromindicestensor-targetindices-int-classdimension)
 - [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
   - [`forwardOutput()`](#forwardoutput)
   - [`buildBackwardGraph()`](#buildbackwardgraph)
@@ -987,6 +989,36 @@ Tensor y = x.gather(indices, 1);
 // Returns: a gathered tensor with one selected value per row.
 ```
 
+### `scatterAdd(Tensor indices, Tensor src, int dimension)`
+
+Adds source values into positions selected by indices along one axis.
+
+Parameters:
+- `indices`: tensor whose shape equals the base tensor shape with the scattered axis removed
+- `src`: tensor with the same shape as `indices`
+- `dimension`: axis to scatter into
+
+Returns:
+- tensor with the same shape as the base tensor
+
+Behavior:
+- starts from the base tensor values
+- adds `src` contributions into positions selected by `indices`
+- is the write/update-side companion to `gather`
+
+Example:
+```java
+Tensor base = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "base");
+Tensor indices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "indices");
+Tensor src = new Tensor(new double[]{1, 5}, new int[]{2}, null, "src");
+Tensor y = base.scatterAdd(indices, src, 1);
+// y has shape [2, 3] and values:
+// [[10, 20, 31],
+//  [45, 50, 60]]
+//
+// Returns: a tensor with scattered additions applied.
+```
+
 ## Logical Bool Operations
 
 Logical bool ops:
@@ -1858,6 +1890,30 @@ Tensor loss = logits.crossEntropyLoss(targets, 1);
 // Tensor loss = logits.logSoftmax(1).nllLoss(targets, 1);
 //
 // Returns: a scalar mean cross-entropy loss tensor.
+```
+
+### `nllLossFromIndices(Tensor targetIndices, int classDimension)`
+
+Computes mean negative log-likelihood from log-probabilities and class-id targets.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logProbs.shape` without the class axis
+- `classDimension`: axis containing class log-probabilities
+
+Returns:
+- scalar-shaped loss tensor
+
+Behavior:
+- current implementation is composition-first:
+  - `logProbs.gather(targetIndices, classDimension).neg().mean()`
+- this is the first index-target loss surface built on top of the new indexing primitive
+
+Example:
+```java
+Tensor logProbs = logits.logSoftmax(1);
+Tensor targetIndices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "targetIndices");
+Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1);
+// Returns: a scalar mean NLL loss for class-id targets.
 ```
 
 ## Execution Anchor / Autodiff Helpers

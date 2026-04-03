@@ -103,6 +103,10 @@ public final class TensorOps {
         return TensorIndexOps.gather(input, indices, dimension);
     }
 
+    public static Tensor scatterAdd(Tensor base, Tensor indices, Tensor src, int dimension) {
+        return TensorIndexOps.scatterAdd(base, indices, src, dimension);
+    }
+
     public static Tensor abs(Tensor input) {
         return TensorUnaryOps.abs(input);
     }
@@ -269,5 +273,9 @@ public final class TensorOps {
 
     public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension) {
         return TensorNaryOps.crossEntropyLoss(logits, targets, classDimension);
+    }
+
+    public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension) {
+        return TensorNaryOps.nllLossFromIndices(logProbs, targetIndices, classDimension);
     }
 }

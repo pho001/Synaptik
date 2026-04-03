@@ -353,6 +353,7 @@ public final class CPUBackend {
             case REDUCE_ALL, REDUCE_ANY -> resolveBoolReductionContract(node, inputs);
             case GATHER -> resolveGatherContract(inputs);
             case GATHER_GRAD -> resolveGatherGradContract(inputs);
+            case SCATTER_ADD -> resolveScatterAddContract(inputs);
             default -> {
                 DataType outputType = resolveTargetType(node, inputs);
                 yield uniformTypeContract(outputType, inputs == null ? 0 : inputs.size());
@@ -449,6 +450,22 @@ public final class CPUBackend {
             throw new IllegalArgumentException("gatherGrad requires numeric indices and numeric gradient input.");
         }
         return new PreparedTypeContract(gradType, List.of(indexType, gradType));
+    }
+
+    private static PreparedTypeContract resolveScatterAddContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 3) {
+            throw new IllegalArgumentException("scatterAdd expects exactly three inputs.");
+        }
+        DataType baseType = inputs.get(0).getDataType();
+        DataType indexType = inputs.get(1).getDataType();
+        DataType srcType = inputs.get(2).getDataType();
+        if (baseType == DataType.BOOL || srcType == DataType.BOOL || indexType == DataType.BOOL) {
+            throw new IllegalArgumentException("scatterAdd requires numeric tensors and numeric indices.");
+        }
+        if (baseType != srcType) {
+            throw new IllegalArgumentException("scatterAdd requires base and src to have matching dtypes.");
+        }
+        return new PreparedTypeContract(baseType, List.of(baseType, indexType, srcType));
     }
 
     private static DataType resolveTargetType(Tensor node, List<Tensor> inputs) {
