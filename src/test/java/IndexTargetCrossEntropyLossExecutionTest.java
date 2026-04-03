@@ -17,7 +17,7 @@ public class IndexTargetCrossEntropyLossExecutionTest {
                 0.0, 0.0, 0.0
         }, new int[]{2, 3}, null, "logitsA", DataType.FLOAT64);
         logitsA.setRequiresGrad(true);
-        Tensor targetIndicesA = new Tensor(new double[]{2, 0}, new int[]{2}, null, "targetIndicesA", DataType.FLOAT64);
+        Tensor targetIndicesA = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndicesA", DataType.INT32);
 
         Tensor reference = logitsA.logSoftmax(1).nllLossFromIndices(targetIndicesA, 1);
         CompiledGraph.compile(reference, OptimizerConfig.trainingDefaults())
@@ -30,7 +30,7 @@ public class IndexTargetCrossEntropyLossExecutionTest {
                 0.0, 0.0, 0.0
         }, new int[]{2, 3}, null, "logitsB", DataType.FLOAT64);
         logitsB.setRequiresGrad(true);
-        Tensor targetIndicesB = new Tensor(new double[]{2, 0}, new int[]{2}, null, "targetIndicesB", DataType.FLOAT64);
+        Tensor targetIndicesB = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndicesB", DataType.INT32);
 
         Tensor direct = logitsB.crossEntropyLossFromIndices(targetIndicesB, 1);
         CompiledGraph.compile(direct, OptimizerConfig.trainingDefaults())
@@ -58,7 +58,7 @@ public class IndexTargetCrossEntropyLossExecutionTest {
                 1.0, 2.0, 3.0,
                 0.0, 0.0, 0.0
         }, new int[]{2, 3}, null, "logitsB", DataType.FLOAT64);
-        Tensor targetIndices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.FLOAT64);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.INT32);
         Tensor indexLoss = logitsB.crossEntropyLossFromIndices(targetIndices, 1);
         CompiledGraph.compile(indexLoss, OptimizerConfig.noOptimization())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);

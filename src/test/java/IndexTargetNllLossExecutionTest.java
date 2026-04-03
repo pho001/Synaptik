@@ -30,7 +30,7 @@ public class IndexTargetNllLossExecutionTest {
                 0.0, 0.0, 0.0
         }, new int[]{2, 3}, null, "logitsB", DataType.FLOAT64);
         Tensor logProbsB = logitsB.logSoftmax(1);
-        Tensor targetIndices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.FLOAT64);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.INT32);
         Tensor indexLoss = logProbsB.nllLossFromIndices(targetIndices, 1);
         CompiledGraph.compile(indexLoss, OptimizerConfig.noOptimization())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
@@ -47,7 +47,7 @@ public class IndexTargetNllLossExecutionTest {
                 row1[0], row1[1], row1[2]
         }, new int[]{2, 3}, null, "logProbs", DataType.FLOAT64);
         logProbs.setRequiresGrad(true);
-        Tensor targetIndices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.FLOAT64);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.INT32);
         Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1);
 
         CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
