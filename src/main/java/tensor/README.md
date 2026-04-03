@@ -220,6 +220,8 @@ Backward note:
 
 - if an operand was broadcast in forward execution, its gradient is reduced back to the original operand shape
 
+### Broadcast-Aware Operations
+
 Broadcast-aware binary operations in the current tensor surface are:
 
 - `add`
@@ -255,6 +257,8 @@ They produce `BOOL` tensors and are nondifferentiable.
 - `maximum(a, b)` behaves like `where(a > b, a, b)`
 - they intentionally use where-style branch semantics on ties
 - that tie behavior is different from the specialized `min/max` ops, which keep their existing tie-gradient contract
+
+### Logical Bool Broadcasting
 
 Logical bool ops:
 
