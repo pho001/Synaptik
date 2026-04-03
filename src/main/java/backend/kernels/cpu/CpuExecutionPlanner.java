@@ -137,6 +137,7 @@ public final class CpuExecutionPlanner {
             case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
             case FLOAT32 -> FloatVector.SPECIES_PREFERRED.length();
             case FLOAT16 -> 1;
+            case BOOL -> 1;
         };
     }
 

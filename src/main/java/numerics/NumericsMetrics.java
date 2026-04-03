@@ -135,6 +135,9 @@ public final class NumericsMetrics {
         if (dtype == DataType.FLOAT32) {
             return ulpDistance((float) a, (float) b);
         }
+        if (dtype == DataType.BOOL) {
+            throw new UnsupportedOperationException("BOOL is not supported by numerics ULP metrics.");
+        }
         return ulpDistance(a, b);
     }
 }

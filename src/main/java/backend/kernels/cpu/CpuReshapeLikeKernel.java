@@ -22,6 +22,11 @@ public class CpuReshapeLikeKernel implements CpuKernel {
         forwardAny(inputs, node);
     }
 
+    @Override
+    public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        forwardAny(inputs, node);
+    }
+
     private static void forwardAny(List<Tensor> inputs, Tensor node) {
         if (inputs == null || inputs.isEmpty()) {
             return;

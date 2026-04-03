@@ -33,6 +33,15 @@ public interface CpuKernel {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support FLOAT16");
     }
 
+    default void forwardBOOL(
+            Operation op,
+            List<Tensor> inputs,
+            Tensor node,
+            CpuKernelContext context
+    ) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support BOOL");
+    }
+
     default CpuKernelCostClass costClass(Operation op) {
         return CpuKernelCostClass.MEDIUM;
     }

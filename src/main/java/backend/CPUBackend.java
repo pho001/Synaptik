@@ -67,6 +67,7 @@ public final class CPUBackend {
             case FLOAT64 -> kernel.forwardF64(op, inputs, node, kernelContext);
             case FLOAT32 -> kernel.forwardF32(op, inputs, node, kernelContext);
             case FLOAT16 -> kernel.forwardF16(op, inputs, node, kernelContext);
+            case BOOL -> kernel.forwardBOOL(op, inputs, node, kernelContext);
         }
 
         if (node.getDataType() != DataType.FLOAT64) {
@@ -321,7 +322,10 @@ public final class CPUBackend {
         if (left == DataType.FLOAT32 || right == DataType.FLOAT32) {
             return DataType.FLOAT32;
         }
-        return DataType.FLOAT16;
+        if (left == DataType.FLOAT16 || right == DataType.FLOAT16) {
+            return DataType.FLOAT16;
+        }
+        throw new IllegalArgumentException("BOOL is not supported by generic numeric promotion. left=" + left + ", right=" + right);
     }
 
     private static Tensor createPreparedTensor(Tensor source, DataType targetType, Tensor node, int inputIndex) {

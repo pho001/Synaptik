@@ -134,6 +134,25 @@ public class Tensor {
         initStorageFromFloat16Array(data);
     }
 
+    public Tensor(byte[] data, int[] shape, List<Tensor> previous, String label) {
+        this(data, shape, previous, label, DataType.BOOL);
+    }
+
+    public Tensor(byte[] data, int[] shape, List<Tensor> previous, String label, DataType dataType) {
+        this(data, shape, TensorMetadata.computeStrides(shape), previous, label, dataType);
+    }
+
+    public Tensor(byte[] data, int[] shape, int[] strides, List<Tensor> previous, String label) {
+        this(data, shape, strides, previous, label, DataType.BOOL);
+    }
+
+    public Tensor(byte[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
+        this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
+        this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
+        validateInputLength(data.length, metadata.getFlatSize(), "byte[]");
+        initStorageFromBoolArray(data);
+    }
+
 
 
     public static Tensor scalar(double value) {
@@ -272,6 +291,31 @@ public class Tensor {
         initStorageFromFloat16Array(data);
     }
 
+    public void setData(byte[] data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data cannot be null");
+        }
+        validateInputLength(data.length, metadata.getFlatSize(), "byte[]");
+        initStorageFromBoolArray(data);
+    }
+
+    public void copyDataFrom(Tensor source) {
+        if (source == null) {
+            throw new IllegalArgumentException("source cannot be null");
+        }
+        if (!Arrays.equals(this.getShapeUnsafe(), source.getShapeUnsafe())) {
+            throw new IllegalArgumentException("copyDataFrom requires matching shapes.");
+        }
+        if (this.getDataType() != source.getDataType()) {
+            throw new IllegalArgumentException("copyDataFrom requires matching dtypes.");
+        }
+        if (this == source) {
+            return;
+        }
+        TensorRemap.RemapPlan plan = TensorRemap.buildPlan(source, this);
+        TensorRemap.applyTrusted(source, this, plan, Integer.MAX_VALUE);
+    }
+
     public void setFloat32Data(float[] data) {
         if (metadata.getDataType() != DataType.FLOAT32) {
             throw new UnsupportedOperationException("setFloat32Data() is only supported for FLOAT32 tensors.");
@@ -332,6 +376,9 @@ public class Tensor {
         if (current == dataType) {
             return;
         }
+        if ((current == DataType.BOOL) != (dataType == DataType.BOOL)) {
+            throw new UnsupportedOperationException("Implicit BOOL <-> numeric dtype conversion is not supported.");
+        }
         double[] snapshot = toDoubleStorageOrderCopy();
         metadata.setDataType(dataType);
         initStorageFromDoubleArray(snapshot);
@@ -358,6 +405,13 @@ public class Tensor {
     public short[] getFloat16Data() {
         if (storage instanceof Float16Storage s) {
             return s.getShortArray();
+        }
+        return null;
+    }
+
+    public byte[] getBoolData() {
+        if (storage instanceof BoolStorage s) {
+            return s.getByteArray();
         }
         return null;
     }
@@ -452,6 +506,19 @@ public class Tensor {
         return out;
     }
 
+    public boolean[] toBooleanArrayCopy() {
+        if (metadata.getDataType() != DataType.BOOL) {
+            throw new UnsupportedOperationException("toBooleanArrayCopy() is only supported for BOOL tensors.");
+        }
+        int n = getFlatDataSize();
+        boolean[] out = new boolean[n];
+        byte[] data = getBoolData();
+        for (int i = 0; i < n; i++) {
+            out[i] = data[logicalFlatIndexToStorageOffset(i)] != 0;
+        }
+        return out;
+    }
+
     private double[] toDoubleStorageOrderCopy() {
         int n = getStorageSize();
         double[] out = new double[n];
@@ -466,6 +533,9 @@ public class Tensor {
     public double scalarAsDouble() {
         if (getFlatDataSize() != 1) {
             throw new IllegalStateException("Tensor is not scalar.");
+        }
+        if (getDataType() == DataType.BOOL) {
+            throw new UnsupportedOperationException("scalarAsDouble() is not supported for BOOL tensors.");
         }
         return getByFlatIndex(0);
     }
@@ -774,6 +844,7 @@ public class Tensor {
             return;
         }
         storage = switch (type) {
+            case BOOL -> new BoolStorage(size);
             case FLOAT16 -> new Float16Storage(size);
             case FLOAT32 -> new Float32Storage(size);
             case FLOAT64 -> throw new IllegalStateException("Unexpected dtype branch");
@@ -785,6 +856,9 @@ public class Tensor {
             throw new IllegalArgumentException("source data cannot be null");
         }
         DataType type = normalizeDataType(metadata.getDataType());
+        if (type == DataType.BOOL) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL storage conversion is not supported.");
+        }
         int size = source.length;
         if (type == DataType.FLOAT64) {
             storage = new Float64Storage(source);
@@ -810,6 +884,9 @@ public class Tensor {
             throw new IllegalArgumentException("source data cannot be null");
         }
         DataType type = normalizeDataType(metadata.getDataType());
+        if (type == DataType.BOOL) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL storage conversion is not supported.");
+        }
         int size = source.length;
         switch (type) {
             case FLOAT32 -> {
@@ -837,6 +914,9 @@ public class Tensor {
             throw new IllegalArgumentException("source data cannot be null");
         }
         DataType type = normalizeDataType(metadata.getDataType());
+        if (type == DataType.BOOL) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL storage conversion is not supported.");
+        }
         int size = source.length;
         switch (type) {
             case FLOAT16 -> {
@@ -859,6 +939,21 @@ public class Tensor {
         }
     }
 
+    private void initStorageFromBoolArray(byte[] source) {
+        if (source == null) {
+            throw new IllegalArgumentException("source data cannot be null");
+        }
+        DataType type = normalizeDataType(metadata.getDataType());
+        if (type != DataType.BOOL) {
+            throw new UnsupportedOperationException("Implicit BOOL -> numeric storage conversion is not supported.");
+        }
+        byte[] normalized = new byte[source.length];
+        for (int i = 0; i < source.length; i++) {
+            normalized[i] = source[i] == 0 ? (byte) 0 : (byte) 1;
+        }
+        storage = new BoolStorage(normalized);
+    }
+
     private static void validateInputLength(int actual, int expected, String sourceName) {
         if (actual != expected) {
             throw new IllegalArgumentException(sourceName + " length mismatch. expected=" + expected + ", actual=" + actual);
@@ -876,6 +971,7 @@ public class Tensor {
             case FLOAT64 -> getFloat64Data()[offset];
             case FLOAT32 -> getFloat32Data()[offset];
             case FLOAT16 -> CpuDTypeOps.fromHalfBits(getFloat16Data()[offset]);
+            case BOOL -> getBoolData()[offset] == 0 ? 0.0d : 1.0d;
         };
     }
 
@@ -890,6 +986,7 @@ public class Tensor {
             case FLOAT64 -> getFloat64Data()[offset] = value;
             case FLOAT32 -> getFloat32Data()[offset] = (float) value;
             case FLOAT16 -> getFloat16Data()[offset] = CpuDTypeOps.toHalfBits((float) value);
+            case BOOL -> throw new UnsupportedOperationException("Numeric write into BOOL storage is not supported.");
         }
     }
 

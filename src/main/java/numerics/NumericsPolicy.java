@@ -14,6 +14,9 @@ public final class NumericsPolicy {
     }
 
     public static NumericsPolicy defaultsFor(DataType dtype) {
+        if (dtype == DataType.BOOL) {
+            throw new UnsupportedOperationException("BOOL is not supported by numerics policy.");
+        }
         if (dtype == DataType.FLOAT64) {
             return new NumericsPolicy(1e-12, 1e-12, 16L);
         }
@@ -53,4 +56,3 @@ public final class NumericsPolicy {
         public static Verdict unsafe(String reason) { return new Verdict(Status.UNSAFE, reason); }
     }
 }
-

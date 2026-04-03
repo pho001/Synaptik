@@ -178,6 +178,7 @@ public class CompiledGraph {
                 case FLOAT64 -> java.util.Arrays.fill(tensor.getGradient().getFloat64Data(), 0.0d);
                 case FLOAT32 -> java.util.Arrays.fill(tensor.getGradient().getFloat32Data(), 0.0f);
                 case FLOAT16 -> java.util.Arrays.fill(tensor.getGradient().getFloat16Data(), (short) 0);
+                case BOOL -> java.util.Arrays.fill(tensor.getGradient().getBoolData(), (byte) 0);
             }
         }
     }

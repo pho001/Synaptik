@@ -15,16 +15,14 @@ final class TensorLayoutOps {
 
     static Tensor contiguous(Tensor input) {
         Operation op = new contiguous();
-        Tensor out = new Tensor(input.getShape(), List.of(input), op, "contiguous");
-        out.setDataType(input.getDataType());
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "contiguous", input.getDataType());
         return out;
     }
 
     static Tensor reshape(Tensor input, int[] requestedShape) {
         int[] newShape = TensorLayoutTransform.inferReshape(input.getShape(), requestedShape);
         Operation op = new reshape(newShape);
-        Tensor out = new Tensor(newShape, List.of(input), op, "reshape");
-        out.setDataType(input.getDataType());
+        Tensor out = new Tensor(newShape, List.of(input), op, "reshape", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -84,8 +82,7 @@ final class TensorLayoutOps {
         }
 
         Operation op = new permute(normalizedAxes);
-        Tensor out = new Tensor(new double[input.getFlatDataSize()], outShape, outStrides, List.of(input), "permute", input.getDataType());
-        out.setOperation(op);
+        Tensor out = new Tensor(outShape, outStrides, List.of(input), op, "permute", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -108,8 +105,7 @@ final class TensorLayoutOps {
             else outShape[i] = inShape[j++];
         }
         Operation op = new expandDims(normalizedAxis);
-        Tensor out = new Tensor(outShape, List.of(input), op, "expandDims");
-        out.setDataType(input.getDataType());
+        Tensor out = new Tensor(outShape, List.of(input), op, "expandDims", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -133,8 +129,7 @@ final class TensorLayoutOps {
             if (i != normalizedAxis) outShape[j++] = inShape[i];
         }
         Operation op = new squeeze(normalizedAxis);
-        Tensor out = new Tensor(outShape, List.of(input), op, "squeeze");
-        out.setDataType(input.getDataType());
+        Tensor out = new Tensor(outShape, List.of(input), op, "squeeze", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;

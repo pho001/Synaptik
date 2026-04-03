@@ -35,7 +35,7 @@ public class MemoryOptimizerRule implements OptimizationRule {
         }
 
         DataType graphType = validateUniformGraphType(sortedGraph);
-        if (graphType == null || graphType == DataType.FLOAT16) {
+        if (graphType == null || graphType == DataType.FLOAT16 || graphType == DataType.BOOL) {
             return sortedGraph;
         }
 
@@ -44,7 +44,7 @@ public class MemoryOptimizerRule implements OptimizationRule {
         return switch (graphType) {
             case FLOAT64 -> applyFloat64(sortedGraph, plan);
             case FLOAT32 -> applyFloat32(sortedGraph, plan);
-            case FLOAT16 -> sortedGraph;
+            case FLOAT16, BOOL -> sortedGraph;
         };
     }
 

@@ -149,7 +149,7 @@ public final class MatMulBenchmark {
                 for (int i = 0; i < src.length; i++) f[i] = (float) src[i];
                 yield new Tensor(f, shape, null, label, DataType.FLOAT32);
             }
-            case FLOAT16 -> throw new IllegalArgumentException("MatMulBenchmark supports FLOAT64/FLOAT32 only");
+            case FLOAT16, BOOL -> throw new IllegalArgumentException("MatMulBenchmark supports FLOAT64/FLOAT32 only");
         };
     }
 

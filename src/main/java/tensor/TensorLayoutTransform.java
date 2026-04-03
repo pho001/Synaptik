@@ -18,6 +18,7 @@ public final class TensorLayoutTransform {
             case FLOAT64 -> copyLinearizedF64(src.getFloat64Data(), dst, srcShape, srcStrides, srcDenseStrides, size);
             case FLOAT32 -> copyLinearizedF32(src.getFloat32Data(), dst, srcShape, srcStrides, srcDenseStrides, size);
             case FLOAT16 -> copyLinearizedF16(src.getFloat16Data(), dst, srcShape, srcStrides, srcDenseStrides, size);
+            case BOOL -> copyLinearizedBool(src.getBoolData(), dst, srcShape, srcStrides, srcDenseStrides, size);
         }
     }
 
@@ -43,6 +44,7 @@ public final class TensorLayoutTransform {
             case FLOAT64 -> copyPermutedF64(src.getFloat64Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, size, rank);
             case FLOAT32 -> copyPermutedF32(src.getFloat32Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, size, rank);
             case FLOAT16 -> copyPermutedF16(src.getFloat16Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, size, rank);
+            case BOOL -> copyPermutedBool(src.getBoolData(), dst, normalizedAxes, srcStrides, dstDenseStrides, size, rank);
         }
     }
 
@@ -142,6 +144,24 @@ public final class TensorLayoutTransform {
         throw new IllegalStateException("Destination storage is missing");
     }
 
+    private static void copyLinearizedBool(
+            byte[] srcData,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int size
+    ) {
+        byte[] dstBool = dst.getBoolData();
+        if (dstBool != null) {
+            for (int i = 0; i < size; i++) {
+                dstBool[i] = srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)];
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination bool storage is missing");
+    }
+
     private static void copyPermutedF64(
             double[] srcData,
             Tensor dst,
@@ -239,6 +259,25 @@ public final class TensorLayoutTransform {
             return;
         }
         throw new IllegalStateException("Destination storage is missing");
+    }
+
+    private static void copyPermutedBool(
+            byte[] srcData,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int[] dstDenseStrides,
+            int size,
+            int rank
+    ) {
+        byte[] dstBool = dst.getBoolData();
+        if (dstBool != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstBool[logicalIndex] = srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)];
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination bool storage is missing");
     }
 
     private static int permutedSourceOffset(int logicalIndex, int[] normalizedAxes, int[] srcStrides, int[] dstDenseStrides, int rank) {

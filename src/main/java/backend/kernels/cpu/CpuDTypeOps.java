@@ -17,6 +17,7 @@ public final class CpuDTypeOps {
             case FLOAT64 -> MODE_F64;
             case FLOAT32 -> MODE_F32;
             case FLOAT16 -> MODE_F16;
+            case BOOL -> throw new UnsupportedOperationException("BOOL is not supported by CpuDTypeOps.");
         };
     }
 

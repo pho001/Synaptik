@@ -21,6 +21,11 @@ public final class CpuExpandKernel implements CpuKernel {
         forward(inputs, node);
     }
 
+    @Override
+    public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        forward(inputs, node);
+    }
+
     private static void forward(List<Tensor> inputs, Tensor node) {
         if (inputs == null || inputs.isEmpty()) {
             return;

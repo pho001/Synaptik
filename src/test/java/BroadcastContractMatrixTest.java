@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 public class BroadcastContractMatrixTest {
     @ParameterizedTest
-    @EnumSource(DataType.class)
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
     void allBroadcastAwareOpsSupportRightAlignedLowerRankRightOperand(DataType dataType) {
         Tensor left = tensor(new double[]{
                 1, 2, 3, 4,
@@ -35,7 +35,7 @@ public class BroadcastContractMatrixTest {
     }
 
     @ParameterizedTest
-    @EnumSource(DataType.class)
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
     void allBroadcastAwareOpsSupportRightAlignedLowerRankLeftOperand(DataType dataType) {
         Tensor left = tensor(new double[]{
                 10, 20, 30, 40,
@@ -56,7 +56,7 @@ public class BroadcastContractMatrixTest {
     }
 
     @ParameterizedTest
-    @EnumSource(DataType.class)
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
     void addSubMulDivReduceGradientsCorrectlyForRankMismatchBroadcast(DataType dataType) {
         assertBackward("add", dataType);
         assertBackward("sub", dataType);
@@ -248,6 +248,7 @@ public class BroadcastContractMatrixTest {
                 }
                 yield new Tensor(out, shape, null, label, DataType.FLOAT16);
             }
+            case BOOL -> throw new UnsupportedOperationException("BOOL is not part of BroadcastContractMatrixTest.");
         };
     }
 
@@ -256,6 +257,7 @@ public class BroadcastContractMatrixTest {
             case FLOAT64 -> 1e-9;
             case FLOAT32 -> 1e-5;
             case FLOAT16 -> 2e-2;
+            case BOOL -> throw new UnsupportedOperationException("BOOL is not part of BroadcastContractMatrixTest.");
         };
     }
 
