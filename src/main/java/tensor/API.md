@@ -16,6 +16,8 @@ The focus here is practical API usage:
 - [Conventions](#conventions)
 - [Execution API](#execution-api)
 - [Static Factories](#static-factories)
+- [Broadcasting Contract](#broadcasting-contract)
+- [Contiguous and Materialization Contract](#contiguous-and-materialization-contract)
 - [Layout / Shape Operations](#layout--shape-operations)
 - [Binary Arithmetic Operations](#binary-arithmetic-operations)
 - [Comparison Operations](#comparison-operations)
@@ -36,6 +38,60 @@ The focus here is practical API usage:
 - Comparison ops and logical bool ops are nondifferentiable.
 - `where(condition, x, y)` is differentiable only in the data branches.
 - `all` / `any` are `BOOL`-only reductions and are nondifferentiable.
+
+## Broadcasting Contract
+
+The core broadcasting contract used by tensor operations is:
+
+- ranks align from the right
+- missing leading dimensions behave as `1`
+- two dimensions are compatible if:
+  - they are equal
+  - or one side is `1`
+- the output dimension size is the maximum of the two compatible dimensions
+
+Examples:
+- `[2, 3, 4]` with `[3, 4]` produces `[2, 3, 4]`
+- `[3, 4]` with `[2, 1, 4]` produces `[2, 3, 4]`
+- `[1, 1, 2, 4]` with `[2, 3, 1, 4]` produces `[2, 3, 2, 4]`
+
+This contract is used by:
+- binary arithmetic ops
+- comparison ops
+- logical binary bool ops
+- `where(condition, x, y)` via common broadcast shape resolution across all three inputs
+
+Backward note:
+- if an operand was broadcast in forward execution, its gradient is reduced back to the original operand shape
+
+## Contiguous and Materialization Contract
+
+`Tensor` supports both:
+
+- dense contiguous tensors
+- non-contiguous or view-like tensors based on shape/stride metadata
+
+Important current behavior:
+
+- `permute(...)` creates a view-like tensor with reordered strides
+- `expand(...)` creates a zero-stride broadcast alias view
+- `reshape(...)` is a layout-level transform that preserves element count
+- `contiguous()` is the canonical explicit materialization path
+
+`contiguous()` is useful when:
+
+- a later kernel performs better on dense layout
+- you want to materialize an expanded zero-stride broadcast view
+- you want a stable dense tensor independent of the source view layout
+
+Example:
+```java
+// expanded is a zero-stride broadcast view, not a dense copy.
+Tensor expanded = bias.expand(batch, features);
+// contiguous() materializes it into dense storage.
+Tensor dense = expanded.contiguous();
+// Returns: a dense tensor with the same logical values as expanded.
+```
 
 ## Execution API
 
@@ -157,6 +213,9 @@ Tensor zeros = Tensor.zerosLike(x);
 
 Materializes the tensor into a dense contiguous layout.
 
+Use this when you have a view-like tensor whose logical values are correct, but whose storage layout is non-contiguous or zero-stride.
+`contiguous()` creates a dense tensor with the same logical values in row-major order.
+
 Parameters:
 - none
 
@@ -165,16 +224,34 @@ Returns:
 
 Example:
 ```java
-// Materializes a non-contiguous view into dense contiguous storage.
-Tensor dense = view.contiguous();
-// Materializes an expanded zero-stride view into dense contiguous storage.
-Tensor materialized = expanded.contiguous();
-// Returns: contiguous tensors with the same logical values.
+Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base");
+// base logically represents:
+// [[1, 2, 3],
+//  [4, 5, 6]]
+
+Tensor permuted = base.permute(1, 0);
+// permuted is a view of shape [3, 2] with logical values:
+// [[1, 4],
+//  [2, 5],
+//  [3, 6]]
+
+Tensor dense = permuted.contiguous();
+// dense keeps the same logical shape [3, 2]
+// and the same logical values:
+// [[1, 4],
+//  [2, 5],
+//  [3, 6]]
+// but stores them in contiguous row-major order.
+//
+// Returns: a dense materialized tensor with the same logical values as permuted.
 ```
 
 ### `reshape(int... newShape)`
 
 Changes the logical shape while preserving element count.
+
+`reshape(...)` does not change values, only how the same flat element sequence is interpreted as dimensions.
+The total number of elements before and after reshape must match.
 
 Parameters:
 - `newShape`: requested output shape; may include one inferred `-1`
@@ -184,17 +261,31 @@ Returns:
 
 Example:
 ```java
-// Reshapes x to shape [3, 2] without changing element count.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
+// x logically represents:
+// [[1, 2, 3],
+//  [4, 5, 6]]
+
 Tensor y = x.reshape(3, 2);
-// Reshapes x to [3, inferred] using one -1 placeholder.
+// y logically represents:
+// [[1, 2],
+//  [3, 4],
+//  [5, 6]]
+
 Tensor z = x.reshape(3, -1);
-// Returns: reshaped tensors.
+// -1 is inferred, so z is also shape [3, 2]
+// with the same logical values as y.
+//
+// Returns: tensors with the same elements but a different shape interpretation.
 ```
 
 ### `expand(int... newShape)`
 
 Expands singleton dimensions using broadcast semantics.
 Current implementation is a zero-stride alias view, not a dense materialization.
+
+`expand(...)` is valid only when every expanded axis was size `1` in the source or already matches the target size.
+It does not create new independent values; it creates a logical broadcast view over the original storage.
 
 Parameters:
 - `newShape`: target shape; rank may stay the same or increase
@@ -204,16 +295,32 @@ Returns:
 
 Example:
 ```java
-// Expands a singleton dimension to produce a broadcast view of shape [2, 3].
-Tensor y = x.expand(2, 3);
-// Broadcast-expands a bias tensor across the batch dimension.
-Tensor z = bias.expand(batch, features);
-// Returns: zero-stride broadcast views.
+Tensor bias = new Tensor(new double[]{10, 20, 30}, new int[]{1, 3}, null, "bias");
+// bias logically represents:
+// [[10, 20, 30]]
+
+Tensor y = bias.expand(2, 3);
+// y logically represents:
+// [[10, 20, 30],
+//  [10, 20, 30]]
+//
+// Important:
+// y is not a dense copy yet
+// it is a zero-stride broadcast view over bias
+
+Tensor dense = y.contiguous();
+// dense has the same logical values as y
+// but is now explicitly materialized.
+//
+// Returns: zero-stride broadcast views, optionally materialized later via contiguous().
 ```
 
 ### `permute(int... axes)`
 
 Reorders tensor axes.
+
+`permute(...)` changes axis order.
+It does not change numeric values, but it changes which coordinate maps to which value.
 
 Parameters:
 - `axes`: permutation of all axes
@@ -223,16 +330,30 @@ Returns:
 
 Example:
 ```java
-// Swaps the two axes of a rank-2 tensor.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
+// x logically represents:
+// [[1, 2, 3],
+//  [4, 5, 6]]
+
 Tensor y = x.permute(1, 0);
-// Reorders a rank-3 tensor from [N, C, H] to [N, H, C].
-Tensor z = x.permute(0, 2, 1);
+// y has shape [3, 2]
+// and logically represents:
+// [[1, 4],
+//  [2, 5],
+//  [3, 6]]
+
+Tensor z = y.contiguous();
+// z keeps the same logical values as y
+// but stores them densely in row-major order.
+//
 // Returns: permuted view tensors.
 ```
 
 ### `transpose()`
 
 Convenience wrapper for rank-2 transpose.
+
+For rank-2 tensors, `transpose()` is equivalent to `permute(1, 0)`.
 
 Parameters:
 - none
@@ -242,14 +363,27 @@ Returns:
 
 Example:
 ```java
-// Convenience rank-2 transpose.
+Tensor matrix = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "matrix");
+// matrix logically represents:
+// [[1, 2, 3],
+//  [4, 5, 6]]
+
 Tensor y = matrix.transpose();
-// Returns: a transposed rank-2 tensor.
+// y has shape [3, 2]
+// and logically represents:
+// [[1, 4],
+//  [2, 5],
+//  [3, 6]]
+//
+// Returns: a rank-2 transposed view tensor.
 ```
 
 ### `expandDims(int axis)`
 
 Inserts a singleton dimension at `axis`.
+
+This is a pure shape transform.
+It does not change values, only adds an axis of size `1`.
 
 Parameters:
 - `axis`: insertion position
@@ -259,16 +393,31 @@ Returns:
 
 Example:
 ```java
-// Inserts a leading singleton axis, e.g. [3, 4] -> [1, 3, 4].
+Tensor x = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "x");
+// x logically represents:
+// [[1, 2],
+//  [3, 4]]
+
 Tensor y = x.expandDims(0);
-// Inserts a singleton axis at position 2.
+// y has shape [1, 2, 2]
+// and logically represents:
+// [[[1, 2],
+//   [3, 4]]]
+
 Tensor z = x.expandDims(2);
+// z has shape [2, 2, 1]
+// and logically represents:
+// [[[1], [2]],
+//  [[3], [4]]]
+//
 // Returns: tensors with one extra size-1 axis.
 ```
 
 ### `squeeze(int axis)`
 
 Removes a singleton dimension at `axis`.
+
+This is the inverse of `expandDims(...)` when the chosen axis has size `1`.
 
 Parameters:
 - `axis`: axis that must currently have size `1`
@@ -278,11 +427,23 @@ Returns:
 
 Example:
 ```java
-// Removes a leading singleton axis.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4}, new int[]{1, 2, 2}, null, "x");
+// x logically represents:
+// [[[1, 2],
+//   [3, 4]]]
+
 Tensor y = x.squeeze(0);
-// Removes the singleton axis produced earlier by expandDims.
-Tensor z = expanded.squeeze(1);
-// Returns: tensors with one fewer axis.
+// y has shape [2, 2]
+// and logically represents:
+// [[1, 2],
+//  [3, 4]]
+
+Tensor expanded = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2, 1}, null, "expanded");
+Tensor z = expanded.squeeze(2);
+// z has shape [2, 2]
+// and keeps the same logical values.
+//
+// Returns: tensors with one fewer size-1 axis.
 ```
 
 ## Binary Arithmetic Operations
@@ -305,11 +466,20 @@ Returns:
 
 Example:
 ```java
-// Element-wise add with matching shapes.
+Tensor a = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "b");
+
 Tensor y = a.add(b);
-// Broadcast-adds bias across matrix rows.
+// y has shape [3] and values [11, 22, 33].
+
+Tensor matrix = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "matrix");
+Tensor bias = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "bias");
 Tensor z = matrix.add(bias);
-// Returns: element-wise sums.
+// z has shape [2, 3] and values:
+// [[11, 22, 33],
+//  [14, 25, 36]]
+//
+// Returns: element-wise sums with optional broadcasting.
 ```
 
 ### `sub(Tensor second)`
@@ -324,10 +494,17 @@ Returns:
 
 Example:
 ```java
-// Element-wise subtract with matching shapes.
+Tensor a = new Tensor(new double[]{5, 7, 9}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "b");
+
 Tensor y = a.sub(b);
-// Computes residual error between prediction and target.
+// y has shape [3] and values [4, 5, 6].
+
+Tensor prediction = new Tensor(new double[]{0.9, 0.1}, new int[]{2}, null, "prediction");
+Tensor target = new Tensor(new double[]{1.0, 0.0}, new int[]{2}, null, "target");
 Tensor z = prediction.sub(target);
+// z has shape [2] and values [-0.1, 0.1].
+//
 // Returns: element-wise differences.
 ```
 
@@ -343,11 +520,20 @@ Returns:
 
 Example:
 ```java
-// Element-wise multiply with matching shapes.
+Tensor a = new Tensor(new double[]{2, 3, 4}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "b");
+
 Tensor y = a.mul(b);
-// Multiplies x by a broadcast-compatible mask tensor.
+// y has shape [3] and values [20, 60, 120].
+
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
+Tensor mask = new Tensor(new double[]{1, 0, 1}, new int[]{3}, null, "mask");
 Tensor z = x.mul(mask);
-// Returns: element-wise products.
+// z has shape [2, 3] and values:
+// [[1, 0, 3],
+//  [4, 0, 6]]
+//
+// Returns: element-wise products with optional broadcasting.
 ```
 
 ### `div(Tensor second)`
@@ -362,11 +548,20 @@ Returns:
 
 Example:
 ```java
-// Element-wise divide with matching shapes.
+Tensor a = new Tensor(new double[]{8, 9, 10}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{2, 3, 5}, new int[]{3}, null, "b");
+
 Tensor y = a.div(b);
-// Divides x by a broadcast-compatible scale tensor.
+// y has shape [3] and values [4, 3, 2].
+
+Tensor x = new Tensor(new double[]{2, 4, 6, 8, 10, 12}, new int[]{2, 3}, null, "x");
+Tensor scale = new Tensor(new double[]{2, 2, 3}, new int[]{3}, null, "scale");
 Tensor z = x.div(scale);
-// Returns: element-wise quotients.
+// z has shape [2, 3] and values:
+// [[1, 2, 2],
+//  [4, 5, 4]]
+//
+// Returns: element-wise quotients with optional broadcasting.
 ```
 
 ### `min(Tensor second)`
@@ -381,11 +576,20 @@ Returns:
 
 Example:
 ```java
-// Element-wise minimum with matching shapes.
+Tensor a = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{2, 4, 3}, new int[]{3}, null, "b");
+
 Tensor y = a.min(b);
-// Clamps logits from above using an element-wise cap tensor.
+// y has shape [3] and values [1, 4, 3].
+
+Tensor logits = new Tensor(new double[]{1, 9, 3, 7}, new int[]{2, 2}, null, "logits");
+Tensor cap = new Tensor(new double[]{4}, new int[]{1}, null, "cap");
 Tensor z = logits.min(cap);
-// Returns: element-wise minima.
+// z has shape [2, 2] and values:
+// [[1, 4],
+//  [3, 4]]
+//
+// Returns: element-wise minima with optional broadcasting.
 ```
 
 ### `max(Tensor second)`
@@ -400,11 +604,20 @@ Returns:
 
 Example:
 ```java
-// Element-wise maximum with matching shapes.
+Tensor a = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{2, 4, 3}, new int[]{3}, null, "b");
+
 Tensor y = a.max(b);
-// Clamps x from below using an element-wise floor tensor.
+// y has shape [3] and values [2, 5, 3].
+
+Tensor x = new Tensor(new double[]{-2, 1, -1, 3}, new int[]{2, 2}, null, "x");
+Tensor floor = new Tensor(new double[]{0}, new int[]{1}, null, "floor");
 Tensor z = x.max(floor);
-// Returns: element-wise maxima.
+// z has shape [2, 2] and values:
+// [[0, 1],
+//  [0, 3]]
+//
+// Returns: element-wise maxima with optional broadcasting.
 ```
 
 ### `matmul(Tensor second)`
@@ -419,11 +632,15 @@ Returns:
 
 Example:
 ```java
-// Multiplies two rank-2 tensors.
+Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "a");
+Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{2, 2}, null, "b");
+
 Tensor y = a.matmul(b);
-// Typical dense layer projection.
-Tensor logits = input.matmul(weights);
-// Returns: matrix products.
+// y has shape [2, 2] and values:
+// [[19, 22],
+//  [43, 50]]
+//
+// Returns: matrix products for rank-2 tensors.
 ```
 
 ## Comparison Operations
@@ -446,10 +663,17 @@ Returns:
 
 Example:
 ```java
-// Builds a BOOL mask where a is strictly greater than b.
+Tensor a = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{4, 4, 4}, new int[]{3}, null, "b");
+
 Tensor mask = a.greaterThan(b);
-// Builds an activation mask above the given threshold.
+// mask has shape [3] and values [false, true, false].
+
+Tensor scores = new Tensor(new double[]{0.2, 0.8, 0.4}, new int[]{3}, null, "scores");
+Tensor threshold = new Tensor(new double[]{0.5}, new int[]{1}, null, "threshold");
 Tensor active = scores.greaterThan(threshold);
+// active has shape [3] and values [false, true, false].
+//
 // Returns: BOOL tensors.
 ```
 
@@ -465,8 +689,12 @@ Returns:
 
 Example:
 ```java
-// Builds a BOOL mask where a is greater than or equal to b.
+Tensor a = new Tensor(new double[]{1, 4, 4}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{1, 5, 4}, new int[]{3}, null, "b");
+
 Tensor mask = a.greaterOrEqual(b);
+// mask has shape [3] and values [true, false, true].
+//
 // Returns: a BOOL tensor.
 ```
 
@@ -482,8 +710,12 @@ Returns:
 
 Example:
 ```java
-// Builds a BOOL mask where a is strictly less than b.
+Tensor a = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{4, 4, 4}, new int[]{3}, null, "b");
+
 Tensor mask = a.lessThan(b);
+// mask has shape [3] and values [true, false, true].
+//
 // Returns: a BOOL tensor.
 ```
 
@@ -499,8 +731,12 @@ Returns:
 
 Example:
 ```java
-// Builds a BOOL mask where a is less than or equal to b.
+Tensor a = new Tensor(new double[]{1, 4, 4}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{1, 5, 4}, new int[]{3}, null, "b");
+
 Tensor mask = a.lessOrEqual(b);
+// mask has shape [3] and values [true, true, true].
+//
 // Returns: a BOOL tensor.
 ```
 
@@ -516,8 +752,12 @@ Returns:
 
 Example:
 ```java
-// Builds a BOOL mask of exact equality.
+Tensor a = new Tensor(new double[]{1, 2, 2}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{1, 0, 2}, new int[]{3}, null, "b");
+
 Tensor mask = a.equalTo(b);
+// mask has shape [3] and values [true, false, true].
+//
 // Returns: a BOOL tensor.
 ```
 
@@ -533,8 +773,12 @@ Returns:
 
 Example:
 ```java
-// Builds a BOOL mask of exact inequality.
+Tensor a = new Tensor(new double[]{1, 2, 2}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{1, 0, 2}, new int[]{3}, null, "b");
+
 Tensor mask = a.notEqualTo(b);
+// mask has shape [3] and values [false, true, false].
+//
 // Returns: a BOOL tensor.
 ```
 
@@ -560,10 +804,17 @@ Behavior:
 
 Example:
 ```java
-// Selects x where mask is true, otherwise yFallback.
+Tensor mask = new Tensor(new byte[]{1, 0, 1}, new int[]{3}, null, "mask", DataType.BOOL);
+Tensor x = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "x");
+Tensor yFallback = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "yFallback");
+
 Tensor y = Tensor.where(mask, x, yFallback);
-// Builds a simple upper clamp through compare/select composition.
+// y has shape [3] and values [10, 2, 30].
+
+Tensor cap = new Tensor(new double[]{15}, new int[]{1}, null, "cap");
 Tensor clipped = Tensor.where(x.greaterThan(cap), cap, x);
+// clipped has shape [3] and values [10, 15, 15].
+//
 // Returns: numeric tensors with the promoted branch dtype.
 ```
 
@@ -586,11 +837,15 @@ Returns:
 
 Example:
 ```java
-// Logical conjunction of two BOOL tensors.
+Tensor a = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "a", DataType.BOOL);
+Tensor b = new Tensor(new byte[]{1, 1, 0, 0}, new int[]{2, 2}, null, "b", DataType.BOOL);
+
 Tensor mask = a.logicalAnd(b);
-// Combines two BOOL masks into one.
-Tensor combined = gtMask.logicalAnd(eqMask);
-// Returns: BOOL tensors.
+// mask has shape [2, 2] and values:
+// [[true,  false],
+//  [false, false]]
+//
+// Returns: a BOOL tensor.
 ```
 
 ### `logicalOr(Tensor second)`
@@ -605,8 +860,14 @@ Returns:
 
 Example:
 ```java
-// Logical disjunction of two BOOL tensors.
+Tensor a = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "a", DataType.BOOL);
+Tensor b = new Tensor(new byte[]{1, 1, 0, 0}, new int[]{2, 2}, null, "b", DataType.BOOL);
+
 Tensor mask = a.logicalOr(b);
+// mask has shape [2, 2] and values:
+// [[true,  true],
+//  [true,  false]]
+//
 // Returns: a BOOL tensor.
 ```
 
@@ -622,8 +883,13 @@ Returns:
 
 Example:
 ```java
-// Logical negation of a BOOL tensor.
+Tensor mask = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "mask", DataType.BOOL);
+
 Tensor inverted = mask.logicalNot();
+// inverted has shape [2, 2] and values:
+// [[false, true],
+//  [false, true]]
+//
 // Returns: a BOOL tensor.
 ```
 
@@ -641,8 +907,10 @@ Returns:
 
 Example:
 ```java
-// Arithmetic negation.
+Tensor x = new Tensor(new double[]{1, -2, 3}, new int[]{3}, null, "x");
 Tensor y = x.neg();
+// y has shape [3] and values [-1, 2, -3].
+//
 // Returns: a tensor with all values multiplied by -1.
 ```
 
@@ -658,8 +926,10 @@ Returns:
 
 Example:
 ```java
-// Natural logarithm applied element-wise.
+Tensor x = new Tensor(new double[]{1, Math.E, Math.E * Math.E}, new int[]{3}, null, "x");
 Tensor y = x.log();
+// y has shape [3] and values [0, 1, 2].
+//
 // Returns: a tensor of ln(x) values.
 ```
 
@@ -675,8 +945,10 @@ Returns:
 
 Example:
 ```java
-// Natural exponential applied element-wise.
+Tensor x = new Tensor(new double[]{0, 1, 2}, new int[]{3}, null, "x");
 Tensor y = x.exp();
+// y has shape [3] and values [1, e, e^2].
+//
 // Returns: a tensor of exp(x) values.
 ```
 
@@ -692,8 +964,10 @@ Returns:
 
 Example:
 ```java
-// Fast approximate exponential applied element-wise.
+Tensor x = new Tensor(new double[]{0, 1, 2}, new int[]{3}, null, "x");
 Tensor y = x.fastExp();
+// y has shape [3] and returns an approximate exp(x) result.
+//
 // Returns: a tensor of approximate exp(x) values.
 ```
 
@@ -709,8 +983,10 @@ Returns:
 
 Example:
 ```java
-// Hyperbolic tangent applied element-wise.
+Tensor x = new Tensor(new double[]{-1, 0, 1}, new int[]{3}, null, "x");
 Tensor y = x.tanh();
+// y has shape [3] and values [tanh(-1), 0, tanh(1)].
+//
 // Returns: a tensor of tanh(x) values.
 ```
 
@@ -726,8 +1002,10 @@ Returns:
 
 Example:
 ```java
-// Fast approximate hyperbolic tangent applied element-wise.
+Tensor x = new Tensor(new double[]{-1, 0, 1}, new int[]{3}, null, "x");
 Tensor y = x.fastTanh();
+// y has shape [3] and returns an approximate tanh(x) result.
+//
 // Returns: a tensor of approximate tanh(x) values.
 ```
 
@@ -743,10 +1021,12 @@ Returns:
 
 Example:
 ```java
-// Squares every element of x.
+Tensor x = new Tensor(new double[]{4, 9, 16}, new int[]{3}, null, "x");
 Tensor y = x.pow(2.0);
-// Computes square roots through exponent 0.5.
+// y has values [16, 81, 256].
 Tensor z = x.pow(0.5);
+// z has values [2, 3, 4].
+//
 // Returns: tensors of x^exponent.
 ```
 
@@ -762,10 +1042,12 @@ Returns:
 
 Example:
 ```java
-// Scales x by one half.
+Tensor x = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "x");
 Tensor y = x.mul(0.5);
-// Doubles every element of x.
+// y has values [0.5, 1.0, 1.5].
 Tensor z = x.mul(2.0);
+// z has values [2, 4, 6].
+//
 // Returns: scaled tensors.
 ```
 
@@ -781,8 +1063,10 @@ Returns:
 
 Example:
 ```java
-// Element-wise reciprocal.
+Tensor x = new Tensor(new double[]{2, 4, 8}, new int[]{3}, null, "x");
 Tensor y = x.inv();
+// y has values [0.5, 0.25, 0.125].
+//
 // Returns: a tensor of 1 / x values.
 ```
 
@@ -798,8 +1082,10 @@ Returns:
 
 Example:
 ```java
-// Element-wise square root.
+Tensor x = new Tensor(new double[]{4, 9, 16}, new int[]{3}, null, "x");
 Tensor y = x.sqrt();
+// y has values [2, 3, 4].
+//
 // Returns: a tensor of sqrt(x) values.
 ```
 
@@ -815,8 +1101,10 @@ Returns:
 
 Example:
 ```java
-// Logistic sigmoid applied element-wise.
+Tensor logits = new Tensor(new double[]{-2, 0, 2}, new int[]{3}, null, "logits");
 Tensor y = logits.sigmoid();
+// y has values [sigmoid(-2), 0.5, sigmoid(2)].
+//
 // Returns: a tensor of sigmoid(logits) values.
 ```
 
@@ -838,8 +1126,10 @@ Behavior:
 
 Example:
 ```java
-// Clips x into the interval [0.0, 1.0].
+Tensor x = new Tensor(new double[]{-2.0, -0.5, 0.5, 3.0}, new int[]{4}, null, "x");
 Tensor y = x.clamp(0.0, 1.0);
+// y has values [0.0, 0.0, 0.5, 1.0].
+//
 // Returns: a tensor whose values are limited to [0.0, 1.0].
 ```
 
@@ -861,8 +1151,10 @@ Returns:
 
 Example:
 ```java
-// Sums all elements of x into a scalar-shaped tensor [1].
+Tensor x = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "x");
 Tensor y = x.sum();
+// y has shape [1] and value [10].
+//
 // Returns: a scalar-shaped sum tensor.
 ```
 
@@ -878,8 +1170,10 @@ Returns:
 
 Example:
 ```java
-// Reduces axis 1 and removes it from the result shape.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
 Tensor y = x.sum(1);
+// y has shape [2] and values [6, 15].
+//
 // Returns: an axis-reduced tensor.
 ```
 
@@ -896,10 +1190,12 @@ Returns:
 
 Example:
 ```java
-// Reduces axis 1 and keeps it as size 1.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
 Tensor y = x.sum(1, true);
-// Reduces axis 0 and removes it.
+// y has shape [2, 1] and values [6, 15].
 Tensor z = x.sum(0, false);
+// z has shape [3] and values [5, 7, 9].
+//
 // Returns: reduced tensors.
 ```
 
@@ -915,8 +1211,10 @@ Returns:
 
 Example:
 ```java
-// Mean over all elements of x.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "x");
 Tensor y = x.mean();
+// y has shape [1] and value [2.5].
+//
 // Returns: a scalar-shaped mean tensor.
 ```
 
@@ -932,8 +1230,10 @@ Returns:
 
 Example:
 ```java
-// Mean reduction over axis 1.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
 Tensor y = x.mean(1);
+// y has shape [2] and values [2.0, 5.0].
+//
 // Returns: an axis-reduced mean tensor.
 ```
 
@@ -950,8 +1250,10 @@ Returns:
 
 Example:
 ```java
-// Mean reduction over axis 1 while keeping the axis.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
 Tensor y = x.mean(1, true);
+// y has shape [2, 1] and values [2.0, 5.0].
+//
 // Returns: a reduced mean tensor.
 ```
 
@@ -967,8 +1269,10 @@ Returns:
 
 Example:
 ```java
-// Global minimum of x.
+Tensor x = new Tensor(new double[]{4, 1, 9, 2}, new int[]{4}, null, "x");
 Tensor y = x.min();
+// y has shape [1] and value [1].
+//
 // Returns: a scalar-shaped minimum tensor.
 ```
 
@@ -984,8 +1288,10 @@ Returns:
 
 Example:
 ```java
-// Minimum reduction over axis 1.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
 Tensor y = x.min(1);
+// y has shape [2] and values [1, 4].
+//
 // Returns: an axis-reduced minimum tensor.
 ```
 
@@ -1002,8 +1308,10 @@ Returns:
 
 Example:
 ```java
-// Minimum reduction over axis 1 while keeping the axis.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
 Tensor y = x.min(1, true);
+// y has shape [2, 1] and values [1, 4].
+//
 // Returns: a reduced minimum tensor.
 ```
 
@@ -1019,8 +1327,10 @@ Returns:
 
 Example:
 ```java
-// Global maximum of x.
+Tensor x = new Tensor(new double[]{4, 1, 9, 2}, new int[]{4}, null, "x");
 Tensor y = x.max();
+// y has shape [1] and value [9].
+//
 // Returns: a scalar-shaped maximum tensor.
 ```
 
@@ -1036,8 +1346,10 @@ Returns:
 
 Example:
 ```java
-// Maximum reduction over axis 1.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
 Tensor y = x.max(1);
+// y has shape [2] and values [3, 6].
+//
 // Returns: an axis-reduced maximum tensor.
 ```
 
@@ -1054,8 +1366,10 @@ Returns:
 
 Example:
 ```java
-// Maximum reduction over axis 1 while keeping the axis.
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
 Tensor y = x.max(1, true);
+// y has shape [2, 1] and values [3, 6].
+//
 // Returns: a reduced maximum tensor.
 ```
 
@@ -1071,8 +1385,10 @@ Returns:
 
 Example:
 ```java
-// Returns true only if every element in mask is true.
+Tensor mask = new Tensor(new byte[]{1, 1, 0, 1}, new int[]{4}, null, "mask", DataType.BOOL);
 Tensor y = mask.all();
+// y has shape [1] and value [false].
+//
 // Returns: a scalar-shaped BOOL tensor.
 ```
 
@@ -1088,8 +1404,10 @@ Returns:
 
 Example:
 ```java
-// Reduces axis 1 with logical AND.
+Tensor mask = new Tensor(new byte[]{1, 1, 0, 1, 1, 1}, new int[]{2, 3}, null, "mask", DataType.BOOL);
 Tensor y = mask.all(1);
+// y has shape [2] and values [false, true].
+//
 // Returns: an axis-reduced BOOL tensor.
 ```
 
@@ -1106,8 +1424,10 @@ Returns:
 
 Example:
 ```java
-// Reduces axis 1 and keeps it as size 1.
+Tensor mask = new Tensor(new byte[]{1, 1, 0, 1, 1, 1}, new int[]{2, 3}, null, "mask", DataType.BOOL);
 Tensor y = mask.all(1, true);
+// y has shape [2, 1] and values [false, true].
+//
 // Returns: a reduced BOOL tensor.
 ```
 
@@ -1123,8 +1443,10 @@ Returns:
 
 Example:
 ```java
-// Returns true if at least one element in mask is true.
+Tensor mask = new Tensor(new byte[]{0, 0, 0, 1}, new int[]{4}, null, "mask", DataType.BOOL);
 Tensor y = mask.any();
+// y has shape [1] and value [true].
+//
 // Returns: a scalar-shaped BOOL tensor.
 ```
 
@@ -1140,8 +1462,10 @@ Returns:
 
 Example:
 ```java
-// Reduces axis 1 with logical OR.
+Tensor mask = new Tensor(new byte[]{1, 1, 0, 1, 1, 1}, new int[]{2, 3}, null, "mask", DataType.BOOL);
 Tensor y = mask.any(1);
+// y has shape [2] and values [true, true].
+//
 // Returns: an axis-reduced BOOL tensor.
 ```
 
@@ -1158,8 +1482,10 @@ Returns:
 
 Example:
 ```java
-// Reduces axis 1 and keeps it as size 1.
+Tensor mask = new Tensor(new byte[]{1, 1, 0, 1, 1, 1}, new int[]{2, 3}, null, "mask", DataType.BOOL);
 Tensor y = mask.any(1, true);
+// y has shape [2, 1] and values [true, true].
+//
 // Returns: a reduced BOOL tensor.
 ```
 
