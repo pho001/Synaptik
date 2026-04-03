@@ -38,6 +38,16 @@ Current descriptor classes in this package:
 - `div`
 - `min`
 - `max`
+- `greaterThan`
+- `greaterOrEqual`
+- `lessThan`
+- `lessOrEqual`
+- `equalTo`
+- `notEqualTo`
+- `where`
+- `logicalAnd`
+- `logicalOr`
+- `logicalNot`
 - `matmul`
 - `neg`
 - `inv`
@@ -50,6 +60,10 @@ Current descriptor classes in this package:
 - `sqrt`
 - `mulScalar`
 - `sum`
+- `reduceMin`
+- `reduceMax`
+- `reduceMinGrad`
+- `reduceMaxGrad`
 - `relu`
 - `sigmoid`
 - `contiguous`
@@ -87,6 +101,19 @@ It should usually not contain:
 - generic math fallback implementations for normal execution
 - execution caches
 
+Additional current descriptor notes:
+
+- comparison descriptors (`greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, `notEqualTo`)
+  - represent numeric-input compare ops
+  - produce `BOOL` tensors
+- `where`
+  - is a select descriptor
+  - consumes one `BOOL` condition plus two numeric branches
+  - returns promoted numeric output
+- logical bool descriptors (`logicalAnd`, `logicalOr`, `logicalNot`)
+  - are `BOOL`-only ops
+  - are nondifferentiable
+
 Those concerns live elsewhere:
 
 - tensor helper classes build graph nodes and backward lambdas
@@ -103,6 +130,9 @@ First decide where the operation belongs:
 
 - unary
 - binary
+- comparison
+- select
+- logical bool
 - reduction
 - layout/view-like
 - n-ary / special-case op
@@ -113,6 +143,9 @@ Examples:
 
 - unary -> `TensorUnaryOps`
 - binary -> `TensorBinaryOps`
+- comparison -> `TensorCompareOps`
+- select -> `TensorSelectOps`
+- logical bool -> `TensorBoolOps`
 - reduction -> `TensorReduceOps`
 - layout -> `TensorLayoutOps`
 - matmul -> `TensorMatMulOps`
@@ -168,6 +201,7 @@ Examples:
 
 - scalar parameter
 - broadcast plan
+- where-broadcast/shape metadata if needed by the op family
 - reduction axis
 - transpose/permute axes
 
@@ -179,6 +213,9 @@ You must add the operation to the correct tensor helper:
 
 - `TensorUnaryOps`
 - `TensorBinaryOps`
+- `TensorCompareOps`
+- `TensorSelectOps`
+- `TensorBoolOps`
 - `TensorReduceOps`
 - `TensorLayoutOps`
 - `TensorNaryOps`
@@ -202,6 +239,18 @@ out.setBackwardFunction(() -> {
 });
 return out;
 ```
+
+For compare/select/bool ops the dtype contract is different and must be explicit:
+
+- compare ops
+  - numeric inputs
+  - `BOOL` output
+- `where`
+  - `BOOL` condition
+  - numeric branches
+  - promoted numeric output
+- logical bool ops
+  - `BOOL` input/output only
 
 ### 5. Expose it on `Tensor` if it should be public
 
@@ -252,10 +301,12 @@ Relevant places:
 Depending on the op, you may also need:
 
 - broadcast handling
+- where-style multi-input broadcast handling
 - non-contiguous handling
 - reduction hints
 - matmul hints
 - dtype-specific F16/F32/F64 loops
+- `BOOL` execution path if the op is logical or compare/select related
 
 ### 8. Decide if the op is fusable
 
@@ -328,6 +379,68 @@ Required changes usually touch:
 - tests
 - docs
 
+### Compare op
+
+Required changes usually touch:
+
+- `Operation.OpType`
+- `operations/<op>.java`
+- `TensorCompareOps`
+- `TensorOps`
+- `Tensor`
+- CPU kernel + registry
+- binary broadcast support
+- prepared-input type contract if input/output dtypes differ
+- tests
+- docs
+
+Special contract:
+
+- numeric inputs
+- `BOOL` output
+- nondifferentiable
+
+### Select op
+
+Required changes usually touch:
+
+- `Operation.OpType`
+- `operations/<op>.java`
+- `TensorSelectOps`
+- `TensorOps`
+- `Tensor`
+- dedicated 3-input broadcast plan/helper
+- CPU kernel + registry
+- prepared-input type contract
+- backward wiring
+- tests
+- docs
+
+Special contract:
+
+- one `BOOL` condition input
+- numeric branch inputs
+- promoted numeric output
+
+### Logical bool op
+
+Required changes usually touch:
+
+- `Operation.OpType`
+- `operations/<op>.java`
+- `TensorBoolOps`
+- `TensorOps`
+- `Tensor`
+- CPU kernel + registry
+- `BOOL` broadcast behavior for binary bool ops
+- tests
+- docs
+
+Special contract:
+
+- `BOOL`-only input/output
+- nondifferentiable
+
 ### Reduction op
 
 Required changes usually touch:
@@ -361,4 +474,6 @@ Required changes usually touch:
 - putting runtime compiled state into the descriptor
 - forgetting fused emitter support for fusable ops
 - forgetting dtype-specific behavior and tests
+- forgetting `BOOL` / mixed dtype contract for compare/select families
+- forcing compare/select through the same numeric prepared-input assumptions as normal arithmetic ops
 - documenting an operation because the descriptor exists, even though it is not public on `Tensor`

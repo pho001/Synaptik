@@ -49,7 +49,7 @@ It is not the primary owner of explicit compile/runtime artifacts. Those live in
 
 `Tensor` stores:
 
-- tensor storage (`FLOAT16`, `FLOAT32`, `FLOAT64`)
+- tensor storage (`FLOAT16`, `FLOAT32`, `FLOAT64`, `BOOL`)
 - metadata (`shape`, `strides`, `label`, `requiresGrad`)
 - producing operation (`Operation`) or `null` for leaves/constants
 - graph input links (`prevTensors`)
@@ -57,15 +57,12 @@ It is not the primary owner of explicit compile/runtime artifacts. Those live in
 - backward lambda (`backwardFunction`)
 - optional forced backend (`forcedBackend`)
 
-There is also a transitional compile/execution cache in `Tensor` today:
+`Tensor` itself no longer owns compile/runtime cache artifacts.
 
-- `compiledGraph`
-- `lastPreparedExecution`
+The intended model is:
 
-This still exists in code for compatibility, but the intended architectural direction is to treat:
-
-- `CompiledGraph` as the explicit compile artifact
-- `PreparedExecution` as the explicit runtime artifact
+- `CompiledGraph` = explicit compile artifact
+- `PreparedExecution` = explicit runtime artifact
 
 ## Execution Model
 
@@ -84,17 +81,11 @@ Preferred high-level entry points on `Tensor` are:
 - `compute(ExecutionProfile profile)`
 - `compute(PreparedExecution execution, ExecutionMode mode)`
 
-Convenience overloads using only `RuntimeConfig` still exist and derive optimizer defaults from the graph shape / gradient requirements:
+`Tensor` no longer exposes the older optimizer/runtime convenience layer directly.
+Compilation and runtime binding are explicit through:
 
-- `prepare(RuntimeConfig runtimeConfig)`
-- `compute(RuntimeConfig runtimeConfig, ExecutionMode mode)`
-
-Legacy optimizer-centric methods are still present, but deprecated:
-
-- `compile(...)`
-- `prepare(GraphOptimizer, ...)`
-- `compute(GraphOptimizer, ...)`
-- `compute()`
+- [src/main/java/graph/CompiledGraph.java](../graph/CompiledGraph.java)
+- [src/main/java/graph/execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
 
 ## Public Tensor Operations
 
@@ -199,6 +190,7 @@ They produce `BOOL` tensors and are nondifferentiable.
 - broadcasts all three inputs to a common output shape
 - returns the promoted numeric dtype of `x` and `y`
 - propagates gradient only through the selected data branches
+- does not propagate gradient through `condition`
 
 Logical bool ops:
 
@@ -271,12 +263,6 @@ Autodiff is reverse-mode:
 - root gradient is seeded with `onesLike(root)`
 - `PreparedExecution.execute(FORWARD_BACKWARD)` runs forward and then backward
 
-The explicit form is:
-
-- compile graph
-- prepare execution
-- call `PreparedExecution.backward()`
-
 ## Backend Resolution
 
 Tensor-level backend selection is intentionally simple:
@@ -304,15 +290,20 @@ This is handled in backend planning/execution, not directly in tensor graph cons
 
 Storage is dtype-native:
 
+- `BoolStorage`
 - `Float16Storage`
 - `Float32Storage`
 - `Float64Storage`
 
 Important current behavior:
 
+- `BOOL` is a first-class dtype, not a numeric `0/1` workaround
+- implicit `BOOL <-> numeric` dtype conversion is intentionally not supported
 - non-`FLOAT64` tensors do not maintain a mirrored `double[]` cache
 - `markDataViewStale()` is now effectively a no-op compatibility hook
 - `toDoubleArrayCopy()` is the canonical generic readback path
+- `toBooleanArrayCopy()` is the canonical logical readback path for `BOOL`
+- `copyDataFrom(...)` is the internal typed tensor-to-tensor sync helper used by runtime code
 
 ## Related Modules
 
