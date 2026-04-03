@@ -121,7 +121,7 @@ public final class CPUBackend {
 
         ResolvedReductionHints reductionHints =
                 (op != null && switch (op.opType()) {
-                    case SUM, REDUCE_MIN, REDUCE_MAX -> true;
+                    case SUM, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY -> true;
                     default -> false;
                 })
                         ? planner.resolveReductionHints(estimateReductionLogicalSize(prepared.runtimeInputs(), node), targetType)
@@ -213,7 +213,7 @@ public final class CPUBackend {
         }
 
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, REDUCE_MIN, REDUCE_MAX, NOOP -> false;
+            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, NOOP -> false;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
             case MATMUL -> true;
             case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.isContiguous();
@@ -350,6 +350,7 @@ public final class CPUBackend {
             case WHERE -> resolveWhereContract(inputs);
             case LOGICAL_AND, LOGICAL_OR -> resolveLogicalBinaryContract(inputs);
             case LOGICAL_NOT -> resolveLogicalUnaryContract(inputs);
+            case REDUCE_ALL, REDUCE_ANY -> resolveBoolReductionContract(node, inputs);
             default -> {
                 DataType outputType = resolveTargetType(node, inputs);
                 yield uniformTypeContract(outputType, inputs == null ? 0 : inputs.size());
@@ -410,6 +411,16 @@ public final class CPUBackend {
         }
         if (inputs.get(0).getDataType() != DataType.BOOL) {
             throw new IllegalArgumentException("logicalNot requires BOOL input.");
+        }
+        return new PreparedTypeContract(DataType.BOOL, List.of(DataType.BOOL));
+    }
+
+    private static PreparedTypeContract resolveBoolReductionContract(Tensor node, List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException("BOOL reductions expect exactly one input.");
+        }
+        if (inputs.get(0).getDataType() != DataType.BOOL) {
+            throw new IllegalArgumentException("BOOL reductions require BOOL input.");
         }
         return new PreparedTypeContract(DataType.BOOL, List.of(DataType.BOOL));
     }

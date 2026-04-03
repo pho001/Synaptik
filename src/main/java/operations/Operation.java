@@ -29,6 +29,8 @@ public interface Operation {
         MAX_GRAD(OpArityClass.SPECIAL, false),
         REDUCE_MIN(OpArityClass.REDUCTION, false),
         REDUCE_MAX(OpArityClass.REDUCTION, false),
+        REDUCE_ALL(OpArityClass.REDUCTION, false),
+        REDUCE_ANY(OpArityClass.REDUCTION, false),
         REDUCE_MIN_GRAD(OpArityClass.SPECIAL, false),
         REDUCE_MAX_GRAD(OpArityClass.SPECIAL, false),
         WHERE(OpArityClass.ELEMENT_WISE, false),

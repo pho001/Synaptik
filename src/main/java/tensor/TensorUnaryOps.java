@@ -231,4 +231,21 @@ final class TensorUnaryOps {
         });
         return out;
     }
+
+    static Tensor clamp(Tensor input, double minValue, double maxValue) {
+        if (input == null) {
+            throw new IllegalArgumentException("clamp input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("clamp requires numeric input.");
+        }
+        if (minValue > maxValue) {
+            throw new IllegalArgumentException("clamp requires minValue <= maxValue.");
+        }
+
+        Tensor lower = Tensor.scalar(minValue, input.getDataType());
+        Tensor upper = Tensor.scalar(maxValue, input.getDataType());
+        Tensor upperClamped = Tensor.where(input.greaterThan(upper), upper, input);
+        return Tensor.where(upperClamped.lessThan(lower), lower, upperClamped);
+    }
 }

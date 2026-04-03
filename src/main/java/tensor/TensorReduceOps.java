@@ -1,6 +1,8 @@
 package tensor;
 
 import operations.Operation;
+import operations.reduceAll;
+import operations.reduceAny;
 import operations.reduceMax;
 import operations.reduceMaxGrad;
 import operations.reduceMin;
@@ -99,6 +101,30 @@ final class TensorReduceOps {
         return reduceMinMaxAll(input, true);
     }
 
+    static Tensor all(Tensor input, int dimension) {
+        return all(input, dimension, false);
+    }
+
+    static Tensor all(Tensor input, int dimension, boolean keepDims) {
+        return reduceBool(input, dimension, keepDims, true);
+    }
+
+    static Tensor allAll(Tensor input) {
+        return reduceBoolAll(input, true);
+    }
+
+    static Tensor any(Tensor input, int dimension) {
+        return any(input, dimension, false);
+    }
+
+    static Tensor any(Tensor input, int dimension, boolean keepDims) {
+        return reduceBool(input, dimension, keepDims, false);
+    }
+
+    static Tensor anyAll(Tensor input) {
+        return reduceBoolAll(input, false);
+    }
+
     private static Tensor reduceMinMax(Tensor input, int dimension, boolean keepDims, boolean isMax) {
         int[] shape = input.getShape();
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, shape.length);
@@ -166,5 +192,27 @@ final class TensorReduceOps {
         } else {
             input.setGradient(input.getGradient().add(gradientDelta));
         }
+    }
+
+    private static Tensor reduceBool(Tensor input, int dimension, boolean keepDims, boolean isAll) {
+        if (input.getDataType() != DataType.BOOL) {
+            throw new IllegalArgumentException((isAll ? "all" : "any") + " requires BOOL input.");
+        }
+        int[] shape = input.getShape();
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, shape.length);
+        int[] newShape = reduceShape(shape, normalizedDimension, keepDims);
+        Operation op = isAll ? new reduceAll(normalizedDimension, keepDims) : new reduceAny(normalizedDimension, keepDims);
+        Tensor out = new Tensor(newShape, List.of(input), op, isAll ? "all_reduce" : "any_reduce", DataType.BOOL);
+        out.setRequiresGrad(false);
+        return out;
+    }
+
+    private static Tensor reduceBoolAll(Tensor input, boolean isAll) {
+        if (input.getDataType() != DataType.BOOL) {
+            throw new IllegalArgumentException((isAll ? "all" : "any") + " requires BOOL input.");
+        }
+        Tensor out = new Tensor(new int[]{1}, List.of(input), isAll ? new reduceAll(-1) : new reduceAny(-1), isAll ? "all_reduce" : "any_reduce", DataType.BOOL);
+        out.setRequiresGrad(false);
+        return out;
     }
 }

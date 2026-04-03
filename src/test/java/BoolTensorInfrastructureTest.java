@@ -95,4 +95,44 @@ public class BoolTensorInfrastructureTest {
 
         assertArrayEquals(new boolean[]{true, false, true, false, false, true}, out.toBooleanArrayCopy());
     }
+
+    @Test
+    void allAndAnyReductionsWork() {
+        Tensor mask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 1, 1
+        }, new int[]{2, 3}, null, "mask", DataType.BOOL);
+
+        Tensor allAxis = mask.all(1);
+        Tensor allKeep = mask.all(1, true);
+        Tensor anyAxis = mask.any(1);
+        Tensor anyKeep = mask.any(1, true);
+        Tensor allAll = mask.all();
+        Tensor anyAll = mask.any();
+
+        CompiledGraph.compile(allAxis, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(allKeep, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(anyAxis, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(anyKeep, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(allAll, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(anyAll, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2}, allAxis.getShape());
+        assertArrayEquals(new boolean[]{false, true}, allAxis.toBooleanArrayCopy());
+
+        assertArrayEquals(new int[]{2, 1}, allKeep.getShape());
+        assertArrayEquals(new boolean[]{false, true}, allKeep.toBooleanArrayCopy());
+
+        assertArrayEquals(new int[]{2}, anyAxis.getShape());
+        assertArrayEquals(new boolean[]{true, true}, anyAxis.toBooleanArrayCopy());
+
+        assertArrayEquals(new int[]{2, 1}, anyKeep.getShape());
+        assertArrayEquals(new boolean[]{true, true}, anyKeep.toBooleanArrayCopy());
+
+        assertArrayEquals(new int[]{1}, allAll.getShape());
+        assertArrayEquals(new boolean[]{false}, allAll.toBooleanArrayCopy());
+
+        assertArrayEquals(new int[]{1}, anyAll.getShape());
+        assertArrayEquals(new boolean[]{true}, anyAll.toBooleanArrayCopy());
+    }
 }

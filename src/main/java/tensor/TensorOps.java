@@ -115,6 +115,10 @@ public final class TensorOps {
         return TensorUnaryOps.fastTanh(input);
     }
 
+    public static Tensor clamp(Tensor input, double minValue, double maxValue) {
+        return TensorUnaryOps.clamp(input, minValue, maxValue);
+    }
+
     public static Tensor pow(Tensor input, double exponent) {
         return TensorUnaryOps.pow(input, exponent);
     }
@@ -185,6 +189,30 @@ public final class TensorOps {
 
     public static Tensor maxAll(Tensor input) {
         return TensorReduceOps.maxAll(input);
+    }
+
+    public static Tensor all(Tensor input, int dimension) {
+        return TensorReduceOps.all(input, dimension);
+    }
+
+    public static Tensor all(Tensor input, int dimension, boolean keepDims) {
+        return TensorReduceOps.all(input, dimension, keepDims);
+    }
+
+    public static Tensor allAll(Tensor input) {
+        return TensorReduceOps.allAll(input);
+    }
+
+    public static Tensor any(Tensor input, int dimension) {
+        return TensorReduceOps.any(input, dimension);
+    }
+
+    public static Tensor any(Tensor input, int dimension, boolean keepDims) {
+        return TensorReduceOps.any(input, dimension, keepDims);
+    }
+
+    public static Tensor anyAll(Tensor input) {
+        return TensorReduceOps.anyAll(input);
     }
 
     public static Tensor batchNorm(

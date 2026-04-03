@@ -781,6 +781,10 @@ public class Tensor {
         return TensorOps.fastTanh(this);
     }
 
+    public Tensor clamp(double minValue, double maxValue) {
+        return TensorOps.clamp(this, minValue, maxValue);
+    }
+
     public Tensor pow(double exp) {
         return TensorOps.pow(this, exp);
     }
@@ -859,6 +863,30 @@ public class Tensor {
 
     public Tensor max() {
         return TensorOps.maxAll(this);
+    }
+
+    public Tensor all(int dimension) {
+        return TensorOps.all(this, dimension);
+    }
+
+    public Tensor all(int dimension, boolean keepDims) {
+        return TensorOps.all(this, dimension, keepDims);
+    }
+
+    public Tensor all() {
+        return TensorOps.allAll(this);
+    }
+
+    public Tensor any(int dimension) {
+        return TensorOps.any(this, dimension);
+    }
+
+    public Tensor any(int dimension, boolean keepDims) {
+        return TensorOps.any(this, dimension, keepDims);
+    }
+
+    public Tensor any() {
+        return TensorOps.anyAll(this);
     }
 
 
