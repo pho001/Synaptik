@@ -7,6 +7,7 @@ import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AlgebraicRewritingSigmoidTest {
@@ -63,6 +64,22 @@ public class AlgebraicRewritingSigmoidTest {
                 "Sigmoid rewrite should be skipped when gradients are required");
         assertArrayEquals(baselineOutput.toDoubleArrayCopy(), optimizedOutput.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), optimizedInput.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void doesNotRewriteCompareSurface() {
+        Tensor x = new Tensor(new double[]{1.0, 3.0, 2.0}, new int[]{3}, null, "x", DataType.FLOAT64);
+        Tensor y = new Tensor(new double[]{2.0, 2.0, 2.0}, new int[]{3}, null, "y", DataType.FLOAT64);
+        Tensor out = x.greaterThan(y);
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, arOnlyInferenceConfig());
+        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+
+        assertEquals(1, compiledGraph.getCompiledGraphAsList().stream()
+                .map(Tensor::getOperation)
+                .filter(op -> op != null && op.opType() == Operation.OpType.GT)
+                .count());
+        assertArrayEquals(new byte[]{0, 1, 0}, out.getBoolData());
     }
 
     private static boolean containsSigmoid(CompiledGraph compiledGraph) {

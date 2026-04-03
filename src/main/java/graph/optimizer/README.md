@@ -71,6 +71,8 @@ Shared graph rewrite mechanics such as input replacement and topological-closure
 ### `AlgebraicRewritingRule`
 
 - local algebraic simplifications
+- dispatches by `Operation.OpType`, not by concrete class names
+- currently targets the numeric unary/binary subset where the rewrites are semantically valid
 - canonical sigmoid rewrite in forward-only graphs:
   - `inv(add(1, exp(neg(x)))) -> sigmoid(x)`
   - `inv(add(1, exp(mulScalar(x, -1)))) -> sigmoid(x)`

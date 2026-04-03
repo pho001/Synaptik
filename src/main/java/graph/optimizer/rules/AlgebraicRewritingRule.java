@@ -5,7 +5,10 @@ import graph.optimizer.OptimizationRule;
 import operations.*;
 import tensor.Tensor;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class AlgebraicRewritingRule implements OptimizationRule {
     private static final boolean DISABLE_ALL_TRANSFORMS =
@@ -99,19 +102,18 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (t.getOperation() == null) return t;
         if (t.getOperation().opType() == Operation.OpType.FUSED) return t;
 
-        String op = t.getOperation().getClass().getSimpleName().toLowerCase(Locale.ROOT);
-        return switch (op) {
-            case "add" -> simplifyAdd(t);
-            case "sub" -> simplifySub(t);
-            case "mul" -> simplifyMul(t);
-            case "mulscalar" -> simplifyMulScalar(t);
-            case "div" -> simplifyDiv(t);
-            case "pow" -> simplifyPow(t);
-            case "neg" -> simplifyNeg(t);
-            case "log" -> simplifyLog(t);
-            case "exp" -> simplifyExp(t);
-            case "inv" -> simplifyInv(t);
-            case "sqrt" -> simplifySqrt(t);
+        return switch (t.getOperation().opType()) {
+            case ADD -> simplifyAdd(t);
+            case SUB -> simplifySub(t);
+            case MUL -> simplifyMul(t);
+            case MUL_SCALAR -> simplifyMulScalar(t);
+            case DIV -> simplifyDiv(t);
+            case POW -> simplifyPow(t);
+            case NEG -> simplifyNeg(t);
+            case LOG -> simplifyLog(t);
+            case EXP -> simplifyExp(t);
+            case INV -> simplifyInv(t);
+            case SQRT -> simplifySqrt(t);
             default -> t;
         };
     }
@@ -136,12 +138,12 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         }
 
         // (-x) + (-y) -> -(x+y)
-        if (!DISABLE_ADD_NEGNEG_TO_NEGADD && isOp(a, "neg") && isOp(b, "neg")) {
+        if (!DISABLE_ADD_NEGNEG_TO_NEGADD && isOp(a, Operation.OpType.NEG) && isOp(b, Operation.OpType.NEG)) {
             return a.getPrevTensors().get(0).add(b.getPrevTensors().get(0)).neg();
         }
 
         // log(a) + log(b) -> log(a*b) (doména: a,b > 0)
-        if (!DISABLE_ADD_LOGLOG_TO_LOGMUL && isOp(a, "log") && isOp(b, "log")) {
+        if (!DISABLE_ADD_LOGLOG_TO_LOGMUL && isOp(a, Operation.OpType.LOG) && isOp(b, Operation.OpType.LOG)) {
             return a.getPrevTensors().get(0).mul(b.getPrevTensors().get(0)).log();
         }
 
@@ -157,7 +159,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (a == b) return Tensor.zerosLike(a);
 
         // x - (-y) -> x + y
-        if (!DISABLE_SUB_NEG_TO_ADD && isOp(b, "neg")) return a.add(b.getPrevTensors().get(0));
+        if (!DISABLE_SUB_NEG_TO_ADD && isOp(b, Operation.OpType.NEG)) return a.add(b.getPrevTensors().get(0));
 
         // x - x*c -> x*(1-c)
         if (!DISABLE_ADD_SUB_FACTORIZE) {
@@ -183,16 +185,16 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (isConstant(b, -1.0)) return a.neg();
 
         // x * (1/x) -> 1 (jen přesný inv(x))
-        if (!DISABLE_MUL_INV_TO_ONE && isOp(a, "inv") && a.getPrevTensors().get(0) == b) return Tensor.onesLike(b);
-        if (!DISABLE_MUL_INV_TO_ONE && isOp(b, "inv") && b.getPrevTensors().get(0) == a) return Tensor.onesLike(a);
+        if (!DISABLE_MUL_INV_TO_ONE && isOp(a, Operation.OpType.INV) && a.getPrevTensors().get(0) == b) return Tensor.onesLike(b);
+        if (!DISABLE_MUL_INV_TO_ONE && isOp(b, Operation.OpType.INV) && b.getPrevTensors().get(0) == a) return Tensor.onesLike(a);
 
         // (-x) * (-y) -> x*y
-        if (!DISABLE_MUL_NEGNEG_TO_MUL && isOp(a, "neg") && isOp(b, "neg")) {
+        if (!DISABLE_MUL_NEGNEG_TO_MUL && isOp(a, Operation.OpType.NEG) && isOp(b, Operation.OpType.NEG)) {
             return a.getPrevTensors().get(0).mul(b.getPrevTensors().get(0));
         }
 
         // exp(a) * exp(b) -> exp(a+b)
-        if (!DISABLE_MUL_EXPEXP_TO_EXPADD && isOp(a, "exp") && isOp(b, "exp")) {
+        if (!DISABLE_MUL_EXPEXP_TO_EXPADD && isOp(a, Operation.OpType.EXP) && isOp(b, Operation.OpType.EXP)) {
             return a.getPrevTensors().get(0).add(b.getPrevTensors().get(0)).exp();
         }
 
@@ -209,12 +211,12 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (s == -1.0) return input.neg();
 
         // (x*a)*b -> x*(a*b)
-        if (!DISABLE_MULSCALAR_ASSOC && isOp(input, "mulscalar") && input.getOperation() instanceof mulScalar in) {
+        if (!DISABLE_MULSCALAR_ASSOC && isOp(input, Operation.OpType.MUL_SCALAR) && input.getOperation() instanceof mulScalar in) {
             return input.getPrevTensors().get(0).mul(in.getScalar() * s);
         }
 
         // (-x)*a -> x*(-a)
-        if (!DISABLE_MULSCALAR_NEG_PUSH && isOp(input, "neg")) {
+        if (!DISABLE_MULSCALAR_NEG_PUSH && isOp(input, Operation.OpType.NEG)) {
             return input.getPrevTensors().get(0).mul(-s);
         }
 
@@ -235,11 +237,11 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (isConstant(b, -1.0)) return a.neg();
 
         // x / (1/y) -> x*y
-        if (!DISABLE_DIV_INV_TO_MUL && isOp(b, "inv")) return a.mul(b.getPrevTensors().get(0));
+        if (!DISABLE_DIV_INV_TO_MUL && isOp(b, Operation.OpType.INV)) return a.mul(b.getPrevTensors().get(0));
 
         // (x*c)/c -> x
         if (!DISABLE_DIV_MULSCALAR_BY_CONST
-                && isOp(a, "mulscalar")
+                && isOp(a, Operation.OpType.MUL_SCALAR)
                 && a.getOperation() instanceof mulScalar ms
                 && ms.getScalar() != 0.0
                 && isConstant(b, ms.getScalar())) {
@@ -248,7 +250,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
 
         // (x*c)/d -> x*(c/d)
         if (!DISABLE_DIV_MULSCALAR_BY_CONST
-                && isOp(a, "mulscalar")
+                && isOp(a, Operation.OpType.MUL_SCALAR)
                 && a.getOperation() instanceof mulScalar ms
                 && isConstant(b)) {
             return a.getPrevTensors().get(0).mul(ms.getScalar() / b.scalarAsDouble());
@@ -261,17 +263,17 @@ public class AlgebraicRewritingRule implements OptimizationRule {
     private Tensor simplifyNeg(Tensor t) {
         Tensor input = t.getPrevTensors().get(0);
 
-        if (isOp(input, "neg")) return input.getPrevTensors().get(0);
+        if (isOp(input, Operation.OpType.NEG)) return input.getPrevTensors().get(0);
 
         // -(x - y) -> y - x
-        if (!DISABLE_NEG_SUB_SWAP && isOp(input, "sub")) {
+        if (!DISABLE_NEG_SUB_SWAP && isOp(input, Operation.OpType.SUB)) {
             Tensor x = input.getPrevTensors().get(0);
             Tensor y = input.getPrevTensors().get(1);
             return y.sub(x);
         }
 
         // -(x*c) -> x*(-c)
-        if (!DISABLE_NEG_MULSCALAR_PUSH && isOp(input, "mulscalar") && input.getOperation() instanceof mulScalar m) {
+        if (!DISABLE_NEG_MULSCALAR_PUSH && isOp(input, Operation.OpType.MUL_SCALAR) && input.getOperation() instanceof mulScalar m) {
             return input.getPrevTensors().get(0).mul(-m.getScalar());
         }
 
@@ -290,12 +292,12 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (exponent == -0.5) return base.sqrt().inv();
 
         // (x^a)^b -> x^(a*b)
-        if (!DISABLE_POW_POW_FLATTEN && isOp(base, "pow") && base.getOperation() instanceof pow pInner) {
+        if (!DISABLE_POW_POW_FLATTEN && isOp(base, Operation.OpType.POW) && base.getOperation() instanceof pow pInner) {
             return base.getPrevTensors().get(0).pow(pInner.getExponent() * exponent);
         }
 
         // (1/x)^a -> x^(-a)
-        if (!DISABLE_POW_INV_TO_NEGEXP && isOp(base, "inv")) {
+        if (!DISABLE_POW_INV_TO_NEGEXP && isOp(base, Operation.OpType.INV)) {
             return base.getPrevTensors().get(0).pow(-exponent);
         }
 
@@ -308,14 +310,14 @@ public class AlgebraicRewritingRule implements OptimizationRule {
     private Tensor simplifyLog(Tensor t) {
         Tensor input = t.getPrevTensors().get(0);
 
-        if (isOp(input, "exp")) return input.getPrevTensors().get(0);
-        if (!DISABLE_LOG_POW_TO_MULLOG && isOp(input, "pow") && input.getOperation() instanceof pow p) {
+        if (isOp(input, Operation.OpType.EXP)) return input.getPrevTensors().get(0);
+        if (!DISABLE_LOG_POW_TO_MULLOG && isOp(input, Operation.OpType.POW) && input.getOperation() instanceof pow p) {
             return input.getPrevTensors().get(0).log().mul(p.getExponent());
         }
-        if (!DISABLE_LOG_INV_TO_NEGLOG && isOp(input, "inv")) {
+        if (!DISABLE_LOG_INV_TO_NEGLOG && isOp(input, Operation.OpType.INV)) {
             return input.getPrevTensors().get(0).log().neg();
         }
-        if (!DISABLE_LOG_SQRT_TO_HALFLOG && isOp(input, "sqrt")) {
+        if (!DISABLE_LOG_SQRT_TO_HALFLOG && isOp(input, Operation.OpType.SQRT)) {
             return input.getPrevTensors().get(0).log().mul(0.5);
         }
 
@@ -324,7 +326,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
 
     private Tensor simplifyExp(Tensor t) {
         Tensor input = t.getPrevTensors().get(0);
-        if (!DISABLE_EXP_LOG_CANCEL && isOp(input, "log")) return input.getPrevTensors().get(0);
+        if (!DISABLE_EXP_LOG_CANCEL && isOp(input, Operation.OpType.LOG)) return input.getPrevTensors().get(0);
         return t;
     }
 
@@ -332,18 +334,18 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         Tensor input = t.getPrevTensors().get(0);
 
         if (isConstant(input, 1.0)) return input;
-        if (isOp(input, "inv")) return input.getPrevTensors().get(0);
+        if (isOp(input, Operation.OpType.INV)) return input.getPrevTensors().get(0);
         if (!DISABLE_INV_SIGMOID_PATTERN && !t.getRequiresGrad()) {
             Tensor sigmoidInput = matchSigmoidInput(input);
             if (sigmoidInput != null) return sigmoidInput.sigmoid();
         }
-        if (!DISABLE_INV_POW_TO_NEGEXP && isOp(input, "pow") && input.getOperation() instanceof pow p) {
+        if (!DISABLE_INV_POW_TO_NEGEXP && isOp(input, Operation.OpType.POW) && input.getOperation() instanceof pow p) {
             return input.getPrevTensors().get(0).pow(-p.getExponent());
         }
-        if (!DISABLE_INV_EXP_TO_EXPNEG && isOp(input, "exp")) {
+        if (!DISABLE_INV_EXP_TO_EXPNEG && isOp(input, Operation.OpType.EXP)) {
             return input.getPrevTensors().get(0).neg().exp();
         }
-        if (!DISABLE_INV_NEG_PUSH && isOp(input, "neg")) {
+        if (!DISABLE_INV_NEG_PUSH && isOp(input, Operation.OpType.NEG)) {
             return input.getPrevTensors().get(0).inv().neg();
         }
 
@@ -351,7 +353,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
     }
 
     private Tensor matchSigmoidInput(Tensor candidate) {
-        if (!isOp(candidate, "add") || candidate.getPrevTensors().size() != 2) {
+        if (!isOp(candidate, Operation.OpType.ADD) || candidate.getPrevTensors().size() != 2) {
             return null;
         }
         Tensor left = candidate.getPrevTensors().get(0);
@@ -368,7 +370,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (!isConstant(constantCandidate, 1.0)) {
             return null;
         }
-        if (!isOp(expCandidate, "exp") || expCandidate.getPrevTensors().size() != 1) {
+        if (!isOp(expCandidate, Operation.OpType.EXP) || expCandidate.getPrevTensors().size() != 1) {
             return null;
         }
         Tensor negLikeInput = unwrapNegLike(expCandidate.getPrevTensors().get(0));
@@ -377,10 +379,10 @@ public class AlgebraicRewritingRule implements OptimizationRule {
     }
 
     private Tensor unwrapNegLike(Tensor t) {
-        if (isOp(t, "neg") && t.getPrevTensors().size() == 1) {
+        if (isOp(t, Operation.OpType.NEG) && t.getPrevTensors().size() == 1) {
             return t.getPrevTensors().get(0);
         }
-        if (isOp(t, "mulscalar")
+        if (isOp(t, Operation.OpType.MUL_SCALAR)
                 && t.getOperation() instanceof mulScalar ms
                 && ms.getScalar() == -1.0
                 && t.getPrevTensors().size() == 1) {
@@ -405,17 +407,17 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         return isConstant(t) && t.scalarAsDouble() == val;
     }
 
-    private boolean isOp(Tensor t, String opName) {
+    private boolean isOp(Tensor t, Operation.OpType opType) {
         return t.getOperation() != null
-                && t.getOperation().getClass().getSimpleName().equalsIgnoreCase(opName);
+                && t.getOperation().opType() == opType;
     }
 
     private boolean isNegOf(Tensor a, Tensor b) {
-        return isOp(a, "neg") && a.getPrevTensors().get(0) == b;
+        return isOp(a, Operation.OpType.NEG) && a.getPrevTensors().get(0) == b;
     }
 
     private Double getMulScalarIfBase(Tensor candidate, Tensor base) {
-        if (!isOp(candidate, "mulscalar")) return null;
+        if (!isOp(candidate, Operation.OpType.MUL_SCALAR)) return null;
         if (!(candidate.getOperation() instanceof mulScalar m)) return null;
         if (candidate.getPrevTensors().isEmpty()) return null;
         return candidate.getPrevTensors().get(0) == base ? m.getScalar() : null;
