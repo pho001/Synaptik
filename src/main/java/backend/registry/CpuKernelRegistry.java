@@ -27,6 +27,8 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.LOGICAL_NOT, new CpuLogicalNotKernel());
         KERNELS.put(Operation.OpType.GATHER, new CpuGatherKernel());
         KERNELS.put(Operation.OpType.GATHER_GRAD, new CpuGatherGradKernel());
+        KERNELS.put(Operation.OpType.TAKE_ALONG_AXIS, new CpuTakeAlongAxisKernel());
+        KERNELS.put(Operation.OpType.TAKE_ALONG_AXIS_GRAD, new CpuTakeAlongAxisGradKernel());
         KERNELS.put(Operation.OpType.SCATTER_ADD, new CpuScatterAddKernel());
         KERNELS.put(Operation.OpType.MIN_GRAD, new CpuMinGradKernel());
         KERNELS.put(Operation.OpType.MAX_GRAD, new CpuMaxGradKernel());

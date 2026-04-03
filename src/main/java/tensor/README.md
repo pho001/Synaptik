@@ -177,6 +177,7 @@ The current public graph-building operation surface on `Tensor` is:
 ### Indexing
 
 - `gather(Tensor indices, int dimension)`
+- `takeAlongAxis(Tensor indices, int dimension)`
 - `scatterAdd(Tensor indices, Tensor src, int dimension)`
 
 ### Helper / Internal Execution Anchor
@@ -376,6 +377,14 @@ For axis reduction:
 - numeric floating tensors with integral values are still accepted as a compatibility mode
 - backward scatters upstream gradient back into selected input positions
 - this is intentionally a minimal first step before a broader indexing/gather family
+
+`takeAlongAxis(indices, dimension)` je obecnejsi axis-wise read primitive:
+
+- output shape = `indices.shape`
+- rank se zachovava
+- vsechny ne-indexovane osy musi sedet se vstupem
+- indexovana osa se ridi shape tensoru `indices`
+- backward scatteruje gradient zpet do vstupu podél stejne osy
 
 `scatterAdd(indices, src, dimension)` is the first explicit write/update indexing primitive:
 

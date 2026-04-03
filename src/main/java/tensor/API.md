@@ -53,6 +53,7 @@ The focus here is practical API usage:
   - [`maximum(Tensor second)`](#maximumtensor-second)
 - [Indexing Operations](#indexing-operations)
   - [`gather(Tensor indices, int dimension)`](#gathertensor-indices-int-dimension)
+  - [`takeAlongAxis(Tensor indices, int dimension)`](#takealongaxistensor-indices-int-dimension)
   - [`scatterAdd(Tensor indices, Tensor src, int dimension)`](#scatteraddtensor-indices-tensor-src-int-dimension)
 - [Logical Bool Operations](#logical-bool-operations)
   - [`logicalAnd(Tensor second)`](#logicalandtensor-second)
@@ -991,6 +992,34 @@ Tensor y = x.gather(indices, 1);
 // y has shape [2] and values [3, 4].
 //
 // Returns: a gathered tensor with one selected value per row.
+```
+
+### `takeAlongAxis(Tensor indices, int dimension)`
+
+Gathers values along one axis while preserving rank.
+
+Parameters:
+- `indices`: tensor with the same rank as the input; all non-axis dimensions must match the input
+- `dimension`: axis to index along
+
+Returns:
+- tensor whose shape equals `indices.shape`
+
+Behavior:
+- unlike narrow `gather`, this op keeps rank
+- the selected axis length is driven by `indices.shape[dimension]`
+- backward scatters upstream gradient back into the selected input positions
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x");
+Tensor indices = new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "indices", DataType.INT32);
+Tensor y = x.takeAlongAxis(indices, 1);
+// y has shape [2, 2] and values:
+// [[3, 2],
+//  [4, 4]]
+//
+// Returns: an axis-wise gathered tensor with the same rank as indices.
 ```
 
 ### `scatterAdd(Tensor indices, Tensor src, int dimension)`

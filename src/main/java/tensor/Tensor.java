@@ -833,6 +833,10 @@ public class Tensor {
         return TensorOps.scatterAdd(this, indices, src, dimension);
     }
 
+    public Tensor takeAlongAxis(Tensor indices, int dimension) {
+        return TensorOps.takeAlongAxis(this, indices, dimension);
+    }
+
     public Tensor abs() {
         return TensorOps.abs(this);
     }

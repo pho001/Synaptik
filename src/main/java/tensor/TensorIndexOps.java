@@ -3,6 +3,8 @@ package tensor;
 import operations.gather;
 import operations.gatherGrad;
 import operations.scatterAdd;
+import operations.takeAlongAxis;
+import operations.takeAlongAxisGrad;
 
 import java.util.List;
 
@@ -68,6 +70,28 @@ final class TensorIndexOps {
         return out;
     }
 
+    static Tensor takeAlongAxis(Tensor input, Tensor indices, int dimension) {
+        if (input == null || indices == null) {
+            throw new IllegalArgumentException("takeAlongAxis inputs cannot be null");
+        }
+        if (indices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("takeAlongAxis indices must be numeric integral values.");
+        }
+        int[] inputShape = input.getShape();
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, inputShape.length);
+        validateTakeAlongAxisShape(inputShape, indices.getShape(), normalizedDimension);
+
+        Tensor out = new Tensor(indices.getShape().clone(), List.of(input, indices), new takeAlongAxis(normalizedDimension), "takeAlongAxis", input.getDataType());
+        out.setRequiresGrad(input.getRequiresGrad());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) return;
+            Tensor grad = new Tensor(input.getShape().clone(), List.of(indices, outGrad), new takeAlongAxisGrad(normalizedDimension), "take_along_axis_grad", input.getDataType());
+            accumulateGradient(input, grad);
+        });
+        return out;
+    }
+
     private static void validateGatherIndicesShape(int[] indicesShape, int[] expectedShape) {
         if (indicesShape.length != expectedShape.length) {
             throw new IllegalArgumentException("gather indices shape must equal input shape without gathered axis.");
@@ -75,6 +99,20 @@ final class TensorIndexOps {
         for (int i = 0; i < indicesShape.length; i++) {
             if (indicesShape[i] != expectedShape[i]) {
                 throw new IllegalArgumentException("gather indices shape must equal input shape without gathered axis.");
+            }
+        }
+    }
+
+    private static void validateTakeAlongAxisShape(int[] inputShape, int[] indicesShape, int axis) {
+        if (indicesShape.length != inputShape.length) {
+            throw new IllegalArgumentException("takeAlongAxis indices rank must match input rank.");
+        }
+        for (int i = 0; i < inputShape.length; i++) {
+            if (i == axis) {
+                continue;
+            }
+            if (indicesShape[i] != inputShape[i]) {
+                throw new IllegalArgumentException("takeAlongAxis indices must match input shape on all non-axis dimensions.");
             }
         }
     }

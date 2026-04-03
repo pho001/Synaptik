@@ -53,6 +53,51 @@ public final class GatherSupport {
         );
     }
 
+    public static void takeAlongAxisF64(Tensor input, Tensor indices, Tensor out, int dimension) {
+        validateTakeAlongAxis(input, indices, out, dimension);
+        double[] in = input.getFloat64Data();
+        double[] dst = out.getFloat64Data();
+        forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
+                dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
+        );
+    }
+
+    public static void takeAlongAxisF32(Tensor input, Tensor indices, Tensor out, int dimension) {
+        validateTakeAlongAxis(input, indices, out, dimension);
+        float[] in = input.getFloat32Data();
+        float[] dst = out.getFloat32Data();
+        forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
+                dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
+        );
+    }
+
+    public static void takeAlongAxisF16(Tensor input, Tensor indices, Tensor out, int dimension) {
+        validateTakeAlongAxis(input, indices, out, dimension);
+        short[] in = input.getFloat16Data();
+        short[] dst = out.getFloat16Data();
+        forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
+                dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
+        );
+    }
+
+    public static void takeAlongAxisBOOL(Tensor input, Tensor indices, Tensor out, int dimension) {
+        validateTakeAlongAxis(input, indices, out, dimension);
+        byte[] in = input.getBoolData();
+        byte[] dst = out.getBoolData();
+        forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
+                dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
+        );
+    }
+
+    public static void takeAlongAxisI32(Tensor input, Tensor indices, Tensor out, int dimension) {
+        validateTakeAlongAxis(input, indices, out, dimension);
+        int[] in = input.getInt32Data();
+        int[] dst = out.getInt32Data();
+        forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
+                dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
+        );
+    }
+
     public static void scatterF64(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateScatter(indices, outGrad, node, dimension);
         double[] grad = outGrad.getFloat64Data();
@@ -112,6 +157,34 @@ public final class GatherSupport {
         });
     }
 
+    public static void takeAlongAxisScatterF64(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
+        validateTakeAlongAxisScatter(indices, outGrad, node, dimension);
+        double[] grad = outGrad.getFloat64Data();
+        double[] dst = node.getFloat64Data();
+        forEachTakeAlongAxisScatter(indices, outGrad, node, dimension, (baseNode, gradOffset, axisStrideNode, axisIndex) ->
+                dst[baseNode + axisIndex * axisStrideNode] += grad[gradOffset]
+        );
+    }
+
+    public static void takeAlongAxisScatterF32(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
+        validateTakeAlongAxisScatter(indices, outGrad, node, dimension);
+        float[] grad = outGrad.getFloat32Data();
+        float[] dst = node.getFloat32Data();
+        forEachTakeAlongAxisScatter(indices, outGrad, node, dimension, (baseNode, gradOffset, axisStrideNode, axisIndex) ->
+                dst[baseNode + axisIndex * axisStrideNode] += grad[gradOffset]
+        );
+    }
+
+    public static void takeAlongAxisScatterF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
+        validateTakeAlongAxisScatter(indices, outGrad, node, dimension);
+        short[] grad = outGrad.getFloat16Data();
+        short[] dst = node.getFloat16Data();
+        forEachTakeAlongAxisScatter(indices, outGrad, node, dimension, (baseNode, gradOffset, axisStrideNode, axisIndex) -> {
+            float acc = CpuDTypeOps.fromHalfBits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromHalfBits(grad[gradOffset]);
+            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toHalfBits(acc);
+        });
+    }
+
     private static void validateGather(Tensor input, Tensor indices, Tensor out, int dimension) {
         int[] inputShape = input.getShapeUnsafe();
         if (dimension < 0 || dimension >= inputShape.length) {
@@ -156,6 +229,54 @@ public final class GatherSupport {
         }
         if (base.getDataType() != src.getDataType() || base.getDataType() != out.getDataType()) {
             throw new IllegalArgumentException("scatterAdd requires matching dtypes for base, src and output.");
+        }
+    }
+
+    private static void validateTakeAlongAxis(Tensor input, Tensor indices, Tensor out, int dimension) {
+        int[] inputShape = input.getShapeUnsafe();
+        if (dimension < 0 || dimension >= inputShape.length) {
+            throw new IllegalArgumentException("takeAlongAxis dimension out of bounds: " + dimension);
+        }
+        validateIndexTensor(indices);
+        int[] indicesShape = indices.getShapeUnsafe();
+        if (indicesShape.length != inputShape.length) {
+            throw new IllegalArgumentException("takeAlongAxis indices rank must match input rank.");
+        }
+        for (int i = 0; i < inputShape.length; i++) {
+            if (i == dimension) {
+                continue;
+            }
+            if (indicesShape[i] != inputShape[i]) {
+                throw new IllegalArgumentException("takeAlongAxis indices must match input shape on all non-axis dimensions.");
+            }
+        }
+        validateShape(out.getShapeUnsafe(), indicesShape, "takeAlongAxis output shape must equal indices shape.");
+        if (input.getDataType() != out.getDataType()) {
+            throw new IllegalArgumentException("takeAlongAxis output dtype must match input dtype.");
+        }
+    }
+
+    private static void validateTakeAlongAxisScatter(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
+        int[] nodeShape = node.getShapeUnsafe();
+        if (dimension < 0 || dimension >= nodeShape.length) {
+            throw new IllegalArgumentException("takeAlongAxisGrad dimension out of bounds: " + dimension);
+        }
+        validateIndexTensor(indices);
+        int[] gradShape = outGrad.getShapeUnsafe();
+        validateShape(indices.getShapeUnsafe(), gradShape, "takeAlongAxisGrad indices shape must equal outGrad shape.");
+        if (gradShape.length != nodeShape.length) {
+            throw new IllegalArgumentException("takeAlongAxisGrad outGrad rank must match input rank.");
+        }
+        for (int i = 0; i < nodeShape.length; i++) {
+            if (i == dimension) {
+                continue;
+            }
+            if (gradShape[i] != nodeShape[i]) {
+                throw new IllegalArgumentException("takeAlongAxisGrad outGrad shape must match input shape on all non-axis dimensions.");
+            }
+        }
+        if (outGrad.getDataType() != node.getDataType()) {
+            throw new IllegalArgumentException("takeAlongAxisGrad output dtype must match outGrad dtype.");
         }
     }
 
@@ -247,6 +368,60 @@ public final class GatherSupport {
         }
     }
 
+    private static void forEachTakeAlongAxis(Tensor input, Tensor indices, Tensor out, int dimension, TakeAlongAxisConsumer consumer) {
+        int[] inputShape = input.getShapeUnsafe();
+        int[] inputStrides = input.getStridesUnsafe();
+        int[] outShape = out.getShapeUnsafe();
+        int[] outStrides = out.getStridesUnsafe();
+        int[] outDense = TensorMetadata.computeStrides(outShape);
+        int total = out.getFlatDataSize();
+        int axisSize = inputShape[dimension];
+        int axisStrideIn = inputStrides[dimension];
+
+        for (int logical = 0; logical < total; logical++) {
+            int rem = logical;
+            int baseIn = 0;
+            int outOffset = 0;
+            for (int d = 0; d < outShape.length; d++) {
+                int coord = rem / outDense[d];
+                rem %= outDense[d];
+                outOffset += coord * outStrides[d];
+                if (d != dimension) {
+                    baseIn += coord * inputStrides[d];
+                }
+            }
+            int axisIndex = readAxisIndex(indices, logical, axisSize);
+            consumer.accept(baseIn, outOffset, axisStrideIn, axisIndex);
+        }
+    }
+
+    private static void forEachTakeAlongAxisScatter(Tensor indices, Tensor outGrad, Tensor node, int dimension, TakeAlongAxisScatterConsumer consumer) {
+        int[] nodeShape = node.getShapeUnsafe();
+        int[] nodeStrides = node.getStridesUnsafe();
+        int[] gradShape = outGrad.getShapeUnsafe();
+        int[] gradStrides = outGrad.getStridesUnsafe();
+        int[] gradDense = TensorMetadata.computeStrides(gradShape);
+        int total = outGrad.getFlatDataSize();
+        int axisSize = nodeShape[dimension];
+        int axisStrideNode = nodeStrides[dimension];
+
+        for (int logical = 0; logical < total; logical++) {
+            int rem = logical;
+            int baseNode = 0;
+            int gradOffset = 0;
+            for (int d = 0; d < gradShape.length; d++) {
+                int coord = rem / gradDense[d];
+                rem %= gradDense[d];
+                gradOffset += coord * gradStrides[d];
+                if (d != dimension) {
+                    baseNode += coord * nodeStrides[d];
+                }
+            }
+            int axisIndex = readAxisIndex(indices, logical, axisSize);
+            consumer.accept(baseNode, gradOffset, axisStrideNode, axisIndex);
+        }
+    }
+
     private static int readAxisIndex(Tensor indices, int logicalIndex, int axisSize) {
         double raw = indices.getByFlatIndex(logicalIndex);
         if (!Double.isFinite(raw)) {
@@ -270,5 +445,15 @@ public final class GatherSupport {
     @FunctionalInterface
     private interface ScatterConsumer {
         void accept(int baseNode, int baseGrad, int axisStrideNode, int axisStrideGrad, int axisIndex);
+    }
+
+    @FunctionalInterface
+    private interface TakeAlongAxisConsumer {
+        void accept(int baseIn, int outOffset, int axisStrideIn, int axisIndex);
+    }
+
+    @FunctionalInterface
+    private interface TakeAlongAxisScatterConsumer {
+        void accept(int baseNode, int gradOffset, int axisStrideNode, int axisIndex);
     }
 }

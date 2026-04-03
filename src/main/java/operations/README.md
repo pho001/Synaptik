@@ -47,6 +47,8 @@ Current descriptor classes in this package:
 - `where`
 - `gather`
 - `gatherGrad`
+- `takeAlongAxis`
+- `takeAlongAxisGrad`
 - `scatterAdd`
 - `logicalAnd`
 - `logicalOr`
@@ -232,6 +234,8 @@ These are canonical graph/runtime primitives and should remain first-class:
 - indexing core:
   - `GATHER`
   - `GATHER_GRAD`
+  - `TAKE_ALONG_AXIS`
+  - `TAKE_ALONG_AXIS_GRAD`
   - `SCATTER_ADD`
 - reductions:
   - `SUM`

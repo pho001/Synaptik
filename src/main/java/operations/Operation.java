@@ -39,6 +39,8 @@ public interface Operation {
         REDUCE_MAX_GRAD(OpArityClass.SPECIAL, false),
         GATHER(OpArityClass.SPECIAL, false),
         GATHER_GRAD(OpArityClass.SPECIAL, false),
+        TAKE_ALONG_AXIS(OpArityClass.SPECIAL, false),
+        TAKE_ALONG_AXIS_GRAD(OpArityClass.SPECIAL, false),
         SCATTER_ADD(OpArityClass.SPECIAL, false),
         WHERE(OpArityClass.ELEMENT_WISE, false),
         MATMUL(OpArityClass.LINEAR_ALGEBRA, false),

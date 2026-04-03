@@ -13,6 +13,8 @@ import operations.expandDims;
 import operations.gather;
 import operations.gatherGrad;
 import operations.scatterAdd;
+import operations.takeAlongAxis;
+import operations.takeAlongAxisGrad;
 import operations.maxGrad;
 import operations.mean;
 import operations.minGrad;
@@ -169,6 +171,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case EXPAND_DIMS -> new AxisSignature(((expandDims) op).getAxis());
             case GATHER -> new AxisSignature(((gather) op).getDimension());
             case GATHER_GRAD -> new AxisSignature(((gatherGrad) op).getDimension());
+            case TAKE_ALONG_AXIS -> new AxisSignature(((takeAlongAxis) op).getDimension());
+            case TAKE_ALONG_AXIS_GRAD -> new AxisSignature(((takeAlongAxisGrad) op).getDimension());
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
             case SQUEEZE -> new AxisSignature(((squeeze) op).getAxis());
             default -> NoParamsSignature.INSTANCE;

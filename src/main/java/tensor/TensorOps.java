@@ -107,6 +107,10 @@ public final class TensorOps {
         return TensorIndexOps.scatterAdd(base, indices, src, dimension);
     }
 
+    public static Tensor takeAlongAxis(Tensor input, Tensor indices, int dimension) {
+        return TensorIndexOps.takeAlongAxis(input, indices, dimension);
+    }
+
     public static Tensor abs(Tensor input) {
         return TensorUnaryOps.abs(input);
     }
