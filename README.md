@@ -194,6 +194,7 @@ Quick operation catalog on `Tensor`:
 
 - Layout / shape: `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`
 - Binary: `add`, `sub`, `mul`, `div`, `min`, `max`, `matmul`
+- Comparison / select: `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, `notEqualTo`, `where`
 - Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`
 - Reduction: `sum()`, `sum(axis)`, `mean()`, `mean(axis)`, `min()`, `min(axis)`, `max()`, `max(axis)`
 - Helper anchor: `forwardOutput()`
@@ -221,6 +222,10 @@ Broadcasting contract for binary element-wise ops:
   - `[2, 3, 4]` + `[3, 4]` -> `[2, 3, 4]`
   - `[3, 4]` + `[2, 1, 4]` -> `[2, 3, 4]`
   - `[1, 1, 2, 4]` + `[2, 3, 1, 4]` -> `[2, 3, 2, 4]`
+
+Comparison ops follow the same binary broadcasting contract and produce `BOOL` tensors.
+`where(condition, x, y)` requires a `BOOL` condition, broadcasts all three inputs to a common output shape, and returns the promoted numeric dtype of `x` and `y`.
+Comparison ops are nondifferentiable; `where` propagates gradients only through the selected data branches.
 
 ## Quick Start Tensor Ops
 

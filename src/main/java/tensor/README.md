@@ -119,6 +119,13 @@ The current public graph-building operation surface on `Tensor` is:
 - `min(Tensor second)`
 - `max(Tensor second)`
 - `matmul(Tensor second)`
+- `greaterThan(Tensor second)`
+- `greaterOrEqual(Tensor second)`
+- `lessThan(Tensor second)`
+- `lessOrEqual(Tensor second)`
+- `equalTo(Tensor second)`
+- `notEqualTo(Tensor second)`
+- `where(Tensor condition, Tensor ifTrue, Tensor ifFalse)` (static helper)
 
 ### Unary / Scalar
 
@@ -170,6 +177,25 @@ Broadcast-aware binary operations in the current tensor surface are:
 - `div`
 - `min`
 - `max`
+
+Comparison ops follow the same binary broadcasting contract:
+
+- `greaterThan`
+- `greaterOrEqual`
+- `lessThan`
+- `lessOrEqual`
+- `equalTo`
+- `notEqualTo`
+
+They produce `BOOL` tensors and are nondifferentiable.
+
+`where(condition, x, y)`:
+
+- requires `condition` to have dtype `BOOL`
+- requires `x` and `y` to have numeric dtypes
+- broadcasts all three inputs to a common output shape
+- returns the promoted numeric dtype of `x` and `y`
+- propagates gradient only through the selected data branches
 
 Their shape contract is:
 

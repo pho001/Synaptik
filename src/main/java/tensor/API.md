@@ -164,6 +164,13 @@ These are the instance-level graph-building operations currently exposed directl
 - `min(Tensor second)`
 - `max(Tensor second)`
 - `matmul(Tensor second)`
+- `greaterThan(Tensor second)`
+- `greaterOrEqual(Tensor second)`
+- `lessThan(Tensor second)`
+- `lessOrEqual(Tensor second)`
+- `equalTo(Tensor second)`
+- `notEqualTo(Tensor second)`
+- `where(Tensor condition, Tensor ifTrue, Tensor ifFalse)` (static helper)
 
 ### Unary / Scalar
 
@@ -361,6 +368,17 @@ Additional examples:
 
 - `[3, 4]` + `[2, 1, 4]` -> `[2, 3, 4]`
 - `[1, 1, 2, 4]` + `[2, 3, 1, 4]` -> `[2, 3, 2, 4]`
+
+Comparison ops (`greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, `notEqualTo`) follow the same binary broadcasting contract and produce `BOOL` tensors.
+
+`where(condition, x, y)`:
+
+- requires `condition` to have dtype `BOOL`
+- requires `x` and `y` to have numeric dtypes
+- broadcasts all three inputs to a common output shape
+- returns the promoted numeric dtype of `x` and `y`
+- is differentiable only in the data branches
+- does not propagate gradient through `condition`
 
 ## Explicit Expand Operation
 
