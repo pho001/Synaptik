@@ -63,6 +63,7 @@ Current descriptor classes in this package:
 - `mean`
 - `softmax`
 - `logSoftmax`
+- `nllLoss`
 - `reduceAll`
 - `reduceAny`
 - `reduceMin`
@@ -224,6 +225,7 @@ These are canonical graph/runtime primitives and should remain first-class:
   - `MEAN`
   - `SOFTMAX`
   - `LOG_SOFTMAX`
+  - `NLL_LOSS`
   - `REDUCE_MIN`
   - `REDUCE_MAX`
   - `REDUCE_ALL`

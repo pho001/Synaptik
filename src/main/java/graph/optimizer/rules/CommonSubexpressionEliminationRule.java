@@ -13,6 +13,7 @@ import operations.maxGrad;
 import operations.mean;
 import operations.minGrad;
 import operations.mulScalar;
+import operations.nllLoss;
 import operations.noop;
 import operations.permute;
 import operations.pow;
@@ -150,6 +151,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case MEAN -> new ReductionSignature(((mean) op).getDimension(), ((mean) op).keepDims());
             case SOFTMAX -> new AxisSignature(((softmax) op).getDimension());
             case LOG_SOFTMAX -> new AxisSignature(((logSoftmax) op).getDimension());
+            case NLL_LOSS -> new AxisSignature(((nllLoss) op).getClassDimension());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
             case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());

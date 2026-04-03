@@ -873,6 +873,10 @@ public class Tensor {
         return TensorOps.logSoftmax(this, dimension);
     }
 
+    public Tensor nllLoss(Tensor targets, int classDimension) {
+        return TensorOps.nllLoss(this, targets, classDimension);
+    }
+
     public Tensor min(int dimension) {
         return TensorOps.min(this, dimension);
     }

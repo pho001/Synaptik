@@ -258,4 +258,8 @@ public final class TensorOps {
     ) {
         return TensorNaryOps.batchNorm(input, gamma, beta, runningMean, runningVar, epsilon, training);
     }
+
+    public static Tensor nllLoss(Tensor logProbs, Tensor targets, int classDimension) {
+        return TensorNaryOps.nllLoss(logProbs, targets, classDimension);
+    }
 }

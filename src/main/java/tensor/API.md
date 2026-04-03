@@ -93,6 +93,8 @@ The focus here is practical API usage:
   - [`any()`](#any)
   - [`any(int dimension)`](#anyint-dimension)
   - [`any(int dimension, boolean keepDims)`](#anyint-dimension-boolean-keepdims)
+- [Loss / N-ary Operations](#loss--n-ary-operations)
+  - [`nllLoss(Tensor targets, int classDimension)`](#nlllosstensor-targets-int-classdimension)
 - [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
   - [`forwardOutput()`](#forwardoutput)
   - [`buildBackwardGraph()`](#buildbackwardgraph)
@@ -1769,6 +1771,38 @@ Reduction gradient notes:
 - `min` and `max` route gradients only to winning elements
 - ties split gradient evenly across winners
 - `all` and `any` are nondifferentiable
+
+## Loss / N-ary Operations
+
+### `nllLoss(Tensor targets, int classDimension)`
+
+Computes mean negative log-likelihood from log-probabilities and same-shape target distributions.
+
+Parameters:
+- `targets`: tensor with the same shape as `logProbs`; typically one-hot labels or a target distribution
+- `classDimension`: axis containing class probabilities
+
+Returns:
+- scalar-shaped loss tensor
+
+Behavior:
+- expects the source tensor to contain log-probabilities, typically from `logSoftmax(...)`
+- reduces over the class axis and then averages over all remaining sample positions
+- uses the dedicated `NLL_LOSS` primitive
+
+Example:
+```java
+Tensor logProbs = logits.logSoftmax(1);
+Tensor targets = new Tensor(new double[]{
+        0, 0, 1,
+        1, 0, 0
+}, new int[]{2, 3}, null, "targets");
+Tensor loss = logProbs.nllLoss(targets, 1);
+// loss has shape [1] and contains the mean negative log-likelihood
+// for the two samples in the batch.
+//
+// Returns: a scalar mean NLL loss tensor.
+```
 
 ## Execution Anchor / Autodiff Helpers
 

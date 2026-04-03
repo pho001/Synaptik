@@ -165,6 +165,10 @@ The current public graph-building operation surface on `Tensor` is:
 - `any(int dimension, boolean keepDims)`
 - `any()`
 
+### Loss / N-ary
+
+- `nllLoss(Tensor targets, int classDimension)`
+
 ### Helper / Internal Execution Anchor
 
 - `forwardOutput()`
@@ -339,6 +343,13 @@ For axis reduction:
 - output shape matches input shape
 - values along the chosen axis are computed as `x - logsumexp(x)` in a numerically stable way
 - backward uses `g - softmax(x) * sum(g)` along the chosen axis
+
+`nllLoss(targets, classDimension)` is the first loss primitive built on top of log-probabilities:
+
+- input is expected to be log-probabilities
+- `targets` must have the same shape as `logProbs`
+- `targets` are interpreted as one-hot labels or more general target distributions along the class axis
+- output is a scalar mean loss across all sample positions outside the class axis
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.

@@ -33,6 +33,7 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.REDUCE_ANY, new CpuReduceAnyKernel());
         KERNELS.put(Operation.OpType.SOFTMAX, new CpuSoftmaxKernel());
         KERNELS.put(Operation.OpType.LOG_SOFTMAX, new CpuLogSoftmaxKernel());
+        KERNELS.put(Operation.OpType.NLL_LOSS, new CpuNllLossKernel());
         KERNELS.put(Operation.OpType.REDUCE_MIN_GRAD, new CpuReduceMinGradKernel());
         KERNELS.put(Operation.OpType.REDUCE_MAX_GRAD, new CpuReduceMaxGradKernel());
         KERNELS.put(Operation.OpType.MATMUL, new CpuMatMulKernel());
