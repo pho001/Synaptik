@@ -14,8 +14,9 @@ final class TensorSelectOps {
         if (condition.getDataType() != DataType.BOOL) {
             throw new IllegalArgumentException("where condition must have BOOL dtype.");
         }
-        if (ifTrue.getDataType() == DataType.BOOL || ifFalse.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("where branches must have numeric dtypes.");
+        if (ifTrue.getDataType() == DataType.BOOL || ifFalse.getDataType() == DataType.BOOL
+                || ifTrue.getDataType() == DataType.INT32 || ifFalse.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("where branches must have floating numeric dtypes.");
         }
 
         WhereBroadcastPlan plan = WhereBroadcastPlanner.plan(condition, ifTrue, ifFalse);

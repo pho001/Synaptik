@@ -37,8 +37,9 @@ final class TensorIndexOps {
         if (base == null || indices == null || src == null) {
             throw new IllegalArgumentException("scatterAdd inputs cannot be null");
         }
-        if (base.getDataType() == DataType.BOOL || src.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("scatterAdd requires numeric base and source tensors.");
+        if (base.getDataType() == DataType.BOOL || src.getDataType() == DataType.BOOL
+                || base.getDataType() == DataType.INT32 || src.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("scatterAdd requires floating numeric base and source tensors.");
         }
         if (indices.getDataType() == DataType.BOOL) {
             throw new IllegalArgumentException("scatterAdd indices must be numeric integral values.");

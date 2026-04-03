@@ -29,6 +29,9 @@ public final class FusedPrecisionResolver {
             if (dt == DataType.BOOL) {
                 throw new UnsupportedOperationException("BOOL tensors are not supported in fused precision resolution.");
             }
+            if (dt == DataType.INT32) {
+                throw new UnsupportedOperationException("INT32 tensors are not supported in fused precision resolution.");
+            }
             if (dt == DataType.FLOAT32 && target == DataType.FLOAT16) {
                 target = DataType.FLOAT32;
             }
@@ -38,7 +41,7 @@ public final class FusedPrecisionResolver {
             case FLOAT64 -> FusedDTypeOps.MODE_F64;
             case FLOAT32 -> FusedDTypeOps.MODE_F32;
             case FLOAT16 -> FusedDTypeOps.MODE_F16;
-            case BOOL -> throw new UnsupportedOperationException("BOOL tensors are not supported in fused precision resolution.");
+            case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL tensors are not supported in fused precision resolution.");
         };
     }
 }

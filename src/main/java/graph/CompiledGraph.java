@@ -74,8 +74,8 @@ public class CompiledGraph {
             return;
         }
 
-        if (rootTensor.getDataType() == tensor.DataType.BOOL) {
-            throw new UnsupportedOperationException("BOOL root tensors do not support backward execution.");
+        if (rootTensor.getDataType() == tensor.DataType.BOOL || rootTensor.getDataType() == tensor.DataType.INT32) {
+            throw new UnsupportedOperationException("BOOL/INT32 root tensors do not support backward execution.");
         }
 
         rootTensor.setGradient(Tensor.onesLike(rootTensor));
@@ -182,6 +182,7 @@ public class CompiledGraph {
                 case FLOAT64 -> java.util.Arrays.fill(tensor.getGradient().getFloat64Data(), 0.0d);
                 case FLOAT32 -> java.util.Arrays.fill(tensor.getGradient().getFloat32Data(), 0.0f);
                 case FLOAT16 -> java.util.Arrays.fill(tensor.getGradient().getFloat16Data(), (short) 0);
+                case INT32 -> java.util.Arrays.fill(tensor.getGradient().getInt32Data(), 0);
                 case BOOL -> java.util.Arrays.fill(tensor.getGradient().getBoolData(), (byte) 0);
             }
         }

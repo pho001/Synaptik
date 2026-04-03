@@ -978,7 +978,8 @@ Returns:
 - tensor whose shape equals `indices.shape`
 
 Behavior:
-- current first version expects `indices` to be numeric tensors with integral values
+- `INT32` is the preferred index dtype
+- numeric floating tensors with integral values are still accepted as a compatibility mode
 - current first version is intentionally narrow and is meant as the minimal indexing primitive for future index-target losses
 - backward scatters upstream gradient back into the selected input positions
 
@@ -1909,6 +1910,7 @@ Returns:
 Behavior:
 - current implementation is composition-first:
   - `logProbs.gather(targetIndices, classDimension).neg().mean()`
+- `INT32` is the preferred target-index dtype
 - this is the first index-target loss surface built on top of the new indexing primitive
 
 Example:

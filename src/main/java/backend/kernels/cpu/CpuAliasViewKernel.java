@@ -26,6 +26,11 @@ public final class CpuAliasViewKernel implements CpuKernel {
         forward(inputs, node);
     }
 
+    @Override
+    public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        forward(inputs, node);
+    }
+
     private static void forward(List<Tensor> inputs, Tensor node) {
         if (inputs == null || inputs.isEmpty()) {
             return;

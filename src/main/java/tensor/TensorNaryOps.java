@@ -37,8 +37,9 @@ final class TensorNaryOps {
         if (logProbs == null || targets == null) {
             throw new IllegalArgumentException("nllLoss inputs cannot be null");
         }
-        if (logProbs.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("nllLoss requires numeric inputs.");
+        if (logProbs.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL
+                || logProbs.getDataType() == DataType.INT32 || targets.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("nllLoss requires floating numeric inputs.");
         }
         int[] logShape = logProbs.getShape();
         int[] targetShape = targets.getShape();
@@ -74,8 +75,9 @@ final class TensorNaryOps {
         if (logits == null || targets == null) {
             throw new IllegalArgumentException("crossEntropyLoss inputs cannot be null");
         }
-        if (logits.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("crossEntropyLoss requires numeric inputs.");
+        if (logits.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL
+                || logits.getDataType() == DataType.INT32 || targets.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("crossEntropyLoss requires floating numeric inputs.");
         }
         int[] logitsShape = logits.getShape();
         int[] targetShape = targets.getShape();
@@ -133,9 +135,8 @@ final class TensorNaryOps {
         int[] expectedIndexShape = reduceShape(logShape, normalizedClassDimension);
         validateShape(targetIndices.getShape(), expectedIndexShape, "nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
 
-        Tensor ignoreValue = Tensor.scalar(ignoreIndex, targetIndices.getDataType());
-        Tensor validMask = targetIndices.notEqualTo(ignoreValue);
-        Tensor safeIndices = Tensor.where(validMask, targetIndices, Tensor.zerosLike(targetIndices));
+        Tensor validMask = buildIgnoreMask(targetIndices, ignoreIndex);
+        Tensor safeIndices = buildSafeIndices(targetIndices, ignoreIndex);
         Tensor gathered = logProbs.gather(safeIndices, normalizedClassDimension);
         Tensor validMaskNumeric = Tensor.where(validMask, Tensor.onesLike(gathered), Tensor.zerosLike(gathered));
         Tensor maskedLoss = Tensor.where(validMask, gathered.neg(), Tensor.zerosLike(gathered));
@@ -212,5 +213,45 @@ final class TensorNaryOps {
                 throw new IllegalArgumentException(message);
             }
         }
+    }
+
+    private static Tensor buildIgnoreMask(Tensor targetIndices, int ignoreIndex) {
+        int size = targetIndices.getFlatDataSize();
+        byte[] mask = new byte[size];
+        for (int i = 0; i < size; i++) {
+            long value = readIntegralIndex(targetIndices, i);
+            mask[i] = value == ignoreIndex ? (byte) 0 : (byte) 1;
+        }
+        return new Tensor(mask, targetIndices.getShape().clone(), null, "index_valid_mask", DataType.BOOL);
+    }
+
+    private static Tensor buildSafeIndices(Tensor targetIndices, int ignoreIndex) {
+        int size = targetIndices.getFlatDataSize();
+        if (targetIndices.getDataType() == DataType.INT32) {
+            int[] safe = new int[size];
+            for (int i = 0; i < size; i++) {
+                long value = readIntegralIndex(targetIndices, i);
+                safe[i] = value == ignoreIndex ? 0 : (int) value;
+            }
+            return new Tensor(safe, targetIndices.getShape().clone(), null, "safe_indices", DataType.INT32);
+        }
+        double[] safe = new double[size];
+        for (int i = 0; i < size; i++) {
+            long value = readIntegralIndex(targetIndices, i);
+            safe[i] = value == ignoreIndex ? 0.0 : (double) value;
+        }
+        return new Tensor(safe, targetIndices.getShape().clone(), null, "safe_indices", targetIndices.getDataType());
+    }
+
+    private static long readIntegralIndex(Tensor indices, int flatIndex) {
+        double raw = indices.getByFlatIndex(flatIndex);
+        if (!Double.isFinite(raw)) {
+            throw new IllegalArgumentException("Index tensor contains non-finite value.");
+        }
+        long integral = Math.round(raw);
+        if (Math.abs(raw - integral) > 1e-9) {
+            throw new IllegalArgumentException("Index tensor contains non-integral value: " + raw);
+        }
+        return integral;
     }
 }

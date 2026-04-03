@@ -47,8 +47,9 @@ final class TensorCompareOps {
         if (first == null || second == null) {
             throw new IllegalArgumentException("compare inputs cannot be null");
         }
-        if (first.getDataType() == DataType.BOOL || second.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("Comparison ops require numeric inputs.");
+        if (first.getDataType() == DataType.BOOL || second.getDataType() == DataType.BOOL
+                || first.getDataType() == DataType.INT32 || second.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("Comparison ops require floating numeric inputs.");
         }
         Tensor out = new Tensor(plan.outShape(), List.of(first, second), op, label, DataType.BOOL);
         out.setRequiresGrad(false);

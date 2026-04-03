@@ -44,6 +44,15 @@ public final class GatherSupport {
         );
     }
 
+    public static void runI32(Tensor input, Tensor indices, Tensor out, int dimension) {
+        validateGather(input, indices, out, dimension);
+        int[] in = input.getInt32Data();
+        int[] dst = out.getInt32Data();
+        forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
+                dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
+        );
+    }
+
     public static void scatterF64(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateScatter(indices, outGrad, node, dimension);
         double[] grad = outGrad.getFloat64Data();
@@ -68,6 +77,37 @@ public final class GatherSupport {
         short[] dst = node.getFloat16Data();
         forEachScatter(indices, outGrad, node, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) -> {
             float acc = CpuDTypeOps.fromHalfBits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromHalfBits(grad[baseGrad]);
+            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toHalfBits(acc);
+        });
+    }
+
+    public static void scatterAddF64(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
+        validateScatterAdd(base, indices, src, out, dimension);
+        out.copyDataFrom(base);
+        double[] srcData = src.getFloat64Data();
+        double[] dst = out.getFloat64Data();
+        forEachScatter(indices, src, out, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) ->
+                dst[baseNode + axisIndex * axisStrideNode] += srcData[baseGrad]
+        );
+    }
+
+    public static void scatterAddF32(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
+        validateScatterAdd(base, indices, src, out, dimension);
+        out.copyDataFrom(base);
+        float[] srcData = src.getFloat32Data();
+        float[] dst = out.getFloat32Data();
+        forEachScatter(indices, src, out, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) ->
+                dst[baseNode + axisIndex * axisStrideNode] += srcData[baseGrad]
+        );
+    }
+
+    public static void scatterAddF16(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
+        validateScatterAdd(base, indices, src, out, dimension);
+        out.copyDataFrom(base);
+        short[] srcData = src.getFloat16Data();
+        short[] dst = out.getFloat16Data();
+        forEachScatter(indices, src, out, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) -> {
+            float acc = CpuDTypeOps.fromHalfBits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromHalfBits(srcData[baseGrad]);
             dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toHalfBits(acc);
         });
     }
@@ -97,6 +137,25 @@ public final class GatherSupport {
         validateShape(outGrad.getShapeUnsafe(), expectedGradShape, "GatherGrad outGrad shape must equal indices shape.");
         if (outGrad.getDataType() != node.getDataType()) {
             throw new IllegalArgumentException("GatherGrad output dtype must match outGrad dtype.");
+        }
+    }
+
+    private static void validateScatterAdd(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
+        int[] baseShape = base.getShapeUnsafe();
+        if (dimension < 0 || dimension >= baseShape.length) {
+            throw new IllegalArgumentException("scatterAdd dimension out of bounds: " + dimension);
+        }
+        validateIndexTensor(indices);
+        int[] expectedSrcShape = reduceShape(baseShape, dimension);
+        validateShape(indices.getShapeUnsafe(), expectedSrcShape, "scatterAdd indices shape must equal base shape without scattered axis.");
+        validateShape(src.getShapeUnsafe(), expectedSrcShape, "scatterAdd source shape must equal indices shape.");
+        validateShape(out.getShapeUnsafe(), baseShape, "scatterAdd output shape must equal base shape.");
+        if (base.getDataType() == DataType.BOOL || src.getDataType() == DataType.BOOL || out.getDataType() == DataType.BOOL
+                || base.getDataType() == DataType.INT32 || src.getDataType() == DataType.INT32 || out.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("scatterAdd requires floating numeric tensors.");
+        }
+        if (base.getDataType() != src.getDataType() || base.getDataType() != out.getDataType()) {
+            throw new IllegalArgumentException("scatterAdd requires matching dtypes for base, src and output.");
         }
     }
 

@@ -22,6 +22,7 @@ final class TensorReduceOps {
     }
 
     static Tensor sum(Tensor input, int dimension, boolean keepDims) {
+        requireFloatingInput(input, "sum");
         int[] shape = input.getShape();
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, shape.length);
         Operation op = new sum(normalizedDimension, keepDims);
@@ -51,6 +52,7 @@ final class TensorReduceOps {
     }
 
     static Tensor sumAll(Tensor input) {
+        requireFloatingInput(input, "sum");
         Operation op = new sum(-1);
         int[] newShape = new int[]{1};
         Tensor out = new Tensor(newShape, List.of(input), op, "sum");
@@ -73,8 +75,8 @@ final class TensorReduceOps {
         if (input == null) {
             throw new IllegalArgumentException("mean input cannot be null");
         }
-        if (input.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("mean requires numeric input.");
+        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("mean requires floating numeric input.");
         }
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
         Tensor out = new Tensor(reduceShape(input.getShape(), normalizedDimension, keepDims), List.of(input), new mean(normalizedDimension, keepDims), "mean");
@@ -94,8 +96,8 @@ final class TensorReduceOps {
         if (input == null) {
             throw new IllegalArgumentException("mean input cannot be null");
         }
-        if (input.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("mean requires numeric input.");
+        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("mean requires floating numeric input.");
         }
         Tensor out = new Tensor(new int[]{1}, List.of(input), new mean(-1), "mean");
         out.setDataType(input.getDataType());
@@ -113,8 +115,8 @@ final class TensorReduceOps {
         if (input == null) {
             throw new IllegalArgumentException("softmax input cannot be null");
         }
-        if (input.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("softmax requires numeric input.");
+        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("softmax requires floating numeric input.");
         }
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
         Tensor out = new Tensor(input.getShape().clone(), List.of(input), new softmax(normalizedDimension), "softmax");
@@ -135,8 +137,8 @@ final class TensorReduceOps {
         if (input == null) {
             throw new IllegalArgumentException("logSoftmax input cannot be null");
         }
-        if (input.getDataType() == DataType.BOOL) {
-            throw new IllegalArgumentException("logSoftmax requires numeric input.");
+        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("logSoftmax requires floating numeric input.");
         }
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
         Tensor out = new Tensor(input.getShape().clone(), List.of(input), new logSoftmax(normalizedDimension), "logSoftmax");
@@ -155,6 +157,7 @@ final class TensorReduceOps {
     }
 
     static Tensor min(Tensor input, int dimension) {
+        requireFloatingInput(input, "min");
         return min(input, dimension, false);
     }
 
@@ -163,10 +166,12 @@ final class TensorReduceOps {
     }
 
     static Tensor minAll(Tensor input) {
+        requireFloatingInput(input, "min");
         return reduceMinMaxAll(input, false);
     }
 
     static Tensor max(Tensor input, int dimension) {
+        requireFloatingInput(input, "max");
         return max(input, dimension, false);
     }
 
@@ -175,6 +180,7 @@ final class TensorReduceOps {
     }
 
     static Tensor maxAll(Tensor input) {
+        requireFloatingInput(input, "max");
         return reduceMinMaxAll(input, true);
     }
 
@@ -203,6 +209,7 @@ final class TensorReduceOps {
     }
 
     private static Tensor reduceMinMax(Tensor input, int dimension, boolean keepDims, boolean isMax) {
+        requireFloatingInput(input, isMax ? "max" : "min");
         int[] shape = input.getShape();
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, shape.length);
         int[] newShape = reduceShape(shape, normalizedDimension, keepDims);
@@ -229,6 +236,7 @@ final class TensorReduceOps {
     }
 
     private static Tensor reduceMinMaxAll(Tensor input, boolean isMax) {
+        requireFloatingInput(input, isMax ? "max" : "min");
         Tensor out = new Tensor(new int[]{1}, List.of(input), isMax ? new reduceMax(-1) : new reduceMin(-1), isMax ? "max_reduce" : "min_reduce");
         out.setDataType(input.getDataType());
         out.setBackwardFunction(() -> {
@@ -268,6 +276,15 @@ final class TensorReduceOps {
             input.setGradient(gradientDelta);
         } else {
             input.setGradient(input.getGradient().add(gradientDelta));
+        }
+    }
+
+    private static void requireFloatingInput(Tensor input, String opName) {
+        if (input == null) {
+            throw new IllegalArgumentException(opName + " input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException(opName + " requires floating numeric input.");
         }
     }
 

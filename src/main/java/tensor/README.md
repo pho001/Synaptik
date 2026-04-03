@@ -372,7 +372,8 @@ For axis reduction:
 
 - output shape is input shape with the selected axis removed
 - `indices` must have exactly that output shape
-- `indices` are currently numeric tensors with integral values
+- `INT32` is the preferred index dtype
+- numeric floating tensors with integral values are still accepted as a compatibility mode
 - backward scatters upstream gradient back into selected input positions
 - this is intentionally a minimal first step before a broader indexing/gather family
 
@@ -387,6 +388,7 @@ For axis reduction:
 
 - input is `logProbs`
 - `targetIndices` shape equals `logProbs.shape` without the class axis
+- `INT32` is the preferred target-index dtype
 - current implementation is composition-first over `gather(...).neg().mean()`
 - this is the bridge from dense-target loss family toward classic class-id target workflows
 

@@ -42,6 +42,15 @@ public interface CpuKernel {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support BOOL");
     }
 
+    default void forwardI32(
+            Operation op,
+            List<Tensor> inputs,
+            Tensor node,
+            CpuKernelContext context
+    ) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support INT32");
+    }
+
     default CpuKernelCostClass costClass(Operation op) {
         return CpuKernelCostClass.MEDIUM;
     }

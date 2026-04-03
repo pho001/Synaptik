@@ -75,6 +75,7 @@ public final class CPUBackend {
             case FLOAT64 -> kernel.forwardF64(op, inputs, node, kernelContext);
             case FLOAT32 -> kernel.forwardF32(op, inputs, node, kernelContext);
             case FLOAT16 -> kernel.forwardF16(op, inputs, node, kernelContext);
+            case INT32 -> kernel.forwardI32(op, inputs, node, kernelContext);
             case BOOL -> kernel.forwardBOOL(op, inputs, node, kernelContext);
         }
 
@@ -484,6 +485,9 @@ public final class CPUBackend {
     }
 
     private static DataType promote(DataType left, DataType right) {
+        if (left == DataType.INT32 || right == DataType.INT32) {
+            throw new IllegalArgumentException("INT32 is not supported by generic floating numeric promotion. left=" + left + ", right=" + right);
+        }
         if (left == DataType.FLOAT64 || right == DataType.FLOAT64) {
             return DataType.FLOAT64;
         }
@@ -500,7 +504,7 @@ public final class CPUBackend {
         if (sourceType == expectedType) {
             return true;
         }
-        if (sourceType == DataType.BOOL || expectedType == DataType.BOOL) {
+        if (sourceType == DataType.BOOL || expectedType == DataType.BOOL || sourceType == DataType.INT32 || expectedType == DataType.INT32) {
             return false;
         }
         return true;

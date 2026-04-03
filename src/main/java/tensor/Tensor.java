@@ -153,6 +153,21 @@ public class Tensor {
         initStorageFromBoolArray(data);
     }
 
+    public Tensor(int[] data, int[] shape, List<Tensor> previous, String label) {
+        this(data, shape, previous, label, DataType.INT32);
+    }
+
+    public Tensor(int[] data, int[] shape, List<Tensor> previous, String label, DataType dataType) {
+        this(data, shape, TensorMetadata.computeStrides(shape), previous, label, dataType);
+    }
+
+    public Tensor(int[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType) {
+        this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
+        this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
+        validateInputLength(data.length, metadata.getFlatSize(), "int[]");
+        initStorageFromIntArray(data);
+    }
+
 
 
     public static Tensor scalar(double value) {
@@ -160,6 +175,13 @@ public class Tensor {
     }
 
     public static Tensor scalar(double value, DataType dataType) {
+        if (dataType == DataType.INT32) {
+            long integral = Math.round(value);
+            if (Math.abs(value - integral) > 1e-9) {
+                throw new IllegalArgumentException("INT32 scalar requires an integral value. got=" + value);
+            }
+            return new Tensor(new int[]{(int) integral}, new int[]{1}, new ArrayList<>(), "scalar_const", DataType.INT32);
+        }
         // Skalár má data o délce 1 a prázdný tvar (nebo [1])
         double[] data = new double[]{value};
         int[] shape = new int[]{1};
@@ -299,6 +321,14 @@ public class Tensor {
         initStorageFromBoolArray(data);
     }
 
+    public void setData(int[] data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data cannot be null");
+        }
+        validateInputLength(data.length, metadata.getFlatSize(), "int[]");
+        initStorageFromIntArray(data);
+    }
+
     public void copyDataFrom(Tensor source) {
         if (source == null) {
             throw new IllegalArgumentException("source cannot be null");
@@ -376,6 +406,9 @@ public class Tensor {
         if (current == dataType) {
             return;
         }
+        if (current == DataType.INT32 || dataType == DataType.INT32) {
+            throw new UnsupportedOperationException("Implicit INT32 <-> other dtype conversion is not supported.");
+        }
         if ((current == DataType.BOOL) != (dataType == DataType.BOOL)) {
             throw new UnsupportedOperationException("Implicit BOOL <-> numeric dtype conversion is not supported.");
         }
@@ -405,6 +438,13 @@ public class Tensor {
     public short[] getFloat16Data() {
         if (storage instanceof Float16Storage s) {
             return s.getShortArray();
+        }
+        return null;
+    }
+
+    public int[] getInt32Data() {
+        if (storage instanceof Int32Storage s) {
+            return s.getIntArray();
         }
         return null;
     }
@@ -632,6 +672,17 @@ public class Tensor {
 
     public static Tensor onesLike(Tensor other) {
         int size = other.getFlatDataSize();
+        if (other.getDataType() == DataType.INT32) {
+            int[] data = new int[size];
+            java.util.Arrays.fill(data, 1);
+            return new Tensor(
+                    data,
+                    other.getShape().clone(),
+                    new java.util.ArrayList<>(),
+                    "ones_like",
+                    DataType.INT32
+            );
+        }
         double[] data = new double[size];
         java.util.Arrays.fill(data, 1.0);
         Tensor out = new Tensor(
@@ -646,6 +697,16 @@ public class Tensor {
 
     public static Tensor zerosLike(Tensor other) {
         int size = other.getFlatDataSize();
+        if (other.getDataType() == DataType.INT32) {
+            int[] data = new int[size];
+            return new Tensor(
+                    data,
+                    other.getShape().clone(),
+                    new java.util.ArrayList<>(),
+                    "zeros_like",
+                    DataType.INT32
+            );
+        }
         double[] data = new double[size]; // Java defaultně inicializuje na 0.0
 
         Tensor out = new Tensor(
@@ -979,6 +1040,7 @@ public class Tensor {
             case BOOL -> new BoolStorage(size);
             case FLOAT16 -> new Float16Storage(size);
             case FLOAT32 -> new Float32Storage(size);
+            case INT32 -> new Int32Storage(size);
             case FLOAT64 -> throw new IllegalStateException("Unexpected dtype branch");
         };
     }
@@ -988,8 +1050,8 @@ public class Tensor {
             throw new IllegalArgumentException("source data cannot be null");
         }
         DataType type = normalizeDataType(metadata.getDataType());
-        if (type == DataType.BOOL) {
-            throw new UnsupportedOperationException("Implicit numeric -> BOOL storage conversion is not supported.");
+        if (type == DataType.BOOL || type == DataType.INT32) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32 storage conversion is not supported.");
         }
         int size = source.length;
         if (type == DataType.FLOAT64) {
@@ -1016,8 +1078,8 @@ public class Tensor {
             throw new IllegalArgumentException("source data cannot be null");
         }
         DataType type = normalizeDataType(metadata.getDataType());
-        if (type == DataType.BOOL) {
-            throw new UnsupportedOperationException("Implicit numeric -> BOOL storage conversion is not supported.");
+        if (type == DataType.BOOL || type == DataType.INT32) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32 storage conversion is not supported.");
         }
         int size = source.length;
         switch (type) {
@@ -1046,8 +1108,8 @@ public class Tensor {
             throw new IllegalArgumentException("source data cannot be null");
         }
         DataType type = normalizeDataType(metadata.getDataType());
-        if (type == DataType.BOOL) {
-            throw new UnsupportedOperationException("Implicit numeric -> BOOL storage conversion is not supported.");
+        if (type == DataType.BOOL || type == DataType.INT32) {
+            throw new UnsupportedOperationException("Implicit numeric -> BOOL/INT32 storage conversion is not supported.");
         }
         int size = source.length;
         switch (type) {
@@ -1086,6 +1148,17 @@ public class Tensor {
         storage = new BoolStorage(normalized);
     }
 
+    private void initStorageFromIntArray(int[] source) {
+        if (source == null) {
+            throw new IllegalArgumentException("source data cannot be null");
+        }
+        DataType type = normalizeDataType(metadata.getDataType());
+        if (type != DataType.INT32) {
+            throw new UnsupportedOperationException("Implicit INT32 -> other dtype conversion is not supported.");
+        }
+        storage = new Int32Storage(source);
+    }
+
     private static void validateInputLength(int actual, int expected, String sourceName) {
         if (actual != expected) {
             throw new IllegalArgumentException(sourceName + " length mismatch. expected=" + expected + ", actual=" + actual);
@@ -1103,6 +1176,7 @@ public class Tensor {
             case FLOAT64 -> getFloat64Data()[offset];
             case FLOAT32 -> getFloat32Data()[offset];
             case FLOAT16 -> CpuDTypeOps.fromHalfBits(getFloat16Data()[offset]);
+            case INT32 -> getInt32Data()[offset];
             case BOOL -> getBoolData()[offset] == 0 ? 0.0d : 1.0d;
         };
     }
@@ -1118,6 +1192,13 @@ public class Tensor {
             case FLOAT64 -> getFloat64Data()[offset] = value;
             case FLOAT32 -> getFloat32Data()[offset] = (float) value;
             case FLOAT16 -> getFloat16Data()[offset] = CpuDTypeOps.toHalfBits((float) value);
+            case INT32 -> {
+                long integral = Math.round(value);
+                if (Math.abs(value - integral) > 1e-9) {
+                    throw new UnsupportedOperationException("Non-integral write into INT32 storage is not supported.");
+                }
+                getInt32Data()[offset] = (int) integral;
+            }
             case BOOL -> throw new UnsupportedOperationException("Numeric write into BOOL storage is not supported.");
         }
     }

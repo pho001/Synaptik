@@ -40,9 +40,11 @@ public final class CpuStridedElementWise {
                 forwardF16(op, inputs, node, useFastExpApprox, useFastTanhApprox);
                 return;
             }
+            case INT32 -> throw new UnsupportedOperationException("INT32 is not supported by CpuStridedElementWise.");
             case FLOAT64 -> {
                 // continue with existing F64 path below
             }
+            case BOOL -> throw new UnsupportedOperationException("BOOL is not supported by CpuStridedElementWise.");
         }
 
         double[] out = node.getData();

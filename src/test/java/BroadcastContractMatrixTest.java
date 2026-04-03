@@ -248,7 +248,7 @@ public class BroadcastContractMatrixTest {
                 }
                 yield new Tensor(out, shape, null, label, DataType.FLOAT16);
             }
-            case BOOL -> throw new UnsupportedOperationException("BOOL is not part of BroadcastContractMatrixTest.");
+            case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of BroadcastContractMatrixTest.");
         };
     }
 
@@ -257,7 +257,7 @@ public class BroadcastContractMatrixTest {
             case FLOAT64 -> 1e-9;
             case FLOAT32 -> 1e-5;
             case FLOAT16 -> 2e-2;
-            case BOOL -> throw new UnsupportedOperationException("BOOL is not part of BroadcastContractMatrixTest.");
+            case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of BroadcastContractMatrixTest.");
         };
     }
 

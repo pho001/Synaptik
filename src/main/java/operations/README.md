@@ -128,7 +128,8 @@ Additional current descriptor notes:
   - are nondifferentiable
 - `gather`
   - is currently a deliberately narrow indexing primitive
-  - current first version expects numeric integral-valued index tensors
+  - `INT32` is now the preferred index dtype
+  - numeric floating tensors with integral values are still accepted as a transitional compatibility mode
   - it is introduced mainly as the minimal base for future index-target loss family work
 
 Those concerns live elsewhere:

@@ -107,7 +107,7 @@ public class DataTypeExecutionCoverageTest {
             case FLOAT64 -> FusedDTypeOps.MODE_F64;
             case FLOAT32 -> FusedDTypeOps.MODE_F32;
             case FLOAT16 -> FusedDTypeOps.MODE_F16;
-            case BOOL -> throw new UnsupportedOperationException("BOOL is not part of DataTypeExecutionCoverageTest.");
+            case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of DataTypeExecutionCoverageTest.");
         };
     }
 
@@ -116,7 +116,7 @@ public class DataTypeExecutionCoverageTest {
             case FLOAT64 -> 1e-9;
             case FLOAT32 -> 1e-6;
             case FLOAT16 -> 2e-3;
-            case BOOL -> throw new UnsupportedOperationException("BOOL is not part of DataTypeExecutionCoverageTest.");
+            case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of DataTypeExecutionCoverageTest.");
         };
     }
 
@@ -125,7 +125,7 @@ public class DataTypeExecutionCoverageTest {
             case FLOAT64 -> 1e-9;
             case FLOAT32 -> 1e-6;
             case FLOAT16 -> 6e-3;
-            case BOOL -> throw new UnsupportedOperationException("BOOL is not part of DataTypeExecutionCoverageTest.");
+            case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of DataTypeExecutionCoverageTest.");
         };
     }
 

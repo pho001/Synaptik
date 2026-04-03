@@ -26,4 +26,9 @@ public class CpuContiguousKernel implements CpuKernel {
     public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         TensorRemap.apply(inputs.getFirst(), node, context.planner().contiguousMaterializeThreshold());
     }
+
+    @Override
+    public void forwardI32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        TensorRemap.apply(inputs.getFirst(), node, context.planner().contiguousMaterializeThreshold());
+    }
 }
