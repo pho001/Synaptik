@@ -1275,6 +1275,7 @@ Behavior:
 - values below `minValue` become `minValue`
 - values above `maxValue` become `maxValue`
 - values already inside the interval stay unchanged
+- implemented as composition over specialized `clampMax(...)` and `clampMin(...)`
 
 Example:
 ```java
@@ -1295,6 +1296,9 @@ Parameters:
 Returns:
 - numeric tensor where values below `minValue` are replaced by `minValue`
 
+Notes:
+- uses the specialized one-sided `CLAMP_MIN` primitive
+
 Example:
 ```java
 Tensor x = new Tensor(new double[]{-2.0, -0.5, 0.5, 3.0}, new int[]{4}, null, "x");
@@ -1313,6 +1317,9 @@ Parameters:
 
 Returns:
 - numeric tensor where values above `maxValue` are replaced by `maxValue`
+
+Notes:
+- uses the specialized one-sided `CLAMP_MAX` primitive
 
 Example:
 ```java

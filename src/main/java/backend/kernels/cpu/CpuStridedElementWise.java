@@ -1,6 +1,8 @@
 package backend.kernels.cpu;
 
 import operations.Operation;
+import operations.clampMax;
+import operations.clampMin;
 import operations.mulScalar;
 import operations.pow;
 import tensor.Tensor;
@@ -14,7 +16,7 @@ public final class CpuStridedElementWise {
     public static boolean supports(Operation op) {
         if (op == null) return false;
         return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, MUL_SCALAR, RELU, SIGMOID -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
             default -> false;
         };
     }
@@ -232,6 +234,8 @@ public final class CpuStridedElementWise {
             case FAST_TANH -> FastExp.fastTanhF64(a[aIdx]);
             case SQRT -> Math.sqrt(a[aIdx]);
             case RELU -> Math.max(0.0, a[aIdx]);
+            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValue(), a[aIdx]);
+            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValue(), a[aIdx]);
             case SIGMOID -> 1.0 / (1.0 + Math.exp(-a[aIdx]));
             case MUL_SCALAR -> a[aIdx] * ((mulScalar) op).getScalar();
             case POW -> {
@@ -271,6 +275,8 @@ public final class CpuStridedElementWise {
             case FAST_TANH -> FastExp.fastTanhF32(a[aIdx]);
             case SQRT -> (float) Math.sqrt(a[aIdx]);
             case RELU -> Math.max(0.0f, a[aIdx]);
+            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValueF32(), a[aIdx]);
+            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValueF32(), a[aIdx]);
             case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-a[aIdx])));
             case MUL_SCALAR -> a[aIdx] * ((mulScalar) op).getScalarF32();
             case POW -> {
@@ -312,6 +318,8 @@ public final class CpuStridedElementWise {
             case FAST_TANH -> FastExp.fastTanhF32(av);
             case SQRT -> (float) Math.sqrt(av);
             case RELU -> Math.max(0.0f, av);
+            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValueF32(), av);
+            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValueF32(), av);
             case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-av)));
             case MUL_SCALAR -> av * ((mulScalar) op).getScalarF32();
             case POW -> {

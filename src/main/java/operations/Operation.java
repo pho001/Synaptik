@@ -47,6 +47,8 @@ public interface Operation {
         MUL_SCALAR(OpArityClass.ELEMENT_WISE, true),
         SUM(OpArityClass.REDUCTION, false),
         RELU(OpArityClass.ELEMENT_WISE, true),
+        CLAMP_MIN(OpArityClass.ELEMENT_WISE, false),
+        CLAMP_MAX(OpArityClass.ELEMENT_WISE, false),
         SIGMOID(OpArityClass.ELEMENT_WISE, false),
         CONTIGUOUS(OpArityClass.LAYOUT, false),
         RESHAPE(OpArityClass.LAYOUT, false),

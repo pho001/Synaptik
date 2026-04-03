@@ -31,6 +31,24 @@ public final class UnaryF32 {
         }
     }
 
+    public static void clampMin(float[] in, float minValue, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
+            case VECTOR -> vectorClampMin(in, minValue, out);
+            case PARALLEL -> parallelClampMin(in, minValue, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorClampMin(in, minValue, out, hints);
+            case SCALAR -> scalarClampMin(in, minValue, out, 0, out.length);
+        }
+    }
+
+    public static void clampMax(float[] in, float maxValue, float[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
+            case VECTOR -> vectorClampMax(in, maxValue, out);
+            case PARALLEL -> parallelClampMax(in, maxValue, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorClampMax(in, maxValue, out, hints);
+            case SCALAR -> scalarClampMax(in, maxValue, out, 0, out.length);
+        }
+    }
+
     public static void exp(float[] in, float[] out, ResolvedDispatchHints hints) {
         switch (hints.mode()) {
             case VECTOR -> vectorExp(in, out);
@@ -92,6 +110,8 @@ public final class UnaryF32 {
 
     private static void scalarInv(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = 1.0f / in[i]; }
     private static void scalarRelu(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.max(0.0f, in[i]); }
+    private static void scalarClampMin(float[] in, float minValue, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.max(minValue, in[i]); }
+    private static void scalarClampMax(float[] in, float maxValue, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.min(maxValue, in[i]); }
     private static void scalarExp(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = (float) Math.exp(in[i]); }
     private static void scalarFastExp(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = FastExp.fastExpF32(in[i]); }
     private static void scalarLog(float[] in, float[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = (float) Math.log(in[i]); }
@@ -118,6 +138,26 @@ public final class UnaryF32 {
             FloatVector.fromArray(SPECIES, in, i).max(zero).intoArray(out, i);
         }
         scalarRelu(in, out, i, out.length);
+    }
+
+    private static void vectorClampMin(float[] in, float minValue, float[] out) {
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        FloatVector floor = FloatVector.broadcast(SPECIES, minValue);
+        for (; i < upper; i += SPECIES.length()) {
+            FloatVector.fromArray(SPECIES, in, i).max(floor).intoArray(out, i);
+        }
+        scalarClampMin(in, minValue, out, i, out.length);
+    }
+
+    private static void vectorClampMax(float[] in, float maxValue, float[] out) {
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        FloatVector ceil = FloatVector.broadcast(SPECIES, maxValue);
+        for (; i < upper; i += SPECIES.length()) {
+            FloatVector.fromArray(SPECIES, in, i).min(ceil).intoArray(out, i);
+        }
+        scalarClampMax(in, maxValue, out, i, out.length);
     }
 
     private static void vectorExp(float[] in, float[] out) {
@@ -169,6 +209,8 @@ public final class UnaryF32 {
 
     private static void parallelInv(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarInv); }
     private static void parallelRelu(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarRelu); }
+    private static void parallelClampMin(float[] in, float minValue, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, (src, dst, start, end) -> scalarClampMin(src, minValue, dst, start, end)); }
+    private static void parallelClampMax(float[] in, float maxValue, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, (src, dst, start, end) -> scalarClampMax(src, maxValue, dst, start, end)); }
     private static void parallelExp(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarExp); }
     private static void parallelFastExp(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarFastExp); }
     private static void parallelLog(float[] in, float[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF32::scalarLog); }
@@ -179,6 +221,8 @@ public final class UnaryF32 {
 
     private static void parallelVectorInv(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorInvChunk, UnaryF32::scalarInv); }
     private static void parallelVectorRelu(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorReluChunk, UnaryF32::scalarRelu); }
+    private static void parallelVectorClampMin(float[] in, float minValue, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, (src, dst, start, end, width) -> vectorClampMinChunk(src, minValue, dst, start, end, width), (src, dst, start, end) -> scalarClampMin(src, minValue, dst, start, end)); }
+    private static void parallelVectorClampMax(float[] in, float maxValue, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, (src, dst, start, end, width) -> vectorClampMaxChunk(src, maxValue, dst, start, end, width), (src, dst, start, end) -> scalarClampMax(src, maxValue, dst, start, end)); }
     private static void parallelVectorExp(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorExpChunk, UnaryF32::scalarExp); }
     private static void parallelVectorLog(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorLogChunk, UnaryF32::scalarLog); }
     private static void parallelVectorTanh(float[] in, float[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF32::vectorTanhChunk, UnaryF32::scalarTanh); }
@@ -219,6 +263,20 @@ public final class UnaryF32 {
         FloatVector zero = FloatVector.zero(SPECIES);
         for (int i = start, upper = end - ((end - start) % width); i < upper; i += width) {
             FloatVector.fromArray(SPECIES, in, i).max(zero).intoArray(out, i);
+        }
+    }
+
+    private static void vectorClampMinChunk(float[] in, float minValue, float[] out, int start, int end, int width) {
+        FloatVector floor = FloatVector.broadcast(SPECIES, minValue);
+        for (int i = start, upper = end - ((end - start) % width); i < upper; i += width) {
+            FloatVector.fromArray(SPECIES, in, i).max(floor).intoArray(out, i);
+        }
+    }
+
+    private static void vectorClampMaxChunk(float[] in, float maxValue, float[] out, int start, int end, int width) {
+        FloatVector ceil = FloatVector.broadcast(SPECIES, maxValue);
+        for (int i = start, upper = end - ((end - start) % width); i < upper; i += width) {
+            FloatVector.fromArray(SPECIES, in, i).min(ceil).intoArray(out, i);
         }
     }
 

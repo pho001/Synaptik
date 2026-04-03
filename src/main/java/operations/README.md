@@ -67,6 +67,8 @@ Current descriptor classes in this package:
 - `reduceMinGrad`
 - `reduceMaxGrad`
 - `relu`
+- `clampMin`
+- `clampMax`
 - `sigmoid`
 - `contiguous`
 - `reshape`
@@ -259,8 +261,9 @@ Reasoning:
 Current status:
 
 - `relu` already exists as a specialized primitive
-- `clamp*` currently exist as compositional surface over compare/select
-- if `clamp*` are promoted to dedicated primitives later, the lowering must preserve exact semantics
+- `clampMin` and `clampMax` now exist as specialized primitives
+- `clamp(...)` remains composition over those specialized one-sided primitives
+- optimizer lowering may normalize compare/select forms into `clampMin` / `clampMax` when semantics match exactly
 
 Future likely `both` candidates:
 

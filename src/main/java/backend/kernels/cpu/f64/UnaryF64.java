@@ -31,6 +31,24 @@ public final class UnaryF64 {
         }
     }
 
+    public static void clampMin(double[] in, double minValue, double[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
+            case VECTOR -> vectorClampMin(in, minValue, out);
+            case PARALLEL -> parallelClampMin(in, minValue, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorClampMin(in, minValue, out, hints);
+            case SCALAR -> scalarClampMin(in, minValue, out, 0, out.length);
+        }
+    }
+
+    public static void clampMax(double[] in, double maxValue, double[] out, ResolvedDispatchHints hints) {
+        switch (hints.mode()) {
+            case VECTOR -> vectorClampMax(in, maxValue, out);
+            case PARALLEL -> parallelClampMax(in, maxValue, out, hints);
+            case PARALLEL_VECTOR -> parallelVectorClampMax(in, maxValue, out, hints);
+            case SCALAR -> scalarClampMax(in, maxValue, out, 0, out.length);
+        }
+    }
+
     public static void exp(double[] in, double[] out, ResolvedDispatchHints hints) {
         switch (hints.mode()) {
             case VECTOR -> vectorExp(in, out);
@@ -92,6 +110,8 @@ public final class UnaryF64 {
 
     private static void scalarInv(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = 1.0 / in[i]; }
     private static void scalarRelu(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.max(0.0, in[i]); }
+    private static void scalarClampMin(double[] in, double minValue, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.max(minValue, in[i]); }
+    private static void scalarClampMax(double[] in, double maxValue, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.min(maxValue, in[i]); }
     private static void scalarExp(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.exp(in[i]); }
     private static void scalarFastExp(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = FastExp.fastExpF64(in[i]); }
     private static void scalarLog(double[] in, double[] out, int start, int end) { for (int i = start; i < end; i++) out[i] = Math.log(in[i]); }
@@ -118,6 +138,26 @@ public final class UnaryF64 {
             DoubleVector.fromArray(SPECIES, in, i).max(zero).intoArray(out, i);
         }
         scalarRelu(in, out, i, out.length);
+    }
+
+    private static void vectorClampMin(double[] in, double minValue, double[] out) {
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        DoubleVector floor = DoubleVector.broadcast(SPECIES, minValue);
+        for (; i < upper; i += SPECIES.length()) {
+            DoubleVector.fromArray(SPECIES, in, i).max(floor).intoArray(out, i);
+        }
+        scalarClampMin(in, minValue, out, i, out.length);
+    }
+
+    private static void vectorClampMax(double[] in, double maxValue, double[] out) {
+        int i = 0;
+        int upper = SPECIES.loopBound(out.length);
+        DoubleVector ceil = DoubleVector.broadcast(SPECIES, maxValue);
+        for (; i < upper; i += SPECIES.length()) {
+            DoubleVector.fromArray(SPECIES, in, i).min(ceil).intoArray(out, i);
+        }
+        scalarClampMax(in, maxValue, out, i, out.length);
     }
 
     private static void vectorExp(double[] in, double[] out) {
@@ -169,6 +209,8 @@ public final class UnaryF64 {
 
     private static void parallelInv(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarInv); }
     private static void parallelRelu(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarRelu); }
+    private static void parallelClampMin(double[] in, double minValue, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, (src, dst, start, end) -> scalarClampMin(src, minValue, dst, start, end)); }
+    private static void parallelClampMax(double[] in, double maxValue, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, (src, dst, start, end) -> scalarClampMax(src, maxValue, dst, start, end)); }
     private static void parallelExp(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarExp); }
     private static void parallelFastExp(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarFastExp); }
     private static void parallelLog(double[] in, double[] out, ResolvedDispatchHints hints) { parallelScalar(in, out, hints, UnaryF64::scalarLog); }
@@ -179,6 +221,8 @@ public final class UnaryF64 {
 
     private static void parallelVectorInv(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorInvChunk, UnaryF64::scalarInv); }
     private static void parallelVectorRelu(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorReluChunk, UnaryF64::scalarRelu); }
+    private static void parallelVectorClampMin(double[] in, double minValue, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, (src, dst, start, end, width) -> vectorClampMinChunk(src, minValue, dst, start, end, width), (src, dst, start, end) -> scalarClampMin(src, minValue, dst, start, end)); }
+    private static void parallelVectorClampMax(double[] in, double maxValue, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, (src, dst, start, end, width) -> vectorClampMaxChunk(src, maxValue, dst, start, end, width), (src, dst, start, end) -> scalarClampMax(src, maxValue, dst, start, end)); }
     private static void parallelVectorExp(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorExpChunk, UnaryF64::scalarExp); }
     private static void parallelVectorLog(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorLogChunk, UnaryF64::scalarLog); }
     private static void parallelVectorTanh(double[] in, double[] out, ResolvedDispatchHints hints) { parallelVector(in, out, hints, UnaryF64::vectorTanhChunk, UnaryF64::scalarTanh); }
@@ -212,6 +256,20 @@ public final class UnaryF64 {
         DoubleVector zero = DoubleVector.zero(SPECIES);
         for (int i = start, upper = end - ((end - start) % width); i < upper; i += width) {
             DoubleVector.fromArray(SPECIES, in, i).max(zero).intoArray(out, i);
+        }
+    }
+
+    private static void vectorClampMinChunk(double[] in, double minValue, double[] out, int start, int end, int width) {
+        DoubleVector floor = DoubleVector.broadcast(SPECIES, minValue);
+        for (int i = start, upper = end - ((end - start) % width); i < upper; i += width) {
+            DoubleVector.fromArray(SPECIES, in, i).max(floor).intoArray(out, i);
+        }
+    }
+
+    private static void vectorClampMaxChunk(double[] in, double maxValue, double[] out, int start, int end, int width) {
+        DoubleVector ceil = DoubleVector.broadcast(SPECIES, maxValue);
+        for (int i = start, upper = end - ((end - start) % width); i < upper; i += width) {
+            DoubleVector.fromArray(SPECIES, in, i).min(ceil).intoArray(out, i);
         }
     }
 

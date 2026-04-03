@@ -116,6 +116,8 @@ public class AlgebraicRewritingRule implements OptimizationRule {
             case INV -> simplifyInv(t);
             case SQRT -> simplifySqrt(t);
             case WHERE -> simplifyWhere(t);
+            case CLAMP_MIN -> simplifyClampMin(t);
+            case CLAMP_MAX -> simplifyClampMax(t);
             default -> t;
         };
     }
@@ -403,9 +405,21 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (t.getPrevTensors().size() != 3) {
             return t;
         }
-        Tensor reluInput = matchReluLoweringInput(t.getPrevTensors().get(0), t.getPrevTensors().get(1), t.getPrevTensors().get(2));
+        Tensor condition = t.getPrevTensors().get(0);
+        Tensor ifTrue = t.getPrevTensors().get(1);
+        Tensor ifFalse = t.getPrevTensors().get(2);
+
+        Tensor reluInput = matchReluLoweringInput(condition, ifTrue, ifFalse);
         if (reluInput != null) {
             return reluInput.relu();
+        }
+        ClampMinMatch clampMinMatch = matchClampMinLowering(condition, ifTrue, ifFalse);
+        if (clampMinMatch != null) {
+            return clampMinMatch.input().clampMin(clampMinMatch.minValue());
+        }
+        ClampMaxMatch clampMaxMatch = matchClampMaxLowering(condition, ifTrue, ifFalse);
+        if (clampMaxMatch != null) {
+            return clampMaxMatch.input().clampMax(clampMaxMatch.maxValue());
         }
         return t;
     }
@@ -426,6 +440,44 @@ public class AlgebraicRewritingRule implements OptimizationRule {
             return null;
         }
         return comparedInput;
+    }
+
+    private ClampMinMatch matchClampMinLowering(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+        if (!isOp(condition, Operation.OpType.LT) || condition.getPrevTensors().size() != 2) {
+            return null;
+        }
+        Tensor input = condition.getPrevTensors().get(0);
+        Tensor lowerBound = condition.getPrevTensors().get(1);
+        if (ifTrue != lowerBound || ifFalse != input) {
+            return null;
+        }
+        if (!isNumericScalarConstant(lowerBound)) {
+            return null;
+        }
+        return new ClampMinMatch(input, lowerBound.scalarAsDouble());
+    }
+
+    private ClampMaxMatch matchClampMaxLowering(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+        if (!isOp(condition, Operation.OpType.GT) || condition.getPrevTensors().size() != 2) {
+            return null;
+        }
+        Tensor input = condition.getPrevTensors().get(0);
+        Tensor upperBound = condition.getPrevTensors().get(1);
+        if (ifTrue != upperBound || ifFalse != input) {
+            return null;
+        }
+        if (!isNumericScalarConstant(upperBound)) {
+            return null;
+        }
+        return new ClampMaxMatch(input, upperBound.scalarAsDouble());
+    }
+
+    private Tensor simplifyClampMin(Tensor t) {
+        return t;
+    }
+
+    private Tensor simplifyClampMax(Tensor t) {
+        return t;
     }
 
     private boolean isConstant(Tensor t) {
@@ -450,6 +502,14 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         return true;
     }
 
+    private boolean isNumericScalarConstant(Tensor tensor) {
+        return tensor != null
+                && tensor.getOperation() == null
+                && !tensor.getRequiresGrad()
+                && tensor.getDataType() != DataType.BOOL
+                && tensor.getFlatDataSize() == 1;
+    }
+
     private boolean isOp(Tensor t, Operation.OpType opType) {
         return t.getOperation() != null
                 && t.getOperation().opType() == opType;
@@ -465,5 +525,8 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (candidate.getPrevTensors().isEmpty()) return null;
         return candidate.getPrevTensors().get(0) == base ? m.getScalar() : null;
     }
+
+    private record ClampMinMatch(Tensor input, double minValue) {}
+    private record ClampMaxMatch(Tensor input, double maxValue) {}
 
 }

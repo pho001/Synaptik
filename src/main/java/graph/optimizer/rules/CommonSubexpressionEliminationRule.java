@@ -5,6 +5,8 @@ import graph.optimizer.OptimizerGraphSupport;
 import graph.optimizer.OptimizationRule;
 import operations.FusedOperation;
 import operations.Operation;
+import operations.clampMax;
+import operations.clampMin;
 import operations.expand;
 import operations.expandDims;
 import operations.maxGrad;
@@ -139,6 +141,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         return switch (op.opType()) {
             case POW -> new DoubleValue(((pow) op).getExponent());
             case MUL_SCALAR -> new DoubleValue(((mulScalar) op).getScalar());
+            case CLAMP_MIN -> new DoubleValue(((clampMin) op).getMinValue());
+            case CLAMP_MAX -> new DoubleValue(((clampMax) op).getMaxValue());
             case SUM -> new ReductionSignature(((sum) op).getDimension(), ((sum) op).keepDims());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());

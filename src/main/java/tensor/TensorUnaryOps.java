@@ -1,6 +1,8 @@
 package tensor;
 
 import operations.Operation;
+import operations.clampMax;
+import operations.clampMin;
 import operations.exp;
 import operations.fastExp;
 import operations.fastTanh;
@@ -270,11 +272,7 @@ final class TensorUnaryOps {
         if (minValue > maxValue) {
             throw new IllegalArgumentException("clamp requires minValue <= maxValue.");
         }
-
-        Tensor lower = Tensor.scalar(minValue, input.getDataType());
-        Tensor upper = Tensor.scalar(maxValue, input.getDataType());
-        Tensor upperClamped = Tensor.where(input.greaterThan(upper), upper, input);
-        return Tensor.where(upperClamped.lessThan(lower), lower, upperClamped);
+        return input.clampMax(maxValue).clampMin(minValue);
     }
 
     static Tensor clampMin(Tensor input, double minValue) {
@@ -284,8 +282,24 @@ final class TensorUnaryOps {
         if (input.getDataType() == DataType.BOOL) {
             throw new IllegalArgumentException("clampMin requires numeric input.");
         }
-        Tensor lower = Tensor.scalar(minValue, input.getDataType());
-        return Tensor.where(input.lessThan(lower), lower, input);
+        boolean isF32 = input.getDataType() == DataType.FLOAT32;
+        Operation op = isF32 ? new clampMin((float) minValue) : new clampMin(minValue);
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "clampMin");
+        out.setDataType(TensorDataTypeUtil.unary(input));
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+            if (!input.getRequiresGrad()) return;
+
+            Tensor lower = Tensor.scalar(minValue, input.getDataType());
+            Tensor gradForInput = Tensor.where(input.greaterOrEqual(lower), outGrad, Tensor.zerosLike(outGrad));
+            if (input.getGradient() == null) {
+                input.setGradient(gradForInput);
+            } else {
+                input.setGradient(input.getGradient().add(gradForInput));
+            }
+        });
+        return out;
     }
 
     static Tensor clampMax(Tensor input, double maxValue) {
@@ -295,7 +309,23 @@ final class TensorUnaryOps {
         if (input.getDataType() == DataType.BOOL) {
             throw new IllegalArgumentException("clampMax requires numeric input.");
         }
-        Tensor upper = Tensor.scalar(maxValue, input.getDataType());
-        return Tensor.where(input.greaterThan(upper), upper, input);
+        boolean isF32 = input.getDataType() == DataType.FLOAT32;
+        Operation op = isF32 ? new clampMax((float) maxValue) : new clampMax(maxValue);
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "clampMax");
+        out.setDataType(TensorDataTypeUtil.unary(input));
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+            if (!input.getRequiresGrad()) return;
+
+            Tensor upper = Tensor.scalar(maxValue, input.getDataType());
+            Tensor gradForInput = Tensor.where(input.lessOrEqual(upper), outGrad, Tensor.zerosLike(outGrad));
+            if (input.getGradient() == null) {
+                input.setGradient(gradForInput);
+            } else {
+                input.setGradient(input.getGradient().add(gradForInput));
+            }
+        });
+        return out;
     }
 }

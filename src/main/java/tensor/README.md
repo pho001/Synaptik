@@ -331,13 +331,13 @@ Their backward semantics route gradient only to winning elements; if multiple va
 `all(...)` and `any(...)` are `BOOL`-only reductions.
 They follow the same shape policy as other reductions, but they are nondifferentiable.
 
-`clamp(minValue, maxValue)` is a piecewise numeric transform built on top of compare/select semantics.
-It keeps values inside the interval and replaces values below/above the interval bounds by the corresponding boundary value.
-
-`clampMin(minValue)` and `clampMax(maxValue)` are the one-sided variants:
+`clampMin(minValue)` and `clampMax(maxValue)` are specialized one-sided unary clamp primitives:
 
 - `clampMin` only raises values below the lower bound
 - `clampMax` only lowers values above the upper bound
+
+`clamp(minValue, maxValue)` is the two-sided convenience surface built on top of those one-sided clamp operations.
+It keeps values inside the interval and replaces values below/above the interval bounds by the corresponding boundary value.
 
 ## Gradient and Backward
 

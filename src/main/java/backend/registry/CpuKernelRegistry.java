@@ -46,6 +46,8 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.MUL_SCALAR, new CpuMulScalarKernel());
         KERNELS.put(Operation.OpType.SUM, new CpuSumKernel());
         KERNELS.put(Operation.OpType.RELU, new CpuReluKernel());
+        KERNELS.put(Operation.OpType.CLAMP_MIN, new CpuClampMinKernel());
+        KERNELS.put(Operation.OpType.CLAMP_MAX, new CpuClampMaxKernel());
         KERNELS.put(Operation.OpType.SIGMOID, new CpuSigmoidKernel());
         KERNELS.put(Operation.OpType.WHERE, new CpuWhereKernel());
         KERNELS.put(Operation.OpType.CONTIGUOUS, new CpuContiguousKernel());

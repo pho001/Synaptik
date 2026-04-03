@@ -11,6 +11,8 @@ public final class UnaryF16 {
 
     public static void inv(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.INV); }
     public static void relu(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.RELU); }
+    public static void clampMin(short[] in, float minValue, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.CLAMP_MIN, minValue); }
+    public static void clampMax(short[] in, float maxValue, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.CLAMP_MAX, maxValue); }
     public static void exp(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.EXP); }
     public static void fastExp(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.FAST_EXP); }
     public static void log(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.LOG); }
@@ -20,19 +22,25 @@ public final class UnaryF16 {
     public static void sigmoid(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.SIGMOID); }
 
     private static void run(short[] in, short[] out, ResolvedDispatchHints hints, Op op) {
+        run(in, out, hints, op, 0.0f);
+    }
+
+    private static void run(short[] in, short[] out, ResolvedDispatchHints hints, Op op, float scalar) {
         CpuExecutionMode mode = hints.mode();
         switch (mode) {
-            case VECTOR, SCALAR -> scalar(in, out, 0, out.length, op);
-            case PARALLEL, PARALLEL_VECTOR -> parallel(in, out, hints, op);
+            case VECTOR, SCALAR -> scalar(in, out, 0, out.length, op, scalar);
+            case PARALLEL, PARALLEL_VECTOR -> parallel(in, out, hints, op, scalar);
         }
     }
 
-    private static void scalar(short[] in, short[] out, int start, int end, Op op) {
+    private static void scalar(short[] in, short[] out, int start, int end, Op op, float scalar) {
         for (int i = start; i < end; i++) {
             float x = CpuDTypeOps.fromHalfBits(in[i]);
             float y = switch (op) {
                 case INV -> 1.0f / x;
                 case RELU -> Math.max(0.0f, x);
+                case CLAMP_MIN -> Math.max(scalar, x);
+                case CLAMP_MAX -> Math.min(scalar, x);
                 case EXP -> (float) Math.exp(x);
                 case FAST_EXP -> FastExp.fastExpF32(x);
                 case LOG -> (float) Math.log(x);
@@ -45,15 +53,15 @@ public final class UnaryF16 {
         }
     }
 
-    private static void parallel(short[] in, short[] out, ResolvedDispatchHints hints, Op op) {
+    private static void parallel(short[] in, short[] out, ResolvedDispatchHints hints, Op op, float scalar) {
         int chunkSize = hints.scalarChunkSize();
         int chunks = (out.length + chunkSize - 1) / chunkSize;
         CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, out.length);
-            scalar(in, out, start, end, op);
+            scalar(in, out, start, end, op, scalar);
         });
     }
 
-    private enum Op { INV, RELU, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SQRT, SIGMOID }
+    private enum Op { INV, RELU, CLAMP_MIN, CLAMP_MAX, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SQRT, SIGMOID }
 }
