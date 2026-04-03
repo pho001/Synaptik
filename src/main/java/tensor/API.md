@@ -102,8 +102,12 @@ The focus here is practical API usage:
   - [`crossEntropyLoss(Tensor targets, int classDimension)`](#crossentropylosstensor-targets-int-classdimension)
   - [`nllLossFromIndices(Tensor targetIndices, int classDimension)`](#nlllossfromindicestensor-targetindices-int-classdimension)
   - [`nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex)`](#nlllossfromindicestensor-targetindices-int-classdimension-int-ignoreindex)
+  - [`nllLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction)`](#nlllossfromindicestensor-targetindices-int-classdimension-lossreduction-reduction)
+  - [`nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction)`](#nlllossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-lossreduction-reduction)
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)`](#crossentropylossfromindicestensor-targetindices-int-classdimension)
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-int-ignoreindex)
+  - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-lossreduction-reduction)
+  - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-lossreduction-reduction)
 - [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
   - [`forwardOutput()`](#forwardoutput)
   - [`buildBackwardGraph()`](#buildbackwardgraph)
@@ -1974,6 +1978,44 @@ Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1, -1);
 // Returns: a scalar mean NLL loss over non-ignored class-id targets.
 ```
 
+### `nllLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction)`
+
+Computes index-target NLL with explicit reduction mode.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logProbs.shape` without the class axis
+- `classDimension`: axis containing class log-probabilities
+- `reduction`: `MEAN`, `SUM`, or `NONE`
+
+Returns:
+- scalar tensor for `MEAN` / `SUM`
+- unreduced per-sample tensor for `NONE`
+
+Example:
+```java
+Tensor perSample = logProbs.nllLossFromIndices(targetIndices, 1, LossReduction.NONE);
+// perSample shape equals targetIndices.shape.
+```
+
+### `nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction)`
+
+Computes index-target NLL with both `ignoreIndex` and explicit reduction mode.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logProbs.shape` without the class axis
+- `classDimension`: axis containing class log-probabilities
+- `ignoreIndex`: target id that should be excluded
+- `reduction`: `MEAN`, `SUM`, or `NONE`
+
+Returns:
+- scalar tensor for `MEAN` / `SUM`
+- unreduced per-sample tensor for `NONE`
+
+Example:
+```java
+Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1, -1, LossReduction.SUM);
+```
+
 ### `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)`
 
 Computes mean cross-entropy loss directly from logits and class-id targets.
@@ -2021,6 +2063,38 @@ Example:
 Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1, -1);
 // Returns: a scalar mean cross-entropy loss tensor over non-ignored class-id targets.
 ```
+
+### `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction)`
+
+Computes logits-facing index-target cross-entropy with explicit reduction mode.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logits.shape` without the class axis
+- `classDimension`: axis containing class logits
+- `reduction`: `MEAN`, `SUM`, or `NONE`
+
+Returns:
+- scalar tensor for `MEAN` / `SUM`
+- unreduced per-sample tensor for `NONE`
+
+Example:
+```java
+Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1, LossReduction.NONE);
+```
+
+### `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction)`
+
+Computes logits-facing index-target cross-entropy with both `ignoreIndex` and explicit reduction mode.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logits.shape` without the class axis
+- `classDimension`: axis containing class logits
+- `ignoreIndex`: target id that should be excluded
+- `reduction`: `MEAN`, `SUM`, or `NONE`
+
+Returns:
+- scalar tensor for `MEAN` / `SUM`
+- unreduced per-sample tensor for `NONE`
 
 ## Execution Anchor / Autodiff Helpers
 

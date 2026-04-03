@@ -415,6 +415,16 @@ For axis reduction:
 - denominator `mean` redukce se pocita jen z neignorovanych sample
 - kdyz jsou ignorovane vsechny sample, loss i gradient jsou nulove
 
+`LossReduction` je zatim zavedena nejdriv pro index-target loss family:
+
+- `MEAN`
+  - scalar mean loss
+- `SUM`
+  - scalar soucet per-sample loss hodnot
+- `NONE`
+  - bez redukce
+  - vystup shape = `targetIndices.shape`
+
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.
 

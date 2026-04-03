@@ -958,16 +958,32 @@ public class Tensor {
         return TensorOps.nllLossFromIndices(this, targetIndices, classDimension);
     }
 
+    public Tensor nllLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction) {
+        return TensorOps.nllLossFromIndices(this, targetIndices, classDimension, reduction);
+    }
+
     public Tensor nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex) {
         return TensorOps.nllLossFromIndices(this, targetIndices, classDimension, ignoreIndex);
+    }
+
+    public Tensor nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
+        return TensorOps.nllLossFromIndices(this, targetIndices, classDimension, ignoreIndex, reduction);
     }
 
     public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension) {
         return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension);
     }
 
+    public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction) {
+        return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, reduction);
+    }
+
     public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex) {
         return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, ignoreIndex);
+    }
+
+    public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
+        return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, ignoreIndex, reduction);
     }
 
     public Tensor min(int dimension) {
