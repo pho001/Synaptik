@@ -716,6 +716,22 @@ public class Tensor {
         return TensorOps.max(this, second);
     }
 
+    public Tensor greaterThan(Tensor second) {
+        return TensorOps.greaterThan(this, second);
+    }
+
+    public Tensor lessThan(Tensor second) {
+        return TensorOps.lessThan(this, second);
+    }
+
+    public Tensor equalTo(Tensor second) {
+        return TensorOps.equalTo(this, second);
+    }
+
+    public static Tensor where(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+        return TensorOps.where(condition, ifTrue, ifFalse);
+    }
+
     public Tensor matmul(Tensor second) {
         return TensorOps.matmul(this, second);
     }

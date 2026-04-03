@@ -32,4 +32,8 @@ public record CpuNodeExecutionPlan(
     public ResolvedBroadcastPlan broadcastPlan() {
         return layoutPlan.broadcastPlan();
     }
+
+    public ResolvedWhereBroadcastPlan whereBroadcastPlan() {
+        return layoutPlan.whereBroadcastPlan();
+    }
 }

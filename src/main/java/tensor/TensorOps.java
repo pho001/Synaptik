@@ -51,6 +51,22 @@ public final class TensorOps {
         return TensorBinaryOps.max(first, second);
     }
 
+    public static Tensor greaterThan(Tensor first, Tensor second) {
+        return TensorCompareOps.greaterThan(first, second);
+    }
+
+    public static Tensor lessThan(Tensor first, Tensor second) {
+        return TensorCompareOps.lessThan(first, second);
+    }
+
+    public static Tensor equalTo(Tensor first, Tensor second) {
+        return TensorCompareOps.equalTo(first, second);
+    }
+
+    public static Tensor where(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+        return TensorSelectOps.where(condition, ifTrue, ifFalse);
+    }
+
     public static Tensor matmul(Tensor first, Tensor second) {
         return TensorMatMulOps.matmul(first, second);
     }

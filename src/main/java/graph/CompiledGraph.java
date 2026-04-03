@@ -74,6 +74,10 @@ public class CompiledGraph {
             return;
         }
 
+        if (rootTensor.getDataType() == tensor.DataType.BOOL) {
+            throw new UnsupportedOperationException("BOOL root tensors do not support backward execution.");
+        }
+
         rootTensor.setGradient(Tensor.onesLike(rootTensor));
         for (int i = forwardGraph.size() - 1; i >= 0; i--) {
             forwardGraph.get(i).buildBackwardGraph();

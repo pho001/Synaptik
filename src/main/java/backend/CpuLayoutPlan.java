@@ -1,6 +1,7 @@
 package backend;
 
 import backend.kernels.cpu.ResolvedBroadcastPlan;
+import backend.kernels.cpu.ResolvedWhereBroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorRemap;
@@ -13,6 +14,7 @@ public record CpuLayoutPlan(
         DataType targetType,
         int materializeThreshold,
         ResolvedBroadcastPlan broadcastPlan,
+        ResolvedWhereBroadcastPlan whereBroadcastPlan,
         List<CpuPreparedInput> preparedInputs,
         List<Tensor> runtimeInputs
 ) {

@@ -9,6 +9,7 @@ import backend.kernels.cpu.ResolvedBroadcastPlan;
 import backend.kernels.cpu.ResolvedDispatchHints;
 import backend.kernels.cpu.ResolvedMatMulHints;
 import backend.kernels.cpu.ResolvedReductionHints;
+import backend.kernels.cpu.ResolvedWhereBroadcastPlan;
 import backend.runtime.BlasConfig;
 import backend.runtime.ExecutionContext;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -18,6 +19,8 @@ import tensor.BroadcastPlanner;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorRemap;
+import tensor.WhereBroadcastPlan;
+import tensor.WhereBroadcastPlanner;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,6 +28,11 @@ import java.util.List;
 import java.util.Objects;
 
 public final class CPUBackend {
+    private record PreparedTypeContract(
+            DataType outputType,
+            List<DataType> expectedInputTypes
+    ) {}
+
     private record PreparedInputsResult(
             List<backend.CpuPreparedInput> preparedInputs,
             List<Tensor> runtimeInputs
@@ -87,18 +95,21 @@ public final class CPUBackend {
         Objects.requireNonNull(blasConfig, "blasConfig cannot be null");
 
         List<Tensor> safeInputs = inputs == null ? List.of() : List.copyOf(inputs);
-        DataType targetType = resolveTargetType(node, safeInputs);
+        PreparedTypeContract typeContract = resolveTypeContract(op, node, safeInputs);
+        DataType targetType = typeContract.outputType();
 
         boolean stridedPath = canUseStridedPath(op, safeInputs, node, targetType, planner);
-        PreparedInputsResult prepared = prepareInputs(op, safeInputs, node, targetType, planner, stridedPath);
+        PreparedInputsResult prepared = prepareInputs(op, safeInputs, node, typeContract, planner, stridedPath);
 
         ResolvedBroadcastPlan broadcastPlan = resolveBroadcastPlan(op, prepared.runtimeInputs(), node);
+        ResolvedWhereBroadcastPlan whereBroadcastPlan = resolveWhereBroadcastPlan(op, prepared.runtimeInputs(), node);
 
         backend.CpuLayoutPlan layoutPlan = new backend.CpuLayoutPlan(
                 stridedPath,
                 targetType,
                 planner.contiguousMaterializeThreshold(),
                 broadcastPlan,
+                whereBroadcastPlan,
                 prepared.preparedInputs(),
                 prepared.runtimeInputs()
         );
@@ -133,7 +144,7 @@ public final class CPUBackend {
             Operation op,
             List<Tensor> inputs,
             Tensor node,
-            DataType targetType,
+            PreparedTypeContract typeContract,
             CpuExecutionPlanner planner,
             boolean stridedPath
     ) {
@@ -158,12 +169,22 @@ public final class CPUBackend {
                 throw new IllegalArgumentException("Input tensor at index " + i + " is null");
             }
 
-            if (!requiresPreparedInput(op, input, node, targetType, planner)) {
+            DataType expectedInputType = typeContract.expectedInputTypes().get(i);
+
+            if (!requiresPreparedInput(op, input, node, expectedInputType, planner)) {
                 runtimeInputs.add(input);
                 continue;
             }
 
-            Tensor preparedTensor = createPreparedTensor(input, targetType, node, i);
+            if (!canConvertPreparedInput(input.getDataType(), expectedInputType)) {
+                throw new IllegalArgumentException("Unsupported prepared input conversion for op="
+                        + (op == null ? "null" : op.opType())
+                        + ", inputIndex=" + i
+                        + ", sourceType=" + input.getDataType()
+                        + ", expectedType=" + expectedInputType);
+            }
+
+            Tensor preparedTensor = createPreparedTensor(input, expectedInputType, node, i);
             TensorRemap.RemapPlan remapPlan = TensorRemap.buildPlan(input, preparedTensor);
             preparedInputs.add(new backend.CpuPreparedInput(i, preparedTensor, remapPlan));
             runtimeInputs.add(preparedTensor);
@@ -176,10 +197,10 @@ public final class CPUBackend {
             Operation op,
             Tensor input,
             Tensor node,
-            DataType targetType,
+            DataType expectedInputType,
             CpuExecutionPlanner planner
     ) {
-        if (input.getDataType() != targetType) {
+        if (input.getDataType() != expectedInputType) {
             return true;
         }
 
@@ -195,6 +216,7 @@ public final class CPUBackend {
             case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, REDUCE_MIN, REDUCE_MAX, NOOP -> false;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
             case MATMUL -> true;
+            case GT, LT, EQ, WHERE -> !input.isContiguous();
             default -> op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
                     && planner.shouldMaterializeNonContiguous(node.getFlatDataSize());
         };
@@ -258,7 +280,7 @@ public final class CPUBackend {
             return false;
         }
         return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX, GT, LT, EQ -> true;
             default -> false;
         };
     }
@@ -282,6 +304,24 @@ public final class CPUBackend {
         return ResolvedBroadcastPlan.from(plan);
     }
 
+    private static ResolvedWhereBroadcastPlan resolveWhereBroadcastPlan(
+            Operation op,
+            List<Tensor> runtimeInputs,
+            Tensor node
+    ) {
+        if (op == null || op.opType() != Operation.OpType.WHERE || runtimeInputs.size() != 3) {
+            return null;
+        }
+        WhereBroadcastPlan plan = WhereBroadcastPlanner.plan(runtimeInputs.get(0), runtimeInputs.get(1), runtimeInputs.get(2));
+        if (!Arrays.equals(plan.outShape(), node.getShapeUnsafe())) {
+            throw new IllegalStateException(
+                    "Resolved where output shape " + Arrays.toString(plan.outShape()) +
+                            " does not match node shape " + Arrays.toString(node.getShapeUnsafe())
+            );
+        }
+        return ResolvedWhereBroadcastPlan.from(plan);
+    }
+
     private static int estimateReductionLogicalSize(List<Tensor> runtimeInputs, Tensor node) {
         if (runtimeInputs != null && !runtimeInputs.isEmpty() && runtimeInputs.get(0) != null) {
             return runtimeInputs.get(0).getFlatDataSize();
@@ -298,6 +338,58 @@ public final class CPUBackend {
                     REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, NOOP -> true;
             default -> false;
         };
+    }
+
+    private static PreparedTypeContract resolveTypeContract(Operation op, Tensor node, List<Tensor> inputs) {
+        if (op == null || op.opType() == null) {
+            DataType outputType = resolveTargetType(node, inputs);
+            return uniformTypeContract(outputType, inputs == null ? 0 : inputs.size());
+        }
+        return switch (op.opType()) {
+            case GT, LT, EQ -> resolveCompareContract(inputs);
+            case WHERE -> resolveWhereContract(inputs);
+            default -> {
+                DataType outputType = resolveTargetType(node, inputs);
+                yield uniformTypeContract(outputType, inputs == null ? 0 : inputs.size());
+            }
+        };
+    }
+
+    private static PreparedTypeContract uniformTypeContract(DataType outputType, int arity) {
+        List<DataType> inputTypes = new ArrayList<>(arity);
+        for (int i = 0; i < arity; i++) {
+            inputTypes.add(outputType);
+        }
+        return new PreparedTypeContract(outputType, List.copyOf(inputTypes));
+    }
+
+    private static PreparedTypeContract resolveCompareContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 2) {
+            throw new IllegalArgumentException("Comparison ops expect exactly two inputs.");
+        }
+        DataType left = inputs.get(0).getDataType();
+        DataType right = inputs.get(1).getDataType();
+        if (left == DataType.BOOL || right == DataType.BOOL) {
+            throw new IllegalArgumentException("Comparison ops require numeric inputs.");
+        }
+        DataType numericType = promote(left, right);
+        return new PreparedTypeContract(DataType.BOOL, List.of(numericType, numericType));
+    }
+
+    private static PreparedTypeContract resolveWhereContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 3) {
+            throw new IllegalArgumentException("where expects exactly three inputs.");
+        }
+        if (inputs.get(0).getDataType() != DataType.BOOL) {
+            throw new IllegalArgumentException("where condition must have BOOL dtype.");
+        }
+        DataType trueType = inputs.get(1).getDataType();
+        DataType falseType = inputs.get(2).getDataType();
+        if (trueType == DataType.BOOL || falseType == DataType.BOOL) {
+            throw new IllegalArgumentException("where branches must have numeric dtypes.");
+        }
+        DataType branchType = promote(trueType, falseType);
+        return new PreparedTypeContract(branchType, List.of(DataType.BOOL, branchType, branchType));
     }
 
     private static DataType resolveTargetType(Tensor node, List<Tensor> inputs) {
@@ -326,6 +418,16 @@ public final class CPUBackend {
             return DataType.FLOAT16;
         }
         throw new IllegalArgumentException("BOOL is not supported by generic numeric promotion. left=" + left + ", right=" + right);
+    }
+
+    private static boolean canConvertPreparedInput(DataType sourceType, DataType expectedType) {
+        if (sourceType == expectedType) {
+            return true;
+        }
+        if (sourceType == DataType.BOOL || expectedType == DataType.BOOL) {
+            return false;
+        }
+        return true;
     }
 
     private static Tensor createPreparedTensor(Tensor source, DataType targetType, Tensor node, int inputIndex) {

@@ -54,6 +54,10 @@ public final class CpuKernelContext {
         return nodePlan.broadcastPlan();
     }
 
+    public ResolvedWhereBroadcastPlan whereBroadcastPlan() {
+        return nodePlan.whereBroadcastPlan();
+    }
+
     public boolean useFastExpApprox() {
         return executionContext.useFastExpApprox();
     }

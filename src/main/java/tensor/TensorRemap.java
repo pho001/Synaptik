@@ -106,8 +106,12 @@ public final class TensorRemap {
 
     private static void dispatchApply(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
         if (src.getDataType() != dst.getDataType()) {
-            throw new IllegalArgumentException("TensorRemap requires matching tensor dtypes. src="
-                    + src.getDataType() + ", dst=" + dst.getDataType());
+            if (!canConvertNumeric(src.getDataType(), dst.getDataType())) {
+                throw new IllegalArgumentException("TensorRemap requires matching tensor dtypes or supported numeric conversion. src="
+                        + src.getDataType() + ", dst=" + dst.getDataType());
+            }
+            applyConverted(src, dst, plan, parallelThreshold);
+            return;
         }
         switch (src.getDataType()) {
             case FLOAT64 -> applyF64(src, dst, plan, parallelThreshold);
@@ -115,6 +119,28 @@ public final class TensorRemap {
             case FLOAT16 -> applyF16(src, dst, plan, parallelThreshold);
             case BOOL -> applyBool(src, dst, plan, parallelThreshold);
         }
+    }
+
+    private static void applyConverted(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
+        if (plan.logicalSize > parallelThreshold) {
+            parallelApplyConverted(src, dst, plan);
+        } else {
+            sequentialApplyConverted(src, dst, plan);
+        }
+    }
+
+    private static void sequentialApplyConverted(Tensor src, Tensor dst, RemapPlan plan) {
+        walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
+            dst.setByStorageOffset(dstOffset, src.getByStorageOffset(srcOffset));
+        });
+    }
+
+    private static void parallelApplyConverted(Tensor src, Tensor dst, RemapPlan plan) {
+        parallelForRanges(plan.logicalSize, (start, end) -> {
+            walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, start, end, (srcOffset, dstOffset) -> {
+                dst.setByStorageOffset(dstOffset, src.getByStorageOffset(srcOffset));
+            });
+        });
     }
 
     private static void applyF64(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
@@ -362,6 +388,13 @@ public final class TensorRemap {
         return (src.isContiguous() && dst.isContiguous())
                 || Arrays.equals(src.getStridesUnsafe(), dst.getStridesUnsafe())
                 || logicalSize <= 1;
+    }
+
+    private static boolean canConvertNumeric(DataType srcType, DataType dstType) {
+        if (srcType == DataType.BOOL || dstType == DataType.BOOL) {
+            return false;
+        }
+        return srcType != null && dstType != null;
     }
 
     @FunctionalInterface
