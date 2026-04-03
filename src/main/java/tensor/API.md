@@ -100,6 +100,7 @@ The focus here is practical API usage:
   - [`nllLoss(Tensor targets, int classDimension)`](#nlllosstensor-targets-int-classdimension)
   - [`crossEntropyLoss(Tensor targets, int classDimension)`](#crossentropylosstensor-targets-int-classdimension)
   - [`nllLossFromIndices(Tensor targetIndices, int classDimension)`](#nlllossfromindicestensor-targetindices-int-classdimension)
+  - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)`](#crossentropylossfromindicestensor-targetindices-int-classdimension)
 - [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
   - [`forwardOutput()`](#forwardoutput)
   - [`buildBackwardGraph()`](#buildbackwardgraph)
@@ -1914,6 +1915,31 @@ Tensor logProbs = logits.logSoftmax(1);
 Tensor targetIndices = new Tensor(new double[]{2, 0}, new int[]{2}, null, "targetIndices");
 Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1);
 // Returns: a scalar mean NLL loss for class-id targets.
+```
+
+### `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)`
+
+Computes mean cross-entropy loss directly from logits and class-id targets.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logits.shape` without the class axis
+- `classDimension`: axis containing class logits
+
+Returns:
+- scalar-shaped loss tensor
+
+Behavior:
+- current implementation is composition-first:
+  - `logits.logSoftmax(classDimension).nllLossFromIndices(targetIndices, classDimension)`
+- this is the logits-facing ergonomic surface for class-id targets
+
+Example:
+```java
+Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1);
+// Equivalent to:
+// Tensor loss = logits.logSoftmax(1).nllLossFromIndices(targetIndices, 1);
+//
+// Returns: a scalar mean cross-entropy loss tensor for class-id targets.
 ```
 
 ## Execution Anchor / Autodiff Helpers

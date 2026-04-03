@@ -278,4 +278,8 @@ public final class TensorOps {
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension) {
         return TensorNaryOps.nllLossFromIndices(logProbs, targetIndices, classDimension);
     }
+
+    public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension) {
+        return TensorNaryOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension);
+    }
 }

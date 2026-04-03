@@ -121,6 +121,20 @@ final class TensorNaryOps {
         return logProbs.gather(targetIndices, normalizedClassDimension).neg().mean();
     }
 
+    static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension) {
+        if (logits == null || targetIndices == null) {
+            throw new IllegalArgumentException("crossEntropyLossFromIndices inputs cannot be null");
+        }
+        if (logits.getDataType() == DataType.BOOL || targetIndices.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("crossEntropyLossFromIndices requires numeric logits and numeric integral indices.");
+        }
+        int[] logitsShape = logits.getShape();
+        int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logitsShape.length);
+        int[] expectedIndexShape = reduceShape(logitsShape, normalizedClassDimension);
+        validateShape(targetIndices.getShape(), expectedIndexShape, "crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
+        return logits.logSoftmax(normalizedClassDimension).nllLossFromIndices(targetIndices, normalizedClassDimension);
+    }
+
     private static int sampleCount(int[] shape, int classDimension) {
         int count = 1;
         for (int i = 0; i < shape.length; i++) {

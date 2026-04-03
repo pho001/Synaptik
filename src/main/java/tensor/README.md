@@ -169,6 +169,8 @@ The current public graph-building operation surface on `Tensor` is:
 
 - `nllLoss(Tensor targets, int classDimension)`
 - `crossEntropyLoss(Tensor targets, int classDimension)`
+- `nllLossFromIndices(Tensor targetIndices, int classDimension)`
+- `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)`
 
 ### Indexing
 
@@ -385,6 +387,13 @@ For axis reduction:
 - `targetIndices` shape equals `logProbs.shape` without the class axis
 - current implementation is composition-first over `gather(...).neg().mean()`
 - this is the bridge from dense-target loss family toward classic class-id target workflows
+
+`crossEntropyLossFromIndices(targetIndices, classDimension)` is the logits-facing ergonomic counterpart:
+
+- input is raw logits
+- `targetIndices` shape equals `logits.shape` without the class axis
+- current implementation is composition-first over:
+  - `logits.logSoftmax(classDimension).nllLossFromIndices(targetIndices, classDimension)`
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.
