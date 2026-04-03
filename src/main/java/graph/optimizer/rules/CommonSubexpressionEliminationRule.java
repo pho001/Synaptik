@@ -7,6 +7,7 @@ import operations.FusedOperation;
 import operations.Operation;
 import operations.clampMax;
 import operations.clampMin;
+import operations.crossEntropyLoss;
 import operations.expand;
 import operations.expandDims;
 import operations.maxGrad;
@@ -152,6 +153,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case SOFTMAX -> new AxisSignature(((softmax) op).getDimension());
             case LOG_SOFTMAX -> new AxisSignature(((logSoftmax) op).getDimension());
             case NLL_LOSS -> new AxisSignature(((nllLoss) op).getClassDimension());
+            case CROSS_ENTROPY_LOSS -> new AxisSignature(((crossEntropyLoss) op).getClassDimension());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
             case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());

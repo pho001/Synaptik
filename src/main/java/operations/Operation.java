@@ -34,6 +34,7 @@ public interface Operation {
         SOFTMAX(OpArityClass.SPECIAL, false),
         LOG_SOFTMAX(OpArityClass.SPECIAL, false),
         NLL_LOSS(OpArityClass.SPECIAL, false),
+        CROSS_ENTROPY_LOSS(OpArityClass.SPECIAL, false),
         REDUCE_MIN_GRAD(OpArityClass.SPECIAL, false),
         REDUCE_MAX_GRAD(OpArityClass.SPECIAL, false),
         WHERE(OpArityClass.ELEMENT_WISE, false),

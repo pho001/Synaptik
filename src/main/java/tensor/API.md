@@ -1817,9 +1817,9 @@ Returns:
 - scalar-shaped loss tensor
 
 Behavior:
-- currently defined compositionally as `logits.logSoftmax(classDimension).nllLoss(targets, classDimension)`
 - this is the logits-facing ergonomic surface
-- there is not yet a dedicated `CROSS_ENTROPY_LOSS` primitive in this version
+- semantic reference is `logits.logSoftmax(classDimension).nllLoss(targets, classDimension)`
+- runtime now uses the dedicated `CROSS_ENTROPY_LOSS` primitive for the current dense-target mean-reduction contract
 
 Example:
 ```java

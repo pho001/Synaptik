@@ -64,6 +64,7 @@ Current descriptor classes in this package:
 - `softmax`
 - `logSoftmax`
 - `nllLoss`
+- `crossEntropyLoss`
 - `reduceAll`
 - `reduceAny`
 - `reduceMin`
@@ -226,6 +227,7 @@ These are canonical graph/runtime primitives and should remain first-class:
   - `SOFTMAX`
   - `LOG_SOFTMAX`
   - `NLL_LOSS`
+  - `CROSS_ENTROPY_LOSS`
   - `REDUCE_MIN`
   - `REDUCE_MAX`
   - `REDUCE_ALL`

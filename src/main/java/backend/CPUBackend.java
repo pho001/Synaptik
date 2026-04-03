@@ -121,7 +121,7 @@ public final class CPUBackend {
 
         ResolvedReductionHints reductionHints =
                 (op != null && switch (op.opType()) {
-                    case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS -> true;
+                    case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS -> true;
                     default -> false;
                 })
                         ? planner.resolveReductionHints(estimateReductionLogicalSize(prepared.runtimeInputs(), node), targetType)
@@ -213,7 +213,7 @@ public final class CPUBackend {
         }
 
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, NOOP -> false;
+            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, NOOP -> false;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
             case MATMUL -> true;
             case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.isContiguous();
@@ -334,7 +334,7 @@ public final class CPUBackend {
             return false;
         }
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, SOFTMAX, LOG_SOFTMAX, NLL_LOSS,
+            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS,
                     REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, NOOP -> true;
             default -> false;
         };

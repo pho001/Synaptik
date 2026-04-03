@@ -1,5 +1,6 @@
 package tensor;
 
+import operations.crossEntropyLoss;
 import operations.nllLoss;
 
 import java.util.ArrayList;
@@ -76,7 +77,34 @@ final class TensorNaryOps {
         if (logits.getDataType() == DataType.BOOL || targets.getDataType() == DataType.BOOL) {
             throw new IllegalArgumentException("crossEntropyLoss requires numeric inputs.");
         }
-        return logits.logSoftmax(classDimension).nllLoss(targets, classDimension);
+        int[] logitsShape = logits.getShape();
+        int[] targetShape = targets.getShape();
+        if (logitsShape.length != targetShape.length) {
+            throw new IllegalArgumentException("crossEntropyLoss targets rank must match logits rank.");
+        }
+        for (int i = 0; i < logitsShape.length; i++) {
+            if (logitsShape[i] != targetShape[i]) {
+                throw new IllegalArgumentException("crossEntropyLoss targets shape must match logits shape.");
+            }
+        }
+        int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logitsShape.length);
+        DataType outputType = TensorDataTypeUtil.binary(logits, targets);
+        Tensor out = new Tensor(new int[]{1}, asInputs(logits, targets), new crossEntropyLoss(normalizedClassDimension), "crossEntropyLoss", outputType);
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+
+            double scale = outGrad.scalarAsDouble() / sampleCount(logitsShape, normalizedClassDimension);
+            if (logits.getRequiresGrad()) {
+                Tensor grad = logits.softmax(normalizedClassDimension).sub(targets).mul(scale);
+                accumulateGradient(logits, grad);
+            }
+            if (targets.getRequiresGrad()) {
+                Tensor grad = logits.logSoftmax(normalizedClassDimension).mul(-scale);
+                accumulateGradient(targets, grad);
+            }
+        });
+        return out;
     }
 
     private static int sampleCount(int[] shape, int classDimension) {

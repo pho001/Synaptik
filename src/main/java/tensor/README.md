@@ -355,8 +355,9 @@ For axis reduction:
 `crossEntropyLoss(targets, classDimension)` is currently the ergonomic logits-facing surface:
 
 - input is raw logits
-- internally it is defined as `logSoftmax(classDimension).nllLoss(targets, classDimension)`
-- no dedicated `CROSS_ENTROPY_LOSS` primitive exists yet in this first version
+- internally it now maps to a dedicated `CROSS_ENTROPY_LOSS` primitive
+- semantic reference remains `logSoftmax(classDimension).nllLoss(targets, classDimension)`
+- current contract is still the narrow dense-target mean-reduction variant
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.
