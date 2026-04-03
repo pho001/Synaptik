@@ -126,6 +126,9 @@ The current public graph-building operation surface on `Tensor` is:
 - `equalTo(Tensor second)`
 - `notEqualTo(Tensor second)`
 - `where(Tensor condition, Tensor ifTrue, Tensor ifFalse)` (static helper)
+- `logicalAnd(Tensor second)`
+- `logicalOr(Tensor second)`
+- `logicalNot()`
 
 ### Unary / Scalar
 
@@ -196,6 +199,15 @@ They produce `BOOL` tensors and are nondifferentiable.
 - broadcasts all three inputs to a common output shape
 - returns the promoted numeric dtype of `x` and `y`
 - propagates gradient only through the selected data branches
+
+Logical bool ops:
+
+- `logicalAnd`
+- `logicalOr`
+- `logicalNot`
+
+require `BOOL` tensors, produce `BOOL` tensors, and are nondifferentiable.
+`logicalAnd` and `logicalOr` follow the same binary broadcasting contract as other broadcast-aware binary ops.
 
 Their shape contract is:
 

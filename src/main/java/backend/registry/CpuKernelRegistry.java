@@ -22,6 +22,9 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.LE, new CpuLessOrEqualKernel());
         KERNELS.put(Operation.OpType.EQ, new CpuEqualToKernel());
         KERNELS.put(Operation.OpType.NE, new CpuNotEqualToKernel());
+        KERNELS.put(Operation.OpType.LOGICAL_AND, new CpuLogicalAndKernel());
+        KERNELS.put(Operation.OpType.LOGICAL_OR, new CpuLogicalOrKernel());
+        KERNELS.put(Operation.OpType.LOGICAL_NOT, new CpuLogicalNotKernel());
         KERNELS.put(Operation.OpType.MIN_GRAD, new CpuMinGradKernel());
         KERNELS.put(Operation.OpType.MAX_GRAD, new CpuMaxGradKernel());
         KERNELS.put(Operation.OpType.REDUCE_MIN, new CpuReduceMinKernel());

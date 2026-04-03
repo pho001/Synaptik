@@ -216,7 +216,7 @@ public final class CPUBackend {
             case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, REDUCE_MIN, REDUCE_MAX, NOOP -> false;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
             case MATMUL -> true;
-            case GT, LT, EQ, WHERE -> !input.isContiguous();
+            case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.isContiguous();
             default -> op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
                     && planner.shouldMaterializeNonContiguous(node.getFlatDataSize());
         };
@@ -280,7 +280,7 @@ public final class CPUBackend {
             return false;
         }
         return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR -> true;
             default -> false;
         };
     }
@@ -348,6 +348,8 @@ public final class CPUBackend {
         return switch (op.opType()) {
             case GT, GE, LT, LE, EQ, NE -> resolveCompareContract(inputs);
             case WHERE -> resolveWhereContract(inputs);
+            case LOGICAL_AND, LOGICAL_OR -> resolveLogicalBinaryContract(inputs);
+            case LOGICAL_NOT -> resolveLogicalUnaryContract(inputs);
             default -> {
                 DataType outputType = resolveTargetType(node, inputs);
                 yield uniformTypeContract(outputType, inputs == null ? 0 : inputs.size());
@@ -390,6 +392,26 @@ public final class CPUBackend {
         }
         DataType branchType = promote(trueType, falseType);
         return new PreparedTypeContract(branchType, List.of(DataType.BOOL, branchType, branchType));
+    }
+
+    private static PreparedTypeContract resolveLogicalBinaryContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 2) {
+            throw new IllegalArgumentException("logical binary ops expect exactly two inputs.");
+        }
+        if (inputs.get(0).getDataType() != DataType.BOOL || inputs.get(1).getDataType() != DataType.BOOL) {
+            throw new IllegalArgumentException("logical binary ops require BOOL inputs.");
+        }
+        return new PreparedTypeContract(DataType.BOOL, List.of(DataType.BOOL, DataType.BOOL));
+    }
+
+    private static PreparedTypeContract resolveLogicalUnaryContract(List<Tensor> inputs) {
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException("logicalNot expects exactly one input.");
+        }
+        if (inputs.get(0).getDataType() != DataType.BOOL) {
+            throw new IllegalArgumentException("logicalNot requires BOOL input.");
+        }
+        return new PreparedTypeContract(DataType.BOOL, List.of(DataType.BOOL));
     }
 
     private static DataType resolveTargetType(Tensor node, List<Tensor> inputs) {

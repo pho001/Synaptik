@@ -79,6 +79,18 @@ public final class TensorOps {
         return TensorSelectOps.where(condition, ifTrue, ifFalse);
     }
 
+    public static Tensor logicalAnd(Tensor first, Tensor second) {
+        return TensorBoolOps.logicalAnd(first, second);
+    }
+
+    public static Tensor logicalOr(Tensor first, Tensor second) {
+        return TensorBoolOps.logicalOr(first, second);
+    }
+
+    public static Tensor logicalNot(Tensor input) {
+        return TensorBoolOps.logicalNot(input);
+    }
+
     public static Tensor matmul(Tensor first, Tensor second) {
         return TensorMatMulOps.matmul(first, second);
     }

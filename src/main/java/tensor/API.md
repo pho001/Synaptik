@@ -171,6 +171,9 @@ These are the instance-level graph-building operations currently exposed directl
 - `equalTo(Tensor second)`
 - `notEqualTo(Tensor second)`
 - `where(Tensor condition, Tensor ifTrue, Tensor ifFalse)` (static helper)
+- `logicalAnd(Tensor second)`
+- `logicalOr(Tensor second)`
+- `logicalNot()`
 
 ### Unary / Scalar
 
@@ -379,6 +382,19 @@ Comparison ops (`greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equ
 - returns the promoted numeric dtype of `x` and `y`
 - is differentiable only in the data branches
 - does not propagate gradient through `condition`
+
+Logical bool ops:
+
+- `logicalAnd(Tensor second)`
+- `logicalOr(Tensor second)`
+- `logicalNot()`
+
+They:
+
+- require `BOOL` tensors
+- produce `BOOL` tensors
+- are nondifferentiable
+- use the same binary broadcasting contract for `logicalAnd` / `logicalOr`
 
 ## Explicit Expand Operation
 

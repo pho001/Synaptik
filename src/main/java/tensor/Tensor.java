@@ -744,6 +744,18 @@ public class Tensor {
         return TensorOps.where(condition, ifTrue, ifFalse);
     }
 
+    public Tensor logicalAnd(Tensor second) {
+        return TensorOps.logicalAnd(this, second);
+    }
+
+    public Tensor logicalOr(Tensor second) {
+        return TensorOps.logicalOr(this, second);
+    }
+
+    public Tensor logicalNot() {
+        return TensorOps.logicalNot(this);
+    }
+
     public Tensor matmul(Tensor second) {
         return TensorOps.matmul(this, second);
     }

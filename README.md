@@ -195,6 +195,7 @@ Quick operation catalog on `Tensor`:
 - Layout / shape: `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`
 - Binary: `add`, `sub`, `mul`, `div`, `min`, `max`, `matmul`
 - Comparison / select: `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, `notEqualTo`, `where`
+- Bool ops: `logicalAnd`, `logicalOr`, `logicalNot`
 - Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`
 - Reduction: `sum()`, `sum(axis)`, `mean()`, `mean(axis)`, `min()`, `min(axis)`, `max()`, `max(axis)`
 - Helper anchor: `forwardOutput()`
@@ -226,6 +227,7 @@ Broadcasting contract for binary element-wise ops:
 Comparison ops follow the same binary broadcasting contract and produce `BOOL` tensors.
 `where(condition, x, y)` requires a `BOOL` condition, broadcasts all three inputs to a common output shape, and returns the promoted numeric dtype of `x` and `y`.
 Comparison ops are nondifferentiable; `where` propagates gradients only through the selected data branches.
+Logical bool ops operate only on `BOOL` tensors. `logicalAnd` and `logicalOr` use the same binary broadcasting rules; `logicalNot` is unary. All logical bool ops are nondifferentiable.
 
 ## Quick Start Tensor Ops
 
