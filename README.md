@@ -199,8 +199,8 @@ Quick operation catalog on `Tensor`:
 - Binary: `add`, `sub`, `mul`, `div`, `min`, `max`, `matmul`
 - Comparison / select: `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, `notEqualTo`, `where`
 - Bool ops: `logicalAnd`, `logicalOr`, `logicalNot`
-- Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`
-- Reduction: `sum()`, `sum(axis)`, `mean()`, `mean(axis)`, `min()`, `min(axis)`, `max()`, `max(axis)`
+- Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`, `clamp(min, max)`
+- Reduction: `sum()`, `sum(axis)`, `mean()`, `mean(axis)`, `min()`, `min(axis)`, `max()`, `max(axis)`, `all()`, `all(axis)`, `any()`, `any(axis)`
 - Helper anchor: `forwardOutput()`
 
 Reduction details:
@@ -211,6 +211,8 @@ Reduction details:
 - `mean(...)` follows the same shape policy as `sum(...)`, but divides by the reduced axis size (or total element count for `mean()`)
 - `min(...)` and `max(...)` follow the same shape policy as `sum(...)`
 - reduction `min/max` backward routes gradient only to winning elements; ties split gradient evenly
+- `all(...)` and `any(...)` are `BOOL`-only reductions with the same shape policy as other reductions
+- `clamp(min, max)` limits numeric values into the closed interval `[min, max]`
 
 `expand(...)` is also available as an explicit broadcast-shape operation.
 It is implemented as a zero-stride alias view.

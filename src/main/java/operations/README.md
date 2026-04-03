@@ -60,6 +60,8 @@ Current descriptor classes in this package:
 - `sqrt`
 - `mulScalar`
 - `sum`
+- `reduceAll`
+- `reduceAny`
 - `reduceMin`
 - `reduceMax`
 - `reduceMinGrad`

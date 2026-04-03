@@ -134,6 +134,7 @@ The current public graph-building operation surface on `Tensor` is:
 - `inv()`
 - `sqrt()`
 - `sigmoid()`
+- `clamp(double minValue, double maxValue)`
 
 ### Reduction
 
@@ -149,6 +150,12 @@ The current public graph-building operation surface on `Tensor` is:
 - `max(int dimension)`
 - `max(int dimension, boolean keepDims)`
 - `max()`
+- `all(int dimension)`
+- `all(int dimension, boolean keepDims)`
+- `all()`
+- `any(int dimension)`
+- `any(int dimension, boolean keepDims)`
+- `any()`
 
 ### Helper / Internal Execution Anchor
 
@@ -160,6 +167,54 @@ For example, some descriptors exist for backend/optimizer reasons even when ther
 The full public API reference remains in:
 
 - [src/main/java/tensor/API.md](../tensor/API.md)
+
+## Contiguous and Materialization Contract
+
+`Tensor` supports both:
+
+- dense contiguous tensors
+- non-contiguous or view-like tensors defined by shape/stride metadata
+
+Important current behavior:
+
+- `permute(...)` creates a view-like tensor with reordered strides
+- `expand(...)` creates a zero-stride broadcast alias view
+- `reshape(...)` changes shape interpretation while preserving element count
+- `contiguous()` is the canonical explicit materialization path
+
+Use `contiguous()` when:
+
+- a later kernel benefits from dense row-major layout
+- you want to materialize an expanded zero-stride broadcast view
+- you want a stable dense tensor independent of the current view layout
+
+## Broadcasting Contract
+
+The core broadcasting contract used by tensor operations is:
+
+- ranks align from the right
+- missing leading dimensions behave as `1`
+- two dimensions are compatible if:
+  - they are equal
+  - or one side is `1`
+- the output dimension size is the maximum of the two compatible dimensions
+
+Examples:
+
+- `[2, 3, 4]` with `[3, 4]` produces `[2, 3, 4]`
+- `[3, 4]` with `[2, 1, 4]` produces `[2, 3, 4]`
+- `[1, 1, 2, 4]` with `[2, 3, 1, 4]` produces `[2, 3, 2, 4]`
+
+This contract is used by:
+
+- binary arithmetic ops
+- comparison ops
+- logical binary bool ops
+- `where(condition, x, y)` via common broadcast shape resolution across all three inputs
+
+Backward note:
+
+- if an operand was broadcast in forward execution, its gradient is reduced back to the original operand shape
 
 ## Broadcasting Contract
 
@@ -253,6 +308,12 @@ For axis reduction:
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.
+
+`all(...)` and `any(...)` are `BOOL`-only reductions.
+They follow the same shape policy as other reductions, but they are nondifferentiable.
+
+`clamp(minValue, maxValue)` is a piecewise numeric transform built on top of compare/select semantics.
+It keeps values inside the interval and replaces values below/above the interval bounds by the corresponding boundary value.
 
 ## Gradient and Backward
 
