@@ -818,6 +818,60 @@ Tensor clipped = Tensor.where(x.greaterThan(cap), cap, x);
 // Returns: numeric tensors with the promoted branch dtype.
 ```
 
+### `minimum(Tensor second)`
+
+Piecewise minimum surface built on compare/select semantics.
+
+Parameters:
+- `second`: right-hand numeric operand
+
+Returns:
+- numeric tensor selecting the smaller value element-wise
+
+Behavior:
+- effectively `where(this < second, this, second)`
+- uses where-style branch semantics on ties
+- this is intentionally different from the specialized `min(Tensor second)` op, which keeps its own tie-gradient contract
+
+Example:
+```java
+Tensor a = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{2, 4, 3}, new int[]{3}, null, "b");
+
+Tensor y = a.minimum(b);
+// y has shape [3] and values [1, 4, 3].
+// On the tie at the last element, the where-style branch selects the second operand.
+//
+// Returns: a compare/select-based numeric minimum tensor.
+```
+
+### `maximum(Tensor second)`
+
+Piecewise maximum surface built on compare/select semantics.
+
+Parameters:
+- `second`: right-hand numeric operand
+
+Returns:
+- numeric tensor selecting the larger value element-wise
+
+Behavior:
+- effectively `where(this > second, this, second)`
+- uses where-style branch semantics on ties
+- this is intentionally different from the specialized `max(Tensor second)` op, which keeps its own tie-gradient contract
+
+Example:
+```java
+Tensor a = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "a");
+Tensor b = new Tensor(new double[]{2, 4, 3}, new int[]{3}, null, "b");
+
+Tensor y = a.maximum(b);
+// y has shape [3] and values [2, 5, 3].
+// On the tie at the last element, the where-style branch selects the second operand.
+//
+// Returns: a compare/select-based numeric maximum tensor.
+```
+
 ## Logical Bool Operations
 
 Logical bool ops:
@@ -1131,6 +1185,44 @@ Tensor y = x.clamp(0.0, 1.0);
 // y has values [0.0, 0.0, 0.5, 1.0].
 //
 // Returns: a tensor whose values are limited to [0.0, 1.0].
+```
+
+### `clampMin(double minValue)`
+
+Raises only values below the lower bound.
+
+Parameters:
+- `minValue`: lower bound
+
+Returns:
+- numeric tensor where values below `minValue` are replaced by `minValue`
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{-2.0, -0.5, 0.5, 3.0}, new int[]{4}, null, "x");
+Tensor y = x.clampMin(0.0);
+// y has values [0.0, 0.0, 0.5, 3.0].
+//
+// Returns: a tensor clamped only from below.
+```
+
+### `clampMax(double maxValue)`
+
+Lowers only values above the upper bound.
+
+Parameters:
+- `maxValue`: upper bound
+
+Returns:
+- numeric tensor where values above `maxValue` are replaced by `maxValue`
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{-2.0, -0.5, 0.5, 3.0}, new int[]{4}, null, "x");
+Tensor y = x.clampMax(1.0);
+// y has values [-2.0, -0.5, 0.5, 1.0].
+//
+// Returns: a tensor clamped only from above.
 ```
 
 ## Reduction Operations

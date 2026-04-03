@@ -197,9 +197,9 @@ Quick operation catalog on `Tensor`:
 
 - Layout / shape: `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`
 - Binary: `add`, `sub`, `mul`, `div`, `min`, `max`, `matmul`
-- Comparison / select: `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, `notEqualTo`, `where`
+- Comparison / select: `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, `notEqualTo`, `where`, `minimum`, `maximum`
 - Bool ops: `logicalAnd`, `logicalOr`, `logicalNot`
-- Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`, `clamp(min, max)`
+- Unary / scalar: `neg`, `inv`, `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sqrt`, `sigmoid`, `pow`, `mul(scalar)`, `clamp(min, max)`, `clampMin(min)`, `clampMax(max)`
 - Reduction: `sum()`, `sum(axis)`, `mean()`, `mean(axis)`, `min()`, `min(axis)`, `max()`, `max(axis)`, `all()`, `all(axis)`, `any()`, `any(axis)`
 - Helper anchor: `forwardOutput()`
 
@@ -213,6 +213,9 @@ Reduction details:
 - reduction `min/max` backward routes gradient only to winning elements; ties split gradient evenly
 - `all(...)` and `any(...)` are `BOOL`-only reductions with the same shape policy as other reductions
 - `clamp(min, max)` limits numeric values into the closed interval `[min, max]`
+- `clampMin(min)` raises only values below the lower bound
+- `clampMax(max)` lowers only values above the upper bound
+- `minimum(a, b)` / `maximum(a, b)` are compare/select-based piecewise surfaces with where-style tie semantics
 
 `expand(...)` is also available as an explicit broadcast-shape operation.
 It is implemented as a zero-stride alias view.

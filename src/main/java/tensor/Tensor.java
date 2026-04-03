@@ -744,6 +744,14 @@ public class Tensor {
         return TensorOps.where(condition, ifTrue, ifFalse);
     }
 
+    public Tensor minimum(Tensor second) {
+        return TensorOps.minimum(this, second);
+    }
+
+    public Tensor maximum(Tensor second) {
+        return TensorOps.maximum(this, second);
+    }
+
     public Tensor logicalAnd(Tensor second) {
         return TensorOps.logicalAnd(this, second);
     }
@@ -783,6 +791,14 @@ public class Tensor {
 
     public Tensor clamp(double minValue, double maxValue) {
         return TensorOps.clamp(this, minValue, maxValue);
+    }
+
+    public Tensor clampMin(double minValue) {
+        return TensorOps.clampMin(this, minValue);
+    }
+
+    public Tensor clampMax(double maxValue) {
+        return TensorOps.clampMax(this, maxValue);
     }
 
     public Tensor pow(double exp) {

@@ -109,4 +109,42 @@ public class CompareSelectExecutionTest {
 
         assertThrows(UnsupportedOperationException.class, () -> CompiledGraph.compile(mask, OptimizerConfig.trainingDefaults()));
     }
+
+    @Test
+    void minimumAndMaximumForwardMatchExpectedValues() {
+        Tensor a = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{2, 4, 3}, new int[]{3}, null, "b", DataType.FLOAT64);
+
+        Tensor min = a.minimum(b);
+        Tensor max = a.maximum(b);
+
+        CompiledGraph.compile(min, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        CompiledGraph.compile(max, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{1, 4, 3}, min.toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{2, 5, 3}, max.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void minimumAndMaximumUseWhereStyleTieGradientSemantics() {
+        Tensor aMin = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "aMin", DataType.FLOAT64);
+        Tensor bMin = new Tensor(new double[]{2, 4, 3}, new int[]{3}, null, "bMin", DataType.FLOAT64);
+        aMin.setRequiresGrad(true);
+        bMin.setRequiresGrad(true);
+
+        Tensor min = aMin.minimum(bMin);
+        CompiledGraph.compile(min, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        assertArrayEquals(new double[]{1, 0, 0}, aMin.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{0, 1, 1}, bMin.getGradient().toDoubleArrayCopy(), 1e-9);
+
+        Tensor aMax = new Tensor(new double[]{1, 5, 3}, new int[]{3}, null, "aMax", DataType.FLOAT64);
+        Tensor bMax = new Tensor(new double[]{2, 4, 3}, new int[]{3}, null, "bMax", DataType.FLOAT64);
+        aMax.setRequiresGrad(true);
+        bMax.setRequiresGrad(true);
+
+        Tensor max = aMax.maximum(bMax);
+        CompiledGraph.compile(max, OptimizerConfig.trainingDefaults()).execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        assertArrayEquals(new double[]{0, 1, 0}, aMax.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{1, 0, 1}, bMax.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
 }

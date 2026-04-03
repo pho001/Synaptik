@@ -79,6 +79,14 @@ public final class TensorOps {
         return TensorSelectOps.where(condition, ifTrue, ifFalse);
     }
 
+    public static Tensor minimum(Tensor first, Tensor second) {
+        return TensorPiecewiseOps.minimum(first, second);
+    }
+
+    public static Tensor maximum(Tensor first, Tensor second) {
+        return TensorPiecewiseOps.maximum(first, second);
+    }
+
     public static Tensor logicalAnd(Tensor first, Tensor second) {
         return TensorBoolOps.logicalAnd(first, second);
     }
@@ -117,6 +125,14 @@ public final class TensorOps {
 
     public static Tensor clamp(Tensor input, double minValue, double maxValue) {
         return TensorUnaryOps.clamp(input, minValue, maxValue);
+    }
+
+    public static Tensor clampMin(Tensor input, double minValue) {
+        return TensorUnaryOps.clampMin(input, minValue);
+    }
+
+    public static Tensor clampMax(Tensor input, double maxValue) {
+        return TensorUnaryOps.clampMax(input, maxValue);
     }
 
     public static Tensor pow(Tensor input, double exponent) {

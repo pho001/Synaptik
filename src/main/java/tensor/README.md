@@ -117,6 +117,8 @@ The current public graph-building operation surface on `Tensor` is:
 - `equalTo(Tensor second)`
 - `notEqualTo(Tensor second)`
 - `where(Tensor condition, Tensor ifTrue, Tensor ifFalse)` (static helper)
+- `minimum(Tensor second)`
+- `maximum(Tensor second)`
 - `logicalAnd(Tensor second)`
 - `logicalOr(Tensor second)`
 - `logicalNot()`
@@ -135,6 +137,8 @@ The current public graph-building operation surface on `Tensor` is:
 - `sqrt()`
 - `sigmoid()`
 - `clamp(double minValue, double maxValue)`
+- `clampMin(double minValue)`
+- `clampMax(double maxValue)`
 
 ### Reduction
 
@@ -314,6 +318,21 @@ They follow the same shape policy as other reductions, but they are nondifferent
 
 `clamp(minValue, maxValue)` is a piecewise numeric transform built on top of compare/select semantics.
 It keeps values inside the interval and replaces values below/above the interval bounds by the corresponding boundary value.
+
+`clampMin(minValue)` and `clampMax(maxValue)` are the one-sided variants:
+
+- `clampMin` only raises values below the lower bound
+- `clampMax` only lowers values above the upper bound
+
+`minimum(second)` and `maximum(second)` are explicit compare/select-based surfaces:
+
+- `minimum(a, b)` behaves like `where(a < b, a, b)`
+- `maximum(a, b)` behaves like `where(a > b, a, b)`
+
+Important:
+
+- they intentionally use where-style branch semantics for equal values
+- that tie behavior is different from the specialized `min/max` ops, which keep their existing tie-gradient contract
 
 ## Gradient and Backward
 

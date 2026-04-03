@@ -248,4 +248,26 @@ final class TensorUnaryOps {
         Tensor upperClamped = Tensor.where(input.greaterThan(upper), upper, input);
         return Tensor.where(upperClamped.lessThan(lower), lower, upperClamped);
     }
+
+    static Tensor clampMin(Tensor input, double minValue) {
+        if (input == null) {
+            throw new IllegalArgumentException("clampMin input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("clampMin requires numeric input.");
+        }
+        Tensor lower = Tensor.scalar(minValue, input.getDataType());
+        return Tensor.where(input.lessThan(lower), lower, input);
+    }
+
+    static Tensor clampMax(Tensor input, double maxValue) {
+        if (input == null) {
+            throw new IllegalArgumentException("clampMax input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("clampMax requires numeric input.");
+        }
+        Tensor upper = Tensor.scalar(maxValue, input.getDataType());
+        return Tensor.where(input.greaterThan(upper), upper, input);
+    }
 }
