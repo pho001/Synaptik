@@ -15,10 +15,12 @@ public final class CrossEntropyLossLoops {
         validate(logits, targets, node, classDimension);
         double[] logitsData = logits.getFloat64Data();
         double[] targetData = targets.getFloat64Data();
-        node.getFloat64Data()[0] = reduceMeanLoss(
+        node.getFloat64Data()[node.getStorageOffsetUnsafe()] = reduceMeanLoss(
                 logits.getShapeUnsafe(),
                 logits.getStridesUnsafe(),
+                logits.getStorageOffsetUnsafe(),
                 targets.getStridesUnsafe(),
+                targets.getStorageOffsetUnsafe(),
                 classDimension,
                 context.reductionHints(),
                 group -> computeGroupF64(logitsData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
@@ -29,10 +31,12 @@ public final class CrossEntropyLossLoops {
         validate(logits, targets, node, classDimension);
         float[] logitsData = logits.getFloat32Data();
         float[] targetData = targets.getFloat32Data();
-        node.getFloat32Data()[0] = (float) reduceMeanLoss(
+        node.getFloat32Data()[node.getStorageOffsetUnsafe()] = (float) reduceMeanLoss(
                 logits.getShapeUnsafe(),
                 logits.getStridesUnsafe(),
+                logits.getStorageOffsetUnsafe(),
                 targets.getStridesUnsafe(),
+                targets.getStorageOffsetUnsafe(),
                 classDimension,
                 context.reductionHints(),
                 group -> computeGroupF32(logitsData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
@@ -46,12 +50,14 @@ public final class CrossEntropyLossLoops {
         float loss = (float) reduceMeanLoss(
                 logits.getShapeUnsafe(),
                 logits.getStridesUnsafe(),
+                logits.getStorageOffsetUnsafe(),
                 targets.getStridesUnsafe(),
+                targets.getStorageOffsetUnsafe(),
                 classDimension,
                 context.reductionHints(),
                 group -> computeGroupF16(logitsData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
         );
-        node.getFloat16Data()[0] = CpuDTypeOps.toHalfBits(loss);
+        node.getFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toHalfBits(loss);
     }
 
     private static void validate(Tensor logits, Tensor targets, Tensor node, int classDimension) {
@@ -143,7 +149,9 @@ public final class CrossEntropyLossLoops {
     private static double reduceMeanLoss(
             int[] shape,
             int[] logitsStrides,
+            int logitsBaseOffset,
             int[] targetStrides,
+            int targetBaseOffset,
             int classDimension,
             ResolvedReductionHints hints,
             GroupLossComputer computer
@@ -168,7 +176,7 @@ public final class CrossEntropyLossLoops {
                 int end = Math.min(start + chunkSize, groupCount);
                 double partial = 0.0;
                 for (int group = start; group < end; group++) {
-                    GroupState state = groupState(group, shape, logitsStrides, targetStrides, classDimension, reducedDenseStrides, axisSize, axisStrideLogits, axisStrideTargets);
+                    GroupState state = groupState(group, shape, logitsStrides, logitsBaseOffset, targetStrides, targetBaseOffset, classDimension, reducedDenseStrides, axisSize, axisStrideLogits, axisStrideTargets);
                     partial += computer.compute(state);
                 }
                 partials[chunk] = partial;
@@ -182,7 +190,7 @@ public final class CrossEntropyLossLoops {
 
         double total = 0.0;
         for (int group = 0; group < groupCount; group++) {
-            GroupState state = groupState(group, shape, logitsStrides, targetStrides, classDimension, reducedDenseStrides, axisSize, axisStrideLogits, axisStrideTargets);
+            GroupState state = groupState(group, shape, logitsStrides, logitsBaseOffset, targetStrides, targetBaseOffset, classDimension, reducedDenseStrides, axisSize, axisStrideLogits, axisStrideTargets);
             total += computer.compute(state);
         }
         return total / groupCount;
@@ -192,16 +200,18 @@ public final class CrossEntropyLossLoops {
             int reducedIndex,
             int[] shape,
             int[] logitsStrides,
+            int logitsBaseOffset,
             int[] targetStrides,
+            int targetBaseOffset,
             int classDimension,
             int[] reducedDenseStrides,
             int axisSize,
             int axisStrideLogits,
             int axisStrideTargets
-    ) {
+        ) {
         int rem = reducedIndex;
-        int baseLogits = 0;
-        int baseTargets = 0;
+        int baseLogits = logitsBaseOffset;
+        int baseTargets = targetBaseOffset;
         for (int d = 0, rd = 0; d < shape.length; d++) {
             if (d == classDimension) {
                 continue;

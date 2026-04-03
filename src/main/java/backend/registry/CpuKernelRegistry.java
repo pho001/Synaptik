@@ -64,6 +64,7 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.CONTIGUOUS, new CpuContiguousKernel());
         KERNELS.put(Operation.OpType.RESHAPE, new CpuReshapeLikeKernel());
         KERNELS.put(Operation.OpType.EXPAND, new CpuExpandKernel());
+        KERNELS.put(Operation.OpType.SELECT, new CpuAliasViewKernel());
         KERNELS.put(Operation.OpType.EXPAND_DIMS, new CpuAliasViewKernel());
         KERNELS.put(Operation.OpType.SQUEEZE, new CpuAliasViewKernel());
         KERNELS.put(Operation.OpType.PERMUTE, new CpuPermuteKernel());

@@ -29,6 +29,7 @@ import operations.reduceMin;
 import operations.reduceMinGrad;
 import operations.reshape;
 import operations.logSoftmax;
+import operations.select;
 import operations.squeeze;
 import operations.sum;
 import operations.softmax;
@@ -168,6 +169,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case RESHAPE -> IntArrayValue.copyOf(((reshape) op).getTargetShape());
             case PERMUTE -> IntArrayValue.copyOf(((permute) op).getAxes());
             case EXPAND -> IntArrayValue.copyOf(((expand) op).getTargetShape());
+            case SELECT -> IntArrayValue.copyOf(new int[]{((select) op).getDimension(), ((select) op).getIndex()});
             case EXPAND_DIMS -> new AxisSignature(((expandDims) op).getAxis());
             case GATHER -> new AxisSignature(((gather) op).getDimension());
             case GATHER_GRAD -> new AxisSignature(((gatherGrad) op).getDimension());

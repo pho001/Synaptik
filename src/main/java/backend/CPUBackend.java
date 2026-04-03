@@ -153,7 +153,7 @@ public final class CPUBackend {
             return new PreparedInputsResult(List.of(), List.of());
         }
 
-        if (bypassPreparation(op)) {
+        if (bypassPreparation(op) && !hasOffsetInput(inputs)) {
             return new PreparedInputsResult(List.of(), inputs);
         }
 
@@ -205,6 +205,19 @@ public final class CPUBackend {
             return true;
         }
 
+        if (input.hasStorageOffset()) {
+            if (op == null) {
+                return true;
+            }
+            return switch (op.opType()) {
+                case RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE,
+                        GATHER, GATHER_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD,
+                        MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
+                        NOOP -> false;
+                default -> true;
+            };
+        }
+
         if (input.isContiguous()) {
             return false;
         }
@@ -214,7 +227,7 @@ public final class CPUBackend {
         }
 
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, NOOP -> false;
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, NOOP -> false;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
             case MATMUL -> true;
             case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.isContiguous();
@@ -243,29 +256,55 @@ public final class CPUBackend {
             return false;
         }
 
+        boolean hasOffsetInput = false;
         boolean hasNonContiguousInput = false;
         int[] outShape = node.getShapeUnsafe();
 
-        for (Tensor input : inputs) {
+        for (int i = 0; i < inputs.size(); i++) {
+            Tensor input = inputs.get(i);
             if (input == null) {
                 return false;
             }
-            if (input.getDataType() != targetType) {
+            if (!isStridedPathInputTypeCompatible(op, input, targetType, i)) {
                 return false;
             }
             if (!Arrays.equals(input.getShapeUnsafe(), outShape)) {
                 return false;
+            }
+            if (input.hasStorageOffset()) {
+                hasOffsetInput = true;
             }
             if (!input.isContiguous()) {
                 hasNonContiguousInput = true;
             }
         }
 
-        if (!hasNonContiguousInput) {
+        if (!hasOffsetInput && !hasNonContiguousInput) {
             return false;
         }
 
+        if (hasOffsetInput && !hasNonContiguousInput) {
+            return true;
+        }
+
         return !planner.shouldMaterializeNonContiguous(node.getFlatDataSize());
+    }
+
+    private static boolean isStridedPathInputTypeCompatible(Operation op, Tensor input, DataType targetType, int inputIndex) {
+        if (op == null || input == null) {
+            return false;
+        }
+        return switch (op.opType()) {
+            case GT, GE, LT, LE, EQ, NE ->
+                    input.getDataType() == DataType.FLOAT64
+                            || input.getDataType() == DataType.FLOAT32
+                            || input.getDataType() == DataType.FLOAT16;
+            case WHERE -> inputIndex == 0
+                    ? input.getDataType() == DataType.BOOL
+                    : input.getDataType() == targetType;
+            case LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> input.getDataType() == DataType.BOOL;
+            default -> input.getDataType() == targetType;
+        };
     }
 
     private static boolean requiresBinaryBroadcast(Operation op, List<Tensor> inputs, Tensor node) {
@@ -335,10 +374,22 @@ public final class CPUBackend {
             return false;
         }
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS,
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS,
                     REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, NOOP -> true;
             default -> false;
         };
+    }
+
+    private static boolean hasOffsetInput(List<Tensor> inputs) {
+        if (inputs == null || inputs.isEmpty()) {
+            return false;
+        }
+        for (Tensor input : inputs) {
+            if (input != null && input.hasStorageOffset()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static PreparedTypeContract resolveTypeContract(Operation op, Tensor node, List<Tensor> inputs) {

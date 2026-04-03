@@ -1,5 +1,6 @@
 package tensor;
 
+import operations.select;
 import operations.gather;
 import operations.gatherGrad;
 import operations.scatterAdd;
@@ -10,6 +11,37 @@ import java.util.List;
 
 final class TensorIndexOps {
     private TensorIndexOps() {
+    }
+
+    static Tensor select(Tensor input, int dimension, int index) {
+        if (input == null) {
+            throw new IllegalArgumentException("select input cannot be null");
+        }
+        int[] inputShape = input.getShape();
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, inputShape.length);
+        int normalizedIndex = normalizeIndex(index, inputShape[normalizedDimension]);
+        int[] outShape = reduceShape(inputShape, normalizedDimension);
+        int[] outStrides = reduceStrides(input.getStridesUnsafe(), normalizedDimension);
+        int outStorageOffset = input.getStorageOffsetUnsafe() + normalizedIndex * input.getStridesUnsafe()[normalizedDimension];
+
+        Tensor out = new Tensor(
+                outShape,
+                outStrides,
+                outStorageOffset,
+                List.of(input),
+                new select(normalizedDimension, normalizedIndex),
+                "select",
+                input.getDataType()
+        );
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) return;
+            Tensor zeroBase = Tensor.zerosLike(input);
+            Tensor indices = constantIndexTensor(reduceShape(input.getShapeUnsafe(), normalizedDimension), normalizedIndex);
+            Tensor grad = zeroBase.scatterAdd(indices, outGrad, normalizedDimension);
+            accumulateGradient(input, grad);
+        });
+        return out;
     }
 
     static Tensor gather(Tensor input, Tensor indices, int dimension) {
@@ -128,6 +160,43 @@ final class TensorIndexOps {
             }
         }
         return reduced;
+    }
+
+    private static int[] reduceStrides(int[] strides, int axis) {
+        if (strides.length == 1) {
+            return new int[]{1};
+        }
+        int[] reduced = new int[strides.length - 1];
+        for (int i = 0, j = 0; i < strides.length; i++) {
+            if (i != axis) {
+                reduced[j++] = strides[i];
+            }
+        }
+        return reduced;
+    }
+
+    private static Tensor constantIndexTensor(int[] shape, int index) {
+        int[] data = new int[elementCount(shape)];
+        java.util.Arrays.fill(data, index);
+        return new Tensor(data, shape, null, "select_indices", DataType.INT32);
+    }
+
+    private static int elementCount(int[] shape) {
+        int size = 1;
+        for (int dimension : shape) {
+            size *= dimension;
+        }
+        return size;
+    }
+
+    private static int normalizeIndex(int index, int axisSize) {
+        int normalized = index < 0 ? index + axisSize : index;
+        if (normalized < 0 || normalized >= axisSize) {
+            throw new IndexOutOfBoundsException(
+                    "Index out of bounds for selected axis. index=" + index + ", axisSize=" + axisSize
+            );
+        }
+        return normalized;
     }
 
     private static void accumulateGradient(Tensor input, Tensor gradientDelta) {

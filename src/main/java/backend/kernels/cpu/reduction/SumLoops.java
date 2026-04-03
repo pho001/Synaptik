@@ -31,15 +31,16 @@ public final class SumLoops {
 
         int logicalSize = logicalSize(shape);
         int expectedOut = (dimension == -1) ? 1 : (logicalSize / shape[dimension]);
-        if (node.getData().length != expectedOut) {
+        double[] out = node.getFloat64Data();
+        if (out == null || out.length != expectedOut) {
             throw new IllegalArgumentException("Output tensor has wrong size for sum reduction");
         }
 
         if (dimension == -1) {
-            node.getData()[0] = sumAll(input, logicalSize, context);
+            out[node.getStorageOffsetUnsafe()] = sumAll(input, logicalSize, context);
             return;
         }
-        sumAxis(input, node.getData(), logicalSize, dimension, context);
+        sumAxis(input, out, logicalSize, dimension, context, node.getStorageOffsetUnsafe());
     }
 
     public static void executeF32(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
@@ -67,7 +68,7 @@ public final class SumLoops {
             out[0] = (float) sumAllF32(input, in, logicalSize, context);
             return;
         }
-        sumAxisF32(input, in, out, logicalSize, dimension, context);
+        sumAxisF32(input, in, out, logicalSize, dimension, context, node.getStorageOffsetUnsafe());
     }
 
     public static void executeF16(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
@@ -95,18 +96,18 @@ public final class SumLoops {
             out[0] = CpuDTypeOps.toHalfBits((float) sumAllF16(input, in, logicalSize, context));
             return;
         }
-        sumAxisF16(input, in, out, logicalSize, dimension, context);
+        sumAxisF16(input, in, out, logicalSize, dimension, context, node.getStorageOffsetUnsafe());
     }
 
     private static double sumAll(Tensor input, int logicalSize, CpuKernelContext context) {
-        if (!input.isContiguous()) {
+        if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguous(input);
-                return sumAllContiguous(contiguous.getData(), logicalSize, context);
+                return sumAllContiguous(contiguous.getFloat64Data(), logicalSize, context);
             }
             return sumAllStrided(input, logicalSize, context);
         }
-        return sumAllContiguous(input.getData(), logicalSize, context);
+        return sumAllContiguous(input.getFloat64Data(), logicalSize, context);
     }
 
     private static double sumAllContiguous(double[] data, int logicalSize, CpuKernelContext context) {
@@ -144,7 +145,8 @@ public final class SumLoops {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
-        double[] data = input.getData();
+        double[] data = input.getFloat64Data();
+        int baseOffset = input.getStorageOffsetUnsafe();
         SumAccuracyMode accuracy = reductionAccuracy(context);
         CpuExecutionMode mode = reductionMode(context);
 
@@ -155,16 +157,16 @@ public final class SumLoops {
             CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, logicalSize);
-                partials[chunk] = accumulateStridedRange(data, start, end, shape, strides, denseStrides, accuracy);
+                partials[chunk] = accumulateStridedRange(data, start, end, shape, strides, denseStrides, baseOffset, accuracy);
             });
             return mergePartials(partials, accuracy);
         }
 
-        return accumulateStridedRange(data, 0, logicalSize, shape, strides, denseStrides, accuracy);
+        return accumulateStridedRange(data, 0, logicalSize, shape, strides, denseStrides, baseOffset, accuracy);
     }
 
     private static double sumAllF32(Tensor input, float[] data, int logicalSize, CpuKernelContext context) {
-        if (!input.isContiguous()) {
+        if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT32);
                 float[] c = contiguous.getFloat32Data();
@@ -209,6 +211,7 @@ public final class SumLoops {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
+        int baseOffset = input.getStorageOffsetUnsafe();
         SumAccuracyMode accuracy = reductionAccuracy(context);
         CpuExecutionMode mode = reductionMode(context);
 
@@ -219,15 +222,15 @@ public final class SumLoops {
             CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, logicalSize);
-                partials[chunk] = accumulateStridedRangeF32(data, start, end, shape, strides, denseStrides, accuracy);
+                partials[chunk] = accumulateStridedRangeF32(data, start, end, shape, strides, denseStrides, baseOffset, accuracy);
             });
             return mergePartials(partials, accuracy);
         }
-        return accumulateStridedRangeF32(data, 0, logicalSize, shape, strides, denseStrides, accuracy);
+        return accumulateStridedRangeF32(data, 0, logicalSize, shape, strides, denseStrides, baseOffset, accuracy);
     }
 
     private static double sumAllF16(Tensor input, short[] data, int logicalSize, CpuKernelContext context) {
-        if (!input.isContiguous()) {
+        if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT16);
                 short[] c = contiguous.getFloat16Data();
@@ -264,6 +267,7 @@ public final class SumLoops {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] denseStrides = denseStrides(shape);
+        int baseOffset = input.getStorageOffsetUnsafe();
         SumAccuracyMode accuracy = reductionAccuracy(context);
         CpuExecutionMode mode = reductionMode(context);
         if (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR) {
@@ -273,14 +277,14 @@ public final class SumLoops {
             CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, logicalSize);
-                partials[chunk] = accumulateStridedRangeF16(data, start, end, shape, strides, denseStrides, accuracy);
+                partials[chunk] = accumulateStridedRangeF16(data, start, end, shape, strides, denseStrides, baseOffset, accuracy);
             });
             return mergePartials(partials, accuracy);
         }
-        return accumulateStridedRangeF16(data, 0, logicalSize, shape, strides, denseStrides, accuracy);
+        return accumulateStridedRangeF16(data, 0, logicalSize, shape, strides, denseStrides, baseOffset, accuracy);
     }
 
-    private static void sumAxis(Tensor input, double[] out, int logicalSize, int dimension, CpuKernelContext context) {
+    private static void sumAxis(Tensor input, double[] out, int logicalSize, int dimension, CpuKernelContext context, int outBaseOffset) {
         int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
@@ -288,24 +292,25 @@ public final class SumLoops {
             throw new IllegalArgumentException("Output length does not match reduction size");
         }
 
-        if (!input.isContiguous()) {
+        if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguous(input);
-                sumAxisContiguous(contiguous, out, dimension, context);
+                sumAxisContiguous(contiguous, out, dimension, context, outBaseOffset);
                 return;
             }
-            sumAxisStrided(input, out, dimension, context);
+            sumAxisStrided(input, out, dimension, context, outBaseOffset);
             return;
         }
-        sumAxisContiguous(input, out, dimension, context);
+        sumAxisContiguous(input, out, dimension, context, outBaseOffset);
     }
 
-    private static void sumAxisContiguous(Tensor input, double[] out, int dimension, CpuKernelContext context) {
+    private static void sumAxisContiguous(Tensor input, double[] out, int dimension, CpuKernelContext context, int outBaseOffset) {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int reducedDim = shape[dimension];
         int outSize = out.length;
-        double[] data = input.getData();
+        double[] data = input.getFloat64Data();
+        int inputBaseOffset = input.getStorageOffsetUnsafe();
 
         boolean canVectorizeLastDim = (dimension == shape.length - 1)
                 && reductionAccuracy(context) == SumAccuracyMode.FAST
@@ -320,15 +325,15 @@ public final class SumLoops {
                 CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                     int start = chunk * chunkSize;
                     int end = Math.min(start + chunkSize, outSize);
-                    reduceOutputRange(data, out, start, end, shape, strides, dimension, reducedDim, useVector, reductionAccuracy(context));
+                    reduceOutputRange(data, out, start, end, shape, strides, inputBaseOffset, dimension, reducedDim, useVector, reductionAccuracy(context), outBaseOffset);
                 });
             }
-            case VECTOR -> reduceOutputRange(data, out, 0, outSize, shape, strides, dimension, reducedDim, canVectorizeLastDim, reductionAccuracy(context));
-            case SCALAR -> reduceOutputRange(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
+            case VECTOR -> reduceOutputRange(data, out, 0, outSize, shape, strides, inputBaseOffset, dimension, reducedDim, canVectorizeLastDim, reductionAccuracy(context), outBaseOffset);
+            case SCALAR -> reduceOutputRange(data, out, 0, outSize, shape, strides, inputBaseOffset, dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
         }
     }
 
-    private static void sumAxisStrided(Tensor input, double[] out, int dimension, CpuKernelContext context) {
+    private static void sumAxisStrided(Tensor input, double[] out, int dimension, CpuKernelContext context, int outBaseOffset) {
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int reducedDim = shape[dimension];
@@ -341,33 +346,33 @@ public final class SumLoops {
             CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRange(input.getData(), out, start, end, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
+                reduceOutputRange(input.getFloat64Data(), out, start, end, shape, strides, input.getStorageOffsetUnsafe(), dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
             });
             return;
         }
-        reduceOutputRange(input.getData(), out, 0, outSize, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
+        reduceOutputRange(input.getFloat64Data(), out, 0, outSize, shape, strides, input.getStorageOffsetUnsafe(), dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
     }
 
-    private static void sumAxisF32(Tensor input, float[] data, float[] out, int logicalSize, int dimension, CpuKernelContext context) {
+    private static void sumAxisF32(Tensor input, float[] data, float[] out, int logicalSize, int dimension, CpuKernelContext context, int outBaseOffset) {
         int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
         if (out.length != outSize) {
             throw new IllegalArgumentException("Output length does not match reduction size");
         }
-        if (!input.isContiguous()) {
+        if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT32);
-                sumAxisContiguousF32(contiguous.getFloat32Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), out, dimension, context);
+                sumAxisContiguousF32(contiguous.getFloat32Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), contiguous.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
                 return;
             }
-            sumAxisStridedF32(data, shape, input.getStridesUnsafe(), out, dimension, context);
+            sumAxisStridedF32(data, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
             return;
         }
-        sumAxisContiguousF32(data, shape, input.getStridesUnsafe(), out, dimension, context);
+        sumAxisContiguousF32(data, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
     }
 
-    private static void sumAxisContiguousF32(float[] data, int[] shape, int[] strides, float[] out, int dimension, CpuKernelContext context) {
+    private static void sumAxisContiguousF32(float[] data, int[] shape, int[] strides, int inputBaseOffset, float[] out, int outBaseOffset, int dimension, CpuKernelContext context) {
         int reducedDim = shape[dimension];
         int outSize = out.length;
         boolean canVectorizeLastDim = (dimension == shape.length - 1)
@@ -383,15 +388,15 @@ public final class SumLoops {
                 CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                     int start = chunk * chunkSize;
                     int end = Math.min(start + chunkSize, outSize);
-                    reduceOutputRangeF32(data, out, start, end, shape, strides, dimension, reducedDim, useVector, reductionAccuracy(context));
+                    reduceOutputRangeF32(data, out, start, end, shape, strides, inputBaseOffset, dimension, reducedDim, useVector, reductionAccuracy(context), outBaseOffset);
                 });
             }
-            case VECTOR -> reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, canVectorizeLastDim, reductionAccuracy(context));
-            case SCALAR -> reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
+            case VECTOR -> reduceOutputRangeF32(data, out, 0, outSize, shape, strides, inputBaseOffset, dimension, reducedDim, canVectorizeLastDim, reductionAccuracy(context), outBaseOffset);
+            case SCALAR -> reduceOutputRangeF32(data, out, 0, outSize, shape, strides, inputBaseOffset, dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
         }
     }
 
-    private static void sumAxisStridedF32(float[] data, int[] shape, int[] strides, float[] out, int dimension, CpuKernelContext context) {
+    private static void sumAxisStridedF32(float[] data, int[] shape, int[] strides, int inputBaseOffset, float[] out, int outBaseOffset, int dimension, CpuKernelContext context) {
         int reducedDim = shape[dimension];
         int outSize = out.length;
         CpuExecutionMode mode = reductionMode(context);
@@ -401,33 +406,33 @@ public final class SumLoops {
             CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRangeF32(data, out, start, end, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
+                reduceOutputRangeF32(data, out, start, end, shape, strides, inputBaseOffset, dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
             });
             return;
         }
-        reduceOutputRangeF32(data, out, 0, outSize, shape, strides, dimension, reducedDim, false, reductionAccuracy(context));
+        reduceOutputRangeF32(data, out, 0, outSize, shape, strides, inputBaseOffset, dimension, reducedDim, false, reductionAccuracy(context), outBaseOffset);
     }
 
-    private static void sumAxisF16(Tensor input, short[] data, short[] out, int logicalSize, int dimension, CpuKernelContext context) {
+    private static void sumAxisF16(Tensor input, short[] data, short[] out, int logicalSize, int dimension, CpuKernelContext context, int outBaseOffset) {
         int[] shape = input.getShapeUnsafe();
         int reducedDim = shape[dimension];
         int outSize = logicalSize / reducedDim;
         if (out.length != outSize) {
             throw new IllegalArgumentException("Output length does not match reduction size");
         }
-        if (!input.isContiguous()) {
+        if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
                 Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT16);
-                sumAxisContiguousF16(contiguous.getFloat16Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), out, dimension, context);
+                sumAxisContiguousF16(contiguous.getFloat16Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), contiguous.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
                 return;
             }
-            sumAxisStridedF16(data, shape, input.getStridesUnsafe(), out, dimension, context);
+            sumAxisStridedF16(data, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
             return;
         }
-        sumAxisContiguousF16(data, shape, input.getStridesUnsafe(), out, dimension, context);
+        sumAxisContiguousF16(data, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
     }
 
-    private static void sumAxisContiguousF16(short[] data, int[] shape, int[] strides, short[] out, int dimension, CpuKernelContext context) {
+    private static void sumAxisContiguousF16(short[] data, int[] shape, int[] strides, int inputBaseOffset, short[] out, int outBaseOffset, int dimension, CpuKernelContext context) {
         int reducedDim = shape[dimension];
         int outSize = out.length;
         CpuExecutionMode mode = reductionMode(context);
@@ -437,14 +442,14 @@ public final class SumLoops {
             CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRangeF16(data, out, start, end, shape, strides, dimension, reducedDim, reductionAccuracy(context));
+                reduceOutputRangeF16(data, out, start, end, shape, strides, inputBaseOffset, dimension, reducedDim, reductionAccuracy(context), outBaseOffset);
             });
             return;
         }
-        reduceOutputRangeF16(data, out, 0, outSize, shape, strides, dimension, reducedDim, reductionAccuracy(context));
+        reduceOutputRangeF16(data, out, 0, outSize, shape, strides, inputBaseOffset, dimension, reducedDim, reductionAccuracy(context), outBaseOffset);
     }
 
-    private static void sumAxisStridedF16(short[] data, int[] shape, int[] strides, short[] out, int dimension, CpuKernelContext context) {
+    private static void sumAxisStridedF16(short[] data, int[] shape, int[] strides, int inputBaseOffset, short[] out, int outBaseOffset, int dimension, CpuKernelContext context) {
         int reducedDim = shape[dimension];
         int outSize = out.length;
         CpuExecutionMode mode = reductionMode(context);
@@ -454,11 +459,11 @@ public final class SumLoops {
             CpuThreadPool.runChunks(chunks, reductionWorkers(context), chunk -> {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, outSize);
-                reduceOutputRangeF16(data, out, start, end, shape, strides, dimension, reducedDim, reductionAccuracy(context));
+                reduceOutputRangeF16(data, out, start, end, shape, strides, inputBaseOffset, dimension, reducedDim, reductionAccuracy(context), outBaseOffset);
             });
             return;
         }
-        reduceOutputRangeF16(data, out, 0, outSize, shape, strides, dimension, reducedDim, reductionAccuracy(context));
+        reduceOutputRangeF16(data, out, 0, outSize, shape, strides, inputBaseOffset, dimension, reducedDim, reductionAccuracy(context), outBaseOffset);
     }
 
     private static void reduceOutputRange(
@@ -468,10 +473,12 @@ public final class SumLoops {
             int toOut,
             int[] shape,
             int[] strides,
+            int inputBaseOffset,
             int dimension,
             int reducedDim,
             boolean useVectorLastDim,
-            SumAccuracyMode accuracy
+            SumAccuracyMode accuracy,
+            int outBaseOffset
     ) {
         int[] outDenseStrides = denseStridesExcludingDim(shape, dimension);
         int axisStride = strides[dimension];
@@ -479,7 +486,7 @@ public final class SumLoops {
 
         for (int outIndex = fromOut; outIndex < toOut; outIndex++) {
             int rem = outIndex;
-            int base = 0;
+            int base = inputBaseOffset;
             int outAxis = 0;
             for (int d = 0; d < rank; d++) {
                 if (d == dimension) continue;
@@ -495,7 +502,7 @@ public final class SumLoops {
             } else {
                 acc = accumulateStridedFixedBase(data, base, axisStride, reducedDim, accuracy);
             }
-            out[outIndex] = acc;
+            out[outBaseOffset + outIndex] = acc;
         }
     }
 
@@ -506,10 +513,12 @@ public final class SumLoops {
             int toOut,
             int[] shape,
             int[] strides,
+            int inputBaseOffset,
             int dimension,
             int reducedDim,
             boolean useVectorLastDim,
-            SumAccuracyMode accuracy
+            SumAccuracyMode accuracy,
+            int outBaseOffset
     ) {
         int[] outDenseStrides = denseStridesExcludingDim(shape, dimension);
         int axisStride = strides[dimension];
@@ -517,7 +526,7 @@ public final class SumLoops {
 
         for (int outIndex = fromOut; outIndex < toOut; outIndex++) {
             int rem = outIndex;
-            int base = 0;
+            int base = inputBaseOffset;
             int outAxis = 0;
             for (int d = 0; d < rank; d++) {
                 if (d == dimension) continue;
@@ -533,7 +542,7 @@ public final class SumLoops {
             } else {
                 acc = accumulateStridedFixedBaseF32(data, base, axisStride, reducedDim, accuracy);
             }
-            out[outIndex] = (float) acc;
+            out[outBaseOffset + outIndex] = (float) acc;
         }
     }
 
@@ -544,9 +553,11 @@ public final class SumLoops {
             int toOut,
             int[] shape,
             int[] strides,
+            int inputBaseOffset,
             int dimension,
             int reducedDim,
-            SumAccuracyMode accuracy
+            SumAccuracyMode accuracy,
+            int outBaseOffset
     ) {
         int[] outDenseStrides = denseStridesExcludingDim(shape, dimension);
         int axisStride = strides[dimension];
@@ -554,7 +565,7 @@ public final class SumLoops {
 
         for (int outIndex = fromOut; outIndex < toOut; outIndex++) {
             int rem = outIndex;
-            int base = 0;
+            int base = inputBaseOffset;
             int outAxis = 0;
             for (int d = 0; d < rank; d++) {
                 if (d == dimension) continue;
@@ -564,7 +575,7 @@ public final class SumLoops {
                 outAxis++;
             }
             double acc = accumulateStridedFixedBaseF16(data, base, axisStride, reducedDim, accuracy);
-            out[outIndex] = CpuDTypeOps.toHalfBits((float) acc);
+            out[outBaseOffset + outIndex] = CpuDTypeOps.toHalfBits((float) acc);
         }
     }
 
@@ -614,13 +625,14 @@ public final class SumLoops {
             int[] shape,
             int[] strides,
             int[] denseStrides,
+            int baseOffset,
             SumAccuracyMode accuracy
     ) {
         return switch (accuracy) {
             case FAST -> {
                 double sum = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    sum += data[logicalToOffset(i, shape, strides, denseStrides)];
+                    sum += data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)];
                 }
                 yield sum;
             }
@@ -628,7 +640,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    double y = data[logicalToOffset(i, shape, strides, denseStrides)] - c;
+                    double y = data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)] - c;
                     double t = sum + y;
                     c = (t - sum) - y;
                     sum = t;
@@ -639,7 +651,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    double x = data[logicalToOffset(i, shape, strides, denseStrides)];
+                    double x = data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)];
                     double t = sum + x;
                     if (Math.abs(sum) >= Math.abs(x)) {
                         c += (sum - t) + x;
@@ -660,13 +672,14 @@ public final class SumLoops {
             int[] shape,
             int[] strides,
             int[] denseStrides,
+            int baseOffset,
             SumAccuracyMode accuracy
     ) {
         return switch (accuracy) {
             case FAST -> {
                 double sum = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    sum += data[logicalToOffset(i, shape, strides, denseStrides)];
+                    sum += data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)];
                 }
                 yield sum;
             }
@@ -674,7 +687,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    double y = data[logicalToOffset(i, shape, strides, denseStrides)] - c;
+                    double y = data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)] - c;
                     double t = sum + y;
                     c = (t - sum) - y;
                     sum = t;
@@ -685,7 +698,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    double x = data[logicalToOffset(i, shape, strides, denseStrides)];
+                    double x = data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)];
                     double t = sum + x;
                     if (Math.abs(sum) >= Math.abs(x)) {
                         c += (sum - t) + x;
@@ -706,13 +719,14 @@ public final class SumLoops {
             int[] shape,
             int[] strides,
             int[] denseStrides,
+            int baseOffset,
             SumAccuracyMode accuracy
     ) {
         return switch (accuracy) {
             case FAST -> {
                 double sum = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    sum += CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides)]);
+                    sum += CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]);
                 }
                 yield sum;
             }
@@ -720,7 +734,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    double y = CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides)]) - c;
+                    double y = CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]) - c;
                     double t = sum + y;
                     c = (t - sum) - y;
                     sum = t;
@@ -731,7 +745,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    double x = CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides)]);
+                    double x = CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]);
                     double t = sum + x;
                     if (Math.abs(sum) >= Math.abs(x)) {
                         c += (sum - t) + x;
@@ -978,14 +992,15 @@ public final class SumLoops {
 
     private static Tensor materializeContiguous(Tensor input) {
         Tensor contiguous = new Tensor(input.getShapeUnsafe(), null, input.getLabel() + "_sum_contiguous_tmp", DataType.FLOAT64);
-        double[] src = input.getData();
+        double[] src = input.getFloat64Data();
         double[] dst = contiguous.getData();
         int[] shape = input.getShapeUnsafe();
         int[] strides = input.getStridesUnsafe();
         int[] dense = denseStrides(shape);
+        int baseOffset = input.getStorageOffsetUnsafe();
         int logical = logicalSize(shape);
         for (int i = 0; i < logical; i++) {
-            dst[i] = src[logicalToOffset(i, shape, strides, dense)];
+            dst[i] = src[logicalToOffset(i, shape, strides, dense, baseOffset)];
         }
         return contiguous;
     }
@@ -1028,10 +1043,10 @@ public final class SumLoops {
         return context.planner().contiguousMaterializeThreshold();
     }
 
-    private static int logicalToOffset(int logicalIndex, int[] shape, int[] strides, int[] denseStrides) {
+    private static int logicalToOffset(int logicalIndex, int[] shape, int[] strides, int[] denseStrides, int baseOffset) {
         int rank = shape.length;
         int rem = logicalIndex;
-        int offset = 0;
+        int offset = baseOffset;
         for (int d = 0; d < rank; d++) {
             int coord = rem / denseStrides[d];
             rem %= denseStrides[d];

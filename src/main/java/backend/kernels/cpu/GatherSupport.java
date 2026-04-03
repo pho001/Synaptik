@@ -315,6 +315,8 @@ public final class GatherSupport {
         int[] inputStrides = input.getStridesUnsafe();
         int[] outShape = out.getShapeUnsafe();
         int[] outStrides = out.getStridesUnsafe();
+        int inputBaseOffset = input.getStorageOffsetUnsafe();
+        int outBaseOffset = out.getStorageOffsetUnsafe();
         int[] reducedDense = TensorMetadata.computeStrides(outShape);
         int total = out.getFlatDataSize();
         int axisSize = inputShape[dimension];
@@ -322,8 +324,8 @@ public final class GatherSupport {
 
         for (int logical = 0; logical < total; logical++) {
             int rem = logical;
-            int baseIn = 0;
-            int baseOut = 0;
+            int baseIn = inputBaseOffset;
+            int baseOut = outBaseOffset;
             for (int d = 0, rd = 0; d < inputShape.length; d++) {
                 if (d == dimension) {
                     continue;
@@ -344,6 +346,8 @@ public final class GatherSupport {
         int[] nodeStrides = node.getStridesUnsafe();
         int[] gradShape = outGrad.getShapeUnsafe();
         int[] gradStrides = outGrad.getStridesUnsafe();
+        int nodeBaseOffset = node.getStorageOffsetUnsafe();
+        int gradBaseOffset = outGrad.getStorageOffsetUnsafe();
         int[] reducedDense = TensorMetadata.computeStrides(gradShape);
         int total = outGrad.getFlatDataSize();
         int axisSize = nodeShape[dimension];
@@ -351,8 +355,8 @@ public final class GatherSupport {
 
         for (int logical = 0; logical < total; logical++) {
             int rem = logical;
-            int baseNode = 0;
-            int baseGrad = 0;
+            int baseNode = nodeBaseOffset;
+            int baseGrad = gradBaseOffset;
             for (int d = 0, rd = 0; d < nodeShape.length; d++) {
                 if (d == dimension) {
                     continue;
@@ -373,6 +377,8 @@ public final class GatherSupport {
         int[] inputStrides = input.getStridesUnsafe();
         int[] outShape = out.getShapeUnsafe();
         int[] outStrides = out.getStridesUnsafe();
+        int inputBaseOffset = input.getStorageOffsetUnsafe();
+        int outBaseOffset = out.getStorageOffsetUnsafe();
         int[] outDense = TensorMetadata.computeStrides(outShape);
         int total = out.getFlatDataSize();
         int axisSize = inputShape[dimension];
@@ -380,8 +386,8 @@ public final class GatherSupport {
 
         for (int logical = 0; logical < total; logical++) {
             int rem = logical;
-            int baseIn = 0;
-            int outOffset = 0;
+            int baseIn = inputBaseOffset;
+            int outOffset = outBaseOffset;
             for (int d = 0; d < outShape.length; d++) {
                 int coord = rem / outDense[d];
                 rem %= outDense[d];
@@ -400,6 +406,8 @@ public final class GatherSupport {
         int[] nodeStrides = node.getStridesUnsafe();
         int[] gradShape = outGrad.getShapeUnsafe();
         int[] gradStrides = outGrad.getStridesUnsafe();
+        int nodeBaseOffset = node.getStorageOffsetUnsafe();
+        int gradBaseOffset = outGrad.getStorageOffsetUnsafe();
         int[] gradDense = TensorMetadata.computeStrides(gradShape);
         int total = outGrad.getFlatDataSize();
         int axisSize = nodeShape[dimension];
@@ -407,8 +415,8 @@ public final class GatherSupport {
 
         for (int logical = 0; logical < total; logical++) {
             int rem = logical;
-            int baseNode = 0;
-            int gradOffset = 0;
+            int baseNode = nodeBaseOffset;
+            int gradOffset = gradBaseOffset;
             for (int d = 0; d < gradShape.length; d++) {
                 int coord = rem / gradDense[d];
                 rem %= gradDense[d];

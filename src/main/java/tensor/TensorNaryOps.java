@@ -4,6 +4,7 @@ import operations.crossEntropyLoss;
 import operations.nllLoss;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 final class TensorNaryOps {
@@ -113,6 +114,10 @@ final class TensorNaryOps {
         return nllLossFromIndices(logProbs, targetIndices, classDimension, LossReduction.MEAN);
     }
 
+    static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
+        return nllLossFromIndices(logProbs, targetIndices, classDimension, classWeights, null, reduction);
+    }
+
     static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, LossReduction reduction) {
         if (logProbs == null || targetIndices == null) {
             throw new IllegalArgumentException("nllLossFromIndices inputs cannot be null");
@@ -133,6 +138,10 @@ final class TensorNaryOps {
 
     static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex) {
         return nllLossFromIndices(logProbs, targetIndices, classDimension, ignoreIndex, LossReduction.MEAN);
+    }
+
+    static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
+        return nllLossFromIndices(logProbs, targetIndices, classDimension, classWeights, Integer.valueOf(ignoreIndex), reduction);
     }
 
     static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
@@ -162,6 +171,10 @@ final class TensorNaryOps {
         return crossEntropyLossFromIndices(logits, targetIndices, classDimension, LossReduction.MEAN);
     }
 
+    static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
+        return crossEntropyLossFromIndices(logits, targetIndices, classDimension, classWeights, null, reduction);
+    }
+
     static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, LossReduction reduction) {
         if (logits == null || targetIndices == null) {
             throw new IllegalArgumentException("crossEntropyLossFromIndices inputs cannot be null");
@@ -183,6 +196,10 @@ final class TensorNaryOps {
         return crossEntropyLossFromIndices(logits, targetIndices, classDimension, ignoreIndex, LossReduction.MEAN);
     }
 
+    static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
+        return crossEntropyLossFromIndices(logits, targetIndices, classDimension, classWeights, Integer.valueOf(ignoreIndex), reduction);
+    }
+
     static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
         if (logits == null || targetIndices == null) {
             throw new IllegalArgumentException("crossEntropyLossFromIndices inputs cannot be null");
@@ -198,6 +215,99 @@ final class TensorNaryOps {
         int[] expectedIndexShape = reduceShape(logitsShape, normalizedClassDimension);
         validateShape(targetIndices.getShape(), expectedIndexShape, "crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
         return logits.logSoftmax(normalizedClassDimension).nllLossFromIndices(targetIndices, normalizedClassDimension, ignoreIndex, reduction);
+    }
+
+    private static Tensor nllLossFromIndices(
+            Tensor logProbs,
+            Tensor targetIndices,
+            int classDimension,
+            Tensor classWeights,
+            Integer ignoreIndexOrNull,
+            LossReduction reduction
+    ) {
+        if (logProbs == null || targetIndices == null || classWeights == null) {
+            throw new IllegalArgumentException("weighted nllLossFromIndices inputs cannot be null");
+        }
+        if (reduction == null) {
+            throw new IllegalArgumentException("weighted nllLossFromIndices reduction cannot be null");
+        }
+        if (logProbs.getDataType() == DataType.BOOL || targetIndices.getDataType() == DataType.BOOL || classWeights.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("weighted nllLossFromIndices requires numeric tensors and numeric integral indices.");
+        }
+        if (logProbs.getDataType() == DataType.INT32 || classWeights.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("weighted nllLossFromIndices requires floating logProbs and floating classWeights.");
+        }
+        if (logProbs.getDataType() != classWeights.getDataType()) {
+            throw new IllegalArgumentException("classWeights dtype must match logProbs dtype.");
+        }
+
+        int[] logShape = logProbs.getShape();
+        int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logShape.length);
+        int[] expectedIndexShape = reduceShape(logShape, normalizedClassDimension);
+        validateShape(targetIndices.getShape(), expectedIndexShape, "weighted nllLossFromIndices targetIndices shape must equal logProbs shape without class axis.");
+        validateClassWeightsShape(classWeights, logShape[normalizedClassDimension]);
+
+        Tensor effectiveIndices = targetIndices;
+        Tensor sampleMask = null;
+        if (ignoreIndexOrNull != null) {
+            sampleMask = buildIgnoreMask(targetIndices, ignoreIndexOrNull);
+            effectiveIndices = buildSafeIndices(targetIndices, ignoreIndexOrNull);
+        }
+
+        Tensor gatheredLogProbs = logProbs.gather(effectiveIndices, normalizedClassDimension);
+        int[] expandedWeightShape = new int[logShape.length];
+        Arrays.fill(expandedWeightShape, 1);
+        expandedWeightShape[normalizedClassDimension] = logShape[normalizedClassDimension];
+        Tensor gatheredWeights = classWeights
+                .reshape(expandedWeightShape)
+                .expand(logShape)
+                .takeAlongAxis(effectiveIndices.expandDims(normalizedClassDimension), normalizedClassDimension)
+                .squeeze(normalizedClassDimension);
+        Tensor perSampleLoss = gatheredLogProbs.neg().mul(gatheredWeights);
+        Tensor reductionWeights = gatheredWeights;
+
+        if (sampleMask != null) {
+            Tensor zeroLoss = Tensor.zerosLike(perSampleLoss);
+            perSampleLoss = Tensor.where(sampleMask, perSampleLoss, zeroLoss);
+            reductionWeights = Tensor.where(sampleMask, reductionWeights, Tensor.zerosLike(reductionWeights));
+        }
+
+        return applyLossReduction(perSampleLoss, reductionWeights, reduction);
+    }
+
+    private static Tensor crossEntropyLossFromIndices(
+            Tensor logits,
+            Tensor targetIndices,
+            int classDimension,
+            Tensor classWeights,
+            Integer ignoreIndexOrNull,
+            LossReduction reduction
+    ) {
+        if (logits == null || targetIndices == null || classWeights == null) {
+            throw new IllegalArgumentException("weighted crossEntropyLossFromIndices inputs cannot be null");
+        }
+        if (reduction == null) {
+            throw new IllegalArgumentException("weighted crossEntropyLossFromIndices reduction cannot be null");
+        }
+        if (logits.getDataType() == DataType.BOOL || targetIndices.getDataType() == DataType.BOOL || classWeights.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("weighted crossEntropyLossFromIndices requires numeric logits, floating weights, and numeric integral indices.");
+        }
+        if (logits.getDataType() == DataType.INT32 || classWeights.getDataType() == DataType.INT32) {
+            throw new IllegalArgumentException("weighted crossEntropyLossFromIndices requires floating logits and floating classWeights.");
+        }
+        if (logits.getDataType() != classWeights.getDataType()) {
+            throw new IllegalArgumentException("classWeights dtype must match logits dtype.");
+        }
+        int[] logitsShape = logits.getShape();
+        int normalizedClassDimension = TensorLayoutTransform.normalizeAxis(classDimension, logitsShape.length);
+        int[] expectedIndexShape = reduceShape(logitsShape, normalizedClassDimension);
+        validateShape(targetIndices.getShape(), expectedIndexShape, "weighted crossEntropyLossFromIndices targetIndices shape must equal logits shape without class axis.");
+        validateClassWeightsShape(classWeights, logitsShape[normalizedClassDimension]);
+
+        if (ignoreIndexOrNull == null) {
+            return logits.logSoftmax(normalizedClassDimension).nllLossFromIndices(targetIndices, normalizedClassDimension, classWeights, reduction);
+        }
+        return logits.logSoftmax(normalizedClassDimension).nllLossFromIndices(targetIndices, normalizedClassDimension, ignoreIndexOrNull, classWeights, reduction);
     }
 
     private static int sampleCount(int[] shape, int classDimension) {
@@ -218,15 +328,15 @@ final class TensorNaryOps {
         }
     }
 
-    private static Tensor applyLossReduction(Tensor perSampleLoss, Tensor validMaskNumeric, LossReduction reduction) {
+    private static Tensor applyLossReduction(Tensor perSampleLoss, Tensor reductionWeights, LossReduction reduction) {
         return switch (reduction) {
             case NONE -> perSampleLoss;
             case SUM -> perSampleLoss.sum();
             case MEAN -> {
-                if (validMaskNumeric == null) {
+                if (reductionWeights == null) {
                     yield perSampleLoss.mean();
                 }
-                Tensor validCount = validMaskNumeric.sum();
+                Tensor validCount = reductionWeights.sum();
                 Tensor totalLoss = perSampleLoss.sum();
                 yield totalLoss.div(validCount.clampMin(1.0));
             }
@@ -254,6 +364,13 @@ final class TensorNaryOps {
             if (actual[i] != expected[i]) {
                 throw new IllegalArgumentException(message);
             }
+        }
+    }
+
+    private static void validateClassWeightsShape(Tensor classWeights, int expectedClasses) {
+        int[] shape = classWeights.getShape();
+        if (shape.length != 1 || shape[0] != expectedClasses) {
+            throw new IllegalArgumentException("classWeights must have shape [" + expectedClasses + "].");
         }
     }
 

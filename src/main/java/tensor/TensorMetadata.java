@@ -7,6 +7,7 @@ public final class TensorMetadata {
 
     private final int[] shape;
     private final int[] strides;
+    private final int storageOffset;
     private final boolean contiguous;
     private String label;
     private boolean requiresGrad;
@@ -20,6 +21,7 @@ public final class TensorMetadata {
         int[] normalizedShape = normalizeShape(shape);
         this.shape = normalizedShape;
         this.strides = computeStrides(normalizedShape);
+        this.storageOffset = 0;
         this.contiguous = computeContiguous(this.shape, this.strides);
         this.label = label;
         this.requiresGrad = requiresGrad;
@@ -31,6 +33,10 @@ public final class TensorMetadata {
     }
 
     public TensorMetadata(int[] shape, int[] strides, String label, boolean requiresGrad, DataType dataType) {
+        this(shape, strides, 0, label, requiresGrad, dataType);
+    }
+
+    public TensorMetadata(int[] shape, int[] strides, int storageOffset, String label, boolean requiresGrad, DataType dataType) {
         int[] normalizedShape = normalizeShape(shape);
         int[] normalizedStrides;
         if (strides == null) {
@@ -47,6 +53,7 @@ public final class TensorMetadata {
 
         this.shape = normalizedShape;
         this.strides = normalizedStrides;
+        this.storageOffset = normalizeStorageOffset(storageOffset);
         this.contiguous = computeContiguous(this.shape, this.strides);
         this.label = label;
         this.requiresGrad = requiresGrad;
@@ -67,6 +74,10 @@ public final class TensorMetadata {
 
     int[] stridesRef() {
         return strides;
+    }
+
+    public int getStorageOffset() {
+        return storageOffset;
     }
 
     public int getStride(int index) {
@@ -130,6 +141,10 @@ public final class TensorMetadata {
         return hasZeroStride();
     }
 
+    public boolean hasStorageOffset() {
+        return storageOffset != 0;
+    }
+
     private static boolean computeContiguous(int[] shape, int[] strides) {
         int expectedStride = 1;
         for (int i = shape.length - 1; i >= 0; i--) {
@@ -146,7 +161,7 @@ public final class TensorMetadata {
             throw new IllegalArgumentException("Incorrect number of indices provided.");
         }
 
-        int flatIndex = 0;
+        int flatIndex = storageOffset;
         for (int i = 0; i < shape.length; i++) {
             if (indices[i] < 0 || indices[i] >= shape[i]) {
                 throw new IndexOutOfBoundsException("Index out of bounds for dimension " + i + ".");
@@ -157,15 +172,19 @@ public final class TensorMetadata {
     }
 
     public int[] getSpatialIndex(int index) {
+        int localIndex = index - storageOffset;
+        if (localIndex < 0) {
+            throw new IndexOutOfBoundsException("Flat index is before tensor storage offset.");
+        }
         int[] indices = new int[shape.length];
         for (int i = 0; i < shape.length; i++) {
-            indices[i] = (index / strides[i]) % shape[i];
+            indices[i] = (localIndex / strides[i]) % shape[i];
         }
         return indices;
     }
 
     public TensorMetadata copy() {
-        return new TensorMetadata(shape, strides, label, requiresGrad, dataType);
+        return new TensorMetadata(shape, strides, storageOffset, label, requiresGrad, dataType);
     }
 
     public static int[] computeStrides(int[] shape) {
@@ -189,11 +208,19 @@ public final class TensorMetadata {
         return shape.clone();
     }
 
+    private static int normalizeStorageOffset(int storageOffset) {
+        if (storageOffset < 0) {
+            throw new IllegalArgumentException("storageOffset cannot be negative.");
+        }
+        return storageOffset;
+    }
+
     @Override
     public String toString() {
         return "TensorMetadata{" +
                 "shape=" + Arrays.toString(shape) +
                 ", strides=" + Arrays.toString(strides) +
+                ", storageOffset=" + storageOffset +
                 ", label='" + label + '\'' +
                 ", requiresGrad=" + requiresGrad +
                 ", dataType=" + dataType +

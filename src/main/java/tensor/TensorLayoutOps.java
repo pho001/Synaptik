@@ -22,7 +22,9 @@ final class TensorLayoutOps {
     static Tensor reshape(Tensor input, int[] requestedShape) {
         int[] newShape = TensorLayoutTransform.inferReshape(input.getShape(), requestedShape);
         Operation op = new reshape(newShape);
-        Tensor out = new Tensor(newShape, List.of(input), op, "reshape", input.getDataType());
+        Tensor out = input.isContiguous()
+                ? new Tensor(newShape, TensorMetadata.computeStrides(newShape), input.getStorageOffsetUnsafe(), List.of(input), op, "reshape", input.getDataType())
+                : new Tensor(newShape, List.of(input), op, "reshape", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -38,7 +40,7 @@ final class TensorLayoutOps {
         int[] targetShape = TensorLayoutTransform.inferExpandShape(input.getShape(), requestedShape);
         int[] targetStrides = buildExpandedStrides(input.getShapeUnsafe(), input.getStridesUnsafe(), targetShape);
         Operation op = new expand(targetShape);
-        Tensor out = new Tensor(targetShape, targetStrides, List.of(input), op, "expand", input.getDataType());
+        Tensor out = new Tensor(targetShape, targetStrides, input.getStorageOffsetUnsafe(), List.of(input), op, "expand", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -82,7 +84,7 @@ final class TensorLayoutOps {
         }
 
         Operation op = new permute(normalizedAxes);
-        Tensor out = new Tensor(outShape, outStrides, List.of(input), op, "permute", input.getDataType());
+        Tensor out = new Tensor(outShape, outStrides, input.getStorageOffsetUnsafe(), List.of(input), op, "permute", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -113,7 +115,7 @@ final class TensorLayoutOps {
             }
         }
         Operation op = new expandDims(normalizedAxis);
-        Tensor out = new Tensor(outShape, outStrides, List.of(input), op, "expandDims", input.getDataType());
+        Tensor out = new Tensor(outShape, outStrides, input.getStorageOffsetUnsafe(), List.of(input), op, "expandDims", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;
@@ -143,7 +145,7 @@ final class TensorLayoutOps {
             }
         }
         Operation op = new squeeze(normalizedAxis);
-        Tensor out = new Tensor(outShape, outStrides, List.of(input), op, "squeeze", input.getDataType());
+        Tensor out = new Tensor(outShape, outStrides, input.getStorageOffsetUnsafe(), List.of(input), op, "squeeze", input.getDataType());
         out.setBackwardFunction(() -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) return;

@@ -20,10 +20,29 @@ final class MinMaxReduceLoops {
         }
 
         if (dimension == -1) {
-            out[0] = reduceAllF64(input.getData(), shape, input.getStridesUnsafe(), input.isContiguous(), context, isMax);
+            out[node.getStorageOffsetUnsafe()] = reduceAllF64(
+                    input.getFloat64Data(),
+                    shape,
+                    input.getStridesUnsafe(),
+                    input.getStorageOffsetUnsafe(),
+                    input.isContiguous() && !input.hasStorageOffset(),
+                    context,
+                    isMax
+            );
             return;
         }
-        reduceAxisF64(input.getData(), shape, input.getStridesUnsafe(), out, node.getShapeUnsafe(), dimension, context, isMax);
+        reduceAxisF64(
+                input.getFloat64Data(),
+                shape,
+                input.getStridesUnsafe(),
+                input.getStorageOffsetUnsafe(),
+                out,
+                node.getShapeUnsafe(),
+                node.getStorageOffsetUnsafe(),
+                dimension,
+                context,
+                isMax
+        );
     }
 
     static void executeF32(Tensor input, Tensor node, int dimension, CpuKernelContext context, boolean isMax) {
@@ -37,10 +56,18 @@ final class MinMaxReduceLoops {
         }
 
         if (dimension == -1) {
-            out[0] = (float) reduceAllF32(in, shape, input.getStridesUnsafe(), input.isContiguous(), context, isMax);
+            out[node.getStorageOffsetUnsafe()] = (float) reduceAllF32(
+                    in,
+                    shape,
+                    input.getStridesUnsafe(),
+                    input.getStorageOffsetUnsafe(),
+                    input.isContiguous() && !input.hasStorageOffset(),
+                    context,
+                    isMax
+            );
             return;
         }
-        reduceAxisF32(in, shape, input.getStridesUnsafe(), out, node.getShapeUnsafe(), dimension, context, isMax);
+        reduceAxisF32(in, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, node.getShapeUnsafe(), node.getStorageOffsetUnsafe(), dimension, context, isMax);
     }
 
     static void executeF16(Tensor input, Tensor node, int dimension, CpuKernelContext context, boolean isMax) {
@@ -54,18 +81,28 @@ final class MinMaxReduceLoops {
         }
 
         if (dimension == -1) {
-            out[0] = CpuDTypeOps.toHalfBits((float) reduceAllF16(in, shape, input.getStridesUnsafe(), input.isContiguous(), context, isMax));
+            out[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toHalfBits((float) reduceAllF16(
+                    in,
+                    shape,
+                    input.getStridesUnsafe(),
+                    input.getStorageOffsetUnsafe(),
+                    input.isContiguous() && !input.hasStorageOffset(),
+                    context,
+                    isMax
+            ));
             return;
         }
-        reduceAxisF16(in, shape, input.getStridesUnsafe(), out, node.getShapeUnsafe(), dimension, context, isMax);
+        reduceAxisF16(in, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, node.getShapeUnsafe(), node.getStorageOffsetUnsafe(), dimension, context, isMax);
     }
 
     private static void reduceAxisF64(
             double[] in,
             int[] inputShape,
             int[] inputStrides,
+            int inputBaseOffset,
             double[] out,
             int[] outShape,
+            int outBaseOffset,
             int dimension,
             CpuKernelContext context,
             boolean isMax
@@ -74,20 +111,22 @@ final class MinMaxReduceLoops {
         int[] outDenseStrides = TensorMetadata.computeStrides(outShape);
         if (shouldParallelize(groups, context)) {
             parallelFor(groups, context, (start, end) ->
-                    reduceAxisRangeF64(in, inputShape, inputStrides, out, outShape, outDenseStrides, dimension, isMax, start, end)
+                    reduceAxisRangeF64(in, inputShape, inputStrides, inputBaseOffset, out, outShape, outDenseStrides, outBaseOffset, dimension, isMax, start, end)
             );
             return;
         }
-        reduceAxisRangeF64(in, inputShape, inputStrides, out, outShape, outDenseStrides, dimension, isMax, 0, groups);
+        reduceAxisRangeF64(in, inputShape, inputStrides, inputBaseOffset, out, outShape, outDenseStrides, outBaseOffset, dimension, isMax, 0, groups);
     }
 
     private static void reduceAxisRangeF64(
             double[] in,
             int[] inputShape,
             int[] inputStrides,
+            int inputBaseOffset,
             double[] out,
             int[] outShape,
             int[] outDenseStrides,
+            int outBaseOffset,
             int dimension,
             boolean isMax,
             int start,
@@ -96,13 +135,13 @@ final class MinMaxReduceLoops {
         int reducedSize = inputShape[dimension];
         int reducedStride = inputStrides[dimension];
         for (int outIndex = start; outIndex < end; outIndex++) {
-            int baseOffset = reductionBaseOffset(outIndex, outShape, outDenseStrides, inputStrides, dimension);
+            int baseOffset = reductionBaseOffset(outIndex, outShape, outDenseStrides, inputStrides, dimension, inputBaseOffset);
             double best = in[baseOffset];
             for (int r = 1; r < reducedSize; r++) {
                 double value = in[baseOffset + r * reducedStride];
                 best = isMax ? Math.max(best, value) : Math.min(best, value);
             }
-            out[outIndex] = best;
+            out[outBaseOffset + outIndex] = best;
         }
     }
 
@@ -110,8 +149,10 @@ final class MinMaxReduceLoops {
             float[] in,
             int[] inputShape,
             int[] inputStrides,
+            int inputBaseOffset,
             float[] out,
             int[] outShape,
+            int outBaseOffset,
             int dimension,
             CpuKernelContext context,
             boolean isMax
@@ -120,20 +161,22 @@ final class MinMaxReduceLoops {
         int[] outDenseStrides = TensorMetadata.computeStrides(outShape);
         if (shouldParallelize(groups, context)) {
             parallelFor(groups, context, (start, end) ->
-                    reduceAxisRangeF32(in, inputShape, inputStrides, out, outShape, outDenseStrides, dimension, isMax, start, end)
+                    reduceAxisRangeF32(in, inputShape, inputStrides, inputBaseOffset, out, outShape, outDenseStrides, outBaseOffset, dimension, isMax, start, end)
             );
             return;
         }
-        reduceAxisRangeF32(in, inputShape, inputStrides, out, outShape, outDenseStrides, dimension, isMax, 0, groups);
+        reduceAxisRangeF32(in, inputShape, inputStrides, inputBaseOffset, out, outShape, outDenseStrides, outBaseOffset, dimension, isMax, 0, groups);
     }
 
     private static void reduceAxisRangeF32(
             float[] in,
             int[] inputShape,
             int[] inputStrides,
+            int inputBaseOffset,
             float[] out,
             int[] outShape,
             int[] outDenseStrides,
+            int outBaseOffset,
             int dimension,
             boolean isMax,
             int start,
@@ -142,13 +185,13 @@ final class MinMaxReduceLoops {
         int reducedSize = inputShape[dimension];
         int reducedStride = inputStrides[dimension];
         for (int outIndex = start; outIndex < end; outIndex++) {
-            int baseOffset = reductionBaseOffset(outIndex, outShape, outDenseStrides, inputStrides, dimension);
+            int baseOffset = reductionBaseOffset(outIndex, outShape, outDenseStrides, inputStrides, dimension, inputBaseOffset);
             float best = in[baseOffset];
             for (int r = 1; r < reducedSize; r++) {
                 float value = in[baseOffset + r * reducedStride];
                 best = isMax ? Math.max(best, value) : Math.min(best, value);
             }
-            out[outIndex] = best;
+            out[outBaseOffset + outIndex] = best;
         }
     }
 
@@ -156,8 +199,10 @@ final class MinMaxReduceLoops {
             short[] in,
             int[] inputShape,
             int[] inputStrides,
+            int inputBaseOffset,
             short[] out,
             int[] outShape,
+            int outBaseOffset,
             int dimension,
             CpuKernelContext context,
             boolean isMax
@@ -166,20 +211,22 @@ final class MinMaxReduceLoops {
         int[] outDenseStrides = TensorMetadata.computeStrides(outShape);
         if (shouldParallelize(groups, context)) {
             parallelFor(groups, context, (start, end) ->
-                    reduceAxisRangeF16(in, inputShape, inputStrides, out, outShape, outDenseStrides, dimension, isMax, start, end)
+                    reduceAxisRangeF16(in, inputShape, inputStrides, inputBaseOffset, out, outShape, outDenseStrides, outBaseOffset, dimension, isMax, start, end)
             );
             return;
         }
-        reduceAxisRangeF16(in, inputShape, inputStrides, out, outShape, outDenseStrides, dimension, isMax, 0, groups);
+        reduceAxisRangeF16(in, inputShape, inputStrides, inputBaseOffset, out, outShape, outDenseStrides, outBaseOffset, dimension, isMax, 0, groups);
     }
 
     private static void reduceAxisRangeF16(
             short[] in,
             int[] inputShape,
             int[] inputStrides,
+            int inputBaseOffset,
             short[] out,
             int[] outShape,
             int[] outDenseStrides,
+            int outBaseOffset,
             int dimension,
             boolean isMax,
             int start,
@@ -188,13 +235,13 @@ final class MinMaxReduceLoops {
         int reducedSize = inputShape[dimension];
         int reducedStride = inputStrides[dimension];
         for (int outIndex = start; outIndex < end; outIndex++) {
-            int baseOffset = reductionBaseOffset(outIndex, outShape, outDenseStrides, inputStrides, dimension);
+            int baseOffset = reductionBaseOffset(outIndex, outShape, outDenseStrides, inputStrides, dimension, inputBaseOffset);
             float best = CpuDTypeOps.fromHalfBits(in[baseOffset]);
             for (int r = 1; r < reducedSize; r++) {
                 float value = CpuDTypeOps.fromHalfBits(in[baseOffset + r * reducedStride]);
                 best = isMax ? Math.max(best, value) : Math.min(best, value);
             }
-            out[outIndex] = CpuDTypeOps.toHalfBits(best);
+            out[outBaseOffset + outIndex] = CpuDTypeOps.toHalfBits(best);
         }
     }
 
@@ -202,6 +249,7 @@ final class MinMaxReduceLoops {
             double[] in,
             int[] shape,
             int[] strides,
+            int baseOffset,
             boolean contiguous,
             CpuKernelContext context,
             boolean isMax
@@ -218,7 +266,7 @@ final class MinMaxReduceLoops {
                 });
                 return mergePartialsF64(partials, isMax);
             }
-            return reduceContiguousRangeF64(in, 0, logicalSize, isMax);
+            return reduceContiguousRangeF64(in, baseOffset, baseOffset + logicalSize, isMax);
         }
         int[] denseStrides = TensorMetadata.computeStrides(shape);
         if (shouldParallelize(logicalSize, context)) {
@@ -227,17 +275,18 @@ final class MinMaxReduceLoops {
             CpuThreadPool.runChunks(chunks, workers(context), chunk -> {
                 int start = chunk * chunkSize(context);
                 int end = Math.min(start + chunkSize(context), logicalSize);
-                partials[chunk] = reduceStridedRangeF64(in, shape, strides, denseStrides, start, end, isMax);
+                partials[chunk] = reduceStridedRangeF64(in, shape, strides, denseStrides, baseOffset, start, end, isMax);
             });
             return mergePartialsF64(partials, isMax);
         }
-        return reduceStridedRangeF64(in, shape, strides, denseStrides, 0, logicalSize, isMax);
+        return reduceStridedRangeF64(in, shape, strides, denseStrides, baseOffset, 0, logicalSize, isMax);
     }
 
     private static double reduceAllF32(
             float[] in,
             int[] shape,
             int[] strides,
+            int baseOffset,
             boolean contiguous,
             CpuKernelContext context,
             boolean isMax
@@ -254,7 +303,7 @@ final class MinMaxReduceLoops {
                 });
                 return mergePartialsF64(partials, isMax);
             }
-            return reduceContiguousRangeF32(in, 0, logicalSize, isMax);
+            return reduceContiguousRangeF32(in, baseOffset, baseOffset + logicalSize, isMax);
         }
         int[] denseStrides = TensorMetadata.computeStrides(shape);
         if (shouldParallelize(logicalSize, context)) {
@@ -263,17 +312,18 @@ final class MinMaxReduceLoops {
             CpuThreadPool.runChunks(chunks, workers(context), chunk -> {
                 int start = chunk * chunkSize(context);
                 int end = Math.min(start + chunkSize(context), logicalSize);
-                partials[chunk] = reduceStridedRangeF32(in, shape, strides, denseStrides, start, end, isMax);
+                partials[chunk] = reduceStridedRangeF32(in, shape, strides, denseStrides, baseOffset, start, end, isMax);
             });
             return mergePartialsF64(partials, isMax);
         }
-        return reduceStridedRangeF32(in, shape, strides, denseStrides, 0, logicalSize, isMax);
+        return reduceStridedRangeF32(in, shape, strides, denseStrides, baseOffset, 0, logicalSize, isMax);
     }
 
     private static double reduceAllF16(
             short[] in,
             int[] shape,
             int[] strides,
+            int baseOffset,
             boolean contiguous,
             CpuKernelContext context,
             boolean isMax
@@ -290,7 +340,7 @@ final class MinMaxReduceLoops {
                 });
                 return mergePartialsF64(partials, isMax);
             }
-            return reduceContiguousRangeF16(in, 0, logicalSize, isMax);
+            return reduceContiguousRangeF16(in, baseOffset, baseOffset + logicalSize, isMax);
         }
         int[] denseStrides = TensorMetadata.computeStrides(shape);
         if (shouldParallelize(logicalSize, context)) {
@@ -299,11 +349,11 @@ final class MinMaxReduceLoops {
             CpuThreadPool.runChunks(chunks, workers(context), chunk -> {
                 int start = chunk * chunkSize(context);
                 int end = Math.min(start + chunkSize(context), logicalSize);
-                partials[chunk] = reduceStridedRangeF16(in, shape, strides, denseStrides, start, end, isMax);
+                partials[chunk] = reduceStridedRangeF16(in, shape, strides, denseStrides, baseOffset, start, end, isMax);
             });
             return mergePartialsF64(partials, isMax);
         }
-        return reduceStridedRangeF16(in, shape, strides, denseStrides, 0, logicalSize, isMax);
+        return reduceStridedRangeF16(in, shape, strides, denseStrides, baseOffset, 0, logicalSize, isMax);
     }
 
     private static double reduceContiguousRangeF64(double[] in, int start, int end, boolean isMax) {
@@ -331,32 +381,32 @@ final class MinMaxReduceLoops {
         return best;
     }
 
-    private static double reduceStridedRangeF64(double[] in, int[] shape, int[] strides, int[] denseStrides, int start, int end, boolean isMax) {
-        int offset = logicalToOffset(start, shape, strides, denseStrides);
+    private static double reduceStridedRangeF64(double[] in, int[] shape, int[] strides, int[] denseStrides, int baseOffset, int start, int end, boolean isMax) {
+        int offset = logicalToOffset(start, shape, strides, denseStrides, baseOffset);
         double best = in[offset];
         for (int logical = start + 1; logical < end; logical++) {
             best = isMax
-                    ? Math.max(best, in[logicalToOffset(logical, shape, strides, denseStrides)])
-                    : Math.min(best, in[logicalToOffset(logical, shape, strides, denseStrides)]);
+                    ? Math.max(best, in[logicalToOffset(logical, shape, strides, denseStrides, baseOffset)])
+                    : Math.min(best, in[logicalToOffset(logical, shape, strides, denseStrides, baseOffset)]);
         }
         return best;
     }
 
-    private static double reduceStridedRangeF32(float[] in, int[] shape, int[] strides, int[] denseStrides, int start, int end, boolean isMax) {
-        int offset = logicalToOffset(start, shape, strides, denseStrides);
+    private static double reduceStridedRangeF32(float[] in, int[] shape, int[] strides, int[] denseStrides, int baseOffset, int start, int end, boolean isMax) {
+        int offset = logicalToOffset(start, shape, strides, denseStrides, baseOffset);
         float best = in[offset];
         for (int logical = start + 1; logical < end; logical++) {
-            float value = in[logicalToOffset(logical, shape, strides, denseStrides)];
+            float value = in[logicalToOffset(logical, shape, strides, denseStrides, baseOffset)];
             best = isMax ? Math.max(best, value) : Math.min(best, value);
         }
         return best;
     }
 
-    private static double reduceStridedRangeF16(short[] in, int[] shape, int[] strides, int[] denseStrides, int start, int end, boolean isMax) {
-        int offset = logicalToOffset(start, shape, strides, denseStrides);
+    private static double reduceStridedRangeF16(short[] in, int[] shape, int[] strides, int[] denseStrides, int baseOffset, int start, int end, boolean isMax) {
+        int offset = logicalToOffset(start, shape, strides, denseStrides, baseOffset);
         float best = CpuDTypeOps.fromHalfBits(in[offset]);
         for (int logical = start + 1; logical < end; logical++) {
-            float value = CpuDTypeOps.fromHalfBits(in[logicalToOffset(logical, shape, strides, denseStrides)]);
+            float value = CpuDTypeOps.fromHalfBits(in[logicalToOffset(logical, shape, strides, denseStrides, baseOffset)]);
             best = isMax ? Math.max(best, value) : Math.min(best, value);
         }
         return best;
@@ -375,10 +425,11 @@ final class MinMaxReduceLoops {
             int[] outShape,
             int[] outDenseStrides,
             int[] inputStrides,
-            int reducedDimension
+            int reducedDimension,
+            int inputBaseOffset
     ) {
         int idx = outIndex;
-        int baseOffset = 0;
+        int baseOffset = inputBaseOffset;
         int inputRank = inputStrides.length;
         if (outShape.length == inputRank) {
             for (int outDim = 0; outDim < outShape.length; outDim++) {
@@ -401,9 +452,9 @@ final class MinMaxReduceLoops {
         return baseOffset;
     }
 
-    private static int logicalToOffset(int logicalIndex, int[] shape, int[] strides, int[] denseStrides) {
+    private static int logicalToOffset(int logicalIndex, int[] shape, int[] strides, int[] denseStrides, int baseOffset) {
         int idx = logicalIndex;
-        int offset = 0;
+        int offset = baseOffset;
         for (int d = 0; d < shape.length; d++) {
             int coord = idx / denseStrides[d];
             idx %= denseStrides[d];

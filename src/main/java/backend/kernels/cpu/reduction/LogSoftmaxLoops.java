@@ -15,7 +15,7 @@ public final class LogSoftmaxLoops {
         validateShapes(input, node, dimension);
         double[] in = input.getFloat64Data();
         double[] out = node.getFloat64Data();
-        runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), node.getStridesUnsafe(), dimension, group ->
+        runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, group ->
                 computeGroupF64(in, out, group.baseIn(), group.baseOut(), group.axisStrideIn(), group.axisStrideOut(), group.axisSize())
         , context.reductionHints());
     }
@@ -24,7 +24,7 @@ public final class LogSoftmaxLoops {
         validateShapes(input, node, dimension);
         float[] in = input.getFloat32Data();
         float[] out = node.getFloat32Data();
-        runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), node.getStridesUnsafe(), dimension, group ->
+        runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, group ->
                 computeGroupF32(in, out, group.baseIn(), group.baseOut(), group.axisStrideIn(), group.axisStrideOut(), group.axisSize())
         , context.reductionHints());
     }
@@ -33,7 +33,7 @@ public final class LogSoftmaxLoops {
         validateShapes(input, node, dimension);
         short[] in = input.getFloat16Data();
         short[] out = node.getFloat16Data();
-        runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), node.getStridesUnsafe(), dimension, group ->
+        runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, group ->
                 computeGroupF16(in, out, group.baseIn(), group.baseOut(), group.axisStrideIn(), group.axisStrideOut(), group.axisSize())
         , context.reductionHints());
     }
@@ -112,7 +112,9 @@ public final class LogSoftmaxLoops {
     private static void runGroups(
             int[] shape,
             int[] inStrides,
+            int inBaseOffset,
             int[] outStrides,
+            int outBaseOffset,
             int axis,
             GroupComputer groupComputer,
             ResolvedReductionHints hints
@@ -131,7 +133,7 @@ public final class LogSoftmaxLoops {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, groupCount);
                 for (int group = start; group < end; group++) {
-                    GroupState state = groupState(group, shape, inStrides, outStrides, axis, reducedDenseStrides, axisSize, axisStrideIn, axisStrideOut);
+                    GroupState state = groupState(group, shape, inStrides, inBaseOffset, outStrides, outBaseOffset, axis, reducedDenseStrides, axisSize, axisStrideIn, axisStrideOut);
                     groupComputer.compute(state);
                 }
             });
@@ -139,7 +141,7 @@ public final class LogSoftmaxLoops {
         }
 
         for (int group = 0; group < groupCount; group++) {
-            GroupState state = groupState(group, shape, inStrides, outStrides, axis, reducedDenseStrides, axisSize, axisStrideIn, axisStrideOut);
+            GroupState state = groupState(group, shape, inStrides, inBaseOffset, outStrides, outBaseOffset, axis, reducedDenseStrides, axisSize, axisStrideIn, axisStrideOut);
             groupComputer.compute(state);
         }
     }
@@ -148,16 +150,18 @@ public final class LogSoftmaxLoops {
             int reducedIndex,
             int[] shape,
             int[] inStrides,
+            int inBaseOffset,
             int[] outStrides,
+            int outBaseOffset,
             int axis,
             int[] reducedDenseStrides,
             int axisSize,
             int axisStrideIn,
             int axisStrideOut
-    ) {
+        ) {
         int rem = reducedIndex;
-        int baseIn = 0;
-        int baseOut = 0;
+        int baseIn = inBaseOffset;
+        int baseOut = outBaseOffset;
         for (int d = 0, rd = 0; d < shape.length; d++) {
             if (d == axis) {
                 continue;

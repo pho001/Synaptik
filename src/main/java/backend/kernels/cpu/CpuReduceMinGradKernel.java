@@ -14,10 +14,13 @@ public final class CpuReduceMinGradKernel implements CpuKernel {
                 inputs.get(0).getFloat64Data(),
                 inputs.get(0).getShapeUnsafe(),
                 inputs.get(0).getStridesUnsafe(),
+                inputs.get(0).getStorageOffsetUnsafe(),
                 inputs.get(1).getFloat64Data(),
                 inputs.get(1).getShapeUnsafe(),
+                inputs.get(1).getStorageOffsetUnsafe(),
                 inputs.get(2).getFloat64Data(),
                 node.getFloat64Data(),
+                node.getStorageOffsetUnsafe(),
                 gradOp.getDimension(),
                 false
         );
@@ -30,10 +33,13 @@ public final class CpuReduceMinGradKernel implements CpuKernel {
                 inputs.get(0).getFloat32Data(),
                 inputs.get(0).getShapeUnsafe(),
                 inputs.get(0).getStridesUnsafe(),
+                inputs.get(0).getStorageOffsetUnsafe(),
                 inputs.get(1).getFloat32Data(),
                 inputs.get(1).getShapeUnsafe(),
+                inputs.get(1).getStorageOffsetUnsafe(),
                 inputs.get(2).getFloat32Data(),
                 node.getFloat32Data(),
+                node.getStorageOffsetUnsafe(),
                 gradOp.getDimension(),
                 false
         );
@@ -46,10 +52,13 @@ public final class CpuReduceMinGradKernel implements CpuKernel {
                 inputs.get(0).getFloat16Data(),
                 inputs.get(0).getShapeUnsafe(),
                 inputs.get(0).getStridesUnsafe(),
+                inputs.get(0).getStorageOffsetUnsafe(),
                 inputs.get(1).getFloat16Data(),
                 inputs.get(1).getShapeUnsafe(),
+                inputs.get(1).getStorageOffsetUnsafe(),
                 inputs.get(2).getFloat16Data(),
                 node.getFloat16Data(),
+                node.getStorageOffsetUnsafe(),
                 gradOp.getDimension(),
                 false
         );

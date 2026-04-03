@@ -79,6 +79,10 @@ public final class TensorOps {
         return TensorSelectOps.where(condition, ifTrue, ifFalse);
     }
 
+    public static Tensor select(Tensor input, int dimension, int index) {
+        return TensorIndexOps.select(input, dimension, index);
+    }
+
     public static Tensor minimum(Tensor first, Tensor second) {
         return TensorPiecewiseOps.minimum(first, second);
     }
@@ -287,12 +291,20 @@ public final class TensorOps {
         return TensorNaryOps.nllLossFromIndices(logProbs, targetIndices, classDimension, reduction);
     }
 
+    public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
+        return TensorNaryOps.nllLossFromIndices(logProbs, targetIndices, classDimension, classWeights, reduction);
+    }
+
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex) {
         return TensorNaryOps.nllLossFromIndices(logProbs, targetIndices, classDimension, ignoreIndex);
     }
 
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
         return TensorNaryOps.nllLossFromIndices(logProbs, targetIndices, classDimension, ignoreIndex, reduction);
+    }
+
+    public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
+        return TensorNaryOps.nllLossFromIndices(logProbs, targetIndices, classDimension, ignoreIndex, classWeights, reduction);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension) {
@@ -303,11 +315,19 @@ public final class TensorOps {
         return TensorNaryOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, reduction);
     }
 
+    public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
+        return TensorNaryOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, classWeights, reduction);
+    }
+
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex) {
         return TensorNaryOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, ignoreIndex);
     }
 
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
         return TensorNaryOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, ignoreIndex, reduction);
+    }
+
+    public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
+        return TensorNaryOps.crossEntropyLossFromIndices(logits, targetIndices, classDimension, ignoreIndex, classWeights, reduction);
     }
 }

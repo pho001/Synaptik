@@ -52,6 +52,7 @@ The focus here is practical API usage:
   - [`minimum(Tensor second)`](#minimumtensor-second)
   - [`maximum(Tensor second)`](#maximumtensor-second)
 - [Indexing Operations](#indexing-operations)
+  - [`select(int dimension, int index)`](#selectint-dimension-int-index)
   - [`gather(Tensor indices, int dimension)`](#gathertensor-indices-int-dimension)
   - [`takeAlongAxis(Tensor indices, int dimension)`](#takealongaxistensor-indices-int-dimension)
   - [`scatterAdd(Tensor indices, Tensor src, int dimension)`](#scatteraddtensor-indices-tensor-src-int-dimension)
@@ -104,10 +105,14 @@ The focus here is practical API usage:
   - [`nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex)`](#nlllossfromindicestensor-targetindices-int-classdimension-int-ignoreindex)
   - [`nllLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction)`](#nlllossfromindicestensor-targetindices-int-classdimension-lossreduction-reduction)
   - [`nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction)`](#nlllossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-lossreduction-reduction)
+  - [`nllLossFromIndices(Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction)`](#nlllossfromindicestensor-targetindices-int-classdimension-tensor-classweights-lossreduction-reduction)
+  - [`nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction)`](#nlllossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-tensor-classweights-lossreduction-reduction)
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)`](#crossentropylossfromindicestensor-targetindices-int-classdimension)
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-int-ignoreindex)
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-lossreduction-reduction)
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-lossreduction-reduction)
+  - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-tensor-classweights-lossreduction-reduction)
+  - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-tensor-classweights-lossreduction-reduction)
 - [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
   - [`forwardOutput()`](#forwardoutput)
   - [`buildBackwardGraph()`](#buildbackwardgraph)
@@ -167,12 +172,16 @@ Important current behavior:
 
 - `permute(...)` creates a view-like tensor with reordered strides
 - `expand(...)` creates a zero-stride broadcast alias view
+- `select(...)` creates a storage-offset alias view
 - `expandDims(...)` creates a stride-preserving alias view with one inserted size-`1` axis
 - `squeeze(...)` creates a stride-preserving alias view with one removed size-`1` axis
 - `reshape(...)` is a layout-level transform that preserves element count
   - for contiguous inputs it aliases the same storage as a reshape view
   - for non-contiguous inputs it may materialize a dense reshaped result
 - `contiguous()` is the canonical explicit materialization path
+- current CPU execution keeps offset views as views through layout ops
+  - strided element-wise, compare, logical, `where`, reduction, softmax/logSoftmax, dense-target loss, indexing kernels, and min/max reduction-grad kernels can consume them natively
+  - when a downstream kernel does not natively support non-zero base offsets, planner-side prepared inputs materialize them first
 
 `contiguous()` is useful when:
 
@@ -970,6 +979,44 @@ Tensor y = a.maximum(b);
 ```
 
 ## Indexing Operations
+
+### `select(int dimension, int index)`
+
+Selects one slice along a chosen axis.
+
+Parameters:
+- `dimension`: axis to select from
+- `index`: position inside that axis; negative indexing is accepted and counts from the end
+
+Returns:
+- tensor whose shape equals the input shape with the selected axis removed
+
+Behavior:
+- semantically this is single-index read indexing
+- current implementation is a true alias view:
+  - shape/stride metadata is rewritten
+  - backing storage is shared
+  - selected slice position is represented through `storageOffset`
+- this makes it the natural ergonomic companion to:
+  - `takeAlongAxis` for axis-wise materialized read indexing
+  - `scatterAdd` for write/update indexing
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2, 3,
+        4, 5, 6
+}, new int[]{2, 3}, null, "x");
+Tensor y = x.select(1, 2);
+// x has shape [2, 3]:
+// [[1, 2, 3],
+//  [4, 5, 6]]
+//
+// Selecting axis 1, index 2 picks the last column.
+// y has shape [2] and values [3, 6].
+//
+// Returns: a tensor containing one slice extracted along the chosen axis.
+```
 
 ### `gather(Tensor indices, int dimension)`
 
@@ -2016,6 +2063,57 @@ Example:
 Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1, -1, LossReduction.SUM);
 ```
 
+### `nllLossFromIndices(Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction)`
+
+Computes weighted index-target NLL with explicit reduction mode.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logProbs.shape` without the class axis
+- `classDimension`: axis containing class log-probabilities
+- `classWeights`: rank-1 tensor with shape `[numClasses]`
+- `reduction`: `MEAN`, `SUM`, or `NONE`
+
+Returns:
+- scalar tensor for `MEAN` / `SUM`
+- weighted unreduced per-sample tensor for `NONE`
+
+Behavior:
+- per-sample loss is multiplied by the weight of the selected target class
+- class weight lookup is built through tensor indexing composition:
+  - `reshape -> expand -> takeAlongAxis -> squeeze`
+- `MEAN` uses weighted mean:
+  - `sum(weightedLoss) / sum(appliedWeights)`
+
+Example:
+```java
+Tensor logProbs = logits.logSoftmax(1);
+Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndices", DataType.INT32);
+Tensor classWeights = new Tensor(new double[]{0.5, 1.0, 2.0}, new int[]{3}, null, "classWeights");
+Tensor loss = logProbs.nllLossFromIndices(targetIndices, 1, classWeights, LossReduction.MEAN);
+// The first sample uses weight 2.0, the second sample uses weight 0.5.
+// Per-sample losses are weighted before reduction.
+// Returns: a scalar weighted mean NLL loss.
+```
+
+### `nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction)`
+
+Computes weighted index-target NLL with both `ignoreIndex` and explicit reduction mode.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logProbs.shape` without the class axis
+- `classDimension`: axis containing class log-probabilities
+- `ignoreIndex`: target id that should be excluded
+- `classWeights`: rank-1 tensor with shape `[numClasses]`
+- `reduction`: `MEAN`, `SUM`, or `NONE`
+
+Returns:
+- scalar tensor for `MEAN` / `SUM`
+- weighted unreduced per-sample tensor for `NONE`
+
+Behavior:
+- ignored samples contribute neither weighted loss nor weight denominator
+- `MEAN` divides by the sum of weights of non-ignored samples
+
 ### `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)`
 
 Computes mean cross-entropy loss directly from logits and class-id targets.
@@ -2095,6 +2193,42 @@ Parameters:
 Returns:
 - scalar tensor for `MEAN` / `SUM`
 - unreduced per-sample tensor for `NONE`
+
+### `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction)`
+
+Computes weighted logits-facing index-target cross-entropy with explicit reduction mode.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logits.shape` without the class axis
+- `classDimension`: axis containing class logits
+- `classWeights`: rank-1 tensor with shape `[numClasses]`
+- `reduction`: `MEAN`, `SUM`, or `NONE`
+
+Returns:
+- scalar tensor for `MEAN` / `SUM`
+- weighted unreduced per-sample tensor for `NONE`
+
+Behavior:
+- equivalent to `logits.logSoftmax(classDimension)` followed by weighted `nllLossFromIndices(...)`
+- class weights are selected per sample from the target class id
+
+### `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction)`
+
+Computes weighted logits-facing index-target cross-entropy with both `ignoreIndex` and explicit reduction mode.
+
+Parameters:
+- `targetIndices`: tensor whose shape equals `logits.shape` without the class axis
+- `classDimension`: axis containing class logits
+- `ignoreIndex`: target id that should be excluded
+- `classWeights`: rank-1 tensor with shape `[numClasses]`
+- `reduction`: `MEAN`, `SUM`, or `NONE`
+
+Returns:
+- scalar tensor for `MEAN` / `SUM`
+- weighted unreduced per-sample tensor for `NONE`
+
+Behavior:
+- ignored samples contribute neither to weighted loss nor to the weighted `MEAN` denominator
 
 ## Execution Anchor / Autodiff Helpers
 
@@ -2189,10 +2323,14 @@ Returns logical element count.
 Returns whether the tensor layout is contiguous.
 
 #### `getFlatIndex(int[] indices)`
-Maps multi-dimensional indices to flat index according to current layout.
+Maps multi-dimensional indices to storage offset according to current layout.
 
 #### `getSpatialIndex(int index)`
-Maps a flat index back to logical coordinates.
+Maps a storage offset back to logical coordinates.
+
+#### `getStorageOffsetUnsafe()`
+Returns current base storage offset.
+This is primarily an internal/runtime accessor for view handling.
 
 #### `computeStrides(int[] shape)`
 Returns dense strides for a requested shape.
@@ -2215,6 +2353,10 @@ Changes dtype within numeric families.
 #### `getStorage()`
 Returns the backing storage object.
 This is mainly internal/runtime oriented.
+
+#### `hasStorageOffset()`
+Returns whether this tensor starts at a non-zero base storage offset.
+This is mainly an internal/runtime-oriented accessor for offset views.
 
 #### `getFloat64Data()`
 Returns raw `double[]` storage when dtype is `FLOAT64`, otherwise `null`.

@@ -15,10 +15,12 @@ public final class NllLossLoops {
         validate(logProbs, targets, node, classDimension);
         double[] logData = logProbs.getFloat64Data();
         double[] targetData = targets.getFloat64Data();
-        node.getFloat64Data()[0] = reduceMeanLoss(
+        node.getFloat64Data()[node.getStorageOffsetUnsafe()] = reduceMeanLoss(
                 logProbs.getShapeUnsafe(),
                 logProbs.getStridesUnsafe(),
+                logProbs.getStorageOffsetUnsafe(),
                 targets.getStridesUnsafe(),
+                targets.getStorageOffsetUnsafe(),
                 classDimension,
                 context.reductionHints(),
                 group -> computeGroupF64(logData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
@@ -29,10 +31,12 @@ public final class NllLossLoops {
         validate(logProbs, targets, node, classDimension);
         float[] logData = logProbs.getFloat32Data();
         float[] targetData = targets.getFloat32Data();
-        node.getFloat32Data()[0] = (float) reduceMeanLoss(
+        node.getFloat32Data()[node.getStorageOffsetUnsafe()] = (float) reduceMeanLoss(
                 logProbs.getShapeUnsafe(),
                 logProbs.getStridesUnsafe(),
+                logProbs.getStorageOffsetUnsafe(),
                 targets.getStridesUnsafe(),
+                targets.getStorageOffsetUnsafe(),
                 classDimension,
                 context.reductionHints(),
                 group -> computeGroupF32(logData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
@@ -46,12 +50,14 @@ public final class NllLossLoops {
         float loss = (float) reduceMeanLoss(
                 logProbs.getShapeUnsafe(),
                 logProbs.getStridesUnsafe(),
+                logProbs.getStorageOffsetUnsafe(),
                 targets.getStridesUnsafe(),
+                targets.getStorageOffsetUnsafe(),
                 classDimension,
                 context.reductionHints(),
                 group -> computeGroupF16(logData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
         );
-        node.getFloat16Data()[0] = CpuDTypeOps.toHalfBits(loss);
+        node.getFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toHalfBits(loss);
     }
 
     private static void validate(Tensor logProbs, Tensor targets, Tensor node, int classDimension) {
@@ -104,7 +110,9 @@ public final class NllLossLoops {
     private static double reduceMeanLoss(
             int[] shape,
             int[] logStrides,
+            int logBaseOffset,
             int[] targetStrides,
+            int targetBaseOffset,
             int classDimension,
             ResolvedReductionHints hints,
             GroupLossComputer computer
@@ -129,7 +137,7 @@ public final class NllLossLoops {
                 int end = Math.min(start + chunkSize, groupCount);
                 double partial = 0.0;
                 for (int group = start; group < end; group++) {
-                    GroupState state = groupState(group, shape, logStrides, targetStrides, classDimension, reducedDenseStrides, axisSize, axisStrideLog, axisStrideTarget);
+                    GroupState state = groupState(group, shape, logStrides, logBaseOffset, targetStrides, targetBaseOffset, classDimension, reducedDenseStrides, axisSize, axisStrideLog, axisStrideTarget);
                     partial += computer.compute(state);
                 }
                 partials[chunk] = partial;
@@ -143,7 +151,7 @@ public final class NllLossLoops {
 
         double total = 0.0;
         for (int group = 0; group < groupCount; group++) {
-            GroupState state = groupState(group, shape, logStrides, targetStrides, classDimension, reducedDenseStrides, axisSize, axisStrideLog, axisStrideTarget);
+            GroupState state = groupState(group, shape, logStrides, logBaseOffset, targetStrides, targetBaseOffset, classDimension, reducedDenseStrides, axisSize, axisStrideLog, axisStrideTarget);
             total += computer.compute(state);
         }
         return total / groupCount;
@@ -153,16 +161,18 @@ public final class NllLossLoops {
             int reducedIndex,
             int[] shape,
             int[] logStrides,
+            int logBaseOffset,
             int[] targetStrides,
+            int targetBaseOffset,
             int classDimension,
             int[] reducedDenseStrides,
             int axisSize,
             int axisStrideLog,
             int axisStrideTarget
-    ) {
+        ) {
         int rem = reducedIndex;
-        int baseLog = 0;
-        int baseTarget = 0;
+        int baseLog = logBaseOffset;
+        int baseTarget = targetBaseOffset;
         for (int d = 0, rd = 0; d < shape.length; d++) {
             if (d == classDimension) {
                 continue;

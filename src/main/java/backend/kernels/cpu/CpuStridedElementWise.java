@@ -16,7 +16,9 @@ public final class CpuStridedElementWise {
     public static boolean supports(Operation op) {
         if (op == null) return false;
         return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
+            case ADD, SUB, MUL, DIV, MIN, MAX, GT, GE, LT, LE, EQ, NE, WHERE,
+                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
+                    NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
             default -> false;
         };
     }
@@ -40,46 +42,78 @@ public final class CpuStridedElementWise {
                 forwardF16(op, inputs, node, useFastExpApprox, useFastTanhApprox);
                 return;
             }
-            case INT32 -> throw new UnsupportedOperationException("INT32 is not supported by CpuStridedElementWise.");
             case FLOAT64 -> {
+                if (op.opType() == Operation.OpType.WHERE) {
+                    forwardWhereF64(inputs, node);
+                    return;
+                }
                 // continue with existing F64 path below
             }
-            case BOOL -> throw new UnsupportedOperationException("BOOL is not supported by CpuStridedElementWise.");
+            case BOOL -> {
+                forwardBOOL(op, inputs, node);
+                return;
+            }
+            case INT32 -> throw new UnsupportedOperationException("INT32 is not supported by CpuStridedElementWise.");
         }
 
-        double[] out = node.getData();
+        double[] out = node.getFloat64Data();
         if (out == null) {
+            return;
+        }
+        if (op.opType() == Operation.OpType.WHERE) {
+            forwardWhereF64(inputs, node);
             return;
         }
 
         int[] outShape = node.getShapeUnsafe();
+        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
+        int outBaseOffset = node.getStorageOffsetUnsafe();
         int rank = outShape.length;
 
         double[] a = null;
         double[] b = null;
         int[] aStrides = null;
         int[] bStrides = null;
+        int aBaseOffset = 0;
+        int bBaseOffset = 0;
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
-            a = ta.getData();
+            a = ta.getFloat64Data();
             aStrides = ta.getStridesUnsafe();
+            aBaseOffset = ta.getStorageOffsetUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
-            b = tb.getData();
+            b = tb.getFloat64Data();
             bStrides = tb.getStridesUnsafe();
+            bBaseOffset = tb.getStorageOffsetUnsafe();
         }
 
         if (rank == 1) {
-            forwardRank1(op, a, b, aStrides, bStrides, out, useFastExpApprox, useFastTanhApprox);
+            forwardRank1(
+                    op,
+                    a,
+                    b,
+                    aStrides,
+                    bStrides,
+                    aBaseOffset,
+                    bBaseOffset,
+                    out,
+                    outStrides[0],
+                    outBaseOffset,
+                    node.getFlatDataSize(),
+                    useFastExpApprox,
+                    useFastTanhApprox
+            );
             return;
         }
 
-        for (int i = 0; i < out.length; i++) {
-            int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
-            int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
-            out[i] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
+        for (int i = 0; i < node.getFlatDataSize(); i++) {
+            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+            int aIdx = a != null ? remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset) : -1;
+            int bIdx = b != null ? remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset) : -1;
+            out[outIdx] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
         }
     }
 
@@ -94,41 +128,53 @@ public final class CpuStridedElementWise {
         if (out == null) {
             return;
         }
+        if (op.opType() == Operation.OpType.WHERE) {
+            forwardWhereF32(inputs, node, out);
+            return;
+        }
 
         int[] outShape = node.getShapeUnsafe();
+        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
+        int outBaseOffset = node.getStorageOffsetUnsafe();
         int rank = outShape.length;
 
         float[] a = null;
         float[] b = null;
         int[] aStrides = null;
         int[] bStrides = null;
+        int aBaseOffset = 0;
+        int bBaseOffset = 0;
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
             a = ta.getFloat32Data();
             aStrides = ta.getStridesUnsafe();
+            aBaseOffset = ta.getStorageOffsetUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
             b = tb.getFloat32Data();
             bStrides = tb.getStridesUnsafe();
+            bBaseOffset = tb.getStorageOffsetUnsafe();
         }
 
         if (rank == 1) {
             int strideA = a != null ? aStrides[0] : 0;
             int strideB = b != null ? bStrides[0] : 0;
-            for (int i = 0; i < out.length; i++) {
-                int aIdx = a != null ? i * strideA : -1;
-                int bIdx = b != null ? i * strideB : -1;
-                out[i] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
+            for (int i = 0; i < node.getFlatDataSize(); i++) {
+                int outIdx = outBaseOffset + i * outStrides[0];
+                int aIdx = a != null ? aBaseOffset + i * strideA : -1;
+                int bIdx = b != null ? bBaseOffset + i * strideB : -1;
+                out[outIdx] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
             }
             return;
         }
 
-        for (int i = 0; i < out.length; i++) {
-            int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
-            int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
-            out[i] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
+        for (int i = 0; i < node.getFlatDataSize(); i++) {
+            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+            int aIdx = a != null ? remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset) : -1;
+            int bIdx = b != null ? remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset) : -1;
+            out[outIdx] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
         }
     }
 
@@ -145,39 +191,253 @@ public final class CpuStridedElementWise {
         }
 
         int[] outShape = node.getShapeUnsafe();
+        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
+        int outBaseOffset = node.getStorageOffsetUnsafe();
         int rank = outShape.length;
 
         short[] a = null;
         short[] b = null;
         int[] aStrides = null;
         int[] bStrides = null;
+        int aBaseOffset = 0;
+        int bBaseOffset = 0;
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
             a = ta.getFloat16Data();
             aStrides = ta.getStridesUnsafe();
+            aBaseOffset = ta.getStorageOffsetUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
             b = tb.getFloat16Data();
             bStrides = tb.getStridesUnsafe();
+            bBaseOffset = tb.getStorageOffsetUnsafe();
         }
 
         if (rank == 1) {
             int strideA = a != null ? aStrides[0] : 0;
             int strideB = b != null ? bStrides[0] : 0;
-            for (int i = 0; i < out.length; i++) {
-                int aIdx = a != null ? i * strideA : -1;
-                int bIdx = b != null ? i * strideB : -1;
-                out[i] = evalF16(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
+            for (int i = 0; i < node.getFlatDataSize(); i++) {
+                int outIdx = outBaseOffset + i * outStrides[0];
+                int aIdx = a != null ? aBaseOffset + i * strideA : -1;
+                int bIdx = b != null ? bBaseOffset + i * strideB : -1;
+                out[outIdx] = evalF16(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
             }
             return;
         }
 
-        for (int i = 0; i < out.length; i++) {
-            int aIdx = a != null ? remapIndex(i, outStrides, aStrides, rank) : -1;
-            int bIdx = b != null ? remapIndex(i, outStrides, bStrides, rank) : -1;
-            out[i] = evalF16(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
+        for (int i = 0; i < node.getFlatDataSize(); i++) {
+            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+            int aIdx = a != null ? remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset) : -1;
+            int bIdx = b != null ? remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset) : -1;
+            out[outIdx] = evalF16(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
+        }
+    }
+
+    private static void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node) {
+        byte[] out = node.getBoolData();
+        if (out == null) {
+            return;
+        }
+
+        int[] outShape = node.getShapeUnsafe();
+        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
+        int[] outStrides = node.getStridesUnsafe();
+        int outBaseOffset = node.getStorageOffsetUnsafe();
+        int rank = outShape.length;
+
+        if (op.opType() == Operation.OpType.LOGICAL_NOT) {
+            Tensor ta = inputs.getFirst();
+            byte[] a = ta.getBoolData();
+            int[] aStrides = ta.getStridesUnsafe();
+            int aBaseOffset = ta.getStorageOffsetUnsafe();
+            if (rank == 1) {
+                for (int i = 0; i < node.getFlatDataSize(); i++) {
+                    out[outBaseOffset + i * outStrides[0]] = evalBoolUnary(op, a[aBaseOffset + i * aStrides[0]]);
+                }
+                return;
+            }
+            for (int i = 0; i < node.getFlatDataSize(); i++) {
+                int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+                int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
+                out[outIdx] = evalBoolUnary(op, a[aIdx]);
+            }
+            return;
+        }
+
+        Tensor ta = inputs.get(0);
+        Tensor tb = inputs.get(1);
+        if (ta.getDataType() == tensor.DataType.BOOL) {
+            byte[] a = ta.getBoolData();
+            byte[] b = tb.getBoolData();
+            int[] aStrides = ta.getStridesUnsafe();
+            int[] bStrides = tb.getStridesUnsafe();
+            int aBaseOffset = ta.getStorageOffsetUnsafe();
+            int bBaseOffset = tb.getStorageOffsetUnsafe();
+            if (rank == 1) {
+                for (int i = 0; i < node.getFlatDataSize(); i++) {
+                    out[outBaseOffset + i * outStrides[0]] =
+                            evalBoolBinary(op, a[aBaseOffset + i * aStrides[0]], b[bBaseOffset + i * bStrides[0]]);
+                }
+                return;
+            }
+            for (int i = 0; i < node.getFlatDataSize(); i++) {
+                int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+                int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
+                int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
+                out[outIdx] = evalBoolBinary(op, a[aIdx], b[bIdx]);
+            }
+            return;
+        }
+
+        switch (ta.getDataType()) {
+            case FLOAT64 -> {
+                double[] a = ta.getFloat64Data();
+                double[] b = tb.getFloat64Data();
+                int[] aStrides = ta.getStridesUnsafe();
+                int[] bStrides = tb.getStridesUnsafe();
+                int aBaseOffset = ta.getStorageOffsetUnsafe();
+                int bBaseOffset = tb.getStorageOffsetUnsafe();
+                if (rank == 1) {
+                    for (int i = 0; i < node.getFlatDataSize(); i++) {
+                        out[outBaseOffset + i * outStrides[0]] =
+                                evalCompare(op, a[aBaseOffset + i * aStrides[0]], b[bBaseOffset + i * bStrides[0]]);
+                    }
+                    return;
+                }
+                for (int i = 0; i < node.getFlatDataSize(); i++) {
+                    int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+                    int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
+                    int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
+                    out[outIdx] = evalCompare(op, a[aIdx], b[bIdx]);
+                }
+            }
+            case FLOAT32 -> {
+                float[] a = ta.getFloat32Data();
+                float[] b = tb.getFloat32Data();
+                int[] aStrides = ta.getStridesUnsafe();
+                int[] bStrides = tb.getStridesUnsafe();
+                int aBaseOffset = ta.getStorageOffsetUnsafe();
+                int bBaseOffset = tb.getStorageOffsetUnsafe();
+                if (rank == 1) {
+                    for (int i = 0; i < node.getFlatDataSize(); i++) {
+                        out[outBaseOffset + i * outStrides[0]] =
+                                evalCompare(op, a[aBaseOffset + i * aStrides[0]], b[bBaseOffset + i * bStrides[0]]);
+                    }
+                    return;
+                }
+                for (int i = 0; i < node.getFlatDataSize(); i++) {
+                    int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+                    int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
+                    int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
+                    out[outIdx] = evalCompare(op, a[aIdx], b[bIdx]);
+                }
+            }
+            case FLOAT16 -> {
+                short[] a = ta.getFloat16Data();
+                short[] b = tb.getFloat16Data();
+                int[] aStrides = ta.getStridesUnsafe();
+                int[] bStrides = tb.getStridesUnsafe();
+                int aBaseOffset = ta.getStorageOffsetUnsafe();
+                int bBaseOffset = tb.getStorageOffsetUnsafe();
+                if (rank == 1) {
+                    for (int i = 0; i < node.getFlatDataSize(); i++) {
+                        out[outBaseOffset + i * outStrides[0]] = evalCompare(
+                                op,
+                                CpuDTypeOps.fromHalfBits(a[aBaseOffset + i * aStrides[0]]),
+                                CpuDTypeOps.fromHalfBits(b[bBaseOffset + i * bStrides[0]])
+                        );
+                    }
+                    return;
+                }
+                for (int i = 0; i < node.getFlatDataSize(); i++) {
+                    int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+                    int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
+                    int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
+                    out[outIdx] = evalCompare(op, CpuDTypeOps.fromHalfBits(a[aIdx]), CpuDTypeOps.fromHalfBits(b[bIdx]));
+                }
+            }
+            case INT32, BOOL -> throw new UnsupportedOperationException("Unsupported BOOL strided input contract for opType=" + op.opType());
+        }
+    }
+
+    private static void forwardWhereF64(List<Tensor> inputs, Tensor node) {
+        double[] out = node.getFloat64Data();
+        if (out == null) {
+            return;
+        }
+        byte[] cond = inputs.get(0).getBoolData();
+        double[] ifTrue = inputs.get(1).getFloat64Data();
+        double[] ifFalse = inputs.get(2).getFloat64Data();
+        int[] outShape = node.getShapeUnsafe();
+        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
+        int[] outStrides = node.getStridesUnsafe();
+        int[] condStrides = inputs.get(0).getStridesUnsafe();
+        int[] trueStrides = inputs.get(1).getStridesUnsafe();
+        int[] falseStrides = inputs.get(2).getStridesUnsafe();
+        int outBaseOffset = node.getStorageOffsetUnsafe();
+        int condBaseOffset = inputs.get(0).getStorageOffsetUnsafe();
+        int trueBaseOffset = inputs.get(1).getStorageOffsetUnsafe();
+        int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
+        int rank = outShape.length;
+
+        for (int i = 0; i < node.getFlatDataSize(); i++) {
+            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+            int condIdx = remapIndex(i, outDenseStrides, condStrides, rank, condBaseOffset);
+            int trueIdx = remapIndex(i, outDenseStrides, trueStrides, rank, trueBaseOffset);
+            int falseIdx = remapIndex(i, outDenseStrides, falseStrides, rank, falseBaseOffset);
+            out[outIdx] = cond[condIdx] != 0 ? ifTrue[trueIdx] : ifFalse[falseIdx];
+        }
+    }
+
+    private static void forwardWhereF32(List<Tensor> inputs, Tensor node, float[] out) {
+        byte[] cond = inputs.get(0).getBoolData();
+        float[] ifTrue = inputs.get(1).getFloat32Data();
+        float[] ifFalse = inputs.get(2).getFloat32Data();
+        int[] outShape = node.getShapeUnsafe();
+        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
+        int[] outStrides = node.getStridesUnsafe();
+        int[] condStrides = inputs.get(0).getStridesUnsafe();
+        int[] trueStrides = inputs.get(1).getStridesUnsafe();
+        int[] falseStrides = inputs.get(2).getStridesUnsafe();
+        int outBaseOffset = node.getStorageOffsetUnsafe();
+        int condBaseOffset = inputs.get(0).getStorageOffsetUnsafe();
+        int trueBaseOffset = inputs.get(1).getStorageOffsetUnsafe();
+        int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
+        int rank = outShape.length;
+
+        for (int i = 0; i < node.getFlatDataSize(); i++) {
+            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+            int condIdx = remapIndex(i, outDenseStrides, condStrides, rank, condBaseOffset);
+            int trueIdx = remapIndex(i, outDenseStrides, trueStrides, rank, trueBaseOffset);
+            int falseIdx = remapIndex(i, outDenseStrides, falseStrides, rank, falseBaseOffset);
+            out[outIdx] = cond[condIdx] != 0 ? ifTrue[trueIdx] : ifFalse[falseIdx];
+        }
+    }
+
+    private static void forwardWhereF16(List<Tensor> inputs, Tensor node, short[] out) {
+        byte[] cond = inputs.get(0).getBoolData();
+        short[] ifTrue = inputs.get(1).getFloat16Data();
+        short[] ifFalse = inputs.get(2).getFloat16Data();
+        int[] outShape = node.getShapeUnsafe();
+        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
+        int[] outStrides = node.getStridesUnsafe();
+        int[] condStrides = inputs.get(0).getStridesUnsafe();
+        int[] trueStrides = inputs.get(1).getStridesUnsafe();
+        int[] falseStrides = inputs.get(2).getStridesUnsafe();
+        int outBaseOffset = node.getStorageOffsetUnsafe();
+        int condBaseOffset = inputs.get(0).getStorageOffsetUnsafe();
+        int trueBaseOffset = inputs.get(1).getStorageOffsetUnsafe();
+        int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
+        int rank = outShape.length;
+
+        for (int i = 0; i < node.getFlatDataSize(); i++) {
+            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
+            int condIdx = remapIndex(i, outDenseStrides, condStrides, rank, condBaseOffset);
+            int trueIdx = remapIndex(i, outDenseStrides, trueStrides, rank, trueBaseOffset);
+            int falseIdx = remapIndex(i, outDenseStrides, falseStrides, rank, falseBaseOffset);
+            out[outIdx] = cond[condIdx] != 0 ? ifTrue[trueIdx] : ifFalse[falseIdx];
         }
     }
 
@@ -187,28 +447,67 @@ public final class CpuStridedElementWise {
             double[] b,
             int[] aStrides,
             int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
             double[] out,
+            int outStride,
+            int outBaseOffset,
+            int logicalSize,
             boolean useFastExpApprox,
             boolean useFastTanhApprox
     ) {
         int strideA = a != null ? aStrides[0] : 0;
         int strideB = b != null ? bStrides[0] : 0;
-        for (int i = 0; i < out.length; i++) {
-            int aIdx = a != null ? i * strideA : -1;
-            int bIdx = b != null ? i * strideB : -1;
-            out[i] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
+        for (int i = 0; i < logicalSize; i++) {
+            int outIdx = outBaseOffset + i * outStride;
+            int aIdx = a != null ? aBaseOffset + i * strideA : -1;
+            int bIdx = b != null ? bBaseOffset + i * strideB : -1;
+            out[outIdx] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
         }
     }
 
-    private static int remapIndex(int flatOut, int[] outStrides, int[] inStrides, int rank) {
+    private static int remapIndex(int flatOut, int[] denseStrides, int[] targetStrides, int rank, int baseOffset) {
         int idx = flatOut;
-        int inFlat = 0;
+        int targetFlat = baseOffset;
         for (int d = 0; d < rank; d++) {
-            int coord = idx / outStrides[d];
-            idx %= outStrides[d];
-            inFlat += coord * inStrides[d];
+            int coord = idx / denseStrides[d];
+            idx %= denseStrides[d];
+            targetFlat += coord * targetStrides[d];
         }
-        return inFlat;
+        return targetFlat;
+    }
+
+    private static byte evalCompare(Operation op, double left, double right) {
+        boolean value = switch (op.opType()) {
+            case GT -> left > right;
+            case GE -> left >= right;
+            case LT -> left < right;
+            case LE -> left <= right;
+            case EQ -> left == right;
+            case NE -> left != right;
+            default -> throw new UnsupportedOperationException("Unsupported compare strided opType=" + op.opType());
+        };
+        return value ? (byte) 1 : (byte) 0;
+    }
+
+    private static byte evalBoolBinary(Operation op, byte left, byte right) {
+        boolean l = left != 0;
+        boolean r = right != 0;
+        boolean value = switch (op.opType()) {
+            case LOGICAL_AND -> l && r;
+            case LOGICAL_OR -> l || r;
+            default -> throw new UnsupportedOperationException("Unsupported bool strided opType=" + op.opType());
+        };
+        return value ? (byte) 1 : (byte) 0;
+    }
+
+    private static byte evalBoolUnary(Operation op, byte value) {
+        boolean v = value != 0;
+        boolean out = switch (op.opType()) {
+            case LOGICAL_NOT -> !v;
+            default -> throw new UnsupportedOperationException("Unsupported bool unary strided opType=" + op.opType());
+        };
+        return out ? (byte) 1 : (byte) 0;
     }
 
     private static double eval(

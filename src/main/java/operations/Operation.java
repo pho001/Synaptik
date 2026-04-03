@@ -64,6 +64,7 @@ public interface Operation {
         CONTIGUOUS(OpArityClass.LAYOUT, false),
         RESHAPE(OpArityClass.LAYOUT, false),
         EXPAND(OpArityClass.LAYOUT, false),
+        SELECT(OpArityClass.LAYOUT, false),
         PERMUTE(OpArityClass.LAYOUT, false),
         EXPAND_DIMS(OpArityClass.LAYOUT, false),
         SQUEEZE(OpArityClass.LAYOUT, false),

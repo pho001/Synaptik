@@ -71,8 +71,12 @@ public class Tensor {
     }
 
     public Tensor(int[] shape, int[] strides, List<Tensor> previous, Operation operation, String label, DataType dataType) {
+        this(shape, strides, 0, previous, operation, label, dataType);
+    }
+
+    public Tensor(int[] shape, int[] strides, int storageOffset, List<Tensor> previous, Operation operation, String label, DataType dataType) {
         this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
-        this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
+        this.metadata = new TensorMetadata(shape, strides, storageOffset, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         this.operation = operation;
         initEmptyStorage();
     }
@@ -289,6 +293,10 @@ public class Tensor {
         return metadata.stridesRef();
     }
 
+    public int getStorageOffsetUnsafe() {
+        return metadata.getStorageOffset();
+    }
+
     public void setData(double[] data) {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
@@ -488,6 +496,10 @@ public class Tensor {
 
     boolean isBroadcastView() {
         return metadata.isBroadcastView();
+    }
+
+    public boolean hasStorageOffset() {
+        return metadata.hasStorageOffset();
     }
 
     public String toStructString(){
@@ -805,6 +817,10 @@ public class Tensor {
         return TensorOps.where(condition, ifTrue, ifFalse);
     }
 
+    public Tensor select(int dimension, int index) {
+        return TensorOps.select(this, dimension, index);
+    }
+
     public Tensor minimum(Tensor second) {
         return TensorOps.minimum(this, second);
     }
@@ -962,12 +978,20 @@ public class Tensor {
         return TensorOps.nllLossFromIndices(this, targetIndices, classDimension, reduction);
     }
 
+    public Tensor nllLossFromIndices(Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
+        return TensorOps.nllLossFromIndices(this, targetIndices, classDimension, classWeights, reduction);
+    }
+
     public Tensor nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex) {
         return TensorOps.nllLossFromIndices(this, targetIndices, classDimension, ignoreIndex);
     }
 
     public Tensor nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
         return TensorOps.nllLossFromIndices(this, targetIndices, classDimension, ignoreIndex, reduction);
+    }
+
+    public Tensor nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
+        return TensorOps.nllLossFromIndices(this, targetIndices, classDimension, ignoreIndex, classWeights, reduction);
     }
 
     public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension) {
@@ -978,12 +1002,20 @@ public class Tensor {
         return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, reduction);
     }
 
+    public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
+        return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, classWeights, reduction);
+    }
+
     public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex) {
         return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, ignoreIndex);
     }
 
     public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
         return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, ignoreIndex, reduction);
+    }
+
+    public Tensor crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
+        return TensorOps.crossEntropyLossFromIndices(this, targetIndices, classDimension, ignoreIndex, classWeights, reduction);
     }
 
     public Tensor min(int dimension) {
@@ -1228,7 +1260,7 @@ public class Tensor {
         int[] strides = metadata.stridesRef();
         int[] denseStrides = TensorMetadata.computeStrides(shape);
         int rem = logicalIndex;
-        int offset = 0;
+        int offset = metadata.getStorageOffset();
         for (int dim = 0; dim < shape.length; dim++) {
             int coord = rem / denseStrides[dim];
             rem %= denseStrides[dim];

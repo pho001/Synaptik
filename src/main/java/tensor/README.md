@@ -176,6 +176,7 @@ The current public graph-building operation surface on `Tensor` is:
 
 ### Indexing
 
+- `select(int dimension, int index)`
 - `gather(Tensor indices, int dimension)`
 - `takeAlongAxis(Tensor indices, int dimension)`
 - `scatterAdd(Tensor indices, Tensor src, int dimension)`
@@ -202,12 +203,16 @@ Important current behavior:
 
 - `permute(...)` creates a view-like tensor with reordered strides
 - `expand(...)` creates a zero-stride broadcast alias view
+- `select(...)` creates a storage-offset alias view
 - `expandDims(...)` creates a stride-preserving alias view with one inserted size-`1` axis
 - `squeeze(...)` creates a stride-preserving alias view with one removed size-`1` axis
 - `reshape(...)` changes shape interpretation while preserving element count
   - for contiguous inputs it aliases the same storage as a reshape view
   - for non-contiguous inputs it may materialize a dense reshaped result at runtime
 - `contiguous()` is the canonical explicit materialization path
+- current CPU execution keeps offset views as views through layout ops
+  - strided element-wise, compare, logical, `where`, reduction, softmax/logSoftmax, dense-target loss, indexing kernels, and min/max reduction-grad kernels can consume offset views directly
+  - if a downstream kernel does not support non-zero base offsets directly, planner-side prepared inputs materialize it first
 
 Use `contiguous()` when:
 
@@ -369,6 +374,14 @@ For axis reduction:
 - semantic reference remains `logSoftmax(classDimension).nllLoss(targets, classDimension)`
 - current contract is still the narrow dense-target mean-reduction variant
 
+`select(dimension, index)` is the single-slice indexing surface:
+
+- output shape is input shape without the selected axis
+- negative indices count from the end of the selected axis
+- current implementation is a true alias view with shared storage
+- the selected slice is represented by rewritten strides plus non-zero `storageOffset` when needed
+- semantically this is the ergonomic one-index read operation
+
 `gather(indices, dimension)` is the first narrow indexing primitive:
 
 - output shape is input shape with the selected axis removed
@@ -414,6 +427,21 @@ For axis reduction:
 - ignorovane sample maji nulovy gradient
 - denominator `mean` redukce se pocita jen z neignorovanych sample
 - kdyz jsou ignorovane vsechny sample, loss i gradient jsou nulove
+
+`classWeights` jsou zatim podporovane nejdriv pro index-target loss family:
+
+- `classWeights` musi mit shape `[numClasses]`
+- dtype musi odpovidat floating dtype logits / logProbs
+- lookup vah je ted vyjadreny ciste pres tensor indexing composition:
+  - `reshape -> expand -> takeAlongAxis -> squeeze`
+- `MEAN` u weighted losses dela weighted mean:
+  - `sum(weightedLoss) / sum(appliedWeights)`
+- pri `ignoreIndex` ignorovane sample neprispivaji ani do citatele, ani do jmenovatele
+- weight se vybira podle target class id
+- `NONE`: vraci weighted per-sample loss
+- `SUM`: vraci soucet weighted per-sample loss
+- `MEAN`: vraci weighted mean:
+  - `sum(weightedLoss) / sum(appliedWeights)`
 
 `LossReduction` je zatim zavedena nejdriv pro index-target loss family:
 

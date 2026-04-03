@@ -7,20 +7,18 @@ final class MinMaxGradKernelSupport {
     private MinMaxGradKernelSupport() {
     }
 
-    static void runF64(double[] a, double[] b, double[] outGrad, double[] out, BroadcastPlan plan, boolean forFirstInput, boolean isMax) {
+    static void runF64(double[] a, int aBaseOffset, double[] b, int bBaseOffset, double[] outGrad, int outGradBaseOffset, double[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput, boolean isMax) {
         int[] outShape = plan.outShape();
         int[] aEff = plan.aEffStrides();
         int[] bEff = plan.bEffStrides();
         int rank = outShape.length;
-        int outSize = out.length;
+        int outSize = logicalSize(outShape);
 
         int[] coords = new int[rank];
-        int aIdx = 0;
-        int bIdx = 0;
+        int aIdx = aBaseOffset;
+        int bIdx = bBaseOffset;
         for (int i = 0; i < outSize; i++) {
-            out[i] = gradValue(a[aIdx], b[bIdx], outGrad[i], forFirstInput, isMax);
-            advance(coords, outShape, aEff, bEff, rank, i, outSize, IndexPair.of(aIdx, bIdx), pair -> {
-            });
+            out[outBaseOffset + i] = gradValue(a[aIdx], b[bIdx], outGrad[outGradBaseOffset + i], forFirstInput, isMax);
             if (i + 1 < outSize) {
                 int[] next = nextIndices(coords, outShape, aEff, bEff, rank, aIdx, bIdx);
                 aIdx = next[0];
@@ -29,18 +27,18 @@ final class MinMaxGradKernelSupport {
         }
     }
 
-    static void runF32(float[] a, float[] b, float[] outGrad, float[] out, BroadcastPlan plan, boolean forFirstInput, boolean isMax) {
+    static void runF32(float[] a, int aBaseOffset, float[] b, int bBaseOffset, float[] outGrad, int outGradBaseOffset, float[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput, boolean isMax) {
         int[] outShape = plan.outShape();
         int[] aEff = plan.aEffStrides();
         int[] bEff = plan.bEffStrides();
         int rank = outShape.length;
-        int outSize = out.length;
+        int outSize = logicalSize(outShape);
 
         int[] coords = new int[rank];
-        int aIdx = 0;
-        int bIdx = 0;
+        int aIdx = aBaseOffset;
+        int bIdx = bBaseOffset;
         for (int i = 0; i < outSize; i++) {
-            out[i] = (float) gradValue(a[aIdx], b[bIdx], outGrad[i], forFirstInput, isMax);
+            out[outBaseOffset + i] = (float) gradValue(a[aIdx], b[bIdx], outGrad[outGradBaseOffset + i], forFirstInput, isMax);
             if (i + 1 < outSize) {
                 int[] next = nextIndices(coords, outShape, aEff, bEff, rank, aIdx, bIdx);
                 aIdx = next[0];
@@ -49,21 +47,21 @@ final class MinMaxGradKernelSupport {
         }
     }
 
-    static void runF16(short[] a, short[] b, short[] outGrad, short[] out, BroadcastPlan plan, boolean forFirstInput, boolean isMax) {
+    static void runF16(short[] a, int aBaseOffset, short[] b, int bBaseOffset, short[] outGrad, int outGradBaseOffset, short[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput, boolean isMax) {
         int[] outShape = plan.outShape();
         int[] aEff = plan.aEffStrides();
         int[] bEff = plan.bEffStrides();
         int rank = outShape.length;
-        int outSize = out.length;
+        int outSize = logicalSize(outShape);
 
         int[] coords = new int[rank];
-        int aIdx = 0;
-        int bIdx = 0;
+        int aIdx = aBaseOffset;
+        int bIdx = bBaseOffset;
         for (int i = 0; i < outSize; i++) {
             float av = CpuDTypeOps.fromHalfBits(a[aIdx]);
             float bv = CpuDTypeOps.fromHalfBits(b[bIdx]);
-            float gv = CpuDTypeOps.fromHalfBits(outGrad[i]);
-            out[i] = CpuDTypeOps.toHalfBits((float) gradValue(av, bv, gv, forFirstInput, isMax));
+            float gv = CpuDTypeOps.fromHalfBits(outGrad[outGradBaseOffset + i]);
+            out[outBaseOffset + i] = CpuDTypeOps.toHalfBits((float) gradValue(av, bv, gv, forFirstInput, isMax));
             if (i + 1 < outSize) {
                 int[] next = nextIndices(coords, outShape, aEff, bEff, rank, aIdx, bIdx);
                 aIdx = next[0];
@@ -97,13 +95,11 @@ final class MinMaxGradKernelSupport {
         return new int[]{nextA, nextB};
     }
 
-    private record IndexPair(int a, int b) {
-        static IndexPair of(int a, int b) {
-            return new IndexPair(a, b);
+    private static int logicalSize(int[] shape) {
+        int size = 1;
+        for (int dim : shape) {
+            size *= dim;
         }
-    }
-
-    private static void advance(int[] coords, int[] outShape, int[] aEff, int[] bEff, int rank, int i, int outSize, IndexPair current, java.util.function.Consumer<IndexPair> sink) {
-        // no-op helper retained only to keep iteration logic local and explicit
+        return size;
     }
 }
