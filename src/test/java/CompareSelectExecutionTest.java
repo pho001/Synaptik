@@ -99,6 +99,76 @@ public class CompareSelectExecutionTest {
     }
 
     @Test
+    void whereSupportsPromotionAcrossAllNumericBranchPairs() {
+        Tensor condition = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "cond", DataType.BOOL);
+
+        Tensor f16 = new Tensor(new short[]{
+                backend.kernels.cpu.CpuDTypeOps.toHalfBits(1.0f),
+                backend.kernels.cpu.CpuDTypeOps.toHalfBits(2.0f)
+        }, new int[]{2}, null, "f16", DataType.FLOAT16);
+        Tensor f32 = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "f32", DataType.FLOAT32);
+        Tensor f64 = new Tensor(new double[]{100, 200}, new int[]{2}, null, "f64", DataType.FLOAT64);
+
+        Tensor out16_32 = Tensor.where(condition, f16, f32);
+        CompiledGraph.compile(out16_32, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        assertEquals(DataType.FLOAT32, out16_32.getDataType());
+        assertArrayEquals(new double[]{1, 20}, out16_32.toDoubleArrayCopy(), 1e-6);
+
+        Tensor out32_64 = Tensor.where(condition, f32, f64);
+        CompiledGraph.compile(out32_64, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        assertEquals(DataType.FLOAT64, out32_64.getDataType());
+        assertArrayEquals(new double[]{10, 200}, out32_64.toDoubleArrayCopy(), 1e-9);
+
+        Tensor out16_64 = Tensor.where(condition, f16, f64);
+        CompiledGraph.compile(out16_64, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        assertEquals(DataType.FLOAT64, out16_64.getDataType());
+        assertArrayEquals(new double[]{1, 200}, out16_64.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void whereSupportsNonContiguousConditionView() {
+        Tensor condition = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, new int[]{1, 2}, null, "cond_view", DataType.BOOL);
+        Tensor ifTrue = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "x", DataType.FLOAT64);
+        Tensor ifFalse = new Tensor(new double[]{10, 20, 30, 40}, new int[]{2, 2}, null, "y", DataType.FLOAT64);
+
+        Tensor out = Tensor.where(condition, ifTrue, ifFalse);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{1, 2, 30, 40}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void whereSupportsNonContiguousBranchView() {
+        Tensor condition = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "cond", DataType.BOOL);
+        Tensor ifTrue = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, new int[]{1, 2}, null, "x_view", DataType.FLOAT64);
+        Tensor ifFalse = new Tensor(new double[]{10, 20, 30, 40}, new int[]{2, 2}, null, "y", DataType.FLOAT64);
+
+        Tensor out = Tensor.where(condition, ifTrue, ifFalse);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{1, 20, 2, 40}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void whereRejectsNonBoolCondition() {
+        Tensor condition = new Tensor(new double[]{1, 0}, new int[]{2}, null, "cond", DataType.FLOAT64);
+        Tensor ifTrue = new Tensor(new double[]{1, 2}, new int[]{2}, null, "x", DataType.FLOAT64);
+        Tensor ifFalse = new Tensor(new double[]{10, 20}, new int[]{2}, null, "y", DataType.FLOAT64);
+
+        assertThrows(IllegalArgumentException.class, () -> Tensor.where(condition, ifTrue, ifFalse));
+    }
+
+    @Test
+    void whereRejectsBoolBranches() {
+        Tensor condition = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "cond", DataType.BOOL);
+        Tensor boolBranch = new Tensor(new byte[]{1, 1}, new int[]{2}, null, "mask", DataType.BOOL);
+        Tensor numericBranch = new Tensor(new double[]{10, 20}, new int[]{2}, null, "y", DataType.FLOAT64);
+
+        assertThrows(IllegalArgumentException.class, () -> Tensor.where(condition, boolBranch, numericBranch));
+        assertThrows(IllegalArgumentException.class, () -> Tensor.where(condition, numericBranch, boolBranch));
+    }
+
+    @Test
     void boolRootDoesNotSupportBackwardExecution() {
         Tensor a = new Tensor(new double[]{1, 2}, new int[]{2}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{0, 3}, new int[]{2}, null, "b", DataType.FLOAT64);
