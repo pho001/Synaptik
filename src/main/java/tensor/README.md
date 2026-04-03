@@ -170,7 +170,9 @@ The current public graph-building operation surface on `Tensor` is:
 - `nllLoss(Tensor targets, int classDimension)`
 - `crossEntropyLoss(Tensor targets, int classDimension)`
 - `nllLossFromIndices(Tensor targetIndices, int classDimension)`
+- `nllLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex)`
 - `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension)`
+- `crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex)`
 
 ### Indexing
 
@@ -394,6 +396,13 @@ For axis reduction:
 - `targetIndices` shape equals `logits.shape` without the class axis
 - current implementation is composition-first over:
   - `logits.logSoftmax(classDimension).nllLossFromIndices(targetIndices, classDimension)`
+
+`ignoreIndex` overloady existuji zatim jen pro index-target loss family:
+
+- ignorovane sample neprispivaji do loss
+- ignorovane sample maji nulovy gradient
+- denominator `mean` redukce se pocita jen z neignorovanych sample
+- kdyz jsou ignorovane vsechny sample, loss i gradient jsou nulove
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.
