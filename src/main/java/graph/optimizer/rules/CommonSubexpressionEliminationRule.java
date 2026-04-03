@@ -1,13 +1,37 @@
 package graph.optimizer.rules;
 
 import config.optimizer.CseConfig;
+import graph.optimizer.OptimizerGraphSupport;
 import graph.optimizer.OptimizationRule;
-import operations.*;
+import operations.FusedOperation;
+import operations.Operation;
+import operations.expand;
+import operations.expandDims;
+import operations.maxGrad;
+import operations.minGrad;
+import operations.mulScalar;
+import operations.noop;
+import operations.permute;
+import operations.pow;
+import operations.reduceMax;
+import operations.reduceMaxGrad;
+import operations.reduceMin;
+import operations.reduceMinGrad;
+import operations.reshape;
+import operations.squeeze;
+import operations.sum;
 import tensor.Tensor;
-import java.util.*;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 public class CommonSubexpressionEliminationRule implements OptimizationRule {
-
     private final CseConfig config;
 
     public CommonSubexpressionEliminationRule(CseConfig config) {
@@ -21,17 +45,14 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
     @Override
     public List<Tensor> apply(List<Tensor> sortedGraph) {
         List<Tensor> optimized = new ArrayList<>();
-        Map<String, Tensor> seenNodes = new HashMap<>();
+        Map<StructuralSignature, Tensor> seenNodes = new HashMap<>();
         Map<Tensor, Tensor> replacements = new HashMap<>();
-        Map<Tensor, String> structuralSignatures = new HashMap<>();
-
+        Map<Tensor, SignatureComponent> structuralSignatures = new HashMap<>();
 
         for (Tensor t : sortedGraph) {
-            // 1. Aktualizujeme vstupy uzlu, pokud nějaký jeho předek už byl smazán/nahrazen
-            updateInputs(t, replacements);
+            OptimizerGraphSupport.rewriteInputs(t, replacements);
 
-            // 2. Vygenerujeme unikátní podpis operace
-            String signature = generateSignature(t, structuralSignatures);
+            StructuralSignature signature = generateSignature(t, structuralSignatures);
             if (signature != null) {
                 structuralSignatures.put(t, signature);
             } else {
@@ -39,191 +60,194 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             }
 
             if (signature != null) {
-                if (seenNodes.containsKey(signature)) {
-                    Tensor existing = seenNodes.get(signature);
-                    // NAŠLI JSME DUPLIKÁT!
-                    // Uzel 't' vůbec nepřidáme do 'optimized' grafu.
-                    // Místo toho řekneme: Kdo chtěl 't', ať odteď používá ten původní.
+                Tensor existing = seenNodes.get(signature);
+                if (existing != null) {
                     if (t.isBackward()) {
                         existing.setBackward(true);
                     }
                     replacements.put(t, existing);
                     continue;
-                } else {
-                    // Je to nová operace, zapamatujeme si ji
-                    seenNodes.put(signature, t);
                 }
+                seenNodes.put(signature, t);
             }
 
-            // Přidáme uzel do finálního grafu (pokud to není duplikát)
             optimized.add(t);
         }
 
-        // Stejně jako u algebraic rewrites znovu uzavřeme graf topologicky od sinků.
-        // Tím zajistíme, že po přepojení referencí v CSE v seznamu nechybí závislosti.
-        return rebuildTopologicalClosure(optimized);
+        return OptimizerGraphSupport.rebuildTopologicalClosure(optimized);
     }
 
-    /**
-     * Vytvoří unikátní řetězec, který reprezentuje výpočet daného uzlu.
-     */
-    private String generateSignature(Tensor t, Map<Tensor, String> structuralSignatures) {
+    private StructuralSignature generateSignature(Tensor t, Map<Tensor, SignatureComponent> structuralSignatures) {
         Operation op = t.getOperation();
         boolean strictSafety = config.strictSafety();
-        // Konstanty a vstupy (bez operace) necháme být, ty se optimalizují jinde
-        if (op == null) return null;
+        if (op == null) {
+            return null;
+        }
 
-        // noop/fused uzly fungují jako kotvy nebo hranice clusterů,
-        // proto je nechceme slučovat CSE.
-        if (op instanceof noop) return null;
-        if (op.opType() == Operation.OpType.FUSED) return null;
+        if (op instanceof noop || op instanceof FusedOperation || op.opType() == Operation.OpType.FUSED) {
+            return null;
+        }
 
-        String opName = op.getClass().getSimpleName().toLowerCase();
-
-        // BEZPEČNOSTNÍ POJISTKA:
-        // Náhodné operace (Dropout, RandomNormal) nesmíme NIKDY sloučit,
-        // protože při každém zavolání musí vrátit jiná čísla!
-        if (opName.contains("random") || opName.contains("dropout")) return null;
+        String opName = op.getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        if (opName.contains("random") || opName.contains("dropout")) {
+            return null;
+        }
 
         List<Tensor> inputs = t.getPrevTensors();
-        if (inputs == null || inputs.isEmpty()) return null;
+        if (inputs == null || inputs.isEmpty()) {
+            return null;
+        }
 
-        // Sesbíráme identity vstupních tenzorů (použijeme System.identityHashCode
-        // nebo přímo instanci, zde pro stringový podpis hash)
-        List<String> inputKeys = new ArrayList<>();
+        List<SignatureComponent> inputKeys = new ArrayList<>(inputs.size());
         for (Tensor input : inputs) {
             inputKeys.add(structuralSignatures.getOrDefault(input, leafSignature(input)));
         }
 
-        // KOMUTATIVITA:
-        // U sčítání a násobení nezáleží na pořadí (Add(A, B) == Add(B, A)).
-        // Seřadíme ID vstupů, aby obě varianty vygenerovaly stejný podpis.
-        if (op instanceof add || op instanceof mul) {
-            Collections.sort(inputKeys);
+        if (isCommutative(op.opType())) {
+            inputKeys.sort(Comparator.comparing(SignatureComponent::sortKey));
         }
 
-        // Sestavení podpisu: např. "add_123456_789012"
-        StringBuilder sig = new StringBuilder(opName)
-                .append("_phase=").append(t.isBackward() ? "bw" : "fw")
-                .append("_type=").append(op.opType());
-
-        if (strictSafety) {
-            sig.append("_reqGrad=").append(t.getRequiresGrad())
-                    .append("_backend=").append(t.resolveBackend())
-                    .append("_shape=");
-            int[] shape = t.getShape();
-            if (shape != null) {
-                for (int i = 0; i < shape.length; i++) {
-                    if (i > 0) sig.append('x');
-                    sig.append(shape[i]);
-                }
-            } else {
-                sig.append("null");
-            }
-        }
-        sig.append("_in");
-        for (String key : inputKeys) {
-            sig.append("_").append(key);
-        }
-
-        // PARAMETRY OPERACÍ:
-        // Pokud má operace nějaký vnitřní parametr (např. exponent u Pow),
-        // MUSÍ být součástí podpisu, jinak by se sloučilo Pow(x, 2) a Pow(x, 3)!
-        switch (op) {
-            case pow p -> sig.append("_").append(p.getExponent());
-            case mulScalar m -> sig.append("_").append(m.getScalar());
-            case sum s -> sig.append("_dim=").append(s.getDimension());
-            case reduceMin r -> sig.append("_dim=").append(r.getDimension()).append("_keep=").append(r.keepDims());
-            case reduceMax r -> sig.append("_dim=").append(r.getDimension()).append("_keep=").append(r.keepDims());
-            case minGrad mg -> sig.append("_forFirst=").append(mg.isForFirstInput());
-            case maxGrad mg -> sig.append("_forFirst=").append(mg.isForFirstInput());
-            case reduceMinGrad rg -> sig.append("_dim=").append(rg.getDimension());
-            case reduceMaxGrad rg -> sig.append("_dim=").append(rg.getDimension());
-            default -> {
-
-            }
-        }
-
-
-        return sig.toString();
+        return new StructuralSignature(
+                op.opType(),
+                t.isBackward(),
+                strictSafety ? t.getRequiresGrad() : null,
+                strictSafety ? t.resolveBackend() : null,
+                strictSafety ? IntArrayValue.copyOf(t.getShape()) : null,
+                parameterKey(op),
+                List.copyOf(inputKeys)
+        );
     }
 
-    private String leafSignature(Tensor t) {
-        // Trainable leaf uzly nikdy neslučujeme podle hodnoty.
+    private SignatureComponent leafSignature(Tensor t) {
         if (t.getOperation() == null && t.getRequiresGrad()) {
-            return "leaf_var@" + System.identityHashCode(t);
+            return new IdentityLeafSignature(System.identityHashCode(t));
         }
 
-        // Konstantní scalar leaf: strukturální podpis podle hodnoty.
         if (t.getOperation() == null && !t.getRequiresGrad() && t.getFlatDataSize() == 1) {
             long bits = Double.doubleToLongBits(t.scalarAsDouble());
-            int[] shape = t.getShape();
-            String shapeKey = (shape == null) ? "null" : Arrays.toString(shape);
-            return "const_scalar#" + bits + "_shape=" + shapeKey;
+            return new ScalarLeafSignature(bits, IntArrayValue.copyOf(t.getShape()));
         }
 
-        // Ostatní leafy a fallback: identita.
-        return "leaf@" + System.identityHashCode(t);
+        return new IdentityLeafSignature(System.identityHashCode(t));
     }
 
-    private void updateInputs(Tensor t, Map<Tensor, Tensor> replacements) {
-        if (t.getPrevTensors() == null) return;
-        List<Tensor> inputs = t.getPrevTensors();
-        for (int i = 0; i < inputs.size(); i++) {
-            Tensor currentInput = inputs.get(i);
-            Tensor replacement = resolveReplacement(currentInput, replacements);
-            if (replacement != null) {
-                inputs.set(i, replacement);
-            }
+    private boolean isCommutative(Operation.OpType opType) {
+        return opType == Operation.OpType.ADD || opType == Operation.OpType.MUL;
+    }
+
+    private SignatureComponent parameterKey(Operation op) {
+        return switch (op.opType()) {
+            case POW -> new DoubleValue(((pow) op).getExponent());
+            case MUL_SCALAR -> new DoubleValue(((mulScalar) op).getScalar());
+            case SUM -> new ReductionSignature(((sum) op).getDimension(), ((sum) op).keepDims());
+            case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
+            case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
+            case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());
+            case MAX_GRAD -> new InputSelectorSignature(((maxGrad) op).isForFirstInput());
+            case REDUCE_MIN_GRAD -> new AxisSignature(((reduceMinGrad) op).getDimension());
+            case REDUCE_MAX_GRAD -> new AxisSignature(((reduceMaxGrad) op).getDimension());
+            case RESHAPE -> IntArrayValue.copyOf(((reshape) op).getTargetShape());
+            case PERMUTE -> IntArrayValue.copyOf(((permute) op).getAxes());
+            case EXPAND -> IntArrayValue.copyOf(((expand) op).getTargetShape());
+            case EXPAND_DIMS -> new AxisSignature(((expandDims) op).getAxis());
+            case SQUEEZE -> new AxisSignature(((squeeze) op).getAxis());
+            default -> NoParamsSignature.INSTANCE;
+        };
+    }
+
+    private sealed interface SignatureComponent
+            permits StructuralSignature, IdentityLeafSignature, ScalarLeafSignature,
+            NoParamsSignature, AxisSignature, ReductionSignature, InputSelectorSignature,
+            DoubleValue, IntArrayValue {
+
+        String sortKey();
+    }
+
+    private record StructuralSignature(
+            Operation.OpType opType,
+            boolean backward,
+            Boolean requiresGrad,
+            Object backend,
+            IntArrayValue outputShape,
+            SignatureComponent parameters,
+            List<SignatureComponent> inputs
+    ) implements SignatureComponent {
+        @Override
+        public String sortKey() {
+            return "node:" + opType + ":" + backward + ":" + requiresGrad + ":" + backend + ":" + outputShape + ":" + parameters + ":" + inputs;
         }
     }
 
-    private Tensor resolveReplacement(Tensor tensor, Map<Tensor, Tensor> replacements) {
-        Tensor current = replacements.get(tensor);
-        if (current == null) return null;
-        while (replacements.containsKey(current)) {
-            current = replacements.get(current);
+    private record IdentityLeafSignature(int identityHash) implements SignatureComponent {
+        @Override
+        public String sortKey() {
+            return "leaf@" + identityHash;
         }
-        return current;
     }
 
-    private List<Tensor> rebuildTopologicalClosure(List<Tensor> graph) {
-        if (graph.isEmpty()) return graph;
-
-        Map<Tensor, Integer> consumerCounts = new HashMap<>();
-        for (Tensor t : graph) {
-            if (t.getPrevTensors() != null) {
-                for (Tensor p : t.getPrevTensors()) {
-                    consumerCounts.put(p, consumerCounts.getOrDefault(p, 0) + 1);
-                }
-            }
+    private record ScalarLeafSignature(long bits, IntArrayValue shape) implements SignatureComponent {
+        @Override
+        public String sortKey() {
+            return "scalar:" + bits + ":" + shape;
         }
-
-        List<Tensor> sinks = new ArrayList<>();
-        for (Tensor t : graph) {
-            if (consumerCounts.getOrDefault(t, 0) == 0) {
-                sinks.add(t);
-            }
-        }
-
-        Set<Tensor> visited = new HashSet<>();
-        List<Tensor> rebuilt = new ArrayList<>();
-        for (Tensor sink : sinks) {
-            dfsPostOrder(sink, visited, rebuilt);
-        }
-        return rebuilt;
     }
 
-    private void dfsPostOrder(Tensor node, Set<Tensor> visited, List<Tensor> out) {
-        if (node == null || visited.contains(node)) return;
-        visited.add(node);
+    private enum NoParamsSignature implements SignatureComponent {
+        INSTANCE;
 
-        if (node.getPrevTensors() != null) {
-            for (Tensor p : node.getPrevTensors()) {
-                dfsPostOrder(p, visited, out);
-            }
+        @Override
+        public String sortKey() {
+            return "none";
+        }
+    }
+
+    private record AxisSignature(int axis) implements SignatureComponent {
+        @Override
+        public String sortKey() {
+            return "axis:" + axis;
+        }
+    }
+
+    private record ReductionSignature(int dimension, boolean keepDims) implements SignatureComponent {
+        @Override
+        public String sortKey() {
+            return "reduction:" + dimension + ":" + keepDims;
+        }
+    }
+
+    private record InputSelectorSignature(boolean forFirstInput) implements SignatureComponent {
+        @Override
+        public String sortKey() {
+            return "selector:" + forFirstInput;
+        }
+    }
+
+    private record DoubleValue(long bits) implements SignatureComponent {
+        private DoubleValue(double value) {
+            this(Double.doubleToLongBits(value));
         }
 
-        out.add(node);
+        @Override
+        public String sortKey() {
+            return "double:" + bits;
+        }
+    }
+
+    private record IntArrayValue(List<Integer> values) implements SignatureComponent {
+        static IntArrayValue copyOf(int[] values) {
+            if (values == null) {
+                return new IntArrayValue(null);
+            }
+            List<Integer> copy = new ArrayList<>(values.length);
+            for (int value : values) {
+                copy.add(value);
+            }
+            return new IntArrayValue(List.copyOf(copy));
+        }
+
+        @Override
+        public String sortKey() {
+            return "ints:" + values;
+        }
     }
 }

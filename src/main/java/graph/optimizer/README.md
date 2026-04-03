@@ -18,6 +18,7 @@ Main objectives:
   - [src/main/java/graph/optimizer/OptimizationRule.java](../../graph/optimizer/OptimizationRule.java)
   - [src/main/java/graph/optimizer/OptimizerFactory.java](../../graph/optimizer/OptimizerFactory.java)
   - [src/main/java/graph/optimizer/OptimizerProfiles.java](../../graph/optimizer/OptimizerProfiles.java)
+  - [src/main/java/graph/optimizer/OptimizerGraphSupport.java](../../graph/optimizer/OptimizerGraphSupport.java)
 - Config objects:
   - [src/main/java/config/optimizer/OptimizerConfig.java](../../config/optimizer/OptimizerConfig.java)
   - [src/main/java/config/optimizer/OptimizerStage.java](../../config/optimizer/OptimizerStage.java)
@@ -61,6 +62,10 @@ Rules must preserve:
 - backward-flow correctness
 - phase boundaries between forward and backward sections
 
+Shared graph rewrite mechanics such as input replacement and topological-closure rebuild now live in:
+
+- [src/main/java/graph/optimizer/OptimizerGraphSupport.java](../../graph/optimizer/OptimizerGraphSupport.java)
+
 ## Rule Summary
 
 ### `AlgebraicRewritingRule`
@@ -74,6 +79,26 @@ Rules must preserve:
 
 - merges equivalent subexpressions
 - can use stricter or more aggressive safety configuration through `CseConfig`
+- uses structural signatures instead of stringly class-name signatures
+- signatures are built from:
+  - `Operation.OpType`
+  - forward/backward phase
+  - strict-safety metadata (`requiresGrad`, backend, output shape)
+  - structurally resolved input signatures
+  - explicit operation parameters for parametric ops
+- current parameter-aware coverage includes:
+  - `pow`
+  - `mulScalar`
+  - `sum(dim, keepDims)`
+  - `reduceMin(dim, keepDims)`
+  - `reduceMax(dim, keepDims)`
+  - `minGrad` / `maxGrad`
+  - `reduceMinGrad` / `reduceMaxGrad`
+  - layout/shape ops such as `reshape`, `permute`, `expand`, `expandDims`, `squeeze`
+- `noop` and fused nodes remain CSE boundaries and are intentionally not merged
+
+This matters because shape/layout transforms and reduction shape policy are not interchangeable computations.
+For example, `sum(axis, false)` and `sum(axis, true)` must not collapse to the same node, and different `permute(...)` layouts must not merge just because they share the same input.
 
 ### `FuseElementWiseRule`
 
@@ -150,6 +175,12 @@ Default presets:
 
 `OptimizerFactory` converts these config objects into concrete `GraphOptimizer` instances.
 
+`GraphOptimizer` itself is now just a rule pipeline object:
+
+- it owns an ordered rule list
+- it does not own graph state
+- `OptimizerFactory` is the single standard place that maps `OptimizerStage` to concrete rule instances
+
 For public graph compilation, `OptimizerConfig` is the intended API surface.
 `GraphOptimizer` is a lower-level pipeline object used internally by optimizer/benchmark tooling, not the preferred public compile contract.
 
@@ -175,8 +206,9 @@ That benchmark/autotune layer is still transitional. The architectural direction
 
 1. Add a new rule class under `src/main/java/graph/optimizer/rules/`.
 2. Implement `OptimizationRule`.
-3. Register it in `OptimizerFactory` or inject it manually into `GraphOptimizer`.
-4. Validate:
+3. Register it in `OptimizerFactory`.
+4. Reuse `OptimizerGraphSupport` if the rule rewrites graph edges or needs topological-closure rebuilding.
+5. Validate:
    - numerical equivalence
    - gradient preservation
    - regressions for broadcasting, dtype handling, and fused boundaries

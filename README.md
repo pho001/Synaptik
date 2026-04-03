@@ -164,6 +164,8 @@ Current rule set includes files such as:
 
 The memory optimizer is now backed by an explicit liveness/slot planner with explain and summary metrics rather than a simple ad hoc reuse pool.
 
+Common subexpression elimination now uses structural signatures keyed by `Operation.OpType`, phase, input structure, and explicit operation parameters, which avoids incorrect merges across shape/layout transforms and reduction variants such as `keepDims`.
+
 Additional optimizer-specific notes are documented in [`src/main/java/graph/optimizer/README.md`](src/main/java/graph/optimizer/README.md).
 
 ### Fused Code Generation

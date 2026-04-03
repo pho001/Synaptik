@@ -1,60 +1,39 @@
 package graph.optimizer;
 
-import config.optimizer.CseConfig;
+import config.optimizer.OptimizerConfig;
+import config.optimizer.OptimizerStage;
 import graph.optimizer.rules.AlgebraicRewritingRule;
 import graph.optimizer.rules.CommonSubexpressionEliminationRule;
 import graph.optimizer.rules.FuseElementWiseRule;
 import graph.optimizer.rules.MemoryOptimizerRule;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 public final class OptimizerFactory {
     private OptimizerFactory() {}
 
-    public static GraphOptimizer create(config.optimizer.OptimizerConfig config) {
+    public static GraphOptimizer create(OptimizerConfig config) {
         Objects.requireNonNull(config, "config cannot be null");
+        return new GraphOptimizer(createRules(config));
+    }
 
-        GraphOptimizer optimizer = new GraphOptimizer();
-        for (config.optimizer.OptimizerStage stage : config.stageOrder()) {
-            switch (stage) {
-                case AR -> optimizer.addRule(new AlgebraicRewritingRule());
-                case CSE -> optimizer.addRule(new CommonSubexpressionEliminationRule(config.cse()));
-                case FUSE -> optimizer.addRule(new FuseElementWiseRule(config.fuse()));
-                case MEM -> optimizer.addRule(new MemoryOptimizerRule());
-            }
+    public static List<OptimizationRule> createRules(OptimizerConfig config) {
+        Objects.requireNonNull(config, "config cannot be null");
+        List<OptimizationRule> rules = new ArrayList<>(config.stageOrder().size());
+        for (OptimizerStage stage : config.stageOrder()) {
+            rules.add(createRule(stage, config));
         }
-        return optimizer;
+        return List.copyOf(rules);
     }
 
-    public static GraphOptimizer createNoOptimizationOptimizer() {
-        return create(config.optimizer.OptimizerConfig.noOptimization());
-    }
-
-    public static GraphOptimizer createTrainingOptimizer() {
-        return create(config.optimizer.OptimizerConfig.trainingDefaults());
-    }
-
-    public static GraphOptimizer createRecommendedTrainingOptimizer() {
-        return createTrainingOptimizer();
-    }
-
-    public static GraphOptimizer createInferenceOptimizer() {
-        return create(config.optimizer.OptimizerConfig.inferenceDefaults());
-    }
-
-    public static AlgebraicRewritingRule addAlgebraicRewritingRule() {
-        return new AlgebraicRewritingRule();
-    }
-
-    public static CommonSubexpressionEliminationRule addCommonSubexpressionEliminationRule() {
-        return new CommonSubexpressionEliminationRule(CseConfig.strictDefaults());
-    }
-
-    public static FuseElementWiseRule addFuseElementWise() {
-        return new FuseElementWiseRule();
-    }
-
-    public static MemoryOptimizerRule addMemoryOptimizerRule() {
-        return new MemoryOptimizerRule();
+    private static OptimizationRule createRule(OptimizerStage stage, OptimizerConfig config) {
+        return switch (stage) {
+            case AR -> new AlgebraicRewritingRule();
+            case CSE -> new CommonSubexpressionEliminationRule(config.cse());
+            case FUSE -> new FuseElementWiseRule(config.fuse());
+            case MEM -> new MemoryOptimizerRule();
+        };
     }
 }

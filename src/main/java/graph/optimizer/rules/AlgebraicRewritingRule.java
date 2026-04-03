@@ -1,5 +1,6 @@
 package graph.optimizer.rules;
 
+import graph.optimizer.OptimizerGraphSupport;
 import graph.optimizer.OptimizationRule;
 import operations.*;
 import tensor.Tensor;
@@ -74,7 +75,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         Map<Tensor, Tensor> replacements = new HashMap<>();
 
         for (Tensor t : sortedGraph) {
-            updateInputs(t, replacements);
+            OptimizerGraphSupport.rewriteInputs(t, replacements);
 
             Tensor simplified = trySimplify(t);
             if (simplified != t) {
@@ -90,7 +91,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         if (DISABLE_REBUILD_TOPO_CLOSURE) {
             return optimized;
         }
-        return rebuildTopologicalClosure(optimized);
+        return OptimizerGraphSupport.rebuildTopologicalClosure(optimized);
     }
 
     private Tensor trySimplify(Tensor t) {
@@ -420,55 +421,4 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         return candidate.getPrevTensors().get(0) == base ? m.getScalar() : null;
     }
 
-    private void updateInputs(Tensor t, Map<Tensor, Tensor> replacements) {
-        if (t.getPrevTensors() == null) return;
-        List<Tensor> inputs = t.getPrevTensors();
-        for (int i = 0; i < inputs.size(); i++) {
-            Tensor currentInput = inputs.get(i);
-            Tensor replacement = replacements.get(currentInput);
-            if (replacement != null) {
-                inputs.set(i, replacement);
-            }
-        }
-    }
-
-    private List<Tensor> rebuildTopologicalClosure(List<Tensor> graph) {
-        if (graph.isEmpty()) return graph;
-
-        Map<Tensor, Integer> consumerCounts = new HashMap<>();
-        for (Tensor t : graph) {
-            if (t.getPrevTensors() != null) {
-                for (Tensor p : t.getPrevTensors()) {
-                    consumerCounts.put(p, consumerCounts.getOrDefault(p, 0) + 1);
-                }
-            }
-        }
-
-        List<Tensor> sinks = new ArrayList<>();
-        for (Tensor t : graph) {
-            if (consumerCounts.getOrDefault(t, 0) == 0) {
-                sinks.add(t);
-            }
-        }
-
-        Set<Tensor> visited = new HashSet<>();
-        List<Tensor> rebuilt = new ArrayList<>();
-        for (Tensor sink : sinks) {
-            dfsPostOrder(sink, visited, rebuilt);
-        }
-        return rebuilt;
-    }
-
-    private void dfsPostOrder(Tensor node, Set<Tensor> visited, List<Tensor> out) {
-        if (node == null || visited.contains(node)) return;
-        visited.add(node);
-
-        if (node.getPrevTensors() != null) {
-            for (Tensor p : node.getPrevTensors()) {
-                dfsPostOrder(p, visited, out);
-            }
-        }
-
-        out.add(node);
-    }
 }
