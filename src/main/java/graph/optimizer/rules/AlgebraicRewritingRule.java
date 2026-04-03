@@ -3,6 +3,7 @@ package graph.optimizer.rules;
 import graph.optimizer.OptimizerGraphSupport;
 import graph.optimizer.OptimizationRule;
 import operations.*;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -114,6 +115,7 @@ public class AlgebraicRewritingRule implements OptimizationRule {
             case EXP -> simplifyExp(t);
             case INV -> simplifyInv(t);
             case SQRT -> simplifySqrt(t);
+            case WHERE -> simplifyWhere(t);
             default -> t;
         };
     }
@@ -397,6 +399,35 @@ public class AlgebraicRewritingRule implements OptimizationRule {
         return t;
     }
 
+    private Tensor simplifyWhere(Tensor t) {
+        if (t.getPrevTensors().size() != 3) {
+            return t;
+        }
+        Tensor reluInput = matchReluLoweringInput(t.getPrevTensors().get(0), t.getPrevTensors().get(1), t.getPrevTensors().get(2));
+        if (reluInput != null) {
+            return reluInput.relu();
+        }
+        return t;
+    }
+
+    private Tensor matchReluLoweringInput(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+        if (condition == null || ifTrue == null || ifFalse == null) {
+            return null;
+        }
+        if (!isOp(condition, Operation.OpType.GT) || condition.getPrevTensors().size() != 2) {
+            return null;
+        }
+        Tensor comparedInput = condition.getPrevTensors().get(0);
+        Tensor threshold = condition.getPrevTensors().get(1);
+        if (comparedInput != ifTrue) {
+            return null;
+        }
+        if (!isZeroTensor(threshold) || !isZeroTensor(ifFalse)) {
+            return null;
+        }
+        return comparedInput;
+    }
+
     private boolean isConstant(Tensor t) {
         return t.getOperation() == null
                 && t.getFlatDataSize() == 1
@@ -405,6 +436,18 @@ public class AlgebraicRewritingRule implements OptimizationRule {
 
     private boolean isConstant(Tensor t, double val) {
         return isConstant(t) && t.scalarAsDouble() == val;
+    }
+
+    private boolean isZeroTensor(Tensor tensor) {
+        if (tensor == null || tensor.getOperation() != null || tensor.getRequiresGrad() || tensor.getDataType() == DataType.BOOL) {
+            return false;
+        }
+        for (int i = 0; i < tensor.getFlatDataSize(); i++) {
+            if (tensor.getByFlatIndex(i) != 0.0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean isOp(Tensor t, Operation.OpType opType) {

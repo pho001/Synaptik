@@ -9,6 +9,7 @@ import operations.log;
 import operations.mulScalar;
 import operations.neg;
 import operations.pow;
+import operations.relu;
 import operations.sigmoid;
 import operations.sqrt;
 import operations.tanh;
@@ -227,6 +228,33 @@ final class TensorUnaryOps {
                 } else {
                     input.setGradient(input.getGradient().add(gradForInput));
                 }
+            }
+        });
+        return out;
+    }
+
+    static Tensor relu(Tensor input) {
+        if (input == null) {
+            throw new IllegalArgumentException("relu input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("relu requires numeric input.");
+        }
+
+        Operation op = new relu();
+        Tensor out = new Tensor(input.getShape(), List.of(input), op, "relu");
+        out.setDataType(TensorDataTypeUtil.unary(input));
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) return;
+            if (!input.getRequiresGrad()) return;
+
+            Tensor zero = Tensor.scalar(0.0, input.getDataType());
+            Tensor gradForInput = Tensor.where(input.greaterThan(zero), outGrad, Tensor.zerosLike(outGrad));
+            if (input.getGradient() == null) {
+                input.setGradient(gradForInput);
+            } else {
+                input.setGradient(input.getGradient().add(gradForInput));
             }
         });
         return out;

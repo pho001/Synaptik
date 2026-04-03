@@ -831,6 +831,10 @@ public class Tensor {
         return TensorOps.tanh(this);
     }
 
+    public Tensor relu() {
+        return TensorOps.relu(this);
+    }
+
 
     public Tensor sum(int dimension){
         return TensorOps.sum(this, dimension);

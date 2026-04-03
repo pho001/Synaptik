@@ -125,6 +125,7 @@ The current public graph-building operation surface on `Tensor` is:
 
 ### Unary / Scalar
 
+- `relu()`
 - `neg()`
 - `log()`
 - `exp()`

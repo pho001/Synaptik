@@ -56,6 +56,7 @@ The focus here is practical API usage:
   - [`logicalOr(Tensor second)`](#logicalortensor-second)
   - [`logicalNot()`](#logicalnot)
 - [Unary / Scalar Operations](#unary--scalar-operations)
+  - [`relu()`](#relu)
   - [`neg()`](#neg)
   - [`log()`](#log)
   - [`exp()`](#exp)
@@ -1026,6 +1027,25 @@ Tensor inverted = mask.logicalNot();
 ```
 
 ## Unary / Scalar Operations
+
+### `relu()`
+
+Element-wise rectified linear unit.
+
+Parameters:
+- none
+
+Returns:
+- tensor of `max(x, 0)`
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{-2, 0, 3}, new int[]{3}, null, "x");
+Tensor y = x.relu();
+// y has shape [3] and values [0, 0, 3].
+//
+// Returns: a tensor after element-wise ReLU.
+```
 
 ### `neg()`
 

@@ -123,6 +123,10 @@ public final class TensorOps {
         return TensorUnaryOps.fastTanh(input);
     }
 
+    public static Tensor relu(Tensor input) {
+        return TensorUnaryOps.relu(input);
+    }
+
     public static Tensor clamp(Tensor input, double minValue, double maxValue) {
         return TensorUnaryOps.clamp(input, minValue, maxValue);
     }
