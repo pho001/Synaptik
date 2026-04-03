@@ -1,6 +1,7 @@
 package tensor;
 
 import backend.ComputeBackend;
+import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.ResolvedBroadcastPlan;
@@ -229,14 +230,14 @@ public class Tensor {
         if (index < 0 || index >= getFlatDataSize()) {
             throw new IndexOutOfBoundsException("Index out of bounds.");
         }
-        return storage.getAsDoubleAt(logicalFlatIndexToStorageOffset(index));
+        return getByStorageOffset(logicalFlatIndexToStorageOffset(index));
     }
 
     public void setDataAt(int flatindex,double value) {
         if (isBroadcastView()) {
             throw new UnsupportedOperationException("Cannot write through broadcast view tensor.");
         }
-        storage.setAsDoubleAt(logicalFlatIndexToStorageOffset(flatindex), value);
+        setByStorageOffset(logicalFlatIndexToStorageOffset(flatindex), value);
     }
 
     public int[] getStrides() {
@@ -331,7 +332,7 @@ public class Tensor {
         if (current == dataType) {
             return;
         }
-        double[] snapshot = toDoubleArrayCopy();
+        double[] snapshot = toDoubleStorageOrderCopy();
         metadata.setDataType(dataType);
         initStorageFromDoubleArray(snapshot);
     }
@@ -445,7 +446,18 @@ public class Tensor {
         double[] out = new double[n];
         if (storage != null) {
             for (int i = 0; i < n; i++) {
-                out[i] = storage.getAsDoubleAt(logicalFlatIndexToStorageOffset(i));
+                out[i] = getByStorageOffset(logicalFlatIndexToStorageOffset(i));
+            }
+        }
+        return out;
+    }
+
+    private double[] toDoubleStorageOrderCopy() {
+        int n = getStorageSize();
+        double[] out = new double[n];
+        if (storage != null) {
+            for (int i = 0; i < n; i++) {
+                out[i] = getByStorageOffset(i);
             }
         }
         return out;
@@ -778,11 +790,19 @@ public class Tensor {
             storage = new Float64Storage(source);
             return;
         }
-        TensorStorage target = (type == DataType.FLOAT32) ? new Float32Storage(size) : new Float16Storage(size);
-        for (int i = 0; i < size; i++) {
-            target.setAsDoubleAt(i, source[i]);
+        if (type == DataType.FLOAT32) {
+            float[] converted = new float[size];
+            for (int i = 0; i < size; i++) {
+                converted[i] = (float) source[i];
+            }
+            storage = new Float32Storage(converted);
+            return;
         }
-        storage = target;
+        short[] converted = new short[size];
+        for (int i = 0; i < size; i++) {
+            converted[i] = CpuDTypeOps.toHalfBits((float) source[i]);
+        }
+        storage = new Float16Storage(converted);
     }
 
     private void initStorageFromFloatArray(float[] source) {
@@ -803,11 +823,11 @@ public class Tensor {
                 storage = new Float64Storage(converted);
             }
             case FLOAT16 -> {
-                Float16Storage converted = new Float16Storage(size);
+                short[] converted = new short[size];
                 for (int i = 0; i < size; i++) {
-                    converted.setAsDoubleAt(i, source[i]);
+                    converted[i] = CpuDTypeOps.toHalfBits(source[i]);
                 }
-                storage = converted;
+                storage = new Float16Storage(converted);
             }
         }
     }
@@ -823,18 +843,16 @@ public class Tensor {
                 storage = new Float16Storage(source);
             }
             case FLOAT32 -> {
-                Float32Storage converted = new Float32Storage(size);
-                Float16Storage in = new Float16Storage(source);
+                float[] converted = new float[size];
                 for (int i = 0; i < size; i++) {
-                    converted.setAsDoubleAt(i, in.getAsDoubleAt(i));
+                    converted[i] = CpuDTypeOps.fromHalfBits(source[i]);
                 }
-                storage = converted;
+                storage = new Float32Storage(converted);
             }
             case FLOAT64 -> {
                 double[] converted = new double[size];
-                Float16Storage in = new Float16Storage(source);
                 for (int i = 0; i < size; i++) {
-                    converted[i] = in.getAsDoubleAt(i);
+                    converted[i] = CpuDTypeOps.fromHalfBits(source[i]);
                 }
                 storage = new Float64Storage(converted);
             }
@@ -854,7 +872,25 @@ public class Tensor {
         if (offset < 0 || offset >= getStorageSize()) {
             throw new IndexOutOfBoundsException("Storage offset out of bounds.");
         }
-        return storage.getAsDoubleAt(offset);
+        return switch (storage.getType()) {
+            case FLOAT64 -> getFloat64Data()[offset];
+            case FLOAT32 -> getFloat32Data()[offset];
+            case FLOAT16 -> CpuDTypeOps.fromHalfBits(getFloat16Data()[offset]);
+        };
+    }
+
+    void setByStorageOffset(int offset, double value) {
+        if (storage == null) {
+            throw new IllegalStateException("Tensor storage is not initialized.");
+        }
+        if (offset < 0 || offset >= getStorageSize()) {
+            throw new IndexOutOfBoundsException("Storage offset out of bounds.");
+        }
+        switch (storage.getType()) {
+            case FLOAT64 -> getFloat64Data()[offset] = value;
+            case FLOAT32 -> getFloat32Data()[offset] = (float) value;
+            case FLOAT16 -> getFloat16Data()[offset] = CpuDTypeOps.toHalfBits((float) value);
+        }
     }
 
     private int logicalFlatIndexToStorageOffset(int logicalIndex) {

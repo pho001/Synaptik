@@ -21,16 +21,6 @@ public class Float32Storage implements TensorStorage {
         return data.length;
     }
 
-    @Override
-    public double getAsDoubleAt(int flatIndex) {
-        return data[flatIndex];
-    }
-
-    @Override
-    public void setAsDoubleAt(int flatIndex, double value) {
-        data[flatIndex] = (float) value;
-    }
-
     public float getFloat32At(int flatIndex) {
         return data[flatIndex];
     }

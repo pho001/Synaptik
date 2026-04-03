@@ -91,7 +91,7 @@ public class DataTypeExecutionCoverageTest {
         Tensor contiguous = view.contiguous();
         CompiledGraph.compile(contiguous, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
-        double[] expectedContiguous = expectedContiguousView(view.toDoubleArrayCopy(), new int[]{2, 2}, new int[]{1, 2}, mode);
+        double[] expectedContiguous = expectedContiguousView(base.toDoubleArrayCopy(), new int[]{2, 2}, new int[]{1, 2}, mode);
         assertArrayEquals(expectedContiguous, contiguous.toDoubleArrayCopy(), eps);
         assertEquals(dataType, contiguous.getDataType());
     }

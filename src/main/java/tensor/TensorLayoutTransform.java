@@ -14,26 +14,10 @@ public final class TensorLayoutTransform {
         int[] srcDenseStrides = denseStrides(srcShape);
         int size = src.getFlatDataSize();
 
-        switch (dst.getDataType()) {
-            case FLOAT64 -> {
-                double[] out = dst.getFloat64Data();
-                for (int i = 0; i < size; i++) {
-                    out[i] = src.getByStorageOffset(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
-                }
-            }
-            case FLOAT32 -> {
-                float[] out = dst.getFloat32Data();
-                for (int i = 0; i < size; i++) {
-                    out[i] = (float) src.getByStorageOffset(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
-                }
-            }
-            case FLOAT16 -> {
-                short[] out = dst.getFloat16Data();
-                for (int i = 0; i < size; i++) {
-                    float value = (float) src.getByStorageOffset(logicalToOffset(i, srcShape, srcStrides, srcDenseStrides));
-                    out[i] = backend.kernels.cpu.CpuDTypeOps.toHalfBits(value);
-                }
-            }
+        switch (src.getDataType()) {
+            case FLOAT64 -> copyLinearizedF64(src.getFloat64Data(), dst, srcShape, srcStrides, srcDenseStrides, size);
+            case FLOAT32 -> copyLinearizedF32(src.getFloat32Data(), dst, srcShape, srcStrides, srcDenseStrides, size);
+            case FLOAT16 -> copyLinearizedF16(src.getFloat16Data(), dst, srcShape, srcStrides, srcDenseStrides, size);
         }
     }
 
@@ -50,23 +34,222 @@ public final class TensorLayoutTransform {
             }
         }
 
-        TensorStorage srcStorage = src.getStorage();
-        TensorStorage dstStorage = dst.getStorage();
         int[] srcStrides = src.getStrides();
         int[] dstShape = dst.getShape();
         int[] dstDenseStrides = denseStrides(dstShape);
         int size = dst.getFlatDataSize();
 
-        for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
-            int rem = logicalIndex;
-            int srcOffset = 0;
-            for (int dim = 0; dim < rank; dim++) {
-                int coord = rem / dstDenseStrides[dim];
-                rem %= dstDenseStrides[dim];
-                srcOffset += coord * srcStrides[normalizedAxes[dim]];
-            }
-            dstStorage.setAsDoubleAt(logicalIndex, srcStorage.getAsDoubleAt(srcOffset));
+        switch (src.getDataType()) {
+            case FLOAT64 -> copyPermutedF64(src.getFloat64Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, size, rank);
+            case FLOAT32 -> copyPermutedF32(src.getFloat32Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, size, rank);
+            case FLOAT16 -> copyPermutedF16(src.getFloat16Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, size, rank);
         }
+    }
+
+    private static void copyLinearizedF64(
+            double[] srcData,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int size
+    ) {
+        double[] dstF64 = dst.getFloat64Data();
+        if (dstF64 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF64[i] = srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)];
+            }
+            return;
+        }
+        float[] dstF32 = dst.getFloat32Data();
+        if (dstF32 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF32[i] = (float) srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)];
+            }
+            return;
+        }
+        short[] dstF16 = dst.getFloat16Data();
+        if (dstF16 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF16[i] = backend.kernels.cpu.CpuDTypeOps.toHalfBits((float) srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)]);
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination storage is missing");
+    }
+
+    private static void copyLinearizedF32(
+            float[] srcData,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int size
+    ) {
+        double[] dstF64 = dst.getFloat64Data();
+        if (dstF64 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF64[i] = srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)];
+            }
+            return;
+        }
+        float[] dstF32 = dst.getFloat32Data();
+        if (dstF32 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF32[i] = srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)];
+            }
+            return;
+        }
+        short[] dstF16 = dst.getFloat16Data();
+        if (dstF16 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF16[i] = backend.kernels.cpu.CpuDTypeOps.toHalfBits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)]);
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination storage is missing");
+    }
+
+    private static void copyLinearizedF16(
+            short[] srcData,
+            Tensor dst,
+            int[] srcShape,
+            int[] srcStrides,
+            int[] srcDenseStrides,
+            int size
+    ) {
+        double[] dstF64 = dst.getFloat64Data();
+        if (dstF64 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF64[i] = backend.kernels.cpu.CpuDTypeOps.fromHalfBits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)]);
+            }
+            return;
+        }
+        float[] dstF32 = dst.getFloat32Data();
+        if (dstF32 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF32[i] = backend.kernels.cpu.CpuDTypeOps.fromHalfBits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)]);
+            }
+            return;
+        }
+        short[] dstF16 = dst.getFloat16Data();
+        if (dstF16 != null) {
+            for (int i = 0; i < size; i++) {
+                dstF16[i] = srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides)];
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination storage is missing");
+    }
+
+    private static void copyPermutedF64(
+            double[] srcData,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int[] dstDenseStrides,
+            int size,
+            int rank
+    ) {
+        double[] dstF64 = dst.getFloat64Data();
+        if (dstF64 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF64[logicalIndex] = srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)];
+            }
+            return;
+        }
+        float[] dstF32 = dst.getFloat32Data();
+        if (dstF32 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF32[logicalIndex] = (float) srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)];
+            }
+            return;
+        }
+        short[] dstF16 = dst.getFloat16Data();
+        if (dstF16 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF16[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.toHalfBits((float) srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)]);
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination storage is missing");
+    }
+
+    private static void copyPermutedF32(
+            float[] srcData,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int[] dstDenseStrides,
+            int size,
+            int rank
+    ) {
+        double[] dstF64 = dst.getFloat64Data();
+        if (dstF64 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF64[logicalIndex] = srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)];
+            }
+            return;
+        }
+        float[] dstF32 = dst.getFloat32Data();
+        if (dstF32 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF32[logicalIndex] = srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)];
+            }
+            return;
+        }
+        short[] dstF16 = dst.getFloat16Data();
+        if (dstF16 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF16[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.toHalfBits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)]);
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination storage is missing");
+    }
+
+    private static void copyPermutedF16(
+            short[] srcData,
+            Tensor dst,
+            int[] normalizedAxes,
+            int[] srcStrides,
+            int[] dstDenseStrides,
+            int size,
+            int rank
+    ) {
+        double[] dstF64 = dst.getFloat64Data();
+        if (dstF64 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF64[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.fromHalfBits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)]);
+            }
+            return;
+        }
+        float[] dstF32 = dst.getFloat32Data();
+        if (dstF32 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF32[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.fromHalfBits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)]);
+            }
+            return;
+        }
+        short[] dstF16 = dst.getFloat16Data();
+        if (dstF16 != null) {
+            for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
+                dstF16[logicalIndex] = srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, rank)];
+            }
+            return;
+        }
+        throw new IllegalStateException("Destination storage is missing");
+    }
+
+    private static int permutedSourceOffset(int logicalIndex, int[] normalizedAxes, int[] srcStrides, int[] dstDenseStrides, int rank) {
+        int rem = logicalIndex;
+        int srcOffset = 0;
+        for (int dim = 0; dim < rank; dim++) {
+            int coord = rem / dstDenseStrides[dim];
+            rem %= dstDenseStrides[dim];
+            srcOffset += coord * srcStrides[normalizedAxes[dim]];
+        }
+        return srcOffset;
     }
 
     public static int[] inferReshape(int[] oldShape, int[] requestedShape) {

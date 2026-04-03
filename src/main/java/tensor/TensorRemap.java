@@ -65,31 +65,7 @@ public final class TensorRemap {
             return;
         }
 
-        if (src.getDataType() == DataType.FLOAT32
-                && src.getFloat32Data() != null
-                && dst.getFloat32Data() != null) {
-            applyF32(src, dst, effectivePlan, parallelThreshold);
-            return;
-        }
-        if (src.getDataType() == DataType.FLOAT16
-                && src.getFloat16Data() != null
-                && dst.getFloat16Data() != null) {
-            applyF16(src, dst, effectivePlan, parallelThreshold);
-            return;
-        }
-
-        if (tryFastCopyF64(src, dst, effectivePlan.logicalSize)) {
-            return;
-        }
-        if (tryFastCopyStorage(src, dst)) {
-            return;
-        }
-
-        if (effectivePlan.logicalSize > parallelThreshold) {
-            parallelApply(src, dst, effectivePlan);
-        } else {
-            sequentialApply(src, dst, effectivePlan);
-        }
+        dispatchApply(src, dst, effectivePlan, parallelThreshold);
     }
 
     public static void applyTrusted(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
@@ -97,32 +73,7 @@ public final class TensorRemap {
         if (effectivePlan == null) {
             return;
         }
-
-        if (src.getDataType() == DataType.FLOAT32
-                && src.getFloat32Data() != null
-                && dst.getFloat32Data() != null) {
-            applyF32(src, dst, effectivePlan, parallelThreshold);
-            return;
-        }
-        if (src.getDataType() == DataType.FLOAT16
-                && src.getFloat16Data() != null
-                && dst.getFloat16Data() != null) {
-            applyF16(src, dst, effectivePlan, parallelThreshold);
-            return;
-        }
-
-        if (tryFastCopyF64(src, dst, effectivePlan.logicalSize)) {
-            return;
-        }
-        if (tryFastCopyStorage(src, dst)) {
-            return;
-        }
-
-        if (effectivePlan.logicalSize > parallelThreshold) {
-            parallelApply(src, dst, effectivePlan);
-        } else {
-            sequentialApply(src, dst, effectivePlan);
-        }
+        dispatchApply(src, dst, effectivePlan, parallelThreshold);
     }
 
     private static RemapPlan applyResolved(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
@@ -153,22 +104,43 @@ public final class TensorRemap {
                 && Arrays.equals(dst.getStridesUnsafe(), plan.dstStrides);
     }
 
-    private static void sequentialApply(Tensor src, Tensor dst, RemapPlan plan) {
-        TensorStorage srcStorage = src.getStorage();
-        TensorStorage dstStorage = dst.getStorage();
+    private static void dispatchApply(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
+        if (src.getDataType() != dst.getDataType()) {
+            throw new IllegalArgumentException("TensorRemap requires matching tensor dtypes. src="
+                    + src.getDataType() + ", dst=" + dst.getDataType());
+        }
+        switch (src.getDataType()) {
+            case FLOAT64 -> applyF64(src, dst, plan, parallelThreshold);
+            case FLOAT32 -> applyF32(src, dst, plan, parallelThreshold);
+            case FLOAT16 -> applyF16(src, dst, plan, parallelThreshold);
+        }
+    }
 
+    private static void applyF64(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
+        if (tryFastCopyF64(src, dst, plan.logicalSize)) {
+            return;
+        }
+        if (plan.logicalSize > parallelThreshold) {
+            parallelApplyF64(src, dst, plan);
+        } else {
+            sequentialApplyF64(src, dst, plan);
+        }
+    }
+
+    private static void sequentialApplyF64(Tensor src, Tensor dst, RemapPlan plan) {
+        double[] srcData = src.getFloat64Data();
+        double[] dstData = dst.getFloat64Data();
         walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
-            dstStorage.setAsDoubleAt(dstOffset, srcStorage.getAsDoubleAt(srcOffset));
+            dstData[dstOffset] = srcData[srcOffset];
         });
     }
 
-    private static void parallelApply(Tensor src, Tensor dst, RemapPlan plan) {
-        TensorStorage srcStorage = src.getStorage();
-        TensorStorage dstStorage = dst.getStorage();
-
+    private static void parallelApplyF64(Tensor src, Tensor dst, RemapPlan plan) {
+        double[] srcData = src.getFloat64Data();
+        double[] dstData = dst.getFloat64Data();
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, start, end, (srcOffset, dstOffset) -> {
-                dstStorage.setAsDoubleAt(dstOffset, srcStorage.getAsDoubleAt(srcOffset));
+                dstData[dstOffset] = srcData[srcOffset];
             });
         });
     }
@@ -340,20 +312,6 @@ public final class TensorRemap {
             return false;
         }
         System.arraycopy(srcData, 0, dstData, 0, Math.min(srcData.length, dstData.length));
-        return true;
-    }
-
-    private static boolean tryFastCopyStorage(Tensor src, Tensor dst) {
-        if (src.getStorage() == null || dst.getStorage() == null) {
-            return false;
-        }
-        if (!Arrays.equals(src.getStridesUnsafe(), dst.getStridesUnsafe())) {
-            return false;
-        }
-        int size = Math.min(src.getFlatDataSize(), dst.getFlatDataSize());
-        for (int i = 0; i < size; i++) {
-            dst.getStorage().setAsDoubleAt(i, src.getStorage().getAsDoubleAt(i));
-        }
         return true;
     }
 

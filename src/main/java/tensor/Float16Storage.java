@@ -21,16 +21,6 @@ public class Float16Storage implements TensorStorage {
         return data.length;
     }
 
-    @Override
-    public double getAsDoubleAt(int flatIndex) {
-        return halfBitsToFloat(data[flatIndex]);
-    }
-
-    @Override
-    public void setAsDoubleAt(int flatIndex, double value) {
-        data[flatIndex] = floatToHalfBits((float) value);
-    }
-
     public short getFloat16BitsAt(int flatIndex) {
         return data[flatIndex];
     }
