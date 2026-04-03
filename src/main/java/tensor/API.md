@@ -80,6 +80,7 @@ The focus here is practical API usage:
   - [`mean(int dimension)`](#meanint-dimension)
   - [`mean(int dimension, boolean keepDims)`](#meanint-dimension-boolean-keepdims)
   - [`softmax(int dimension)`](#softmaxint-dimension)
+  - [`logSoftmax(int dimension)`](#logsoftmaxint-dimension)
   - [`min()`](#min)
   - [`min(int dimension)`](#minint-dimension)
   - [`min(int dimension, boolean keepDims)`](#minint-dimension-boolean-keepdims)
@@ -1503,6 +1504,31 @@ Tensor probs = logits.softmax(1);
 // Row 1 becomes [1/3, 1/3, 1/3].
 //
 // Returns: an axis-normalized probability tensor.
+```
+
+### `logSoftmax(int dimension)`
+
+Applies numerically stable log-softmax along one axis.
+
+Parameters:
+- `dimension`: axis to normalize
+
+Returns:
+- tensor of the same shape containing log-probabilities along the chosen axis
+
+Behavior:
+- computes `x - logsumexp(x)` along the selected axis
+- keeps the original shape
+- uses the dedicated `LOG_SOFTMAX` primitive
+
+Example:
+```java
+Tensor logits = new Tensor(new double[]{1, 2, 3, 0, 0, 0}, new int[]{2, 3}, null, "logits");
+Tensor logProbs = logits.logSoftmax(1);
+// logProbs has shape [2, 3].
+// exp(logProbs) matches logits.softmax(1).
+//
+// Returns: an axis-normalized log-probability tensor.
 ```
 
 ### `min()`

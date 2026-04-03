@@ -869,6 +869,10 @@ public class Tensor {
         return TensorOps.softmax(this, dimension);
     }
 
+    public Tensor logSoftmax(int dimension) {
+        return TensorOps.logSoftmax(this, dimension);
+    }
+
     public Tensor min(int dimension) {
         return TensorOps.min(this, dimension);
     }

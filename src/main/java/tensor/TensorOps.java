@@ -195,6 +195,10 @@ public final class TensorOps {
         return TensorReduceOps.softmax(input, dimension);
     }
 
+    public static Tensor logSoftmax(Tensor input, int dimension) {
+        return TensorReduceOps.logSoftmax(input, dimension);
+    }
+
     public static Tensor min(Tensor input, int dimension) {
         return TensorReduceOps.min(input, dimension);
     }

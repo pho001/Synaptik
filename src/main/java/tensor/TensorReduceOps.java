@@ -8,6 +8,7 @@ import operations.reduceMax;
 import operations.reduceMaxGrad;
 import operations.reduceMin;
 import operations.reduceMinGrad;
+import operations.logSoftmax;
 import operations.softmax;
 import operations.sum;
 
@@ -124,6 +125,29 @@ final class TensorReduceOps {
 
             Tensor dot = outGrad.mul(out).sum(normalizedDimension, true);
             Tensor grad = out.mul(outGrad.sub(dot));
+            if (input.getGradient() == null) input.setGradient(grad);
+            else input.setGradient(input.getGradient().add(grad));
+        });
+        return out;
+    }
+
+    static Tensor logSoftmax(Tensor input, int dimension) {
+        if (input == null) {
+            throw new IllegalArgumentException("logSoftmax input cannot be null");
+        }
+        if (input.getDataType() == DataType.BOOL) {
+            throw new IllegalArgumentException("logSoftmax requires numeric input.");
+        }
+        int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
+        Tensor out = new Tensor(input.getShape().clone(), List.of(input), new logSoftmax(normalizedDimension), "logSoftmax");
+        out.setDataType(input.getDataType());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null || !input.getRequiresGrad()) return;
+
+            Tensor probs = out.exp();
+            Tensor sumGrad = outGrad.sum(normalizedDimension, true);
+            Tensor grad = outGrad.sub(probs.mul(sumGrad));
             if (input.getGradient() == null) input.setGradient(grad);
             else input.setGradient(input.getGradient().add(grad));
         });

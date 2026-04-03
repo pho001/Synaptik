@@ -151,6 +151,7 @@ The current public graph-building operation surface on `Tensor` is:
 - `mean(int dimension, boolean keepDims)`
 - `mean()`
 - `softmax(int dimension)`
+- `logSoftmax(int dimension)`
 - `min(int dimension)`
 - `min(int dimension, boolean keepDims)`
 - `min()`
@@ -332,6 +333,12 @@ For axis reduction:
 - output shape matches input shape
 - values along the chosen axis are exponentiated in a numerically stable way and normalized to sum to `1`
 - backward uses the standard softmax Jacobian-vector product form
+
+`logSoftmax(int dimension)` is the logarithmic counterpart:
+
+- output shape matches input shape
+- values along the chosen axis are computed as `x - logsumexp(x)` in a numerically stable way
+- backward uses `g - softmax(x) * sum(g)` along the chosen axis
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.
