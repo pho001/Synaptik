@@ -150,6 +150,7 @@ The current public graph-building operation surface on `Tensor` is:
 - `mean(int dimension)`
 - `mean(int dimension, boolean keepDims)`
 - `mean()`
+- `softmax(int dimension)`
 - `min(int dimension)`
 - `min(int dimension, boolean keepDims)`
 - `min()`
@@ -325,6 +326,12 @@ For axis reduction:
 - `keepDims=true` preserves the reduced axis with size `1`
 
 `mean(...)` follows the same shape policy as `sum(...)`, but scales the reduced value by the size of the reduced axis (or by the total element count for `mean()`).
+
+`softmax(int dimension)` is an axis-wise normalization primitive:
+
+- output shape matches input shape
+- values along the chosen axis are exponentiated in a numerically stable way and normalized to sum to `1`
+- backward uses the standard softmax Jacobian-vector product form
 
 `min(...)` and `max(...)` follow the same shape policy as `sum(...)`.
 Their backward semantics route gradient only to winning elements; if multiple values tie for the extremum, the gradient is split evenly across the winners.

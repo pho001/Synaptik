@@ -191,6 +191,10 @@ public final class TensorOps {
         return TensorReduceOps.meanAll(input);
     }
 
+    public static Tensor softmax(Tensor input, int dimension) {
+        return TensorReduceOps.softmax(input, dimension);
+    }
+
     public static Tensor min(Tensor input, int dimension) {
         return TensorReduceOps.min(input, dimension);
     }

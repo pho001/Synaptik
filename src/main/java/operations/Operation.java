@@ -31,6 +31,7 @@ public interface Operation {
         REDUCE_MAX(OpArityClass.REDUCTION, false),
         REDUCE_ALL(OpArityClass.REDUCTION, false),
         REDUCE_ANY(OpArityClass.REDUCTION, false),
+        SOFTMAX(OpArityClass.SPECIAL, false),
         REDUCE_MIN_GRAD(OpArityClass.SPECIAL, false),
         REDUCE_MAX_GRAD(OpArityClass.SPECIAL, false),
         WHERE(OpArityClass.ELEMENT_WISE, false),

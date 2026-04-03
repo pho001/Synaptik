@@ -23,6 +23,7 @@ import operations.reduceMinGrad;
 import operations.reshape;
 import operations.squeeze;
 import operations.sum;
+import operations.softmax;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -146,6 +147,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case CLAMP_MAX -> new DoubleValue(((clampMax) op).getMaxValue());
             case SUM -> new ReductionSignature(((sum) op).getDimension(), ((sum) op).keepDims());
             case MEAN -> new ReductionSignature(((mean) op).getDimension(), ((mean) op).keepDims());
+            case SOFTMAX -> new AxisSignature(((softmax) op).getDimension());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
             case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());

@@ -61,6 +61,7 @@ Current descriptor classes in this package:
 - `mulScalar`
 - `sum`
 - `mean`
+- `softmax`
 - `reduceAll`
 - `reduceAny`
 - `reduceMin`
@@ -220,6 +221,7 @@ These are canonical graph/runtime primitives and should remain first-class:
 - reductions:
   - `SUM`
   - `MEAN`
+  - `SOFTMAX`
   - `REDUCE_MIN`
   - `REDUCE_MAX`
   - `REDUCE_ALL`

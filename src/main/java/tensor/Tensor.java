@@ -865,6 +865,10 @@ public class Tensor {
         return TensorOps.meanAll(this);
     }
 
+    public Tensor softmax(int dimension) {
+        return TensorOps.softmax(this, dimension);
+    }
+
     public Tensor min(int dimension) {
         return TensorOps.min(this, dimension);
     }

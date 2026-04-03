@@ -79,6 +79,7 @@ The focus here is practical API usage:
   - [`mean()`](#mean)
   - [`mean(int dimension)`](#meanint-dimension)
   - [`mean(int dimension, boolean keepDims)`](#meanint-dimension-boolean-keepdims)
+  - [`softmax(int dimension)`](#softmaxint-dimension)
   - [`min()`](#min)
   - [`min(int dimension)`](#minint-dimension)
   - [`min(int dimension, boolean keepDims)`](#minint-dimension-boolean-keepdims)
@@ -1476,6 +1477,32 @@ Tensor y = x.mean(1, true);
 // y has shape [2, 1] and values [2.0, 5.0].
 //
 // Returns: a reduced mean tensor.
+```
+
+### `softmax(int dimension)`
+
+Applies numerically stable softmax along one axis.
+
+Parameters:
+- `dimension`: axis to normalize
+
+Returns:
+- tensor of the same shape where values along the chosen axis sum to `1`
+
+Behavior:
+- subtracts the per-axis maximum before exponentiation for numerical stability
+- keeps the original shape
+- uses the dedicated `SOFTMAX` primitive
+
+Example:
+```java
+Tensor logits = new Tensor(new double[]{1, 2, 3, 0, 0, 0}, new int[]{2, 3}, null, "logits");
+Tensor probs = logits.softmax(1);
+// probs has shape [2, 3].
+// Row 0 becomes softmax([1, 2, 3]).
+// Row 1 becomes [1/3, 1/3, 1/3].
+//
+// Returns: an axis-normalized probability tensor.
 ```
 
 ### `min()`
