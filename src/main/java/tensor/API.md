@@ -2323,10 +2323,10 @@ Returns logical element count.
 Returns whether the tensor layout is contiguous.
 
 #### `getFlatIndex(int[] indices)`
-Maps multi-dimensional indices to storage offset according to current layout.
+Maps multi-dimensional indices to logical flat index in row-major logical order.
 
 #### `getSpatialIndex(int index)`
-Maps a storage offset back to logical coordinates.
+Maps a logical flat index back to logical coordinates.
 
 #### `getStorageOffsetUnsafe()`
 Returns current base storage offset.

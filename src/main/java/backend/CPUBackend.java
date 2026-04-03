@@ -153,7 +153,7 @@ public final class CPUBackend {
             return new PreparedInputsResult(List.of(), List.of());
         }
 
-        if (bypassPreparation(op) && !hasOffsetInput(inputs)) {
+        if (bypassPreparation(op) && !requiresPreparedInputs(op, inputs, node, typeContract, planner)) {
             return new PreparedInputsResult(List.of(), inputs);
         }
 
@@ -212,6 +212,8 @@ public final class CPUBackend {
             return switch (op.opType()) {
                 case RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE,
                         GATHER, GATHER_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD,
+                        SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
+                        SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS,
                         MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
                         NOOP -> false;
                 default -> true;
@@ -380,12 +382,23 @@ public final class CPUBackend {
         };
     }
 
-    private static boolean hasOffsetInput(List<Tensor> inputs) {
+    private static boolean requiresPreparedInputs(
+            Operation op,
+            List<Tensor> inputs,
+            Tensor node,
+            PreparedTypeContract typeContract,
+            CpuExecutionPlanner planner
+    ) {
         if (inputs == null || inputs.isEmpty()) {
             return false;
         }
-        for (Tensor input : inputs) {
-            if (input != null && input.hasStorageOffset()) {
+        for (int i = 0; i < inputs.size(); i++) {
+            Tensor input = inputs.get(i);
+            if (input == null) {
+                return true;
+            }
+            DataType expectedInputType = typeContract.expectedInputTypes().get(i);
+            if (requiresPreparedInput(op, input, node, expectedInputType, planner)) {
                 return true;
             }
         }

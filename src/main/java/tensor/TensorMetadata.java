@@ -161,24 +161,26 @@ public final class TensorMetadata {
             throw new IllegalArgumentException("Incorrect number of indices provided.");
         }
 
-        int flatIndex = storageOffset;
+        int[] denseStrides = computeStrides(shape);
+        int flatIndex = 0;
         for (int i = 0; i < shape.length; i++) {
             if (indices[i] < 0 || indices[i] >= shape[i]) {
                 throw new IndexOutOfBoundsException("Index out of bounds for dimension " + i + ".");
             }
-            flatIndex += indices[i] * strides[i];
+            flatIndex += indices[i] * denseStrides[i];
         }
         return flatIndex;
     }
 
     public int[] getSpatialIndex(int index) {
-        int localIndex = index - storageOffset;
-        if (localIndex < 0) {
-            throw new IndexOutOfBoundsException("Flat index is before tensor storage offset.");
+        int flatSize = getFlatSize();
+        if (index < 0 || index >= flatSize) {
+            throw new IndexOutOfBoundsException("Flat index out of bounds.");
         }
+        int[] denseStrides = computeStrides(shape);
         int[] indices = new int[shape.length];
         for (int i = 0; i < shape.length; i++) {
-            indices[i] = (localIndex / strides[i]) % shape[i];
+            indices[i] = (index / denseStrides[i]) % shape[i];
         }
         return indices;
     }
