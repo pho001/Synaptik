@@ -1,5 +1,7 @@
 package graph.optimizer.memory;
 
+import config.optimizer.MemoryConfig;
+
 public record MemoryPlannerPolicy(
         boolean separateForwardBackwardPools,
         boolean allowCrossPhaseReuse,
@@ -21,6 +23,18 @@ public record MemoryPlannerPolicy(
                 false,
                 false,
                 1
+        );
+    }
+
+    public static MemoryPlannerPolicy fromConfig(MemoryConfig config) {
+        if (config == null) {
+            return defaults();
+        }
+        return new MemoryPlannerPolicy(
+                config.separateForwardBackwardPools(),
+                config.allowCrossPhaseReuse(),
+                config.allowLargerBufferReuse(),
+                config.minReusableBufferSize()
         );
     }
 }

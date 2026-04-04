@@ -168,6 +168,64 @@ Numerics post-check report output:
 - optimizer policy knobs (`strictCseSafety`, `FuseConfig`)
 - backend/kernel knobs (`KernelTuningConfig` for `cpu`, `cuda`, `opencl`)
 
+Execution profiles also carry full compile-time optimizer config through:
+
+- `optimizer.stageOrder`
+- `optimizer.cse`
+- `optimizer.fuse`
+- `optimizer.memory`
+
+Important boundary:
+
+- `optimizer.memory` is a compile-time MEM-stage planner policy
+- it is not part of runtime config
+- it affects graph preparation/slot planning, not low-level kernel execution semantics
+
+### Execution profile JSON: optimizer.memory
+
+Profiles may now include:
+
+```json
+"optimizer": {
+  "stageOrder": ["AR", "CSE", "FUSE", "MEM"],
+  "cse": {
+    "strictSafety": false
+  },
+  "fuse": {
+    "maxClusterNodes": 96,
+    "scoreThreshold": 0.0,
+    "internalEdgeBonus": 0.5,
+    "externalInputPenalty": 0.1,
+    "sharedExpensivePenalty": 0.5,
+    "nonCheapBonus": 0.35,
+    "preserveSharedExpensiveNodes": false
+  },
+  "memory": {
+    "separateForwardBackwardPools": true,
+    "allowCrossPhaseReuse": false,
+    "allowLargerBufferReuse": false,
+    "minReusableBufferSize": 1
+  }
+}
+```
+
+Field meaning:
+
+- `separateForwardBackwardPools`
+  - keep forward and backward reusable slots in separate pools
+- `allowCrossPhaseReuse`
+  - allow reuse across forward/backward phases when pools are not separated
+- `allowLargerBufferReuse`
+  - allow a larger reusable slot to satisfy a smaller interval
+- `minReusableBufferSize`
+  - minimum tensor size eligible for reusable-slot planning
+
+Recommended interpretation:
+
+- start conservative with `MemoryConfig.defaults()`
+- then benchmark policy variants explicitly
+- compare both latency and planner summary metrics, not only wall-clock time
+
 ## Full Knob Space (Current Implementation)
 
 This section reflects the current candidate generation in:
@@ -202,6 +260,14 @@ Total stage-order variants per knob profile:
   - bonus for including non-trivial operators in the cluster
 - `fuse.preserveSharedExpensiveNodes` [true, false]
   - keep shared expensive nodes outside fusion to avoid duplicated cost
+- `memory.separateForwardBackwardPools` [true, false]
+  - whether forward and backward reusable pools stay isolated
+- `memory.allowCrossPhaseReuse` [false]
+  - only meaningful when pools are not separated; currently should remain conservative
+- `memory.allowLargerBufferReuse` [true, false]
+  - whether a larger slot may be reused for a smaller interval
+- `memory.minReusableBufferSize` [1, 8, 16, 32, 64]
+  - minimum tensor size that participates in reusable-slot planning
 
 ### CPU Kernel Knobs
 

@@ -1,9 +1,16 @@
 package graph.optimizer.memory;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Collections;
+
 public record MemoryPlanSummary(
         int reusableIntervalCount,
         int slotCount,
         int reuseCount,
+        int reusableFreshAllocationCount,
+        double reuseHitRate,
+        long allocatedSlotBytes,
         long peakLiveBytes,
         long peakReusableBytes,
         long peakSavedForwardBytes,
@@ -14,4 +21,23 @@ public record MemoryPlanSummary(
         int gradientTargetCount,
         double averageSavedForwardHoldDistance
 ) {
+    public Map<String, Object> toMetricMap() {
+        Map<String, Object> metrics = new LinkedHashMap<>();
+        metrics.put("reusableIntervalCount", reusableIntervalCount);
+        metrics.put("slotCount", slotCount);
+        metrics.put("reuseCount", reuseCount);
+        metrics.put("reusableFreshAllocationCount", reusableFreshAllocationCount);
+        metrics.put("reuseHitRate", reuseHitRate);
+        metrics.put("allocatedSlotBytes", allocatedSlotBytes);
+        metrics.put("peakLiveBytes", peakLiveBytes);
+        metrics.put("peakReusableBytes", peakReusableBytes);
+        metrics.put("peakSavedForwardBytes", peakSavedForwardBytes);
+        metrics.put("peakGradientTargetBytes", peakGradientTargetBytes);
+        metrics.put("peakForwardLiveBytes", peakForwardLiveBytes);
+        metrics.put("peakBackwardLiveBytes", peakBackwardLiveBytes);
+        metrics.put("savedForwardCount", savedForwardCount);
+        metrics.put("gradientTargetCount", gradientTargetCount);
+        metrics.put("averageSavedForwardHoldDistance", averageSavedForwardHoldDistance);
+        return Collections.unmodifiableMap(metrics);
+    }
 }

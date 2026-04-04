@@ -21,7 +21,7 @@ public class MemoryOptimizerRule implements OptimizationRule {
     private final MemoryPlannerPolicy policy;
 
     public MemoryOptimizerRule() {
-        this(resolvePolicyFromProperties());
+        this(MemoryPlannerPolicy.defaults());
     }
 
     public MemoryOptimizerRule(MemoryPlannerPolicy policy) {
@@ -126,26 +126,5 @@ public class MemoryOptimizerRule implements OptimizationRule {
         }
 
         return sortedGraph;
-    }
-
-    private static MemoryPlannerPolicy resolvePolicyFromProperties() {
-        boolean separatePools = Boolean.parseBoolean(
-                System.getProperty("cg.optimizer.memory.separateForwardBackwardPools", "true")
-        );
-        boolean allowCrossPhaseReuse = Boolean.parseBoolean(
-                System.getProperty("cg.optimizer.memory.allowCrossPhaseReuse", "false")
-        );
-        boolean allowLargerBufferReuse = Boolean.parseBoolean(
-                System.getProperty("cg.optimizer.memory.allowLargerBufferReuse", "false")
-        );
-        int minReusableBufferSize = Integer.parseInt(
-                System.getProperty("cg.optimizer.memory.minReusableBufferSize", "1")
-        );
-        return new MemoryPlannerPolicy(
-                separatePools,
-                allowCrossPhaseReuse,
-                allowLargerBufferReuse,
-                minReusableBufferSize
-        );
     }
 }

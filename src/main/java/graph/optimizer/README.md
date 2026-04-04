@@ -245,6 +245,8 @@ Fusion rule behavior:
 - graph rewrites aimed at better memory behavior and reuse patterns
 - current planner is liveness-aware and slot-assignment-based
 - planner policy is modeled explicitly through `MemoryPlannerPolicy`
+- public compile-time config for the MEM stage is carried by `OptimizerConfig.memory()`
+- `MemoryPlannerPolicy` is the runtime planner-facing projection of that config
 - planner exposes internal liveness/slot metrics through `MemoryPlanSummary`
 - current debug dumps can explain:
   - summary metrics
@@ -257,12 +259,83 @@ Fusion rule behavior:
   - reusable interval count
   - slot count
   - reuse count
+  - reusable fresh allocation count
+  - reuse hit-rate
+  - allocated slot bytes
   - peak live bytes
   - peak reusable bytes
   - peak saved-forward bytes
   - peak gradient-target bytes
   - forward/backward peak live bytes
   - saved-forward hold statistics
+
+#### Memory policy shape
+
+The compile-time MEM-stage policy is:
+
+```java
+public record MemoryConfig(
+        boolean separateForwardBackwardPools,
+        boolean allowCrossPhaseReuse,
+        boolean allowLargerBufferReuse,
+        int minReusableBufferSize
+) {}
+```
+
+Meaning of the fields:
+
+- `separateForwardBackwardPools`
+  - keeps forward-temp and backward-temp reuse pools separate
+  - conservative default because it makes liveness reasoning and explain output cleaner
+- `allowCrossPhaseReuse`
+  - allows one reuse space across forward/backward when pools are not separated
+  - currently a deliberate opt-in knob, not the default policy
+- `allowLargerBufferReuse`
+  - permits reusing a slot with `slot.size >= tensor.size`
+  - improves reuse opportunities at the cost of potentially holding larger buffers
+- `minReusableBufferSize`
+  - excludes tiny temporaries from slot planning
+  - useful when planning overhead or slot churn would outweigh any real gain
+
+Important boundary:
+
+- this is a **compile-time optimizer policy**
+- it belongs to `OptimizerConfig`
+- it is not a runtime execution knob like BLAS or approximation mode
+
+#### Example: explicit MEM-stage config
+
+```java
+OptimizerConfig config = OptimizerConfig.trainingDefaults()
+        .withMemory(new MemoryConfig(
+                true,   // separateForwardBackwardPools
+                false,  // allowCrossPhaseReuse
+                true,   // allowLargerBufferReuse
+                16      // minReusableBufferSize
+        ));
+```
+
+This means:
+
+- the graph still uses separate forward/backward reuse pools
+- cross-phase reuse stays disabled
+- larger reusable buffers may be reused for smaller temporaries
+- very small temporaries below `16` elements are skipped by slot planning
+
+#### MemoryPlanSummary as benchmark/autotune surface
+
+`MemoryPlanSummary` is not only a debug artifact.
+
+It is intended to be the stable machine-readable planner report for:
+
+- benchmark comparisons
+- future planner autotune
+- policy evaluation without local probe scripts
+
+Today it exposes both:
+
+- human-readable explain output through `MemoryPlan.explain()`
+- machine-readable metrics through `MemoryPlanSummary.toMetricMap()`
 
 Relevant files:
 
@@ -271,6 +344,7 @@ Relevant files:
 - [src/main/java/graph/optimizer/memory/MemoryPlan.java](../../graph/optimizer/memory/MemoryPlan.java)
 - [src/main/java/graph/optimizer/memory/MemoryPlanSummary.java](../../graph/optimizer/memory/MemoryPlanSummary.java)
 - [src/main/java/graph/optimizer/memory/MemoryPlannerPolicy.java](../../graph/optimizer/memory/MemoryPlannerPolicy.java)
+- [src/main/java/config/optimizer/MemoryConfig.java](../../config/optimizer/MemoryConfig.java)
 
 ## Fused Operations
 
@@ -355,6 +429,26 @@ Default presets:
 
 For public graph compilation, `OptimizerConfig` is the intended API surface.
 `GraphOptimizer` is a lower-level pipeline object used internally by optimizer/benchmark tooling, not the preferred public compile contract.
+
+Current compile-time config families inside `OptimizerConfig` are:
+
+- `cse`
+  - common-subexpression-elimination policy
+- `fuse`
+  - fused compute cluster policy
+- `memory`
+  - MEM-stage planner policy
+
+Example:
+
+```java
+OptimizerConfig config = new OptimizerConfig(
+        List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
+        CseConfig.aggressiveDefaults(),
+        FuseConfig.inferenceDefaults(),
+        MemoryConfig.defaults()
+);
+```
 
 ## Benchmark / Autotune Integration
 

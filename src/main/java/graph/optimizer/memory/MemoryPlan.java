@@ -100,6 +100,9 @@ public final class MemoryPlan {
         sb.append("reusableIntervals=").append(summary.reusableIntervalCount()).append('\n');
         sb.append("slotCount=").append(summary.slotCount()).append('\n');
         sb.append("reuseCount=").append(summary.reuseCount()).append('\n');
+        sb.append("reusableFreshAllocationCount=").append(summary.reusableFreshAllocationCount()).append('\n');
+        sb.append("reuseHitRate=").append(summary.reuseHitRate()).append('\n');
+        sb.append("allocatedSlotBytes=").append(summary.allocatedSlotBytes()).append('\n');
         sb.append("peakLiveBytes=").append(summary.peakLiveBytes()).append('\n');
         sb.append("peakReusableBytes=").append(summary.peakReusableBytes()).append('\n');
         sb.append("peakSavedForwardBytes=").append(summary.peakSavedForwardBytes()).append('\n');

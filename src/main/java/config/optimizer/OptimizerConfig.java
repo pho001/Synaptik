@@ -8,12 +8,14 @@ import java.util.Objects;
 public record OptimizerConfig(
         List<OptimizerStage> stageOrder,
         CseConfig cse,
-        FuseConfig fuse
+        FuseConfig fuse,
+        MemoryConfig memory
 ) {
     public OptimizerConfig {
         Objects.requireNonNull(stageOrder, "stageOrder cannot be null");
         Objects.requireNonNull(cse, "cse cannot be null");
         Objects.requireNonNull(fuse, "fuse cannot be null");
+        memory = memory == null ? MemoryConfig.defaults() : memory;
 
         List<OptimizerStage> normalized = new ArrayList<>(stageOrder.size());
         for (OptimizerStage stage : stageOrder) {
@@ -34,7 +36,8 @@ public record OptimizerConfig(
         return new OptimizerConfig(
                 List.of(),
                 CseConfig.strictDefaults(),
-                FuseConfig.trainingDefaults()
+                FuseConfig.trainingDefaults(),
+                MemoryConfig.defaults()
         );
     }
 
@@ -42,7 +45,8 @@ public record OptimizerConfig(
         return new OptimizerConfig(
                 List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.MEM),
                 CseConfig.strictDefaults(),
-                FuseConfig.trainingDefaults()
+                FuseConfig.trainingDefaults(),
+                MemoryConfig.defaults()
         );
     }
 
@@ -50,7 +54,8 @@ public record OptimizerConfig(
         return new OptimizerConfig(
                 List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
                 CseConfig.aggressiveDefaults(),
-                FuseConfig.inferenceDefaults()
+                FuseConfig.inferenceDefaults(),
+                MemoryConfig.defaults()
         );
     }
 
@@ -63,14 +68,18 @@ public record OptimizerConfig(
     }
 
     public OptimizerConfig withStageOrder(List<OptimizerStage> newStageOrder) {
-        return new OptimizerConfig(newStageOrder, cse, fuse);
+        return new OptimizerConfig(newStageOrder, cse, fuse, memory);
     }
 
     public OptimizerConfig withCse(CseConfig newCse) {
-        return new OptimizerConfig(stageOrder, newCse, fuse);
+        return new OptimizerConfig(stageOrder, newCse, fuse, memory);
     }
 
     public OptimizerConfig withFuse(FuseConfig newFuse) {
-        return new OptimizerConfig(stageOrder, cse, newFuse);
+        return new OptimizerConfig(stageOrder, cse, newFuse, memory);
+    }
+
+    public OptimizerConfig withMemory(MemoryConfig newMemory) {
+        return new OptimizerConfig(stageOrder, cse, fuse, newMemory);
     }
 }

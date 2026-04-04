@@ -33,7 +33,7 @@ public final class OptimizerFactory {
             case AR -> new RewriteRule();
             case CSE -> new CommonSubexpressionEliminationRule(config.cse());
             case FUSE -> new FuseElementWiseRule(config.fuse());
-            case MEM -> new MemoryOptimizerRule();
+            case MEM -> new MemoryOptimizerRule(graph.optimizer.memory.MemoryPlannerPolicy.fromConfig(config.memory()));
         };
     }
 }

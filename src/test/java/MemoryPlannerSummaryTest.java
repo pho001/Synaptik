@@ -1,5 +1,7 @@
 import config.optimizer.OptimizerConfig;
 import graph.CompiledGraph;
+import graph.optimizer.OptimizationRule;
+import graph.optimizer.OptimizerFactory;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.MemoryPlanner;
 import graph.optimizer.memory.MemoryPlannerPolicy;
@@ -30,9 +32,14 @@ public class MemoryPlannerSummaryTest {
         assertTrue(plan.summary().reusableIntervalCount() > 0);
         assertTrue(plan.summary().slotCount() > 0);
         assertTrue(plan.summary().peakReusableBytes() > 0);
+        assertTrue(plan.summary().allocatedSlotBytes() > 0);
         assertTrue(plan.summary().savedForwardCount() > 0);
         assertTrue(plan.summary().gradientTargetCount() > 0);
+        assertTrue(plan.summary().reusableFreshAllocationCount() > 0);
+        assertTrue(plan.summary().reuseHitRate() >= 0.0d);
+        assertTrue(plan.summary().toMetricMap().containsKey("allocatedSlotBytes"));
         assertTrue(explain.contains("=== MemoryPlan Summary ==="));
+        assertTrue(explain.contains("allocatedSlotBytes="));
         assertTrue(explain.contains("peakReusableBytes="));
         assertTrue(explain.contains("peakSavedForwardBytes="));
         assertTrue(explain.contains("peakGradientTargetBytes="));
@@ -95,6 +102,27 @@ public class MemoryPlannerSummaryTest {
         MemoryPlannerPolicy policy = new MemoryPlannerPolicy(true, false, true, 8);
         MemoryOptimizerRule rule = new MemoryOptimizerRule(policy);
         assertEquals(policy, rule.policy());
+    }
+
+    @Test
+    void optimizerFactoryPassesConfiguredMemoryPolicyToMemStage() {
+        var optimizerConfig = OptimizerConfig.trainingDefaults().withMemory(
+                new config.optimizer.MemoryConfig(false, false, true, 16)
+        );
+
+        MemoryOptimizerRule memRule = null;
+        for (OptimizationRule rule : OptimizerFactory.createRules(optimizerConfig)) {
+            if (rule instanceof MemoryOptimizerRule found) {
+                memRule = found;
+                break;
+            }
+        }
+
+        assertNotNull(memRule);
+        assertEquals(
+                MemoryPlannerPolicy.fromConfig(optimizerConfig.memory()),
+                memRule.policy()
+        );
     }
 
     @Test

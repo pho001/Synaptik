@@ -26,7 +26,7 @@ public final class MemoryPlanner {
         Objects.requireNonNull(policy, "policy cannot be null");
         if (sortedGraph == null || sortedGraph.isEmpty()) {
             return new MemoryPlan(Map.of(), Map.of(), Map.of(), Map.of(), policy,
-                    new MemoryPlanSummary(0, 0, 0, 0L, 0L, 0L, 0L, 0L, 0L, 0, 0, 0.0));
+                    new MemoryPlanSummary(0, 0, 0, 0, 0.0d, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0, 0, 0.0));
         }
 
         Map<Tensor, Integer> indexByTensor = new IdentityHashMap<>();
@@ -315,6 +315,9 @@ public final class MemoryPlanner {
         int intervalCount = reusableIntervals.size();
         int slotCount = slotSizes.size();
         int reuseCount = Math.max(0, intervalCount - slotCount);
+        int reusableFreshAllocationCount = slotCount;
+        double reuseHitRate = intervalCount == 0 ? 0.0d : ((double) reuseCount / intervalCount);
+        long allocatedSlotBytes = slotSizes.values().stream().mapToLong(Integer::longValue).sum();
         double averageSavedForwardHoldDistance = savedForwardCount == 0
                 ? 0.0
                 : ((double) savedForwardHoldDistanceSum / savedForwardCount);
@@ -323,6 +326,9 @@ public final class MemoryPlanner {
                 intervalCount,
                 slotCount,
                 reuseCount,
+                reusableFreshAllocationCount,
+                reuseHitRate,
+                allocatedSlotBytes,
                 peakTotal,
                 peakReusable,
                 peakSavedForward,

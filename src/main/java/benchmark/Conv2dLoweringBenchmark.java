@@ -191,7 +191,8 @@ public final class Conv2dLoweringBenchmark {
             case GEMM_JAVA, GEMM_BLAS -> new OptimizerConfig(
                     List.of(OptimizerStage.AR),
                     CseConfig.strictDefaults(),
-                    FuseConfig.trainingDefaults()
+                    FuseConfig.trainingDefaults(),
+                    config.optimizer.MemoryConfig.defaults()
             );
         };
     }

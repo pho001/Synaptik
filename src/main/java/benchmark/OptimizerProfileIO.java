@@ -16,6 +16,7 @@ import config.profile.WorkloadKind;
 import config.profile.WorkloadProfile;
 import tensor.DataType;
 import config.optimizer.FuseConfig;
+import config.optimizer.MemoryConfig;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -278,6 +279,12 @@ public final class OptimizerProfileIO {
                 "      \"sharedExpensivePenalty\": " + optimizer.fuse().sharedExpensivePenalty() + ",\n" +
                 "      \"nonCheapBonus\": " + optimizer.fuse().nonCheapBonus() + ",\n" +
                 "      \"preserveSharedExpensiveNodes\": " + optimizer.fuse().preserveSharedExpensiveNodes() + "\n" +
+                "    },\n" +
+                "    \"memory\": {\n" +
+                "      \"separateForwardBackwardPools\": " + optimizer.memory().separateForwardBackwardPools() + ",\n" +
+                "      \"allowCrossPhaseReuse\": " + optimizer.memory().allowCrossPhaseReuse() + ",\n" +
+                "      \"allowLargerBufferReuse\": " + optimizer.memory().allowLargerBufferReuse() + ",\n" +
+                "      \"minReusableBufferSize\": " + optimizer.memory().minReusableBufferSize() + "\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"runtime\": {\n" +
@@ -464,10 +471,18 @@ public final class OptimizerProfileIO {
                     findDouble(json, "nonCheapBonus", df.nonCheapBonus()),
                     findBoolean(json, "preserveSharedExpensiveNodes", df.preserveSharedExpensiveNodes())
             );
+            MemoryConfig defaultMemory = d.optimizer().memory();
+            MemoryConfig memory = new MemoryConfig(
+                    findBoolean(json, "separateForwardBackwardPools", defaultMemory.separateForwardBackwardPools()),
+                    findBoolean(json, "allowCrossPhaseReuse", defaultMemory.allowCrossPhaseReuse()),
+                    findBoolean(json, "allowLargerBufferReuse", defaultMemory.allowLargerBufferReuse()),
+                    findInt(json, "minReusableBufferSize", defaultMemory.minReusableBufferSize())
+            );
             config.optimizer.OptimizerConfig optimizer = new config.optimizer.OptimizerConfig(
                     stageOrder,
                     strictSafety ? config.optimizer.CseConfig.strictDefaults() : config.optimizer.CseConfig.aggressiveDefaults(),
-                    fuse
+                    fuse,
+                    memory
             );
 
             KernelTuningConfig dk = d.runtime().kernel();

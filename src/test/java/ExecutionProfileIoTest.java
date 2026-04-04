@@ -10,6 +10,7 @@ import config.backend.OpenClKernelConfig;
 import config.backend.AttentionMatMulPolicy;
 import config.optimizer.CseConfig;
 import config.optimizer.FuseConfig;
+import config.optimizer.MemoryConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.profile.ExecutionProfile;
@@ -38,7 +39,8 @@ public class ExecutionProfileIoTest {
                 new OptimizerConfig(
                         List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
                         CseConfig.aggressiveDefaults(),
-                        FuseConfig.inferenceDefaults()
+                        FuseConfig.inferenceDefaults(),
+                        new MemoryConfig(false, false, true, 8)
                 ),
                 new RuntimeConfig(
                         new KernelTuningConfig(
@@ -65,6 +67,7 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.mode(), actual.mode());
         assertEquals(expected.optimizer().stageOrder(), actual.optimizer().stageOrder());
         assertFalse(actual.optimizer().cse().strictSafety());
+        assertEquals(expected.optimizer().memory(), actual.optimizer().memory());
         assertEquals(expected.runtime().kernel().cpu().vectorMinSize(), actual.runtime().kernel().cpu().vectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().contiguousMaterializeThreshold(), actual.runtime().kernel().cpu().contiguousMaterializeThreshold());
         assertEquals(expected.runtime().kernel().cpu().attentionMatMulPolicy(), actual.runtime().kernel().cpu().attentionMatMulPolicy());

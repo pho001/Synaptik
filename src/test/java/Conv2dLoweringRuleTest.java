@@ -57,7 +57,8 @@ public class Conv2dLoweringRuleTest {
                 new OptimizerConfig(
                         List.of(OptimizerStage.AR),
                         config.optimizer.CseConfig.strictDefaults(),
-                        config.optimizer.FuseConfig.trainingDefaults()
+                        config.optimizer.FuseConfig.trainingDefaults(),
+                        config.optimizer.MemoryConfig.defaults()
                 )
         ).execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
 

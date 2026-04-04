@@ -116,7 +116,8 @@ public class GradientEngineRegressionTest {
         return new OptimizerConfig(
                 java.util.List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
                 CseConfig.strictDefaults(),
-                FuseConfig.trainingDefaults()
+                FuseConfig.trainingDefaults(),
+                config.optimizer.MemoryConfig.defaults()
         );
     }
 }
