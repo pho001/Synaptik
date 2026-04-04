@@ -7,11 +7,16 @@ import tuning.candidate.CandidateFingerprint;
 import tuning.candidate.ListCandidateSpace;
 import tuning.candidate.ProfileGridCandidateSpace;
 import tuning.candidate.ProfileMutators;
+import tuning.search.BestFirstTreeSearchStrategy;
+import tuning.search.BranchAndBoundSearchStrategy;
+import tuning.search.MedianSteadyStateScoreModel;
+import tuning.search.ParentScoreBoundModel;
 import tuning.search.CompositeSearchStrategy;
 import tuning.search.ExhaustiveSearchStrategy;
 import tuning.search.FirstKSearchStrategy;
 import tuning.search.RefinementSearchStrategy;
 import tuning.search.SearchContext;
+import tuning.search.TreeBeamSearchStrategy;
 import tuning.session.AutotuneRequest;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
@@ -111,6 +116,183 @@ public class SearchStrategiesTest {
         ));
     }
 
+    @Test
+    void treeBeamSearchStrategyTracksLineageAcrossRounds() {
+        var workload = tuning.workload.StandardWorkloads.conv2d(
+                "conv_tree",
+                1, 8, 8, 8, 8, 3, 3,
+                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                true
+        );
+        var base = new ExecutionProfile(
+                "tree",
+                "tree",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var space = new ProfileGridCandidateSpace(
+                base,
+                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                        config.optimizer.Conv2dLoweringMode.HEURISTIC,
+                        config.optimizer.Conv2dLoweringMode.OFF,
+                        config.optimizer.Conv2dLoweringMode.ALWAYS
+                )))
+        );
+        var request = new AutotuneRequest(
+                workload,
+                space,
+                tuning.measure.MeasurementPolicy.defaults(),
+                tuning.validate.ValidationPolicy.disabled(),
+                new tuning.search.SearchPolicy(8, 1, 3, false),
+                tuning.store.PersistencePolicy.disabled()
+        );
+
+        var strategy = new TreeBeamSearchStrategy(new FirstKSearchStrategy(1), 1, 8);
+        var initial = strategy.search(new SearchContext(request, request.candidateSpace()));
+        assertEquals(1, initial.selectedCandidates().size());
+        assertEquals(1, strategy.snapshot().nodes().size());
+
+        var measured = java.util.List.of(
+                tuning.report.BenchmarkCandidateReport.success(
+                        initial.selectedCandidates().getFirst(),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(null, null, graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                )
+        );
+        var refined = strategy.refine(
+                new SearchContext(request, request.candidateSpace()),
+                measured,
+                1,
+                new java.util.HashSet<>(java.util.List.of(CandidateFingerprint.of(initial.selectedCandidates().getFirst())))
+        );
+
+        assertTrue(refined.selectedCandidates().size() >= 1);
+        assertTrue(strategy.snapshot().nodes().size() > 1);
+        assertTrue(strategy.snapshot().nodes().stream().anyMatch(node -> node.parentFingerprint() != null));
+        assertEquals(refined.selectedCandidates().size(), strategy.snapshot().frontierFingerprints().size());
+    }
+
+    @Test
+    void bestFirstTreeSearchStrategyExpandsBestMeasuredNode() {
+        var workload = tuning.workload.StandardWorkloads.conv2d(
+                "conv_best_first",
+                1, 8, 8, 8, 8, 3, 3,
+                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                true
+        );
+        var base = new ExecutionProfile(
+                "best-first",
+                "best-first",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var space = new ProfileGridCandidateSpace(
+                base,
+                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                        config.optimizer.Conv2dLoweringMode.HEURISTIC,
+                        config.optimizer.Conv2dLoweringMode.OFF,
+                        config.optimizer.Conv2dLoweringMode.ALWAYS
+                )))
+        );
+        var request = new AutotuneRequest(
+                workload,
+                space,
+                tuning.measure.MeasurementPolicy.defaults(),
+                tuning.validate.ValidationPolicy.disabled(),
+                new tuning.search.SearchPolicy(8, 1, 3, false),
+                tuning.store.PersistencePolicy.disabled()
+        );
+
+        var seed = new ExhaustiveSearchStrategy();
+        var strategy = new BestFirstTreeSearchStrategy(seed, new MedianSteadyStateScoreModel(), 2);
+        var initial = strategy.search(new SearchContext(request, request.candidateSpace()));
+        assertTrue(initial.selectedCandidates().size() >= 3);
+
+        var measured = java.util.List.of(
+                report(initial.selectedCandidates().get(0), 3.0),
+                report(initial.selectedCandidates().get(1), 1.0),
+                report(initial.selectedCandidates().get(2), 2.0)
+        );
+        var refined = strategy.refine(
+                new SearchContext(request, request.candidateSpace()),
+                measured,
+                1,
+                new java.util.HashSet<>(measured.stream().map(r -> CandidateFingerprint.of(r.candidate())).toList())
+        );
+
+        assertTrue(refined.selectedCandidates().size() >= 1);
+        assertTrue(strategy.snapshot().nodes().size() > initial.selectedCandidates().size());
+    }
+
+    @Test
+    void branchAndBoundSearchStrategyCanPruneFrontierBranch() {
+        var workload = tuning.workload.StandardWorkloads.conv2d(
+                "conv_bb",
+                1, 8, 8, 8, 8, 3, 3,
+                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                true
+        );
+        var base = new ExecutionProfile(
+                "bb",
+                "bb",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var space = new ProfileGridCandidateSpace(
+                base,
+                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                        config.optimizer.Conv2dLoweringMode.HEURISTIC,
+                        config.optimizer.Conv2dLoweringMode.OFF,
+                        config.optimizer.Conv2dLoweringMode.ALWAYS
+                )))
+        );
+        var request = new AutotuneRequest(
+                workload,
+                space,
+                tuning.measure.MeasurementPolicy.defaults(),
+                tuning.validate.ValidationPolicy.disabled(),
+                new tuning.search.SearchPolicy(8, 1, 3, false),
+                tuning.store.PersistencePolicy.disabled()
+        );
+
+        var strategy = new BranchAndBoundSearchStrategy(
+                new ExhaustiveSearchStrategy(),
+                new MedianSteadyStateScoreModel(),
+                new ParentScoreBoundModel(),
+                1,
+                2
+        );
+        var initial = strategy.search(new SearchContext(request, request.candidateSpace()));
+        var measured = java.util.List.of(
+                report(initial.selectedCandidates().get(0), 10.0),
+                report(initial.selectedCandidates().get(1), 1.0),
+                report(initial.selectedCandidates().get(2), 2.0)
+        );
+
+        var refined = strategy.refine(
+                new SearchContext(request, request.candidateSpace()),
+                measured,
+                1,
+                new java.util.HashSet<>(measured.stream().map(r -> CandidateFingerprint.of(r.candidate())).toList())
+        );
+
+        assertTrue(strategy.prunedFingerprints().size() >= 1);
+        assertTrue(refined.selectedCandidates().size() >= 1);
+    }
+
     private static Candidate candidate(String name) {
         return new Candidate(
                 name,
@@ -122,6 +304,18 @@ public class SearchStrategiesTest {
                         config.optimizer.OptimizerConfig.noOptimization(),
                         config.runtime.RuntimeConfig.inferenceDefaults(),
                         WorkloadProfile.none()
+                )
+        );
+    }
+
+    private static tuning.report.BenchmarkCandidateReport report(Candidate candidate, double medianMs) {
+        return tuning.report.BenchmarkCandidateReport.success(
+                candidate,
+                tuning.validate.ValidationResult.skipped(),
+                new tuning.measure.MeasurementResult(
+                        tuning.measure.MeasurementPolicy.defaults(),
+                        new graph.execution.trace.ExecutionTrace(null, null, graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)),
+                        new tuning.measure.MeasurementStatistics(medianMs, medianMs, medianMs)
                 )
         );
     }

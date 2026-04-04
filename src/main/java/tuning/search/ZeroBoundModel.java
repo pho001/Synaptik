@@ -1,0 +1,10 @@
+package tuning.search;
+
+import tuning.report.BenchmarkCandidateReport;
+
+public final class ZeroBoundModel implements CandidateBoundModel {
+    @Override
+    public double optimisticBound(BenchmarkCandidateReport report, SearchTreeNode node, CandidateScoreModel scoreModel) {
+        return 0.0d;
+    }
+}
