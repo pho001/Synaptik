@@ -81,7 +81,7 @@ public class CpuMatMulKernel implements CpuKernel {
         runF16(ad, as, bd, bs, out, node.getShapeUnsafe(), requireHints(context));
     }
 
-    private static void runF64(double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints) {
+    static void runF64(double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints) {
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -146,7 +146,7 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static void runF32(float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape, ResolvedMatMulHints hints) {
+    static void runF32(float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape, ResolvedMatMulHints hints) {
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -211,7 +211,7 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static void runF16(short[] a, int[] aShape, short[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints) {
+    static void runF16(short[] a, int[] aShape, short[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints) {
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -273,7 +273,7 @@ public class CpuMatMulKernel implements CpuKernel {
         return value > 0 ? value : fallback;
     }
 
-    private static int batchCount(int[] outShape) {
+    static int batchCount(int[] outShape) {
         int count = 1;
         for (int i = 0; i < outShape.length - 2; i++) {
             count *= outShape[i];
@@ -281,7 +281,7 @@ public class CpuMatMulKernel implements CpuKernel {
         return count;
     }
 
-    private static int[] computeBatchOffsets(int[] inputShape, int[] outShape) {
+    static int[] computeBatchOffsets(int[] inputShape, int[] outShape) {
         int inputBatchRank = inputShape.length - 2;
         int outBatchRank = outShape.length - 2;
         int[] inputDenseStrides = denseStrides(inputShape);
@@ -331,7 +331,7 @@ public class CpuMatMulKernel implements CpuKernel {
         return strides;
     }
 
-    private static boolean tryBlasF64(
+    static boolean tryBlasF64(
             double[] ad,
             double[] bd,
             double[] od,
@@ -361,7 +361,7 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static boolean tryBlasF32(
+    static boolean tryBlasF32(
             float[] ad,
             float[] bd,
             float[] od,
@@ -391,7 +391,7 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static boolean tryBatchedBlasF64(
+    static boolean tryBatchedBlasF64(
             double[] ad,
             int[] as,
             double[] bd,
@@ -430,7 +430,7 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    private static boolean tryBatchedBlasF32(
+    static boolean tryBatchedBlasF32(
             float[] ad,
             int[] as,
             float[] bd,
