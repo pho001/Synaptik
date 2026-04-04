@@ -10,6 +10,8 @@ import config.backend.OpenClKernelConfig;
 import config.backend.SumAccuracyMode;
 import config.backend.VectorPolicy;
 import config.profile.ExecutionProfile;
+import config.profile.WorkloadKind;
+import config.profile.WorkloadProfile;
 import tensor.DataType;
 import config.optimizer.FuseConfig;
 
@@ -252,6 +254,7 @@ public final class OptimizerProfileIO {
         var opencl = kernel.opencl();
         var blas = runtime.blas();
         var approximation = runtime.approximation();
+        var workload = profile.workload();
 
         return "{\n" +
                 "  \"profileName\": \"" + escapeJson(profile.profileName()) + "\",\n" +
@@ -316,6 +319,16 @@ public final class OptimizerProfileIO {
                 "      \"f32RequireMgeK\": " + blas.f32RequireMgeK() + ",\n" +
                 "      \"f32MaxNOverK\": " + blas.f32MaxNOverK() + ",\n" +
                 "      \"debug\": " + blas.debug() + "\n" +
+                "    },\n" +
+                "    \"workload\": {\n" +
+                "      \"kind\": \"" + workload.kind().name() + "\",\n" +
+                "      \"batch\": " + workload.batch() + ",\n" +
+                "      \"heads\": " + workload.heads() + ",\n" +
+                "      \"seqLen\": " + workload.seqLen() + ",\n" +
+                "      \"headDim\": " + workload.headDim() + ",\n" +
+                "      \"valueDim\": " + workload.valueDim() + ",\n" +
+                "      \"ffHiddenDim\": " + workload.ffHiddenDim() + ",\n" +
+                "      \"causal\": " + workload.causal() + "\n" +
                 "    }\n" +
                 "  }\n" +
                 "}\n";
@@ -496,8 +509,22 @@ public final class OptimizerProfileIO {
                     approximation,
                     blas
             );
+            WorkloadProfile defaultWorkload = d.workload();
+            WorkloadKind workloadKind = findEnum(json, "kind", defaultWorkload.kind(), WorkloadKind.class);
+            WorkloadProfile workload = workloadKind == WorkloadKind.NONE
+                    ? WorkloadProfile.none()
+                    : new WorkloadProfile(
+                    workloadKind,
+                    findInt(json, "batch", defaultWorkload.batch()),
+                    findInt(json, "heads", defaultWorkload.heads()),
+                    findInt(json, "seqLen", defaultWorkload.seqLen()),
+                    findInt(json, "headDim", defaultWorkload.headDim()),
+                    findInt(json, "valueDim", defaultWorkload.valueDim()),
+                    findInt(json, "ffHiddenDim", defaultWorkload.ffHiddenDim()),
+                    findBoolean(json, "causal", defaultWorkload.causal())
+            );
 
-            return new ExecutionProfile(profileName, candidateName, dataType, mode, optimizer, runtime);
+            return new ExecutionProfile(profileName, candidateName, dataType, mode, optimizer, runtime, workload);
         } catch (Exception e) {
             return d;
         }

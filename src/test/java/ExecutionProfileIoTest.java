@@ -11,6 +11,7 @@ import config.optimizer.FuseConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.profile.ExecutionProfile;
+import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
@@ -45,7 +46,8 @@ public class ExecutionProfileIoTest {
                         ),
                         new ApproximationConfig(ApproxMode.OFF, false),
                         new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false)
-                )
+                ),
+                new WorkloadProfile(config.profile.WorkloadKind.TRANSFORMER_HOT_PATH, 4, 8, 64, 32, 32, 256, true)
         );
 
         Path path = Files.createTempFile("execution-profile-", ".json");
@@ -62,6 +64,7 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().kernel().cpu().contiguousMaterializeThreshold(), actual.runtime().kernel().cpu().contiguousMaterializeThreshold());
         assertEquals(expected.runtime().blas().provider(), actual.runtime().blas().provider());
         assertEquals(expected.runtime().approximation().approxMode(), actual.runtime().approximation().approxMode());
+        assertEquals(expected.workload(), actual.workload());
     }
 
     private static ExecutionProfile defaultProfile() {

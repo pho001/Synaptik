@@ -17,6 +17,8 @@ Primary goals:
 
 - Entry framework:
   - [src/main/java/benchmark/OptimizerBenchmarkFramework.java](../benchmark/OptimizerBenchmarkFramework.java)
+- Hot-path profiler:
+  - [src/main/java/benchmark/TransformerHotPathBenchmark.java](../benchmark/TransformerHotPathBenchmark.java)
 - Candidate model/factory:
   - [src/main/java/benchmark/OptimizerCandidate.java](../benchmark/OptimizerCandidate.java)
   - [src/main/java/benchmark/OptimizerCandidateFactory.java](../benchmark/OptimizerCandidateFactory.java)
@@ -26,6 +28,65 @@ Primary goals:
 - Knobs and profile I/O:
   - [src/main/java/benchmark/TuningKnobs.java](../benchmark/TuningKnobs.java)
   - [src/main/java/benchmark/OptimizerProfileIO.java](../benchmark/OptimizerProfileIO.java)
+
+## Transformer Hot-Path Profiling
+
+The codebase now includes a dedicated transformer-like profiling entry point:
+
+- [src/main/java/benchmark/TransformerHotPathBenchmark.java](../benchmark/TransformerHotPathBenchmark.java)
+
+It is meant for profiling the runtime hot paths that now matter most for specialization decisions:
+
+- batched `matmul`
+- scaled dot-product attention
+- `layerNorm`
+- `rmsNorm`
+- `batchNorm`
+- full transformer-like block composition
+
+Important architectural point:
+
+- scenario shape is not hardcoded only in the benchmark
+- it is also carried by [src/main/java/config/profile/ExecutionProfile.java](../config/profile/ExecutionProfile.java)
+  through [src/main/java/config/profile/WorkloadProfile.java](../config/profile/WorkloadProfile.java)
+
+Current supported workload kind:
+
+- `TRANSFORMER_HOT_PATH`
+
+Current workload fields:
+
+- `batch`
+- `heads`
+- `seqLen`
+- `headDim`
+- `valueDim`
+- `ffHiddenDim`
+- `causal`
+
+This makes the profiling input reproducible and serializable together with optimizer/runtime settings.
+
+### Profile JSON extension
+
+Execution profiles may now carry:
+
+```json
+"runtime": {
+  ...
+  "workload": {
+    "kind": "TRANSFORMER_HOT_PATH",
+    "batch": 8,
+    "heads": 8,
+    "seqLen": 128,
+    "headDim": 64,
+    "valueDim": 64,
+    "ffHiddenDim": 2048,
+    "causal": true
+  }
+}
+```
+
+If no workload is present, the dedicated hot-path benchmark falls back to a built-in transformer default.
 
 ## Run Flow
 
