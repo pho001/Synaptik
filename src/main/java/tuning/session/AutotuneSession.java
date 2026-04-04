@@ -17,7 +17,7 @@ public interface AutotuneSession {
     static AutotuneSession create(AutotuneRequest request) {
         return create(
                 request,
-                new ExhaustiveSearchStrategy(),
+                AutotuneDefaultStrategySelector.select(request),
                 new DefaultMeasurementEngine(),
                 new DefaultValidationEngine(),
                 new JsonFileBestProfileStore(),
