@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-abstract class AbstractTreeSearchStrategy implements SearchStrategy {
+abstract class AbstractTreeSearchStrategy implements SearchStrategy, SearchTreeInspectable {
     protected final SearchStrategy seedStrategy;
     protected final Map<String, SearchTreeNode> nodesByFingerprint = new LinkedHashMap<>();
     protected List<String> frontierFingerprints = List.of();
@@ -29,8 +29,14 @@ abstract class AbstractTreeSearchStrategy implements SearchStrategy {
         return true;
     }
 
+    @Override
     public SearchTreeSnapshot snapshot() {
         return new SearchTreeSnapshot(List.copyOf(nodesByFingerprint.values()), frontierFingerprints);
+    }
+
+    @Override
+    public SearchTreeReport report() {
+        return SearchTreeInspectable.super.report();
     }
 
     protected void initializeTree(List<Candidate> seeds) {

@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class TreeBeamSearchStrategy implements SearchStrategy {
+public final class TreeBeamSearchStrategy implements SearchStrategy, SearchTreeInspectable {
     private final SearchStrategy seedStrategy;
     private final int beamWidth;
     private final int maxNeighborsPerNode;
@@ -124,5 +124,10 @@ public final class TreeBeamSearchStrategy implements SearchStrategy {
 
     public SearchTreeSnapshot snapshot() {
         return new SearchTreeSnapshot(List.copyOf(nodesByFingerprint.values()), frontierFingerprints);
+    }
+
+    @Override
+    public SearchTreeReport report() {
+        return SearchTreeInspectable.super.report();
     }
 }

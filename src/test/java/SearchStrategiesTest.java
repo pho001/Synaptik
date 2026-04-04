@@ -14,8 +14,10 @@ import tuning.search.ParentScoreBoundModel;
 import tuning.search.CompositeSearchStrategy;
 import tuning.search.ExhaustiveSearchStrategy;
 import tuning.search.FirstKSearchStrategy;
+import tuning.search.JsonSearchTreeReportRenderer;
 import tuning.search.RefinementSearchStrategy;
 import tuning.search.SearchContext;
+import tuning.search.TextSearchTreeReportRenderer;
 import tuning.search.TreeBeamSearchStrategy;
 import tuning.session.AutotuneRequest;
 import tuning.workload.TensorRootWorkloadSpec;
@@ -177,6 +179,50 @@ public class SearchStrategiesTest {
         assertTrue(strategy.snapshot().nodes().size() > 1);
         assertTrue(strategy.snapshot().nodes().stream().anyMatch(node -> node.parentFingerprint() != null));
         assertEquals(refined.selectedCandidates().size(), strategy.snapshot().frontierFingerprints().size());
+    }
+
+    @Test
+    void treeSearchReportRenderersProduceReadableOutput() {
+        var workload = tuning.workload.StandardWorkloads.conv2d(
+                "conv_tree_report",
+                1, 8, 8, 8, 8, 3, 3,
+                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                true
+        );
+        var base = new ExecutionProfile(
+                "tree-report",
+                "tree-report",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var space = new ProfileGridCandidateSpace(
+                base,
+                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                        config.optimizer.Conv2dLoweringMode.HEURISTIC,
+                        config.optimizer.Conv2dLoweringMode.OFF
+                )))
+        );
+        var request = new AutotuneRequest(
+                workload,
+                space,
+                tuning.measure.MeasurementPolicy.defaults(),
+                tuning.validate.ValidationPolicy.disabled(),
+                new tuning.search.SearchPolicy(8, 1, 3, false),
+                tuning.store.PersistencePolicy.disabled()
+        );
+
+        var strategy = new TreeBeamSearchStrategy(new FirstKSearchStrategy(1), 1, 8);
+        strategy.search(new SearchContext(request, request.candidateSpace()));
+        String text = TextSearchTreeReportRenderer.render(strategy.report());
+        String json = JsonSearchTreeReportRenderer.render(strategy.report());
+
+        assertTrue(text.contains("Search Tree Report"));
+        assertTrue(text.contains("strategy=TreeBeamSearchStrategy"));
+        assertTrue(json.contains("\"strategyName\": \"TreeBeamSearchStrategy\""));
+        assertTrue(json.contains("\"nodes\": ["));
     }
 
     @Test
