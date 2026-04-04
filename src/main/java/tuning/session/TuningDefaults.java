@@ -65,6 +65,10 @@ public final class TuningDefaults {
         );
     }
 
+    public static BenchmarkRequest recommendedBenchmark(WorkloadSpec workload, List<Candidate> candidates) {
+        return benchmark(WorkloadPresetFamily.benchmarkPresetFor(workload), workload, candidates);
+    }
+
     public static BenchmarkRequest quickBenchmark(WorkloadSpec workload, List<Candidate> candidates) {
         return benchmark(TuningPreset.QUICK, workload, candidates);
     }
@@ -87,6 +91,10 @@ public final class TuningDefaults {
                 resolved.reportPolicy(),
                 resolved.baselinePolicy()
         );
+    }
+
+    public static BenchmarkSuiteRequest recommendedBenchmarkSuite(List<WorkloadSpec> workloads, List<Candidate> candidates) {
+        return benchmarkSuite(WorkloadPresetFamily.benchmarkPresetForSuite(workloads), workloads, candidates);
     }
 
     public static BenchmarkSuiteRequest quickBenchmarkSuite(List<WorkloadSpec> workloads, List<Candidate> candidates) {
@@ -116,6 +124,14 @@ public final class TuningDefaults {
                 resolved.autotuneSearch(),
                 persistence == null ? PersistencePolicy.disabled() : persistence
         );
+    }
+
+    public static AutotuneRequest recommendedAutotune(
+            WorkloadSpec workload,
+            CandidateSpace candidateSpace,
+            PersistencePolicy persistence
+    ) {
+        return autotune(WorkloadPresetFamily.autotunePresetFor(workload), workload, candidateSpace, persistence);
     }
 
     public static AutotuneRequest quickAutotune(WorkloadSpec workload, CandidateSpace candidateSpace) {

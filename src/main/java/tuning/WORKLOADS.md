@@ -415,6 +415,28 @@ This is preferred over manually spelling out:
 
 unless you are intentionally overriding those defaults.
 
+For the most common path, workload-aware recommendations are also available.
+
+Example:
+
+```java
+BenchmarkRequest request = StandardWorkloads.benchmark(
+        "cross_entropy_small",
+        candidates
+);
+```
+
+This uses the recommended benchmark preset for `LOSS` workloads through:
+
+- [WorkloadPresetFamily.java](./session/WorkloadPresetFamily.java)
+
+So the caller can start with:
+
+- named workload
+- candidates
+
+and accept the workload-family default preset unless there is a reason to override it.
+
 ## Examples
 
 ### Example: register custom workload

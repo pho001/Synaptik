@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import tuning.candidate.ListCandidateSpace;
 import tuning.session.TuningDefaults;
 import tuning.session.TuningPreset;
+import tuning.session.WorkloadPresetFamily;
 
 import java.util.List;
 
@@ -65,6 +66,24 @@ public class TuningDefaultsTest {
         assertEquals(8, request.measurement().measureIters());
         assertEquals(1e-8, request.validation().absTolerance());
         assertTrue(request.baselines().includeNoOptBaseline());
+    }
+
+    @Test
+    void workloadPresetFamilyChoosesThoroughForLossAutotune() {
+        var workload = new tuning.workload.TensorRootWorkloadSpec(
+                "defaults-loss",
+                tuning.workload.WorkloadKind.LOSS,
+                environment -> tensor.Tensor.scalar(1.0)
+        );
+
+        assertEquals(TuningPreset.THOROUGH, WorkloadPresetFamily.autotunePresetFor(workload));
+        var request = TuningDefaults.recommendedAutotune(
+                workload,
+                new ListCandidateSpace(List.of()),
+                tuning.store.PersistencePolicy.disabled()
+        );
+        assertEquals(96, request.search().maxCandidates());
+        assertTrue(request.validation().requireGradientMatch());
     }
 
     private static ExecutionProfile profile(String name) {

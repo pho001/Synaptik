@@ -136,6 +136,7 @@ The intended public preset surface is:
 
 - [TuningPreset.java](./session/TuningPreset.java)
 - [TuningDefaults.java](./session/TuningDefaults.java)
+- [WorkloadPresetFamily.java](./session/WorkloadPresetFamily.java)
 
 `TuningPreset` currently provides three standard policy families:
 
@@ -184,6 +185,19 @@ This gives the package a cleaner scenario UX:
 - preset first
 - workload selection second
 - candidate/candidate-space last
+
+On top of that, the package now exposes workload-aware recommendations:
+
+- `WorkloadPresetFamily.benchmarkPresetFor(workload)`
+- `WorkloadPresetFamily.autotunePresetFor(workload)`
+- `TuningDefaults.recommendedBenchmark(...)`
+- `TuningDefaults.recommendedAutotune(...)`
+
+This is intentionally still one-layered:
+
+- `TuningPreset` remains the real preset type
+- workload-aware logic only selects a recommended preset family
+- it does not introduce a second benchmark/autotune policy model
 
 ## Benchmark Candidate Contract
 

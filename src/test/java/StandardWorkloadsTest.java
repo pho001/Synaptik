@@ -114,4 +114,21 @@ public class StandardWorkloadsTest {
         assertEquals(2, request.measurement().warmupIters());
         assertTrue(request.baselines().includeNoOptBaseline());
     }
+
+    @Test
+    void standardWorkloadsSupportsRecommendedWorkloadAwarePresets() {
+        Candidate candidate = new Candidate("preset", new ExecutionProfile(
+                "preset",
+                "preset",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        ));
+
+        var benchmarkRequest = StandardWorkloads.benchmark("cross_entropy_small", java.util.List.of(candidate));
+        assertEquals("cross_entropy_small", benchmarkRequest.workload().name());
+        assertTrue(benchmarkRequest.validation().requireGradientMatch());
+    }
 }

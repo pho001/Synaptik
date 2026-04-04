@@ -93,8 +93,16 @@ public final class StandardWorkloads {
         return defaultCatalog().benchmarkRequest(workloadName, candidates, preset);
     }
 
+    public static BenchmarkRequest benchmark(String workloadName, List<Candidate> candidates) {
+        return defaultCatalog().benchmarkRequest(workloadName, candidates);
+    }
+
     public static BenchmarkSuiteRequest benchmarkSuite(List<String> workloadNames, List<Candidate> candidates, TuningPreset preset) {
         return defaultCatalog().benchmarkSuiteRequest(workloadNames, candidates, preset);
+    }
+
+    public static BenchmarkSuiteRequest benchmarkSuite(List<String> workloadNames, List<Candidate> candidates) {
+        return defaultCatalog().benchmarkSuiteRequest(workloadNames, candidates);
     }
 
     public static AutotuneRequest autotune(
@@ -105,6 +113,18 @@ public final class StandardWorkloads {
     ) {
         return TuningDefaults.autotune(
                 preset,
+                defaultCatalog().require(workloadName),
+                candidateSpace,
+                persistence
+        );
+    }
+
+    public static AutotuneRequest autotune(
+            String workloadName,
+            CandidateSpace candidateSpace,
+            tuning.store.PersistencePolicy persistence
+    ) {
+        return TuningDefaults.recommendedAutotune(
                 defaultCatalog().require(workloadName),
                 candidateSpace,
                 persistence

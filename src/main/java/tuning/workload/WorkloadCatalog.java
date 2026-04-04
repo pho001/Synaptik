@@ -72,6 +72,13 @@ public final class WorkloadCatalog {
         return TuningDefaults.benchmark(preset, require(workloadName), candidates);
     }
 
+    public BenchmarkRequest benchmarkRequest(
+            String workloadName,
+            List<Candidate> candidates
+    ) {
+        return TuningDefaults.recommendedBenchmark(require(workloadName), candidates);
+    }
+
     public BenchmarkSuiteRequest benchmarkSuiteRequest(
             List<String> workloadNames,
             List<Candidate> candidates,
@@ -88,5 +95,12 @@ public final class WorkloadCatalog {
             TuningPreset preset
     ) {
         return TuningDefaults.benchmarkSuite(preset, requireAll(workloadNames), candidates);
+    }
+
+    public BenchmarkSuiteRequest benchmarkSuiteRequest(
+            List<String> workloadNames,
+            List<Candidate> candidates
+    ) {
+        return TuningDefaults.recommendedBenchmarkSuite(requireAll(workloadNames), candidates);
     }
 }
