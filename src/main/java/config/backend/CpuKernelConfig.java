@@ -11,6 +11,7 @@ public final class CpuKernelConfig {
     private static final SumAccuracyMode DEFAULT_SUM_ACCURACY_MODE = SumAccuracyMode.FAST;
     private static final double DEFAULT_LOW_COST_NS_PER_ELEMENT_THRESHOLD = 2.0d;
     private static final VectorPolicy DEFAULT_VECTOR_POLICY = VectorPolicy.AUTO;
+    private static final AttentionMatMulPolicy DEFAULT_ATTENTION_MATMUL_POLICY = AttentionMatMulPolicy.AUTO;
 
     private final int loopUnrollFactor;
     private final int matMulTileM;
@@ -28,6 +29,7 @@ public final class CpuKernelConfig {
     private final VectorPolicy vectorPolicyCheap;
     private final VectorPolicy vectorPolicyTranscendental;
     private final VectorPolicy vectorPolicyReduction;
+    private final AttentionMatMulPolicy attentionMatMulPolicy;
 
     public CpuKernelConfig(int loopUnrollFactor, int matMulTileM, int matMulTileN, int matMulTileK) {
         this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, DEFAULT_VECTOR_MIN_SIZE, DEFAULT_PARALLEL_MIN_SIZE);
@@ -213,6 +215,46 @@ public final class CpuKernelConfig {
             VectorPolicy vectorPolicyReduction,
             int matMulParallelMinSize
     ) {
+        this(
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                vectorMinSize,
+                parallelMinSize,
+                parallelism,
+                chunksPerWorker,
+                minChunkSize,
+                contiguousMaterializeThreshold,
+                sumAccuracyMode,
+                lowCostNsPerElementThreshold,
+                vectorPolicyCheap,
+                vectorPolicyTranscendental,
+                vectorPolicyReduction,
+                matMulParallelMinSize,
+                DEFAULT_ATTENTION_MATMUL_POLICY
+        );
+    }
+
+    public CpuKernelConfig(
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int vectorMinSize,
+            int parallelMinSize,
+            int parallelism,
+            int chunksPerWorker,
+            int minChunkSize,
+            int contiguousMaterializeThreshold,
+            SumAccuracyMode sumAccuracyMode,
+            double lowCostNsPerElementThreshold,
+            VectorPolicy vectorPolicyCheap,
+            VectorPolicy vectorPolicyTranscendental,
+            VectorPolicy vectorPolicyReduction,
+            int matMulParallelMinSize,
+            AttentionMatMulPolicy attentionMatMulPolicy
+    ) {
         this.loopUnrollFactor = loopUnrollFactor;
         this.matMulTileM = matMulTileM;
         this.matMulTileN = matMulTileN;
@@ -231,6 +273,7 @@ public final class CpuKernelConfig {
         this.vectorPolicyCheap = vectorPolicyCheap == null ? DEFAULT_VECTOR_POLICY : vectorPolicyCheap;
         this.vectorPolicyTranscendental = vectorPolicyTranscendental == null ? DEFAULT_VECTOR_POLICY : vectorPolicyTranscendental;
         this.vectorPolicyReduction = vectorPolicyReduction == null ? DEFAULT_VECTOR_POLICY : vectorPolicyReduction;
+        this.attentionMatMulPolicy = attentionMatMulPolicy == null ? DEFAULT_ATTENTION_MATMUL_POLICY : attentionMatMulPolicy;
     }
 
     public int loopUnrollFactor() {
@@ -295,6 +338,10 @@ public final class CpuKernelConfig {
 
     public VectorPolicy vectorPolicyReduction() {
         return vectorPolicyReduction;
+    }
+
+    public AttentionMatMulPolicy attentionMatMulPolicy() {
+        return attentionMatMulPolicy;
     }
 
     public static CpuKernelConfig defaultsTraining() {

@@ -27,7 +27,7 @@ public class TransformerHotPathScenarioFactoryTest {
         );
 
         List<PreparedHotPathScenario> scenarios = TransformerHotPathScenarioFactory.create(profile);
-        assertEquals(6, scenarios.size());
+        assertEquals(8, scenarios.size());
 
         for (PreparedHotPathScenario scenario : scenarios) {
             scenario.run();

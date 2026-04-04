@@ -28,6 +28,8 @@ public final class TransformerHotPathScenarioFactory {
 
         List<PreparedHotPathScenario> scenarios = new ArrayList<>();
         scenarios.add(prepareScenario("batched_matmul_qk", buildBatchedMatMul(workload, profile.dataType(), profile.mode()), profile));
+        scenarios.add(prepareScenario("score_mask_softmax", buildScoreMaskSoftmax(workload, profile.dataType(), profile.mode()), profile));
+        scenarios.add(prepareScenario("weights_value_matmul", buildWeightsValueMatMul(workload, profile.dataType(), profile.mode()), profile));
         scenarios.add(prepareScenario("attention", buildAttention(workload, profile.dataType(), profile.mode()), profile));
         scenarios.add(prepareScenario("layer_norm", buildLayerNorm(workload, profile.dataType(), profile.mode()), profile));
         scenarios.add(prepareScenario("rms_norm", buildRmsNorm(workload, profile.dataType(), profile.mode()), profile));
@@ -60,6 +62,32 @@ public final class TransformerHotPathScenarioFactory {
                 workload.batch(), workload.heads(), workload.seqLen(), workload.valueDim());
         Tensor out = q.scaledDotProductAttention(k, v,
                 new AttentionOptions(workload.causal(), null));
+        return finalizeRoot(out, mode);
+    }
+
+    private static Tensor buildScoreMaskSoftmax(WorkloadProfile workload, DataType dataType, ExecutionMode mode) {
+        boolean requiresGrad = mode == ExecutionMode.FORWARD_BACKWARD;
+        Tensor q = tensor("Q_SCORE", 24, dataType, requiresGrad,
+                workload.batch(), workload.heads(), workload.seqLen(), workload.headDim());
+        Tensor k = tensor("K_SCORE", 25, dataType, requiresGrad,
+                workload.batch(), workload.heads(), workload.seqLen(), workload.headDim());
+        Tensor scores = q.matmul(swapLastTwoAxes(k)).mul(1.0d / Math.sqrt(workload.headDim()));
+        if (workload.causal()) {
+            Tensor mask = causalMask(workload.batch(), workload.heads(), workload.seqLen());
+            scores = Tensor.where(mask, scores, Tensor.scalar(maskFillValue(dataType), dataType));
+        }
+        Tensor weights = scores.softmax(scores.getShapeUnsafe().length - 1);
+        return finalizeRoot(weights, mode);
+    }
+
+    private static Tensor buildWeightsValueMatMul(WorkloadProfile workload, DataType dataType, ExecutionMode mode) {
+        boolean requiresGrad = mode == ExecutionMode.FORWARD_BACKWARD;
+        Tensor scores = tensor("SCORES_WV", 26, dataType, requiresGrad,
+                workload.batch(), workload.heads(), workload.seqLen(), workload.seqLen());
+        Tensor weights = scores.softmax(scores.getShapeUnsafe().length - 1);
+        Tensor value = tensor("V_WV", 27, dataType, requiresGrad,
+                workload.batch(), workload.heads(), workload.seqLen(), workload.valueDim());
+        Tensor out = weights.matmul(value);
         return finalizeRoot(out, mode);
     }
 
@@ -139,6 +167,32 @@ public final class TransformerHotPathScenarioFactory {
         axes[rank - 1] = axes[rank - 2];
         axes[rank - 2] = tmp;
         return tensor.permute(axes);
+    }
+
+    private static Tensor causalMask(int batch, int heads, int seqLen) {
+        int[] shape = new int[]{batch, heads, seqLen, seqLen};
+        int flat = batch * heads * seqLen * seqLen;
+        byte[] data = new byte[flat];
+        int offset = 0;
+        for (int b = 0; b < batch; b++) {
+            for (int h = 0; h < heads; h++) {
+                for (int q = 0; q < seqLen; q++) {
+                    for (int k = 0; k < seqLen; k++) {
+                        data[offset++] = (byte) (k <= q ? 1 : 0);
+                    }
+                }
+            }
+        }
+        return new Tensor(data, shape, null, "CAUSAL_MASK", DataType.BOOL);
+    }
+
+    private static double maskFillValue(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> -1.0e30d;
+            case FLOAT32 -> -1.0e9d;
+            case FLOAT16 -> -65504.0d;
+            case INT32, BOOL -> throw new IllegalArgumentException("mask fill requires floating dtype");
+        };
     }
 
     private static Tensor tensor(String label, int seed, DataType dataType, boolean requiresGrad, int... shape) {

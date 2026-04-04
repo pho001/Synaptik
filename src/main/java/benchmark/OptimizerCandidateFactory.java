@@ -4,6 +4,7 @@ import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
+import config.backend.AttentionMatMulPolicy;
 import config.backend.VectorPolicy;
 import config.optimizer.FuseConfig;
 
@@ -142,11 +143,17 @@ public final class OptimizerCandidateFactory {
                 {VectorPolicy.AUTO, VectorPolicy.FORCE_OFF, VectorPolicy.AUTO},
                 {VectorPolicy.FORCE_ON, VectorPolicy.FORCE_OFF, VectorPolicy.AUTO}
         };
+        AttentionMatMulPolicy[] attentionPolicies = new AttentionMatMulPolicy[]{
+                AttentionMatMulPolicy.AUTO,
+                AttentionMatMulPolicy.FORCE_OFF,
+                AttentionMatMulPolicy.FORCE_ON
+        };
         for (CpuKernelConfig base : cpuDispatchBaseProfiles) {
             for (int threshold : contiguousMaterializeThresholds) {
                 for (double lowCostThreshold : lowCostNsPerElemThresholds) {
                     for (int matMulParMin : matMulParallelMinSizes) {
                         for (VectorPolicy[] vp : vectorPolicyProfiles) {
+                            for (AttentionMatMulPolicy attentionPolicy : attentionPolicies) {
                             cpuDispatchProfiles.add(new CpuKernelConfig(
                                     base.loopUnrollFactor(),
                                     base.matMulTileM(),
@@ -163,8 +170,10 @@ public final class OptimizerCandidateFactory {
                                     vp[0],
                                     vp[1],
                                     vp[2],
-                                    matMulParMin
+                                    matMulParMin,
+                                    attentionPolicy
                             ));
+                            }
                         }
                     }
                 }

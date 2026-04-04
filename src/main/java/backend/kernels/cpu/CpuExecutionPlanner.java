@@ -2,6 +2,7 @@ package backend.kernels.cpu;
 
 import backend.blas.BlasProvider;
 import backend.runtime.BlasConfig;
+import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
 import config.backend.VectorPolicy;
@@ -36,6 +37,7 @@ public final class CpuExecutionPlanner {
     private final VectorPolicy vectorPolicyCheap;
     private final VectorPolicy vectorPolicyTranscendental;
     private final VectorPolicy vectorPolicyReduction;
+    private final AttentionMatMulPolicy attentionMatMulPolicy;
 
     public CpuExecutionPlanner(
             int vectorMinSize,
@@ -52,7 +54,8 @@ public final class CpuExecutionPlanner {
             double lowCostNsPerElementThreshold,
             VectorPolicy vectorPolicyCheap,
             VectorPolicy vectorPolicyTranscendental,
-            VectorPolicy vectorPolicyReduction
+            VectorPolicy vectorPolicyReduction,
+            AttentionMatMulPolicy attentionMatMulPolicy
     ) {
         this.vectorMinSize = Math.max(1, vectorMinSize);
         this.matMulTileM = positiveOrDefault(matMulTileM, DEFAULT_MATMUL_TILE_M);
@@ -69,6 +72,7 @@ public final class CpuExecutionPlanner {
         this.vectorPolicyCheap = Objects.requireNonNullElse(vectorPolicyCheap, VectorPolicy.AUTO);
         this.vectorPolicyTranscendental = Objects.requireNonNullElse(vectorPolicyTranscendental, VectorPolicy.AUTO);
         this.vectorPolicyReduction = Objects.requireNonNullElse(vectorPolicyReduction, VectorPolicy.AUTO);
+        this.attentionMatMulPolicy = Objects.requireNonNullElse(attentionMatMulPolicy, AttentionMatMulPolicy.AUTO);
     }
 
     public static CpuExecutionPlanner from(CpuKernelConfig config) {
@@ -88,7 +92,8 @@ public final class CpuExecutionPlanner {
                 config.lowCostNsPerElementThreshold(),
                 config.vectorPolicyCheap(),
                 config.vectorPolicyTranscendental(),
-                config.vectorPolicyReduction()
+                config.vectorPolicyReduction(),
+                config.attentionMatMulPolicy()
         );
     }
 
@@ -221,9 +226,11 @@ public final class CpuExecutionPlanner {
 
         boolean parallel = work >= matMulParallelMinSize && plannedWorkers() > 1;
         boolean useBlas = as.length == 2 && bs.length == 2 && shouldUseBlas(a, b, out, m, n, k, blasConfig);
+        boolean useBatchedBlas = as.length > 2 && shouldUseBatchedBlas(a, b, out, m, n, k, work, blasConfig);
 
         return new ResolvedMatMulHints(
                 useBlas,
+                useBatchedBlas,
                 parallel,
                 matMulTileM,
                 matMulTileN,
@@ -281,6 +288,60 @@ public final class CpuExecutionPlanner {
             }
         }
         return true;
+    }
+
+    private boolean shouldUseBatchedBlas(
+            Tensor a,
+            Tensor b,
+            Tensor out,
+            int m,
+            int n,
+            int k,
+            long work,
+            BlasConfig blasConfig
+    ) {
+        if (out.getDataType() != DataType.FLOAT32 && out.getDataType() != DataType.FLOAT64) {
+            return false;
+        }
+        if (!isAttentionLikeBatchedMatMul(a, b, out)) {
+            return false;
+        }
+        if (!a.isContiguous() || !b.isContiguous() || !out.isContiguous()) {
+            return false;
+        }
+        if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
+            return false;
+        }
+        if (attentionMatMulPolicy == AttentionMatMulPolicy.FORCE_OFF) {
+            return false;
+        }
+        if (attentionMatMulPolicy == AttentionMatMulPolicy.FORCE_ON) {
+            return true;
+        }
+        if (work < blasConfig.matMulMinWork()) {
+            return false;
+        }
+        if (out.getDataType() == DataType.FLOAT32) {
+            if (blasConfig.f32RequireMgeK() && m < k) {
+                return false;
+            }
+            if (((double) n / Math.max(1, k)) > blasConfig.f32MaxNOverK()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isAttentionLikeBatchedMatMul(Tensor a, Tensor b, Tensor out) {
+        int[] as = a.getShapeUnsafe();
+        int[] bs = b.getShapeUnsafe();
+        int[] os = out.getShapeUnsafe();
+        if (as.length < 3 || bs.length < 3 || os.length < 3) {
+            return false;
+        }
+        boolean scoreLike = os[os.length - 2] == bs[bs.length - 1];
+        boolean weightsValueLike = as[as.length - 2] == as[as.length - 1];
+        return scoreLike || weightsValueLike;
     }
 
     private VectorPolicy resolveElementWisePolicy(Operation op) {

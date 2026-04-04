@@ -7,6 +7,7 @@ import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
+import config.backend.AttentionMatMulPolicy;
 import config.backend.SumAccuracyMode;
 import config.backend.VectorPolicy;
 import config.profile.ExecutionProfile;
@@ -298,7 +299,8 @@ public final class OptimizerProfileIO {
                 "        \"cpuLowCostNsPerElementThreshold\": " + cpu.lowCostNsPerElementThreshold() + ",\n" +
                 "        \"cpuVectorPolicyCheap\": \"" + cpu.vectorPolicyCheap().name() + "\",\n" +
                 "        \"cpuVectorPolicyTranscendental\": \"" + cpu.vectorPolicyTranscendental().name() + "\",\n" +
-                "        \"cpuVectorPolicyReduction\": \"" + cpu.vectorPolicyReduction().name() + "\"\n" +
+                "        \"cpuVectorPolicyReduction\": \"" + cpu.vectorPolicyReduction().name() + "\",\n" +
+                "        \"cpuAttentionMatMulPolicy\": \"" + cpu.attentionMatMulPolicy().name() + "\"\n" +
                 "      },\n" +
                 "      \"cuda\": {\n" +
                 "        \"cudaLoopUnrollFactor\": " + cuda.loopUnrollFactor() + ",\n" +
@@ -377,7 +379,8 @@ public final class OptimizerProfileIO {
                             json,
                             "cpuMatMulParallelMinSize",
                             d.kernelConfig().cpu().matMulParallelMinSize()
-                    )
+                    ),
+                    findEnum(json, "cpuAttentionMatMulPolicy", d.kernelConfig().cpu().attentionMatMulPolicy(), AttentionMatMulPolicy.class)
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", d.kernelConfig().cuda().loopUnrollFactor()),
@@ -475,7 +478,8 @@ public final class OptimizerProfileIO {
                     findEnum(json, "cpuVectorPolicyCheap", dk.cpu().vectorPolicyCheap(), VectorPolicy.class),
                     findEnum(json, "cpuVectorPolicyTranscendental", dk.cpu().vectorPolicyTranscendental(), VectorPolicy.class),
                     findEnum(json, "cpuVectorPolicyReduction", dk.cpu().vectorPolicyReduction(), VectorPolicy.class),
-                    findInt(json, "cpuMatMulParallelMinSize", dk.cpu().matMulParallelMinSize())
+                    findInt(json, "cpuMatMulParallelMinSize", dk.cpu().matMulParallelMinSize()),
+                    findEnum(json, "cpuAttentionMatMulPolicy", dk.cpu().attentionMatMulPolicy(), AttentionMatMulPolicy.class)
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", dk.cuda().loopUnrollFactor()),

@@ -33,6 +33,9 @@ public class CpuMatMulKernel implements CpuKernel {
         if (as.length == 2 && bs.length == 2 && hints.useBlas() && tryBlasF64(ad, bd, out, m, n, k)) {
             return;
         }
+        if (hints.useBatchedBlas() && tryBatchedBlasF64(ad, as, bd, bs, out, node.getShapeUnsafe(), m, n, k)) {
+            return;
+        }
         Arrays.fill(out, 0.0d);
         runF64(ad, as, bd, bs, out, node.getShapeUnsafe(), hints);
     }
@@ -52,6 +55,9 @@ public class CpuMatMulKernel implements CpuKernel {
         float[] out = node.getFloat32Data();
         ResolvedMatMulHints hints = requireHints(context);
         if (as.length == 2 && bs.length == 2 && hints.useBlas() && tryBlasF32(ad, bd, out, m, n, k)) {
+            return;
+        }
+        if (hints.useBatchedBlas() && tryBatchedBlasF32(ad, as, bd, bs, out, node.getShapeUnsafe(), m, n, k)) {
             return;
         }
         Arrays.fill(out, 0.0f);
@@ -380,6 +386,84 @@ public class CpuMatMulKernel implements CpuKernel {
         } catch (Throwable t) {
             if (BlasRuntime.debug()) {
                 System.err.println("[BLAS] SGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
+    }
+
+    private static boolean tryBatchedBlasF64(
+            double[] ad,
+            int[] as,
+            double[] bd,
+            int[] bs,
+            double[] od,
+            int[] outShape,
+            int m,
+            int n,
+            int k
+    ) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            maybeLogBlasUnavailable();
+            return false;
+        }
+        try {
+            int batchCount = batchCount(outShape);
+            int[] aBatchOffsets = computeBatchOffsets(as, outShape);
+            int[] bBatchOffsets = computeBatchOffsets(bs, outShape);
+            int mn = m * n;
+            for (int batch = 0; batch < batchCount; batch++) {
+                OpenBlasFfmBridge.dgemmRowMajorNoTransOffsets(
+                        m, n, k,
+                        1.0d,
+                        ad, aBatchOffsets[batch], k,
+                        bd, bBatchOffsets[batch], n,
+                        0.0d,
+                        od, batch * mn, n
+                );
+            }
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] Batched DGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
+    }
+
+    private static boolean tryBatchedBlasF32(
+            float[] ad,
+            int[] as,
+            float[] bd,
+            int[] bs,
+            float[] od,
+            int[] outShape,
+            int m,
+            int n,
+            int k
+    ) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            maybeLogBlasUnavailable();
+            return false;
+        }
+        try {
+            int batchCount = batchCount(outShape);
+            int[] aBatchOffsets = computeBatchOffsets(as, outShape);
+            int[] bBatchOffsets = computeBatchOffsets(bs, outShape);
+            int mn = m * n;
+            for (int batch = 0; batch < batchCount; batch++) {
+                OpenBlasFfmBridge.sgemmRowMajorNoTransOffsets(
+                        m, n, k,
+                        1.0f,
+                        ad, aBatchOffsets[batch], k,
+                        bd, bBatchOffsets[batch], n,
+                        0.0f,
+                        od, batch * mn, n
+                );
+            }
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] Batched SGEMM failed, fallback to Java kernel: " + t.getMessage());
             }
             return false;
         }

@@ -6,6 +6,7 @@ import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
+import config.backend.AttentionMatMulPolicy;
 import config.optimizer.CseConfig;
 import config.optimizer.FuseConfig;
 import config.optimizer.OptimizerConfig;
@@ -40,7 +41,10 @@ public class ExecutionProfileIoTest {
                 ),
                 new RuntimeConfig(
                         new KernelTuningConfig(
-                                new CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 0, 2, 2_048, 16_384),
+                                new CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 0, 2, 2_048, 16_384,
+                                        config.backend.SumAccuracyMode.FAST, 2.0d,
+                                        config.backend.VectorPolicy.AUTO, config.backend.VectorPolicy.AUTO, config.backend.VectorPolicy.AUTO,
+                                        2_000_000, AttentionMatMulPolicy.FORCE_ON),
                                 CudaKernelConfig.defaultsInference(),
                                 OpenClKernelConfig.defaultsInference()
                         ),
@@ -62,6 +66,7 @@ public class ExecutionProfileIoTest {
         assertFalse(actual.optimizer().cse().strictSafety());
         assertEquals(expected.runtime().kernel().cpu().vectorMinSize(), actual.runtime().kernel().cpu().vectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().contiguousMaterializeThreshold(), actual.runtime().kernel().cpu().contiguousMaterializeThreshold());
+        assertEquals(expected.runtime().kernel().cpu().attentionMatMulPolicy(), actual.runtime().kernel().cpu().attentionMatMulPolicy());
         assertEquals(expected.runtime().blas().provider(), actual.runtime().blas().provider());
         assertEquals(expected.runtime().approximation().approxMode(), actual.runtime().approximation().approxMode());
         assertEquals(expected.workload(), actual.workload());

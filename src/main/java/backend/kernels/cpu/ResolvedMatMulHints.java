@@ -2,6 +2,7 @@ package backend.kernels.cpu;
 
 public record ResolvedMatMulHints(
         boolean useBlas,
+        boolean useBatchedBlas,
         boolean parallel,
         int tileM,
         int tileN,
