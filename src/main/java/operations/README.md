@@ -72,6 +72,9 @@ Current descriptor classes in this package:
 - `takeAlongAxis`
 - `takeAlongAxisGrad`
 - `scatterAdd`
+- `conv2d`
+- `conv2dBackwardInput`
+- `conv2dBackwardWeight`
 - `logicalAnd`
 - `logicalOr`
 - `logicalNot`
@@ -259,6 +262,10 @@ These are canonical graph/runtime primitives and should remain first-class:
   - `TAKE_ALONG_AXIS`
   - `TAKE_ALONG_AXIS_GRAD`
   - `SCATTER_ADD`
+- spatial core:
+  - `CONV2D`
+  - `CONV2D_BACKWARD_INPUT`
+  - `CONV2D_BACKWARD_WEIGHT`
 - reductions:
   - `SUM`
   - `MEAN`
@@ -384,6 +391,7 @@ Examples:
 - logical bool -> `TensorBoolOps`
 - reduction -> `TensorReduceOps`
 - layout -> `TensorLayoutOps`
+- spatial / convolution -> `TensorConvOps`
 - matmul -> `TensorMatMulOps`
 - fused descriptor path -> `FusedOperationFactory`
 

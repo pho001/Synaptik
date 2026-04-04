@@ -40,6 +40,9 @@ The focus here is practical API usage:
   - [`min(Tensor second)`](#mintensor-second)
   - [`max(Tensor second)`](#maxtensor-second)
   - [`matmul(Tensor second)`](#matmultensor-second)
+- [Spatial Operations](#spatial-operations)
+  - [`conv2d(Tensor weight, Conv2dOptions options)`](#conv2dtensor-weight-conv2doptions-options)
+  - [`conv2d(Tensor weight, Tensor bias, Conv2dOptions options)`](#conv2dtensor-weight-tensor-bias-conv2doptions-options)
 - [Comparison Operations](#comparison-operations)
   - [`greaterThan(Tensor second)`](#greaterthantensor-second)
   - [`greaterOrEqual(Tensor second)`](#greaterorequaltensor-second)
@@ -747,6 +750,100 @@ Tensor y = a.matmul(b);
 //  [43, 50]]
 //
 // Returns: matrix products for rank-2 tensors.
+```
+
+## Spatial Operations
+
+### `conv2d(Tensor weight, Conv2dOptions options)`
+
+Runs 2D convolution without bias.
+
+Parameters:
+- `weight`: convolution kernel tensor with shape `[outChannels, inChannelsPerGroup, kernelH, kernelW]`
+- `options`: convolution configuration carrying stride, padding, dilation, and `groups`
+
+Returns:
+- floating tensor with shape `[batch, outChannels, outH, outW]`
+
+Contract:
+- input tensor shape must be `[batch, inChannels, inH, inW]`
+- input layout is `NCHW`
+- weight layout is `OIHW`
+- only floating dtypes are accepted
+- grouped convolution is supported through `options.groups()`
+- output size uses floor semantics:
+  - `out = floor((input + 2 * pad - effectiveKernel) / stride) + 1`
+  - `effectiveKernel = dilation * (kernel - 1) + 1`
+
+Backward:
+- input gradient is produced through dedicated `CONV2D_BACKWARD_INPUT`
+- weight gradient is produced through dedicated `CONV2D_BACKWARD_WEIGHT`
+
+Example:
+```java
+Tensor input = new Tensor(new double[]{
+        1, 2, 3,
+        4, 5, 6,
+        7, 8, 9
+}, new int[]{1, 1, 3, 3}, null, "input");
+Tensor weight = new Tensor(new double[]{
+        1, 0,
+        0, -1
+}, new int[]{1, 1, 2, 2}, null, "weight");
+
+Tensor y = input.conv2d(weight, Conv2dOptions.defaults());
+// input shape = [1, 1, 3, 3]
+// weight shape = [1, 1, 2, 2]
+// y has shape [1, 1, 2, 2] and values:
+// [[[-4, -4],
+//   [-4, -4]]]
+//
+// Returns: the direct 2D convolution result.
+```
+
+### `conv2d(Tensor weight, Tensor bias, Conv2dOptions options)`
+
+Runs 2D convolution with per-output-channel bias.
+
+Parameters:
+- `weight`: convolution kernel tensor with shape `[outChannels, inChannelsPerGroup, kernelH, kernelW]`
+- `bias`: bias tensor with shape `[outChannels]`
+- `options`: convolution configuration carrying stride, padding, dilation, and `groups`
+
+Returns:
+- floating tensor with shape `[batch, outChannels, outH, outW]`
+
+Contract:
+- same input and weight contract as the bias-free overload
+- `bias` must be rank-1 with one value per output channel
+- output dtype is promoted from input, weight, and bias dtypes
+
+Example:
+```java
+Tensor input = new Tensor(new double[]{
+        1, 2, 3,
+        4, 5, 6,
+        7, 8, 9
+}, new int[]{1, 1, 3, 3}, null, "input");
+Tensor weight = new Tensor(new double[]{
+        1, 1,
+        1, 1
+}, new int[]{1, 1, 2, 2}, null, "weight");
+Tensor bias = new Tensor(new double[]{0.5}, new int[]{1}, null, "bias");
+
+Tensor y = input.conv2d(
+        weight,
+        bias,
+        Conv2dOptions.defaults().withStride(2, 2).withPadding(1, 1)
+);
+// input shape = [1, 1, 3, 3]
+// weight shape = [1, 1, 2, 2]
+// bias shape = [1]
+// y has shape [1, 1, 2, 2] and values:
+// [[[1.5, 5.5],
+//   [11.5, 28.5]]]
+//
+// Returns: convolution output with channel bias added after accumulation.
 ```
 
 ## Comparison Operations

@@ -30,6 +30,9 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.TAKE_ALONG_AXIS, new CpuTakeAlongAxisKernel());
         KERNELS.put(Operation.OpType.TAKE_ALONG_AXIS_GRAD, new CpuTakeAlongAxisGradKernel());
         KERNELS.put(Operation.OpType.SCATTER_ADD, new CpuScatterAddKernel());
+        KERNELS.put(Operation.OpType.CONV2D, new CpuConv2dKernel());
+        KERNELS.put(Operation.OpType.CONV2D_BACKWARD_INPUT, new CpuConv2dBackwardInputKernel());
+        KERNELS.put(Operation.OpType.CONV2D_BACKWARD_WEIGHT, new CpuConv2dBackwardWeightKernel());
         KERNELS.put(Operation.OpType.MIN_GRAD, new CpuMinGradKernel());
         KERNELS.put(Operation.OpType.MAX_GRAD, new CpuMaxGradKernel());
         KERNELS.put(Operation.OpType.REDUCE_MIN, new CpuReduceMinKernel());

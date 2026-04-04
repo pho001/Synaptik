@@ -8,6 +8,9 @@ import operations.Operation;
 import operations.clampMax;
 import operations.clampMin;
 import operations.crossEntropyLoss;
+import operations.conv2d;
+import operations.conv2dBackwardInput;
+import operations.conv2dBackwardWeight;
 import operations.expand;
 import operations.expandDims;
 import operations.gather;
@@ -176,9 +179,46 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case TAKE_ALONG_AXIS -> new AxisSignature(((takeAlongAxis) op).getDimension());
             case TAKE_ALONG_AXIS_GRAD -> new AxisSignature(((takeAlongAxisGrad) op).getDimension());
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
+            case CONV2D -> conv2dSignature(((conv2d) op).getOptions(), ((conv2d) op).hasBias() ? 1 : 0);
+            case CONV2D_BACKWARD_INPUT -> conv2dBackwardInputSignature((conv2dBackwardInput) op);
+            case CONV2D_BACKWARD_WEIGHT -> conv2dBackwardWeightSignature((conv2dBackwardWeight) op);
             case SQUEEZE -> new AxisSignature(((squeeze) op).getAxis());
             default -> NoParamsSignature.INSTANCE;
         };
+    }
+
+    private SignatureComponent conv2dSignature(tensor.Conv2dOptions options, int hasBias) {
+        return IntArrayValue.copyOf(new int[]{
+                options.strideH(), options.strideW(),
+                options.padH(), options.padW(),
+                options.dilationH(), options.dilationW(),
+                options.groups(),
+                hasBias
+        });
+    }
+
+    private SignatureComponent conv2dBackwardInputSignature(conv2dBackwardInput op) {
+        int[] inputShape = op.getInputShape();
+        tensor.Conv2dOptions options = op.getOptions();
+        return IntArrayValue.copyOf(new int[]{
+                inputShape[0], inputShape[1], inputShape[2], inputShape[3],
+                options.strideH(), options.strideW(),
+                options.padH(), options.padW(),
+                options.dilationH(), options.dilationW(),
+                options.groups()
+        });
+    }
+
+    private SignatureComponent conv2dBackwardWeightSignature(conv2dBackwardWeight op) {
+        int[] weightShape = op.getWeightShape();
+        tensor.Conv2dOptions options = op.getOptions();
+        return IntArrayValue.copyOf(new int[]{
+                weightShape[0], weightShape[1], weightShape[2], weightShape[3],
+                options.strideH(), options.strideW(),
+                options.padH(), options.padW(),
+                options.dilationH(), options.dilationW(),
+                options.groups()
+        });
     }
 
     private sealed interface SignatureComponent

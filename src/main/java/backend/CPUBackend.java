@@ -233,7 +233,7 @@ public final class CPUBackend {
         return switch (op.opType()) {
             case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, NOOP -> false;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
-            case MATMUL -> true;
+            case MATMUL, CONV2D, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT -> true;
             case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.isContiguous();
             default -> op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
                     && planner.shouldMaterializeNonContiguous(node.getFlatDataSize());

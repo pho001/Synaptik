@@ -34,6 +34,7 @@ It is not the primary owner of explicit compile/runtime artifacts. Those live in
   - [src/main/java/tensor/TensorReduceOps.java](../tensor/TensorReduceOps.java)
   - [src/main/java/tensor/TensorLayoutOps.java](../tensor/TensorLayoutOps.java)
   - [src/main/java/tensor/TensorNaryOps.java](../tensor/TensorNaryOps.java)
+  - [src/main/java/tensor/TensorConvOps.java](../tensor/TensorConvOps.java)
 - Operation descriptors and addition guide:
   - [src/main/java/operations/README.md](../operations/README.md)
 - Layout remap utility:
@@ -122,6 +123,11 @@ The current public graph-building operation surface on `Tensor` is:
 - `logicalAnd(Tensor second)`
 - `logicalOr(Tensor second)`
 - `logicalNot()`
+
+### Spatial
+
+- `conv2d(Tensor weight, Conv2dOptions options)`
+- `conv2d(Tensor weight, Tensor bias, Conv2dOptions options)`
 
 ### Unary / Scalar
 
@@ -405,6 +411,53 @@ For axis reduction:
 - `indices` and `src` must have shape equal to the base shape without the scattered axis
 - values from `src` are added into positions selected by `indices`
 - this is the natural write-side pair to `gather`
+
+## Spatial / Convolution Contract
+
+`conv2d(...)` is the first spatial primitive in the tensor surface.
+
+Current contract:
+
+- input layout is `NCHW`
+- weight layout is `OIHW`
+- optional bias shape is `[outChannels]`
+- options are explicit through `Conv2dOptions`
+  - `strideH`, `strideW`
+  - `padH`, `padW`
+  - `dilationH`, `dilationW`
+  - `groups`
+- only floating dtypes are accepted
+- grouped convolution is supported
+
+Output shape:
+
+- input: `[batch, inChannels, inH, inW]`
+- weight: `[outChannels, inChannelsPerGroup, kernelH, kernelW]`
+- output: `[batch, outChannels, outH, outW]`
+
+Where:
+
+- `inChannelsPerGroup * groups == inChannels`
+- `outChannels % groups == 0`
+- `outH = floor((inH + 2 * padH - effectiveKernelH) / strideH) + 1`
+- `outW = floor((inW + 2 * padW - effectiveKernelW) / strideW) + 1`
+- `effectiveKernelH = dilationH * (kernelH - 1) + 1`
+- `effectiveKernelW = dilationW * (kernelW - 1) + 1`
+
+Backward contract:
+
+- input gradient is produced by a dedicated `conv2dBackwardInput` primitive
+- weight gradient is produced by a dedicated `conv2dBackwardWeight` primitive
+- bias gradient is currently expressed compositionally as reduction over:
+  - batch axis
+  - spatial height axis
+  - spatial width axis
+
+Architectural note:
+
+- this is a first-class runtime primitive, not a public `im2col`-style helper
+- the current CPU backend uses direct loop kernels
+- that keeps the public tensor algebra clean while leaving later room for backend-specific lowering or autotuned specialization
 
 `nllLossFromIndices(targetIndices, classDimension)` is the first index-target loss surface:
 
