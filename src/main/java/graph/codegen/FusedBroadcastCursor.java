@@ -4,30 +4,32 @@ public final class FusedBroadcastCursor {
     private final int[] coords;
     private final int[] outShape;
     private final int[] effStrides;
+    private final int baseOffset;
     private int idx;
     private int[] gatherIdx;
 
-    private FusedBroadcastCursor(int[] coords, int[] outShape, int[] effStrides, int idx) {
+    private FusedBroadcastCursor(int[] coords, int[] outShape, int[] effStrides, int baseOffset, int idx) {
         this.coords = coords;
         this.outShape = outShape;
         this.effStrides = effStrides;
+        this.baseOffset = baseOffset;
         this.idx = idx;
     }
 
-    public static FusedBroadcastCursor atStart(int start, int[] outShape, int[] outStrides, int[] effStrides) {
-        int rank = outStrides.length;
+    public static FusedBroadcastCursor atStart(int start, int[] outShape, int[] outDenseStrides, int[] effStrides, int baseOffset) {
+        int rank = outDenseStrides.length;
         int[] coords = new int[rank];
         int tmp = start;
         for (int d = 0; d < rank; d++) {
-            coords[d] = tmp / outStrides[d];
-            tmp %= outStrides[d];
+            coords[d] = tmp / outDenseStrides[d];
+            tmp %= outDenseStrides[d];
         }
 
-        int idx = 0;
+        int idx = baseOffset;
         for (int d = 0; d < rank; d++) {
             idx += coords[d] * effStrides[d];
         }
-        return new FusedBroadcastCursor(coords, outShape, effStrides, idx);
+        return new FusedBroadcastCursor(coords, outShape, effStrides, baseOffset, idx);
     }
 
     public int idx() {
@@ -45,6 +47,7 @@ public final class FusedBroadcastCursor {
             coords[d] = 0;
             idx -= outShape[d] * effStrides[d];
         }
+        idx = baseOffset;
     }
 
     public int[] nextIndices(int width) {

@@ -4,6 +4,7 @@ import backend.kernels.cpu.CpuDTypeOps;
 import tensor.Tensor;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorSpecies;
 
 public final class FusedStorageOps {
@@ -86,6 +87,36 @@ public final class FusedStorageOps {
             lanes[i] = CpuDTypeOps.fromHalfBits(src[index + i]);
         }
         return DoubleVector.fromArray(DOUBLE_SPECIES, lanes, 0);
+    }
+
+    public static Object loadMaskF32Array(byte[] src, int index) {
+        boolean[] lanes = new boolean[FLOAT_SPECIES.length()];
+        for (int i = 0; i < lanes.length; i++) {
+            lanes[i] = src[index + i] != 0;
+        }
+        return VectorMask.fromArray(FLOAT_SPECIES, lanes, 0);
+    }
+
+    public static Object loadMaskF64Array(byte[] src, int index) {
+        boolean[] lanes = new boolean[DOUBLE_SPECIES.length()];
+        for (int i = 0; i < lanes.length; i++) {
+            lanes[i] = src[index + i] != 0;
+        }
+        return VectorMask.fromArray(DOUBLE_SPECIES, lanes, 0);
+    }
+
+    public static void storeMaskF32Array(byte[] dst, int index, Object maskObject) {
+        VectorMask<Float> mask = (VectorMask<Float>) maskObject;
+        for (int i = 0; i < FLOAT_SPECIES.length(); i++) {
+            dst[index + i] = mask.laneIsSet(i) ? (byte) 1 : (byte) 0;
+        }
+    }
+
+    public static void storeMaskF64Array(byte[] dst, int index, Object maskObject) {
+        VectorMask<Double> mask = (VectorMask<Double>) maskObject;
+        for (int i = 0; i < DOUBLE_SPECIES.length(); i++) {
+            dst[index + i] = mask.laneIsSet(i) ? (byte) 1 : (byte) 0;
+        }
     }
 
     public static void storeVectorF16Array(short[] dst, int index, Object vector) {

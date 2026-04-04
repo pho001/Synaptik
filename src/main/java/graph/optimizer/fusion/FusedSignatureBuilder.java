@@ -24,10 +24,19 @@ public class FusedSignatureBuilder {
     public static String buildFromPlan(FusedExpressionPlan plan, int precisionMode) {
         StringBuilder sb = new StringBuilder(128);
         sb.append("fused:pm=").append(precisionMode).append('|');
+        sb.append("inputs=");
+        for (graph.codegen.FusedExternalInputPlan input : plan.inputs()) {
+            sb.append(input.dataType()).append('@')
+                    .append(input.accessKind()).append('@')
+                    .append(input.storageOffset()).append('@')
+                    .append(java.util.Arrays.toString(input.effectiveStrides()))
+                    .append(';');
+        }
+        sb.append('|');
         for (FusedNodePlan node : plan.nodes()) {
-            sb.append(node.opType()).append(',');
-            if (node.parameter() != null) {
-                sb.append('(').append(node.parameter()).append(')');
+            sb.append(node.opType()).append(':').append(node.outputType()).append(',');
+            if (!(node.attributes() instanceof graph.codegen.NoAttributes)) {
+                sb.append('(').append(node.attributes()).append(')');
             }
             sb.append(';');
         }

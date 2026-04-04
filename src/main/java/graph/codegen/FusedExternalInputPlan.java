@@ -1,29 +1,48 @@
 package graph.codegen;
 
+import tensor.DataType;
+
 import java.util.Arrays;
 import java.util.Objects;
 
 public record FusedExternalInputPlan(
-        int index,
-        boolean directIndex,
-        int[] outShape,
-        int[] outStrides,
-        int[] effStrides
+        int inputIndex,
+        DataType dataType,
+        int[] logicalOutputShape,
+        int[] logicalOutputDenseStrides,
+        int storageOffset,
+        int[] effectiveStrides,
+        FusedAccessKind accessKind
 ) {
     public FusedExternalInputPlan {
-        if (index < 0) {
-            throw new IllegalArgumentException("index must be >= 0");
+        if (inputIndex < 0) {
+            throw new IllegalArgumentException("inputIndex must be >= 0");
         }
-        Objects.requireNonNull(outShape, "outShape cannot be null");
-        Objects.requireNonNull(outStrides, "outStrides cannot be null");
-        Objects.requireNonNull(effStrides, "effStrides cannot be null");
-        outShape = outShape.clone();
-        outStrides = outStrides.clone();
-        effStrides = effStrides.clone();
-        if (outShape.length != outStrides.length || outShape.length != effStrides.length) {
+        Objects.requireNonNull(dataType, "dataType cannot be null");
+        Objects.requireNonNull(logicalOutputShape, "logicalOutputShape cannot be null");
+        Objects.requireNonNull(logicalOutputDenseStrides, "logicalOutputDenseStrides cannot be null");
+        Objects.requireNonNull(effectiveStrides, "effectiveStrides cannot be null");
+        Objects.requireNonNull(accessKind, "accessKind cannot be null");
+        if (storageOffset < 0) {
+            throw new IllegalArgumentException("storageOffset cannot be negative");
+        }
+        logicalOutputShape = logicalOutputShape.clone();
+        logicalOutputDenseStrides = logicalOutputDenseStrides.clone();
+        effectiveStrides = effectiveStrides.clone();
+        if (logicalOutputShape.length != logicalOutputDenseStrides.length
+                || logicalOutputShape.length != effectiveStrides.length) {
             throw new IllegalArgumentException(
-                    "Broadcast metadata rank mismatch: shape=" + Arrays.toString(outShape)
+                    "Fused access metadata rank mismatch for input " + inputIndex
+                            + ": shape=" + Arrays.toString(logicalOutputShape)
             );
         }
+    }
+
+    public boolean usesCursor() {
+        return !isLinearAccess();
+    }
+
+    public boolean isLinearAccess() {
+        return Arrays.equals(effectiveStrides, logicalOutputDenseStrides);
     }
 }

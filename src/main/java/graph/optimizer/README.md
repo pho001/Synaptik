@@ -115,7 +115,7 @@ For example, `sum(axis, false)` and `sum(axis, true)` must not collapse to the s
 
 ### `FuseElementWiseRule`
 
-- groups profitable element-wise regions into fused clusters
+- groups profitable fused-compute regions into fused clusters
 - respects forward/backward phase boundaries
 - uses explicit fuse policy from `FuseConfig`
 - cooperates with fusion support helpers for:
@@ -123,6 +123,24 @@ For example, `sum(axis, false)` and `sum(axis, true)` must not collapse to the s
   - precision resolution
   - cluster signature building
   - cost decisions
+- current fused compute scope is intentionally limited to:
+  - unary/binary numeric ops
+  - compare ops
+  - logical ops
+  - `where`
+- current fused access model absorbs view/layout chains into external-input metadata:
+  - `select`
+  - `reshape`
+  - `expand`
+  - `permute`
+  - `expandDims`
+  - `squeeze`
+- current hard fusion barriers include:
+  - indexing ops
+  - reductions
+  - `matmul`
+  - losses
+  - special grad kernels
 
 ### `MemoryOptimizerRule`
 
@@ -164,6 +182,7 @@ Current model:
 
 - optimizer replaces a cluster with a `FusedOperation` descriptor node
 - `FusedOperationFactory` builds `FusedExpressionPlan`
+- `FusedAccessResolver` validates absorbable access chains and resolves backing runtime inputs
 - `CompiledGraph.prepare(...)` compiles a runtime fused executable through `CompiledFusedKernelFactory`
 - prepared fused executable is stored in `CompiledNodeExecutionMetadata`
 - `CpuFusedKernel` executes that prepared executable
@@ -172,7 +191,10 @@ This means:
 
 - `FusedOperation` is not itself the compiled kernel
 - live `Tensor` graph nodes are not passed directly to generated runtime code
-- generated code consumes plan IR and prepared runtime bindings
+- generated code consumes:
+  - typed fused node IR
+  - typed external input access metadata
+  - prepared runtime bindings resolved to backing tensors
 
 ## Config and Defaults
 

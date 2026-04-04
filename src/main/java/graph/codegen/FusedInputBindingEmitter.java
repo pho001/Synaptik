@@ -1,6 +1,7 @@
 package graph.codegen;
 
 import org.objectweb.asm.MethodVisitor;
+import tensor.DataType;
 import tensor.Tensor;
 import utils.SlotKey;
 import utils.SlotManager;
@@ -23,7 +24,7 @@ public final class FusedInputBindingEmitter {
             mv.visitLdcInsn(i);
             mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
             mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
-            FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.precisionMode());
+            FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.plan().inputs().get(i).dataType());
             mv.visitVarInsn(ASTORE, inputSlots.get(i));
         }
     }
@@ -36,18 +37,19 @@ public final class FusedInputBindingEmitter {
         List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
         for (int i = 0; i < inputAccess.size(); i++) {
             FusedExternalInputPlan meta = inputAccess.get(i);
-            if (meta.directIndex()) {
+            if (!meta.usesCursor()) {
                 continue;
             }
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
-            FusedAsmSupport.emitIntArrayConstant(mv, meta.outShape());
-            FusedAsmSupport.emitIntArrayConstant(mv, meta.outStrides());
-            FusedAsmSupport.emitIntArrayConstant(mv, meta.effStrides());
+            FusedAsmSupport.emitIntArrayConstant(mv, meta.logicalOutputShape());
+            FusedAsmSupport.emitIntArrayConstant(mv, meta.logicalOutputDenseStrides());
+            FusedAsmSupport.emitIntArrayConstant(mv, meta.effectiveStrides());
+            mv.visitLdcInsn(meta.storageOffset());
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "graph/codegen/FusedBroadcastCursor",
                     "atStart",
-                    "(I[I[I[I)Lgraph/codegen/FusedBroadcastCursor;",
+                    "(I[I[I[II)Lgraph/codegen/FusedBroadcastCursor;",
                     false
             );
             mv.visitVarInsn(ASTORE, cursorSlots.get(i));
@@ -65,7 +67,7 @@ public final class FusedInputBindingEmitter {
             mv.visitLdcInsn(i);
             mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
             mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
-            FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.precisionMode());
+            FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.plan().inputs().get(i).dataType());
             mv.visitVarInsn(ASTORE, inputSlots.get(i));
         }
     }
@@ -78,18 +80,19 @@ public final class FusedInputBindingEmitter {
         List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
         for (int i = 0; i < inputAccess.size(); i++) {
             FusedExternalInputPlan meta = inputAccess.get(i);
-            if (meta.directIndex()) {
+            if (!meta.usesCursor()) {
                 continue;
             }
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
-            FusedAsmSupport.emitIntArrayConstant(mv, meta.outShape());
-            FusedAsmSupport.emitIntArrayConstant(mv, meta.outStrides());
-            FusedAsmSupport.emitIntArrayConstant(mv, meta.effStrides());
+            FusedAsmSupport.emitIntArrayConstant(mv, meta.logicalOutputShape());
+            FusedAsmSupport.emitIntArrayConstant(mv, meta.logicalOutputDenseStrides());
+            FusedAsmSupport.emitIntArrayConstant(mv, meta.effectiveStrides());
+            mv.visitLdcInsn(meta.storageOffset());
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "graph/codegen/FusedBroadcastCursor",
                     "atStart",
-                    "(I[I[I[I)Lgraph/codegen/FusedBroadcastCursor;",
+                    "(I[I[I[II)Lgraph/codegen/FusedBroadcastCursor;",
                     false
             );
             mv.visitVarInsn(ASTORE, cursorSlots.get(i));
@@ -109,14 +112,34 @@ public final class FusedInputBindingEmitter {
 
         for (int i = 0; i < inputCount; i++) {
             FusedExternalInputPlan meta = inputAccess.get(i);
-            if (meta.directIndex()) {
-                mv.visitVarInsn(ALOAD, inputSlots.get(i));
-                mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-                FusedAsmSupport.emitLoadVectorFromArrayCall(mv, precisionMode);
+            if (meta.dataType() == DataType.BOOL) {
+                if (meta.isLinearAccess()) {
+                    mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                    mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+                    if (meta.storageOffset() != 0) {
+                        mv.visitLdcInsn(meta.storageOffset());
+                        mv.visitInsn(IADD);
+                    }
+                    FusedAsmSupport.emitLoadBoolVectorFromArrayCall(mv, precisionMode);
+                } else {
+                    mv.visitVarInsn(ALOAD, cursorSlots.get(i));
+                    mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                    FusedAsmSupport.emitLoadBoolVectorFromCursorCall(mv, precisionMode);
+                }
             } else {
-                mv.visitVarInsn(ALOAD, cursorSlots.get(i));
-                mv.visitVarInsn(ALOAD, inputSlots.get(i));
-                FusedAsmSupport.emitLoadVectorFromCursorCall(mv, precisionMode);
+                if (meta.isLinearAccess()) {
+                    mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                    mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+                    if (meta.storageOffset() != 0) {
+                        mv.visitLdcInsn(meta.storageOffset());
+                        mv.visitInsn(IADD);
+                    }
+                    FusedAsmSupport.emitLoadVectorFromArrayCall(mv, precisionMode);
+                } else {
+                    mv.visitVarInsn(ALOAD, cursorSlots.get(i));
+                    mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                    FusedAsmSupport.emitLoadVectorFromCursorCall(mv, precisionMode);
+                }
             }
             mv.visitVarInsn(ASTORE, cachedInputVectorSlots.get(i));
         }

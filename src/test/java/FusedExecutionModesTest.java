@@ -183,6 +183,258 @@ public class FusedExecutionModesTest {
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 
+    @Test
+    void fusedGraphSupportsWhere() {
+        Tensor cond = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{4}, null, "cond", DataType.BOOL);
+        Tensor aBase = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(new double[]{10, 20, 30, 40}, new int[]{4}, null, "bBase", DataType.FLOAT64);
+
+        Tensor baseline = Tensor.where(cond, aBase, bBase).relu().mul(aBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor condFused = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{4}, null, "condFused", DataType.BOOL);
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{10, 20, 30, 40}, new int[]{4}, null, "b", DataType.FLOAT64);
+
+        Tensor out = Tensor.where(condFused, a, b).relu().mul(a);
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in graph containing where");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    void fusedGraphSupportsCompareAndLogicalBoolOutput() {
+        Tensor aBase = new Tensor(new double[]{1, 5, 3, 8}, new int[]{4}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(new double[]{2, 4, 3, 1}, new int[]{4}, null, "bBase", DataType.FLOAT64);
+        Tensor cBase = new Tensor(new double[]{0, 6, 2, 9}, new int[]{4}, null, "cBase", DataType.FLOAT64);
+        Tensor dBase = new Tensor(new double[]{1, 7, 3, 2}, new int[]{4}, null, "dBase", DataType.FLOAT64);
+
+        Tensor baseline = aBase.greaterThan(bBase).logicalOr(cBase.lessThan(dBase));
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        boolean[] expected = baseline.toBooleanArrayCopy().clone();
+
+        Tensor a = new Tensor(new double[]{1, 5, 3, 8}, new int[]{4}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{2, 4, 3, 1}, new int[]{4}, null, "b", DataType.FLOAT64);
+        Tensor c = new Tensor(new double[]{0, 6, 2, 9}, new int[]{4}, null, "c", DataType.FLOAT64);
+        Tensor d = new Tensor(new double[]{1, 7, 3, 2}, new int[]{4}, null, "d", DataType.FLOAT64);
+
+        Tensor out = a.greaterThan(b).logicalOr(c.lessThan(d));
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in compare/logical graph");
+        assertArrayEquals(expected, out.toBooleanArrayCopy());
+    }
+
+    @Test
+    void fusedGraphSupportsInternalBoolConditionForWhere() {
+        Tensor aBase = new Tensor(new double[]{1, 5, 3, 8}, new int[]{4}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(new double[]{2, 4, 3, 1}, new int[]{4}, null, "bBase", DataType.FLOAT64);
+        Tensor xBase = new Tensor(new double[]{10, 20, 30, 40}, new int[]{4}, null, "xBase", DataType.FLOAT64);
+        Tensor yBase = new Tensor(new double[]{100, 200, 300, 400}, new int[]{4}, null, "yBase", DataType.FLOAT64);
+
+        Tensor baseline = Tensor.where(aBase.greaterThan(bBase), xBase, yBase).relu().mul(xBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(new double[]{1, 5, 3, 8}, new int[]{4}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{2, 4, 3, 1}, new int[]{4}, null, "b", DataType.FLOAT64);
+        Tensor x = new Tensor(new double[]{10, 20, 30, 40}, new int[]{4}, null, "x", DataType.FLOAT64);
+        Tensor y = new Tensor(new double[]{100, 200, 300, 400}, new int[]{4}, null, "y", DataType.FLOAT64);
+
+        Tensor out = Tensor.where(a.greaterThan(b), x, y).relu().mul(x);
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in compare-select graph");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    void fusedGraphSupportsInternalBoolConditionForWhereInVectorMode() {
+        int size = 4096;
+        double[] aVals = buildInput(size, 0.07);
+        double[] bVals = buildInput(size, -0.04);
+        double[] xVals = buildInput(size, 0.03);
+        double[] yVals = buildInput(size, -0.02);
+
+        Tensor aBase = new Tensor(aVals.clone(), new int[]{size}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bVals.clone(), new int[]{size}, null, "bBase", DataType.FLOAT64);
+        Tensor xBase = new Tensor(xVals.clone(), new int[]{size}, null, "xBase", DataType.FLOAT64);
+        Tensor yBase = new Tensor(yVals.clone(), new int[]{size}, null, "yBase", DataType.FLOAT64);
+        Tensor baseline = Tensor.where(aBase.greaterThan(bBase), xBase, yBase).relu().mul(xBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(bVals.clone(), new int[]{size}, null, "b", DataType.FLOAT64);
+        Tensor x = new Tensor(xVals.clone(), new int[]{size}, null, "x", DataType.FLOAT64);
+        Tensor y = new Tensor(yVals.clone(), new int[]{size}, null, "y", DataType.FLOAT64);
+        Tensor out = Tensor.where(a.greaterThan(b), x, y).relu().mul(x);
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in compare-select vector graph");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void fusedGraphSupportsCompareAndLogicalIntermediatesInVectorMode() {
+        int size = 4096;
+        double[] aVals = buildInput(size, 0.09);
+        double[] bVals = buildInput(size, -0.03);
+        double[] cVals = buildInput(size, 0.02);
+        double[] dVals = buildInput(size, -0.01);
+        double[] xVals = buildInput(size, 0.05);
+        double[] yVals = buildInput(size, -0.04);
+
+        Tensor aBase = new Tensor(aVals.clone(), new int[]{size}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bVals.clone(), new int[]{size}, null, "bBase", DataType.FLOAT64);
+        Tensor cBase = new Tensor(cVals.clone(), new int[]{size}, null, "cBase", DataType.FLOAT64);
+        Tensor dBase = new Tensor(dVals.clone(), new int[]{size}, null, "dBase", DataType.FLOAT64);
+        Tensor xBase = new Tensor(xVals.clone(), new int[]{size}, null, "xBase", DataType.FLOAT64);
+        Tensor yBase = new Tensor(yVals.clone(), new int[]{size}, null, "yBase", DataType.FLOAT64);
+
+        Tensor baseline = Tensor.where(aBase.greaterThan(bBase).logicalOr(cBase.lessThan(dBase)), xBase, yBase).mul(xBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(bVals.clone(), new int[]{size}, null, "b", DataType.FLOAT64);
+        Tensor c = new Tensor(cVals.clone(), new int[]{size}, null, "c", DataType.FLOAT64);
+        Tensor d = new Tensor(dVals.clone(), new int[]{size}, null, "d", DataType.FLOAT64);
+        Tensor x = new Tensor(xVals.clone(), new int[]{size}, null, "x", DataType.FLOAT64);
+        Tensor y = new Tensor(yVals.clone(), new int[]{size}, null, "y", DataType.FLOAT64);
+
+        Tensor out = Tensor.where(a.greaterThan(b).logicalOr(c.lessThan(d)), x, y).mul(x);
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in compare/logical vector graph");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void fusedGraphSupportsExternalBoolInputInVectorMode() {
+        int size = 4096;
+        byte[] condVals = new byte[size];
+        double[] xVals = buildInput(size, 0.05);
+        double[] yVals = buildInput(size, -0.04);
+        double[] zVals = buildInput(size, 0.02);
+        for (int i = 0; i < size; i++) {
+            condVals[i] = (i % 3) == 0 ? (byte) 1 : (byte) 0;
+        }
+
+        Tensor condBase = new Tensor(condVals.clone(), new int[]{size}, null, "condBase", DataType.BOOL);
+        Tensor xBase = new Tensor(xVals.clone(), new int[]{size}, null, "xBase", DataType.FLOAT64);
+        Tensor yBase = new Tensor(yVals.clone(), new int[]{size}, null, "yBase", DataType.FLOAT64);
+        Tensor zBase = new Tensor(zVals.clone(), new int[]{size}, null, "zBase", DataType.FLOAT64);
+        Tensor baseline = Tensor.where(condBase, xBase, yBase).relu().mul(zBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor cond = new Tensor(condVals.clone(), new int[]{size}, null, "cond", DataType.BOOL);
+        Tensor x = new Tensor(xVals.clone(), new int[]{size}, null, "x", DataType.FLOAT64);
+        Tensor y = new Tensor(yVals.clone(), new int[]{size}, null, "y", DataType.FLOAT64);
+        Tensor z = new Tensor(zVals.clone(), new int[]{size}, null, "z", DataType.FLOAT64);
+        Tensor out = Tensor.where(cond, x, y).relu().mul(z);
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in external-bool vector graph");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void fusedGraphSupportsBoolOutputInVectorMode() {
+        int size = 4096;
+        double[] aVals = buildInput(size, 0.08);
+        double[] bVals = buildInput(size, -0.02);
+        double[] cVals = buildInput(size, 0.01);
+        double[] dVals = buildInput(size, -0.03);
+
+        Tensor aBase = new Tensor(aVals.clone(), new int[]{size}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bVals.clone(), new int[]{size}, null, "bBase", DataType.FLOAT64);
+        Tensor cBase = new Tensor(cVals.clone(), new int[]{size}, null, "cBase", DataType.FLOAT64);
+        Tensor dBase = new Tensor(dVals.clone(), new int[]{size}, null, "dBase", DataType.FLOAT64);
+        Tensor baseline = aBase.greaterThan(bBase).logicalOr(cBase.lessThan(dBase));
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        boolean[] expected = baseline.toBooleanArrayCopy().clone();
+
+        Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(bVals.clone(), new int[]{size}, null, "b", DataType.FLOAT64);
+        Tensor c = new Tensor(cVals.clone(), new int[]{size}, null, "c", DataType.FLOAT64);
+        Tensor d = new Tensor(dVals.clone(), new int[]{size}, null, "d", DataType.FLOAT64);
+        Tensor out = a.greaterThan(b).logicalOr(c.lessThan(d));
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in bool-output vector graph");
+        assertArrayEquals(expected, out.toBooleanArrayCopy());
+    }
+
+    @Test
+    void fusedGraphSupportsOffsetViewInputs() {
+        Tensor base = new Tensor(
+                new double[]{1, 2, 3, 4, 5, 6},
+                new int[]{2, 3},
+                null,
+                "base",
+                DataType.FLOAT64
+        );
+        Tensor view = base.select(0, 1);
+
+        Tensor baseline = view.relu().exp().mul(view);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor baseFused = new Tensor(
+                new double[]{1, 2, 3, 4, 5, 6},
+                new int[]{2, 3},
+                null,
+                "baseFused",
+                DataType.FLOAT64
+        );
+        Tensor viewFused = baseFused.select(0, 1);
+        Tensor out = viewFused.relu().exp().mul(viewFused);
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node for offset-view input graph");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
+    }
+
     private static void assertModeMatches(
             double[] expected,
             double[] aVals,

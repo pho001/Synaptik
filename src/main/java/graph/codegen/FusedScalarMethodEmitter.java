@@ -27,6 +27,7 @@ public final class FusedScalarMethodEmitter {
         FusedExpressionPlan plan = context.plan();
         SlotManager sm = FusedAsmSupport.buildRangeSlotLayout(plan.inputCount(), plan.nodeCount());
         int[] nodeValueSlots = sm.getGroup(SlotKey.FUSED_NODE_VALUES).stream().mapToInt(Integer::intValue).toArray();
+        int[] nodeBoolSlots = sm.getGroup(SlotKey.FUSED_NODE_BOOL_VALUES).stream().mapToInt(Integer::intValue).toArray();
 
         FusedInputBindingEmitter.emitScalarBindings(mv, context, sm);
         FusedOutputBindingEmitter.emitScalarBinding(mv, context, sm);
@@ -43,23 +44,36 @@ public final class FusedScalarMethodEmitter {
 
         for (FusedNodePlan node : plan.nodes()) {
             FusedScalarExpressionEmitter.emitNodeEvaluationBytecode(
-                    mv, node, nodeValueSlots, sm, context.precisionMode(), plan.inputs()
+                    mv, plan, node, nodeValueSlots, nodeBoolSlots, sm, context.precisionMode(), plan.inputs()
             );
-            FusedAsmSupport.emitScalarStoreInsn(mv, nodeValueSlots[node.index()], context.precisionMode());
+            if (node.outputType() == tensor.DataType.BOOL) {
+                FusedAsmSupport.emitBoolScalarStoreInsn(mv, nodeBoolSlots[node.index()]);
+            } else {
+                FusedAsmSupport.emitScalarStoreInsn(mv, nodeValueSlots[node.index()], context.precisionMode());
+            }
         }
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-        FusedAsmSupport.emitScalarLoadInsn(
-                mv,
-                nodeValueSlots[plan.outputRef() - plan.inputCount()],
-                context.precisionMode()
-        );
-        FusedAsmSupport.emitScalarArrayStoreInsn(mv, context.precisionMode());
+        FusedNodePlan outputNode = plan.outputNode();
+        if (outputNode.outputType() == tensor.DataType.BOOL) {
+            FusedAsmSupport.emitBoolScalarLoadInsn(
+                    mv,
+                    nodeBoolSlots[outputNode.index()]
+            );
+            mv.visitInsn(BASTORE);
+        } else {
+            FusedAsmSupport.emitScalarLoadInsn(
+                    mv,
+                    nodeValueSlots[outputNode.index()],
+                    context.precisionMode()
+            );
+            FusedAsmSupport.emitScalarArrayStoreInsn(mv, context.precisionMode());
+        }
 
         List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
         for (int i = 0; i < plan.inputCount(); i++) {
             FusedExternalInputPlan meta = plan.inputs().get(i);
-            if (meta.directIndex()) {
+            if (!meta.usesCursor()) {
                 continue;
             }
             mv.visitVarInsn(ALOAD, cursorSlots.get(i));

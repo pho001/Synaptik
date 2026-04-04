@@ -9,10 +9,7 @@ import java.util.List;
 
 public final class FusedPrecisionResolver {
     public static int resolve(List<Tensor> cluster, Tensor root, List<Tensor> externalInputsInOrder) {
-        DataType target = root != null ? root.getDataType() : DataType.FLOAT64;
-        if (target == null) {
-            target = DataType.FLOAT64;
-        }
+        DataType target = null;
 
         List<Tensor> all = new ArrayList<>();
         if (cluster != null) all.addAll(cluster);
@@ -26,18 +23,24 @@ public final class FusedPrecisionResolver {
                 target = DataType.FLOAT64;
                 break;
             }
+            if (dt == DataType.FLOAT32) {
+                target = DataType.FLOAT32;
+                continue;
+            }
+            if (dt == DataType.FLOAT16 && target == null) {
+                target = DataType.FLOAT16;
+                continue;
+            }
             if (dt == DataType.BOOL) {
-                throw new UnsupportedOperationException("BOOL tensors are not supported in fused precision resolution.");
+                continue;
             }
             if (dt == DataType.INT32) {
                 throw new UnsupportedOperationException("INT32 tensors are not supported in fused precision resolution.");
             }
-            if (dt == DataType.FLOAT32 && target == DataType.FLOAT16) {
-                target = DataType.FLOAT32;
-            }
         }
 
         return switch (target) {
+            case null -> FusedDTypeOps.MODE_F32;
             case FLOAT64 -> FusedDTypeOps.MODE_F64;
             case FLOAT32 -> FusedDTypeOps.MODE_F32;
             case FLOAT16 -> FusedDTypeOps.MODE_F16;

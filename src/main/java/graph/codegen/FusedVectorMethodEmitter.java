@@ -23,6 +23,10 @@ public final class FusedVectorMethodEmitter {
         mv.visitCode();
 
         FusedExpressionPlan plan = context.plan();
+        if (!supportsVector(context, plan)) {
+            emitScalarDelegate(mv, context);
+            return;
+        }
         SlotManager sm = FusedAsmSupport.buildVectorSlotLayout(plan.inputCount(), plan.nodeCount());
         int[] nodeVectorSlots = sm.getGroup(SlotKey.FUSED_NODE_VECTOR_VALUES).stream().mapToInt(Integer::intValue).toArray();
 
@@ -58,7 +62,7 @@ public final class FusedVectorMethodEmitter {
 
         for (FusedNodePlan node : plan.nodes()) {
             FusedVectorExpressionEmitter.emitNodeEvaluationBytecode(
-                    mv, node, nodeVectorSlots, sm, context.precisionMode()
+                    mv, plan, node, nodeVectorSlots, sm, context.precisionMode()
             );
             mv.visitVarInsn(ASTORE, nodeVectorSlots[node.index()]);
         }
@@ -66,7 +70,11 @@ public final class FusedVectorMethodEmitter {
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
         mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
-        FusedAsmSupport.emitStoreVectorToArrayCall(mv, context.precisionMode());
+        if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
+            FusedAsmSupport.emitStoreBoolVectorToArrayCall(mv, context.precisionMode());
+        } else {
+            FusedAsmSupport.emitStoreVectorToArrayCall(mv, context.precisionMode());
+        }
 
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
@@ -95,6 +103,41 @@ public final class FusedVectorMethodEmitter {
         );
         mv.visitLabel(noTail);
 
+        mv.visitInsn(RETURN);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
+    }
+
+    private static boolean supportsVector(FusedGenerationContext context, FusedExpressionPlan plan) {
+        if (context.precisionMode() == FusedDTypeOps.MODE_F16) {
+            for (FusedNodePlan node : plan.nodes()) {
+                if (node.outputType() == tensor.DataType.BOOL || node.opType() == operations.Operation.OpType.WHERE) {
+                    return false;
+                }
+            }
+            for (FusedExternalInputPlan input : plan.inputs()) {
+                if (input.dataType() == tensor.DataType.BOOL) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static void emitScalarDelegate(MethodVisitor mv, FusedGenerationContext context) {
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitVarInsn(ILOAD, 3);
+        mv.visitVarInsn(ILOAD, 4);
+        mv.visitVarInsn(ALOAD, 5);
+        mv.visitMethodInsn(
+                INVOKEVIRTUAL,
+                context.internalClassName(),
+                "applyRangeScalar",
+                RANGE_METHOD_DESC,
+                false
+        );
         mv.visitInsn(RETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();

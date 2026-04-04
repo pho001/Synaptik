@@ -11,13 +11,13 @@ public final class FusedOutputBindingEmitter {
 
     public static void emitScalarBinding(MethodVisitor mv, FusedGenerationContext context, SlotManager sm) {
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
-        FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.precisionMode());
+        FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.plan().outputNode().outputType());
         mv.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
     }
 
     public static void emitVectorBinding(MethodVisitor mv, FusedGenerationContext context, SlotManager sm) {
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
-        FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.precisionMode());
+        FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.plan().outputNode().outputType());
         mv.visitVarInsn(ASTORE, sm.get(SlotKey.CLUSTER_TENSOR_VALUES));
     }
 }

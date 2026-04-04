@@ -67,18 +67,19 @@ public final class HFusedOperationGenerator {
         List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
         for (int i = 0; i < plan.inputCount(); i++) {
             FusedExternalInputPlan input = plan.inputs().get(i);
-            if (input.directIndex()) {
+            if (!input.usesCursor()) {
                 continue;
             }
             mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
-            emitIntArrayConstant(mv, input.outShape());
-            emitIntArrayConstant(mv, input.outStrides());
-            emitIntArrayConstant(mv, input.effStrides());
+            emitIntArrayConstant(mv, input.logicalOutputShape());
+            emitIntArrayConstant(mv, input.logicalOutputDenseStrides());
+            emitIntArrayConstant(mv, input.effectiveStrides());
+            mv.visitLdcInsn(input.storageOffset());
             mv.visitMethodInsn(
                     INVOKESTATIC,
                     "graph/codegen/FusedBroadcastCursor",
                     "atStart",
-                    "(I[I[I[I)Lgraph/codegen/FusedBroadcastCursor;",
+                    "(I[I[I[II)Lgraph/codegen/FusedBroadcastCursor;",
                     false
             );
             mv.visitVarInsn(ASTORE, cursorSlots.get(i));
@@ -113,7 +114,7 @@ public final class HFusedOperationGenerator {
 
         for (int i = 0; i < plan.inputCount(); i++) {
             FusedExternalInputPlan input = plan.inputs().get(i);
-            if (input.directIndex()) {
+            if (!input.usesCursor()) {
                 continue;
             }
             mv.visitVarInsn(ALOAD, cursorSlots.get(i));
@@ -200,10 +201,10 @@ public final class HFusedOperationGenerator {
                 mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedDTypeOps", "tanh", "(DIZ)D", false);
             }
             case FAST_TANH -> emitDTypeUnaryCall(mv, "fastTanh");
-            case POW -> handlePow(mv, node.parameter(), sm);
+            case POW -> handlePow(mv, ((ScalarDoubleAttribute) node.attributes()).value(), sm);
             case SQRT -> emitDTypeUnaryCall(mv, "sqrt");
             case MUL_SCALAR -> {
-                mv.visitLdcInsn(((Number) node.parameter()).doubleValue());
+                mv.visitLdcInsn(((ScalarDoubleAttribute) node.attributes()).value());
                 emitPrecisionMode(mv);
                 mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedDTypeOps", "mulScalar", "(DDI)D", false);
             }
@@ -231,8 +232,12 @@ public final class HFusedOperationGenerator {
         if (ref < inputPlans.size()) {
             mv.visitVarInsn(ALOAD, inputSlots.get(ref));
             FusedExternalInputPlan input = inputPlans.get(ref);
-            if (input.directIndex()) {
+            if (input.isLinearAccess()) {
                 mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+                if (input.storageOffset() != 0) {
+                    mv.visitLdcInsn(input.storageOffset());
+                    mv.visitInsn(IADD);
+                }
             } else {
                 mv.visitVarInsn(ALOAD, cursorSlots.get(ref));
                 mv.visitMethodInsn(INVOKEVIRTUAL, "graph/codegen/FusedBroadcastCursor", "idx", "()I", false);

@@ -1,6 +1,7 @@
 package graph.optimizer.rules;
 
 import graph.optimizer.OptimizationRule;
+import graph.optimizer.OptimizerGraphSupport;
 import config.optimizer.FuseConfig;
 import operations.FusedOperation;
 import operations.FusedOperationFactory;
@@ -51,13 +52,13 @@ public class FuseElementWiseRule implements OptimizationRule {
         // 2. KROK: Najdeme uzly, které MUSÍ být v paměti zachovány (Materialization points)
         Set<Tensor> materializationPoints = new HashSet<>();
         for (Tensor t : sortedGraph) {
-            boolean isElementWise = isElementWiseCandidate(t.getOperation());
+            boolean isElementWise = isFusedComputeCandidate(t.getOperation());
             boolean isCheap = t.getOperation() != null && t.getOperation().isCheap();
             boolean isFused = t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED;
             int consumersAll = allConsumerCounts.getOrDefault(t, 0);
             boolean hasNonElementWiseConsumer = false;
             for (Tensor c : samePhaseConsumersMap.getOrDefault(t, Collections.emptyList())) {
-                if (!isElementWiseCandidate(c.getOperation())) {
+                if (!isFusedComputeCandidate(c.getOperation())) {
                     hasNonElementWiseConsumer = true;
                     break;
                 }
@@ -96,7 +97,7 @@ public class FuseElementWiseRule implements OptimizationRule {
         for (Tensor t : sortedGraph) {
             if (materializationPoints.contains(t)
                     && t.getOperation() != null
-                    && isElementWiseCandidate(t.getOperation())
+                    && isFusedComputeCandidate(t.getOperation())
                     && t.getOperation().opType() != Operation.OpType.FUSED) {
 
                 // Postavíme cluster (nabalíme do něj vše, co není materializační bod)
@@ -115,8 +116,9 @@ public class FuseElementWiseRule implements OptimizationRule {
                     boolean containsBackward = cluster.stream().anyMatch(Tensor::isBackward);
 
                     // MAGIE: Zmutujeme aktuální uzel. Všechny reference zvenčí zůstanou zachovány!
-                    t.setOperation(FusedOperationFactory.create(cluster, t, externalInputs));
-                    t.setPrevTensors(externalInputs);
+                    FusedOperationFactory.Result fused = FusedOperationFactory.create(cluster, t, externalInputs);
+                    t.setOperation(fused.operation());
+                    t.setPrevTensors(fused.runtimeInputs());
                     if (containsBackward) {
                         t.setBackward(true);
                     }
@@ -134,7 +136,7 @@ public class FuseElementWiseRule implements OptimizationRule {
             }
         }
 
-        return optimizedGraph;
+        return OptimizerGraphSupport.rebuildTopologicalClosure(optimizedGraph);
     }
 
     /**
@@ -157,7 +159,7 @@ public class FuseElementWiseRule implements OptimizationRule {
                         // Tady se přesně děje ten "Recompute" u isCheap operací.
                         if (!materializationPoints.contains(prev)
                                 && prev.getOperation() != null
-                                && isElementWiseCandidate(prev.getOperation())
+                                && isFusedComputeCandidate(prev.getOperation())
                                 && prev.getOperation().opType() != Operation.OpType.FUSED
                                 && prev.isBackward() == curr.isBackward()) {
                             queue.add(prev);
@@ -228,10 +230,17 @@ public class FuseElementWiseRule implements OptimizationRule {
         return score >= config.scoreThreshold();
     }
 
-    private boolean isElementWiseCandidate(Operation op) {
-        return op != null
-                && op.opType() != null
-                && op.opType().category() == Operation.OpArityClass.ELEMENT_WISE
-                && op.opType().isFusable();
+    private boolean isFusedComputeCandidate(Operation op) {
+        if (op == null || op.opType() == null) {
+            return false;
+        }
+        return switch (op.opType()) {
+            case ADD, SUB, MUL, DIV, MIN, MAX,
+                    NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID,
+                    GT, GE, LT, LE, EQ, NE,
+                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
+                    WHERE -> true;
+            default -> false;
+        };
     }
 }

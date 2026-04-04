@@ -1,6 +1,7 @@
 package graph.codegen;
 
 import operations.Operation;
+import tensor.DataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -10,7 +11,8 @@ public record FusedNodePlan(
         Operation.OpType opType,
         List<Integer> inputRefs,
         int outputRef,
-        Object parameter
+        DataType outputType,
+        FusedNodeAttributes attributes
 ) {
     public FusedNodePlan {
         if (index < 0) {
@@ -18,6 +20,8 @@ public record FusedNodePlan(
         }
         Objects.requireNonNull(opType, "opType cannot be null");
         Objects.requireNonNull(inputRefs, "inputRefs cannot be null");
+        Objects.requireNonNull(outputType, "outputType cannot be null");
+        Objects.requireNonNull(attributes, "attributes cannot be null");
         inputRefs = List.copyOf(inputRefs);
 
         if (outputRef < 0) {

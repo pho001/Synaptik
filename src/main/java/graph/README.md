@@ -124,6 +124,15 @@ Important architectural point:
 - fused bytecode is generated from plan IR
 - `FusedOperation` is only a descriptor
 - runtime compiled executable is not stored back on the operation descriptor
+- fused compute algebra is intentionally narrow:
+  - unary/binary numeric ops
+  - compare ops
+  - logical ops
+  - `where`
+- layout/view transforms such as `select`, `permute`, `expand`, `reshape`, `expandDims`, `squeeze`
+  are not fused compute nodes
+  - they are absorbed into fused external input access metadata
+- indexing ops (`gather`, `takeAlongAxis`, `scatterAdd`), reductions, `matmul`, losses, and special grad kernels are fusion barriers
 
 ## Backward Graph Notes
 

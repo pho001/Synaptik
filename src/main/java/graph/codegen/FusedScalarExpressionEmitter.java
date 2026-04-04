@@ -1,5 +1,6 @@
 package graph.codegen;
 
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import utils.SlotKey;
 import utils.SlotManager;
@@ -11,15 +12,22 @@ public final class FusedScalarExpressionEmitter {
 
     public static void emitNodeEvaluationBytecode(
             MethodVisitor mv,
+            FusedExpressionPlan plan,
             FusedNodePlan current,
             int[] nodeValueSlots,
+            int[] nodeBoolSlots,
             SlotManager sm,
             int precisionMode,
             java.util.List<FusedExternalInputPlan> inputAccess
     ) {
+        if (current.opType() == operations.Operation.OpType.WHERE) {
+            emitWhereNode(mv, plan, current, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess);
+            return;
+        }
+
         for (int ref : current.inputRefs()) {
             FusedAsmSupport.loadScalarRef(
-                    mv, ref, nodeValueSlots, sm, precisionMode, inputAccess
+                    mv, ref, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess
             );
         }
 
@@ -108,7 +116,7 @@ public final class FusedScalarExpressionEmitter {
                 }
                 break;
             case POW:
-                FusedAsmSupport.handlePow(mv, current.parameter(), sm, precisionMode);
+                FusedAsmSupport.handlePow(mv, ((ScalarDoubleAttribute) current.attributes()).value(), sm, precisionMode);
                 break;
             case SQRT:
                 if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
@@ -120,7 +128,7 @@ public final class FusedScalarExpressionEmitter {
                 }
                 break;
             case MUL_SCALAR:
-                double scalar = ((Number) current.parameter()).doubleValue();
+                double scalar = ((ScalarDoubleAttribute) current.attributes()).value();
                 if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
                     mv.visitLdcInsn((float) scalar);
                     mv.visitInsn(FMUL);
@@ -163,8 +171,131 @@ public final class FusedScalarExpressionEmitter {
                 break;
             case NOOP:
                 break;
+            case GT:
+            case GE:
+            case LT:
+            case LE:
+            case EQ:
+            case NE:
+                emitCompareNode(mv, opType, precisionMode);
+                break;
+            case LOGICAL_AND:
+                mv.visitInsn(IAND);
+                break;
+            case LOGICAL_OR:
+                mv.visitInsn(IOR);
+                break;
+            case LOGICAL_NOT:
+                mv.visitInsn(ICONST_1);
+                mv.visitInsn(IXOR);
+                break;
             default:
                 throw new UnsupportedOperationException("Operation " + opType + " is not supported for fusing.");
         }
+    }
+
+    private static void emitWhereNode(
+            MethodVisitor mv,
+            FusedExpressionPlan plan,
+            FusedNodePlan current,
+            int[] nodeValueSlots,
+            int[] nodeBoolSlots,
+            SlotManager sm,
+            int precisionMode,
+            java.util.List<FusedExternalInputPlan> inputAccess
+    ) {
+        java.util.List<Integer> refs = current.inputRefs();
+        if (refs.size() != 3) {
+            throw new IllegalArgumentException("WHERE fused node expects exactly 3 inputs");
+        }
+        int condRef = refs.get(0);
+        int trueRef = refs.get(1);
+        int falseRef = refs.get(2);
+
+        loadBoolScalarRef(mv, condRef, plan, nodeBoolSlots, sm, inputAccess);
+        Label falseBranch = new Label();
+        Label done = new Label();
+        mv.visitJumpInsn(IFEQ, falseBranch);
+        FusedAsmSupport.loadScalarRef(mv, trueRef, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess);
+        mv.visitJumpInsn(GOTO, done);
+        mv.visitLabel(falseBranch);
+        FusedAsmSupport.loadScalarRef(mv, falseRef, plan, nodeValueSlots, nodeBoolSlots, sm, precisionMode, inputAccess);
+        mv.visitLabel(done);
+    }
+
+    private static void loadExternalBoolScalarRef(
+            MethodVisitor mv,
+            int ref,
+            SlotManager sm,
+            java.util.List<FusedExternalInputPlan> inputPlans
+    ) {
+        int inputSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS).get(ref);
+        mv.visitVarInsn(ALOAD, inputSlot);
+        FusedExternalInputPlan meta = inputPlans.get(ref);
+        if (meta.isLinearAccess()) {
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+            if (meta.storageOffset() != 0) {
+                mv.visitLdcInsn(meta.storageOffset());
+                mv.visitInsn(IADD);
+            }
+        } else {
+            mv.visitVarInsn(ALOAD, sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS).get(ref));
+            mv.visitMethodInsn(INVOKEVIRTUAL, "graph/codegen/FusedBroadcastCursor", "idx", "()I", false);
+        }
+        mv.visitInsn(BALOAD);
+    }
+
+    private static void loadBoolScalarRef(
+            MethodVisitor mv,
+            int ref,
+            FusedExpressionPlan plan,
+            int[] nodeBoolSlots,
+            SlotManager sm,
+            java.util.List<FusedExternalInputPlan> inputPlans
+    ) {
+        if (ref < inputPlans.size()) {
+            FusedExternalInputPlan condMeta = inputPlans.get(ref);
+            if (condMeta.dataType() != tensor.DataType.BOOL) {
+                throw new UnsupportedOperationException("Fused bool ref must use BOOL external input.");
+            }
+            loadExternalBoolScalarRef(mv, ref, sm, inputPlans);
+            return;
+        }
+        int nodeIndex = ref - inputPlans.size();
+        if (nodeIndex < 0 || nodeIndex >= plan.nodeCount()) {
+            throw new IllegalArgumentException("Invalid fused bool scalar ref " + ref);
+        }
+        if (plan.nodes().get(nodeIndex).outputType() != tensor.DataType.BOOL) {
+            throw new IllegalArgumentException("Requested bool scalar ref for non-BOOL fused node " + ref);
+        }
+        FusedAsmSupport.emitBoolScalarLoadInsn(mv, nodeBoolSlots[nodeIndex]);
+    }
+
+    private static void emitCompareNode(
+            MethodVisitor mv,
+            operations.Operation.OpType opType,
+            int precisionMode
+    ) {
+        Label trueLabel = new Label();
+        Label endLabel = new Label();
+        if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
+            mv.visitInsn(FCMPL);
+        } else {
+            mv.visitInsn(DCMPL);
+        }
+        switch (opType) {
+            case GT -> mv.visitJumpInsn(IFGT, trueLabel);
+            case GE -> mv.visitJumpInsn(IFGE, trueLabel);
+            case LT -> mv.visitJumpInsn(IFLT, trueLabel);
+            case LE -> mv.visitJumpInsn(IFLE, trueLabel);
+            case EQ -> mv.visitJumpInsn(IFEQ, trueLabel);
+            case NE -> mv.visitJumpInsn(IFNE, trueLabel);
+            default -> throw new IllegalArgumentException("Unsupported compare op " + opType);
+        }
+        mv.visitInsn(ICONST_0);
+        mv.visitJumpInsn(GOTO, endLabel);
+        mv.visitLabel(trueLabel);
+        mv.visitInsn(ICONST_1);
+        mv.visitLabel(endLabel);
     }
 }

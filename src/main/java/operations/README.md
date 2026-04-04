@@ -527,7 +527,37 @@ Depending on the op, you may also need:
 
 ### 8. Decide if the op is fusable
 
-If the op is element-wise and should participate in fusion:
+If the op should participate in fusion, first ask which kind of thing it is.
+
+Fused compute algebra currently accepts:
+
+- unary numeric ops
+- binary numeric ops
+- compare ops
+- logical ops
+- `where`
+
+It intentionally does **not** accept:
+
+- layout/view transforms as fused compute nodes
+- indexing ops
+- reductions
+- `matmul`
+- losses
+- special grad kernels
+
+Layout/view transforms such as:
+
+- `select`
+- `reshape`
+- `expand`
+- `permute`
+- `expandDims`
+- `squeeze`
+
+are handled as fused external input access metadata, not as fused compute nodes.
+
+So if the op belongs to fused compute algebra:
 
 1. mark it correctly in `Operation.OpType`
 2. ensure fusion rules accept it

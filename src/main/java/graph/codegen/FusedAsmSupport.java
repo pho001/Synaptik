@@ -2,6 +2,7 @@ package graph.codegen;
 
 import graph.codegen.FusedDTypeOps;
 import org.objectweb.asm.MethodVisitor;
+import tensor.DataType;
 import tensor.Tensor;
 import utils.SlotKey;
 import utils.SlotManager;
@@ -94,6 +95,7 @@ final class FusedAsmSupport {
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.FUSED_NODE_VALUES, nodeCount);
+        sm.defineGroup(SlotKey.FUSED_NODE_BOOL_VALUES, nodeCount);
         sm.define(SlotKey.TMP_REGISTER);
         return sm;
     }
@@ -116,13 +118,13 @@ final class FusedAsmSupport {
         return sm;
     }
 
-    static void emitGetRawArrayFromTensorCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F32) {
-            mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat32Data", "()[F", false);
-        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
-            mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat64Data", "()[D", false);
-        } else {
-            mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat16Data", "()[S", false);
+    static void emitGetRawArrayFromTensorCall(MethodVisitor mv, DataType dataType) {
+        switch (dataType) {
+            case FLOAT32 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat32Data", "()[F", false);
+            case FLOAT64 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat64Data", "()[D", false);
+            case FLOAT16 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat16Data", "()[S", false);
+            case BOOL -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getBoolData", "()[B", false);
+            case INT32 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getInt32Data", "()[I", false);
         }
     }
 
@@ -139,6 +141,16 @@ final class FusedAsmSupport {
             mv.visitMethodInsn(INVOKESTATIC, "jdk/incubator/vector/DoubleVector", "fromArray", "(Ljdk/incubator/vector/VectorSpecies;[DI)Ljdk/incubator/vector/DoubleVector;", false);
         } else {
             mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedStorageOps", "loadVectorF16Array", "([SI)Ljava/lang/Object;", false);
+        }
+    }
+
+    static void emitLoadBoolVectorFromArrayCall(MethodVisitor mv, int precisionMode) {
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedStorageOps", "loadMaskF32Array", "([BI)Ljava/lang/Object;", false);
+        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedStorageOps", "loadMaskF64Array", "([BI)Ljava/lang/Object;", false);
+        } else {
+            throw new UnsupportedOperationException("BOOL vector loads are supported only for F32/F64 fused modes.");
         }
     }
 
@@ -164,6 +176,28 @@ final class FusedAsmSupport {
         }
     }
 
+    static void emitLoadBoolVectorFromCursorCall(MethodVisitor mv, int precisionMode) {
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "graph/codegen/FusedBroadcastVectorOps",
+                    "loadMaskF32",
+                    "(Lgraph/codegen/FusedBroadcastCursor;[B)Ljava/lang/Object;",
+                    false
+            );
+        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "graph/codegen/FusedBroadcastVectorOps",
+                    "loadMaskF64",
+                    "(Lgraph/codegen/FusedBroadcastCursor;[B)Ljava/lang/Object;",
+                    false
+            );
+        } else {
+            throw new UnsupportedOperationException("BOOL vector cursor loads are supported only for F32/F64 fused modes.");
+        }
+    }
+
     static void emitStoreVectorToArrayCall(MethodVisitor mv, int precisionMode) {
         if (precisionMode == FusedDTypeOps.MODE_F32) {
             mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/FloatVector");
@@ -177,6 +211,16 @@ final class FusedAsmSupport {
             mv.visitMethodInsn(INVOKEVIRTUAL, "jdk/incubator/vector/DoubleVector", "intoArray", "([DI)V", false);
         } else {
             mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedStorageOps", "storeVectorF16Array", "([SILjava/lang/Object;)V", false);
+        }
+    }
+
+    static void emitStoreBoolVectorToArrayCall(MethodVisitor mv, int precisionMode) {
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedStorageOps", "storeMaskF32Array", "([BILjava/lang/Object;)V", false);
+        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedStorageOps", "storeMaskF64Array", "([BILjava/lang/Object;)V", false);
+        } else {
+            throw new UnsupportedOperationException("BOOL vector stores are supported only for F32/F64 fused modes.");
         }
     }
 
@@ -281,8 +325,16 @@ final class FusedAsmSupport {
         mv.visitVarInsn(precisionMode == FusedDTypeOps.MODE_F32 ? FLOAD : DLOAD, slot);
     }
 
+    static void emitBoolScalarLoadInsn(MethodVisitor mv, int slot) {
+        mv.visitVarInsn(ILOAD, slot);
+    }
+
     static void emitScalarStoreInsn(MethodVisitor mv, int slot, int precisionMode) {
         mv.visitVarInsn(precisionMode == FusedDTypeOps.MODE_F32 ? FSTORE : DSTORE, slot);
+    }
+
+    static void emitBoolScalarStoreInsn(MethodVisitor mv, int slot) {
+        mv.visitVarInsn(ISTORE, slot);
     }
 
     static void emitScalarArrayLoadInsn(MethodVisitor mv, int precisionMode) {
@@ -304,8 +356,7 @@ final class FusedAsmSupport {
         }
     }
 
-    static void handlePow(MethodVisitor mv, Object parameter, SlotManager sm, int precisionMode) {
-        double exponentValue = ((Number) parameter).doubleValue();
+    static void handlePow(MethodVisitor mv, double exponentValue, SlotManager sm, int precisionMode) {
         if (precisionMode == FusedDTypeOps.MODE_F32) {
             float exponent = (float) exponentValue;
 
@@ -372,7 +423,9 @@ final class FusedAsmSupport {
     static void loadScalarRef(
             MethodVisitor mv,
             int ref,
+            FusedExpressionPlan plan,
             int[] nodeValueSlots,
+            int[] nodeBoolSlots,
             SlotManager sm,
             int precisionMode,
             java.util.List<FusedExternalInputPlan> inputPlans
@@ -381,8 +434,12 @@ final class FusedAsmSupport {
             int inputSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS).get(ref);
             mv.visitVarInsn(ALOAD, inputSlot);
             FusedExternalInputPlan meta = inputPlans.get(ref);
-            if (meta.directIndex()) {
+            if (meta.isLinearAccess()) {
                 mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+                if (meta.storageOffset() != 0) {
+                    mv.visitLdcInsn(meta.storageOffset());
+                    mv.visitInsn(IADD);
+                }
             } else {
                 mv.visitVarInsn(ALOAD, sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS).get(ref));
                 mv.visitMethodInsn(INVOKEVIRTUAL, "graph/codegen/FusedBroadcastCursor", "idx", "()I", false);
@@ -392,8 +449,12 @@ final class FusedAsmSupport {
         }
 
         int nodeIndex = ref - inputPlans.size();
-        if (nodeIndex < 0 || nodeIndex >= nodeValueSlots.length) {
+        if (nodeIndex < 0 || nodeIndex >= plan.nodeCount()) {
             throw new IllegalArgumentException("Invalid fused scalar ref " + ref);
+        }
+        if (plan.nodes().get(nodeIndex).outputType() == tensor.DataType.BOOL) {
+            emitBoolScalarLoadInsn(mv, nodeBoolSlots[nodeIndex]);
+            return;
         }
         emitScalarLoadInsn(mv, nodeValueSlots[nodeIndex], precisionMode);
     }
@@ -401,8 +462,10 @@ final class FusedAsmSupport {
     static void loadVectorRef(
             MethodVisitor mv,
             int ref,
+            FusedExpressionPlan plan,
             int[] nodeVectorSlots,
-            SlotManager sm
+            SlotManager sm,
+            int precisionMode
     ) {
         if (ref < sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS).size()) {
             int cachedSlot = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS).get(ref);
@@ -415,5 +478,12 @@ final class FusedAsmSupport {
             throw new IllegalArgumentException("Invalid fused vector ref " + ref);
         }
         mv.visitVarInsn(ALOAD, nodeVectorSlots[nodeIndex]);
+        if (plan.nodes().get(nodeIndex).outputType() != tensor.DataType.BOOL) {
+            if (precisionMode == FusedDTypeOps.MODE_F32) {
+                mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/FloatVector");
+            } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+                mv.visitTypeInsn(CHECKCAST, "jdk/incubator/vector/DoubleVector");
+            }
+        }
     }
 }

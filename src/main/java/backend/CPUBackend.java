@@ -13,7 +13,9 @@ import backend.kernels.cpu.ResolvedWhereBroadcastPlan;
 import backend.runtime.BlasConfig;
 import backend.runtime.ExecutionContext;
 import graph.execution.CompiledNodeExecutionMetadata;
+import graph.codegen.FusedExternalInputPlan;
 import operations.Operation;
+import operations.FusedOperation;
 import tensor.BroadcastPlan;
 import tensor.BroadcastPlanner;
 import tensor.DataType;
@@ -421,11 +423,28 @@ public final class CPUBackend {
             case TAKE_ALONG_AXIS -> resolveTakeAlongAxisContract(inputs);
             case TAKE_ALONG_AXIS_GRAD -> resolveTakeAlongAxisGradContract(inputs);
             case SCATTER_ADD -> resolveScatterAddContract(inputs);
+            case FUSED -> resolveFusedContract(op, inputs);
             default -> {
                 DataType outputType = resolveTargetType(node, inputs);
                 yield uniformTypeContract(outputType, inputs == null ? 0 : inputs.size());
             }
         };
+    }
+
+    private static PreparedTypeContract resolveFusedContract(Operation op, List<Tensor> inputs) {
+        if (!(op instanceof FusedOperation fused)) {
+            throw new IllegalArgumentException("FUSED contract resolution requires FusedOperation descriptor.");
+        }
+        List<FusedExternalInputPlan> inputPlans = fused.getPlan().inputs();
+        if (inputs == null || inputs.size() != inputPlans.size()) {
+            throw new IllegalArgumentException("FUSED input contract size mismatch.");
+        }
+        java.util.List<DataType> expectedInputTypes = new java.util.ArrayList<>(inputPlans.size());
+        for (FusedExternalInputPlan inputPlan : inputPlans) {
+            expectedInputTypes.add(inputPlan.dataType());
+        }
+        DataType outputType = fused.getPlan().outputNode().outputType();
+        return new PreparedTypeContract(outputType, java.util.List.copyOf(expectedInputTypes));
     }
 
     private static PreparedTypeContract uniformTypeContract(DataType outputType, int arity) {

@@ -3,10 +3,11 @@ package graph.codegen;
 import operations.Operation;
 import operations.mulScalar;
 import operations.pow;
-import operations.sum;
 import tensor.Tensor;
+import tensor.DataType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
@@ -68,7 +69,8 @@ public final class FusedPlanBuilder {
                     operation.opType(),
                     inputRefs,
                     outputRef,
-                    extractParameter(operation)
+                    tensor.getDataType(),
+                    extractAttributes(operation)
             ));
         }
 
@@ -84,17 +86,17 @@ public final class FusedPlanBuilder {
         );
     }
 
-    private static Object extractParameter(Operation operation) {
+    private static FusedNodeAttributes extractAttributes(Operation operation) {
         if (operation instanceof pow p) {
-            return p.getExponent();
+            return new ScalarDoubleAttribute(p.getExponent());
         }
         if (operation instanceof mulScalar m) {
-            return m.getScalar();
+            return new ScalarDoubleAttribute(m.getScalar());
         }
-        if (operation instanceof sum s) {
-            return s.getDimension();
+        if (operation.opType() == Operation.OpType.WHERE) {
+            return new WhereAttributes();
         }
-        return null;
+        return NoAttributes.INSTANCE;
     }
 
     private static Snapshot snapshotCluster(List<Tensor> cluster, Tensor root) {
@@ -138,19 +140,49 @@ public final class FusedPlanBuilder {
 
     private static List<FusedExternalInputPlan> buildInputPlans(List<Tensor> externalInputs, Tensor outputTensor) {
         int[] outShape = outputTensor.getShape();
-        int[] outStrides = tensor.TensorMetadata.computeStrides(outShape);
+        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         List<FusedExternalInputPlan> plans = new ArrayList<>(externalInputs.size());
         for (int i = 0; i < externalInputs.size(); i++) {
             Tensor input = externalInputs.get(i);
-            tensor.BroadcastPlan plan = tensor.BroadcastPlanner.plan(input.getShape(), input.getStrides(), outShape, outStrides);
+            tensor.BroadcastPlan plan = tensor.BroadcastPlanner.plan(input.getShape(), input.getStrides(), outShape, outDenseStrides);
             if (!java.util.Arrays.equals(plan.outShape(), outShape)) {
                 throw new IllegalArgumentException("Fused broadcast shape mismatch for external input");
             }
             int[] eff = plan.aEffStrides();
-            boolean direct = java.util.Arrays.equals(eff, outStrides);
-            plans.add(new FusedExternalInputPlan(i, direct, outShape, outStrides, eff));
+            plans.add(new FusedExternalInputPlan(
+                    i,
+                    input.getDataType(),
+                    outShape,
+                    outDenseStrides,
+                    input.getStorageOffsetUnsafe(),
+                    eff,
+                    classifyAccessKind(eff, outDenseStrides, input.getStorageOffsetUnsafe())
+            ));
         }
         return java.util.List.copyOf(plans);
+    }
+
+    private static FusedAccessKind classifyAccessKind(int[] effectiveStrides, int[] denseStrides, int storageOffset) {
+        boolean broadcast = false;
+        for (int stride : effectiveStrides) {
+            if (stride == 0) {
+                broadcast = true;
+                break;
+            }
+        }
+        if (broadcast) {
+            return FusedAccessKind.BROADCAST_STRIDED;
+        }
+        if (storageOffset != 0) {
+            if (Arrays.equals(effectiveStrides, denseStrides)) {
+                return FusedAccessKind.OFFSET_CONTIGUOUS;
+            }
+            return FusedAccessKind.OFFSET_STRIDED;
+        }
+        if (Arrays.equals(effectiveStrides, denseStrides)) {
+            return FusedAccessKind.DIRECT_CONTIGUOUS;
+        }
+        return FusedAccessKind.DIRECT_STRIDED;
     }
 
     private record Snapshot(List<Tensor> cluster, Tensor root) {}

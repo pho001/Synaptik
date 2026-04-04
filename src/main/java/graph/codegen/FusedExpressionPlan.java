@@ -33,4 +33,12 @@ public record FusedExpressionPlan(
     public int totalValueCount() {
         return inputs.size() + nodes.size();
     }
+
+    public FusedNodePlan outputNode() {
+        int nodeIndex = outputRef - inputs.size();
+        if (nodeIndex < 0 || nodeIndex >= nodes.size()) {
+            throw new IllegalStateException("outputRef does not point to a fused node");
+        }
+        return nodes.get(nodeIndex);
+    }
 }

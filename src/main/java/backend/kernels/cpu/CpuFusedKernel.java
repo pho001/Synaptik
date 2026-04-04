@@ -97,6 +97,11 @@ public class CpuFusedKernel implements CpuKernel {
         forwardF64(op, inputs, node, context);
     }
 
+    @Override
+    public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        forwardF64(op, inputs, node, context);
+    }
+
     private static void runParallel(
             CompiledFusedKernel ranged,
             List<Tensor> inputs,
