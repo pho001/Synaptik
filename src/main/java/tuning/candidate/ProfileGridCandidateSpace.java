@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public final class ProfileGridCandidateSpace implements CandidateSpace {
+public final class ProfileGridCandidateSpace implements RefinableCandidateSpace {
     private final ExecutionProfile baseProfile;
     private final List<ExecutionProfileMutator> mutators;
 
@@ -59,5 +59,30 @@ public final class ProfileGridCandidateSpace implements CandidateSpace {
             out.add(new Candidate(variant.suffix(), variant.profile()));
         }
         return List.copyOf(out);
+    }
+
+    @Override
+    public List<Candidate> neighbors(Candidate candidate, WorkloadSpec workload) {
+        Objects.requireNonNull(candidate, "candidate cannot be null");
+        Objects.requireNonNull(workload, "workload cannot be null");
+        List<Candidate> neighbors = new ArrayList<>();
+        String self = CandidateFingerprint.of(candidate);
+        java.util.LinkedHashMap<String, Candidate> dedup = new java.util.LinkedHashMap<>();
+        for (ExecutionProfileMutator mutator : mutators) {
+            List<ExecutionProfileVariant> variants = mutator.variants(candidate.profile(), workload);
+            if (variants == null) {
+                continue;
+            }
+            for (ExecutionProfileVariant variant : variants) {
+                Candidate next = new Candidate(variant.suffix(), variant.profile());
+                String fp = CandidateFingerprint.of(next);
+                if (self.equals(fp)) {
+                    continue;
+                }
+                dedup.putIfAbsent(fp, next);
+            }
+        }
+        neighbors.addAll(dedup.values());
+        return List.copyOf(neighbors);
     }
 }

@@ -1,0 +1,112 @@
+package tuning.candidate;
+
+import config.profile.ExecutionProfile;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Locale;
+
+public final class CandidateFingerprint {
+    private CandidateFingerprint() {
+    }
+
+    public static String of(Candidate candidate) {
+        if (candidate == null) {
+            throw new IllegalArgumentException("candidate cannot be null");
+        }
+        return sha256(canonicalSpec(candidate.profile()));
+    }
+
+    public static String of(ExecutionProfile profile) {
+        if (profile == null) {
+            throw new IllegalArgumentException("profile cannot be null");
+        }
+        return sha256(canonicalSpec(profile));
+    }
+
+    private static String canonicalSpec(ExecutionProfile profile) {
+        StringBuilder sb = new StringBuilder(1024);
+        sb.append("profileName=").append(profile.profileName()).append('|');
+        sb.append("candidateName=").append(profile.candidateName()).append('|');
+        sb.append("dataType=").append(profile.dataType().name()).append('|');
+        sb.append("mode=").append(profile.mode().name()).append('|');
+
+        var optimizer = profile.optimizer();
+        sb.append("stageOrder=");
+        for (var stage : optimizer.stageOrder()) {
+            sb.append(stage.name()).append(',');
+        }
+        sb.append('|');
+        sb.append("conv2dLowering=").append(optimizer.rewrite().conv2dLowering().mode().name()).append('|');
+        sb.append("cse.strict=").append(optimizer.cse().strictSafety()).append('|');
+        sb.append("fuse.maxClusterNodes=").append(optimizer.fuse().maxClusterNodes()).append('|');
+        sb.append("fuse.scoreThreshold=").append(fmt(optimizer.fuse().scoreThreshold())).append('|');
+        sb.append("fuse.internalEdgeBonus=").append(fmt(optimizer.fuse().internalEdgeBonus())).append('|');
+        sb.append("fuse.externalInputPenalty=").append(fmt(optimizer.fuse().externalInputPenalty())).append('|');
+        sb.append("fuse.sharedExpensivePenalty=").append(fmt(optimizer.fuse().sharedExpensivePenalty())).append('|');
+        sb.append("fuse.nonCheapBonus=").append(fmt(optimizer.fuse().nonCheapBonus())).append('|');
+        sb.append("fuse.preserveSharedExpensiveNodes=").append(optimizer.fuse().preserveSharedExpensiveNodes()).append('|');
+        sb.append("memory.separatePools=").append(optimizer.memory().separateForwardBackwardPools()).append('|');
+        sb.append("memory.crossPhase=").append(optimizer.memory().allowCrossPhaseReuse()).append('|');
+        sb.append("memory.allowLarger=").append(optimizer.memory().allowLargerBufferReuse()).append('|');
+        sb.append("memory.minReusable=").append(optimizer.memory().minReusableBufferSize()).append('|');
+
+        var runtime = profile.runtime();
+        var cpu = runtime.kernel().cpu();
+        sb.append("cpu.unroll=").append(cpu.loopUnrollFactor()).append('|');
+        sb.append("cpu.tileM=").append(cpu.matMulTileM()).append('|');
+        sb.append("cpu.tileN=").append(cpu.matMulTileN()).append('|');
+        sb.append("cpu.tileK=").append(cpu.matMulTileK()).append('|');
+        sb.append("cpu.vectorMin=").append(cpu.vectorMinSize()).append('|');
+        sb.append("cpu.parallelMin=").append(cpu.parallelMinSize()).append('|');
+        sb.append("cpu.matmulParallelMin=").append(cpu.matMulParallelMinSize()).append('|');
+        sb.append("cpu.parallelism=").append(cpu.parallelism()).append('|');
+        sb.append("cpu.chunksPerWorker=").append(cpu.chunksPerWorker()).append('|');
+        sb.append("cpu.minChunkSize=").append(cpu.minChunkSize()).append('|');
+        sb.append("cpu.contiguousThreshold=").append(cpu.contiguousMaterializeThreshold()).append('|');
+        sb.append("cpu.sumAccuracy=").append(cpu.sumAccuracyMode()).append('|');
+        sb.append("cpu.lowCost=").append(fmt(cpu.lowCostNsPerElementThreshold())).append('|');
+        sb.append("cpu.vecCheap=").append(cpu.vectorPolicyCheap()).append('|');
+        sb.append("cpu.vecTrans=").append(cpu.vectorPolicyTranscendental()).append('|');
+        sb.append("cpu.vecRed=").append(cpu.vectorPolicyReduction()).append('|');
+        sb.append("cpu.attnMatMul=").append(cpu.attentionMatMulPolicy()).append('|');
+        sb.append("approx.mode=").append(runtime.approximation().approxMode()).append('|');
+        sb.append("approx.forceExact=").append(runtime.approximation().forceExactTranscendentals()).append('|');
+        sb.append("blas.provider=").append(runtime.blas().provider()).append('|');
+        sb.append("blas.minWork=").append(runtime.blas().matmulMinWork()).append('|');
+        sb.append("blas.f32Req=").append(runtime.blas().f32RequireMgeK()).append('|');
+        sb.append("blas.f32MaxNOverK=").append(fmt(runtime.blas().f32MaxNOverK())).append('|');
+        sb.append("blas.threadPolicy=").append(runtime.blas().threadPolicy()).append('|');
+        sb.append("blas.threads=").append(runtime.blas().threads()).append('|');
+
+        var workload = profile.workload();
+        sb.append("workload.kind=").append(workload.kind()).append('|');
+        sb.append("workload.batch=").append(workload.batch()).append('|');
+        sb.append("workload.heads=").append(workload.heads()).append('|');
+        sb.append("workload.seqLen=").append(workload.seqLen()).append('|');
+        sb.append("workload.headDim=").append(workload.headDim()).append('|');
+        sb.append("workload.valueDim=").append(workload.valueDim()).append('|');
+        sb.append("workload.ffHiddenDim=").append(workload.ffHiddenDim()).append('|');
+        sb.append("workload.causal=").append(workload.causal()).append('|');
+        return sb.toString();
+    }
+
+    private static String fmt(double v) {
+        return String.format(Locale.US, "%.12f", v);
+    }
+
+    private static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+}

@@ -21,8 +21,10 @@ import tuning.workload.WorkloadInstance;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 final class DefaultAutotuneSession implements AutotuneSession {
     private final AutotuneRequest request;
@@ -50,10 +52,48 @@ final class DefaultAutotuneSession implements AutotuneSession {
 
     @Override
     public TuningResult run() {
-        SearchResult search = searchStrategy.search(new SearchContext(request, request.candidateSpace()));
         List<BenchmarkCandidateReport> evaluated = new ArrayList<>();
+        SearchContext context = new SearchContext(request, request.candidateSpace());
+        SearchResult initial = searchStrategy.search(context);
+        Set<String> seenFingerprints = new HashSet<>();
 
-        for (Candidate candidate : search.selectedCandidates()) {
+        evaluateCandidates(initial.selectedCandidates(), evaluated, seenFingerprints);
+
+        if (searchStrategy.supportsRefinement()) {
+            for (int round = 1; round < request.search().maxRounds(); round++) {
+                SearchResult refined = searchStrategy.refine(context, evaluated, round, seenFingerprints);
+                if (refined.selectedCandidates().isEmpty()) {
+                    break;
+                }
+                evaluateCandidates(refined.selectedCandidates(), evaluated, seenFingerprints);
+            }
+        }
+
+        List<BenchmarkCandidateReport> finalists = evaluated.stream()
+                .filter(BenchmarkCandidateReport::success)
+                .filter(report -> report.measurement() != null)
+                .sorted(Comparator.comparingDouble(report -> report.measurement().steadyStateStats().medianMs()))
+                .limit(Math.max(1, request.search().beamWidth()))
+                .toList();
+
+        ExecutionProfile bestProfile = finalists.isEmpty() ? null : finalists.getFirst().candidate().profile();
+        String summary = "evaluated=" + evaluated.size()
+                + ", valid=" + finalists.size()
+                + ", selected=" + seenFingerprints.size();
+        boolean persisted = persist(bestProfile, finalists, summary);
+        return new TuningResult(bestProfile, finalists, summary, persisted);
+    }
+
+    private void evaluateCandidates(
+            List<Candidate> candidates,
+            List<BenchmarkCandidateReport> evaluated,
+            Set<String> seenFingerprints
+    ) {
+        for (Candidate candidate : candidates) {
+            String fp = tuning.candidate.CandidateFingerprint.of(candidate);
+            if (!seenFingerprints.add(fp)) {
+                continue;
+            }
             try {
                 WorkloadInstance workload = request.workload().instantiate(new WorkloadEnvironment(candidate.profile()));
                 ValidationResult validation = validationEngine.validate(candidate, request.workload(), workload, request.validation());
@@ -71,20 +111,6 @@ final class DefaultAutotuneSession implements AutotuneSession {
                 ));
             }
         }
-
-        List<BenchmarkCandidateReport> finalists = evaluated.stream()
-                .filter(BenchmarkCandidateReport::success)
-                .filter(report -> report.measurement() != null)
-                .sorted(Comparator.comparingDouble(report -> report.measurement().steadyStateStats().medianMs()))
-                .limit(Math.max(1, request.search().beamWidth()))
-                .toList();
-
-        ExecutionProfile bestProfile = finalists.isEmpty() ? null : finalists.getFirst().candidate().profile();
-        String summary = "evaluated=" + evaluated.size()
-                + ", valid=" + finalists.size()
-                + ", selected=" + search.selectedCandidates().size();
-        boolean persisted = persist(bestProfile, finalists, summary);
-        return new TuningResult(bestProfile, finalists, summary, persisted);
     }
 
     private boolean persist(
