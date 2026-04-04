@@ -50,4 +50,39 @@ public class MatMulTest {
         Tensor b = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{3, 2}, null, "b", DataType.FLOAT64);
         assertThrows(IllegalArgumentException.class, () -> a.matmul(b));
     }
+
+    @Test
+    void batchedMatMulForwardFloat64() {
+        Tensor a = new Tensor(new double[]{
+                1, 2, 3, 4,
+                5, 6, 7, 8
+        }, new int[]{2, 2, 2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{
+                1, 2,
+                3, 4
+        }, new int[]{2, 2, 1}, null, "b", DataType.FLOAT64);
+
+        Tensor out = a.matmul(b);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 2, 1}, out.getShape());
+        assertArrayEquals(new double[]{5, 11, 39, 53}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void batchedMatMulBroadcastBatchDimensions() {
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{1, 2, 2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{
+                1, 2,
+                3, 4
+        }, new int[]{2, 2, 1}, null, "b", DataType.FLOAT64);
+
+        Tensor out = a.matmul(b);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 2, 1}, out.getShape());
+        assertArrayEquals(new double[]{5, 11, 11, 25}, out.toDoubleArrayCopy(), 1e-9);
+    }
 }

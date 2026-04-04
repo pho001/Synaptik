@@ -877,6 +877,14 @@ public class Tensor {
         return TensorOps.avgPool2d(this, options);
     }
 
+    public Tensor scaledDotProductAttention(Tensor key, Tensor value, AttentionOptions options) {
+        return TensorOps.scaledDotProductAttention(this, key, value, options);
+    }
+
+    public Tensor scaledDotProductAttention(Tensor key, Tensor value, Tensor mask, AttentionOptions options) {
+        return TensorOps.scaledDotProductAttention(this, key, value, mask, options);
+    }
+
     public Tensor neg (){
         return TensorOps.neg(this);
 

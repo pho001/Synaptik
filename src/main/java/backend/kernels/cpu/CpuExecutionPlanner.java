@@ -205,17 +205,22 @@ public final class CpuExecutionPlanner {
 
         int[] as = a.getShapeUnsafe();
         int[] bs = b.getShapeUnsafe();
-        if (as.length != 2 || bs.length != 2) {
-            throw new IllegalArgumentException("MatMul expects rank-2 tensors.");
+        if (as.length < 2 || bs.length < 2) {
+            throw new IllegalArgumentException("MatMul expects rank >= 2 tensors.");
         }
 
-        int m = as[0];
-        int k = as[1];
-        int n = bs[1];
-        long work = (long) m * n * k;
+        int m = as[as.length - 2];
+        int k = as[as.length - 1];
+        int n = bs[bs.length - 1];
+        long batchCount = 1L;
+        int outRank = out.getShapeUnsafe().length;
+        for (int i = 0; i < outRank - 2; i++) {
+            batchCount *= out.getShapeUnsafe()[i];
+        }
+        long work = batchCount * m * n * k;
 
         boolean parallel = work >= matMulParallelMinSize && plannedWorkers() > 1;
-        boolean useBlas = shouldUseBlas(a, b, out, m, n, k, blasConfig);
+        boolean useBlas = as.length == 2 && bs.length == 2 && shouldUseBlas(a, b, out, m, n, k, blasConfig);
 
         return new ResolvedMatMulHints(
                 useBlas,

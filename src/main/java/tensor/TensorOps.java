@@ -139,6 +139,14 @@ public final class TensorOps {
         return TensorPoolOps.avgPool2d(input, options);
     }
 
+    public static Tensor scaledDotProductAttention(Tensor query, Tensor key, Tensor value, AttentionOptions options) {
+        return TensorAttentionOps.scaledDotProductAttention(query, key, value, options);
+    }
+
+    public static Tensor scaledDotProductAttention(Tensor query, Tensor key, Tensor value, Tensor mask, AttentionOptions options) {
+        return TensorAttentionOps.scaledDotProductAttention(query, key, value, mask, options);
+    }
+
     public static Tensor neg(Tensor input) {
         return TensorUnaryOps.neg(input);
     }

@@ -214,6 +214,8 @@ These should stay as derived tensor helpers unless a strong runtime reason appea
   - `batchNorm(...)`
   - `layerNorm(...)`
   - `rmsNorm(...)`
+- attention surface:
+  - `scaledDotProductAttention(...)`
 - future piecewise helpers such as:
   - `step`
   - `isPositive`
@@ -226,6 +228,7 @@ Reasoning:
 
 - they are naturally expressed through compare/select algebra
 - current normalization surfaces are naturally expressed through reduction + affine algebra
+- current attention surface is naturally expressed through batched matmul + masking + softmax
 - they do not currently require their own backend/planner contract
 - keeping them derived prevents primitive-set bloat
 

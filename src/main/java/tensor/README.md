@@ -125,6 +125,11 @@ The current public graph-building operation surface on `Tensor` is:
 - `logicalOr(Tensor second)`
 - `logicalNot()`
 
+### Attention
+
+- `scaledDotProductAttention(Tensor key, Tensor value, AttentionOptions options)`
+- `scaledDotProductAttention(Tensor key, Tensor value, Tensor mask, AttentionOptions options)`
+
 ### Spatial
 
 - `conv2d(Tensor weight, Conv2dOptions options)`
@@ -559,6 +564,42 @@ Shape contracts:
   - that shape must equal the trailing normalized input block
 - RMS norm:
   - `gamma.shape` must equal the trailing normalized input block
+
+## Attention Contract
+
+Current attention surface is intentionally composition-first.
+
+Supported surface:
+
+- `scaledDotProductAttention(key, value, options)`
+- `scaledDotProductAttention(key, value, mask, options)`
+
+Current tensor contract:
+
+- query is the receiver tensor with shape `[..., queryLen, headDim]`
+- key has shape `[..., keyLen, headDim]`
+- value has shape `[..., keyLen, valueDim]`
+- output has shape `[..., queryLen, valueDim]`
+- leading dimensions follow batched `matmul` broadcasting rules
+
+Mask contract:
+
+- external mask must be `BOOL`
+- mask must be broadcastable to score shape `[..., queryLen, keyLen]`
+- `true` means the score is kept
+- `false` means the score is suppressed before softmax
+- causal masking can be enabled through `AttentionOptions`
+
+Architectural note:
+
+- attention is not a dedicated backend primitive yet
+- current implementation is pure graph composition over:
+  - batched `matmul`
+  - scaling
+  - `where`
+  - `softmax`
+  - batched `matmul`
+- this keeps the public API clean while postponing fused/specialized lowering until profiling justifies it
 
 `nllLossFromIndices(targetIndices, classDimension)` is the first index-target loss surface:
 

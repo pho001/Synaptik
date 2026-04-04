@@ -40,6 +40,9 @@ The focus here is practical API usage:
   - [`min(Tensor second)`](#mintensor-second)
   - [`max(Tensor second)`](#maxtensor-second)
   - [`matmul(Tensor second)`](#matmultensor-second)
+- [Attention Operations](#attention-operations)
+  - [`scaledDotProductAttention(Tensor key, Tensor value, AttentionOptions options)`](#scaleddotproductattentiontensor-key-tensor-value-attentionoptions-options)
+  - [`scaledDotProductAttention(Tensor key, Tensor value, Tensor mask, AttentionOptions options)`](#scaleddotproductattentiontensor-key-tensor-value-tensor-mask-attentionoptions-options)
 - [Spatial Operations](#spatial-operations)
   - [`conv2d(Tensor weight, Conv2dOptions options)`](#conv2dtensor-weight-conv2doptions-options)
   - [`conv2d(Tensor weight, Tensor bias, Conv2dOptions options)`](#conv2dtensor-weight-tensor-bias-conv2doptions-options)
@@ -738,13 +741,19 @@ Tensor z = x.max(floor);
 
 ### `matmul(Tensor second)`
 
-Matrix multiplication for rank-2 tensors.
+Matrix multiplication over the last two dimensions, with broadcast over leading batch dimensions.
 
 Parameters:
-- `second`: right-hand matrix
+- `second`: right-hand matrix or batched matrix tensor
 
 Returns:
-- matrix product
+- tensor with broadcasted batch shape and matrix product in the last two dimensions
+
+Contract:
+- both inputs must have rank `>= 2`
+- for `a[..., m, k]` and `b[..., k, n]`, the result has shape `broadcast(aBatch, bBatch) + [m, n]`
+- leading dimensions follow standard broadcasting rules
+- rank-2 inputs remain the ordinary matrix-multiplication case
 
 Example:
 ```java
@@ -757,6 +766,114 @@ Tensor y = a.matmul(b);
 //  [43, 50]]
 //
 // Returns: matrix products for rank-2 tensors.
+```
+
+Batch example:
+```java
+Tensor a = new Tensor(new double[]{
+        1, 2, 3, 4,
+        5, 6, 7, 8
+}, new int[]{2, 2, 2}, null, "a");
+Tensor b = new Tensor(new double[]{
+        1, 2,
+        3, 4
+}, new int[]{2, 2, 1}, null, "b");
+
+Tensor y = a.matmul(b);
+// a has shape [2, 2, 2]
+// b has shape [2, 2, 1]
+// y has shape [2, 2, 1] and values [5, 11, 39, 53].
+//
+// Returns: batched matrix products over the last two axes.
+```
+
+## Attention Operations
+
+Attention surfaces are currently composition-based over:
+- batched `matmul`
+- `mulScalar`
+- `where`
+- `softmax`
+
+### `scaledDotProductAttention(Tensor key, Tensor value, AttentionOptions options)`
+
+Builds standard scaled dot-product attention without an explicit external mask.
+
+Parameters:
+- `key`: tensor with shape `[..., keyLen, headDim]`
+- `value`: tensor with shape `[..., keyLen, valueDim]`
+- `options`: attention configuration, currently covering `causal` and optional scale override
+
+Returns:
+- tensor with shape `[..., queryLen, valueDim]`
+
+Contract:
+- query tensor is the receiver and has shape `[..., queryLen, headDim]`
+- `query.headDim == key.headDim`
+- `key.keyLen == value.keyLen`
+- leading dimensions use batched `matmul` broadcasting rules
+- default scale is `1 / sqrt(headDim)` unless explicitly overridden
+
+Example:
+```java
+Tensor q = new Tensor(new double[]{
+        1, 0,
+        0, 1
+}, new int[]{1, 2, 2}, null, "q");
+Tensor k = new Tensor(new double[]{
+        1, 0,
+        0, 1
+}, new int[]{1, 2, 2}, null, "k");
+Tensor v = new Tensor(new double[]{
+        10, 1,
+        1, 10
+}, new int[]{1, 2, 2}, null, "v");
+
+Tensor y = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(1.0));
+// q shape = [1, 2, 2]
+// k shape = [1, 2, 2]
+// v shape = [1, 2, 2]
+// y shape = [1, 2, 2]
+//
+// Returns: standard attention output computed from q, k, v.
+```
+
+### `scaledDotProductAttention(Tensor key, Tensor value, Tensor mask, AttentionOptions options)`
+
+Builds scaled dot-product attention with an explicit boolean mask.
+
+Parameters:
+- `key`: tensor with shape `[..., keyLen, headDim]`
+- `value`: tensor with shape `[..., keyLen, valueDim]`
+- `mask`: `BOOL` tensor broadcastable to the attention score shape `[..., queryLen, keyLen]`
+- `options`: attention configuration, currently covering `causal` and optional scale override
+
+Returns:
+- tensor with shape `[..., queryLen, valueDim]`
+
+Contract:
+- `mask == true` means “this score is allowed”
+- `mask == false` means “this score is suppressed before softmax”
+- if `options.causal()` is also enabled, the external mask is combined with the causal mask through logical `and`
+
+Example:
+```java
+Tensor q = new Tensor(new double[]{1, 0}, new int[]{1, 1, 2}, null, "q");
+Tensor k = new Tensor(new double[]{
+        1, 0,
+        0, 1
+}, new int[]{1, 2, 2}, null, "k");
+Tensor v = new Tensor(new double[]{
+        10, 1,
+        1, 10
+}, new int[]{1, 2, 2}, null, "v");
+Tensor mask = new Tensor(new byte[]{0, 1}, new int[]{1, 1, 2}, null, "mask", DataType.BOOL);
+
+Tensor y = q.scaledDotProductAttention(k, v, mask, AttentionOptions.defaults().withScale(1.0));
+// Only the second key/value position is allowed by the mask.
+// y has shape [1, 1, 2] and values [1, 10].
+//
+// Returns: masked attention output.
 ```
 
 ## Spatial Operations
