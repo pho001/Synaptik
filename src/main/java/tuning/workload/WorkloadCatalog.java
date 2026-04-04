@@ -5,6 +5,8 @@ import tuning.measure.MeasurementPolicy;
 import tuning.report.ReportPolicy;
 import tuning.session.BenchmarkRequest;
 import tuning.session.BenchmarkSuiteRequest;
+import tuning.session.TuningDefaults;
+import tuning.session.TuningPreset;
 import tuning.validate.ValidationPolicy;
 
 import java.util.ArrayList;
@@ -62,6 +64,14 @@ public final class WorkloadCatalog {
         return new BenchmarkRequest(require(workloadName), candidates, measurement, validation, report);
     }
 
+    public BenchmarkRequest benchmarkRequest(
+            String workloadName,
+            List<Candidate> candidates,
+            TuningPreset preset
+    ) {
+        return TuningDefaults.benchmark(preset, require(workloadName), candidates);
+    }
+
     public BenchmarkSuiteRequest benchmarkSuiteRequest(
             List<String> workloadNames,
             List<Candidate> candidates,
@@ -70,5 +80,13 @@ public final class WorkloadCatalog {
             ReportPolicy report
     ) {
         return new BenchmarkSuiteRequest(requireAll(workloadNames), candidates, measurement, validation, report);
+    }
+
+    public BenchmarkSuiteRequest benchmarkSuiteRequest(
+            List<String> workloadNames,
+            List<Candidate> candidates,
+            TuningPreset preset
+    ) {
+        return TuningDefaults.benchmarkSuite(preset, requireAll(workloadNames), candidates);
     }
 }

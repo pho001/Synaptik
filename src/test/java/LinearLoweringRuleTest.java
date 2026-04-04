@@ -1,5 +1,5 @@
 import graph.optimizer.GraphOptimizer;
-import graph.optimizer.rules.LinearLoweringRule;
+import graph.optimizer.rewrite.LinearLoweringRewrite;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -18,7 +18,7 @@ public class LinearLoweringRuleTest {
         Tensor bias = new Tensor(new double[]{1, 2}, new int[]{2}, null, "bias", DataType.FLOAT64);
 
         Tensor root = input.matmul(weight).add(bias);
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new LinearLoweringRule());
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new LinearLoweringRewrite());
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
 
         Tensor optimizedRoot = optimized.stream()

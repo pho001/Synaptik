@@ -2,6 +2,8 @@ import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
+import tuning.candidate.Candidate;
+import tuning.session.TuningPreset;
 import tuning.validate.ValidationReferenceKind;
 import tuning.workload.StandardWorkloads;
 import tuning.workload.WorkloadCatalog;
@@ -92,5 +94,24 @@ public class StandardWorkloadsTest {
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, norm.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, pool.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, loss.reference().kind());
+    }
+
+    @Test
+    void standardWorkloadsSupportsPresetDrivenBenchmarkRequests() {
+        Candidate candidate = new Candidate("preset", new ExecutionProfile(
+                "preset",
+                "preset",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        ));
+
+        var request = StandardWorkloads.benchmark("matmul_small", java.util.List.of(candidate), TuningPreset.BALANCED);
+
+        assertEquals("matmul_small", request.workload().name());
+        assertEquals(2, request.measurement().warmupIters());
+        assertTrue(request.baselines().includeNoOptBaseline());
     }
 }

@@ -4,6 +4,7 @@ import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.candidate.ListCandidateSpace;
 import tuning.session.TuningDefaults;
+import tuning.session.TuningPreset;
 
 import java.util.List;
 
@@ -47,6 +48,23 @@ public class TuningDefaultsTest {
         assertTrue(request.validation().requireGradientMatch());
         assertTrue(request.measurement().captureStepTrace());
         assertEquals(96, request.search().maxCandidates());
+    }
+
+    @Test
+    void presetBenchmarkUsesBalancedPolicies() {
+        var workload = new tuning.workload.TensorRootWorkloadSpec(
+                "defaults-benchmark",
+                tuning.workload.WorkloadKind.GENERIC,
+                environment -> tensor.Tensor.scalar(1.0)
+        );
+        var candidate = new tuning.candidate.Candidate("base", profile("base"));
+
+        var request = TuningDefaults.benchmark(TuningPreset.BALANCED, workload, List.of(candidate));
+
+        assertEquals(2, request.measurement().warmupIters());
+        assertEquals(8, request.measurement().measureIters());
+        assertEquals(1e-8, request.validation().absTolerance());
+        assertTrue(request.baselines().includeNoOptBaseline());
     }
 
     private static ExecutionProfile profile(String name) {

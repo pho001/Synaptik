@@ -9,6 +9,7 @@
 - [Catalog](#catalog)
 - [Adding Custom Workloads](#adding-custom-workloads)
 - [Selecting Scenarios for Benchmark Runs](#selecting-scenarios-for-benchmark-runs)
+- [Preset-Driven Scenario Selection](#preset-driven-scenario-selection)
 - [Examples](#examples)
 
 ## Purpose
@@ -380,6 +381,39 @@ Input:
 Output:
 
 - suite request that benchmarks only those scenarios
+
+## Preset-Driven Scenario Selection
+
+For normal usage, the preferred entry point is now preset-driven request construction.
+
+Example:
+
+```java
+BenchmarkRequest request = StandardWorkloads.benchmark(
+        "matmul_small",
+        candidates,
+        TuningPreset.BALANCED
+);
+```
+
+And for a suite:
+
+```java
+BenchmarkSuiteRequest request = StandardWorkloads.benchmarkSuite(
+        java.util.List.of("matmul_small", "layer_norm_small", "transformer_hot_path"),
+        candidates,
+        TuningPreset.QUICK
+);
+```
+
+This is preferred over manually spelling out:
+
+- `MeasurementPolicy`
+- `ValidationPolicy`
+- `ReportPolicy`
+- `BaselinePolicy`
+
+unless you are intentionally overriding those defaults.
 
 ## Examples
 

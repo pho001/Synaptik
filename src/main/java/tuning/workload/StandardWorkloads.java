@@ -1,7 +1,16 @@
 package tuning.workload;
 
 import config.profile.WorkloadProfile;
+import tuning.candidate.Candidate;
+import tuning.candidate.CandidateSpace;
+import tuning.session.AutotuneRequest;
+import tuning.session.BenchmarkRequest;
+import tuning.session.BenchmarkSuiteRequest;
+import tuning.session.TuningDefaults;
+import tuning.session.TuningPreset;
 import tensor.Conv2dOptions;
+
+import java.util.List;
 
 public final class StandardWorkloads {
     private StandardWorkloads() {
@@ -78,6 +87,28 @@ public final class StandardWorkloads {
                 .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, tensor.Pool2dOptions.square(2)))
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, tensor.LossReduction.MEAN))
                 .register(transformerHotPath("transformer_hot_path"));
+    }
+
+    public static BenchmarkRequest benchmark(String workloadName, List<Candidate> candidates, TuningPreset preset) {
+        return defaultCatalog().benchmarkRequest(workloadName, candidates, preset);
+    }
+
+    public static BenchmarkSuiteRequest benchmarkSuite(List<String> workloadNames, List<Candidate> candidates, TuningPreset preset) {
+        return defaultCatalog().benchmarkSuiteRequest(workloadNames, candidates, preset);
+    }
+
+    public static AutotuneRequest autotune(
+            String workloadName,
+            CandidateSpace candidateSpace,
+            TuningPreset preset,
+            tuning.store.PersistencePolicy persistence
+    ) {
+        return TuningDefaults.autotune(
+                preset,
+                defaultCatalog().require(workloadName),
+                candidateSpace,
+                persistence
+        );
     }
 
     public static WorkloadProfile transformerHotPathDefaults() {

@@ -26,6 +26,7 @@ That means:
 - [Reporting](./REPORTING.md)
 - [Legacy Benchmark Review](./LEGACY-BENCHMARK-REVIEW.md)
 - [How to Add a New Scenario](#how-to-add-a-new-scenario)
+- [Preset Surface](#preset-surface)
 - [Benchmark Candidate Contract](#benchmark-candidate-contract)
 - [End-to-End Example](#end-to-end-example)
 
@@ -127,6 +128,61 @@ Output:
 That is the key design rule:
 
 - scenarios are graph builders, not precompiled artifacts
+
+## Preset Surface
+
+The intended public preset surface is:
+
+- [TuningPreset.java](./session/TuningPreset.java)
+- [TuningDefaults.java](./session/TuningDefaults.java)
+
+`TuningPreset` currently provides three standard policy families:
+
+- `QUICK`
+- `BALANCED`
+- `THOROUGH`
+
+The design goal is:
+
+- callers choose one named preset first
+- low-level policy objects stay available, but are not required for normal usage
+
+Typical benchmark usage:
+
+```java
+BenchmarkRequest request = TuningDefaults.benchmark(
+        TuningPreset.BALANCED,
+        StandardWorkloads.matmul("matmul_small", 1, 64, 64, 64),
+        java.util.List.of(candidate)
+);
+```
+
+Typical catalog usage:
+
+```java
+BenchmarkSuiteRequest request = StandardWorkloads.benchmarkSuite(
+        java.util.List.of("matmul_small", "conv2d_resnet_3x3"),
+        java.util.List.of(candidate),
+        TuningPreset.QUICK
+);
+```
+
+Typical autotune usage:
+
+```java
+AutotuneRequest request = StandardWorkloads.autotune(
+        "transformer_hot_path",
+        candidateSpace,
+        TuningPreset.BALANCED,
+        PersistencePolicy.disabled()
+);
+```
+
+This gives the package a cleaner scenario UX:
+
+- preset first
+- workload selection second
+- candidate/candidate-space last
 
 ## Benchmark Candidate Contract
 

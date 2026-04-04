@@ -7,7 +7,7 @@
 - [Placement in the Execution Flow](#placement-in-the-execution-flow)
 - [Rule Contract](#rule-contract)
 - [Rule Summary](#rule-summary)
-  - [`AlgebraicRewritingRule`](#algebraicrewritingrule)
+  - [`RewriteRule` Stage Family](#rewriterule-stage-family)
   - [`CommonSubexpressionEliminationRule`](#commonsubexpressioneliminationrule)
   - [`FuseElementWiseRule`](#fuseelementwiserule)
   - [`MemoryOptimizerRule`](#memoryoptimizerrule)
@@ -96,7 +96,32 @@ Shared graph rewrite mechanics such as input replacement and topological-closure
 
 ## Rule Summary
 
-### `AlgebraicRewritingRule`
+### `RewriteRule` Stage Family
+
+`OptimizerStage.AR` no longer maps to a class in `graph.optimizer.rules`.
+It maps directly to the rewrite family in:
+
+- [src/main/java/graph/optimizer/rewrite/RewriteRule.java](../../graph/optimizer/rewrite/RewriteRule.java)
+
+That class is a composite stage wrapper over explicit rewrite delegates.
+
+Current delegate order:
+
+1. `AlgebraicRewrite`
+2. `LinearLoweringRewrite`
+3. `Conv2dLoweringRewrite`
+
+This is the intended architectural boundary:
+
+- `graph.optimizer.rules`
+  - top-level optimizer stages such as CSE / FUSE / MEM
+- `graph.optimizer.rewrite`
+  - the internal rewrite family executed by `OptimizerStage.AR`
+
+Why this split is useful:
+
+- AR is one optimizer stage from the outside
+- internally it can still host several rewrite passes with their own semantics
 
 - local algebraic simplifications
 - dispatches by `Operation.OpType`, not by concrete class names

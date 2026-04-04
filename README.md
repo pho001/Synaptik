@@ -168,6 +168,12 @@ Common subexpression elimination now uses structural signatures keyed by `Operat
 
 Additional optimizer-specific notes are documented in [`src/main/java/graph/optimizer/README.md`](src/main/java/graph/optimizer/README.md).
 
+Important stage boundary:
+
+- `OptimizerStage.AR` is the rewrite family stage
+- internally it is composed from rewrite passes in [`src/main/java/graph/optimizer/rewrite/`](src/main/java/graph/optimizer/rewrite)
+- top-level non-rewrite optimizer stages remain under [`src/main/java/graph/optimizer/rules/`](src/main/java/graph/optimizer/rules)
+
 ### Fused Code Generation
 
 Fused element-wise regions are materialized through a plan-first codegen path. [`FusedOperationFactory`](src/main/java/operations/FusedOperationFactory.java) converts a fused cluster into a [`FusedExpressionPlan`](src/main/java/graph/codegen/FusedExpressionPlan.java). [`CompiledFusedKernelFactory`](src/main/java/graph/codegen/CompiledFusedKernelFactory.java) then creates a runtime executable through [`FusedKernelGeneratorRouter`](src/main/java/graph/codegen/FusedKernelGeneratorRouter.java), which dispatches to [`FusedOperationGenerator`](src/main/java/graph/codegen/FusedOperationGenerator.java) for `FLOAT32/FLOAT64` and [`HFusedOperationGenerator`](src/main/java/graph/codegen/HFusedOperationGenerator.java) for `FLOAT16`. The compiled fused executable is stored in prepared node metadata and executed by [`CpuFusedKernel`](src/main/java/backend/kernels/cpu/CpuFusedKernel.java).
@@ -287,6 +293,7 @@ It provides:
 - benchmark and autotune sessions
 - search strategies, reporting, and persistence
 - suite-level reporting with candidate summaries and hotspot aggregation
+- preset-oriented request construction through `TuningPreset` and `TuningDefaults`
 
 See:
 

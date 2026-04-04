@@ -53,24 +53,81 @@ public final class TuningDefaults {
         return new SearchPolicy(96, 8, 6, true);
     }
 
+    public static BenchmarkRequest benchmark(TuningPreset preset, WorkloadSpec workload, List<Candidate> candidates) {
+        TuningPreset resolved = preset == null ? TuningPreset.QUICK : preset;
+        return new BenchmarkRequest(
+                workload,
+                candidates,
+                resolved.benchmarkMeasurement(),
+                resolved.benchmarkValidation(),
+                resolved.reportPolicy(),
+                resolved.baselinePolicy()
+        );
+    }
+
     public static BenchmarkRequest quickBenchmark(WorkloadSpec workload, List<Candidate> candidates) {
-        return new BenchmarkRequest(workload, candidates, quickMeasurement(), quickValidation(), defaultReportPolicy());
+        return benchmark(TuningPreset.QUICK, workload, candidates);
+    }
+
+    public static BenchmarkRequest balancedBenchmark(WorkloadSpec workload, List<Candidate> candidates) {
+        return benchmark(TuningPreset.BALANCED, workload, candidates);
+    }
+
+    public static BenchmarkRequest thoroughBenchmark(WorkloadSpec workload, List<Candidate> candidates) {
+        return benchmark(TuningPreset.THOROUGH, workload, candidates);
+    }
+
+    public static BenchmarkSuiteRequest benchmarkSuite(TuningPreset preset, List<WorkloadSpec> workloads, List<Candidate> candidates) {
+        TuningPreset resolved = preset == null ? TuningPreset.QUICK : preset;
+        return new BenchmarkSuiteRequest(
+                workloads,
+                candidates,
+                resolved.benchmarkMeasurement(),
+                resolved.benchmarkValidation(),
+                resolved.reportPolicy(),
+                resolved.baselinePolicy()
+        );
     }
 
     public static BenchmarkSuiteRequest quickBenchmarkSuite(List<WorkloadSpec> workloads, List<Candidate> candidates) {
-        return new BenchmarkSuiteRequest(workloads, candidates, quickMeasurement(), quickValidation(), defaultReportPolicy());
+        return benchmarkSuite(TuningPreset.QUICK, workloads, candidates);
+    }
+
+    public static BenchmarkSuiteRequest balancedBenchmarkSuite(List<WorkloadSpec> workloads, List<Candidate> candidates) {
+        return benchmarkSuite(TuningPreset.BALANCED, workloads, candidates);
+    }
+
+    public static BenchmarkSuiteRequest thoroughBenchmarkSuite(List<WorkloadSpec> workloads, List<Candidate> candidates) {
+        return benchmarkSuite(TuningPreset.THOROUGH, workloads, candidates);
+    }
+
+    public static AutotuneRequest autotune(
+            TuningPreset preset,
+            WorkloadSpec workload,
+            CandidateSpace candidateSpace,
+            PersistencePolicy persistence
+    ) {
+        TuningPreset resolved = preset == null ? TuningPreset.QUICK : preset;
+        return new AutotuneRequest(
+                workload,
+                candidateSpace,
+                resolved.autotuneMeasurement(),
+                resolved.autotuneValidation(),
+                resolved.autotuneSearch(),
+                persistence == null ? PersistencePolicy.disabled() : persistence
+        );
     }
 
     public static AutotuneRequest quickAutotune(WorkloadSpec workload, CandidateSpace candidateSpace) {
-        return new AutotuneRequest(workload, candidateSpace, quickMeasurement(), quickValidation(), quickSearchPolicy(), PersistencePolicy.disabled());
+        return autotune(TuningPreset.QUICK, workload, candidateSpace, PersistencePolicy.disabled());
     }
 
     public static AutotuneRequest balancedAutotune(WorkloadSpec workload, CandidateSpace candidateSpace, PersistencePolicy persistence) {
-        return new AutotuneRequest(workload, candidateSpace, balancedMeasurement(), quickValidation(), balancedSearchPolicy(), persistence);
+        return autotune(TuningPreset.BALANCED, workload, candidateSpace, persistence);
     }
 
     public static AutotuneRequest thoroughAutotune(WorkloadSpec workload, CandidateSpace candidateSpace, PersistencePolicy persistence) {
-        return new AutotuneRequest(workload, candidateSpace, thoroughMeasurement(), thoroughValidation(), thoroughSearchPolicy(), persistence);
+        return autotune(TuningPreset.THOROUGH, workload, candidateSpace, persistence);
     }
 
     public static CandidateSpace singleCandidate(ExecutionProfile profile) {
