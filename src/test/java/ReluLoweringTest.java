@@ -1,4 +1,5 @@
 import backend.runtime.ExecutionMode;
+import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.runtime.RuntimeConfig;
@@ -92,6 +93,24 @@ public class ReluLoweringTest {
         assertArrayEquals(new double[]{0.0, 0.0, 1.0}, input.getGradient().toDoubleArrayCopy(), 1e-9);
     }
 
+    @Test
+    void explicitPiecewisePolicyCanLowerReluLikeWherePattern() {
+        Tensor input = new Tensor(new double[]{-2.0, 0.0, 3.0}, new int[]{3}, null, "x", DataType.FLOAT64);
+        Tensor out = Tensor.where(
+                input.greaterThan(Tensor.scalar(0.0, DataType.FLOAT64)),
+                input,
+                Tensor.zerosLike(input)
+        );
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(
+                out,
+                arWithPiecewiseConfig(new PiecewiseLoweringConfig(false, true, false))
+        );
+        compiledGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertTrue(containsOp(compiledGraph, Operation.OpType.RELU));
+    }
+
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
         return compiledGraph.getCompiledGraphAsList().stream()
                 .map(Tensor::getOperation)
@@ -102,5 +121,11 @@ public class ReluLoweringTest {
 
     private static OptimizerConfig arOnlyConfig() {
         return OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR));
+    }
+
+    private static OptimizerConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
+        return OptimizerConfig.inferenceDefaults()
+                .withStageOrder(List.of(OptimizerStage.AR))
+                .withRewrite(OptimizerConfig.inferenceDefaults().rewrite().withPiecewiseLowering(piecewiseLowering));
     }
 }

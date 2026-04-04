@@ -1,6 +1,7 @@
 package graph.optimizer.rewrite;
 
 import config.optimizer.RewriteConfig;
+import config.optimizer.Conv2dLoweringMode;
 import graph.optimizer.OptimizationRule;
 import tensor.Tensor;
 
@@ -25,18 +26,29 @@ public class RewriteRule implements OptimizationRule {
     }
 
     public RewriteRule(RewriteConfig config) {
-        this(
-                config,
-                List.of(
-                        new AlgebraicRewrite(),
-                        new LinearLoweringRewrite(),
-                        new Conv2dLoweringRewrite((config == null ? RewriteConfig.defaults() : config).conv2dLowering())
-                )
-        );
+        this(config, createDelegates(config));
     }
 
     public RewriteConfig config() {
         return config;
+    }
+
+    private static List<OptimizationRule> createDelegates(RewriteConfig config) {
+        RewriteConfig resolved = config == null ? RewriteConfig.defaults() : config;
+        java.util.ArrayList<OptimizationRule> delegates = new java.util.ArrayList<>();
+        if (resolved.algebraic().enabled()) {
+            delegates.add(new AlgebraicRewrite());
+        }
+        if (resolved.linearLowering().enabled()) {
+            delegates.add(new LinearLoweringRewrite());
+        }
+        if (resolved.conv2dLowering().mode() != Conv2dLoweringMode.OFF) {
+            delegates.add(new Conv2dLoweringRewrite(resolved.conv2dLowering()));
+        }
+        if (resolved.piecewiseLowering().anyEnabled()) {
+            delegates.add(new PiecewiseLoweringRewrite(resolved.piecewiseLowering()));
+        }
+        return List.copyOf(delegates);
     }
 
     @Override

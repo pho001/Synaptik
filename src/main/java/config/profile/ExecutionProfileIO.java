@@ -11,13 +11,16 @@ import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
 import config.backend.SumAccuracyMode;
 import config.backend.VectorPolicy;
+import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.CseConfig;
 import config.optimizer.FuseConfig;
+import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
+import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.RewriteConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
@@ -61,12 +64,35 @@ public final class ExecutionProfileIO {
             List<OptimizerStage> stageOrder = parseStageOrderOrDefault(json, defaultProfile.optimizer().stageOrder());
             RewriteConfig defaultRewrite = defaultProfile.optimizer().rewrite();
             RewriteConfig rewrite = new RewriteConfig(
+                    new AlgebraicRewriteConfig(
+                            findBoolean(json, "algebraicEnabled", defaultRewrite.algebraic().enabled())
+                    ),
+                    new LinearLoweringConfig(
+                            findBoolean(json, "linearLoweringEnabled", defaultRewrite.linearLowering().enabled())
+                    ),
                     new Conv2dLoweringConfig(
                             findEnum(
                                     json,
                                     "conv2dLoweringMode",
                                     defaultRewrite.conv2dLowering().mode(),
                                     Conv2dLoweringMode.class
+                            )
+                    ),
+                    new PiecewiseLoweringConfig(
+                            findBoolean(
+                                    json,
+                                    "canonicalSigmoid",
+                                    defaultRewrite.piecewiseLowering().canonicalSigmoid()
+                            ),
+                            findBoolean(
+                                    json,
+                                    "reluLikeWhere",
+                                    defaultRewrite.piecewiseLowering().reluLikeWhere()
+                            ),
+                            findBoolean(
+                                    json,
+                                    "clampLikeWhere",
+                                    defaultRewrite.piecewiseLowering().clampLikeWhere()
                             )
                     )
             );
@@ -210,7 +236,14 @@ public final class ExecutionProfileIO {
                 "  \"optimizer\": {\n" +
                 "    \"stageOrder\": " + jsonStageArray(optimizer.stageOrder()) + ",\n" +
                 "    \"rewrite\": {\n" +
-                "      \"conv2dLoweringMode\": \"" + optimizer.rewrite().conv2dLowering().mode().name() + "\"\n" +
+                "      \"algebraicEnabled\": " + optimizer.rewrite().algebraic().enabled() + ",\n" +
+                "      \"linearLoweringEnabled\": " + optimizer.rewrite().linearLowering().enabled() + ",\n" +
+                "      \"conv2dLoweringMode\": \"" + optimizer.rewrite().conv2dLowering().mode().name() + "\",\n" +
+                "      \"piecewiseLowering\": {\n" +
+                "        \"canonicalSigmoid\": " + optimizer.rewrite().piecewiseLowering().canonicalSigmoid() + ",\n" +
+                "        \"reluLikeWhere\": " + optimizer.rewrite().piecewiseLowering().reluLikeWhere() + ",\n" +
+                "        \"clampLikeWhere\": " + optimizer.rewrite().piecewiseLowering().clampLikeWhere() + "\n" +
+                "      }\n" +
                 "    },\n" +
                 "    \"cse\": {\n" +
                 "      \"strictSafety\": " + optimizer.cse().strictSafety() + "\n" +

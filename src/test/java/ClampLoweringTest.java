@@ -1,4 +1,5 @@
 import backend.runtime.ExecutionMode;
+import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.runtime.RuntimeConfig;
@@ -75,6 +76,23 @@ public class ClampLoweringTest {
         assertTrue(containsOp(maxGraph, Operation.OpType.CLAMP_MAX));
     }
 
+    @Test
+    void explicitPiecewisePolicyCanLowerClampWherePatterns() {
+        Tensor xMin = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "x_min", DataType.FLOAT64);
+        Tensor minOut = Tensor.where(xMin.lessThan(Tensor.scalar(0.0, DataType.FLOAT64)), Tensor.scalar(0.0, DataType.FLOAT64), xMin);
+
+        Tensor xMax = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "x_max", DataType.FLOAT64);
+        Tensor maxOut = Tensor.where(xMax.greaterThan(Tensor.scalar(1.0, DataType.FLOAT64)), Tensor.scalar(1.0, DataType.FLOAT64), xMax);
+
+        CompiledGraph minGraph = CompiledGraph.compile(minOut, arWithPiecewiseConfig(new PiecewiseLoweringConfig(false, false, true)));
+        CompiledGraph maxGraph = CompiledGraph.compile(maxOut, arWithPiecewiseConfig(new PiecewiseLoweringConfig(false, false, true)));
+        minGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        maxGraph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertTrue(containsOp(minGraph, Operation.OpType.CLAMP_MIN));
+        assertTrue(containsOp(maxGraph, Operation.OpType.CLAMP_MAX));
+    }
+
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
         return compiledGraph.getCompiledGraphAsList().stream()
                 .map(Tensor::getOperation)
@@ -85,5 +103,11 @@ public class ClampLoweringTest {
 
     private static OptimizerConfig arOnlyConfig() {
         return OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR));
+    }
+
+    private static OptimizerConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
+        return OptimizerConfig.inferenceDefaults()
+                .withStageOrder(List.of(OptimizerStage.AR))
+                .withRewrite(OptimizerConfig.inferenceDefaults().rewrite().withPiecewiseLowering(piecewiseLowering));
     }
 }

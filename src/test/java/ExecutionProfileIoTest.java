@@ -7,13 +7,16 @@ import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
 import config.backend.AttentionMatMulPolicy;
+import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.CseConfig;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.FuseConfig;
+import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
+import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.RewriteConfig;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileIO;
@@ -41,7 +44,12 @@ public class ExecutionProfileIoTest {
                 ExecutionMode.FORWARD,
                 new OptimizerConfig(
                         List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
-                        new RewriteConfig(new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS)),
+                        new RewriteConfig(
+                                new AlgebraicRewriteConfig(true),
+                                new LinearLoweringConfig(false),
+                                new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS),
+                                new PiecewiseLoweringConfig(true, true, true)
+                        ),
                         CseConfig.aggressiveDefaults(),
                         FuseConfig.inferenceDefaults(),
                         new MemoryConfig(false, false, true, 8)

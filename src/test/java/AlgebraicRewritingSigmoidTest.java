@@ -1,4 +1,5 @@
 import graph.CompiledGraph;
+import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import operations.Operation;
@@ -48,6 +49,19 @@ public class AlgebraicRewritingSigmoidTest {
     }
 
     @Test
+    void explicitPiecewisePolicyCanLowerCanonicalSigmoid() {
+        Tensor input = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_opt", DataType.FLOAT64);
+        Tensor output = input.neg().exp().add(Tensor.scalar(1.0)).inv();
+        CompiledGraph compiledGraph = CompiledGraph.compile(
+                output,
+                arWithPiecewiseConfig(new PiecewiseLoweringConfig(true, false, false))
+        );
+        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+
+        assertTrue(containsSigmoid(compiledGraph));
+    }
+
+    @Test
     void doesNotRewriteSigmoidWhenGradientsAreRequired() {
         Tensor baselineInput = new Tensor(new double[]{0.7}, new int[]{1}, null, "x_base", DataType.FLOAT64);
         baselineInput.setRequiresGrad(true);
@@ -93,5 +107,15 @@ public class AlgebraicRewritingSigmoidTest {
 
     private static OptimizerConfig arOnlyInferenceConfig() {
         return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.AR));
+    }
+
+    private static OptimizerConfig arWithPiecewiseConfig(PiecewiseLoweringConfig piecewiseLowering) {
+        return OptimizerConfig.inferenceDefaults()
+                .withStageOrder(java.util.List.of(OptimizerStage.AR))
+                .withRewrite(
+                        OptimizerConfig.inferenceDefaults()
+                                .rewrite()
+                                .withPiecewiseLowering(piecewiseLowering)
+                );
     }
 }

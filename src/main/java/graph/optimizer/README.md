@@ -110,6 +110,7 @@ Current delegate order:
 1. `AlgebraicRewrite`
 2. `LinearLoweringRewrite`
 3. `Conv2dLoweringRewrite`
+4. `PiecewiseLoweringRewrite` when explicitly enabled in config
 
 This is the intended architectural boundary:
 
@@ -469,7 +470,11 @@ Current compile-time config families inside `OptimizerConfig` are:
 
 - `rewrite`
   - rewrite-family policy
-  - currently carries `conv2d` lowering policy
+  - carries:
+    - algebraic rewrite enable/disable
+    - linear lowering enable/disable
+    - `conv2d` lowering policy
+    - piecewise/select lowering policy
 - `cse`
   - common-subexpression-elimination policy
 - `fuse`
@@ -491,16 +496,25 @@ OptimizerConfig config = new OptimizerConfig(
 
 Current rewrite-policy family includes:
 
+- `AlgebraicRewriteConfig`
+  - `enabled`
+- `LinearLoweringConfig`
+  - `enabled`
 - `Conv2dLoweringConfig`
   - `OFF`
   - `ALWAYS`
   - `HEURISTIC`
+- `PiecewiseLoweringConfig`
+  - `canonicalSigmoid`
+  - `reluLikeWhere`
+  - `clampLikeWhere`
 
 Important boundary:
 
 - `conv2d` lowering to `CONV2D_GEMM` is a compile-time rewrite decision
 - Java vs OpenBLAS inside the GEMM path remains a runtime/backend decision
 - those two policies must stay separate
+- piecewise/select lowering is also a compile-time rewrite decision, but it is intentionally opt-in today
 
 ## Benchmark / Autotune Integration
 

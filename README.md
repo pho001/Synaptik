@@ -173,6 +173,11 @@ Important stage boundary:
 - `OptimizerStage.AR` is the rewrite family stage
 - internally it is composed from rewrite passes in [`src/main/java/graph/optimizer/rewrite/`](src/main/java/graph/optimizer/rewrite)
 - top-level non-rewrite optimizer stages remain under [`src/main/java/graph/optimizer/rules/`](src/main/java/graph/optimizer/rules)
+- rewrite policy is carried through [`RewriteConfig`](src/main/java/config/optimizer/RewriteConfig.java), which now explicitly separates:
+  - algebraic rewrite policy
+  - linear lowering policy
+  - conv2d lowering policy
+  - piecewise/select lowering policy
 
 ### Fused Code Generation
 
