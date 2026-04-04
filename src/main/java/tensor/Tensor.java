@@ -869,6 +869,14 @@ public class Tensor {
         return TensorOps.conv2d(this, weight, bias, options);
     }
 
+    public Tensor maxPool2d(Pool2dOptions options) {
+        return TensorOps.maxPool2d(this, options);
+    }
+
+    public Tensor avgPool2d(Pool2dOptions options) {
+        return TensorOps.avgPool2d(this, options);
+    }
+
     public Tensor neg (){
         return TensorOps.neg(this);
 

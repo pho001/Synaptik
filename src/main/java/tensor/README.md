@@ -35,6 +35,7 @@ It is not the primary owner of explicit compile/runtime artifacts. Those live in
   - [src/main/java/tensor/TensorLayoutOps.java](../tensor/TensorLayoutOps.java)
   - [src/main/java/tensor/TensorNaryOps.java](../tensor/TensorNaryOps.java)
   - [src/main/java/tensor/TensorConvOps.java](../tensor/TensorConvOps.java)
+  - [src/main/java/tensor/TensorPoolOps.java](../tensor/TensorPoolOps.java)
 - Operation descriptors and addition guide:
   - [src/main/java/operations/README.md](../operations/README.md)
 - Layout remap utility:
@@ -128,6 +129,8 @@ The current public graph-building operation surface on `Tensor` is:
 
 - `conv2d(Tensor weight, Conv2dOptions options)`
 - `conv2d(Tensor weight, Tensor bias, Conv2dOptions options)`
+- `maxPool2d(Pool2dOptions options)`
+- `avgPool2d(Pool2dOptions options)`
 
 ### Unary / Scalar
 
@@ -458,6 +461,51 @@ Architectural note:
 - this is a first-class runtime primitive, not a public `im2col`-style helper
 - the current CPU backend uses direct loop kernels
 - that keeps the public tensor algebra clean while leaving later room for backend-specific lowering or autotuned specialization
+
+## Pooling Contract
+
+`maxPool2d(...)` and `avgPool2d(...)` are the first spatial reduction primitives in the tensor surface.
+
+Current contract:
+
+- input layout is `NCHW`
+- input shape must be `[batch, channels, inH, inW]`
+- output shape is `[batch, channels, outH, outW]`
+- options are explicit through `Pool2dOptions`
+  - `kernelH`, `kernelW`
+  - `strideH`, `strideW`
+  - `padH`, `padW`
+  - `countIncludePad`
+- only floating dtypes are accepted
+
+Output shape:
+
+- `outH = floor((inH + 2 * padH - kernelH) / strideH) + 1`
+- `outW = floor((inW + 2 * padW - kernelW) / strideW) + 1`
+
+Behavior:
+
+- `maxPool2d`
+  - returns the maximum value inside each pooling window
+  - backward routes gradient to the first maximal element in scan order
+- `avgPool2d`
+  - returns the arithmetic mean inside each pooling window
+  - default `countIncludePad = false`
+    - border windows divide only by valid in-bounds elements
+  - if `countIncludePad = true`
+    - border windows divide by the full kernel area including padded positions
+
+Architectural note:
+
+- pooling is modeled as first-class runtime primitive, not as composition over gather/select helpers
+- current CPU backend again uses direct loops
+- backward is also specialized:
+  - `maxPool2dBackwardInput`
+  - `avgPool2dBackwardInput`
+- `maxPool2d` forward stores argmax workspace in prepared runtime metadata
+  - backward reads that workspace instead of rescanning the input windows
+- pooling is currently an explicit dense-first backend boundary
+  - non-contiguous or offset inputs are materialized by prepared-input planning before kernel execution
 
 `nllLossFromIndices(targetIndices, classDimension)` is the first index-target loss surface:
 

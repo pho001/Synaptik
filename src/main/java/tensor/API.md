@@ -43,6 +43,8 @@ The focus here is practical API usage:
 - [Spatial Operations](#spatial-operations)
   - [`conv2d(Tensor weight, Conv2dOptions options)`](#conv2dtensor-weight-conv2doptions-options)
   - [`conv2d(Tensor weight, Tensor bias, Conv2dOptions options)`](#conv2dtensor-weight-tensor-bias-conv2doptions-options)
+  - [`maxPool2d(Pool2dOptions options)`](#maxpool2dpool2doptions-options)
+  - [`avgPool2d(Pool2dOptions options)`](#avgpool2dpool2doptions-options)
 - [Comparison Operations](#comparison-operations)
   - [`greaterThan(Tensor second)`](#greaterthantensor-second)
   - [`greaterOrEqual(Tensor second)`](#greaterorequaltensor-second)
@@ -844,6 +846,87 @@ Tensor y = input.conv2d(
 //   [11.5, 28.5]]]
 //
 // Returns: convolution output with channel bias added after accumulation.
+```
+
+### `maxPool2d(Pool2dOptions options)`
+
+Runs 2D max pooling over a rank-4 `NCHW` tensor.
+
+Parameters:
+- `options`: pooling window configuration carrying kernel, stride, and padding
+
+Returns:
+- floating tensor with shape `[batch, channels, outH, outW]`
+
+Contract:
+- input tensor shape must be `[batch, channels, inH, inW]`
+- input layout is `NCHW`
+- only floating dtypes are accepted
+- output size uses floor semantics:
+  - `out = floor((input + 2 * pad - kernel) / stride) + 1`
+
+Backward:
+- gradient is routed to the first maximal element encountered in scan order inside each pooling window
+- prepared execution stores per-output argmax indices in runtime workspace and reuses them in backward
+
+Example:
+```java
+Tensor input = new Tensor(new double[]{
+        1, 2, 3, 4,
+        5, 6, 7, 8,
+        9, 10, 11, 12,
+        13, 14, 15, 16
+}, new int[]{1, 1, 4, 4}, null, "input");
+
+Tensor y = input.maxPool2d(Pool2dOptions.square(2));
+// input shape = [1, 1, 4, 4]
+// 2x2 pooling with default stride 2 produces shape [1, 1, 2, 2]
+// y values:
+// [[[6, 8],
+//   [14, 16]]]
+//
+// Returns: window-wise maxima over the spatial axes.
+```
+
+### `avgPool2d(Pool2dOptions options)`
+
+Runs 2D average pooling over a rank-4 `NCHW` tensor.
+
+Parameters:
+- `options`: pooling window configuration carrying kernel, stride, padding, and `countIncludePad`
+
+Returns:
+- floating tensor with shape `[batch, channels, outH, outW]`
+
+Contract:
+- same rank/layout contract as `maxPool2d`
+- by default `countIncludePad = false`
+  - denominator counts only valid in-bounds input elements
+- if `countIncludePad = true`
+  - denominator is always `kernelH * kernelW`
+- pooling currently runs through dense prepared inputs
+  - non-contiguous or offset inputs are materialized before execution
+
+Backward:
+- upstream gradient is distributed uniformly over the contributing window according to the same divisor that forward used
+
+Example:
+```java
+Tensor input = new Tensor(new double[]{
+        1, 2, 3, 4,
+        5, 6, 7, 8,
+        9, 10, 11, 12,
+        13, 14, 15, 16
+}, new int[]{1, 1, 4, 4}, null, "input");
+
+Tensor y = input.avgPool2d(Pool2dOptions.square(2));
+// input shape = [1, 1, 4, 4]
+// 2x2 pooling with default stride 2 produces shape [1, 1, 2, 2]
+// y values:
+// [[[3.5, 5.5],
+//   [11.5, 13.5]]]
+//
+// Returns: window-wise averages over the spatial axes.
 ```
 
 ## Comparison Operations

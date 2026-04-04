@@ -75,6 +75,10 @@ Current descriptor classes in this package:
 - `conv2d`
 - `conv2dBackwardInput`
 - `conv2dBackwardWeight`
+- `maxPool2d`
+- `maxPool2dBackwardInput`
+- `avgPool2d`
+- `avgPool2dBackwardInput`
 - `logicalAnd`
 - `logicalOr`
 - `logicalNot`
@@ -266,6 +270,10 @@ These are canonical graph/runtime primitives and should remain first-class:
   - `CONV2D`
   - `CONV2D_BACKWARD_INPUT`
   - `CONV2D_BACKWARD_WEIGHT`
+  - `MAX_POOL2D`
+  - `MAX_POOL2D_BACKWARD_INPUT`
+  - `AVG_POOL2D`
+  - `AVG_POOL2D_BACKWARD_INPUT`
 - reductions:
   - `SUM`
   - `MEAN`
@@ -392,6 +400,7 @@ Examples:
 - reduction -> `TensorReduceOps`
 - layout -> `TensorLayoutOps`
 - spatial / convolution -> `TensorConvOps`
+- spatial / pooling -> `TensorPoolOps`
 - matmul -> `TensorMatMulOps`
 - fused descriptor path -> `FusedOperationFactory`
 

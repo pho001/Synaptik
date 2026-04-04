@@ -5,6 +5,7 @@ import backend.ComputeBackend;
 import backend.kernels.cpu.CpuExecutionPlanner;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
+import backend.kernels.cpu.CpuNodeWorkspace;
 import backend.kernels.cpu.fused.CompiledFusedKernel;
 import backend.registry.CpuKernelRegistry;
 import backend.runtime.ExecutionMode;
@@ -21,6 +22,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 
 public class CompiledGraph {
@@ -124,6 +127,7 @@ public class CompiledGraph {
 
         List<PreparedNodeExecution> forwardSteps = new ArrayList<>();
         List<PreparedNodeExecution> backwardSteps = new ArrayList<>();
+        Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata = new HashMap<>();
         for (int i = 0; i < finalGraph.size(); i++) {
             Tensor tensor = finalGraph.get(i);
             if (tensor.getOperation() == null || tensor.getPrevTensors() == null) {
@@ -131,8 +135,9 @@ public class CompiledGraph {
             }
             PreparedNodeExecution step = new PreparedNodeExecution(
                     tensor,
-                    prepareMetadata(tensor, planner, backendRuntimeConfig)
+                    prepareMetadata(tensor, planner, backendRuntimeConfig, preparedMetadata)
             );
+            preparedMetadata.put(tensor, step.metadata());
             if (i <= forwardEndIndex) {
                 forwardSteps.add(step);
             } else {
@@ -199,11 +204,12 @@ public class CompiledGraph {
     private CompiledNodeExecutionMetadata prepareMetadata(
             Tensor tensor,
             CpuExecutionPlanner planner,
-            backend.runtime.RuntimeConfig runtimeConfig
+            backend.runtime.RuntimeConfig runtimeConfig,
+            Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata
     ) {
         ComputeBackend backend = tensor.resolveBackend();
         if (backend != ComputeBackend.CPU) {
-            return new CompiledNodeExecutionMetadata(backend, null, null, null);
+            return new CompiledNodeExecutionMetadata(backend, null, null, null, null);
         }
 
         Operation operation = tensor.getOperation();
@@ -222,7 +228,40 @@ public class CompiledGraph {
         if (operation.opType() == Operation.OpType.FUSED) {
             fusedKernel = FUSED_KERNEL_FACTORY.create((FusedOperation) operation);
         }
-        return new CompiledNodeExecutionMetadata(backend, kernel, cpuPlan, fusedKernel);
+        CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(tensor, operation, preparedMetadata);
+        return new CompiledNodeExecutionMetadata(backend, kernel, cpuPlan, fusedKernel, cpuWorkspace);
+    }
+
+    private CpuNodeWorkspace resolveCpuWorkspace(
+            Tensor tensor,
+            Operation operation,
+            Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata
+    ) {
+        return switch (operation.opType()) {
+            case MAX_POOL2D -> CpuNodeWorkspace.withIntWorkspace(tensor.getFlatDataSize());
+            case MAX_POOL2D_BACKWARD_INPUT -> resolveSharedMaxPoolWorkspace(tensor, preparedMetadata);
+            default -> null;
+        };
+    }
+
+    private CpuNodeWorkspace resolveSharedMaxPoolWorkspace(
+            Tensor tensor,
+            Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata
+    ) {
+        for (Tensor input : tensor.getPrevTensors()) {
+            if (input == null || input.getOperation() == null) {
+                continue;
+            }
+            if (input.getOperation().opType() != Operation.OpType.MAX_POOL2D) {
+                continue;
+            }
+            CompiledNodeExecutionMetadata metadata = preparedMetadata.get(input);
+            if (metadata == null || metadata.cpuWorkspace() == null) {
+                throw new IllegalStateException("Missing prepared maxPool2d workspace for backward node " + tensor.getLabel());
+            }
+            return metadata.cpuWorkspace();
+        }
+        throw new IllegalStateException("maxPool2d backward node is missing its forward maxPool2d dependency.");
     }
 
     private boolean hasTrainableLeafInputs() {

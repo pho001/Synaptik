@@ -5,6 +5,8 @@ import graph.optimizer.OptimizerGraphSupport;
 import graph.optimizer.OptimizationRule;
 import operations.FusedOperation;
 import operations.Operation;
+import operations.avgPool2d;
+import operations.avgPool2dBackwardInput;
 import operations.clampMax;
 import operations.clampMin;
 import operations.crossEntropyLoss;
@@ -15,6 +17,8 @@ import operations.expand;
 import operations.expandDims;
 import operations.gather;
 import operations.gatherGrad;
+import operations.maxPool2d;
+import operations.maxPool2dBackwardInput;
 import operations.scatterAdd;
 import operations.takeAlongAxis;
 import operations.takeAlongAxisGrad;
@@ -182,6 +186,10 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case CONV2D -> conv2dSignature(((conv2d) op).getOptions(), ((conv2d) op).hasBias() ? 1 : 0);
             case CONV2D_BACKWARD_INPUT -> conv2dBackwardInputSignature((conv2dBackwardInput) op);
             case CONV2D_BACKWARD_WEIGHT -> conv2dBackwardWeightSignature((conv2dBackwardWeight) op);
+            case MAX_POOL2D -> pool2dSignature(((maxPool2d) op).getOptions(), 1);
+            case MAX_POOL2D_BACKWARD_INPUT -> pool2dBackwardInputSignature(((maxPool2dBackwardInput) op).getOptions(), ((maxPool2dBackwardInput) op).getInputShape(), 1);
+            case AVG_POOL2D -> pool2dSignature(((avgPool2d) op).getOptions(), 2);
+            case AVG_POOL2D_BACKWARD_INPUT -> pool2dBackwardInputSignature(((avgPool2dBackwardInput) op).getOptions(), ((avgPool2dBackwardInput) op).getInputShape(), 2);
             case SQUEEZE -> new AxisSignature(((squeeze) op).getAxis());
             default -> NoParamsSignature.INSTANCE;
         };
@@ -218,6 +226,27 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                 options.padH(), options.padW(),
                 options.dilationH(), options.dilationW(),
                 options.groups()
+        });
+    }
+
+    private SignatureComponent pool2dSignature(tensor.Pool2dOptions options, int kind) {
+        return IntArrayValue.copyOf(new int[]{
+                options.kernelH(), options.kernelW(),
+                options.strideH(), options.strideW(),
+                options.padH(), options.padW(),
+                options.countIncludePad() ? 1 : 0,
+                kind
+        });
+    }
+
+    private SignatureComponent pool2dBackwardInputSignature(tensor.Pool2dOptions options, int[] inputShape, int kind) {
+        return IntArrayValue.copyOf(new int[]{
+                inputShape[0], inputShape[1], inputShape[2], inputShape[3],
+                options.kernelH(), options.kernelW(),
+                options.strideH(), options.strideW(),
+                options.padH(), options.padW(),
+                options.countIncludePad() ? 1 : 0,
+                kind
         });
     }
 

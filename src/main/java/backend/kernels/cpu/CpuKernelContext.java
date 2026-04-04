@@ -81,4 +81,8 @@ public final class CpuKernelContext {
     public CompiledFusedKernel fusedKernel() {
         return executionMetadata.fusedKernel();
     }
+
+    public CpuNodeWorkspace cpuWorkspace() {
+        return executionMetadata.cpuWorkspace();
+    }
 }

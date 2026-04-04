@@ -131,6 +131,14 @@ public final class TensorOps {
         return TensorConvOps.conv2d(input, weight, bias, options);
     }
 
+    public static Tensor maxPool2d(Tensor input, Pool2dOptions options) {
+        return TensorPoolOps.maxPool2d(input, options);
+    }
+
+    public static Tensor avgPool2d(Tensor input, Pool2dOptions options) {
+        return TensorPoolOps.avgPool2d(input, options);
+    }
+
     public static Tensor neg(Tensor input) {
         return TensorUnaryOps.neg(input);
     }
