@@ -97,6 +97,9 @@ public final class AutoTuneResult {
         sb.append("  \"stageOrder\": ").append(stageOrderJson(candidate.stageOrder())).append(",\n");
         sb.append("  \"knobs\": {\n");
         sb.append("    \"strictCseSafety\": ").append(knobs.strictCseSafety()).append(",\n");
+        sb.append("    \"rewrite\": {\n");
+        sb.append("      \"conv2dLoweringMode\": \"").append(knobs.conv2dLoweringMode().name()).append("\"\n");
+        sb.append("    },\n");
         sb.append("    \"kernel\": {\n");
         sb.append("      \"cpu\": {\n");
         sb.append("        \"cpuLoopUnrollFactor\": ").append(kernels.cpu().loopUnrollFactor()).append(",\n");

@@ -15,6 +15,7 @@ import config.profile.ExecutionProfile;
 import config.profile.WorkloadKind;
 import config.profile.WorkloadProfile;
 import tensor.DataType;
+import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.FuseConfig;
 import config.optimizer.RewriteConfig;
 import config.optimizer.Conv2dLoweringConfig;
@@ -201,6 +202,9 @@ public final class OptimizerProfileIO {
         return "{\n" +
                 "  \"candidateName\": \"" + candidateName + "\",\n" +
                 "  \"strictCseSafety\": " + knobs.strictCseSafety() + ",\n" +
+                "  \"rewrite\": {\n" +
+                "    \"conv2dLoweringMode\": \"" + knobs.conv2dLoweringMode().name() + "\"\n" +
+                "  },\n" +
                 "  \"kernel\": {\n" +
                 "    \"cpu\": {\n" +
                 "      \"cpuLoopUnrollFactor\": " + k.cpu().loopUnrollFactor() + ",\n" +
@@ -361,6 +365,12 @@ public final class OptimizerProfileIO {
                     "strictCseSafety",
                     findBoolean(json, "strictSafety", d.strictCseSafety())
             );
+            Conv2dLoweringMode conv2dLoweringMode = findEnum(
+                    json,
+                    "conv2dLoweringMode",
+                    d.conv2dLoweringMode(),
+                    Conv2dLoweringMode.class
+            );
 
             // Backward-compatible fallback: if old global keys exist, use them as CPU defaults.
             int legacyUnroll = findInt(json, "loopUnrollFactor", d.kernelConfig().cpu().loopUnrollFactor());
@@ -438,6 +448,7 @@ public final class OptimizerProfileIO {
             return new TuningKnobs(
                     strictCse,
                     fuse,
+                    conv2dLoweringMode,
                     kernel,
                     blasProvider,
                     blasMatMulMinWork,
@@ -766,6 +777,7 @@ public final class OptimizerProfileIO {
         TuningKnobs knobs = new TuningKnobs(
                 src.strictCseSafety(),
                 src.fuseConfig(),
+                src.conv2dLoweringMode(),
                 kernel,
                 src.blasProvider(),
                 src.blasMatMulMinWork(),
@@ -801,6 +813,7 @@ public final class OptimizerProfileIO {
         TuningKnobs knobs = new TuningKnobs(
                 src.strictCseSafety(),
                 src.fuseConfig(),
+                src.conv2dLoweringMode(),
                 kernel,
                 src.blasProvider(),
                 src.blasMatMulMinWork(),

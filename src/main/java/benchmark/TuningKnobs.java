@@ -1,6 +1,7 @@
 package benchmark;
 
 import config.backend.KernelTuningConfig;
+import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.FuseConfig;
 import backend.blas.BlasRuntime;
 import backend.blas.BlasThreadPolicy;
@@ -13,6 +14,7 @@ public final class TuningKnobs {
     // Ready today (Fusion rule consumes only the booleans through candidate policy)
     private final boolean strictCseSafety;
     private final FuseConfig fuseConfig;
+    private final Conv2dLoweringMode conv2dLoweringMode;
 
     // Backend/kernel tuning profile (prepared, can be gradually wired into kernels/codegen)
     private final KernelTuningConfig kernelConfig;
@@ -32,6 +34,7 @@ public final class TuningKnobs {
         this(
                 strictCseSafety,
                 fuseConfig,
+                Conv2dLoweringMode.HEURISTIC,
                 kernelConfig,
                 BlasRuntime.DEFAULT_PROVIDER,
                 BlasRuntime.DEFAULT_MATMUL_MIN_WORK,
@@ -45,6 +48,27 @@ public final class TuningKnobs {
     public TuningKnobs(
             boolean strictCseSafety,
             FuseConfig fuseConfig,
+            Conv2dLoweringMode conv2dLoweringMode,
+            KernelTuningConfig kernelConfig
+    ) {
+        this(
+                strictCseSafety,
+                fuseConfig,
+                conv2dLoweringMode,
+                kernelConfig,
+                BlasRuntime.DEFAULT_PROVIDER,
+                BlasRuntime.DEFAULT_MATMUL_MIN_WORK,
+                BlasRuntime.DEFAULT_F32_REQUIRE_M_GE_K,
+                BlasRuntime.DEFAULT_F32_MAX_N_OVER_K,
+                BlasThreadPolicy.AUTO,
+                0
+        );
+    }
+
+    public TuningKnobs(
+            boolean strictCseSafety,
+            FuseConfig fuseConfig,
+            Conv2dLoweringMode conv2dLoweringMode,
             KernelTuningConfig kernelConfig,
             String blasProvider,
             long blasMatMulMinWork,
@@ -54,6 +78,7 @@ public final class TuningKnobs {
         this(
                 strictCseSafety,
                 fuseConfig,
+                conv2dLoweringMode,
                 kernelConfig,
                 blasProvider,
                 blasMatMulMinWork,
@@ -67,6 +92,7 @@ public final class TuningKnobs {
     public TuningKnobs(
             boolean strictCseSafety,
             FuseConfig fuseConfig,
+            Conv2dLoweringMode conv2dLoweringMode,
             KernelTuningConfig kernelConfig,
             String blasProvider,
             long blasMatMulMinWork,
@@ -77,6 +103,7 @@ public final class TuningKnobs {
     ) {
         this.strictCseSafety = strictCseSafety;
         this.fuseConfig = fuseConfig;
+        this.conv2dLoweringMode = conv2dLoweringMode == null ? Conv2dLoweringMode.HEURISTIC : conv2dLoweringMode;
         this.kernelConfig = kernelConfig;
         this.blasProvider = (blasProvider == null || blasProvider.isBlank())
                 ? BlasRuntime.DEFAULT_PROVIDER
@@ -98,6 +125,10 @@ public final class TuningKnobs {
 
     public FuseConfig fuseConfig() {
         return fuseConfig;
+    }
+
+    public Conv2dLoweringMode conv2dLoweringMode() {
+        return conv2dLoweringMode;
     }
 
     public KernelTuningConfig kernelConfig() {
@@ -141,6 +172,7 @@ public final class TuningKnobs {
         return new TuningKnobs(
                 strictCseSafety,
                 fuseConfig,
+                conv2dLoweringMode,
                 kernelConfig,
                 provider,
                 matMulMinWork,
@@ -155,6 +187,7 @@ public final class TuningKnobs {
         return new TuningKnobs(
                 strictCseSafety,
                 fuseConfig,
+                conv2dLoweringMode,
                 kernelConfig,
                 blasProvider,
                 blasMatMulMinWork,
@@ -169,6 +202,7 @@ public final class TuningKnobs {
         return new TuningKnobs(
                 true,
                 FuseConfig.trainingDefaults(),
+                Conv2dLoweringMode.HEURISTIC,
                 KernelTuningConfig.defaultsTraining()
         );
     }
@@ -177,7 +211,23 @@ public final class TuningKnobs {
         return new TuningKnobs(
                 false,
                 FuseConfig.inferencePerfDefaults(),
+                Conv2dLoweringMode.HEURISTIC,
                 KernelTuningConfig.defaultsInference()
+        );
+    }
+
+    public TuningKnobs withConv2dLoweringMode(Conv2dLoweringMode mode) {
+        return new TuningKnobs(
+                strictCseSafety,
+                fuseConfig,
+                mode,
+                kernelConfig,
+                blasProvider,
+                blasMatMulMinWork,
+                blasF32RequireMgeK,
+                blasF32MaxNOverK,
+                blasThreadPolicy,
+                blasThreads
         );
     }
 }

@@ -40,6 +40,7 @@ public final class CandidateGraphIndex {
 
     private static String compositeKey(String stageOrder, CoarseKnobSignature signature) {
         return stageOrder + "||" + signature.strictCseSafety()
+                + "||" + signature.rewriteProfileKey()
                 + "||" + signature.fuseProfileKey()
                 + "||" + signature.kernelProfileKey()
                 + "||" + signature.blasProfileKey();

@@ -7,6 +7,7 @@ import benchmark.autotune.CandidateGraphIndex;
 import benchmark.autotune.CandidatePerf;
 import benchmark.autotune.CoarseKnobSignature;
 import benchmark.autotune.FamilyScoutStats;
+import config.optimizer.Conv2dLoweringMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -116,6 +117,28 @@ public class AutotuneSearchSupportTest {
         assertTrue(out.contains(stageNeighborCandidate));
     }
 
+    @Test
+    void autotuneCandidatesIncludeConv2dLoweringVariantsOnlyForArStage() {
+        List<OptimizerCandidate> candidates = benchmark.OptimizerCandidateFactory.autotuneCandidates();
+
+        boolean sawArOff = candidates.stream().anyMatch(c ->
+                c.stageOrder().contains(OptimizationStage.AR)
+                        && c.knobs().conv2dLoweringMode() == Conv2dLoweringMode.OFF
+        );
+        boolean sawArAlways = candidates.stream().anyMatch(c ->
+                c.stageOrder().contains(OptimizationStage.AR)
+                        && c.knobs().conv2dLoweringMode() == Conv2dLoweringMode.ALWAYS
+        );
+        boolean sawNoArNonDefault = candidates.stream().anyMatch(c ->
+                !c.stageOrder().contains(OptimizationStage.AR)
+                        && c.knobs().conv2dLoweringMode() != Conv2dLoweringMode.HEURISTIC
+        );
+
+        assertTrue(sawArOff);
+        assertTrue(sawArAlways);
+        assertTrue(!sawNoArNonDefault);
+    }
+
     private static FamilyScoutStats family(String stageOrder, double trainingScore, double inferenceScore) {
         OptimizerCandidate c = candidate(stageOrder, List.of());
         FamilyScoutStats stats = new FamilyScoutStats(stageOrder, List.of(c), List.of(c), 2.0);
@@ -150,6 +173,7 @@ public class AutotuneSearchSupportTest {
         return new TuningKnobs(
                 false,
                 base.fuseConfig(),
+                Conv2dLoweringMode.ALWAYS,
                 base.kernelConfig(),
                 base.blasProvider(),
                 base.blasMatMulMinWork(),

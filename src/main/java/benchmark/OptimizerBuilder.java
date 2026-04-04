@@ -1,6 +1,8 @@
 package benchmark;
 
 import config.optimizer.CseConfig;
+import config.optimizer.Conv2dLoweringConfig;
+import config.optimizer.RewriteConfig;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rules.CommonSubexpressionEliminationRule;
 import graph.optimizer.rules.FuseElementWiseRule;
@@ -14,7 +16,9 @@ public final class OptimizerBuilder {
         GraphOptimizer optimizer = new GraphOptimizer();
         for (OptimizationStage stage : candidate.stageOrder()) {
             switch (stage) {
-                case AR -> optimizer.addRule(new RewriteRule());
+                case AR -> optimizer.addRule(new RewriteRule(
+                        new RewriteConfig(new Conv2dLoweringConfig(candidate.knobs().conv2dLoweringMode()))
+                ));
                 case CSE -> optimizer.addRule(new CommonSubexpressionEliminationRule(
                         candidate.knobs().strictCseSafety()
                                 ? CseConfig.strictDefaults()

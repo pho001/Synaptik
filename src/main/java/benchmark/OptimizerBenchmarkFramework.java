@@ -2222,6 +2222,7 @@ public final class OptimizerBenchmarkFramework {
 
         TuningKnobs knobs = candidate.knobs();
         sb.append("strictCseSafety=").append(knobs.strictCseSafety()).append('|');
+        sb.append("conv2dLoweringMode=").append(knobs.conv2dLoweringMode()).append('|');
 
         var fuse = knobs.fuseConfig();
         sb.append("fuse.maxClusterNodes=").append(fuse.maxClusterNodes()).append('|');

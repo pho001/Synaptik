@@ -8,6 +8,7 @@ import benchmark.autotune.CoarseKnobSignature;
 import benchmark.autotune.FamilyScoutStats;
 import benchmark.autotune.RunningEstimate;
 import benchmark.measure.CandidateMeasurementResult;
+import config.optimizer.Conv2dLoweringMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -24,6 +25,7 @@ public class AutotuneSupportModelsTest {
         TuningKnobs strictFlipKnobs = new TuningKnobs(
                 false,
                 baseKnobs.fuseConfig(),
+                baseKnobs.conv2dLoweringMode(),
                 baseKnobs.kernelConfig(),
                 baseKnobs.blasProvider(),
                 baseKnobs.blasMatMulMinWork(),
@@ -32,6 +34,19 @@ public class AutotuneSupportModelsTest {
         );
         OptimizerCandidate a = new OptimizerCandidate("A", List.of(OptimizationStage.AR), baseKnobs);
         OptimizerCandidate b = new OptimizerCandidate("B", List.of(OptimizationStage.AR), strictFlipKnobs);
+
+        CoarseKnobSignature sa = CoarseKnobSignature.of(a);
+        CoarseKnobSignature sb = CoarseKnobSignature.of(b);
+
+        assertEquals(1, sa.distance(sb));
+    }
+
+    @Test
+    void coarseKnobSignatureDistanceDetectsRewriteDifference() {
+        TuningKnobs baseKnobs = TuningKnobs.trainingDefaults();
+        TuningKnobs rewriteFlipKnobs = baseKnobs.withConv2dLoweringMode(Conv2dLoweringMode.ALWAYS);
+        OptimizerCandidate a = new OptimizerCandidate("A", List.of(OptimizationStage.AR), baseKnobs);
+        OptimizerCandidate b = new OptimizerCandidate("B", List.of(OptimizationStage.AR), rewriteFlipKnobs);
 
         CoarseKnobSignature sa = CoarseKnobSignature.of(a);
         CoarseKnobSignature sb = CoarseKnobSignature.of(b);
@@ -100,6 +115,7 @@ public class AutotuneSupportModelsTest {
         TuningKnobs strictFlipKnobs = new TuningKnobs(
                 false,
                 baseKnobs.fuseConfig(),
+                baseKnobs.conv2dLoweringMode(),
                 baseKnobs.kernelConfig(),
                 baseKnobs.blasProvider(),
                 baseKnobs.blasMatMulMinWork(),

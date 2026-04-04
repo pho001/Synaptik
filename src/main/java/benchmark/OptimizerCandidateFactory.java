@@ -6,6 +6,7 @@ import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.VectorPolicy;
+import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.FuseConfig;
 import backend.blas.BlasThreadPolicy;
 
@@ -200,7 +201,13 @@ public final class OptimizerCandidateFactory {
 
         for (TuningKnobs knobs : knobGrid) {
             for (OptimizerCandidate base : generateCombinationsAndOrders(knobs)) {
-                out.add(new OptimizerCandidate("AUTO_" + (nameId++), base.stageOrder(), knobs));
+                if (base.stageOrder().contains(OptimizationStage.AR)) {
+                    out.add(new OptimizerCandidate("AUTO_" + (nameId++), base.stageOrder(), knobs.withConv2dLoweringMode(Conv2dLoweringMode.HEURISTIC)));
+                    out.add(new OptimizerCandidate("AUTO_" + (nameId++), base.stageOrder(), knobs.withConv2dLoweringMode(Conv2dLoweringMode.OFF)));
+                    out.add(new OptimizerCandidate("AUTO_" + (nameId++), base.stageOrder(), knobs.withConv2dLoweringMode(Conv2dLoweringMode.ALWAYS)));
+                } else {
+                    out.add(new OptimizerCandidate("AUTO_" + (nameId++), base.stageOrder(), knobs));
+                }
             }
         }
 

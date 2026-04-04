@@ -13,6 +13,8 @@ import graph.codegen.CompiledFusedKernelFactory;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
+import graph.execution.trace.CompileTrace;
+import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
 import operations.FusedOperation;
 import operations.Operation;
@@ -30,6 +32,7 @@ public class CompiledGraph {
     private static final CompiledFusedKernelFactory FUSED_KERNEL_FACTORY = new CompiledFusedKernelFactory();
     private final Tensor rootTensor;
     private final GraphOptimizer optimizer;
+    private CompileTrace compileTrace = CompileTrace.skipped();
     private final List<Tensor> finalGraph = new ArrayList<>();
     private final List<Tensor> forwardGraph = new ArrayList<>();
     private Tensor forwardOutput;
@@ -38,7 +41,15 @@ public class CompiledGraph {
     public CompiledGraph(Tensor rootTensor, GraphOptimizer forwardOptimizer) {
         this.rootTensor = rootTensor;
         this.optimizer = forwardOptimizer;
+        long t0 = System.nanoTime();
         compile();
+        this.compileTrace = new CompileTrace(
+                true,
+                System.nanoTime() - t0,
+                finalGraph.size(),
+                forwardGraph.size(),
+                supportsBackward()
+        );
     }
 
     public static CompiledGraph compile(Tensor rootTensor, config.optimizer.OptimizerConfig optimizerConfig) {
@@ -122,6 +133,7 @@ public class CompiledGraph {
         config.runtime.RuntimeConfig effectiveConfig = runtimeConfig == null
                 ? (supportsBackward() ? config.runtime.RuntimeConfig.trainingDefaults() : config.runtime.RuntimeConfig.inferenceDefaults())
                 : runtimeConfig;
+        long t0 = System.nanoTime();
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(effectiveConfig.cpuKernelConfig());
         backend.runtime.RuntimeConfig backendRuntimeConfig = effectiveConfig.toBackendRuntimeConfig();
 
@@ -152,7 +164,13 @@ public class CompiledGraph {
                 backwardSteps,
                 finalGraph,
                 rootTensor,
-                forwardOutput
+                forwardOutput,
+                new graph.execution.trace.PrepareTrace(
+                        true,
+                        System.nanoTime() - t0,
+                        forwardSteps.size(),
+                        backwardSteps.size()
+                )
         );
     }
 
@@ -174,8 +192,31 @@ public class CompiledGraph {
         prepare(profile.runtime()).execute(profile.mode());
     }
 
+    public RunTrace executeTraced(config.runtime.RuntimeConfig runtimeConfig, ExecutionMode mode) {
+        return prepare(runtimeConfig).executeTraced(mode);
+    }
+
+    public RunTrace executeTraced(config.profile.ExecutionProfile profile) {
+        if (profile == null) {
+            throw new IllegalArgumentException("profile cannot be null");
+        }
+        return prepare(profile.runtime()).executeTraced(profile.mode());
+    }
+
     public void executePrepared(PreparedExecution execution, ExecutionMode mode) {
         execution.execute(mode);
+    }
+
+    public tuning.report.BenchmarkReport benchmark(tuning.session.BenchmarkRequest request) {
+        return tuning.session.BenchmarkSession.create(request).run();
+    }
+
+    public tuning.report.BenchmarkSuiteReport benchmark(tuning.session.BenchmarkSuiteRequest request) {
+        return tuning.session.BenchmarkSuiteSession.create(request).run();
+    }
+
+    public tuning.session.TuningResult autotune(tuning.session.AutotuneRequest request) {
+        return tuning.session.AutotuneSession.create(request).run();
     }
 
     public void zeroGrad() {
@@ -199,6 +240,10 @@ public class CompiledGraph {
 
     public List<Tensor> getCompiledGraphAsList() {
         return finalGraph;
+    }
+
+    public CompileTrace compileTrace() {
+        return compileTrace;
     }
 
     private CompiledNodeExecutionMetadata prepareMetadata(

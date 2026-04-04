@@ -7,12 +7,14 @@ import java.util.Locale;
 
 public final class CoarseKnobSignature {
     private final boolean strictCseSafety;
+    private final String rewriteProfileKey;
     private final String fuseProfileKey;
     private final String kernelProfileKey;
     private final String blasProfileKey;
 
-    public CoarseKnobSignature(boolean strictCseSafety, String fuseProfileKey, String kernelProfileKey, String blasProfileKey) {
+    public CoarseKnobSignature(boolean strictCseSafety, String rewriteProfileKey, String fuseProfileKey, String kernelProfileKey, String blasProfileKey) {
         this.strictCseSafety = strictCseSafety;
+        this.rewriteProfileKey = rewriteProfileKey;
         this.fuseProfileKey = fuseProfileKey;
         this.kernelProfileKey = kernelProfileKey;
         this.blasProfileKey = blasProfileKey;
@@ -23,6 +25,7 @@ public final class CoarseKnobSignature {
         var fuse = knobs.fuseConfig();
         var kernel = knobs.kernelConfig();
         var cpu = kernel.cpu();
+        String rewriteKey = knobs.conv2dLoweringMode().name();
         String fuseKey = fuse.maxClusterNodes() + "|"
                 + fmtDouble(fuse.scoreThreshold()) + "|"
                 + fmtDouble(fuse.internalEdgeBonus()) + "|"
@@ -50,12 +53,13 @@ public final class CoarseKnobSignature {
                 + knobs.blasMatMulMinWork() + "|"
                 + knobs.blasF32RequireMgeK() + "|"
                 + fmtDouble(knobs.blasF32MaxNOverK());
-        return new CoarseKnobSignature(knobs.strictCseSafety(), fuseKey, kernelKey, blasKey);
+        return new CoarseKnobSignature(knobs.strictCseSafety(), rewriteKey, fuseKey, kernelKey, blasKey);
     }
 
     public int distance(CoarseKnobSignature other) {
         int diff = 0;
         if (strictCseSafety != other.strictCseSafety) diff++;
+        if (!rewriteProfileKey.equals(other.rewriteProfileKey)) diff++;
         if (!fuseProfileKey.equals(other.fuseProfileKey)) diff++;
         if (!kernelProfileKey.equals(other.kernelProfileKey)) diff++;
         if (!blasProfileKey.equals(other.blasProfileKey)) diff++;
@@ -68,6 +72,10 @@ public final class CoarseKnobSignature {
 
     public String fuseProfileKey() {
         return fuseProfileKey;
+    }
+
+    public String rewriteProfileKey() {
+        return rewriteProfileKey;
     }
 
     public String kernelProfileKey() {
