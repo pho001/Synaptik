@@ -5,6 +5,7 @@ import tuning.candidate.Candidate;
 import tuning.measure.MeasurementEngine;
 import tuning.measure.MeasurementResult;
 import tuning.report.BenchmarkCandidateReport;
+import tuning.report.TuningSummary;
 import tuning.search.SearchContext;
 import tuning.search.SearchResult;
 import tuning.search.SearchStrategy;
@@ -81,7 +82,23 @@ final class DefaultAutotuneSession implements AutotuneSession {
                 + ", valid=" + finalists.size()
                 + ", selected=" + seenFingerprints.size();
         boolean persisted = persist(bestProfile, evaluated, finalists, summary);
-        return new TuningResult(bestProfile, finalists, summary, persisted);
+        int historyEntries = request.persistence().persistHistory() && request.persistence().historyPath() != null ? evaluated.size() : 0;
+        double bestMedian = finalists.isEmpty() ? Double.POSITIVE_INFINITY : finalists.getFirst().measurement().steadyStateStats().medianMs();
+        return new TuningResult(
+                bestProfile,
+                finalists,
+                summary,
+                new TuningSummary(
+                        searchStrategy.getClass().getSimpleName(),
+                        seenFingerprints.size(),
+                        evaluated.size(),
+                        (int) evaluated.stream().filter(BenchmarkCandidateReport::success).count(),
+                        finalists.size(),
+                        historyEntries,
+                        bestMedian
+                ),
+                persisted
+        );
     }
 
     private void evaluateCandidates(

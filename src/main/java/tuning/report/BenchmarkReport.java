@@ -42,4 +42,36 @@ public record BenchmarkReport(
                 .filter(r -> r.measurement() != null)
                 .min(Comparator.comparingDouble(r -> r.measurement().steadyStateStats().medianMs()));
     }
+
+    public Optional<BenchmarkCandidateReport> baselineNoOpt() {
+        return candidates.stream()
+                .filter(r -> r.baselineKind() == BenchmarkBaselineKind.NO_OPT)
+                .findFirst();
+    }
+
+    public Optional<BenchmarkCandidateReport> baselineNoOptConservativeRuntime() {
+        return candidates.stream()
+                .filter(r -> r.baselineKind() == BenchmarkBaselineKind.NO_OPT_CONSERVATIVE_RUNTIME)
+                .findFirst();
+    }
+
+    public double speedupVsNoOpt(BenchmarkCandidateReport candidate) {
+        if (candidate == null || candidate.measurement() == null) {
+            return Double.NaN;
+        }
+        return baselineNoOpt()
+                .filter(base -> base.measurement() != null)
+                .map(base -> base.measurement().steadyStateStats().medianMs() / candidate.measurement().steadyStateStats().medianMs())
+                .orElse(Double.NaN);
+    }
+
+    public double speedupVsNoOptConservativeRuntime(BenchmarkCandidateReport candidate) {
+        if (candidate == null || candidate.measurement() == null) {
+            return Double.NaN;
+        }
+        return baselineNoOptConservativeRuntime()
+                .filter(base -> base.measurement() != null)
+                .map(base -> base.measurement().steadyStateStats().medianMs() / candidate.measurement().steadyStateStats().medianMs())
+                .orElse(Double.NaN);
+    }
 }

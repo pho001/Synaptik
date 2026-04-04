@@ -17,6 +17,16 @@ public final class JsonBenchmarkReportRenderer {
         sb.append("  \"bestCandidateName\": \"").append(escape(report.bestCandidateName())).append("\",\n");
         sb.append("  \"successCount\": ").append(report.successCount()).append(",\n");
         sb.append("  \"failureCount\": ").append(report.failureCount()).append(",\n");
+        report.baselineNoOpt()
+                .filter(base -> base.measurement() != null)
+                .ifPresent(base -> sb.append("  \"baselineNoOptMedianMs\": ")
+                        .append(format(base.measurement().steadyStateStats().medianMs()))
+                        .append(",\n"));
+        report.baselineNoOptConservativeRuntime()
+                .filter(base -> base.measurement() != null)
+                .ifPresent(base -> sb.append("  \"baselineNoOptConservativeMedianMs\": ")
+                        .append(format(base.measurement().steadyStateStats().medianMs()))
+                        .append(",\n"));
         sb.append("  \"candidates\": [\n");
         for (int i = 0; i < report.candidates().size(); i++) {
             BenchmarkCandidateReport candidate = report.candidates().get(i);
@@ -25,12 +35,15 @@ public final class JsonBenchmarkReportRenderer {
             }
             sb.append("    {\n");
             sb.append("      \"name\": \"").append(escape(candidate.candidate().name())).append("\",\n");
+            sb.append("      \"baselineKind\": \"").append(candidate.baselineKind().name()).append("\",\n");
             sb.append("      \"success\": ").append(candidate.success()).append(",\n");
             sb.append("      \"validationStatus\": \"").append(escape(candidate.validation().status())).append("\",\n");
             sb.append("      \"failureReason\": \"").append(escape(candidate.failureReason())).append("\"");
             if (candidate.measurement() != null) {
                 var trace = candidate.measurement().trace();
                 var stats = candidate.measurement().steadyStateStats();
+                double speedupNoOpt = report.speedupVsNoOpt(candidate);
+                double speedupNoOptCr = report.speedupVsNoOptConservativeRuntime(candidate);
                 sb.append(",\n");
                 sb.append("      \"timing\": {\n");
                 sb.append("        \"compileMs\": ").append(format(nanosToMs(trace.compile().durationNs()))).append(",\n");
@@ -39,6 +52,10 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"meanMs\": ").append(format(stats.meanMs())).append(",\n");
                 sb.append("        \"medianMs\": ").append(format(stats.medianMs())).append(",\n");
                 sb.append("        \"p90Ms\": ").append(format(stats.p90Ms())).append("\n");
+                sb.append("      },\n");
+                sb.append("      \"speedup\": {\n");
+                sb.append("        \"vsNoOpt\": ").append(format(speedupNoOpt)).append(",\n");
+                sb.append("        \"vsNoOptConservativeRuntime\": ").append(format(speedupNoOptCr)).append("\n");
                 sb.append("      },\n");
                 sb.append("      \"trace\": {\n");
                 sb.append("        \"mode\": \"").append(trace.run().mode().name()).append("\",\n");
@@ -81,7 +98,7 @@ public final class JsonBenchmarkReportRenderer {
     }
 
     private static String format(double value) {
-        return String.format(Locale.US, "%.6f", value);
+        return Double.isFinite(value) ? String.format(Locale.US, "%.6f", value) : "null";
     }
 
     private static double nanosToMs(long durationNs) {

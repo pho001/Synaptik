@@ -13,7 +13,8 @@ public record BenchmarkSuiteRequest(
         List<Candidate> candidates,
         MeasurementPolicy measurement,
         ValidationPolicy validation,
-        ReportPolicy report
+        ReportPolicy report,
+        BaselinePolicy baselines
 ) {
     public BenchmarkSuiteRequest {
         workloads = workloads == null ? List.of() : List.copyOf(workloads);
@@ -21,5 +22,16 @@ public record BenchmarkSuiteRequest(
         measurement = measurement == null ? MeasurementPolicy.defaults() : measurement;
         validation = validation == null ? ValidationPolicy.disabled() : validation;
         report = report == null ? ReportPolicy.defaults() : report;
+        baselines = baselines == null ? BaselinePolicy.defaults() : baselines;
+    }
+
+    public BenchmarkSuiteRequest(
+            List<WorkloadSpec> workloads,
+            List<Candidate> candidates,
+            MeasurementPolicy measurement,
+            ValidationPolicy validation,
+            ReportPolicy report
+    ) {
+        this(workloads, candidates, measurement, validation, report, BaselinePolicy.defaults());
     }
 }

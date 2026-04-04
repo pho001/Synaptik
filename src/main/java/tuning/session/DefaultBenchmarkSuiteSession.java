@@ -35,7 +35,8 @@ final class DefaultBenchmarkSuiteSession implements BenchmarkSuiteSession {
                     request.candidates(),
                     request.measurement(),
                     request.validation(),
-                    request.report()
+                    request.report(),
+                    request.baselines()
             );
             reports.add(BenchmarkSession.create(workloadRequest, measurementEngine, validationEngine).run());
         }

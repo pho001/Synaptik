@@ -21,6 +21,16 @@ public final class TextBenchmarkReportRenderer {
         sb.append("Summary\n");
         sb.append("successes=").append(report.successCount()).append('\n');
         sb.append("failures=").append(report.failureCount()).append('\n');
+        report.baselineNoOpt()
+                .filter(base -> base.measurement() != null)
+                .ifPresent(base -> sb.append("baselineNoOptMedianMs=")
+                        .append(String.format(Locale.US, "%.6f", base.measurement().steadyStateStats().medianMs()))
+                        .append('\n'));
+        report.baselineNoOptConservativeRuntime()
+                .filter(base -> base.measurement() != null)
+                .ifPresent(base -> sb.append("baselineNoOptConservativeMedianMs=")
+                        .append(String.format(Locale.US, "%.6f", base.measurement().steadyStateStats().medianMs()))
+                        .append('\n'));
         report.bestCandidate().ifPresent(best -> {
             sb.append("bestMedianMs=").append(String.format(Locale.US, "%.6f", best.measurement().steadyStateStats().medianMs())).append('\n');
             sb.append("bestMeanMs=").append(String.format(Locale.US, "%.6f", best.measurement().steadyStateStats().meanMs())).append('\n');
@@ -30,8 +40,8 @@ public final class TextBenchmarkReportRenderer {
         sb.append("Candidates\n");
         sb.append(String.format(
                 Locale.US,
-                "%-24s %-8s %-12s %-12s %-12s %-12s %-12s%n",
-                "name", "status", "compileMs", "prepareMs", "traceMs", "medianMs", "p90Ms"
+                "%-34s %-8s %-12s %-12s %-12s %-12s %-12s %-12s %-12s%n",
+                "name", "status", "compileMs", "prepareMs", "traceMs", "medianMs", "p90Ms", "vsNoOpt", "vsNoOptCR"
         ));
         report.candidates().stream()
                 .sorted(Comparator.comparing(r -> r.candidate().name()))
@@ -39,9 +49,11 @@ public final class TextBenchmarkReportRenderer {
                     if (candidate.measurement() == null) {
                         sb.append(String.format(
                                 Locale.US,
-                                "%-24s %-8s %-12s %-12s %-12s %-12s %-12s%n",
+                                "%-34s %-8s %-12s %-12s %-12s %-12s %-12s %-12s %-12s%n",
                                 candidate.candidate().name(),
                                 "FAIL",
+                                "n/a",
+                                "n/a",
                                 "n/a",
                                 "n/a",
                                 "n/a",
@@ -52,16 +64,20 @@ public final class TextBenchmarkReportRenderer {
                     }
                     var trace = candidate.measurement().trace();
                     var stats = candidate.measurement().steadyStateStats();
+                    double speedupNoOpt = report.speedupVsNoOpt(candidate);
+                    double speedupNoOptCr = report.speedupVsNoOptConservativeRuntime(candidate);
                     sb.append(String.format(
                             Locale.US,
-                            "%-24s %-8s %-12.6f %-12.6f %-12.6f %-12.6f %-12.6f%n",
-                            candidate.candidate().name(),
+                            "%-34s %-8s %-12.6f %-12.6f %-12.6f %-12.6f %-12.6f %-12s %-12s%n",
+                            label(candidate),
                             candidate.success() ? "OK" : "FAIL",
                             nanosToMs(trace.compile().durationNs()),
                             nanosToMs(trace.prepare().durationNs()),
                             nanosToMs(trace.run().durationNs()),
                             stats.medianMs(),
-                            stats.p90Ms()
+                            stats.p90Ms(),
+                            formatRatio(speedupNoOpt),
+                            formatRatio(speedupNoOptCr)
                     ));
                 });
         sb.append('\n');
@@ -69,7 +85,7 @@ public final class TextBenchmarkReportRenderer {
         report.candidates().stream()
                 .sorted(Comparator.comparing(r -> r.candidate().name()))
                 .forEach(candidate -> {
-                    sb.append("- ").append(candidate.candidate().name()).append('\n');
+                    sb.append("- ").append(label(candidate)).append('\n');
                     sb.append("  success=").append(candidate.success()).append('\n');
                     sb.append("  validation=").append(candidate.validation().status()).append('\n');
                     if (!candidate.failureReason().isBlank()) {
@@ -85,6 +101,8 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  steadyStateMeanMs=").append(String.format(Locale.US, "%.6f", stats.meanMs())).append('\n');
                         sb.append("  steadyStateMedianMs=").append(String.format(Locale.US, "%.6f", stats.medianMs())).append('\n');
                         sb.append("  steadyStateP90Ms=").append(String.format(Locale.US, "%.6f", stats.p90Ms())).append('\n');
+                        sb.append("  speedupVsNoOpt=").append(formatRatio(report.speedupVsNoOpt(candidate))).append('\n');
+                        sb.append("  speedupVsNoOptConservativeRuntime=").append(formatRatio(report.speedupVsNoOptConservativeRuntime(candidate))).append('\n');
                         appendHotSteps(sb, trace.run().steps(), 5);
                     }
                 });
@@ -117,5 +135,17 @@ public final class TextBenchmarkReportRenderer {
                         .append("] ")
                         .append(String.format(Locale.US, "%.6fms", nanosToMs(step.durationNs())))
                         .append('\n'));
+    }
+
+    private static String label(BenchmarkCandidateReport candidate) {
+        return switch (candidate.baselineKind()) {
+            case NO_OPT -> candidate.candidate().name() + " [baseline]";
+            case NO_OPT_CONSERVATIVE_RUNTIME -> candidate.candidate().name() + " [baseline+conservative-runtime]";
+            case NONE -> candidate.candidate().name();
+        };
+    }
+
+    private static String formatRatio(double ratio) {
+        return Double.isFinite(ratio) ? String.format(Locale.US, "%.3fx", ratio) : "n/a";
     }
 }

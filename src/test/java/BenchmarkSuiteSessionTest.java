@@ -9,6 +9,7 @@ import tuning.measure.MeasurementPolicy;
 import tuning.report.BenchmarkSuiteReport;
 import tuning.report.JsonBenchmarkSuiteReportRenderer;
 import tuning.report.TextBenchmarkSuiteReportRenderer;
+import tuning.session.BaselinePolicy;
 import tuning.session.BenchmarkSuiteRequest;
 import tuning.session.BenchmarkSuiteSession;
 import tuning.workload.TensorRootWorkloadSpec;
@@ -18,6 +19,7 @@ import tuning.workload.WorkloadKind;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BenchmarkSuiteSessionTest {
@@ -61,8 +63,11 @@ public class BenchmarkSuiteSessionTest {
         assertEquals(2, report.workloadReports().size());
         assertEquals("add_only", report.workloadReports().get(0).workloadName());
         assertEquals("mul_only", report.workloadReports().get(1).workloadName());
-        assertEquals("suite-baseline", report.workloadReports().get(0).bestCandidateName());
-        assertEquals("suite-baseline", report.workloadReports().get(1).bestCandidateName());
+        assertEquals(6, report.totalCandidateCount());
+        assertTrue(report.workloadReports().get(0).bestCandidateName().equals("suite-baseline")
+                || report.workloadReports().get(0).bestCandidateName().startsWith("BASELINE_"));
+        assertTrue(report.workloadReports().get(1).bestCandidateName().equals("suite-baseline")
+                || report.workloadReports().get(1).bestCandidateName().startsWith("BASELINE_"));
     }
 
     @Test
@@ -102,7 +107,8 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(rendered.contains("Summary"));
         assertTrue(rendered.contains("Workloads"));
         assertTrue(rendered.contains("=== single_case ==="));
-        assertTrue(rendered.contains("bestCandidate=render-suite"));
+        assertTrue(rendered.contains("bestCandidate="));
+        assertTrue(rendered.contains("BASELINE_NO_OPT"));
     }
 
     @Test
@@ -138,8 +144,44 @@ public class BenchmarkSuiteSessionTest {
         ).run();
 
         String json = JsonBenchmarkSuiteReportRenderer.render(report);
-        assertTrue(json.contains("\"totalCandidates\": 1"));
+        assertTrue(json.contains("\"totalCandidates\": 3"));
         assertTrue(json.contains("\"workloads\": ["));
         assertTrue(json.contains("\"workloadName\": \"json_case\""));
+    }
+
+    @Test
+    void suitePropagatesDisabledBaselinePolicyToPerWorkloadRuns() {
+        WorkloadCatalog catalog = new WorkloadCatalog()
+                .register(new TensorRootWorkloadSpec(
+                        "no_baseline_case",
+                        WorkloadKind.GENERIC,
+                        environment -> Tensor.scalar(2.0).mul(Tensor.scalar(5.0))
+                ));
+
+        Candidate candidate = new Candidate(
+                "no-baseline-candidate",
+                new ExecutionProfile(
+                        "no-baseline-profile",
+                        "no-baseline-candidate",
+                        DataType.FLOAT64,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.noOptimization(),
+                        config.runtime.RuntimeConfig.inferenceDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+
+        BenchmarkSuiteReport report = BenchmarkSuiteSession.create(new BenchmarkSuiteRequest(
+                List.of(catalog.require("no_baseline_case")),
+                List.of(candidate),
+                new MeasurementPolicy(0, 1, 1, true, true, true, true, false),
+                tuning.validate.ValidationPolicy.disabled(),
+                tuning.report.ReportPolicy.defaults(),
+                BaselinePolicy.disabled()
+        )).run();
+
+        assertEquals(1, report.workloadReports().getFirst().candidates().size());
+        assertFalse(report.workloadReports().getFirst().baselineNoOpt().isPresent());
+        assertFalse(report.workloadReports().getFirst().baselineNoOptConservativeRuntime().isPresent());
     }
 }

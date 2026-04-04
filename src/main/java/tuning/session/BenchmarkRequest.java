@@ -14,7 +14,8 @@ public record BenchmarkRequest(
         List<Candidate> candidates,
         MeasurementPolicy measurement,
         ValidationPolicy validation,
-        ReportPolicy report
+        ReportPolicy report,
+        BaselinePolicy baselines
 ) {
     public BenchmarkRequest {
         Objects.requireNonNull(workload, "workload cannot be null");
@@ -22,5 +23,16 @@ public record BenchmarkRequest(
         measurement = measurement == null ? MeasurementPolicy.defaults() : measurement;
         validation = validation == null ? ValidationPolicy.disabled() : validation;
         report = report == null ? ReportPolicy.defaults() : report;
+        baselines = baselines == null ? BaselinePolicy.defaults() : baselines;
+    }
+
+    public BenchmarkRequest(
+            WorkloadSpec workload,
+            List<Candidate> candidates,
+            MeasurementPolicy measurement,
+            ValidationPolicy validation,
+            ReportPolicy report
+    ) {
+        this(workload, candidates, measurement, validation, report, BaselinePolicy.defaults());
     }
 }

@@ -18,6 +18,9 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("matmul_small"));
         assertTrue(catalog.names().contains("matmul_batched_attention_like"));
         assertTrue(catalog.names().contains("conv2d_resnet_3x3"));
+        assertTrue(catalog.names().contains("layer_norm_small"));
+        assertTrue(catalog.names().contains("max_pool2d_small"));
+        assertTrue(catalog.names().contains("cross_entropy_small"));
         assertTrue(catalog.names().contains("transformer_hot_path"));
     }
 
@@ -63,8 +66,31 @@ public class StandardWorkloadsTest {
                         true
                 )
                 .instantiate(new WorkloadEnvironment(profile));
+        var norm = StandardWorkloads.normalization(
+                        "layer_norm_test",
+                        tuning.workload.NormalizationWorkloadSpec.NormalizationKind.LAYER_NORM,
+                        2, 16, 4, 1, 1e-5
+                )
+                .instantiate(new WorkloadEnvironment(profile));
+        var pool = StandardWorkloads.pool2d(
+                        "pool_test",
+                        tuning.workload.Pool2dWorkloadSpec.PoolKind.MAX,
+                        1, 4, 8, 8,
+                        tensor.Pool2dOptions.square(2)
+                )
+                .instantiate(new WorkloadEnvironment(profile));
+        var loss = StandardWorkloads.indexedLoss(
+                        "loss_test",
+                        tuning.workload.LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES,
+                        4, 8,
+                        tensor.LossReduction.MEAN
+                )
+                .instantiate(new WorkloadEnvironment(profile));
 
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, matmul.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, conv.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, norm.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, pool.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, loss.reference().kind());
     }
 }
