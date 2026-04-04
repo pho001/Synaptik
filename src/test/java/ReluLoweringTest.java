@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ReluLoweringTest {
 
     @Test
-    void lowersStrictPositiveWherePatternToReluAndPreservesGradients() {
+    void keepsStrictPositiveWherePatternAsSelectInCurrentArRule() {
         Tensor baselineInput = new Tensor(new double[]{-2.0, 0.0, 3.0}, new int[]{3}, null, "x_base", DataType.FLOAT64);
         baselineInput.setRequiresGrad(true);
         Tensor baselineOut = Tensor.where(
@@ -40,7 +40,8 @@ public class ReluLoweringTest {
 
         assertArrayEquals(baselineOut.toDoubleArrayCopy(), optimizedOut.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), optimizedInput.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertTrue(containsOp(compiledGraph, Operation.OpType.RELU));
+        assertFalse(containsOp(compiledGraph, Operation.OpType.RELU));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.WHERE));
     }
 
     @Test

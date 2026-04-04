@@ -2,7 +2,6 @@ import backend.ApproxMode;
 import backend.blas.BlasProvider;
 import backend.blas.BlasThreadPolicy;
 import backend.runtime.ExecutionMode;
-import benchmark.OptimizerProfileIO;
 import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
@@ -17,6 +16,7 @@ import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.optimizer.RewriteConfig;
 import config.profile.ExecutionProfile;
+import config.profile.ExecutionProfileIO;
 import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
@@ -62,8 +62,8 @@ public class ExecutionProfileIoTest {
         );
 
         Path path = Files.createTempFile("execution-profile-", ".json");
-        OptimizerProfileIO.saveExecutionProfile(path, expected);
-        ExecutionProfile actual = OptimizerProfileIO.loadExecutionProfileOrDefault(path, ExecutionProfileIoTest.defaultProfile());
+        ExecutionProfileIO.saveExecutionProfile(path, expected);
+        ExecutionProfile actual = ExecutionProfileIO.loadExecutionProfileOrDefault(path, ExecutionProfileIoTest.defaultProfile());
 
         assertEquals(expected.profileName(), actual.profileName());
         assertEquals(expected.candidateName(), actual.candidateName());

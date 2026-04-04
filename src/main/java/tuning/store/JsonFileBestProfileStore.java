@@ -1,7 +1,7 @@
 package tuning.store;
 
-import benchmark.OptimizerProfileIO;
 import config.profile.ExecutionProfile;
+import config.profile.ExecutionProfileIO;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +20,7 @@ public final class JsonFileBestProfileStore implements BestProfileStore {
         if (record == null) {
             throw new IllegalArgumentException("record cannot be null");
         }
-        String profileJson = benchmark.OptimizerProfileIO.toJson(record.profile()).replace("\n", "\n    ");
+        String profileJson = ExecutionProfileIO.toJson(record.profile()).replace("\n", "\n    ");
         String json = "{\n"
                 + "  \"score\": " + String.format(Locale.US, "%.8f", record.score()) + ",\n"
                 + "  \"updatedAt\": \"" + record.updatedAt() + "\",\n"
@@ -61,7 +61,7 @@ public final class JsonFileBestProfileStore implements BestProfileStore {
                     config.optimizer.OptimizerConfig.inferenceDefaults(),
                     config.runtime.RuntimeConfig.inferenceDefaults()
             );
-            ExecutionProfile profile = OptimizerProfileIO.loadExecutionProfileOrDefault(writeTemp(profileBody), fallback);
+            ExecutionProfile profile = ExecutionProfileIO.fromJsonOrDefault(profileBody, fallback);
             return Optional.of(new BestProfileRecord(
                     HardwareFingerprint.fromKey(hardwareKey),
                     WorkloadFingerprint.fromKey(workloadKey),
@@ -72,13 +72,6 @@ public final class JsonFileBestProfileStore implements BestProfileStore {
         } catch (Exception e) {
             return Optional.empty();
         }
-    }
-
-    private static Path writeTemp(String json) throws IOException {
-        Path tmp = Files.createTempFile("best-profile-load-", ".json");
-        Files.writeString(tmp, json, StandardCharsets.UTF_8);
-        tmp.toFile().deleteOnExit();
-        return tmp;
     }
 
     private static String extractObject(String json, String key) {

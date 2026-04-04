@@ -1,16 +1,16 @@
-import benchmark.scenario.ScenarioTensorFactory;
 import tensor.DataType;
+import tensor.TensorDataFactory;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class ScenarioTensorFactoryTest {
+public class TensorDataFactoryTest {
 
     @Test
     void strictPrefixCopiesRequestedPrefix() {
-        Tensor t = ScenarioTensorFactory.prefixTensorStrict(
+        Tensor t = TensorDataFactory.prefixTensorStrict(
                 "strict",
                 new double[]{1, 2, 3, 4, 5, 6},
                 true,
@@ -26,7 +26,7 @@ public class ScenarioTensorFactoryTest {
     @Test
     void strictPrefixRejectsTooShortInput() {
         assertThrows(IllegalArgumentException.class, () ->
-                ScenarioTensorFactory.prefixTensorStrict(
+                TensorDataFactory.prefixTensorStrict(
                         "strictFail",
                         new double[]{1, 2, 3},
                         false,
@@ -38,7 +38,7 @@ public class ScenarioTensorFactoryTest {
 
     @Test
     void wrapPrefixRepeatsWhenInputIsTooShort() {
-        Tensor t = ScenarioTensorFactory.prefixTensorWrap(
+        Tensor t = TensorDataFactory.prefixTensorWrap(
                 "wrap",
                 new double[]{1, 2, 3},
                 false,

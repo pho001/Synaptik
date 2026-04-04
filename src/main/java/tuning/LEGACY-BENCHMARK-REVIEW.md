@@ -22,11 +22,11 @@ These parts still carry real value and can continue to live for some time:
 
 ### 1. Existing benchmark entry programs
 
-Examples:
+Examples from the removed legacy package included:
 
-- [MatMulBenchmark.java](../benchmark/MatMulBenchmark.java)
-- [Conv2dLoweringBenchmark.java](../benchmark/Conv2dLoweringBenchmark.java)
-- [TransformerHotPathBenchmark.java](../benchmark/TransformerHotPathBenchmark.java)
+- matmul benchmark runners
+- conv2d lowering benchmark runners
+- transformer hot-path benchmark runners
 
 Reason:
 
@@ -35,10 +35,10 @@ Reason:
 
 ### 2. Some scenario/data factory pieces
 
-Examples:
+Examples from the removed legacy package included:
 
-- `ScenarioTensorFactory`
-- `BenchmarkGraphRecipes`
+- scenario tensor factories
+- benchmark graph recipe helpers
 
 Reason:
 
@@ -62,11 +62,7 @@ These areas are now conceptually legacy because the new `tuning` package superse
 
 ### 1. Old autotune orchestration
 
-Everything under:
-
-- `benchmark.autotune.*`
-
-is now legacy from an architecture perspective.
+The removed `benchmark.autotune.*` family was legacy from an architecture perspective.
 
 Reason:
 
@@ -80,7 +76,7 @@ Reason:
 
 ### 2. Old benchmark-first candidate model
 
-Examples:
+Examples from the removed legacy package included:
 
 - `OptimizerCandidate`
 - `TuningKnobs`
@@ -149,14 +145,10 @@ Meaning:
 
 ## Practical Decision
 
-Right now the old `benchmark` package should still be kept as:
+The legacy benchmark package has now been removed.
 
-- operational tooling
-- compatibility tooling
-- migration reference
+Its historical role matters only as context for why:
 
-But not as:
-
-- the future source of truth for benchmark/autotune architecture
-
-The new `tuning` package is now the architectural destination.
+- `tuning` owns benchmark/autotune orchestration
+- `ExecutionProfile` remains the single execution source of truth
+- new benchmark surface must not reintroduce a parallel candidate model

@@ -1,6 +1,6 @@
 package numerics;
 
-import benchmark.OptimizerCandidate;
+import config.profile.ExecutionProfile;
 import tensor.DataType;
 
 public final class NumericsCli {
@@ -22,8 +22,8 @@ public final class NumericsCli {
         String nameB = System.getProperty("numerics.nameB", "B");
 
         NumericsHarness harness = new NumericsHarness(cfg);
-        OptimizerCandidate a = harness.candidate(nameA, NumericsHarness.parseStages(stageA));
-        OptimizerCandidate b = harness.candidate(nameB, NumericsHarness.parseStages(stageB));
+        ExecutionProfile a = harness.profile(nameA, NumericsHarness.parseStages(stageA));
+        ExecutionProfile b = harness.profile(nameB, NumericsHarness.parseStages(stageB));
 
         NumericsPolicy policy = NumericsPolicy.defaultsFor(cfg.dtype);
         NumericsReport report = harness.run(a, b, policy);
@@ -35,4 +35,3 @@ public final class NumericsCli {
         return DataType.valueOf(raw);
     }
 }
-

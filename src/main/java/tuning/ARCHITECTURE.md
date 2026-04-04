@@ -296,9 +296,9 @@ Current deliberate constraints:
 
 Current weak spots to keep in mind:
 
-- benchmark reports are still per-run artifacts; cross-run aggregation is intentionally thin
+- benchmark reports are still primarily per-run artifacts; suite-level aggregation exists, but long-horizon report comparison is still thin
 - baseline derivation currently assumes the benchmark is comparing one coherent candidate family
-- old `benchmark` package still exists as operational tooling and can create conceptual duplication if kept growing
+- workload families are still code-defined Java builders rather than a higher-level declarative scenario format
 
 None of those are blockers for the current design.
 They are follow-up hardening areas.

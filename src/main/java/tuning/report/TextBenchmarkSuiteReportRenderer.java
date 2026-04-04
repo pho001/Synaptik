@@ -1,5 +1,7 @@
 package tuning.report;
 
+import java.util.Locale;
+
 public final class TextBenchmarkSuiteReportRenderer {
     private TextBenchmarkSuiteReportRenderer() {
     }
@@ -17,22 +19,65 @@ public final class TextBenchmarkSuiteReportRenderer {
         sb.append("totalCandidates=").append(report.totalCandidateCount()).append('\n');
         sb.append("totalSuccesses=").append(report.totalSuccessCount()).append('\n');
         sb.append("totalFailures=").append(report.totalFailureCount()).append("\n\n");
+        report.overallBestCandidate().ifPresent(best -> sb.append("overallBestCandidate=")
+                .append(best.candidate().name())
+                .append('\n'));
+        report.overallBestCandidate().ifPresent(best -> sb.append("overallBestMedianMs=")
+                .append(String.format(Locale.US, "%.6f", best.measurement().steadyStateStats().medianMs()))
+                .append("\n\n"));
 
         sb.append("Workloads\n");
         sb.append(String.format(
-                java.util.Locale.US,
+                Locale.US,
                 "%-28s %-16s %-12s %-12s%n",
                 "name", "bestCandidate", "successes", "failures"
         ));
         for (BenchmarkReport workloadReport : report.workloadReports()) {
             sb.append(String.format(
-                    java.util.Locale.US,
+                    Locale.US,
                     "%-28s %-16s %-12d %-12d%n",
                     workloadReport.workloadName(),
                     workloadReport.bestCandidateName().isBlank() ? "n/a" : workloadReport.bestCandidateName(),
                     workloadReport.successCount(),
                     workloadReport.failureCount()
             ));
+        }
+        sb.append("\n");
+
+        sb.append("Candidate Summaries\n");
+        sb.append(String.format(
+                Locale.US,
+                "%-34s %-12s %-10s %-10s %-14s %-12s %-12s%n",
+                "name", "baseline", "workloads", "successes", "avgMedianMs", "avgVsNoOpt", "avgVsNoOptCR"
+        ));
+        for (BenchmarkSuiteCandidateSummary summary : report.candidateSummaries()) {
+            sb.append(String.format(
+                    Locale.US,
+                    "%-34s %-12s %-10d %-10d %-14s %-12s %-12s%n",
+                    summary.candidateName(),
+                    summary.baselineKind().name(),
+                    summary.workloadCount(),
+                    summary.successCount(),
+                    formatDouble(summary.averageMedianMs()),
+                    formatRatio(summary.averageSpeedupVsNoOpt()),
+                    formatRatio(summary.averageSpeedupVsNoOptConservativeRuntime())
+            ));
+        }
+        sb.append("\n");
+
+        sb.append("Suite Hotspots\n");
+        for (BenchmarkSuiteHotspot hotspot : report.hotspots(10)) {
+            sb.append("- ")
+                    .append(hotspot.workloadName())
+                    .append(" / ")
+                    .append(hotspot.candidateName())
+                    .append(" / ")
+                    .append(hotspot.opType())
+                    .append(" [")
+                    .append(hotspot.label())
+                    .append("] ")
+                    .append(String.format(Locale.US, "%.6fms", hotspot.durationNs() / 1_000_000.0d))
+                    .append('\n');
         }
         sb.append("\n");
 
@@ -46,5 +91,13 @@ public final class TextBenchmarkSuiteReportRenderer {
         }
 
         return sb.toString();
+    }
+
+    private static String formatDouble(double value) {
+        return Double.isFinite(value) ? String.format(Locale.US, "%.6f", value) : "n/a";
+    }
+
+    private static String formatRatio(double ratio) {
+        return Double.isFinite(ratio) ? String.format(Locale.US, "%.3fx", ratio) : "n/a";
     }
 }

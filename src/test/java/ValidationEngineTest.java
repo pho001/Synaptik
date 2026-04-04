@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.candidate.Candidate;
+import tuning.session.BaselinePolicy;
 import tuning.session.BenchmarkRequest;
 import tuning.session.BenchmarkSession;
 import tuning.validate.DefaultValidationEngine;
@@ -115,7 +116,8 @@ public class ValidationEngineTest {
                 List.of(candidate),
                 tuning.measure.MeasurementPolicy.defaults(),
                 ValidationPolicy.defaults(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.report.ReportPolicy.defaults(),
+                BaselinePolicy.disabled()
         )).run();
 
         assertEquals(1, report.candidates().size());

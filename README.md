@@ -10,7 +10,7 @@ Synaptik is a Java tensor and autodiff framework built around explicit compiled-
 - Runtime fused-kernel generation for element-wise subgraphs
 - First-class `BOOL` tensor dtype with compare/select and logical bool ops
 - Backend abstraction with CPU kernels and CUDA/OpenCL scaffolding
-- Benchmarking, persisted optimizer profiles, and numerics diagnostics
+- Tuning, persisted execution profiles, and numerics diagnostics
 - Regression and operation-level test coverage
 
 ## Requirements
@@ -37,7 +37,7 @@ On Windows, use [`gradlew.bat`](gradlew.bat) instead of [`gradlew`](gradlew).
 
 Alternative main classes can be started from compiled classes, for example:
 
-- benchmark entry point: `synaptik.app.OptimizerBenchmark`
+- default app message entry point: `synaptik.app.Main`
 - numerics CLI: `numerics.NumericsCli`
 
 Dependency note:
@@ -68,16 +68,16 @@ Dependency note:
   - Module documentation: [`src/main/java/graph/optimizer/README.md`](src/main/java/graph/optimizer/README.md)
 - [`src/main/java/graph/codegen/`](src/main/java/graph/codegen)
   - Runtime fused code generation for specialized fused operations
-- [`src/main/java/benchmark/`](src/main/java/benchmark)
-  - Benchmark harness, candidate selection, profile I/O, and tuning utilities
-  - Module documentation: [`src/main/java/benchmark/README.md`](src/main/java/benchmark/README.md)
+- [`src/main/java/tuning/`](src/main/java/tuning)
+  - Benchmark, autotune, validation, search, reporting, and persistence surface
+  - Module documentation: [`src/main/java/tuning/README.md`](src/main/java/tuning/README.md)
 - [`src/main/java/numerics/`](src/main/java/numerics)
   - Standalone numerics A/B harness for stability diagnostics
   - Module documentation: [`src/main/java/numerics/README.md`](src/main/java/numerics/README.md)
 - [`src/main/java/config/`](src/main/java/config)
   - Backend and optimizer tuning configuration objects
 - [`config/`](config)
-  - Persisted benchmark and optimizer profile data
+  - Persisted execution-profile and tuning data
 - [`src/test/java/`](src/test/java)
   - Regression and functional tests
 
@@ -90,7 +90,7 @@ Detailed per-module docs:
 - Backend: [`src/main/java/backend/README.md`](src/main/java/backend/README.md)
 - Graph: [`src/main/java/graph/README.md`](src/main/java/graph/README.md)
 - Optimizer: [`src/main/java/graph/optimizer/README.md`](src/main/java/graph/optimizer/README.md)
-- Benchmark: [`src/main/java/benchmark/README.md`](src/main/java/benchmark/README.md)
+- Tuning: [`src/main/java/tuning/README.md`](src/main/java/tuning/README.md)
 - Numerics: [`src/main/java/numerics/README.md`](src/main/java/numerics/README.md)
 
 ### Tensor Runtime
@@ -270,39 +270,29 @@ y.compute(profile);
 ## Entry Points
 
 - [`Main`](src/main/java/synaptik/app/Main.java)
-  - Small runnable demo for building and executing a graph
-- [`OptimizerBenchmark`](src/main/java/synaptik/app/OptimizerBenchmark.java)
-  - Benchmark entry point for optimizer and fusion experiments
+  - Minimal packaged application entry point
+  - intentionally does not boot a benchmark framework anymore
+- [`NumericsCli`](src/main/java/numerics/NumericsCli.java)
+  - Standalone numerics comparison CLI
 
 ## Benchmarks and Profiles
 
-The benchmarking subsystem under [`src/main/java/benchmark/`](src/main/java/benchmark) provides:
+The benchmark/autotune subsystem now lives under [`src/main/java/tuning/`](src/main/java/tuning).
 
-- optimizer candidate generation
-- benchmark orchestration across optimization stages
-- tuning knob definitions
-- profile serialization/deserialization
+It provides:
 
-Autotuning is two-phase:
+- workload specifications over the public tensor surface
+- `ExecutionProfile` candidate generation and mutation
+- validation against conservative baseline profiles
+- benchmark and autotune sessions
+- search strategies, reporting, and persistence
+- suite-level reporting with candidate summaries and hotspot aggregation
 
-- phase 1: broad candidate screening
-- phase 2: refined measurement of finalists
+See:
 
-Winning profiles are persisted and reused on startup:
-
-- runtime training profile: [`config/optimizer-profile.json`](config/optimizer-profile.json)
-- runtime HW-bucket profiles: [`config/optimizer-hw-profiles.tsv`](config/optimizer-hw-profiles.tsv)
-- autotune best training: [`build/optimizer-autotune/best-profile-training.json`](build/optimizer-autotune/best-profile-training.json)
-- autotune best inference: [`build/optimizer-autotune/best-profile-inference.json`](build/optimizer-autotune/best-profile-inference.json)
-- autotune unsafe candidate history (mismatch + numerics post-check unsafe): [`build/optimizer-autotune/candidate-history.tsv`](build/optimizer-autotune/candidate-history.tsv)
-- numerics post-check reports: [`build/numerics/`](build/numerics)
-
-Runtime profile priority is:
-
-1. HW-bucket profile (`optimizer-hw-profiles.tsv`) for current machine bucket.
-2. Architecture preset (`os.arch`, includes ARM/aarch64 and x86_64/amd64 fallbacks).
-3. Persisted autotune winners (`best-profile-*.json`).
-4. Built-in defaults.
+- [`src/main/java/tuning/README.md`](src/main/java/tuning/README.md)
+- [`src/main/java/tuning/ARCHITECTURE.md`](src/main/java/tuning/ARCHITECTURE.md)
+- [`src/main/java/tuning/REPORTING.md`](src/main/java/tuning/REPORTING.md)
 
 ## Testing
 
@@ -324,6 +314,7 @@ Run them with:
 - CPU execution is the primary implemented backend today
 - CUDA and OpenCL support are intentionally incomplete scaffolds
 - IntelliJ and Gradle project settings are aligned to JDK 25
+- execution profiles are serialized through [`ExecutionProfileIO`](src/main/java/config/profile/ExecutionProfileIO.java)
 
 ## Roadmap Ideas
 

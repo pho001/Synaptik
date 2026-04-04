@@ -149,9 +149,9 @@ public class AllOpsTest {
 
     @Test
     public void testSumForward() {
-        a = tensor(new double[]{1.0, 2.0, 3.0, 4.0});
+        a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "t", DataType.FLOAT64);
         Tensor s = a.sum(0);
-        CompiledGraph.compile(s, OptimizerConfig.trainingDefaults())
+        CompiledGraph.compile(s, OptimizerConfig.inferenceDefaults())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
         assertEquals(1, s.getShape().length);

@@ -1,7 +1,7 @@
 package tuning.store;
 
-import benchmark.OptimizerProfileIO;
 import config.profile.ExecutionProfile;
+import config.profile.ExecutionProfileIO;
 
 import java.nio.file.Path;
 import java.util.Optional;
@@ -21,7 +21,7 @@ public final class JsonFileProfileStore implements ProfileStore {
         if (profile == null) {
             throw new IllegalArgumentException("profile cannot be null");
         }
-        OptimizerProfileIO.saveExecutionProfile(path, profile);
+        ExecutionProfileIO.saveExecutionProfile(path, profile);
     }
 
     @Override
@@ -32,6 +32,6 @@ public final class JsonFileProfileStore implements ProfileStore {
         if (fallbackProfile == null) {
             return Optional.empty();
         }
-        return Optional.of(OptimizerProfileIO.loadExecutionProfileOrDefault(path, fallbackProfile));
+        return Optional.of(ExecutionProfileIO.loadExecutionProfileOrDefault(path, fallbackProfile));
     }
 }

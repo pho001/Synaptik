@@ -87,7 +87,7 @@ public final class LossWorkloadSpec implements WorkloadSpec {
 
     private static Tensor tensor(String label, int seed, DataType dataType, boolean requiresGrad, int... shape) {
         double[] data = randomData(flatSize(shape), seed);
-        return benchmark.scenario.ScenarioTensorFactory.shapedTensor(label, data, requiresGrad, dataType, shape);
+        return tensor.TensorDataFactory.shapedTensor(label, data, requiresGrad, dataType, shape);
     }
 
     private static Tensor targetIndices(int batch, int classes) {

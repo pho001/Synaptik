@@ -64,6 +64,9 @@ public class BenchmarkSuiteSessionTest {
         assertEquals("add_only", report.workloadReports().get(0).workloadName());
         assertEquals("mul_only", report.workloadReports().get(1).workloadName());
         assertEquals(6, report.totalCandidateCount());
+        assertTrue(report.overallBestCandidate().isPresent());
+        assertFalse(report.candidateSummaries().isEmpty());
+        assertFalse(report.hotspots(5).isEmpty());
         assertTrue(report.workloadReports().get(0).bestCandidateName().equals("suite-baseline")
                 || report.workloadReports().get(0).bestCandidateName().startsWith("BASELINE_"));
         assertTrue(report.workloadReports().get(1).bestCandidateName().equals("suite-baseline")
@@ -106,6 +109,8 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(rendered.contains("Benchmark Suite Report"));
         assertTrue(rendered.contains("Summary"));
         assertTrue(rendered.contains("Workloads"));
+        assertTrue(rendered.contains("Candidate Summaries"));
+        assertTrue(rendered.contains("Suite Hotspots"));
         assertTrue(rendered.contains("=== single_case ==="));
         assertTrue(rendered.contains("bestCandidate="));
         assertTrue(rendered.contains("BASELINE_NO_OPT"));
@@ -145,6 +150,8 @@ public class BenchmarkSuiteSessionTest {
 
         String json = JsonBenchmarkSuiteReportRenderer.render(report);
         assertTrue(json.contains("\"totalCandidates\": 3"));
+        assertTrue(json.contains("\"candidateSummaries\": ["));
+        assertTrue(json.contains("\"hotspots\": ["));
         assertTrue(json.contains("\"workloads\": ["));
         assertTrue(json.contains("\"workloadName\": \"json_case\""));
     }

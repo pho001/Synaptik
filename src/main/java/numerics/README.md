@@ -2,10 +2,13 @@
 
 Lightweight A/B harness for numerical-stability checks independent of the benchmark/autotuner flow.
 
-This module is also used by benchmark autotune finalists post-check when:
+This module is now a standalone numerics comparison harness.
 
-- `-Dbenchmark.autotuneNumericsPostcheck=true`
-- reports are exported to `build/numerics/autotune-postcheck-<dtype>-<timestamp>.tsv`
+It can be used directly to compare two `ExecutionProfile` stage configurations over:
+
+- one optimizer-like graph
+- one broadcast-heavy graph
+- forward outputs and selected gradients
 
 ## What It Compares
 - forward output (`out`)
@@ -19,6 +22,26 @@ For each signal:
 
 ## CLI
 Main class: `numerics.NumericsCli`
+
+The CLI compares two `ExecutionProfile` stage selections over the same deterministic inputs.
+
+Today it varies:
+
+- dtype
+- stage lists `numerics.stageA` / `numerics.stageB`
+- graph size parameters
+
+It keeps fixed:
+
+- the benchmark-like graph recipe
+- the broadcast-heavy graph recipe
+- runtime config defaults
+
+That makes it useful for:
+
+- quick optimizer rewrite sanity checks
+- numerics drift checks between two stage orders
+- local investigation without involving the full tuning/search stack
 
 Example:
 

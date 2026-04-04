@@ -54,6 +54,9 @@ tuning/
 - renders text and JSON reports
 - persists best profiles and tuning history
 
+In practical terms, this is now the only benchmark/autotune architecture in the repository.
+The removed legacy `benchmark` package is no longer part of the runtime or documentation surface.
+
 ## What It Does Not Do
 
 - it does not own execution semantics
@@ -67,6 +70,14 @@ Execution semantics still live in:
 - [CompiledGraph.java](../graph/CompiledGraph.java)
 - [PreparedExecution.java](../graph/execution/PreparedExecution.java)
 - [ExecutionProfile.java](../config/profile/ExecutionProfile.java)
+
+Profile serialization lives in:
+
+- [ExecutionProfileIO.java](../config/profile/ExecutionProfileIO.java)
+
+Tensor fixture/materialization helpers used by workloads live in:
+
+- [TensorDataFactory.java](../tensor/TensorDataFactory.java)
 
 ## How to Add a New Scenario
 
@@ -140,6 +151,27 @@ Why this matters:
 - validation references assume equivalent execution intent
 
 The package does not try to silently normalize fundamentally different candidates into one comparison universe.
+
+Typical good benchmark candidate family:
+
+- same `WorkloadSpec`
+- same dtype
+- same execution mode
+- same logical tensor shapes
+- different:
+  - optimizer stage order
+  - rewrite config
+  - fuse policy
+  - memory policy
+  - runtime kernel/blas/approximation policy
+
+Typical bad benchmark candidate family:
+
+- one candidate uses a transformer workload profile
+- another uses a conv2d workload profile
+- or one candidate changes dtype/mode while the benchmark still tries to treat the result as one comparison set
+
+Those should be separate benchmark runs.
 
 ## End-to-End Example
 

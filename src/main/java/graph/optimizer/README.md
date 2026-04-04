@@ -101,9 +101,19 @@ Shared graph rewrite mechanics such as input replacement and topological-closure
 - local algebraic simplifications
 - dispatches by `Operation.OpType`, not by concrete class names
 - currently targets the numeric unary/binary subset where the rewrites are semantically valid
-- canonical sigmoid rewrite in forward-only graphs:
-  - `inv(add(1, exp(neg(x)))) -> sigmoid(x)`
-  - `inv(add(1, exp(mulScalar(x, -1)))) -> sigmoid(x)`
+- current focus is classic algebraic cleanup such as:
+  - identity elimination
+  - `pow(x, 2) -> x * x`
+  - inverse / negation / scalar canonicalization
+  - local constant folding for scalar forms
+- it does **not** currently lower compare/select surface forms such as:
+  - canonical sigmoid decompositions into `sigmoid`
+  - `where`-based relu/clamp patterns into specialized primitives
+
+That boundary is intentional in the current code:
+
+- algebraic rewrite stays in the numeric algebra layer
+- piecewise/select lowering remains a separate future rewrite concern if reintroduced
 
 ### `CommonSubexpressionEliminationRule`
 
@@ -428,7 +438,7 @@ Default presets:
 - `OptimizerFactory` is the single standard place that maps `OptimizerStage` to concrete rule instances
 
 For public graph compilation, `OptimizerConfig` is the intended API surface.
-`GraphOptimizer` is a lower-level pipeline object used internally by optimizer/benchmark tooling, not the preferred public compile contract.
+`GraphOptimizer` is a lower-level pipeline object used internally by optimizer/tuning tooling, not the preferred public compile contract.
 
 Current compile-time config families inside `OptimizerConfig` are:
 
@@ -469,21 +479,21 @@ Important boundary:
 
 ## Benchmark / Autotune Integration
 
-The benchmark layer still owns persisted winning profiles and tuning history.
+Benchmark/autotune orchestration now lives in:
 
-Important persisted files:
+- [src/main/java/tuning/README.md](../../tuning/README.md)
 
-- `config/optimizer-profile.json`
-- `config/optimizer-profile-f32.json`
-- `config/optimizer-profile-f64.json`
-- `config/optimizer-hw-profiles.tsv`
-- `config/optimizer-hw-profiles-f32.tsv`
-- `config/optimizer-hw-profiles-f64.tsv`
-- `build/optimizer-autotune/best-profile-training.json`
-- `build/optimizer-autotune/best-profile-inference.json`
-- `build/optimizer-autotune/candidate-history.tsv`
+Important architectural boundary:
 
-That benchmark/autotune layer is still transitional. The architectural direction is documented in the local TODO/planning notes, but the current persisted profile chain above is what the codebase still uses today.
+- optimizer owns graph transformation policy
+- `tuning` owns workload generation, measurement, validation, search, reporting, and persistence
+- persisted execution profiles are serialized through:
+  - [src/main/java/config/profile/ExecutionProfileIO.java](../../config/profile/ExecutionProfileIO.java)
+
+That means:
+
+- optimizer rules must be configurable through `OptimizerConfig`
+- tuning must not invent a second hidden optimizer configuration model
 
 ## Adding a New Rule
 

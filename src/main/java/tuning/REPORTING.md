@@ -60,6 +60,9 @@ Across workloads:
 - total candidate count
 - total success/failure count
 - per-workload reports
+- overall best measured candidate across the suite
+- candidate summaries aggregated by candidate name
+- suite-level hotspots collected from traced run steps
 
 ## Tuning Reports
 
@@ -123,6 +126,56 @@ Interpretation:
 - `1.0x` means parity
 - `< 1.0x` means the candidate is slower than the baseline
 - `null` / `n/a` means no valid comparable baseline measurement existed
+
+## Suite-Level Aggregation
+
+The suite renderers now expose two additional views that matter in practice.
+
+### Candidate summaries
+
+Relevant type:
+
+- [BenchmarkSuiteCandidateSummary.java](./report/BenchmarkSuiteCandidateSummary.java)
+
+Purpose:
+
+- answer how one candidate family behaves across many workloads
+
+Current fields:
+
+- candidate name
+- baseline role
+- number of workloads seen
+- number of successful measurements
+- average median time
+- average speedup vs no-opt
+- average speedup vs no-opt conservative runtime
+
+This is the first useful cross-workload comparison layer.
+
+### Suite hotspots
+
+Relevant type:
+
+- [BenchmarkSuiteHotspot.java](./report/BenchmarkSuiteHotspot.java)
+
+Purpose:
+
+- surface the slowest traced steps across the whole benchmark suite
+
+Current fields:
+
+- workload name
+- candidate name
+- op type
+- trace label
+- duration
+
+This lets you answer:
+
+- which exact step is dominating the suite
+- whether the same candidate is consistently hot
+- whether one workload family is the true bottleneck
 
 ## Trace Reporting
 
@@ -216,6 +269,9 @@ String json = JsonBenchmarkSuiteReportRenderer.render(report);
 Output includes:
 
 - suite summary
+- overall best candidate
+- candidate summaries
+- suite hotspots
 - workload reports
 - per-candidate timing
 - trace summary

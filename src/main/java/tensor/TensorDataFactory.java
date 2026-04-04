@@ -1,29 +1,27 @@
-package benchmark.scenario;
+package tensor;
 
-import tensor.DataType;
-import tensor.Tensor;
-
-public final class ScenarioTensorFactory {
-    private ScenarioTensorFactory() {}
+public final class TensorDataFactory {
+    private TensorDataFactory() {
+    }
 
     public static Tensor flatTensor(String label, double[] data, boolean requiresGrad, DataType dataType) {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
         }
-        return shapedTensor(label, data, requiresGrad, dataType, new int[]{data.length});
+        return shapedTensor(label, data, requiresGrad, dataType, data.length);
     }
 
-    public static Tensor shapedTensor(String label, double[] data, boolean requiresGrad, DataType dataType, int[] shape) {
+    public static Tensor shapedTensor(String label, double[] data, boolean requiresGrad, DataType dataType, int... shape) {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
         }
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("shape cannot be null/empty");
         }
-        Tensor t = new Tensor(shape, null, label, dataType);
-        t.setData(data.clone());
-        t.setRequiresGrad(requiresGrad);
-        return t;
+        Tensor tensor = new Tensor(shape, null, label, dataType);
+        tensor.setData(data.clone());
+        tensor.setRequiresGrad(requiresGrad);
+        return tensor;
     }
 
     public static Tensor prefixTensorStrict(

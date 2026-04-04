@@ -1,20 +1,14 @@
 package numerics;
 
-import backend.blas.BlasProvider;
-import config.runtime.ApproximationConfig;
-import config.runtime.BlasConfig;
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.optimizer.OptimizerStage;
+import config.profile.ExecutionProfile;
 import config.runtime.RuntimeConfig;
-import benchmark.OptimizationStage;
-import benchmark.OptimizerBuilder;
-import benchmark.OptimizerCandidate;
-import benchmark.TuningKnobs;
-import benchmark.scenario.BenchmarkGraphRecipes;
-import benchmark.scenario.ScenarioTensorFactory;
 import graph.CompiledGraph;
-import graph.optimizer.GraphOptimizer;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorDataFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +31,7 @@ public final class NumericsHarness {
         this.config = config;
     }
 
-    public NumericsReport run(OptimizerCandidate a, OptimizerCandidate b, NumericsPolicy policy) {
+    public NumericsReport run(ExecutionProfile a, ExecutionProfile b, NumericsPolicy policy) {
         InputSet input = new InputSet(config.size, config.seed);
         OutputSet outA = runCandidate(a, input);
         OutputSet outB = runCandidate(b, input);
@@ -51,8 +45,8 @@ public final class NumericsHarness {
 
         return new NumericsReport(
                 "benchmark-like",
-                a.name(),
-                b.name(),
+                a.candidateName(),
+                b.candidateName(),
                 mOut,
                 mGradA,
                 mGradB,
@@ -63,38 +57,43 @@ public final class NumericsHarness {
         );
     }
 
-    public OptimizerCandidate candidate(String name, List<OptimizationStage> stages) {
-        return new OptimizerCandidate(name, stages, TuningKnobs.trainingDefaults());
+    public ExecutionProfile profile(String name, List<OptimizerStage> stages) {
+        OptimizerConfig defaults = OptimizerConfig.trainingDefaults();
+        return new ExecutionProfile(
+                name,
+                name,
+                config.dtype,
+                ExecutionMode.FORWARD_BACKWARD,
+                defaults.withStageOrder(stages),
+                RuntimeConfig.trainingDefaults()
+        );
     }
 
-    private OutputSet runCandidate(OptimizerCandidate candidate, InputSet input) {
-        RuntimeConfig runtimeConfig = runtimeConfigFor(candidate);
-        GraphOptimizer optimizer = OptimizerBuilder.build(candidate);
+    private OutputSet runCandidate(ExecutionProfile profile, InputSet input) {
+        Tensor A = TensorDataFactory.flatTensor("A", input.baseA, true, config.dtype);
+        Tensor B = TensorDataFactory.flatTensor("B", input.baseB, true, config.dtype);
+        Tensor C = TensorDataFactory.flatTensor("C", input.baseC, true, config.dtype);
 
-        Tensor A = ScenarioTensorFactory.flatTensor("A", input.baseA, true, config.dtype);
-        Tensor B = ScenarioTensorFactory.flatTensor("B", input.baseB, true, config.dtype);
-        Tensor C = ScenarioTensorFactory.flatTensor("C", input.baseC, true, config.dtype);
+        Tensor linearIn = TensorDataFactory.prefixTensorWrap("LIN_IN", input.baseA, true, config.dtype, 64, 64);
+        Tensor w1 = TensorDataFactory.prefixTensorWrap("LIN_W1", input.baseB, false, config.dtype, 64, 64);
+        Tensor b1 = TensorDataFactory.prefixTensorWrap("LIN_B1", input.baseC, false, config.dtype, 64, 64);
+        Tensor w2 = TensorDataFactory.prefixTensorWrap("LIN_W2", input.baseC, false, config.dtype, 64, 64);
+        Tensor b2 = TensorDataFactory.prefixTensorWrap("LIN_B2", input.baseA, false, config.dtype, 64, 64);
+        Tensor w3 = TensorDataFactory.prefixTensorWrap("LIN_W3", input.baseA, false, config.dtype, 64, 64);
+        Tensor b3 = TensorDataFactory.prefixTensorWrap("LIN_B3", input.baseB, false, config.dtype, 64, 64);
 
-        Tensor linearIn = ScenarioTensorFactory.prefixTensorWrap("LIN_IN", input.baseA, true, config.dtype, 64, 64);
-        Tensor w1 = ScenarioTensorFactory.prefixTensorWrap("LIN_W1", input.baseB, false, config.dtype, 64, 64);
-        Tensor b1 = ScenarioTensorFactory.prefixTensorWrap("LIN_B1", input.baseC, false, config.dtype, 64, 64);
-        Tensor w2 = ScenarioTensorFactory.prefixTensorWrap("LIN_W2", input.baseC, false, config.dtype, 64, 64);
-        Tensor b2 = ScenarioTensorFactory.prefixTensorWrap("LIN_B2", input.baseA, false, config.dtype, 64, 64);
-        Tensor w3 = ScenarioTensorFactory.prefixTensorWrap("LIN_W3", input.baseA, false, config.dtype, 64, 64);
-        Tensor b3 = ScenarioTensorFactory.prefixTensorWrap("LIN_B3", input.baseB, false, config.dtype, 64, 64);
-
-        Tensor out = BenchmarkGraphRecipes.buildOptimizerBenchmarkGraph(
+        Tensor out = NumericsGraphFactory.buildOptimizerLikeGraph(
                 A, B, C, linearIn, w1, b1, w2, b2, w3, b3, config.graphBlocks
         );
-        CompiledGraph trainingGraph = CompiledGraph.compile(out, optimizer);
-        trainingGraph.execute(runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
-        trainingGraph.execute(runtimeConfig, ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph trainingGraph = CompiledGraph.compile(out, profile.optimizer());
+        trainingGraph.execute(profile.runtime(), ExecutionMode.FORWARD_BACKWARD);
+        trainingGraph.execute(profile.runtime(), ExecutionMode.FORWARD_BACKWARD);
 
-        Tensor BA = ScenarioTensorFactory.prefixTensorWrap("BA", input.baseA, false, config.dtype, config.b0, 1, config.f);
-        Tensor BB = ScenarioTensorFactory.prefixTensorWrap("BB", input.baseB, false, config.dtype, 1, config.b1, config.f);
-        Tensor BC = ScenarioTensorFactory.prefixTensorWrap("BC", input.baseC, false, config.dtype, config.b0, config.b1, config.f);
-        Tensor broadcastOut = BenchmarkGraphRecipes.buildBroadcastGraph(BA, BB, BC);
-        CompiledGraph.compile(broadcastOut, optimizer).execute(runtimeConfig, ExecutionMode.FORWARD);
+        Tensor BA = TensorDataFactory.prefixTensorWrap("BA", input.baseA, false, config.dtype, config.b0, 1, config.f);
+        Tensor BB = TensorDataFactory.prefixTensorWrap("BB", input.baseB, false, config.dtype, 1, config.b1, config.f);
+        Tensor BC = TensorDataFactory.prefixTensorWrap("BC", input.baseC, false, config.dtype, config.b0, config.b1, config.f);
+        Tensor broadcastOut = NumericsGraphFactory.buildBroadcastGraph(BA, BB, BC);
+        CompiledGraph.compile(broadcastOut, profile.optimizer()).execute(profile.runtime(), ExecutionMode.FORWARD);
 
         return new OutputSet(
                 out.toDoubleArrayCopy().clone(),
@@ -142,32 +141,20 @@ public final class NumericsHarness {
         }
     }
 
-    public static List<OptimizationStage> parseStages(String stageSpec) {
+    public static List<OptimizerStage> parseStages(String stageSpec) {
         String spec = stageSpec == null ? "" : stageSpec.trim();
         if (spec.isEmpty() || "NONE".equalsIgnoreCase(spec)) {
             return List.of();
         }
         String[] parts = spec.split("[+,]");
-        List<OptimizationStage> out = new ArrayList<>();
+        List<OptimizerStage> out = new ArrayList<>();
         for (String p : parts) {
             String s = p.trim();
-            if (s.isEmpty()) continue;
-            out.add(OptimizationStage.valueOf(s.toUpperCase()));
+            if (s.isEmpty()) {
+                continue;
+            }
+            out.add(OptimizerStage.valueOf(s.toUpperCase()));
         }
         return out;
-    }
-
-    private static RuntimeConfig runtimeConfigFor(OptimizerCandidate candidate) {
-        return new RuntimeConfig(
-                candidate.knobs().kernelConfig().cpu(),
-                ApproximationConfig.defaults(),
-                new BlasConfig(
-                        BlasProvider.fromProperty(candidate.knobs().blasProvider()),
-                        candidate.knobs().blasMatMulMinWork(),
-                        candidate.knobs().blasF32RequireMgeK(),
-                        candidate.knobs().blasF32MaxNOverK(),
-                        false
-                )
-        );
     }
 }

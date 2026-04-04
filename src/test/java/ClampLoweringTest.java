@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ClampLoweringTest {
 
     @Test
-    void lowersWhereLessThanFormToClampMin() {
+    void keepsWhereLessThanFormAsSelectInCurrentArRule() {
         Tensor baselineInput = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "x_base", DataType.FLOAT64);
         baselineInput.setRequiresGrad(true);
         Tensor lowerBase = Tensor.scalar(0.0, DataType.FLOAT64);
@@ -33,11 +33,12 @@ public class ClampLoweringTest {
 
         assertArrayEquals(baselineOut.toDoubleArrayCopy(), optimizedOut.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), optimizedInput.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertTrue(containsOp(compiledGraph, Operation.OpType.CLAMP_MIN));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.WHERE));
+        assertTrue(!containsOp(compiledGraph, Operation.OpType.CLAMP_MIN));
     }
 
     @Test
-    void lowersWhereGreaterThanFormToClampMax() {
+    void keepsWhereGreaterThanFormAsSelectInCurrentArRule() {
         Tensor baselineInput = new Tensor(new double[]{-2.0, 0.0, 0.5, 3.0}, new int[]{4}, null, "x_base", DataType.FLOAT64);
         baselineInput.setRequiresGrad(true);
         Tensor upperBase = Tensor.scalar(1.0, DataType.FLOAT64);
@@ -54,7 +55,8 @@ public class ClampLoweringTest {
 
         assertArrayEquals(baselineOut.toDoubleArrayCopy(), optimizedOut.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(baselineInput.getGradient().toDoubleArrayCopy(), optimizedInput.getGradient().toDoubleArrayCopy(), 1e-9);
-        assertTrue(containsOp(compiledGraph, Operation.OpType.CLAMP_MAX));
+        assertTrue(containsOp(compiledGraph, Operation.OpType.WHERE));
+        assertTrue(!containsOp(compiledGraph, Operation.OpType.CLAMP_MAX));
     }
 
     @Test
