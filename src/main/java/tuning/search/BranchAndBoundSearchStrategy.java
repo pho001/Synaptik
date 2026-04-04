@@ -74,7 +74,7 @@ public final class BranchAndBoundSearchStrategy extends AbstractTreeSearchStrate
                 continue;
             }
             SearchTreeNode node = nodesByFingerprint.get(fp);
-            double bound = boundModel.optimisticBound(report, node, scoreModel);
+            double bound = boundModel.optimisticBound(report, node, scoreModel, context);
             if (bound <= bestScore) {
                 expandable.add(report);
             } else {

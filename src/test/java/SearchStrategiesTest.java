@@ -11,6 +11,7 @@ import tuning.search.BestFirstTreeSearchStrategy;
 import tuning.search.BranchAndBoundSearchStrategy;
 import tuning.search.MedianSteadyStateScoreModel;
 import tuning.search.ParentScoreBoundModel;
+import tuning.search.WorkloadAwareBoundModel;
 import tuning.search.CompositeSearchStrategy;
 import tuning.search.ExhaustiveSearchStrategy;
 import tuning.search.FirstKSearchStrategy;
@@ -337,6 +338,74 @@ public class SearchStrategiesTest {
 
         assertTrue(strategy.prunedFingerprints().size() >= 1);
         assertTrue(refined.selectedCandidates().size() >= 1);
+    }
+
+    @Test
+    void workloadAwareBoundModelPenalizesConv2dOffMode() {
+        var workload = tuning.workload.StandardWorkloads.conv2d(
+                "conv_bound",
+                1, 8, 8, 8, 8, 3, 3,
+                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                true
+        );
+        var request = new AutotuneRequest(
+                workload,
+                new ListCandidateSpace(List.of()),
+                tuning.measure.MeasurementPolicy.defaults(),
+                tuning.validate.ValidationPolicy.disabled(),
+                new tuning.search.SearchPolicy(8, 1, 3, false),
+                tuning.store.PersistencePolicy.disabled()
+        );
+        var scoreModel = new MedianSteadyStateScoreModel();
+        var boundModel = new WorkloadAwareBoundModel();
+
+        Candidate heuristic = candidate("conv2dLowering=HEURISTIC");
+        Candidate off = candidate("conv2dLowering=OFF");
+        double heuristicBound = boundModel.optimisticBound(
+                report(heuristic, 1.0),
+                new tuning.search.SearchTreeNode("h", heuristic.name(), null, 0, 0),
+                scoreModel,
+                new SearchContext(request, request.candidateSpace())
+        );
+        double offBound = boundModel.optimisticBound(
+                report(off, 1.0),
+                new tuning.search.SearchTreeNode("o", off.name(), null, 0, 0),
+                scoreModel,
+                new SearchContext(request, request.candidateSpace())
+        );
+
+        assertTrue(heuristicBound < offBound);
+    }
+
+    @Test
+    void workloadAwareBoundModelPenalizesTransformerForceOff() {
+        var request = new AutotuneRequest(
+                tuning.workload.StandardWorkloads.transformerHotPath("transformer"),
+                new ListCandidateSpace(List.of()),
+                tuning.measure.MeasurementPolicy.defaults(),
+                tuning.validate.ValidationPolicy.disabled(),
+                new tuning.search.SearchPolicy(8, 1, 3, false),
+                tuning.store.PersistencePolicy.disabled()
+        );
+        var scoreModel = new MedianSteadyStateScoreModel();
+        var boundModel = new WorkloadAwareBoundModel();
+
+        Candidate auto = candidate("attentionMatMul=AUTO");
+        Candidate forceOff = candidate("attentionMatMul=FORCE_OFF");
+        double autoBound = boundModel.optimisticBound(
+                report(auto, 1.0),
+                new tuning.search.SearchTreeNode("a", auto.name(), null, 0, 0),
+                scoreModel,
+                new SearchContext(request, request.candidateSpace())
+        );
+        double offBound = boundModel.optimisticBound(
+                report(forceOff, 1.0),
+                new tuning.search.SearchTreeNode("f", forceOff.name(), null, 0, 0),
+                scoreModel,
+                new SearchContext(request, request.candidateSpace())
+        );
+
+        assertTrue(autoBound < offBound);
     }
 
     private static Candidate candidate(String name) {
