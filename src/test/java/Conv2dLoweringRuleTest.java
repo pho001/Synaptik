@@ -1,5 +1,8 @@
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
+import config.optimizer.Conv2dLoweringConfig;
+import config.optimizer.Conv2dLoweringMode;
+import config.optimizer.RewriteConfig;
 import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rewrite.Conv2dLoweringRewrite;
@@ -28,7 +31,7 @@ public class Conv2dLoweringRuleTest {
         }, new int[]{1, 1, 2, 2}, null, "weight", DataType.FLOAT64);
 
         Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
-        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite());
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite(Conv2dLoweringConfig.always()));
         List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
 
         Tensor lowered = optimized.stream()
@@ -56,6 +59,7 @@ public class Conv2dLoweringRuleTest {
                 out,
                 new OptimizerConfig(
                         List.of(OptimizerStage.AR),
+                        new RewriteConfig(Conv2dLoweringConfig.always()),
                         config.optimizer.CseConfig.strictDefaults(),
                         config.optimizer.FuseConfig.trainingDefaults(),
                         config.optimizer.MemoryConfig.defaults()
@@ -66,5 +70,63 @@ public class Conv2dLoweringRuleTest {
                 -4, -4,
                 -4, -4
         }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void rewriteConfigOffKeepsConv2dPrimitive() {
+        Tensor input = new Tensor(new double[]{
+                1, 2, 3,
+                4, 5, 6,
+                7, 8, 9
+        }, new int[]{1, 1, 3, 3}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[]{
+                1, 0,
+                0, -1
+        }, new int[]{1, 1, 2, 2}, null, "weight", DataType.FLOAT64);
+
+        Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite(
+                new Conv2dLoweringConfig(Conv2dLoweringMode.OFF)
+        ));
+        List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
+
+        long gemmCount = optimized.stream()
+                .filter(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_GEMM)
+                .count();
+        assertEquals(0, gemmCount);
+    }
+
+    @Test
+    void heuristicDoesNotLowerDepthwiseConv2d() {
+        Tensor input = new Tensor(new double[1 * 64 * 16 * 16], new int[]{1, 64, 16, 16}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[64 * 1 * 3 * 3], new int[]{64, 1, 3, 3}, null, "weight", DataType.FLOAT64);
+        Tensor root = input.conv2d(weight, new Conv2dOptions(1, 1, 1, 1, 1, 1, 64));
+
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite(
+                new Conv2dLoweringConfig(Conv2dLoweringMode.HEURISTIC)
+        ));
+        List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
+
+        long gemmCount = optimized.stream()
+                .filter(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_GEMM)
+                .count();
+        assertEquals(0, gemmCount);
+    }
+
+    @Test
+    void heuristicLowersLargePointwiseProjectionConv2d() {
+        Tensor input = new Tensor(new double[2 * 256 * 14 * 14], new int[]{2, 256, 14, 14}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[256 * 256], new int[]{256, 256, 1, 1}, null, "weight", DataType.FLOAT64);
+        Tensor root = input.conv2d(weight, Conv2dOptions.defaults());
+
+        GraphOptimizer optimizer = new GraphOptimizer().addRule(new Conv2dLoweringRewrite(
+                new Conv2dLoweringConfig(Conv2dLoweringMode.HEURISTIC)
+        ));
+        List<Tensor> optimized = optimizer.optimize(root.topologicalSort());
+
+        long gemmCount = optimized.stream()
+                .filter(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_GEMM)
+                .count();
+        assertEquals(1, gemmCount);
     }
 }

@@ -171,23 +171,28 @@ Numerics post-check report output:
 Execution profiles also carry full compile-time optimizer config through:
 
 - `optimizer.stageOrder`
+- `optimizer.rewrite`
 - `optimizer.cse`
 - `optimizer.fuse`
 - `optimizer.memory`
 
 Important boundary:
 
+- `optimizer.rewrite` is compile-time rewrite policy
 - `optimizer.memory` is a compile-time MEM-stage planner policy
 - it is not part of runtime config
 - it affects graph preparation/slot planning, not low-level kernel execution semantics
 
-### Execution profile JSON: optimizer.memory
+### Execution profile JSON: optimizer.rewrite / optimizer.memory
 
 Profiles may now include:
 
 ```json
 "optimizer": {
   "stageOrder": ["AR", "CSE", "FUSE", "MEM"],
+  "rewrite": {
+    "conv2dLoweringMode": "HEURISTIC"
+  },
   "cse": {
     "strictSafety": false
   },
@@ -211,6 +216,11 @@ Profiles may now include:
 
 Field meaning:
 
+- `conv2dLoweringMode`
+  - compile-time rewrite policy for lowering forward `conv2d` into `CONV2D_GEMM`
+  - `OFF`: keep direct `conv2d`
+  - `ALWAYS`: always lower eligible forward `conv2d`
+  - `HEURISTIC`: lower only for shape families where GEMM lowering is expected to pay off
 - `separateForwardBackwardPools`
   - keep forward and backward reusable slots in separate pools
 - `allowCrossPhaseReuse`
@@ -222,6 +232,9 @@ Field meaning:
 
 Recommended interpretation:
 
+- keep rewrite policy explicit when benchmarking conv lowering
+- use `ALWAYS` only for mode-isolation benchmarks such as direct vs GEMM comparisons
+- use `HEURISTIC` for realistic default-profile behavior
 - start conservative with `MemoryConfig.defaults()`
 - then benchmark policy variants explicitly
 - compare both latency and planner summary metrics, not only wall-clock time

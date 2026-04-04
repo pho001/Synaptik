@@ -16,6 +16,9 @@ import config.profile.WorkloadKind;
 import config.profile.WorkloadProfile;
 import tensor.DataType;
 import config.optimizer.FuseConfig;
+import config.optimizer.RewriteConfig;
+import config.optimizer.Conv2dLoweringConfig;
+import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.MemoryConfig;
 
 import java.io.IOException;
@@ -268,6 +271,9 @@ public final class OptimizerProfileIO {
                 "  \"mode\": \"" + profile.mode().name() + "\",\n" +
                 "  \"optimizer\": {\n" +
                 "    \"stageOrder\": " + jsonStageArray(profile.optimizer().stageOrder()) + ",\n" +
+                "    \"rewrite\": {\n" +
+                "      \"conv2dLoweringMode\": \"" + optimizer.rewrite().conv2dLowering().mode().name() + "\"\n" +
+                "    },\n" +
                 "    \"cse\": {\n" +
                 "      \"strictSafety\": " + optimizer.cse().strictSafety() + "\n" +
                 "    },\n" +
@@ -456,6 +462,17 @@ public final class OptimizerProfileIO {
                     json,
                     d.optimizer().stageOrder()
             );
+            RewriteConfig defaultRewrite = d.optimizer().rewrite();
+            RewriteConfig rewrite = new RewriteConfig(
+                    new Conv2dLoweringConfig(
+                            findEnum(
+                                    json,
+                                    "conv2dLoweringMode",
+                                    defaultRewrite.conv2dLowering().mode(),
+                                    Conv2dLoweringMode.class
+                            )
+                    )
+            );
             boolean strictSafety = findBoolean(
                     json,
                     "strictSafety",
@@ -480,6 +497,7 @@ public final class OptimizerProfileIO {
             );
             config.optimizer.OptimizerConfig optimizer = new config.optimizer.OptimizerConfig(
                     stageOrder,
+                    rewrite,
                     strictSafety ? config.optimizer.CseConfig.strictDefaults() : config.optimizer.CseConfig.aggressiveDefaults(),
                     fuse,
                     memory

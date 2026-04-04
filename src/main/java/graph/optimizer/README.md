@@ -432,6 +432,9 @@ For public graph compilation, `OptimizerConfig` is the intended API surface.
 
 Current compile-time config families inside `OptimizerConfig` are:
 
+- `rewrite`
+  - rewrite-family policy
+  - currently carries `conv2d` lowering policy
 - `cse`
   - common-subexpression-elimination policy
 - `fuse`
@@ -444,11 +447,25 @@ Example:
 ```java
 OptimizerConfig config = new OptimizerConfig(
         List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
+        RewriteConfig.defaults(),
         CseConfig.aggressiveDefaults(),
         FuseConfig.inferenceDefaults(),
         MemoryConfig.defaults()
 );
 ```
+
+Current rewrite-policy family includes:
+
+- `Conv2dLoweringConfig`
+  - `OFF`
+  - `ALWAYS`
+  - `HEURISTIC`
+
+Important boundary:
+
+- `conv2d` lowering to `CONV2D_GEMM` is a compile-time rewrite decision
+- Java vs OpenBLAS inside the GEMM path remains a runtime/backend decision
+- those two policies must stay separate
 
 ## Benchmark / Autotune Integration
 

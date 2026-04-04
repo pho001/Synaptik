@@ -6,6 +6,8 @@ import backend.blas.BlasThreadPolicy;
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.optimizer.CseConfig;
+import config.optimizer.Conv2dLoweringConfig;
+import config.optimizer.RewriteConfig;
 import config.optimizer.FuseConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
@@ -190,6 +192,7 @@ public final class Conv2dLoweringBenchmark {
             case DIRECT -> OptimizerConfig.noOptimization();
             case GEMM_JAVA, GEMM_BLAS -> new OptimizerConfig(
                     List.of(OptimizerStage.AR),
+                    new RewriteConfig(Conv2dLoweringConfig.always()),
                     CseConfig.strictDefaults(),
                     FuseConfig.trainingDefaults(),
                     config.optimizer.MemoryConfig.defaults()

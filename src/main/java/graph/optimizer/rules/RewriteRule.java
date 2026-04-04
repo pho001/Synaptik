@@ -1,10 +1,13 @@
 package graph.optimizer.rules;
 
+import config.optimizer.RewriteConfig;
+
 public final class RewriteRule extends graph.optimizer.rewrite.RewriteRule {
     public RewriteRule() {
-        super(java.util.List.of(
-                new graph.optimizer.rewrite.AlgebraicRewrite(),
-                new graph.optimizer.rewrite.LinearLoweringRewrite()
-        ));
+        super(RewriteConfig.defaults());
+    }
+
+    public RewriteRule(RewriteConfig config) {
+        super(config);
     }
 }

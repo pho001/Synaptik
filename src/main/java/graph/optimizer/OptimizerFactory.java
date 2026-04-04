@@ -30,7 +30,7 @@ public final class OptimizerFactory {
 
     private static OptimizationRule createRule(OptimizerStage stage, OptimizerConfig config) {
         return switch (stage) {
-            case AR -> new RewriteRule();
+            case AR -> new RewriteRule(config.rewrite());
             case CSE -> new CommonSubexpressionEliminationRule(config.cse());
             case FUSE -> new FuseElementWiseRule(config.fuse());
             case MEM -> new MemoryOptimizerRule(graph.optimizer.memory.MemoryPlannerPolicy.fromConfig(config.memory()));

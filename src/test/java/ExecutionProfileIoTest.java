@@ -9,10 +9,13 @@ import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
 import config.backend.AttentionMatMulPolicy;
 import config.optimizer.CseConfig;
+import config.optimizer.Conv2dLoweringConfig;
+import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.FuseConfig;
 import config.optimizer.MemoryConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
+import config.optimizer.RewriteConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
@@ -38,6 +41,7 @@ public class ExecutionProfileIoTest {
                 ExecutionMode.FORWARD,
                 new OptimizerConfig(
                         List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
+                        new RewriteConfig(new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS)),
                         CseConfig.aggressiveDefaults(),
                         FuseConfig.inferenceDefaults(),
                         new MemoryConfig(false, false, true, 8)
@@ -66,6 +70,7 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.dataType(), actual.dataType());
         assertEquals(expected.mode(), actual.mode());
         assertEquals(expected.optimizer().stageOrder(), actual.optimizer().stageOrder());
+        assertEquals(expected.optimizer().rewrite(), actual.optimizer().rewrite());
         assertFalse(actual.optimizer().cse().strictSafety());
         assertEquals(expected.optimizer().memory(), actual.optimizer().memory());
         assertEquals(expected.runtime().kernel().cpu().vectorMinSize(), actual.runtime().kernel().cpu().vectorMinSize());
