@@ -26,9 +26,9 @@ public final class BenchmarkGraphRecipes {
             x = x.add(A.mul(0.05));
             x = x.mul(0.95).add(B.mul(0.03)).sub(C.mul(0.02));
         }
-        Tensor linear1 = linearIn.matmul(w1).add(b1);
-        Tensor linear2 = linear1.matmul(w2).add(b2);
-        Tensor linear3 = linear2.matmul(w3).add(b3);
+        Tensor linear1 = linearIn.linear(w1, b1);
+        Tensor linear2 = linear1.linear(w2, b2);
+        Tensor linear3 = linear2.linear(w3, b3);
         Tensor linearScalar = linear3.sum();
         return x.mul(x).add(B.mul(0.01)).add(linearScalar);
     }

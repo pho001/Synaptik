@@ -40,6 +40,8 @@ The focus here is practical API usage:
   - [`min(Tensor second)`](#mintensor-second)
   - [`max(Tensor second)`](#maxtensor-second)
   - [`matmul(Tensor second)`](#matmultensor-second)
+  - [`linear(Tensor weight)`](#lineartensor-weight)
+  - [`linear(Tensor weight, Tensor bias)`](#lineartensor-weight-tensor-bias)
 - [Attention Operations](#attention-operations)
   - [`scaledDotProductAttention(Tensor key, Tensor value, AttentionOptions options)`](#scaleddotproductattentiontensor-key-tensor-value-attentionoptions-options)
   - [`scaledDotProductAttention(Tensor key, Tensor value, Tensor mask, AttentionOptions options)`](#scaleddotproductattentiontensor-key-tensor-value-tensor-mask-attentionoptions-options)
@@ -785,6 +787,81 @@ Tensor y = a.matmul(b);
 // y has shape [2, 2, 1] and values [5, 11, 39, 53].
 //
 // Returns: batched matrix products over the last two axes.
+```
+
+### `linear(Tensor weight)`
+
+Applies a linear projection without bias.
+
+Parameters:
+- `weight`: rank-2 tensor with shape `[inFeatures, outFeatures]`
+
+Returns:
+- tensor with the same leading dimensions as the input and last dimension `outFeatures`
+
+Contract:
+- receiver tensor must have rank `>= 2`
+- receiver shape is `[..., inFeatures]`
+- `weight.shape[0]` must equal `inFeatures`
+- this surface is intentionally defined over the existing batched `matmul` contract
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2,
+        3, 4
+}, new int[]{2, 2}, null, "x");
+Tensor w = new Tensor(new double[]{
+        5, 6,
+        7, 8
+}, new int[]{2, 2}, null, "w");
+
+Tensor y = x.linear(w);
+// x shape = [2, 2]
+// w shape = [2, 2]
+// y shape = [2, 2] and values [19, 22, 43, 50].
+//
+// Returns: x @ w.
+```
+
+### `linear(Tensor weight, Tensor bias)`
+
+Applies a linear projection with bias.
+
+Parameters:
+- `weight`: rank-2 tensor with shape `[inFeatures, outFeatures]`
+- `bias`: rank-1 tensor with shape `[outFeatures]`
+
+Returns:
+- tensor with the same leading dimensions as the input and last dimension `outFeatures`
+
+Contract:
+- receiver tensor must have shape `[..., inFeatures]`
+- `weight` must have shape `[inFeatures, outFeatures]`
+- `bias` must have shape `[outFeatures]`
+- bias is broadcast across all leading dimensions
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2,
+        3, 4,
+        5, 6,
+        7, 8
+}, new int[]{2, 2, 2}, null, "x");
+Tensor w = new Tensor(new double[]{
+        1, 10,
+        100, 1000
+}, new int[]{2, 2}, null, "w");
+Tensor b = new Tensor(new double[]{0.5, -0.5}, new int[]{2}, null, "b");
+
+Tensor y = x.linear(w, b);
+// x shape = [2, 2, 2]
+// w shape = [2, 2]
+// b shape = [2]
+// y shape = [2, 2, 2]
+//
+// Returns: x @ w + b with bias broadcast over the leading dimensions.
 ```
 
 ## Attention Operations

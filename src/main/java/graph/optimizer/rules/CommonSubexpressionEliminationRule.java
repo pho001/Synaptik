@@ -36,6 +36,7 @@ import operations.reduceMin;
 import operations.reduceMinGrad;
 import operations.reshape;
 import operations.logSoftmax;
+import operations.linear;
 import operations.select;
 import operations.squeeze;
 import operations.sum;
@@ -183,6 +184,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case TAKE_ALONG_AXIS -> new AxisSignature(((takeAlongAxis) op).getDimension());
             case TAKE_ALONG_AXIS_GRAD -> new AxisSignature(((takeAlongAxisGrad) op).getDimension());
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
+            case LINEAR -> new InputSelectorSignature(((linear) op).hasBias());
             case CONV2D -> conv2dSignature(((conv2d) op).getOptions(), ((conv2d) op).hasBias() ? 1 : 0);
             case CONV2D_BACKWARD_INPUT -> conv2dBackwardInputSignature((conv2dBackwardInput) op);
             case CONV2D_BACKWARD_WEIGHT -> conv2dBackwardWeightSignature((conv2dBackwardWeight) op);

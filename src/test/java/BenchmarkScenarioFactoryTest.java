@@ -80,11 +80,11 @@ public class BenchmarkScenarioFactoryTest {
         Tensor C = ScenarioTensorFactory.flatTensor("C", baseC, requiresGrad, DataType.FLOAT64);
         Tensor linearIn = ScenarioTensorFactory.prefixTensorStrict("LIN_IN", baseA, requiresGrad, DataType.FLOAT64, shape.batch(), shape.in());
         Tensor w1 = ScenarioTensorFactory.prefixTensorStrict("LIN_W1", baseB, false, DataType.FLOAT64, shape.in(), shape.h1());
-        Tensor b1 = ScenarioTensorFactory.prefixTensorStrict("LIN_B1", baseC, false, DataType.FLOAT64, shape.batch(), shape.h1());
+        Tensor b1 = ScenarioTensorFactory.prefixTensorStrict("LIN_B1", baseC, false, DataType.FLOAT64, shape.h1());
         Tensor w2 = ScenarioTensorFactory.prefixTensorStrict("LIN_W2", baseC, false, DataType.FLOAT64, shape.h1(), shape.h2());
-        Tensor b2 = ScenarioTensorFactory.prefixTensorStrict("LIN_B2", baseA, false, DataType.FLOAT64, shape.batch(), shape.h2());
+        Tensor b2 = ScenarioTensorFactory.prefixTensorStrict("LIN_B2", baseA, false, DataType.FLOAT64, shape.h2());
         Tensor w3 = ScenarioTensorFactory.prefixTensorStrict("LIN_W3", baseA, false, DataType.FLOAT64, shape.h2(), shape.out());
-        Tensor b3 = ScenarioTensorFactory.prefixTensorStrict("LIN_B3", baseB, false, DataType.FLOAT64, shape.batch(), shape.out());
+        Tensor b3 = ScenarioTensorFactory.prefixTensorStrict("LIN_B3", baseB, false, DataType.FLOAT64, shape.out());
 
         Tensor out = BenchmarkGraphRecipes.buildOptimizerBenchmarkGraph(A, B, C, linearIn, w1, b1, w2, b2, w3, b3, graphBlocks);
         GraphOptimizer optimizer = OptimizerBuilder.build(candidate);

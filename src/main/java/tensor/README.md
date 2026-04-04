@@ -112,6 +112,8 @@ The current public graph-building operation surface on `Tensor` is:
 - `min(Tensor second)`
 - `max(Tensor second)`
 - `matmul(Tensor second)`
+- `linear(Tensor weight)`
+- `linear(Tensor weight, Tensor bias)`
 - `greaterThan(Tensor second)`
 - `greaterOrEqual(Tensor second)`
 - `lessThan(Tensor second)`
@@ -518,6 +520,30 @@ Architectural note:
   - backward reads that workspace instead of rescanning the input windows
 - pooling is currently an explicit dense-first backend boundary
   - non-contiguous or offset inputs are materialized by prepared-input planning before kernel execution
+
+## Linear Surface
+
+`linear(...)` is the first explicit neural-network projection surface in the tensor API.
+
+Current contract:
+
+- input shape is `[..., inFeatures]`
+- weight shape is `[inFeatures, outFeatures]`
+- optional bias shape is `[outFeatures]`
+- output shape is `[..., outFeatures]`
+
+Architectural point:
+
+- `linear` is now a public surface backed by a canonical internal `LINEAR` primitive
+- direct `linear(...)` API builds `LINEAR` nodes
+- optimizer can also lower `matmul + rank-1 bias add` into `LINEAR`
+- CPU execution reuses the BLAS-backed matmul family and adds fused bias handling in the linear kernel
+
+Why this still matters:
+
+- forward and backward both map naturally to matmul family hot paths
+- introducing the surface now gives model-building ergonomics immediately
+- future deeper specialization can still happen later without changing the public API
 
 ## Normalization Contract
 

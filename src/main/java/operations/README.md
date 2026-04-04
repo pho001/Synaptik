@@ -83,6 +83,7 @@ Current descriptor classes in this package:
 - `logicalOr`
 - `logicalNot`
 - `matmul`
+- `linear`
 - `neg`
 - `inv`
 - `log`
@@ -320,6 +321,7 @@ Reasoning:
 
 These ops are strong candidates for both a public surface and a dedicated canonical/runtime primitive:
 
+- `linear`
 - `relu`
 - `clamp`
 - `clampMin`
@@ -333,6 +335,9 @@ Reasoning:
 
 Current status:
 
+- `linear` now exists as a public surface and as a canonical internal primitive
+- direct `linear(...)` API builds `LINEAR` nodes
+- optimizer may lower `matmul + rank-1 bias add` into `LINEAR`
 - `relu` already exists as a specialized primitive
 - `clampMin` and `clampMax` now exist as specialized primitives
 - `clamp(...)` remains composition over those specialized one-sided primitives
@@ -342,7 +347,6 @@ Current status:
 
 Future likely `both` candidates:
 
-- `abs`
 - `leakyRelu`
 - `gelu`
 - `silu`

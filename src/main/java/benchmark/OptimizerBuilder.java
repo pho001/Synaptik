@@ -2,10 +2,10 @@ package benchmark;
 
 import config.optimizer.CseConfig;
 import graph.optimizer.GraphOptimizer;
-import graph.optimizer.rules.AlgebraicRewritingRule;
 import graph.optimizer.rules.CommonSubexpressionEliminationRule;
 import graph.optimizer.rules.FuseElementWiseRule;
 import graph.optimizer.rules.MemoryOptimizerRule;
+import graph.optimizer.rules.RewriteRule;
 
 public final class OptimizerBuilder {
     private OptimizerBuilder() {}
@@ -14,7 +14,7 @@ public final class OptimizerBuilder {
         GraphOptimizer optimizer = new GraphOptimizer();
         for (OptimizationStage stage : candidate.stageOrder()) {
             switch (stage) {
-                case AR -> optimizer.addRule(new AlgebraicRewritingRule());
+                case AR -> optimizer.addRule(new RewriteRule());
                 case CSE -> optimizer.addRule(new CommonSubexpressionEliminationRule(
                         candidate.knobs().strictCseSafety()
                                 ? CseConfig.strictDefaults()

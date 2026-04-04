@@ -861,6 +861,14 @@ public class Tensor {
         return TensorOps.matmul(this, second);
     }
 
+    public Tensor linear(Tensor weight) {
+        return TensorOps.linear(this, weight);
+    }
+
+    public Tensor linear(Tensor weight, Tensor bias) {
+        return TensorOps.linear(this, weight, bias);
+    }
+
     public Tensor conv2d(Tensor weight, Conv2dOptions options) {
         return TensorOps.conv2d(this, weight, options);
     }

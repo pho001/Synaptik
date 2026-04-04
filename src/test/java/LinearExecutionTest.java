@@ -1,0 +1,94 @@
+import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
+import org.junit.jupiter.api.Test;
+import tensor.DataType;
+import tensor.Tensor;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+public class LinearExecutionTest {
+
+    @Test
+    void linearForwardWithoutBiasMatchesMatmul() {
+        Tensor input = new Tensor(new double[]{
+                1, 2,
+                3, 4
+        }, new int[]{2, 2}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[]{
+                5, 6,
+                7, 8
+        }, new int[]{2, 2}, null, "weight", DataType.FLOAT64);
+
+        Tensor out = input.linear(weight);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 2}, out.getShape());
+        assertArrayEquals(new double[]{19, 22, 43, 50}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void linearForwardWithBiasBroadcastsAcrossLeadingDimensions() {
+        Tensor input = new Tensor(new double[]{
+                1, 2,
+                3, 4,
+                5, 6,
+                7, 8
+        }, new int[]{2, 2, 2}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[]{
+                1, 10,
+                100, 1000
+        }, new int[]{2, 2}, null, "weight", DataType.FLOAT64);
+        Tensor bias = new Tensor(new double[]{0.5, -0.5}, new int[]{2}, null, "bias", DataType.FLOAT64);
+
+        Tensor out = input.linear(weight, bias);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new int[]{2, 2, 2}, out.getShape());
+        assertArrayEquals(new double[]{
+                201.5, 2009.5,
+                403.5, 4029.5,
+                605.5, 6049.5,
+                807.5, 8069.5
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void linearBackwardUsesMatmulAndBiasReductionContracts() {
+        Tensor input = new Tensor(new double[]{
+                1, 2,
+                3, 4
+        }, new int[]{2, 2}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[]{
+                5, 6,
+                7, 8
+        }, new int[]{2, 2}, null, "weight", DataType.FLOAT64);
+        Tensor bias = new Tensor(new double[]{1, 2}, new int[]{2}, null, "bias", DataType.FLOAT64);
+        input.setRequiresGrad(true);
+        weight.setRequiresGrad(true);
+        bias.setRequiresGrad(true);
+
+        Tensor loss = input.linear(weight, bias).sum();
+        CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(new double[]{11, 15, 11, 15}, input.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{4, 4, 6, 6}, weight.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{2, 2}, bias.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void linearRejectsInvalidWeightAndBiasShapes() {
+        Tensor input = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "input", DataType.FLOAT64);
+        Tensor badWeight = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{3, 2}, null, "weight", DataType.FLOAT64);
+        Tensor goodWeight = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "weight", DataType.FLOAT64);
+        Tensor badBias = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "bias", DataType.FLOAT64);
+
+        assertThrows(IllegalArgumentException.class, () -> input.linear(badWeight));
+        assertThrows(IllegalArgumentException.class, () -> input.linear(goodWeight, badBias));
+    }
+}

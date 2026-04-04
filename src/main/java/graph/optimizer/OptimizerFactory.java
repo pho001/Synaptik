@@ -2,10 +2,10 @@ package graph.optimizer;
 
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
-import graph.optimizer.rules.AlgebraicRewritingRule;
 import graph.optimizer.rules.CommonSubexpressionEliminationRule;
 import graph.optimizer.rules.FuseElementWiseRule;
 import graph.optimizer.rules.MemoryOptimizerRule;
+import graph.optimizer.rules.RewriteRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +30,7 @@ public final class OptimizerFactory {
 
     private static OptimizationRule createRule(OptimizerStage stage, OptimizerConfig config) {
         return switch (stage) {
-            case AR -> new AlgebraicRewritingRule();
+            case AR -> new RewriteRule();
             case CSE -> new CommonSubexpressionEliminationRule(config.cse());
             case FUSE -> new FuseElementWiseRule(config.fuse());
             case MEM -> new MemoryOptimizerRule();

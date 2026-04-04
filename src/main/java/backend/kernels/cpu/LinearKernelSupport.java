@@ -1,0 +1,114 @@
+package backend.kernels.cpu;
+
+import operations.linear;
+import tensor.Tensor;
+
+final class LinearKernelSupport {
+    private LinearKernelSupport() {
+    }
+
+    static void forwardF64(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+        runMatMulF64(input, weight, out, context);
+        if (op.hasBias()) {
+            addBiasF64(out, bias);
+        }
+    }
+
+    static void forwardF32(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+        runMatMulF32(input, weight, out, context);
+        if (op.hasBias()) {
+            addBiasF32(out, bias);
+        }
+    }
+
+    static void forwardF16(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+        runMatMulF16(input, weight, out, context);
+        if (op.hasBias()) {
+            addBiasF16(out, bias);
+        }
+    }
+
+    private static void runMatMulF64(Tensor input, Tensor weight, Tensor out, CpuKernelContext context) {
+        int[] as = input.getShapeUnsafe();
+        int[] bs = weight.getShapeUnsafe();
+        int m = as[as.length - 2];
+        int k = as[as.length - 1];
+        int n = bs[bs.length - 1];
+        double[] ad = input.getFloat64Data();
+        double[] bd = weight.getFloat64Data();
+        double[] od = out.getFloat64Data();
+        ResolvedMatMulHints hints = requireHints(context);
+        if (as.length == 2 && bs.length == 2 && hints.useBlas() && CpuMatMulKernel.tryBlasF64(ad, bd, od, m, n, k)) {
+            return;
+        }
+        if (hints.useBatchedBlas() && CpuMatMulKernel.tryBatchedBlasF64(ad, as, bd, bs, od, out.getShapeUnsafe(), m, n, k)) {
+            return;
+        }
+        java.util.Arrays.fill(od, 0.0d);
+        CpuMatMulKernel.runF64(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
+    }
+
+    private static void runMatMulF32(Tensor input, Tensor weight, Tensor out, CpuKernelContext context) {
+        int[] as = input.getShapeUnsafe();
+        int[] bs = weight.getShapeUnsafe();
+        int m = as[as.length - 2];
+        int k = as[as.length - 1];
+        int n = bs[bs.length - 1];
+        float[] ad = input.getFloat32Data();
+        float[] bd = weight.getFloat32Data();
+        float[] od = out.getFloat32Data();
+        ResolvedMatMulHints hints = requireHints(context);
+        if (as.length == 2 && bs.length == 2 && hints.useBlas() && CpuMatMulKernel.tryBlasF32(ad, bd, od, m, n, k)) {
+            return;
+        }
+        if (hints.useBatchedBlas() && CpuMatMulKernel.tryBatchedBlasF32(ad, as, bd, bs, od, out.getShapeUnsafe(), m, n, k)) {
+            return;
+        }
+        java.util.Arrays.fill(od, 0.0f);
+        CpuMatMulKernel.runF32(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
+    }
+
+    private static void runMatMulF16(Tensor input, Tensor weight, Tensor out, CpuKernelContext context) {
+        short[] ad = input.getFloat16Data();
+        short[] bd = weight.getFloat16Data();
+        short[] od = out.getFloat16Data();
+        java.util.Arrays.fill(od, (short) 0);
+        CpuMatMulKernel.runF16(ad, input.getShapeUnsafe(), bd, weight.getShapeUnsafe(), od, out.getShapeUnsafe(), requireHints(context));
+    }
+
+    private static void addBiasF64(Tensor out, Tensor bias) {
+        double[] outData = out.getFloat64Data();
+        double[] biasData = bias.getFloat64Data();
+        int outFeatures = bias.getShapeUnsafe()[0];
+        for (int i = 0; i < outData.length; i++) {
+            outData[i] += biasData[i % outFeatures];
+        }
+    }
+
+    private static void addBiasF32(Tensor out, Tensor bias) {
+        float[] outData = out.getFloat32Data();
+        float[] biasData = bias.getFloat32Data();
+        int outFeatures = bias.getShapeUnsafe()[0];
+        for (int i = 0; i < outData.length; i++) {
+            outData[i] += biasData[i % outFeatures];
+        }
+    }
+
+    private static void addBiasF16(Tensor out, Tensor bias) {
+        short[] outData = out.getFloat16Data();
+        short[] biasData = bias.getFloat16Data();
+        int outFeatures = bias.getShapeUnsafe()[0];
+        for (int i = 0; i < outData.length; i++) {
+            float value = CpuDTypeOps.fromHalfBits(outData[i]) + CpuDTypeOps.fromHalfBits(biasData[i % outFeatures]);
+            outData[i] = CpuDTypeOps.toHalfBits(value);
+        }
+    }
+
+    private static ResolvedMatMulHints requireHints(CpuKernelContext context) {
+        ResolvedMatMulHints hints = context.matMulHints();
+        if (hints == null) {
+            throw new IllegalStateException("Missing ResolvedMatMulHints for linear execution");
+        }
+        return hints;
+    }
+}

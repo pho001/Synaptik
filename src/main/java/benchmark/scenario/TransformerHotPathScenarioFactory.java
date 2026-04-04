@@ -144,7 +144,7 @@ public final class TransformerHotPathScenarioFactory {
         Tensor w2 = tensor("FF_W2", 69, dataType, requiresGrad, workload.ffHiddenDim(), modelDim);
         Tensor b2 = tensor("FF_B2", 70, dataType, requiresGrad, modelDim);
 
-        Tensor ff = norm.matmul(w1).add(b1).relu().matmul(w2).add(b2);
+        Tensor ff = norm.linear(w1, b1).relu().linear(w2, b2);
         Tensor rmsGamma = tensor("RMS_GAMMA", 71, dataType, requiresGrad, modelDim);
         Tensor out = ff.add(residual).rmsNorm(rmsGamma, 1e-5);
         return finalizeRoot(out, mode);

@@ -123,6 +123,14 @@ public final class TensorOps {
         return TensorMatMulOps.matmul(first, second);
     }
 
+    public static Tensor linear(Tensor input, Tensor weight) {
+        return TensorLinearOps.linear(input, weight);
+    }
+
+    public static Tensor linear(Tensor input, Tensor weight, Tensor bias) {
+        return TensorLinearOps.linear(input, weight, bias);
+    }
+
     public static Tensor conv2d(Tensor input, Tensor weight, Conv2dOptions options) {
         return TensorConvOps.conv2d(input, weight, options);
     }
