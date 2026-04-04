@@ -1,5 +1,27 @@
 # Operations (src/main/java/operations)
 
+## Contents
+
+- [Purpose](#purpose)
+- [Main Components](#main-components)
+- [What an Operation Descriptor Should Contain](#what-an-operation-descriptor-should-contain)
+- [Operation Strategy](#operation-strategy)
+- [Current Strategy Matrix](#current-strategy-matrix)
+  - [Composition-Only Surface](#composition-only-surface)
+  - [Specialized-Only Primitives](#specialized-only-primitives)
+  - [Surface + Specialized Primitive (`both`)](#surface--specialized-primitive-both)
+- [Lowering Policy](#lowering-policy)
+- [How to Add a New Operation](#how-to-add-a-new-operation)
+- [Practical Examples by Operation Type](#practical-examples-by-operation-type)
+  - [Simple unary op](#simple-unary-op)
+  - [Simple binary op](#simple-binary-op)
+  - [Compare op](#compare-op)
+  - [Select op](#select-op)
+  - [Logical bool op](#logical-bool-op)
+  - [Reduction op](#reduction-op)
+  - [Layout op](#layout-op)
+- [Common Mistakes](#common-mistakes)
+
 ## Purpose
 
 The `operations` package contains operation descriptors used by:
@@ -557,6 +579,101 @@ Layout/view transforms such as:
 
 are handled as fused external input access metadata, not as fused compute nodes.
 
+This distinction is extremely important.
+
+#### Fused compute algebra
+
+These ops compute a new value for each logical output element:
+
+- `add`
+- `mul`
+- `relu`
+- compare ops
+- logical ops
+- `where`
+
+Example:
+
+```java
+Tensor out = Tensor.where(a.greaterThan(b), x, y).relu();
+// compare -> bool intermediate
+// where   -> numeric value chosen from x or y
+// relu    -> final numeric output
+```
+
+This is valid fused compute algebra because every step is still:
+
+- one logical output space
+- one local per-element computation
+
+#### Fused access algebra
+
+These ops do not compute a new arithmetic value.
+They only change how logical coordinates read from backing storage:
+
+- `select`
+- `reshape`
+- `expand`
+- `permute`
+- `expandDims`
+- `squeeze`
+
+Example:
+
+```java
+Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base");
+Tensor view = base.select(0, 1);
+Tensor out = view.relu().exp();
+```
+
+Fused interpretation:
+
+```java
+// base:
+// [[1, 2, 3],
+//  [4, 5, 6]]
+//
+// view = [4, 5, 6]
+// out  = exp(relu(view))
+```
+
+The fused cluster keeps only:
+
+- `RELU`
+- `EXP`
+
+The `select(...)` part is absorbed into external input metadata:
+
+- backing tensor = `base`
+- `storageOffset = 3`
+- effective strides = `[1]`
+
+#### Barriers
+
+These ops must stop fused cluster growth:
+
+- `gather`
+- `takeAlongAxis`
+- `scatterAdd`
+- reductions
+- `matmul`
+- losses
+- special grad kernels
+
+Example:
+
+```java
+Tensor out = base.gather(indices, 1).relu().exp();
+```
+
+Correct fused behavior:
+
+- `gather(...)` stays outside fused compute algebra
+- only `relu().exp()` may fuse above it
+
+That is intentional.
+`gather` is not a static access transform and not a same-output-space local compute op.
+
 So if the op belongs to fused compute algebra:
 
 1. mark it correctly in `Operation.OpType`
@@ -566,8 +683,11 @@ So if the op belongs to fused compute algebra:
 Relevant files:
 
 - [src/main/java/graph/optimizer/rules/FuseElementWiseRule.java](../graph/optimizer/rules/FuseElementWiseRule.java)
+- [src/main/java/graph/optimizer/fusion/FusedAccessResolver.java](../graph/optimizer/fusion/FusedAccessResolver.java)
 - [src/main/java/graph/codegen/FusedScalarExpressionEmitter.java](../graph/codegen/FusedScalarExpressionEmitter.java)
 - [src/main/java/graph/codegen/FusedVectorExpressionEmitter.java](../graph/codegen/FusedVectorExpressionEmitter.java)
+- [src/main/java/graph/codegen/FusedExternalInputPlan.java](../graph/codegen/FusedExternalInputPlan.java)
+- [src/main/java/graph/codegen/FusedNodePlan.java](../graph/codegen/FusedNodePlan.java)
 - [src/main/java/graph/codegen/HFusedOperationGenerator.java](../graph/codegen/HFusedOperationGenerator.java)
 
 If the op is not fusable, make that explicit.

@@ -1,5 +1,22 @@
 # Optimizer (src/main/java/graph/optimizer)
 
+## Contents
+
+- [Goal](#goal)
+- [Main Components](#main-components)
+- [Placement in the Execution Flow](#placement-in-the-execution-flow)
+- [Rule Contract](#rule-contract)
+- [Rule Summary](#rule-summary)
+  - [`AlgebraicRewritingRule`](#algebraicrewritingrule)
+  - [`CommonSubexpressionEliminationRule`](#commonsubexpressioneliminationrule)
+  - [`FuseElementWiseRule`](#fuseelementwiserule)
+  - [`MemoryOptimizerRule`](#memoryoptimizerrule)
+- [Fused Operations](#fused-operations)
+- [Config and Defaults](#config-and-defaults)
+- [Benchmark / Autotune Integration](#benchmark--autotune-integration)
+- [Adding a New Rule](#adding-a-new-rule)
+- [Build / Runtime Notes](#build--runtime-notes)
+
 ## Goal
 
 The optimizer transforms a compiled tensor graph before runtime preparation.
@@ -119,28 +136,109 @@ For example, `sum(axis, false)` and `sum(axis, true)` must not collapse to the s
 - respects forward/backward phase boundaries
 - uses explicit fuse policy from `FuseConfig`
 - cooperates with fusion support helpers for:
-  - external inputs
+  - external input collection
+  - access-chain validation
   - precision resolution
   - cluster signature building
   - cost decisions
-- current fused compute scope is intentionally limited to:
-  - unary/binary numeric ops
-  - compare ops
-  - logical ops
-  - `where`
-- current fused access model absorbs view/layout chains into external-input metadata:
-  - `select`
-  - `reshape`
-  - `expand`
-  - `permute`
-  - `expandDims`
-  - `squeeze`
-- current hard fusion barriers include:
-  - indexing ops
-  - reductions
-  - `matmul`
-  - losses
-  - special grad kernels
+
+Detailed behavior:
+
+1. identify candidate roots that are retained graph nodes
+2. walk backward only through fused-compute-compatible parents
+3. stop at barriers
+4. collect external inputs for the cluster boundary
+5. resolve absorbable view/layout chains into fused access metadata
+6. replace the cluster root with a `FusedOperation` descriptor
+7. rebuild topological closure so dead absorbed nodes disappear from the optimized execution list
+
+#### What counts as fused compute
+
+Current fused compute algebra intentionally includes only:
+
+- unary numeric ops
+- binary numeric ops
+- compare ops
+- logical ops
+- `where`
+
+#### What does not count as fused compute
+
+These are **not** fused compute nodes:
+
+- `select`
+- `reshape`
+- `expand`
+- `permute`
+- `expandDims`
+- `squeeze`
+
+They are treated as:
+
+- absorbable access/layout transforms on external inputs
+
+#### Hard barriers
+
+Current hard barriers include:
+
+- indexing ops
+  - `gather`
+  - `takeAlongAxis`
+  - `scatterAdd`
+- reductions
+- `matmul`
+- losses
+- special grad kernels
+
+#### Example: accepted cluster
+
+```java
+Tensor out = Tensor.where(a.greaterThan(b), x, y).relu().mul(x);
+```
+
+Fused interpretation:
+
+```java
+// Step 1: bool intermediate
+// cond = a > b
+//
+// Step 2: numeric select
+// v = cond ? x : y
+//
+// Step 3: more numeric compute
+// out = relu(v) * x
+```
+
+This is a valid fused compute cluster because:
+
+- all nodes live over the same logical output space
+- bool values are only intermediates inside the fused compute algebra
+- there is no reduction or indexing barrier
+
+#### Example: access chain absorbed into fused input metadata
+
+```java
+Tensor out = base.select(0, 1).permute(0).relu().exp();
+```
+
+Fusion rule behavior:
+
+- `relu` and `exp` are fused compute nodes
+- `select(...)` and `permute(...)` are not fused compute nodes
+- the root fused node receives the backing tensor of `base`
+- access metadata describes how to read the logical input view
+
+#### Example: barrier
+
+```java
+Tensor out = base.gather(indices, 1).relu().exp();
+```
+
+Fusion rule behavior:
+
+- `gather(...)` is a barrier
+- only the arithmetic nodes above it may fuse
+- `gather(...)` remains an ordinary graph node
 
 ### `MemoryOptimizerRule`
 
@@ -195,6 +293,45 @@ This means:
   - typed fused node IR
   - typed external input access metadata
   - prepared runtime bindings resolved to backing tensors
+
+Important current fused IR pieces:
+
+- [src/main/java/graph/codegen/FusedNodePlan.java](../../graph/codegen/FusedNodePlan.java)
+  - one fused compute node
+  - explicit `opType`
+  - explicit `outputType`
+  - typed node attributes
+- [src/main/java/graph/codegen/FusedExternalInputPlan.java](../../graph/codegen/FusedExternalInputPlan.java)
+  - one external runtime input contract
+  - backing tensor index
+  - access shape/strides
+  - `storageOffset`
+  - access kind
+
+Example:
+
+```java
+Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", DataType.FLOAT64);
+Tensor view = base.select(0, 1);
+Tensor out = view.relu().exp();
+```
+
+The fused descriptor path does **not** treat `select(...)` as a fused compute node.
+Instead it creates:
+
+- one backing runtime input for `base`
+- one external access descriptor carrying:
+  - logical output shape `[3]`
+  - `storageOffset = 3`
+  - effective strides `[1]`
+- two fused compute nodes:
+  - `RELU`
+  - `EXP`
+
+This is the main architectural difference between:
+
+- compute algebra
+- access algebra
 
 ## Config and Defaults
 
