@@ -40,7 +40,6 @@ This layer owns:
   - [src/main/java/graph/codegen/CompiledFusedKernelFactory.java](../graph/codegen/CompiledFusedKernelFactory.java)
   - [src/main/java/graph/codegen/FusedKernelGeneratorRouter.java](../graph/codegen/FusedKernelGeneratorRouter.java)
   - [src/main/java/graph/codegen/FusedOperationGenerator.java](../graph/codegen/FusedOperationGenerator.java)
-  - [src/main/java/graph/codegen/HFusedOperationGenerator.java](../graph/codegen/HFusedOperationGenerator.java)
 - Optimizer module:
   - [src/main/java/graph/optimizer/README.md](../graph/optimizer/README.md)
 
@@ -194,7 +193,7 @@ When `FuseElementWiseRule` collapses a cluster:
 3. `FusedOperationFactory` resolves backing runtime inputs and builds `FusedExpressionPlan`
 4. the optimized graph keeps a single `FusedOperation` descriptor node
 5. `CompiledGraph.prepare(...)` asks `CompiledFusedKernelFactory` to compile a runtime fused kernel
-6. `FusedKernelGeneratorRouter` selects the code generator by precision mode
+6. `FusedKernelGeneratorRouter` routes codegen through the unified fused generator path
 7. the generated runtime kernel is stored in `CompiledNodeExecutionMetadata`
 8. `CpuFusedKernel` executes that prepared kernel at runtime
 
@@ -438,6 +437,9 @@ Important current rule:
 
 - scalar path is the correctness baseline
 - vector path is enabled only where the codegen/runtime contract is explicit
+- F16 uses the same fused generator family as F32/F64
+  - unsupported vector cases fall back to scalar fused execution
+  - there is no separate legacy F16 generator path
 
 ### Example: vector-friendly fused cluster
 

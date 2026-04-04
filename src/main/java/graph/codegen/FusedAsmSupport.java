@@ -321,6 +321,20 @@ final class FusedAsmSupport {
         }
     }
 
+    static void emitVectorClampCall(MethodVisitor mv, String op, int precisionMode) {
+        if (precisionMode == FusedDTypeOps.MODE_F16) {
+            mv.visitLdcInsn(precisionMode);
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", op, "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
+            return;
+        }
+        String vd = vectorTypeDesc(precisionMode);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", op + "F32", "(" + vd + "F)" + vd, false);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", op + "F64", "(" + vd + "D)" + vd, false);
+        }
+    }
+
     static void emitScalarLoadInsn(MethodVisitor mv, int slot, int precisionMode) {
         mv.visitVarInsn(precisionMode == FusedDTypeOps.MODE_F32 ? FLOAD : DLOAD, slot);
     }
@@ -338,11 +352,23 @@ final class FusedAsmSupport {
     }
 
     static void emitScalarArrayLoadInsn(MethodVisitor mv, int precisionMode) {
-        mv.visitInsn(precisionMode == FusedDTypeOps.MODE_F32 ? FALOAD : DALOAD);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitInsn(FALOAD);
+        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+            mv.visitInsn(DALOAD);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedStorageOps", "loadScalarF16Array", "([SI)D", false);
+        }
     }
 
     static void emitScalarArrayStoreInsn(MethodVisitor mv, int precisionMode) {
-        mv.visitInsn(precisionMode == FusedDTypeOps.MODE_F32 ? FASTORE : DASTORE);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitInsn(FASTORE);
+        } else if (precisionMode == FusedDTypeOps.MODE_F64) {
+            mv.visitInsn(DASTORE);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedStorageOps", "storeScalarF16Array", "([SID)V", false);
+        }
     }
 
     static void emitIntArrayConstant(MethodVisitor mv, int[] values) {

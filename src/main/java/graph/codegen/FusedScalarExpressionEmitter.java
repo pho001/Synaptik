@@ -127,6 +127,13 @@ public final class FusedScalarExpressionEmitter {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
                 }
                 break;
+            case ABS:
+                if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "abs", "(F)F", false);
+                } else {
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "abs", "(D)D", false);
+                }
+                break;
             case MUL_SCALAR:
                 double scalar = ((ScalarDoubleAttribute) current.attributes()).value();
                 if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
@@ -146,6 +153,28 @@ public final class FusedScalarExpressionEmitter {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(DD)D", false);
                 }
                 break;
+            case CLAMP_MIN: {
+                double minValue = ((ScalarDoubleAttribute) current.attributes()).value();
+                if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn((float) minValue);
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(FF)F", false);
+                } else {
+                    mv.visitLdcInsn(minValue);
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "max", "(DD)D", false);
+                }
+                break;
+            }
+            case CLAMP_MAX: {
+                double maxValue = ((ScalarDoubleAttribute) current.attributes()).value();
+                if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn((float) maxValue);
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "min", "(FF)F", false);
+                } else {
+                    mv.visitLdcInsn(maxValue);
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "min", "(DD)D", false);
+                }
+                break;
+            }
             case SIGMOID:
                 if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
                     mv.visitInsn(FNEG);

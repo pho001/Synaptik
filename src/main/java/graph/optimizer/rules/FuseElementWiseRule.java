@@ -234,13 +234,6 @@ public class FuseElementWiseRule implements OptimizationRule {
         if (op == null || op.opType() == null) {
             return false;
         }
-        return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX,
-                    NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID,
-                    GT, GE, LT, LE, EQ, NE,
-                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
-                    WHERE -> true;
-            default -> false;
-        };
+        return op.opType().isFusable();
     }
 }

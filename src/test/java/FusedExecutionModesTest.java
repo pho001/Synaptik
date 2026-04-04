@@ -369,6 +369,70 @@ public class FusedExecutionModesTest {
     }
 
     @Test
+    void fusedFloat16SupportsCompareLogicalWhereGraph() {
+        int size = 4096;
+        double[] aVals = buildInput(size, 0.08);
+        double[] bVals = buildInput(size, -0.03);
+        double[] xVals = buildInput(size, 0.05);
+        double[] yVals = buildInput(size, -0.02);
+
+        Tensor aBase = new Tensor(aVals.clone(), new int[]{size}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bVals.clone(), new int[]{size}, null, "bBase", DataType.FLOAT64);
+        Tensor xBase = new Tensor(xVals.clone(), new int[]{size}, null, "xBase", DataType.FLOAT64);
+        Tensor yBase = new Tensor(yVals.clone(), new int[]{size}, null, "yBase", DataType.FLOAT64);
+        Tensor baseline = Tensor.where(aBase.greaterThan(bBase).logicalOr(aBase.lessThan(bBase)), xBase, yBase).sigmoid();
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(bVals.clone(), new int[]{size}, null, "b", DataType.FLOAT64);
+        Tensor x = new Tensor(xVals.clone(), new int[]{size}, null, "x", DataType.FLOAT64);
+        Tensor y = new Tensor(yVals.clone(), new int[]{size}, null, "y", DataType.FLOAT64);
+        a.setDataType(DataType.FLOAT16);
+        b.setDataType(DataType.FLOAT16);
+        x.setDataType(DataType.FLOAT16);
+        y.setDataType(DataType.FLOAT16);
+
+        Tensor out = Tensor.where(a.greaterThan(b).logicalOr(a.lessThan(b)), x, y).sigmoid();
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in FLOAT16 compare/logical/where graph");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+    }
+
+    @Test
+    void fusedFloat16SupportsAbsAndClampGraph() {
+        int size = 4096;
+        double[] aVals = buildInput(size, 0.06);
+        double[] bVals = buildInput(size, -0.05);
+
+        Tensor aBase = new Tensor(aVals.clone(), new int[]{size}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bVals.clone(), new int[]{size}, null, "bBase", DataType.FLOAT64);
+        Tensor baseline = aBase.sub(bBase).abs().clampMin(-0.25).clampMax(0.75).sigmoid();
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(bVals.clone(), new int[]{size}, null, "b", DataType.FLOAT64);
+        a.setDataType(DataType.FLOAT16);
+        b.setDataType(DataType.FLOAT16);
+
+        Tensor out = a.sub(b).abs().clampMin(-0.25).clampMax(0.75).sigmoid();
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in FLOAT16 abs/clamp graph");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+    }
+
+    @Test
     void fusedGraphSupportsBoolOutputInVectorMode() {
         int size = 4096;
         double[] aVals = buildInput(size, 0.08);

@@ -110,6 +110,11 @@ public final class FusedVectorMethodEmitter {
 
     private static boolean supportsVector(FusedGenerationContext context, FusedExpressionPlan plan) {
         if (context.precisionMode() == FusedDTypeOps.MODE_F16) {
+            for (FusedExternalInputPlan input : plan.inputs()) {
+                if (input.usesCursor()) {
+                    return false;
+                }
+            }
             for (FusedNodePlan node : plan.nodes()) {
                 if (node.outputType() == tensor.DataType.BOOL || node.opType() == operations.Operation.OpType.WHERE) {
                     return false;

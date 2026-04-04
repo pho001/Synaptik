@@ -160,6 +160,42 @@ public final class FusedVectorOps {
     public static DoubleVector reluF64(DoubleVector a) { return a.max(DOUBLE_ZERO); }
     public static FloatVector reluF32(FloatVector a) { return a.max(FLOAT_ZERO); }
 
+    public static Object abs(Object a, int mode) {
+        return switch (mode) {
+            case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).abs();
+            case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).abs();
+            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.abs(x, mode));
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
+        };
+    }
+
+    public static DoubleVector absF64(DoubleVector a) { return a.abs(); }
+    public static FloatVector absF32(FloatVector a) { return a.abs(); }
+
+    public static Object clampMin(Object a, double minValue, int mode) {
+        return switch (mode) {
+            case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max(minValue);
+            case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max((float) minValue);
+            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.clampMin(x, minValue, mode));
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
+        };
+    }
+
+    public static DoubleVector clampMinF64(DoubleVector a, double minValue) { return a.max(minValue); }
+    public static FloatVector clampMinF32(FloatVector a, float minValue) { return a.max(minValue); }
+
+    public static Object clampMax(Object a, double maxValue, int mode) {
+        return switch (mode) {
+            case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).min(maxValue);
+            case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).min((float) maxValue);
+            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.clampMax(x, maxValue, mode));
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
+        };
+    }
+
+    public static DoubleVector clampMaxF64(DoubleVector a, double maxValue) { return a.min(maxValue); }
+    public static FloatVector clampMaxF32(FloatVector a, float maxValue) { return a.min(maxValue); }
+
     public static Object noop(Object a, int mode) {
         return a;
     }

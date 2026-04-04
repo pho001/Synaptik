@@ -65,6 +65,14 @@ public final class FusedStorageOps {
         }
     }
 
+    public static double loadScalarF16Array(short[] src, int index) {
+        return CpuDTypeOps.fromHalfBits(src[index]);
+    }
+
+    public static void storeScalarF16Array(short[] dst, int index, double value) {
+        dst[index] = CpuDTypeOps.toHalfBits((float) value);
+    }
+
     public static DoubleVector loadVectorF64(Tensor tensor, int index) {
         return DoubleVector.fromArray(DOUBLE_SPECIES, tensor.getFloat64Data(), index);
     }

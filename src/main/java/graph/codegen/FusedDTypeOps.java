@@ -89,6 +89,10 @@ public final class FusedDTypeOps {
         return cast(Math.sqrt(cast(a, mode)), mode);
     }
 
+    public static double abs(double a, int mode) {
+        return cast(Math.abs(cast(a, mode)), mode);
+    }
+
     public static double pow(double a, double exponent, int mode) {
         return cast(Math.pow(cast(a, mode), exponent), mode);
     }
@@ -99,6 +103,14 @@ public final class FusedDTypeOps {
 
     public static double relu(double a, int mode) {
         return cast(Math.max(cast(a, mode), 0.0), mode);
+    }
+
+    public static double clampMin(double a, double minValue, int mode) {
+        return cast(Math.max(cast(a, mode), cast(minValue, mode)), mode);
+    }
+
+    public static double clampMax(double a, double maxValue, int mode) {
+        return cast(Math.min(cast(a, mode), cast(maxValue, mode)), mode);
     }
 
     public static double sigmoid(double a, int mode) {

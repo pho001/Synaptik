@@ -709,6 +709,16 @@ So if the op belongs to fused compute algebra:
 2. ensure fusion rules accept it
 3. ensure fused codegen emitters support it
 
+The intended source of truth is:
+
+- `Operation.OpType.isFusable()`
+
+That means:
+
+- the enum metadata must match the real fused compute algebra
+- fusion rules should not carry a separate hardcoded op switch that drifts away from `OpType`
+- codegen support matrix must be kept in sync for all supported precision modes, including F16
+
 Relevant files:
 
 - [src/main/java/graph/optimizer/rules/FuseElementWiseRule.java](../graph/optimizer/rules/FuseElementWiseRule.java)
@@ -717,7 +727,7 @@ Relevant files:
 - [src/main/java/graph/codegen/FusedVectorExpressionEmitter.java](../graph/codegen/FusedVectorExpressionEmitter.java)
 - [src/main/java/graph/codegen/FusedExternalInputPlan.java](../graph/codegen/FusedExternalInputPlan.java)
 - [src/main/java/graph/codegen/FusedNodePlan.java](../graph/codegen/FusedNodePlan.java)
-- [src/main/java/graph/codegen/HFusedOperationGenerator.java](../graph/codegen/HFusedOperationGenerator.java)
+- [src/main/java/graph/codegen/FusedOperationGenerator.java](../graph/codegen/FusedOperationGenerator.java)
 
 If the op is not fusable, make that explicit.
 

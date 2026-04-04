@@ -9,8 +9,10 @@ public final class FusedOperationGenerator {
             FusedExpressionPlan plan,
             int precisionMode
     ) {
-        if (precisionMode != FusedDTypeOps.MODE_F32 && precisionMode != FusedDTypeOps.MODE_F64) {
-            throw new IllegalArgumentException("FusedOperationGenerator supports only F32/F64, got mode=" + precisionMode);
+        if (precisionMode != FusedDTypeOps.MODE_F32
+                && precisionMode != FusedDTypeOps.MODE_F64
+                && precisionMode != FusedDTypeOps.MODE_F16) {
+            throw new IllegalArgumentException("Unsupported fused precision mode=" + precisionMode);
         }
 
         FusedGenerationContext context = FusedGenerationContext.create(

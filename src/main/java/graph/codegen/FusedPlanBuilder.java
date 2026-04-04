@@ -1,6 +1,8 @@
 package graph.codegen;
 
 import operations.Operation;
+import operations.clampMax;
+import operations.clampMin;
 import operations.mulScalar;
 import operations.pow;
 import tensor.Tensor;
@@ -92,6 +94,12 @@ public final class FusedPlanBuilder {
         }
         if (operation instanceof mulScalar m) {
             return new ScalarDoubleAttribute(m.getScalar());
+        }
+        if (operation instanceof clampMin c) {
+            return new ScalarDoubleAttribute(c.getMinValue());
+        }
+        if (operation instanceof clampMax c) {
+            return new ScalarDoubleAttribute(c.getMaxValue());
         }
         if (operation.opType() == Operation.OpType.WHERE) {
             return new WhereAttributes();

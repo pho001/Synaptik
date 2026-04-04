@@ -35,7 +35,26 @@ public final class FusedVectorExpressionEmitter {
             case TANH -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "tanh", precisionMode, sm);
             case FAST_TANH -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "fastTanh", precisionMode);
             case SQRT -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "sqrt", precisionMode);
+            case ABS -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "abs", precisionMode);
             case RELU -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "relu", precisionMode);
+            case CLAMP_MIN -> {
+                double minValue = ((ScalarDoubleAttribute) current.attributes()).value();
+                if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn((float) minValue);
+                } else {
+                    mv.visitLdcInsn(minValue);
+                }
+                FusedAsmSupport.emitVectorClampCall(mv, "clampMin", precisionMode);
+            }
+            case CLAMP_MAX -> {
+                double maxValue = ((ScalarDoubleAttribute) current.attributes()).value();
+                if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn((float) maxValue);
+                } else {
+                    mv.visitLdcInsn(maxValue);
+                }
+                FusedAsmSupport.emitVectorClampCall(mv, "clampMax", precisionMode);
+            }
             case SIGMOID -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "sigmoid", precisionMode);
             case NOOP -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "noop", precisionMode);
             case GT -> emitVectorBoolOpCall(mv, "gt", precisionMode);
