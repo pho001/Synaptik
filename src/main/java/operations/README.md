@@ -210,6 +210,10 @@ These should stay as derived tensor helpers unless a strong runtime reason appea
 
 - `minimum(second)`
 - `maximum(second)`
+- normalization surfaces:
+  - `batchNorm(...)`
+  - `layerNorm(...)`
+  - `rmsNorm(...)`
 - future piecewise helpers such as:
   - `step`
   - `isPositive`
@@ -221,6 +225,7 @@ These should stay as derived tensor helpers unless a strong runtime reason appea
 Reasoning:
 
 - they are naturally expressed through compare/select algebra
+- current normalization surfaces are naturally expressed through reduction + affine algebra
 - they do not currently require their own backend/planner contract
 - keeping them derived prevents primitive-set bloat
 

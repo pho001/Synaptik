@@ -132,6 +132,13 @@ The current public graph-building operation surface on `Tensor` is:
 - `maxPool2d(Pool2dOptions options)`
 - `avgPool2d(Pool2dOptions options)`
 
+### Normalization
+
+- `batchNorm(Tensor gamma, Tensor beta, int channelDimension, double epsilon)`
+- `batchNorm(Tensor gamma, Tensor beta, Tensor mean, Tensor variance, int channelDimension, double epsilon)`
+- `layerNorm(Tensor gamma, Tensor beta, double epsilon)`
+- `rmsNorm(Tensor gamma, double epsilon)`
+
 ### Unary / Scalar
 
 - `relu()`
@@ -506,6 +513,52 @@ Architectural note:
   - backward reads that workspace instead of rescanning the input windows
 - pooling is currently an explicit dense-first backend boundary
   - non-contiguous or offset inputs are materialized by prepared-input planning before kernel execution
+
+## Normalization Contract
+
+Current normalization surface is intentionally stateless and explicit.
+
+Supported surfaces:
+
+- `batchNorm(gamma, beta, channelDimension, epsilon)`
+  - computes batch statistics from the current input
+- `batchNorm(gamma, beta, mean, variance, channelDimension, epsilon)`
+  - uses externally supplied channel statistics
+- `layerNorm(gamma, beta, epsilon)`
+  - normalizes over trailing feature dimensions
+- `rmsNorm(gamma, epsilon)`
+  - normalizes over trailing feature dimensions without bias
+
+Architectural rules:
+
+- no hidden running-stat mutation inside tensor execution
+- no implicit framework-owned state buffers
+- normalization surfaces are currently expressed compositionally over:
+  - `mean`
+  - `sub`
+  - `pow`
+  - `sqrt`
+  - `div`
+  - `mul`
+  - `add`
+
+That means:
+
+- public API is already clean and semantically stable
+- autodiff works immediately through existing graph primitives
+- future specialized lowering remains possible later if profiling justifies it
+
+Shape contracts:
+
+- batch norm:
+  - `gamma`, `beta`, and optional `mean` / `variance` have shape `[channels]`
+  - `channelDimension` selects the preserved axis
+  - all remaining axes are reduced for statistics
+- layer norm:
+  - `gamma.shape == beta.shape`
+  - that shape must equal the trailing normalized input block
+- RMS norm:
+  - `gamma.shape` must equal the trailing normalized input block
 
 `nllLossFromIndices(targetIndices, classDimension)` is the first index-target loss surface:
 

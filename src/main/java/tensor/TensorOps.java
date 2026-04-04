@@ -283,12 +283,39 @@ public final class TensorOps {
             Tensor input,
             Tensor gamma,
             Tensor beta,
-            Tensor runningMean,
-            Tensor runningVar,
-            double epsilon,
-            boolean training
+            int channelDimension,
+            double epsilon
     ) {
-        return TensorNaryOps.batchNorm(input, gamma, beta, runningMean, runningVar, epsilon, training);
+        return TensorNormalizationOps.batchNorm(input, gamma, beta, channelDimension, epsilon);
+    }
+
+    public static Tensor batchNorm(
+            Tensor input,
+            Tensor gamma,
+            Tensor beta,
+            Tensor mean,
+            Tensor variance,
+            int channelDimension,
+            double epsilon
+    ) {
+        return TensorNormalizationOps.batchNorm(input, gamma, beta, mean, variance, channelDimension, epsilon);
+    }
+
+    public static Tensor layerNorm(
+            Tensor input,
+            Tensor gamma,
+            Tensor beta,
+            double epsilon
+    ) {
+        return TensorNormalizationOps.layerNorm(input, gamma, beta, epsilon);
+    }
+
+    public static Tensor rmsNorm(
+            Tensor input,
+            Tensor gamma,
+            double epsilon
+    ) {
+        return TensorNormalizationOps.rmsNorm(input, gamma, epsilon);
     }
 
     public static Tensor nllLoss(Tensor logProbs, Tensor targets, int classDimension) {

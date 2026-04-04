@@ -978,6 +978,22 @@ public class Tensor {
         return TensorOps.logSoftmax(this, dimension);
     }
 
+    public Tensor batchNorm(Tensor gamma, Tensor beta, int channelDimension, double epsilon) {
+        return TensorOps.batchNorm(this, gamma, beta, channelDimension, epsilon);
+    }
+
+    public Tensor batchNorm(Tensor gamma, Tensor beta, Tensor mean, Tensor variance, int channelDimension, double epsilon) {
+        return TensorOps.batchNorm(this, gamma, beta, mean, variance, channelDimension, epsilon);
+    }
+
+    public Tensor layerNorm(Tensor gamma, Tensor beta, double epsilon) {
+        return TensorOps.layerNorm(this, gamma, beta, epsilon);
+    }
+
+    public Tensor rmsNorm(Tensor gamma, double epsilon) {
+        return TensorOps.rmsNorm(this, gamma, epsilon);
+    }
+
     public Tensor nllLoss(Tensor targets, int classDimension) {
         return TensorOps.nllLoss(this, targets, classDimension);
     }

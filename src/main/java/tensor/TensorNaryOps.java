@@ -19,21 +19,6 @@ final class TensorNaryOps {
         return List.copyOf(inputs);
     }
 
-    static Tensor batchNorm(
-            Tensor input,
-            Tensor gamma,
-            Tensor beta,
-            Tensor runningMean,
-            Tensor runningVar,
-            double epsilon,
-            boolean training
-    ) {
-        throw new UnsupportedOperationException(
-                "BatchNorm op is not implemented yet. " +
-                "Use TensorNaryOps as extension point for multi-input operations."
-        );
-    }
-
     static Tensor nllLoss(Tensor logProbs, Tensor targets, int classDimension) {
         if (logProbs == null || targets == null) {
             throw new IllegalArgumentException("nllLoss inputs cannot be null");

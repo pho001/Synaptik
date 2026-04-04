@@ -45,6 +45,11 @@ The focus here is practical API usage:
   - [`conv2d(Tensor weight, Tensor bias, Conv2dOptions options)`](#conv2dtensor-weight-tensor-bias-conv2doptions-options)
   - [`maxPool2d(Pool2dOptions options)`](#maxpool2dpool2doptions-options)
   - [`avgPool2d(Pool2dOptions options)`](#avgpool2dpool2doptions-options)
+- [Normalization Operations](#normalization-operations)
+  - [`batchNorm(Tensor gamma, Tensor beta, int channelDimension, double epsilon)`](#batchnormtensor-gamma-tensor-beta-int-channeldimension-double-epsilon)
+  - [`batchNorm(Tensor gamma, Tensor beta, Tensor mean, Tensor variance, int channelDimension, double epsilon)`](#batchnormtensor-gamma-tensor-beta-tensor-mean-tensor-variance-int-channeldimension-double-epsilon)
+  - [`layerNorm(Tensor gamma, Tensor beta, double epsilon)`](#layernormtensor-gamma-tensor-beta-double-epsilon)
+  - [`rmsNorm(Tensor gamma, double epsilon)`](#rmsnormtensor-gamma-double-epsilon)
 - [Comparison Operations](#comparison-operations)
   - [`greaterThan(Tensor second)`](#greaterthantensor-second)
   - [`greaterOrEqual(Tensor second)`](#greaterorequaltensor-second)
@@ -927,6 +932,154 @@ Tensor y = input.avgPool2d(Pool2dOptions.square(2));
 //   [11.5, 13.5]]]
 //
 // Returns: window-wise averages over the spatial axes.
+```
+
+## Normalization Operations
+
+Normalization surfaces are currently:
+- stateless
+- composition-based over existing tensor primitives
+- free of hidden running-stat mutations
+
+### `batchNorm(Tensor gamma, Tensor beta, int channelDimension, double epsilon)`
+
+Applies stateless batch normalization using batch statistics computed from the current input.
+
+Parameters:
+- `gamma`: rank-1 scale tensor with shape `[channels]`
+- `beta`: rank-1 bias tensor with shape `[channels]`
+- `channelDimension`: axis treated as the channel axis
+- `epsilon`: positive numerical stabilizer
+
+Returns:
+- tensor with the same shape as the input
+
+Contract:
+- input must use a floating dtype
+- input must have at least one non-channel axis
+- `gamma` and `beta` must both have shape `[input.shape[channelDimension]]`
+- mean and variance are reduced over all axes except the channel axis
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2,
+        3, 4
+}, new int[]{2, 2, 1, 1}, null, "x");
+Tensor gamma = new Tensor(new double[]{1, 1}, new int[]{2}, null, "gamma");
+Tensor beta = new Tensor(new double[]{0, 0}, new int[]{2}, null, "beta");
+
+Tensor y = x.batchNorm(gamma, beta, 1, 1e-12);
+// Channel 0 sees values [1, 3], so mean=2 and variance=1.
+// Channel 1 sees values [2, 4], so mean=3 and variance=1.
+// y keeps shape [2, 2, 1, 1] and values:
+// [[[-1], [-1]],
+//  [[ 1], [ 1]]]
+//
+// Returns: stateless batch-normalized output using current batch statistics.
+```
+
+### `batchNorm(Tensor gamma, Tensor beta, Tensor mean, Tensor variance, int channelDimension, double epsilon)`
+
+Applies batch normalization using externally provided channel statistics.
+
+Parameters:
+- `gamma`: rank-1 scale tensor with shape `[channels]`
+- `beta`: rank-1 bias tensor with shape `[channels]`
+- `mean`: rank-1 mean tensor with shape `[channels]`
+- `variance`: rank-1 variance tensor with shape `[channels]`
+- `channelDimension`: axis treated as the channel axis
+- `epsilon`: positive numerical stabilizer
+
+Returns:
+- tensor with the same shape as the input
+
+Contract:
+- same floating/channel-shape contract as the batch-stat overload
+- `mean` and `variance` must also have shape `[channels]`
+- this overload is the clean inference-style surface because it has no hidden state updates
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{5, 8}, new int[]{1, 2, 1, 1}, null, "x");
+Tensor gamma = new Tensor(new double[]{2, 3}, new int[]{2}, null, "gamma");
+Tensor beta = new Tensor(new double[]{10, 20}, new int[]{2}, null, "beta");
+Tensor mean = new Tensor(new double[]{1, 2}, new int[]{2}, null, "mean");
+Tensor variance = new Tensor(new double[]{4, 9}, new int[]{2}, null, "variance");
+
+Tensor y = x.batchNorm(gamma, beta, mean, variance, 1, 1e-12);
+// Channel 0: ((5 - 1) / sqrt(4)) * 2 + 10 = 14
+// Channel 1: ((8 - 2) / sqrt(9)) * 3 + 20 = 26
+// y has shape [1, 2, 1, 1] and values [14, 26].
+//
+// Returns: batch-normalized output using provided statistics.
+```
+
+### `layerNorm(Tensor gamma, Tensor beta, double epsilon)`
+
+Applies layer normalization over the trailing dimensions described by `gamma` / `beta`.
+
+Parameters:
+- `gamma`: floating tensor whose shape must match the trailing normalized input shape
+- `beta`: floating tensor with the same shape as `gamma`
+- `epsilon`: positive numerical stabilizer
+
+Returns:
+- tensor with the same shape as the input
+
+Contract:
+- `gamma.shape` and `beta.shape` must be identical
+- those shapes must exactly match the trailing input dimensions
+- mean and variance are reduced over the normalized trailing block
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{
+        1, 3,
+        2, 4
+}, new int[]{2, 2}, null, "x");
+Tensor gamma = new Tensor(new double[]{2, 3}, new int[]{2}, null, "gamma");
+Tensor beta = new Tensor(new double[]{10, 20}, new int[]{2}, null, "beta");
+
+Tensor y = x.layerNorm(gamma, beta, 1e-12);
+// Each row is normalized over its last dimension:
+// [1, 3] -> [-1, 1]
+// [2, 4] -> [-1, 1]
+// Then affine transform:
+// [-1, 1] * [2, 3] + [10, 20] = [8, 23]
+// y has shape [2, 2] and values [8, 23, 8, 23].
+//
+// Returns: layer-normalized output over the trailing feature shape.
+```
+
+### `rmsNorm(Tensor gamma, double epsilon)`
+
+Applies RMS normalization over the trailing dimensions described by `gamma`.
+
+Parameters:
+- `gamma`: floating tensor whose shape must match the trailing normalized input shape
+- `epsilon`: positive numerical stabilizer
+
+Returns:
+- tensor with the same shape as the input
+
+Contract:
+- `gamma.shape` must exactly match the trailing input dimensions
+- normalization uses `sqrt(mean(x^2) + epsilon)`
+- there is no bias term in this surface
+
+Example:
+```java
+Tensor x = new Tensor(new double[]{3, 4}, new int[]{1, 2}, null, "x");
+Tensor gamma = new Tensor(new double[]{1, 1}, new int[]{2}, null, "gamma");
+
+Tensor y = x.rmsNorm(gamma, 1e-12);
+// mean(x^2) = (9 + 16) / 2 = 12.5
+// rms = sqrt(12.5)
+// y = x / rms
+// y has shape [1, 2] and values approximately [0.8485, 1.1314].
+//
+// Returns: RMS-normalized output over the trailing feature shape.
 ```
 
 ## Comparison Operations
