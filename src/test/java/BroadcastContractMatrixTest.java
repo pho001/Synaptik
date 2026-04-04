@@ -64,6 +64,35 @@ public class BroadcastContractMatrixTest {
         assertBackward("div", dataType);
     }
 
+    @ParameterizedTest
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
+    void addSubMulDivReduceGradientsCorrectlyWhenBothOperandsBroadcastAcrossDifferentAxes(DataType dataType) {
+        assertBackward(
+                "add",
+                tensor(new double[]{1, 2, 3}, new int[]{1, 3, 1}, "left", dataType),
+                tensor(new double[]{10, 20, 30, 40, 50, 60, 70, 80}, new int[]{2, 1, 4}, "right", dataType),
+                dataType
+        );
+        assertBackward(
+                "sub",
+                tensor(new double[]{1, 2, 3}, new int[]{1, 3, 1}, "left", dataType),
+                tensor(new double[]{10, 20, 30, 40, 50, 60, 70, 80}, new int[]{2, 1, 4}, "right", dataType),
+                dataType
+        );
+        assertBackward(
+                "mul",
+                tensor(new double[]{1, 2, 3}, new int[]{1, 3, 1}, "left", dataType),
+                tensor(new double[]{10, 20, 30, 40, 50, 60, 70, 80}, new int[]{2, 1, 4}, "right", dataType),
+                dataType
+        );
+        assertBackward(
+                "div",
+                tensor(new double[]{1, 2, 3}, new int[]{1, 3, 1}, "left", dataType),
+                tensor(new double[]{10, 20, 30, 40, 50, 60, 70, 80}, new int[]{2, 1, 4}, "right", dataType),
+                dataType
+        );
+    }
+
     private static void assertForward(String op, Tensor left, Tensor right, DataType dataType) {
         Tensor out = switch (op) {
             case "add" -> left.add(right);
@@ -85,14 +114,18 @@ public class BroadcastContractMatrixTest {
 
     private static void assertBackward(String op, DataType dataType) {
         Tensor left = tensor(new double[]{
-                1, 2, 3, 4,
-                5, 6, 7, 8
-        }, new int[]{2, 1, 4}, "left", dataType);
+                        1, 2, 3, 4,
+                        5, 6, 7, 8
+                }, new int[]{2, 1, 4}, "left", dataType);
         Tensor right = tensor(new double[]{
-                10, 20, 30, 40,
-                50, 60, 70, 80,
-                90, 100, 110, 120
-        }, new int[]{3, 4}, "right", dataType);
+                        10, 20, 30, 40,
+                        50, 60, 70, 80,
+                        90, 100, 110, 120
+                }, new int[]{3, 4}, "right", dataType);
+        assertBackward(op, left, right, dataType);
+    }
+
+    private static void assertBackward(String op, Tensor left, Tensor right, DataType dataType) {
         left.setRequiresGrad(true);
         right.setRequiresGrad(true);
 

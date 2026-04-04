@@ -271,6 +271,53 @@ Backward note:
 
 - if an operand was broadcast in forward execution, its gradient is reduced back to the original operand shape
 
+## Reduction Interoperability
+
+Reduction and broadcasting are intended to compose directly.
+
+Axis reductions support `keepDims` where it makes semantic sense:
+
+- `sum(int dimension, boolean keepDims)`
+- `mean(int dimension, boolean keepDims)`
+- `min(int dimension, boolean keepDims)`
+- `max(int dimension, boolean keepDims)`
+- `all(int dimension, boolean keepDims)`
+- `any(int dimension, boolean keepDims)`
+
+Shape contract:
+
+- `keepDims=false` removes the reduced axis
+- `keepDims=true` preserves the reduced axis with size `1`
+
+Why this matters:
+
+- `keepDims=true` allows the reduction result to feed the next broadcast-aware op without an explicit `expandDims(...)`
+- this is the intended path for expressions like centering, normalization, and mask pipelines
+
+Example:
+
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2, 3,
+        4, 5, 6
+}, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+
+Tensor rowMean = x.mean(1, true);
+Tensor centered = x.sub(rowMean);
+
+// rowMean shape: [2, 1]
+// centered shape: [2, 3]
+// centered values: [-1, 0, 1, -1, 0, 1]
+```
+
+Backward contract:
+
+- `sum` and `mean` expand their upstream gradient back to input shape
+- `mean` also scales by the reciprocal of the reduced axis size
+- `min` and `max` route gradients only to winning elements
+- ties in `min` / `max` split gradient evenly across winners
+- if a reduction result is later broadcast in the forward path, the downstream gradient is reduced back through the same broadcast contract
+
 ### Broadcast-Aware Operations
 
 Broadcast-aware binary operations in the current tensor surface are:
