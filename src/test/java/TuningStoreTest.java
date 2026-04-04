@@ -81,11 +81,13 @@ public class TuningStoreTest {
                 OffsetDateTime.now()
         ));
         new JsonFileTuningHistoryStore().append(historyPath, new TuningHistoryEntry(
+                "fp-candidate",
                 "candidate",
                 true,
                 1.0d,
                 1.1d,
                 1.0d,
+                "",
                 "summary",
                 OffsetDateTime.now(),
                 hardware,

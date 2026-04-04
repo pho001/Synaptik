@@ -80,7 +80,7 @@ final class DefaultAutotuneSession implements AutotuneSession {
         String summary = "evaluated=" + evaluated.size()
                 + ", valid=" + finalists.size()
                 + ", selected=" + seenFingerprints.size();
-        boolean persisted = persist(bestProfile, finalists, summary);
+        boolean persisted = persist(bestProfile, evaluated, finalists, summary);
         return new TuningResult(bestProfile, finalists, summary, persisted);
     }
 
@@ -115,6 +115,7 @@ final class DefaultAutotuneSession implements AutotuneSession {
 
     private boolean persist(
             ExecutionProfile bestProfile,
+            List<BenchmarkCandidateReport> evaluated,
             List<BenchmarkCandidateReport> finalists,
             String summary
     ) {
@@ -128,15 +129,17 @@ final class DefaultAutotuneSession implements AutotuneSession {
         );
 
         if (policy.persistHistory() && policy.historyPath() != null) {
-            for (BenchmarkCandidateReport finalist : finalists) {
-                double median = finalist.measurement() == null ? Double.POSITIVE_INFINITY : finalist.measurement().steadyStateStats().medianMs();
-                double mean = finalist.measurement() == null ? Double.POSITIVE_INFINITY : finalist.measurement().steadyStateStats().meanMs();
+            for (BenchmarkCandidateReport report : evaluated) {
+                double median = report.measurement() == null ? Double.POSITIVE_INFINITY : report.measurement().steadyStateStats().medianMs();
+                double mean = report.measurement() == null ? Double.POSITIVE_INFINITY : report.measurement().steadyStateStats().meanMs();
                 historyStore.append(policy.historyPath(), new TuningHistoryEntry(
-                        finalist.candidate().name(),
-                        finalist.success(),
+                        tuning.candidate.CandidateFingerprint.of(report.candidate()),
+                        report.candidate().name(),
+                        report.success(),
                         median,
                         mean,
                         median,
+                        report.failureReason(),
                         summary,
                         java.time.OffsetDateTime.now(),
                         hardware,

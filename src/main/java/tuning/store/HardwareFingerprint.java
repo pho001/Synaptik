@@ -29,6 +29,20 @@ public record HardwareFingerprint(
         );
     }
 
+    public static HardwareFingerprint fromKey(String key) {
+        if (key == null || key.isBlank()) {
+            return capture();
+        }
+        java.util.Map<String, String> values = splitKey(key);
+        return new HardwareFingerprint(
+                values.getOrDefault("os", "unknown"),
+                values.getOrDefault("arch", "unknown"),
+                values.getOrDefault("vm", "unknown"),
+                values.getOrDefault("vendor", "unknown"),
+                parseInt(values.get("cores"), Runtime.getRuntime().availableProcessors())
+        );
+    }
+
     public String key() {
         return "os=" + os + "|arch=" + arch + "|vm=" + vm + "|vendor=" + vendor + "|cores=" + cores;
     }
@@ -51,5 +65,25 @@ public record HardwareFingerprint(
                 .toLowerCase(Locale.ROOT)
                 .replace(' ', '_')
                 .replace('\t', '_');
+    }
+
+    private static java.util.Map<String, String> splitKey(String key) {
+        java.util.LinkedHashMap<String, String> out = new java.util.LinkedHashMap<>();
+        for (String token : key.split("\\|")) {
+            int idx = token.indexOf('=');
+            if (idx <= 0) {
+                continue;
+            }
+            out.put(token.substring(0, idx), token.substring(idx + 1));
+        }
+        return out;
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return value == null ? fallback : Integer.parseInt(value);
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 }

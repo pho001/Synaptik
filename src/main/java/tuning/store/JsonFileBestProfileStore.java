@@ -63,8 +63,8 @@ public final class JsonFileBestProfileStore implements BestProfileStore {
             );
             ExecutionProfile profile = OptimizerProfileIO.loadExecutionProfileOrDefault(writeTemp(profileBody), fallback);
             return Optional.of(new BestProfileRecord(
-                    HardwareFingerprint.capture(),
-                    new WorkloadFingerprint("loaded", "GENERIC", profile.dataType().name(), profile.mode().name(), java.util.Map.of("serializedKey", workloadKey)),
+                    HardwareFingerprint.fromKey(hardwareKey),
+                    WorkloadFingerprint.fromKey(workloadKey),
                     profile,
                     score,
                     OffsetDateTime.parse(updatedAt)
@@ -77,6 +77,7 @@ public final class JsonFileBestProfileStore implements BestProfileStore {
     private static Path writeTemp(String json) throws IOException {
         Path tmp = Files.createTempFile("best-profile-load-", ".json");
         Files.writeString(tmp, json, StandardCharsets.UTF_8);
+        tmp.toFile().deleteOnExit();
         return tmp;
     }
 

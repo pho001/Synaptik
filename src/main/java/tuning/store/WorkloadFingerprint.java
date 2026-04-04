@@ -33,6 +33,33 @@ public record WorkloadFingerprint(
         );
     }
 
+    public static WorkloadFingerprint fromKey(String key) {
+        if (key == null || key.isBlank()) {
+            return new WorkloadFingerprint("workload", "GENERIC", "UNKNOWN", "FORWARD", Map.of());
+        }
+        java.util.LinkedHashMap<String, Object> attrs = new java.util.LinkedHashMap<>();
+        String name = "workload";
+        String kind = "GENERIC";
+        String dataType = "UNKNOWN";
+        String mode = "FORWARD";
+        for (String token : key.split("\\|")) {
+            int idx = token.indexOf('=');
+            if (idx <= 0) {
+                continue;
+            }
+            String k = token.substring(0, idx);
+            String v = token.substring(idx + 1);
+            switch (k) {
+                case "name" -> name = v;
+                case "kind" -> kind = v;
+                case "dtype" -> dataType = v;
+                case "mode" -> mode = v;
+                default -> attrs.put(k, v);
+            }
+        }
+        return new WorkloadFingerprint(name, kind, dataType, mode, attrs);
+    }
+
     public String key() {
         StringBuilder sb = new StringBuilder();
         sb.append("name=").append(name)
