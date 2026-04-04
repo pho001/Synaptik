@@ -1,6 +1,7 @@
 package benchmark.scenario;
 
 import backend.blas.BlasProvider;
+import backend.blas.BlasThreadPolicy;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
@@ -89,7 +90,9 @@ public final class BenchmarkScenarioFactory {
                         candidate.knobs().blasMatMulMinWork(),
                         candidate.knobs().blasF32RequireMgeK(),
                         candidate.knobs().blasF32MaxNOverK(),
-                        false
+                        false,
+                        candidate.knobs().blasThreadPolicy(),
+                        candidate.knobs().blasThreads()
                 )
         );
     }

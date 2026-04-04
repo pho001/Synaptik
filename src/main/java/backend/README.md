@@ -150,6 +150,8 @@ Runtime properties:
 - `cg.cpu.blas.debug=true|false` (default `false`)
 - `cg.cpu.blas.f32RequireMgeK=true|false` (default `true`)
 - `cg.cpu.blas.f32MaxNOverK=<double>` (default `3.0`)
+- `cg.cpu.blas.threadPolicy=AUTO|FIXED` (profile/runtime controlled)
+- `cg.cpu.blas.threads=<int>` (used when policy is `FIXED`)
 - optional library override:
   - `-Dopenblas.lib=<absolute-path-to-library>`
   - or `OPENBLAS_LIB` environment variable

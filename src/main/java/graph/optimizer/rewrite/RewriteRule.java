@@ -16,7 +16,8 @@ public class RewriteRule implements OptimizationRule {
     public static RewriteRule defaults() {
         return new RewriteRule(List.of(
                 new AlgebraicRewrite(),
-                new LinearLoweringRewrite()
+                new LinearLoweringRewrite(),
+                new Conv2dLoweringRewrite()
         ));
     }
 

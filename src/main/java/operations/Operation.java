@@ -44,6 +44,7 @@ public interface Operation {
         SCATTER_ADD(OpArityClass.SPECIAL, false),
         LINEAR(OpArityClass.SPECIAL, false),
         CONV2D(OpArityClass.SPECIAL, false),
+        CONV2D_GEMM(OpArityClass.SPECIAL, false),
         CONV2D_BACKWARD_INPUT(OpArityClass.SPECIAL, false),
         CONV2D_BACKWARD_WEIGHT(OpArityClass.SPECIAL, false),
         MAX_POOL2D(OpArityClass.SPECIAL, false),

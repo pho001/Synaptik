@@ -32,6 +32,7 @@ public final class CpuKernelRegistry {
         KERNELS.put(Operation.OpType.SCATTER_ADD, new CpuScatterAddKernel());
         KERNELS.put(Operation.OpType.LINEAR, new CpuLinearKernel());
         KERNELS.put(Operation.OpType.CONV2D, new CpuConv2dKernel());
+        KERNELS.put(Operation.OpType.CONV2D_GEMM, new CpuConv2dGemmKernel());
         KERNELS.put(Operation.OpType.CONV2D_BACKWARD_INPUT, new CpuConv2dBackwardInputKernel());
         KERNELS.put(Operation.OpType.CONV2D_BACKWARD_WEIGHT, new CpuConv2dBackwardWeightKernel());
         KERNELS.put(Operation.OpType.MAX_POOL2D, new CpuMaxPool2dKernel());

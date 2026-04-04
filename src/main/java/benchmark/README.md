@@ -319,6 +319,8 @@ These knobs are part of `TuningKnobs` and participate in candidate fingerprintin
 - `blas.matmulMinWork` [`long`]
 - `blas.f32RequireMgeK` [`true|false`]
 - `blas.f32MaxNOverK` [`double`]
+- `blas.threadPolicy` [`AUTO`, `FIXED`]
+- `blas.threads` [`int`, only meaningful when `threadPolicy=FIXED`]
 
 ### Candidate Count Notes
 

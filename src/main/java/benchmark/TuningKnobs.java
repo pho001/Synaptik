@@ -3,6 +3,7 @@ package benchmark;
 import config.backend.KernelTuningConfig;
 import config.optimizer.FuseConfig;
 import backend.blas.BlasRuntime;
+import backend.blas.BlasThreadPolicy;
 
 /**
  * Unified tuning knobs for optimizer/runtime search.
@@ -20,6 +21,8 @@ public final class TuningKnobs {
     private final long blasMatMulMinWork;
     private final boolean blasF32RequireMgeK;
     private final double blasF32MaxNOverK;
+    private final BlasThreadPolicy blasThreadPolicy;
+    private final int blasThreads;
 
     public TuningKnobs(
             boolean strictCseSafety,
@@ -33,7 +36,9 @@ public final class TuningKnobs {
                 BlasRuntime.DEFAULT_PROVIDER,
                 BlasRuntime.DEFAULT_MATMUL_MIN_WORK,
                 BlasRuntime.DEFAULT_F32_REQUIRE_M_GE_K,
-                BlasRuntime.DEFAULT_F32_MAX_N_OVER_K
+                BlasRuntime.DEFAULT_F32_MAX_N_OVER_K,
+                BlasThreadPolicy.AUTO,
+                0
         );
     }
 
@@ -46,6 +51,30 @@ public final class TuningKnobs {
             boolean blasF32RequireMgeK,
             double blasF32MaxNOverK
     ) {
+        this(
+                strictCseSafety,
+                fuseConfig,
+                kernelConfig,
+                blasProvider,
+                blasMatMulMinWork,
+                blasF32RequireMgeK,
+                blasF32MaxNOverK,
+                BlasThreadPolicy.AUTO,
+                0
+        );
+    }
+
+    public TuningKnobs(
+            boolean strictCseSafety,
+            FuseConfig fuseConfig,
+            KernelTuningConfig kernelConfig,
+            String blasProvider,
+            long blasMatMulMinWork,
+            boolean blasF32RequireMgeK,
+            double blasF32MaxNOverK,
+            BlasThreadPolicy blasThreadPolicy,
+            int blasThreads
+    ) {
         this.strictCseSafety = strictCseSafety;
         this.fuseConfig = fuseConfig;
         this.kernelConfig = kernelConfig;
@@ -55,6 +84,8 @@ public final class TuningKnobs {
         this.blasMatMulMinWork = blasMatMulMinWork > 0 ? blasMatMulMinWork : BlasRuntime.DEFAULT_MATMUL_MIN_WORK;
         this.blasF32RequireMgeK = blasF32RequireMgeK;
         this.blasF32MaxNOverK = blasF32MaxNOverK > 0.0d ? blasF32MaxNOverK : BlasRuntime.DEFAULT_F32_MAX_N_OVER_K;
+        this.blasThreadPolicy = blasThreadPolicy == null ? BlasThreadPolicy.AUTO : blasThreadPolicy;
+        this.blasThreads = this.blasThreadPolicy == BlasThreadPolicy.FIXED ? Math.max(1, blasThreads) : 0;
     }
 
     public boolean strictCseSafety() {
@@ -93,6 +124,14 @@ public final class TuningKnobs {
         return blasF32MaxNOverK;
     }
 
+    public BlasThreadPolicy blasThreadPolicy() {
+        return blasThreadPolicy;
+    }
+
+    public int blasThreads() {
+        return blasThreads;
+    }
+
     public TuningKnobs withBlasPolicy(
             String provider,
             long matMulMinWork,
@@ -106,7 +145,23 @@ public final class TuningKnobs {
                 provider,
                 matMulMinWork,
                 f32RequireMgeK,
-                f32MaxNOverK
+                f32MaxNOverK,
+                blasThreadPolicy,
+                blasThreads
+        );
+    }
+
+    public TuningKnobs withBlasThreads(BlasThreadPolicy policy, int threads) {
+        return new TuningKnobs(
+                strictCseSafety,
+                fuseConfig,
+                kernelConfig,
+                blasProvider,
+                blasMatMulMinWork,
+                blasF32RequireMgeK,
+                blasF32MaxNOverK,
+                policy,
+                threads
         );
     }
 

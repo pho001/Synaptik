@@ -11,6 +11,7 @@ import operations.clampMax;
 import operations.clampMin;
 import operations.crossEntropyLoss;
 import operations.conv2d;
+import operations.conv2dGemm;
 import operations.conv2dBackwardInput;
 import operations.conv2dBackwardWeight;
 import operations.expand;
@@ -186,6 +187,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
             case LINEAR -> new InputSelectorSignature(((linear) op).hasBias());
             case CONV2D -> conv2dSignature(((conv2d) op).getOptions(), ((conv2d) op).hasBias() ? 1 : 0);
+            case CONV2D_GEMM -> conv2dSignature(((conv2dGemm) op).getOptions(), ((conv2dGemm) op).hasBias() ? 2 : 3);
             case CONV2D_BACKWARD_INPUT -> conv2dBackwardInputSignature((conv2dBackwardInput) op);
             case CONV2D_BACKWARD_WEIGHT -> conv2dBackwardWeightSignature((conv2dBackwardWeight) op);
             case MAX_POOL2D -> pool2dSignature(((maxPool2d) op).getOptions(), 1);

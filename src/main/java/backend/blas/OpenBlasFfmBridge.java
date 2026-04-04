@@ -28,6 +28,39 @@ public final class OpenBlasFfmBridge {
         return STATE.reason;
     }
 
+    public static void applyThreadPolicy(BlasThreadPolicy policy, int threads) {
+        if (!STATE.available) {
+            return;
+        }
+        if (policy == null || policy == BlasThreadPolicy.AUTO) {
+            if (STATE.setThreads != null) {
+                try {
+                    STATE.setThreads.invokeExact(0);
+                } catch (Throwable ignored) {
+                }
+            }
+            return;
+        }
+        if (STATE.setThreads != null) {
+            try {
+                STATE.setThreads.invokeExact(Math.max(1, threads));
+            } catch (Throwable t) {
+                throw new IllegalStateException("OpenBLAS thread configuration failed", t);
+            }
+        }
+    }
+
+    public static int getConfiguredThreads() {
+        if (!STATE.available || STATE.getThreads == null) {
+            return -1;
+        }
+        try {
+            return (int) STATE.getThreads.invokeExact();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
     public static void sgemmRowMajorNoTrans(
             int m,
             int n,
@@ -266,9 +299,23 @@ public final class OpenBlasFfmBridge {
                     )
             );
 
-            return new State(true, null, arena, sgemm, dgemm);
+            MethodHandle setThreads = null;
+            MethodHandle getThreads = null;
+            try {
+                MemorySegment setSym = lookup.find("openblas_set_num_threads").orElse(null);
+                MemorySegment getSym = lookup.find("openblas_get_num_threads").orElse(null);
+                if (setSym != null) {
+                    setThreads = linker.downcallHandle(setSym, FunctionDescriptor.ofVoid(JAVA_INT));
+                }
+                if (getSym != null) {
+                    getThreads = linker.downcallHandle(getSym, FunctionDescriptor.of(JAVA_INT));
+                }
+            } catch (Throwable ignored) {
+            }
+
+            return new State(true, null, arena, sgemm, dgemm, setThreads, getThreads);
         } catch (Throwable t) {
-            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null);
+            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null, null, null);
         }
     }
 
@@ -296,13 +343,17 @@ public final class OpenBlasFfmBridge {
         private final Arena arenaRef;
         private final MethodHandle sgemm;
         private final MethodHandle dgemm;
+        private final MethodHandle setThreads;
+        private final MethodHandle getThreads;
 
-        private State(boolean available, String reason, Arena arenaRef, MethodHandle sgemm, MethodHandle dgemm) {
+        private State(boolean available, String reason, Arena arenaRef, MethodHandle sgemm, MethodHandle dgemm, MethodHandle setThreads, MethodHandle getThreads) {
             this.available = available;
             this.reason = reason;
             this.arenaRef = arenaRef;
             this.sgemm = sgemm;
             this.dgemm = dgemm;
+            this.setThreads = setThreads;
+            this.getThreads = getThreads;
         }
     }
 }

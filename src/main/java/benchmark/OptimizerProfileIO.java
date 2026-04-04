@@ -2,6 +2,7 @@ package benchmark;
 
 import backend.ApproxMode;
 import backend.blas.BlasProvider;
+import backend.blas.BlasThreadPolicy;
 import backend.runtime.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;
@@ -232,7 +233,9 @@ public final class OptimizerProfileIO {
                 "    \"provider\": \"" + knobs.blasProvider() + "\",\n" +
                 "    \"matmulMinWork\": " + knobs.blasMatMulMinWork() + ",\n" +
                 "    \"f32RequireMgeK\": " + knobs.blasF32RequireMgeK() + ",\n" +
-                "    \"f32MaxNOverK\": " + knobs.blasF32MaxNOverK() + "\n" +
+                "    \"f32MaxNOverK\": " + knobs.blasF32MaxNOverK() + ",\n" +
+                "    \"threadPolicy\": \"" + knobs.blasThreadPolicy().name() + "\",\n" +
+                "    \"threads\": " + knobs.blasThreads() + "\n" +
                 "  },\n" +
                 "  \"fuse\": {\n" +
                 "    \"maxClusterNodes\": " + f.maxClusterNodes() + ",\n" +
@@ -320,7 +323,9 @@ public final class OptimizerProfileIO {
                 "      \"matmulMinWork\": " + blas.matmulMinWork() + ",\n" +
                 "      \"f32RequireMgeK\": " + blas.f32RequireMgeK() + ",\n" +
                 "      \"f32MaxNOverK\": " + blas.f32MaxNOverK() + ",\n" +
-                "      \"debug\": " + blas.debug() + "\n" +
+                "      \"debug\": " + blas.debug() + ",\n" +
+                "      \"threadPolicy\": \"" + blas.threadPolicy().name() + "\",\n" +
+                "      \"threads\": " + blas.threads() + "\n" +
                 "    },\n" +
                 "    \"workload\": {\n" +
                 "      \"kind\": \"" + workload.kind().name() + "\",\n" +
@@ -414,6 +419,8 @@ public final class OptimizerProfileIO {
             );
             boolean blasF32RequireMgeK = findBoolean(json, "f32RequireMgeK", true);
             double blasF32MaxNOverK = findDouble(json, "f32MaxNOverK", 3.0d);
+            BlasThreadPolicy blasThreadPolicy = findEnum(json, "threadPolicy", BlasThreadPolicy.AUTO, BlasThreadPolicy.class);
+            int blasThreads = findInt(json, "threads", 0);
 
             return new TuningKnobs(
                     strictCse,
@@ -422,7 +429,9 @@ public final class OptimizerProfileIO {
                     blasProvider,
                     blasMatMulMinWork,
                     blasF32RequireMgeK,
-                    blasF32MaxNOverK
+                    blasF32MaxNOverK,
+                    blasThreadPolicy,
+                    blasThreads
             );
         } catch (Exception e) {
             return d;
@@ -506,7 +515,9 @@ public final class OptimizerProfileIO {
                     Math.max(1L, Math.round(findDouble(json, "matmulMinWork", d.runtime().blas().matmulMinWork()))),
                     findBoolean(json, "f32RequireMgeK", d.runtime().blas().f32RequireMgeK()),
                     findDouble(json, "f32MaxNOverK", d.runtime().blas().f32MaxNOverK()),
-                    findBoolean(json, "debug", d.runtime().blas().debug())
+                    findBoolean(json, "debug", d.runtime().blas().debug()),
+                    findEnum(json, "threadPolicy", d.runtime().blas().threadPolicy(), BlasThreadPolicy.class),
+                    findInt(json, "threads", d.runtime().blas().threads())
             );
             config.runtime.RuntimeConfig runtime = new config.runtime.RuntimeConfig(
                     new KernelTuningConfig(cpu, cuda, opencl),

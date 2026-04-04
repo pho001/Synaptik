@@ -1,5 +1,7 @@
 package backend.runtime;
 
+import backend.blas.BlasThreadController;
+
 import java.util.Objects;
 
 public final class ExecutionContext {
@@ -12,6 +14,7 @@ public final class ExecutionContext {
     public ExecutionContext(RuntimeConfig runtimeConfig, ExecutionMode mode) {
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
         this.mode = Objects.requireNonNull(mode, "mode cannot be null");
+        BlasThreadController.apply(runtimeConfig.blasConfig());
         this.cpuPlanner = backend.kernels.cpu.CpuExecutionPlanner.from(runtimeConfig.cpuKernelConfig());
         boolean backwardEnabled = mode == ExecutionMode.FORWARD_BACKWARD;
         this.useFastExpApprox = runtimeConfig.approximationConfig().useFastExp(backwardEnabled);

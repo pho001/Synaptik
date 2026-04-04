@@ -7,6 +7,7 @@ import config.backend.OpenClKernelConfig;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.VectorPolicy;
 import config.optimizer.FuseConfig;
+import backend.blas.BlasThreadPolicy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -219,11 +220,13 @@ public final class OptimizerCandidateFactory {
     }
 
     private static List<TuningKnobs> expandWithBlasPolicies(List<TuningKnobs> base) {
-        List<TuningKnobs> out = new ArrayList<>(base.size() * 3);
+        List<TuningKnobs> out = new ArrayList<>(base.size() * 5);
         for (TuningKnobs knobs : base) {
             out.add(knobs);
             out.add(knobs.withBlasPolicy("OPENBLAS_FFM", 2_000_000L, true, 3.0d));
             out.add(knobs.withBlasPolicy("OPENBLAS_FFM", 4_000_000L, true, 2.0d));
+            out.add(knobs.withBlasPolicy("OPENBLAS_FFM", 2_000_000L, true, 3.0d).withBlasThreads(BlasThreadPolicy.FIXED, 1));
+            out.add(knobs.withBlasPolicy("OPENBLAS_FFM", 2_000_000L, true, 3.0d).withBlasThreads(BlasThreadPolicy.FIXED, 4));
         }
         return out;
     }

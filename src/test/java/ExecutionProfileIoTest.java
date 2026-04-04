@@ -1,5 +1,6 @@
 import backend.ApproxMode;
 import backend.blas.BlasProvider;
+import backend.blas.BlasThreadPolicy;
 import backend.runtime.ExecutionMode;
 import benchmark.OptimizerProfileIO;
 import config.backend.CpuKernelConfig;
@@ -49,7 +50,7 @@ public class ExecutionProfileIoTest {
                                 OpenClKernelConfig.defaultsInference()
                         ),
                         new ApproximationConfig(ApproxMode.OFF, false),
-                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false)
+                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, BlasThreadPolicy.FIXED, 2)
                 ),
                 new WorkloadProfile(config.profile.WorkloadKind.TRANSFORMER_HOT_PATH, 4, 8, 64, 32, 32, 256, true)
         );
@@ -68,6 +69,8 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().kernel().cpu().contiguousMaterializeThreshold(), actual.runtime().kernel().cpu().contiguousMaterializeThreshold());
         assertEquals(expected.runtime().kernel().cpu().attentionMatMulPolicy(), actual.runtime().kernel().cpu().attentionMatMulPolicy());
         assertEquals(expected.runtime().blas().provider(), actual.runtime().blas().provider());
+        assertEquals(expected.runtime().blas().threadPolicy(), actual.runtime().blas().threadPolicy());
+        assertEquals(expected.runtime().blas().threads(), actual.runtime().blas().threads());
         assertEquals(expected.runtime().approximation().approxMode(), actual.runtime().approximation().approxMode());
         assertEquals(expected.workload(), actual.workload());
     }
