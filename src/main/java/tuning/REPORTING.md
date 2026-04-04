@@ -8,6 +8,7 @@
 - [Baseline Reporting](#baseline-reporting)
 - [Trace Reporting](#trace-reporting)
 - [Search Tree Reporting](#search-tree-reporting)
+- [Cross-Run Diff Reporting](#cross-run-diff-reporting)
 - [JSON Contract Notes](#json-contract-notes)
 - [Examples](#examples)
 
@@ -227,6 +228,36 @@ These are separate from benchmark reports because they describe:
 - node lineage
 - frontier fingerprints
 
+## Cross-Run Diff Reporting
+
+The reporting layer now also supports comparing two already-produced runs.
+
+This is intentionally a pure reporting concern:
+
+- it does not re-execute workloads
+- it does not require benchmark/autotune orchestration
+- it compares already materialized report/result DTOs
+
+Current diff types:
+
+- [BenchmarkReportDiff.java](./report/BenchmarkReportDiff.java)
+- [BenchmarkSuiteReportDiff.java](./report/BenchmarkSuiteReportDiff.java)
+- [TuningResultDiff.java](./report/TuningResultDiff.java)
+
+Current renderers:
+
+- [TextBenchmarkSuiteReportDiffRenderer.java](./report/TextBenchmarkSuiteReportDiffRenderer.java)
+- [JsonBenchmarkSuiteReportDiffRenderer.java](./report/JsonBenchmarkSuiteReportDiffRenderer.java)
+- [TextTuningResultDiffRenderer.java](./report/TextTuningResultDiffRenderer.java)
+- [JsonTuningResultDiffRenderer.java](./report/JsonTuningResultDiffRenderer.java)
+
+Typical questions this answers:
+
+- did the new run get faster or slower?
+- did the winning candidate change?
+- did one workload regress while the rest improved?
+- did autotune converge on a different best profile?
+
 ## JSON Contract Notes
 
 The JSON renderers intentionally use:
@@ -317,3 +348,17 @@ Output includes:
 - strategy used
 - finalist count
 - finalist timing summary
+
+### Example: suite diff
+
+```java
+BenchmarkSuiteReportDiff diff = BenchmarkSuiteReportDiff.compare(previousSuite, currentSuite);
+String text = TextBenchmarkSuiteReportDiffRenderer.render(diff);
+String json = JsonBenchmarkSuiteReportDiffRenderer.render(diff);
+```
+
+Output includes:
+
+- previous/current overall best candidate
+- workload-level best-candidate change summary
+- current best timing and speedup vs previous run

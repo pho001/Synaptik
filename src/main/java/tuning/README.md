@@ -53,6 +53,7 @@ tuning/
 - validates candidates against explicit references or baseline execution profiles
 - searches candidate spaces with pluggable strategies
 - renders text and JSON reports
+- compares benchmark/tuning runs through diff renderers
 - persists best profiles and tuning history
 
 In practical terms, this is now the only benchmark/autotune architecture in the repository.
