@@ -39,6 +39,10 @@ public final class StandardWorkloads {
         return new TransformerHotPathWorkloadSpec(name);
     }
 
+    public static AbcSequenceMatmulWorkloadSpec abcSequenceMatmul(String name, int batch, int features) {
+        return new AbcSequenceMatmulWorkloadSpec(name, batch, features);
+    }
+
     public static MlpClassificationWorkloadSpec mlpClassification(
             String name,
             int batch,
@@ -89,6 +93,10 @@ public final class StandardWorkloads {
         return new WorkloadCatalog()
                 .register(matmul("matmul_small", 1, 64, 64, 64))
                 .register(matmul("matmul_batched_attention_like", 8, 128, 64, 64))
+                .register(abcSequenceMatmul(
+                        "abc_sequence_matmul_small",
+                        64, 256
+                ))
                 .register(conv2d(
                         "conv2d_resnet_3x3",
                         2, 64, 128, 56, 56, 3, 3,

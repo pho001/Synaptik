@@ -19,6 +19,7 @@ public class StandardWorkloadsTest {
         WorkloadCatalog catalog = StandardWorkloads.defaultCatalog();
         assertTrue(catalog.names().contains("matmul_small"));
         assertTrue(catalog.names().contains("matmul_batched_attention_like"));
+        assertTrue(catalog.names().contains("abc_sequence_matmul_small"));
         assertTrue(catalog.names().contains("mlp_classifier_small"));
         assertTrue(catalog.names().contains("mlp_classifier_blas_heavy"));
         assertTrue(catalog.names().contains("conv2d_resnet_3x3"));
@@ -70,6 +71,8 @@ public class StandardWorkloadsTest {
                         true
                 )
                 .instantiate(new WorkloadEnvironment(profile));
+        var abc = StandardWorkloads.abcSequenceMatmul("abc_test", 16, 32)
+                .instantiate(new WorkloadEnvironment(profile));
         var norm = StandardWorkloads.normalization(
                         "layer_norm_test",
                         tuning.workload.NormalizationWorkloadSpec.NormalizationKind.LAYER_NORM,
@@ -99,6 +102,7 @@ public class StandardWorkloadsTest {
 
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, matmul.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, conv.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, abc.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, mlp.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, norm.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, pool.reference().kind());

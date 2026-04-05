@@ -125,6 +125,11 @@ public class ProfileGridCandidateSpaceTest {
     void fullStageOrderSpaceEnumeratesAllPermutationsAndSubsets() {
         assertEquals(65, ProfileMutators.allStageOrders().size());
         assertEquals(64, ProfileMutators.allNonEmptyStageOrders().size());
+        assertEquals(32, ProfileMutators.allConstrainedStageOrders().size());
+        assertTrue(ProfileMutators.allConstrainedStageOrders().stream().allMatch(order ->
+                order.isEmpty() || !order.contains(config.optimizer.OptimizerStage.MEM)
+                        || order.getLast() == config.optimizer.OptimizerStage.MEM
+        ));
     }
 
     @Test

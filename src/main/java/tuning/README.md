@@ -28,6 +28,7 @@ That means:
 - [How to Add a New Scenario](#how-to-add-a-new-scenario)
 - [Preset Surface](#preset-surface)
 - [Progress Tracking](#progress-tracking)
+- [Etalon Suites](#etalon-suites)
 - [Benchmark Candidate Contract](#benchmark-candidate-contract)
 - [End-to-End Example](#end-to-end-example)
 
@@ -240,6 +241,58 @@ This is especially useful for:
 - large grid searches
 - long `thorough` runs
 - full-space autotune experiments where otherwise there would be no visible progress
+
+## Etalon Suites
+
+The package now also provides a curated benchmark etalon surface in:
+
+- [FrameworkEtalon.java](./etalon/FrameworkEtalon.java)
+- [FrameworkEtalonCli.java](./etalon/FrameworkEtalonCli.java)
+
+The goal is not to exhaustively benchmark every possible configuration.
+The goal is to keep one stable, repeatable suite that exercises the most important framework paths after code changes.
+
+Current etalon split:
+
+- `inference`
+  - dtype coverage
+  - no-fuse vs fused inference optimizer paths
+  - BLAS/non-BLAS runtime paths
+  - workloads such as:
+    - matmul
+    - abc-sequence-plus-matmul
+    - conv2d
+    - normalization
+    - pooling
+    - transformer hot path
+- `training`
+  - dtype coverage
+  - fused training variants
+  - BLAS/non-BLAS training runtime paths
+  - workloads such as:
+    - matmul
+    - abc-sequence-plus-matmul
+    - MLP classifier
+    - heavy MLP classifier
+    - indexed loss
+
+Typical usage:
+
+```bash
+./gradlew classes
+java --add-modules jdk.incubator.vector \
+  -Detalon.suite=all \
+  -Detalon.preset=balanced \
+  -cp build/classes/java/main \
+  tuning.etalon.FrameworkEtalonCli
+```
+
+Output:
+
+- text benchmark suite report to stdout
+- JSON suite snapshots under `build/tuning-etalon/`
+
+That gives you a practical “after every code change” benchmark reference without turning unit tests into flaky timing assertions.
 
 ## Benchmark Candidate Contract
 

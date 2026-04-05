@@ -74,12 +74,27 @@ public final class ProfileMutators {
         return stageOrders(allStageOrders());
     }
 
+    public static ExecutionProfileMutator constrainedStageOrderSpace() {
+        return stageOrders(allConstrainedStageOrders());
+    }
+
     public static List<List<OptimizerStage>> allStageOrders() {
         return allStageOrders(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM), true);
     }
 
     public static List<List<OptimizerStage>> allNonEmptyStageOrders() {
         return allStageOrders(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM), false);
+    }
+
+    public static List<List<OptimizerStage>> allConstrainedStageOrders() {
+        List<List<OptimizerStage>> unconstrained = allStageOrders();
+        List<List<OptimizerStage>> out = new ArrayList<>();
+        for (List<OptimizerStage> stageOrder : unconstrained) {
+            if (isConstrainedStageOrder(stageOrder)) {
+                out.add(stageOrder);
+            }
+        }
+        return List.copyOf(out);
     }
 
     public static List<List<OptimizerStage>> allStageOrders(List<OptimizerStage> stages, boolean includeEmpty) {
@@ -332,6 +347,7 @@ public final class ProfileMutators {
     private static boolean usesMatmulRuntimePolicies(WorkloadKind kind) {
         return kind == WorkloadKind.MATMUL
                 || kind == WorkloadKind.MLP_CLASSIFICATION
+                || kind == WorkloadKind.ABC_SEQUENCE_MATMUL
                 || kind == WorkloadKind.CONV2D
                 || kind == WorkloadKind.TRANSFORMER_HOT_PATH;
     }
@@ -436,5 +452,13 @@ public final class ProfileMutators {
             return "NONE";
         }
         return String.join("-", stageOrder.stream().map(Enum::name).toList());
+    }
+
+    private static boolean isConstrainedStageOrder(List<OptimizerStage> stageOrder) {
+        if (stageOrder == null || stageOrder.isEmpty()) {
+            return true;
+        }
+        int memIndex = stageOrder.indexOf(OptimizerStage.MEM);
+        return memIndex < 0 || memIndex == stageOrder.size() - 1;
     }
 }

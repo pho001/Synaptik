@@ -9,6 +9,7 @@ public enum WorkloadPresetFamily {
     GENERIC(WorkloadKind.GENERIC, TuningPreset.BALANCED, TuningPreset.BALANCED),
     MATMUL(WorkloadKind.MATMUL, TuningPreset.BALANCED, TuningPreset.BALANCED),
     MLP_CLASSIFICATION(WorkloadKind.MLP_CLASSIFICATION, TuningPreset.BALANCED, TuningPreset.THOROUGH),
+    ABC_SEQUENCE_MATMUL(WorkloadKind.ABC_SEQUENCE_MATMUL, TuningPreset.BALANCED, TuningPreset.THOROUGH),
     CONV2D(WorkloadKind.CONV2D, TuningPreset.BALANCED, TuningPreset.BALANCED),
     NORMALIZATION(WorkloadKind.NORMALIZATION, TuningPreset.BALANCED, TuningPreset.THOROUGH),
     TRANSFORMER_HOT_PATH(WorkloadKind.TRANSFORMER_HOT_PATH, TuningPreset.BALANCED, TuningPreset.THOROUGH),

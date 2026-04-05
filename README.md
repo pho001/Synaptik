@@ -300,6 +300,7 @@ It provides:
 - suite-level reporting with candidate summaries and hotspot aggregation
 - preset-oriented request construction through `TuningPreset` and `TuningDefaults`
 - workload-aware preset recommendations through `WorkloadPresetFamily`
+- curated benchmark etalon suites through `tuning.etalon.FrameworkEtalon`
 
 See:
 
