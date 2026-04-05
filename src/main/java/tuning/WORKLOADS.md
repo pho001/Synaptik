@@ -188,6 +188,57 @@ Output:
 
 - scalar root via `sum(normalizedOutput)`
 
+### MLP Classification
+
+- [MlpClassificationWorkloadSpec.java](./workload/MlpClassificationWorkloadSpec.java)
+
+This workload models a small feed-forward classifier:
+
+- pre-encoded floating input
+- linear encoder projection
+- hidden linear block
+- output linear classifier
+- `crossEntropyLossFromIndices(...)` at the end
+
+Example:
+
+```java
+WorkloadSpec spec = StandardWorkloads.mlpClassification(
+        "mlp_classifier_small",
+        16, 32, 48, 24, 6,
+        LossReduction.MEAN
+);
+```
+
+Heavier built-in variant intended to stress GEMM/runtime policy:
+
+```java
+WorkloadSpec spec = StandardWorkloads.mlpClassification(
+        "mlp_classifier_blas_heavy",
+        64, 256, 512, 256, 32,
+        LossReduction.MEAN
+);
+```
+
+Input:
+
+- encoded feature tensor shape `[batch, inputFeatures]`
+- three weight matrices
+- three bias vectors
+- target index tensor shape `[batch]`
+
+Output:
+
+- scalar classification loss
+
+Why the heavier variant exists:
+
+- `mlp_classifier_small` is useful for functional coverage and fast tuning loops
+- `mlp_classifier_blas_heavy` gives the autotuner a much stronger signal for:
+  - BLAS on/off
+  - BLAS thread policy
+  - matmul parallel threshold tuning
+
 ### Pool2d
 
 - [Pool2dWorkloadSpec.java](./workload/Pool2dWorkloadSpec.java)

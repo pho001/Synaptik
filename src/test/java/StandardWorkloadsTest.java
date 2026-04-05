@@ -19,6 +19,8 @@ public class StandardWorkloadsTest {
         WorkloadCatalog catalog = StandardWorkloads.defaultCatalog();
         assertTrue(catalog.names().contains("matmul_small"));
         assertTrue(catalog.names().contains("matmul_batched_attention_like"));
+        assertTrue(catalog.names().contains("mlp_classifier_small"));
+        assertTrue(catalog.names().contains("mlp_classifier_blas_heavy"));
         assertTrue(catalog.names().contains("conv2d_resnet_3x3"));
         assertTrue(catalog.names().contains("layer_norm_small"));
         assertTrue(catalog.names().contains("max_pool2d_small"));
@@ -74,6 +76,12 @@ public class StandardWorkloadsTest {
                         2, 16, 4, 1, 1e-5
                 )
                 .instantiate(new WorkloadEnvironment(profile));
+        var mlp = StandardWorkloads.mlpClassification(
+                        "mlp_test",
+                        8, 16, 24, 12, 4,
+                        tensor.LossReduction.MEAN
+                )
+                .instantiate(new WorkloadEnvironment(profile));
         var pool = StandardWorkloads.pool2d(
                         "pool_test",
                         tuning.workload.Pool2dWorkloadSpec.PoolKind.MAX,
@@ -91,6 +99,7 @@ public class StandardWorkloadsTest {
 
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, matmul.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, conv.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, mlp.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, norm.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, pool.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, loss.reference().kind());

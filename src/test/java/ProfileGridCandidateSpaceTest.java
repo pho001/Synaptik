@@ -120,4 +120,43 @@ public class ProfileGridCandidateSpaceTest {
 
         assertEquals(1, candidates.size());
     }
+
+    @Test
+    void fullStageOrderSpaceEnumeratesAllPermutationsAndSubsets() {
+        assertEquals(65, ProfileMutators.allStageOrders().size());
+        assertEquals(64, ProfileMutators.allNonEmptyStageOrders().size());
+    }
+
+    @Test
+    void stageOrderMutatorRewritesOptimizerStageOrder() {
+        ExecutionProfile base = new ExecutionProfile(
+                "stage-grid",
+                "stage-grid",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        ProfileGridCandidateSpace space = new ProfileGridCandidateSpace(
+                base,
+                List.of(ProfileMutators.stageOrders(List.of(
+                        List.of(config.optimizer.OptimizerStage.AR, config.optimizer.OptimizerStage.MEM),
+                        List.of(config.optimizer.OptimizerStage.CSE)
+                )))
+        );
+
+        var candidates = space.generate(new tuning.workload.TensorRootWorkloadSpec(
+                "generic",
+                tuning.workload.WorkloadKind.GENERIC,
+                environment -> tensor.Tensor.scalar(1.0)
+        ));
+
+        assertEquals(2, candidates.size());
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("stageOrder=AR-MEM")));
+        assertTrue(candidates.stream().anyMatch(c -> c.profile().optimizer().stageOrder().equals(
+                List.of(config.optimizer.OptimizerStage.CSE)
+        )));
+    }
 }

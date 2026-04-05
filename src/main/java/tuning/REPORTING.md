@@ -193,9 +193,15 @@ Current benchmark reporting uses:
 
 - compile time
 - prepare time
-- traced run time
+- traced representative run time
 - hot steps
 - step count
+
+Important measurement detail:
+
+- if steady-state measurement is enabled, `trace.run()` is taken from a traced run after warmup
+- it is therefore intended to be representative of warm execution
+- it is not just the very first cold-start execution snapshot
 
 ### Hot steps
 

@@ -55,10 +55,36 @@ final class DefaultAutotuneSession implements AutotuneSession {
     public TuningResult run() {
         List<BenchmarkCandidateReport> evaluated = new ArrayList<>();
         SearchContext context = new SearchContext(request, request.candidateSpace());
+        int totalCandidateCount = request.candidateSpace().generate(request.workload()).size();
+        ProgressState progress = new ProgressState(totalCandidateCount);
+        emit(progress.event(
+                AutotuneProgressPhase.STARTED,
+                0,
+                0,
+                "",
+                "",
+                "autotune started"
+        ));
         SearchResult initial = searchStrategy.search(context);
         Set<String> seenFingerprints = new HashSet<>();
+        emit(progress.event(
+                AutotuneProgressPhase.SEARCH_BATCH,
+                0,
+                initial.selectedCandidates().size(),
+                "",
+                "",
+                "initial search batch selected"
+        ));
 
-        evaluateCandidates(initial.selectedCandidates(), evaluated, seenFingerprints);
+        evaluateCandidates(initial.selectedCandidates(), evaluated, seenFingerprints, progress, 0);
+        emit(progress.event(
+                AutotuneProgressPhase.ROUND_COMPLETED,
+                0,
+                initial.selectedCandidates().size(),
+                "",
+                "",
+                "initial batch completed"
+        ));
 
         if (searchStrategy.supportsRefinement()) {
             for (int round = 1; round < request.search().maxRounds(); round++) {
@@ -66,7 +92,23 @@ final class DefaultAutotuneSession implements AutotuneSession {
                 if (refined.selectedCandidates().isEmpty()) {
                     break;
                 }
-                evaluateCandidates(refined.selectedCandidates(), evaluated, seenFingerprints);
+                emit(progress.event(
+                        AutotuneProgressPhase.SEARCH_BATCH,
+                        round,
+                        refined.selectedCandidates().size(),
+                        "",
+                        "",
+                        "refinement batch selected"
+                ));
+                evaluateCandidates(refined.selectedCandidates(), evaluated, seenFingerprints, progress, round);
+                emit(progress.event(
+                        AutotuneProgressPhase.ROUND_COMPLETED,
+                        round,
+                        refined.selectedCandidates().size(),
+                        "",
+                        "",
+                        "refinement batch completed"
+                ));
             }
         }
 
@@ -84,7 +126,7 @@ final class DefaultAutotuneSession implements AutotuneSession {
         boolean persisted = persist(bestProfile, evaluated, finalists, summary);
         int historyEntries = request.persistence().persistHistory() && request.persistence().historyPath() != null ? evaluated.size() : 0;
         double bestMedian = finalists.isEmpty() ? Double.POSITIVE_INFINITY : finalists.getFirst().measurement().steadyStateStats().medianMs();
-        return new TuningResult(
+        TuningResult result = new TuningResult(
                 bestProfile,
                 finalists,
                 summary,
@@ -99,35 +141,96 @@ final class DefaultAutotuneSession implements AutotuneSession {
                 ),
                 persisted
         );
+        emit(progress.event(
+                AutotuneProgressPhase.COMPLETED,
+                request.search().maxRounds(),
+                finalists.size(),
+                bestProfile == null ? "" : bestProfile.candidateName(),
+                "",
+                "autotune completed"
+        ));
+        return result;
     }
 
     private void evaluateCandidates(
             List<Candidate> candidates,
             List<BenchmarkCandidateReport> evaluated,
-            Set<String> seenFingerprints
+            Set<String> seenFingerprints,
+            ProgressState progress,
+            int round
     ) {
         for (Candidate candidate : candidates) {
             String fp = tuning.candidate.CandidateFingerprint.of(candidate);
             if (!seenFingerprints.add(fp)) {
                 continue;
             }
+            emit(progress.event(
+                    AutotuneProgressPhase.CANDIDATE_VALIDATING,
+                    round,
+                    candidates.size(),
+                    candidate.name(),
+                    fp,
+                    "validating candidate"
+            ));
             try {
                 WorkloadInstance workload = request.workload().instantiate(new WorkloadEnvironment(candidate.profile()));
                 ValidationResult validation = validationEngine.validate(candidate, request.workload(), workload, request.validation());
                 if (!validation.valid()) {
-                    evaluated.add(BenchmarkCandidateReport.failure(candidate, validation, validation.reason()));
+                    BenchmarkCandidateReport report = BenchmarkCandidateReport.failure(candidate, validation, validation.reason());
+                    evaluated.add(report);
+                    progress.accept(report);
+                    emit(progress.event(
+                            AutotuneProgressPhase.CANDIDATE_INVALID,
+                            round,
+                            candidates.size(),
+                            candidate.name(),
+                            fp,
+                            validation.reason()
+                    ));
                     continue;
                 }
+                emit(progress.event(
+                        AutotuneProgressPhase.CANDIDATE_MEASURING,
+                        round,
+                        candidates.size(),
+                        candidate.name(),
+                        fp,
+                        "measuring candidate"
+                ));
                 MeasurementResult measurement = measurementEngine.measure(candidate, workload, request.measurement());
-                evaluated.add(BenchmarkCandidateReport.success(candidate, validation, measurement));
+                BenchmarkCandidateReport report = BenchmarkCandidateReport.success(candidate, validation, measurement);
+                evaluated.add(report);
+                progress.accept(report);
+                emit(progress.event(
+                        AutotuneProgressPhase.CANDIDATE_MEASURED,
+                        round,
+                        candidates.size(),
+                        candidate.name(),
+                        fp,
+                        "candidate measured"
+                ));
             } catch (Exception ex) {
-                evaluated.add(BenchmarkCandidateReport.failure(
+                BenchmarkCandidateReport report = BenchmarkCandidateReport.failure(
                         candidate,
                         ValidationResult.failure(ex.getMessage()),
                         ex.getClass().getSimpleName() + ": " + ex.getMessage()
+                );
+                evaluated.add(report);
+                progress.accept(report);
+                emit(progress.event(
+                        AutotuneProgressPhase.CANDIDATE_FAILED,
+                        round,
+                        candidates.size(),
+                        candidate.name(),
+                        fp,
+                        report.failureReason()
                 ));
             }
         }
+    }
+
+    private void emit(AutotuneProgressEvent event) {
+        request.progressListener().onEvent(event);
     }
 
     private boolean persist(
@@ -177,5 +280,52 @@ final class DefaultAutotuneSession implements AutotuneSession {
             return true;
         }
         return false;
+    }
+
+    private static final class ProgressState {
+        private final int totalCandidateCount;
+        private int evaluatedCount;
+        private int validCount;
+        private String bestCandidateName = "";
+        private double bestMedianMs = Double.POSITIVE_INFINITY;
+
+        private ProgressState(int totalCandidateCount) {
+            this.totalCandidateCount = Math.max(0, totalCandidateCount);
+        }
+
+        private void accept(BenchmarkCandidateReport report) {
+            evaluatedCount++;
+            if (report.success() && report.measurement() != null) {
+                validCount++;
+                double median = report.measurement().steadyStateStats().medianMs();
+                if (!Double.isFinite(bestMedianMs) || median < bestMedianMs) {
+                    bestMedianMs = median;
+                    bestCandidateName = report.candidate().name();
+                }
+            }
+        }
+
+        private AutotuneProgressEvent event(
+                AutotuneProgressPhase phase,
+                int round,
+                int selectedCount,
+                String candidateName,
+                String candidateFingerprint,
+                String message
+        ) {
+            return new AutotuneProgressEvent(
+                    phase,
+                    round,
+                    totalCandidateCount,
+                    selectedCount,
+                    evaluatedCount,
+                    validCount,
+                    candidateName,
+                    candidateFingerprint,
+                    bestCandidateName,
+                    bestMedianMs,
+                    message
+            );
+        }
     }
 }

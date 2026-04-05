@@ -2,6 +2,7 @@ package tuning.candidate;
 
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
+import config.optimizer.OptimizerStage;
 import config.optimizer.RewriteConfig;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
@@ -37,6 +38,60 @@ public final class ProfileMutators {
                 blasThreadPolicies(List.of(BlasThreadPolicy.AUTO, BlasThreadPolicy.FIXED), List.of(1, 4)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000))
         );
+    }
+
+    public static ExecutionProfileMutator stageOrders(List<List<OptimizerStage>> stageOrders) {
+        List<List<OptimizerStage>> safeStageOrders = stageOrders == null
+                ? List.of()
+                : stageOrders.stream().map(List::copyOf).toList();
+        return (baseProfile, workload) -> {
+            if (safeStageOrders.isEmpty()) {
+                return List.of(new ExecutionProfileVariant(
+                        "stageOrder=" + formatStageOrder(baseProfile.optimizer().stageOrder()),
+                        baseProfile
+                ));
+            }
+            List<ExecutionProfileVariant> variants = new ArrayList<>(safeStageOrders.size());
+            for (List<OptimizerStage> stageOrder : safeStageOrders) {
+                variants.add(new ExecutionProfileVariant(
+                        "stageOrder=" + formatStageOrder(stageOrder),
+                        new ExecutionProfile(
+                                baseProfile.profileName(),
+                                baseProfile.candidateName(),
+                                baseProfile.dataType(),
+                                baseProfile.mode(),
+                                baseProfile.optimizer().withStageOrder(stageOrder),
+                                baseProfile.runtime(),
+                                baseProfile.workload()
+                        )
+                ));
+            }
+            return variants;
+        };
+    }
+
+    public static ExecutionProfileMutator fullStageOrderSpace() {
+        return stageOrders(allStageOrders());
+    }
+
+    public static List<List<OptimizerStage>> allStageOrders() {
+        return allStageOrders(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM), true);
+    }
+
+    public static List<List<OptimizerStage>> allNonEmptyStageOrders() {
+        return allStageOrders(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM), false);
+    }
+
+    public static List<List<OptimizerStage>> allStageOrders(List<OptimizerStage> stages, boolean includeEmpty) {
+        List<OptimizerStage> safeStages = stages == null ? List.of() : List.copyOf(stages);
+        List<List<OptimizerStage>> out = new ArrayList<>();
+        if (includeEmpty) {
+            out.add(List.of());
+        }
+        for (int length = 1; length <= safeStages.size(); length++) {
+            enumerateStageOrders(safeStages, length, new boolean[safeStages.size()], new ArrayList<>(), out);
+        }
+        return List.copyOf(out);
     }
 
     public static List<ExecutionProfileMutator> transformerHotPathMutators() {
@@ -276,6 +331,7 @@ public final class ProfileMutators {
 
     private static boolean usesMatmulRuntimePolicies(WorkloadKind kind) {
         return kind == WorkloadKind.MATMUL
+                || kind == WorkloadKind.MLP_CLASSIFICATION
                 || kind == WorkloadKind.CONV2D
                 || kind == WorkloadKind.TRANSFORMER_HOT_PATH;
     }
@@ -350,5 +406,35 @@ public final class ProfileMutators {
                 matmulParallelMin == null ? base.matMulParallelMinSize() : matmulParallelMin,
                 attention == null ? base.attentionMatMulPolicy() : attention
         );
+    }
+
+    private static void enumerateStageOrders(
+            List<OptimizerStage> stages,
+            int targetLength,
+            boolean[] used,
+            List<OptimizerStage> current,
+            List<List<OptimizerStage>> out
+    ) {
+        if (current.size() == targetLength) {
+            out.add(List.copyOf(current));
+            return;
+        }
+        for (int i = 0; i < stages.size(); i++) {
+            if (used[i]) {
+                continue;
+            }
+            used[i] = true;
+            current.add(stages.get(i));
+            enumerateStageOrders(stages, targetLength, used, current, out);
+            current.removeLast();
+            used[i] = false;
+        }
+    }
+
+    private static String formatStageOrder(List<OptimizerStage> stageOrder) {
+        if (stageOrder == null || stageOrder.isEmpty()) {
+            return "NONE";
+        }
+        return String.join("-", stageOrder.stream().map(Enum::name).toList());
     }
 }

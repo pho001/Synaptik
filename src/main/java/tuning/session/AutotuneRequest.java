@@ -15,7 +15,8 @@ public record AutotuneRequest(
         MeasurementPolicy measurement,
         ValidationPolicy validation,
         SearchPolicy search,
-        PersistencePolicy persistence
+        PersistencePolicy persistence,
+        AutotuneProgressListener progressListener
 ) {
     public AutotuneRequest {
         Objects.requireNonNull(workload, "workload cannot be null");
@@ -24,5 +25,17 @@ public record AutotuneRequest(
         validation = validation == null ? ValidationPolicy.disabled() : validation;
         search = search == null ? new SearchPolicy(64, 8, 4, true) : search;
         persistence = persistence == null ? PersistencePolicy.disabled() : persistence;
+        progressListener = progressListener == null ? AutotuneProgressListener.noop() : progressListener;
+    }
+
+    public AutotuneRequest(
+            WorkloadSpec workload,
+            CandidateSpace candidateSpace,
+            MeasurementPolicy measurement,
+            ValidationPolicy validation,
+            SearchPolicy search,
+            PersistencePolicy persistence
+    ) {
+        this(workload, candidateSpace, measurement, validation, search, persistence, null);
     }
 }

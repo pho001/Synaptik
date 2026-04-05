@@ -27,6 +27,7 @@ That means:
 - [Legacy Benchmark Review](./LEGACY-BENCHMARK-REVIEW.md)
 - [How to Add a New Scenario](#how-to-add-a-new-scenario)
 - [Preset Surface](#preset-surface)
+- [Progress Tracking](#progress-tracking)
 - [Benchmark Candidate Contract](#benchmark-candidate-contract)
 - [End-to-End Example](#end-to-end-example)
 
@@ -199,6 +200,47 @@ This is intentionally still one-layered:
 - workload-aware logic only selects a recommended preset family
 - it does not introduce a second benchmark/autotune policy model
 
+## Progress Tracking
+
+Autotune requests can now carry an explicit progress listener:
+
+- [AutotuneProgressListener.java](./session/AutotuneProgressListener.java)
+- [AutotuneProgressEvent.java](./session/AutotuneProgressEvent.java)
+- [AutotuneProgressPhase.java](./session/AutotuneProgressPhase.java)
+- [LoggingAutotuneProgressListener.java](./session/LoggingAutotuneProgressListener.java)
+
+Typical usage:
+
+```java
+AutotuneRequest request = new AutotuneRequest(
+        workload,
+        candidateSpace,
+        TuningDefaults.thoroughMeasurement(),
+        TuningDefaults.thoroughValidation(),
+        TuningDefaults.thoroughSearchPolicy(),
+        PersistencePolicy.disabled(),
+        LoggingAutotuneProgressListener.throttledDefaults()
+);
+```
+
+Current emitted phases include:
+
+- `STARTED`
+- `SEARCH_BATCH`
+- `CANDIDATE_VALIDATING`
+- `CANDIDATE_INVALID`
+- `CANDIDATE_MEASURING`
+- `CANDIDATE_MEASURED`
+- `CANDIDATE_FAILED`
+- `ROUND_COMPLETED`
+- `COMPLETED`
+
+This is especially useful for:
+
+- large grid searches
+- long `thorough` runs
+- full-space autotune experiments where otherwise there would be no visible progress
+
 ## Benchmark Candidate Contract
 
 One benchmark compares multiple execution variants of the same logical workload.
@@ -243,6 +285,13 @@ Typical bad benchmark candidate family:
 - or one candidate changes dtype/mode while the benchmark still tries to treat the result as one comparison set
 
 Those should be separate benchmark runs.
+
+Practical example:
+
+- `mlp_classifier_small`
+  - fast functional/autotune sanity scenario
+- `mlp_classifier_blas_heavy`
+  - stronger runtime-policy scenario for BLAS and matmul-heavy tuning
 
 ## End-to-End Example
 

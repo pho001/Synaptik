@@ -26,17 +26,20 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
 
         PreparedExecution prepared = compiled.prepare(candidate.profile().runtime());
 
-        RunTrace coldRunTrace = RunTrace.empty(candidate.profile().mode());
-        if (policy.measureColdRun()) {
-            coldRunTrace = prepared.executeTraced(candidate.profile().mode());
-        } else if (policy.captureStepTrace()) {
-            coldRunTrace = prepared.executeTraced(candidate.profile().mode());
+        RunTrace reportRunTrace = RunTrace.empty(candidate.profile().mode());
+        boolean needsTrace = policy.measureColdRun() || policy.captureStepTrace();
+
+        if (needsTrace && !policy.measureSteadyState()) {
+            reportRunTrace = prepared.executeTraced(candidate.profile().mode());
         }
 
         MeasurementStatistics stats = MeasurementStatistics.zero();
         if (policy.measureSteadyState()) {
             for (int i = 0; i < policy.warmupIters(); i++) {
                 prepared.execute(candidate.profile().mode());
+            }
+            if (needsTrace) {
+                reportRunTrace = prepared.executeTraced(candidate.profile().mode());
             }
             double[] samples = new double[policy.repeats()];
             for (int r = 0; r < policy.repeats(); r++) {
@@ -53,7 +56,7 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
         ExecutionTrace trace = new ExecutionTrace(
                 policy.measureCompile() ? compiled.compileTrace() : graph.execution.trace.CompileTrace.skipped(),
                 policy.measurePrepare() ? prepared.prepareTrace() : graph.execution.trace.PrepareTrace.skipped(),
-                coldRunTrace
+                reportRunTrace
         );
         return new MeasurementResult(policy, trace, stats);
     }
