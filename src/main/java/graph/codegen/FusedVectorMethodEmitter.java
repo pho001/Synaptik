@@ -109,7 +109,7 @@ public final class FusedVectorMethodEmitter {
     }
 
     private static boolean supportsVector(FusedGenerationContext context, FusedExpressionPlan plan) {
-        if (context.precisionMode() == FusedDTypeOps.MODE_F16) {
+        if (context.precisionMode() == FusedDTypeOps.MODE_BF16) {
             for (FusedExternalInputPlan input : plan.inputs()) {
                 if (input.usesCursor()) {
                     return false;

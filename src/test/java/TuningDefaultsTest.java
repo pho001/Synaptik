@@ -6,6 +6,7 @@ import tuning.candidate.ListCandidateSpace;
 import tuning.session.TuningDefaults;
 import tuning.session.TuningPreset;
 import tuning.session.WorkloadPresetFamily;
+import tuning.validate.ValidationToleranceProfile;
 
 import java.util.List;
 
@@ -64,8 +65,20 @@ public class TuningDefaultsTest {
 
         assertEquals(2, request.measurement().warmupIters());
         assertEquals(8, request.measurement().measureIters());
-        assertEquals(1e-8, request.validation().absTolerance());
+        assertEquals(ValidationToleranceProfile.BALANCED_DTYPE_AWARE, request.validation().toleranceProfile());
+        assertEquals(1e-6, request.validation().absTolerance(tensor.DataType.FLOAT32));
+        assertEquals(2e-3, request.validation().absTolerance(tensor.DataType.BFLOAT16));
         assertTrue(request.baselines().includeNoOptBaseline());
+    }
+
+    @Test
+    void quickAndThoroughValidationUseDifferentDTypeAwareProfiles() {
+        assertEquals(ValidationToleranceProfile.QUICK_DTYPE_AWARE, TuningDefaults.quickValidation().toleranceProfile());
+        assertEquals(ValidationToleranceProfile.THOROUGH_DTYPE_AWARE, TuningDefaults.thoroughValidation().toleranceProfile());
+        assertEquals(1e-5, TuningDefaults.quickValidation().absTolerance(tensor.DataType.FLOAT32));
+        assertEquals(5e-7, TuningDefaults.thoroughValidation().absTolerance(tensor.DataType.FLOAT32));
+        assertEquals(5e-3, TuningDefaults.quickValidation().absTolerance(tensor.DataType.BFLOAT16));
+        assertEquals(1e-3, TuningDefaults.thoroughValidation().absTolerance(tensor.DataType.BFLOAT16));
     }
 
     @Test

@@ -15,9 +15,9 @@ public final class SoftmaxExecutor {
         SoftmaxLoops.executeF32(input, node, op.getDimension(), context);
     }
 
-    public void executeF16(softmax op, Tensor input, Tensor node, CpuKernelContext context) {
+    public void executeBF16(softmax op, Tensor input, Tensor node, CpuKernelContext context) {
         validate(op, input, node, context);
-        SoftmaxLoops.executeF16(input, node, op.getDimension(), context);
+        SoftmaxLoops.executeBF16(input, node, op.getDimension(), context);
     }
 
     private static void validate(softmax op, Tensor input, Tensor node, CpuKernelContext context) {

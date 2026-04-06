@@ -1,12 +1,12 @@
-package backend.kernels.cpu.f16;
+package backend.kernels.cpu.bf16;
 
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.ResolvedDispatchHints;
 
-public final class NegF16 {
-    private NegF16() {}
+public final class NegBF16 {
+    private NegBF16() {}
 
     public static void run(short[] in, short[] out, ResolvedDispatchHints hints) {
         CpuExecutionMode mode = hints.mode();
@@ -18,7 +18,7 @@ public final class NegF16 {
 
     private static void scalar(short[] in, short[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            out[i] = CpuDTypeOps.toHalfBits(-CpuDTypeOps.fromHalfBits(in[i]));
+            out[i] = CpuDTypeOps.toBFloat16Bits(-CpuDTypeOps.fromBFloat16Bits(in[i]));
         }
     }
 

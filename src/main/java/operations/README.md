@@ -573,7 +573,7 @@ Depending on the op, you may also need:
 - non-contiguous handling
 - reduction hints
 - matmul hints
-- dtype-specific F16/F32/F64 loops
+- dtype-specific BF16/F32/F64 loops
 - `BOOL` execution path if the op is logical or compare/select related
 
 ### 8. Decide if the op is fusable
@@ -717,7 +717,7 @@ That means:
 
 - the enum metadata must match the real fused compute algebra
 - fusion rules should not carry a separate hardcoded op switch that drifts away from `OpType`
-- codegen support matrix must be kept in sync for all supported precision modes, including F16
+- codegen support matrix must be kept in sync for all supported precision modes, including BF16
 
 Relevant files:
 

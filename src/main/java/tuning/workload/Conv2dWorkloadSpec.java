@@ -5,6 +5,7 @@ import tensor.Conv2dOptions;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.validate.ValidationReference;
+import tuning.validate.ValidationTarget;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -77,10 +78,11 @@ public final class Conv2dWorkloadSpec implements WorkloadSpec {
                 kernelH,
                 kernelW
         );
-        Tensor root = withBias
-                ? input.conv2d(weight, tensor("CONV_BIAS", 203, dataType, requiresGrad, outChannels), options)
+        Tensor bias = withBias ? tensor("CONV_BIAS", 203, dataType, requiresGrad, outChannels) : null;
+        Tensor output = withBias
+                ? input.conv2d(weight, bias, options)
                 : input.conv2d(weight, options);
-        root = finalizeRoot(root, profile.mode());
+        Tensor root = finalizeRoot(output, profile.mode());
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("batch", batch);
         metadata.put("inChannels", inChannels);
@@ -106,6 +108,7 @@ public final class Conv2dWorkloadSpec implements WorkloadSpec {
 
         return new DefaultWorkloadInstance(
                 root,
+                ValidationTarget.label(output.getLabel()),
                 ValidationReference.baselineProfile(
                         WorkloadValidationProfiles.baselineFor(profile),
                         gradientLabels

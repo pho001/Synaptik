@@ -18,8 +18,8 @@ public final class CpuAvgPool2dKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dKernelSupport.avgForwardF16(require(op), inputs.get(0), node);
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        Pool2dKernelSupport.avgForwardBF16(require(op), inputs.get(0), node);
     }
 
     private static avgPool2d require(Operation op) {

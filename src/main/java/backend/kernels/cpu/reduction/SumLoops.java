@@ -71,7 +71,7 @@ public final class SumLoops {
         sumAxisF32(input, in, out, logicalSize, dimension, context, node.getStorageOffsetUnsafe());
     }
 
-    public static void executeF16(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
+    public static void executeBF16(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         int[] shape = input.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
             throw new IllegalArgumentException("Input shape must not be empty");
@@ -82,18 +82,18 @@ public final class SumLoops {
 
         int logicalSize = logicalSize(shape);
         int expectedOut = (dimension == -1) ? 1 : (logicalSize / shape[dimension]);
-        short[] out = node.getFloat16Data();
+        short[] out = node.getBFloat16Data();
         if (out == null || out.length != expectedOut) {
             throw new IllegalArgumentException("Output tensor has wrong size for sum reduction");
         }
 
-        short[] in = input.getFloat16Data();
+        short[] in = input.getBFloat16Data();
         if (in == null) {
-            throw new IllegalStateException("F16 input storage is missing");
+            throw new IllegalStateException("BF16 input storage is missing");
         }
 
         if (dimension == -1) {
-            out[0] = CpuDTypeOps.toHalfBits((float) sumAllF16(input, in, logicalSize, context));
+            out[0] = CpuDTypeOps.toBFloat16Bits((float) sumAllF16(input, in, logicalSize, context));
             return;
         }
         sumAxisF16(input, in, out, logicalSize, dimension, context, node.getStorageOffsetUnsafe());
@@ -232,8 +232,8 @@ public final class SumLoops {
     private static double sumAllF16(Tensor input, short[] data, int logicalSize, CpuKernelContext context) {
         if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
-                Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT16);
-                short[] c = contiguous.getFloat16Data();
+                Tensor contiguous = materializeContiguousTyped(input, context, DataType.BFLOAT16);
+                short[] c = contiguous.getBFloat16Data();
                 return sumAllContiguousF16(c, logicalSize, context);
             }
             return sumAllStridedF16(input, data, logicalSize, context);
@@ -422,8 +422,8 @@ public final class SumLoops {
         }
         if (!input.isContiguous() || input.hasStorageOffset()) {
             if (logicalSize >= materializeThreshold(context)) {
-                Tensor contiguous = materializeContiguousTyped(input, context, DataType.FLOAT16);
-                sumAxisContiguousF16(contiguous.getFloat16Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), contiguous.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
+                Tensor contiguous = materializeContiguousTyped(input, context, DataType.BFLOAT16);
+                sumAxisContiguousF16(contiguous.getBFloat16Data(), contiguous.getShapeUnsafe(), contiguous.getStridesUnsafe(), contiguous.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
                 return;
             }
             sumAxisStridedF16(data, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, outBaseOffset, dimension, context);
@@ -575,7 +575,7 @@ public final class SumLoops {
                 outAxis++;
             }
             double acc = accumulateStridedFixedBaseF16(data, base, axisStride, reducedDim, accuracy);
-            out[outBaseOffset + outIndex] = CpuDTypeOps.toHalfBits((float) acc);
+            out[outBaseOffset + outIndex] = CpuDTypeOps.toBFloat16Bits((float) acc);
         }
     }
 
@@ -726,7 +726,7 @@ public final class SumLoops {
             case FAST -> {
                 double sum = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    sum += CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]);
+                    sum += CpuDTypeOps.fromBFloat16Bits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]);
                 }
                 yield sum;
             }
@@ -734,7 +734,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    double y = CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]) - c;
+                    double y = CpuDTypeOps.fromBFloat16Bits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]) - c;
                     double t = sum + y;
                     c = (t - sum) - y;
                     sum = t;
@@ -745,7 +745,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = startLogical; i < endLogical; i++) {
-                    double x = CpuDTypeOps.fromHalfBits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]);
+                    double x = CpuDTypeOps.fromBFloat16Bits(data[logicalToOffset(i, shape, strides, denseStrides, baseOffset)]);
                     double t = sum + x;
                     if (Math.abs(sum) >= Math.abs(x)) {
                         c += (sum - t) + x;
@@ -835,14 +835,14 @@ public final class SumLoops {
         return switch (accuracy) {
             case FAST -> {
                 double sum = 0.0;
-                for (int i = start; i < end; i++) sum += CpuDTypeOps.fromHalfBits(data[i]);
+                for (int i = start; i < end; i++) sum += CpuDTypeOps.fromBFloat16Bits(data[i]);
                 yield sum;
             }
             case KAHAN -> {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = start; i < end; i++) {
-                    double y = CpuDTypeOps.fromHalfBits(data[i]) - c;
+                    double y = CpuDTypeOps.fromBFloat16Bits(data[i]) - c;
                     double t = sum + y;
                     c = (t - sum) - y;
                     sum = t;
@@ -853,7 +853,7 @@ public final class SumLoops {
                 double sum = 0.0;
                 double c = 0.0;
                 for (int i = start; i < end; i++) {
-                    double x = CpuDTypeOps.fromHalfBits(data[i]);
+                    double x = CpuDTypeOps.fromBFloat16Bits(data[i]);
                     double t = sum + x;
                     if (Math.abs(sum) >= Math.abs(x)) {
                         c += (sum - t) + x;
@@ -937,7 +937,7 @@ public final class SumLoops {
             case FAST -> {
                 double sum = 0.0;
                 int idx = base;
-                for (int i = 0; i < count; i++, idx += step) sum += CpuDTypeOps.fromHalfBits(data[idx]);
+                for (int i = 0; i < count; i++, idx += step) sum += CpuDTypeOps.fromBFloat16Bits(data[idx]);
                 yield sum;
             }
             case KAHAN -> {
@@ -945,7 +945,7 @@ public final class SumLoops {
                 double c = 0.0;
                 int idx = base;
                 for (int i = 0; i < count; i++, idx += step) {
-                    double y = CpuDTypeOps.fromHalfBits(data[idx]) - c;
+                    double y = CpuDTypeOps.fromBFloat16Bits(data[idx]) - c;
                     double t = sum + y;
                     c = (t - sum) - y;
                     sum = t;
@@ -957,7 +957,7 @@ public final class SumLoops {
                 double c = 0.0;
                 int idx = base;
                 for (int i = 0; i < count; i++, idx += step) {
-                    double x = CpuDTypeOps.fromHalfBits(data[idx]);
+                    double x = CpuDTypeOps.fromBFloat16Bits(data[idx]);
                     double t = sum + x;
                     if (Math.abs(sum) >= Math.abs(x)) {
                         c += (sum - t) + x;

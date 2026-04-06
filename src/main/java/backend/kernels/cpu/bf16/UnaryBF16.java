@@ -1,4 +1,4 @@
-package backend.kernels.cpu.f16;
+package backend.kernels.cpu.bf16;
 
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuExecutionMode;
@@ -6,8 +6,8 @@ import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.ResolvedDispatchHints;
 import utils.FastExp;
 
-public final class UnaryF16 {
-    private UnaryF16() {}
+public final class UnaryBF16 {
+    private UnaryBF16() {}
 
     public static void inv(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.INV); }
     public static void relu(short[] in, short[] out, ResolvedDispatchHints hints) { run(in, out, hints, Op.RELU); }
@@ -36,7 +36,7 @@ public final class UnaryF16 {
 
     private static void scalar(short[] in, short[] out, int start, int end, Op op, float scalar) {
         for (int i = start; i < end; i++) {
-            float x = CpuDTypeOps.fromHalfBits(in[i]);
+            float x = CpuDTypeOps.fromBFloat16Bits(in[i]);
             float y = switch (op) {
                 case INV -> 1.0f / x;
                 case RELU -> Math.max(0.0f, x);
@@ -51,7 +51,7 @@ public final class UnaryF16 {
                 case SQRT -> (float) Math.sqrt(x);
                 case SIGMOID -> 1.0f / (1.0f + (float) Math.exp(-x));
             };
-            out[i] = CpuDTypeOps.toHalfBits(y);
+            out[i] = CpuDTypeOps.toBFloat16Bits(y);
         }
     }
 

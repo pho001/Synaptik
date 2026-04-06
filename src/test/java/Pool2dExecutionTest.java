@@ -115,7 +115,7 @@ public class Pool2dExecutionTest {
     }
 
     @Test
-    void pool2dSupportsFloat32AndFloat16Execution() {
+    void pool2dSupportsFloat32AndBFloat16Execution() {
         Tensor input32 = new Tensor(new float[]{
                 1, 2, 3, 4,
                 5, 6, 7, 8,
@@ -129,24 +129,24 @@ public class Pool2dExecutionTest {
         assertArrayEquals(new double[]{6, 8, 14, 16}, max32.toDoubleArrayCopy(), 1e-6);
 
         short[] input16Data = new short[]{
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(1),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(2),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(3),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(4),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(5),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(6),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(7),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(8),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(9),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(10),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(11),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(12),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(13),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(14),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(15),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(16)
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(1),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(2),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(3),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(4),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(5),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(6),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(7),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(8),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(9),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(10),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(11),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(12),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(13),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(14),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(15),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(16)
         };
-        Tensor input16 = new Tensor(input16Data, new int[]{1, 1, 4, 4}, null, "input16", DataType.FLOAT16);
+        Tensor input16 = new Tensor(input16Data, new int[]{1, 1, 4, 4}, null, "input16", DataType.BFLOAT16);
 
         Tensor avg16 = input16.avgPool2d(Pool2dOptions.square(2));
         CompiledGraph.compile(avg16, OptimizerConfig.noOptimization())

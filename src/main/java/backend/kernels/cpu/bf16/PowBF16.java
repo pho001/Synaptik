@@ -1,12 +1,12 @@
-package backend.kernels.cpu.f16;
+package backend.kernels.cpu.bf16;
 
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.ResolvedDispatchHints;
 
-public final class PowF16 {
-    private PowF16() {}
+public final class PowBF16 {
+    private PowBF16() {}
 
     public static void run(short[] in, double exponent, short[] out, ResolvedDispatchHints hints) {
         CpuExecutionMode mode = hints.mode();
@@ -18,9 +18,9 @@ public final class PowF16 {
 
     private static void scalar(short[] in, double exponent, short[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            float x = CpuDTypeOps.fromHalfBits(in[i]);
+            float x = CpuDTypeOps.fromBFloat16Bits(in[i]);
             float y = (float) Math.pow(x, exponent);
-            out[i] = CpuDTypeOps.toHalfBits(y);
+            out[i] = CpuDTypeOps.toBFloat16Bits(y);
         }
     }
 

@@ -29,12 +29,12 @@ public final class CpuCrossEntropyLossKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof crossEntropyLoss loss)) {
             throw new IllegalArgumentException("CpuCrossEntropyLossKernel requires crossEntropyLoss operation");
         }
         Tensor[] pair = requirePair(inputs);
-        EXECUTOR.executeF16(loss, pair[0], pair[1], node, context);
+        EXECUTOR.executeBF16(loss, pair[0], pair[1], node, context);
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

@@ -11,6 +11,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 public final class OpenBlasFfmBridge {
     public static final int CBLAS_ROW_MAJOR = 101;
@@ -235,6 +236,93 @@ public final class OpenBlasFfmBridge {
         }
     }
 
+    public static void sbgemmRowMajorNoTrans(
+            int m,
+            int n,
+            int k,
+            float alpha,
+            short[] a,
+            int lda,
+            short[] b,
+            int ldb,
+            float beta,
+            float[] c,
+            int ldc
+    ) {
+        if (!STATE.available || STATE.sbgemm == null) {
+            throw new IllegalStateException("OpenBLAS FFM sbgemm is unavailable: " + STATE.reason);
+        }
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment aSeg = copyToNative(a, arena);
+            MemorySegment bSeg = copyToNative(b, arena);
+            MemorySegment cSeg = copyToNative(c, arena);
+            STATE.sbgemm.invokeExact(
+                    CBLAS_ROW_MAJOR,
+                    CBLAS_NO_TRANS,
+                    CBLAS_NO_TRANS,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    aSeg,
+                    lda,
+                    bSeg,
+                    ldb,
+                    beta,
+                    cSeg,
+                    ldc
+            );
+            MemorySegment.ofArray(c).copyFrom(cSeg);
+        } catch (Throwable t) {
+            throw new IllegalStateException("OpenBLAS FFM sbgemm call failed", t);
+        }
+    }
+
+    public static void sbgemmRowMajorNoTransOffsets(
+            int m,
+            int n,
+            int k,
+            float alpha,
+            short[] a,
+            int aOffset,
+            int lda,
+            short[] b,
+            int bOffset,
+            int ldb,
+            float beta,
+            float[] c,
+            int cOffset,
+            int ldc
+    ) {
+        if (!STATE.available || STATE.sbgemm == null) {
+            throw new IllegalStateException("OpenBLAS FFM sbgemm is unavailable: " + STATE.reason);
+        }
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment aSeg = copyToNative(a, aOffset, m * k, arena);
+            MemorySegment bSeg = copyToNative(b, bOffset, k * n, arena);
+            MemorySegment cSeg = copyToNative(c, cOffset, m * n, arena);
+            STATE.sbgemm.invokeExact(
+                    CBLAS_ROW_MAJOR,
+                    CBLAS_NO_TRANS,
+                    CBLAS_NO_TRANS,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    aSeg,
+                    lda,
+                    bSeg,
+                    ldb,
+                    beta,
+                    cSeg,
+                    ldc
+            );
+            MemorySegment.ofArray(c).asSlice((long) cOffset * JAVA_FLOAT.byteSize(), cSeg.byteSize()).copyFrom(cSeg);
+        } catch (Throwable t) {
+            throw new IllegalStateException("OpenBLAS FFM sbgemm call failed", t);
+        }
+    }
+
     private static MemorySegment copyToNative(float[] src, Arena arena) {
         MemorySegment heap = MemorySegment.ofArray(src);
         MemorySegment nativeSeg = arena.allocate(heap.byteSize(), JAVA_FLOAT.byteAlignment());
@@ -263,6 +351,22 @@ public final class OpenBlasFfmBridge {
         long byteOffset = (long) offset * JAVA_DOUBLE.byteSize();
         long byteLength = (long) length * JAVA_DOUBLE.byteSize();
         MemorySegment nativeSeg = arena.allocate(byteLength, JAVA_DOUBLE.byteAlignment());
+        nativeSeg.copyFrom(heap.asSlice(byteOffset, byteLength));
+        return nativeSeg;
+    }
+
+    private static MemorySegment copyToNative(short[] src, Arena arena) {
+        MemorySegment heap = MemorySegment.ofArray(src);
+        MemorySegment nativeSeg = arena.allocate(heap.byteSize(), JAVA_SHORT.byteAlignment());
+        nativeSeg.copyFrom(heap);
+        return nativeSeg;
+    }
+
+    private static MemorySegment copyToNative(short[] src, int offset, int length, Arena arena) {
+        MemorySegment heap = MemorySegment.ofArray(src);
+        long byteOffset = (long) offset * JAVA_SHORT.byteSize();
+        long byteLength = (long) length * JAVA_SHORT.byteSize();
+        MemorySegment nativeSeg = arena.allocate(byteLength, JAVA_SHORT.byteAlignment());
         nativeSeg.copyFrom(heap.asSlice(byteOffset, byteLength));
         return nativeSeg;
     }
@@ -299,6 +403,26 @@ public final class OpenBlasFfmBridge {
                     )
             );
 
+            MethodHandle sbgemm = null;
+            try {
+                MemorySegment sbgemmSym = lookup.find("cblas_sbgemm").orElse(null);
+                if (sbgemmSym != null) {
+                    sbgemm = linker.downcallHandle(
+                            sbgemmSym,
+                            FunctionDescriptor.ofVoid(
+                                    JAVA_INT, JAVA_INT, JAVA_INT,
+                                    JAVA_INT, JAVA_INT, JAVA_INT,
+                                    JAVA_FLOAT,
+                                    ADDRESS, JAVA_INT,
+                                    ADDRESS, JAVA_INT,
+                                    JAVA_FLOAT,
+                                    ADDRESS, JAVA_INT
+                            )
+                    );
+                }
+            } catch (Throwable ignored) {
+            }
+
             MethodHandle setThreads = null;
             MethodHandle getThreads = null;
             try {
@@ -313,9 +437,9 @@ public final class OpenBlasFfmBridge {
             } catch (Throwable ignored) {
             }
 
-            return new State(true, null, arena, sgemm, dgemm, setThreads, getThreads);
+            return new State(true, null, arena, sgemm, dgemm, sbgemm, setThreads, getThreads);
         } catch (Throwable t) {
-            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null, null, null);
+            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null, null, null, null);
         }
     }
 
@@ -343,15 +467,17 @@ public final class OpenBlasFfmBridge {
         private final Arena arenaRef;
         private final MethodHandle sgemm;
         private final MethodHandle dgemm;
+        private final MethodHandle sbgemm;
         private final MethodHandle setThreads;
         private final MethodHandle getThreads;
 
-        private State(boolean available, String reason, Arena arenaRef, MethodHandle sgemm, MethodHandle dgemm, MethodHandle setThreads, MethodHandle getThreads) {
+        private State(boolean available, String reason, Arena arenaRef, MethodHandle sgemm, MethodHandle dgemm, MethodHandle sbgemm, MethodHandle setThreads, MethodHandle getThreads) {
             this.available = available;
             this.reason = reason;
             this.arenaRef = arenaRef;
             this.sgemm = sgemm;
             this.dgemm = dgemm;
+            this.sbgemm = sbgemm;
             this.setThreads = setThreads;
             this.getThreads = getThreads;
         }

@@ -26,7 +26,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxis gatherOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }

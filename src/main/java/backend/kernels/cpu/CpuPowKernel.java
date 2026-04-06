@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.f16.PowF16;
+import backend.kernels.cpu.bf16.PowBF16;
 import backend.kernels.cpu.f32.PowF32;
 import backend.kernels.cpu.f64.PowF64;
 import operations.Operation;
@@ -26,9 +26,9 @@ public class CpuPowKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        short[] in = inputs.get(0).getFloat16Data();
-        short[] out = node.getFloat16Data();
-        PowF16.run(in, ((pow) op).getExponent(), out, context.dispatchHints());
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        short[] in = inputs.get(0).getBFloat16Data();
+        short[] out = node.getBFloat16Data();
+        PowBF16.run(in, ((pow) op).getExponent(), out, context.dispatchHints());
     }
 }

@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.f16.UnaryF16;
+import backend.kernels.cpu.bf16.UnaryBF16;
 import backend.kernels.cpu.f32.UnaryF32;
 import backend.kernels.cpu.f64.UnaryF64;
 import operations.Operation;
@@ -28,11 +28,11 @@ public class CpuTanhKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (context.useFastTanhApprox()) {
-            UnaryF16.fastTanh(inputs.get(0).getFloat16Data(), node.getFloat16Data(), context.dispatchHints());
+            UnaryBF16.fastTanh(inputs.get(0).getBFloat16Data(), node.getBFloat16Data(), context.dispatchHints());
         } else {
-            UnaryF16.tanh(inputs.get(0).getFloat16Data(), node.getFloat16Data(), context.dispatchHints());
+            UnaryBF16.tanh(inputs.get(0).getBFloat16Data(), node.getBFloat16Data(), context.dispatchHints());
         }
     }
 }

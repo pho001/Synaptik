@@ -19,8 +19,8 @@ final class Pool2dKernelSupport {
         runMaxForwardF32(input.getFloat32Data(), input.getShapeUnsafe(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
     }
 
-    static void maxForwardF16(maxPool2d op, Tensor input, Tensor out, int[] argmaxWorkspace) {
-        runMaxForwardF16(input.getFloat16Data(), input.getShapeUnsafe(), out.getFloat16Data(), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
+    static void maxForwardBF16(maxPool2d op, Tensor input, Tensor out, int[] argmaxWorkspace) {
+        runMaxForwardF16(input.getBFloat16Data(), input.getShapeUnsafe(), out.getBFloat16Data(), out.getShapeUnsafe(), op.getOptions(), argmaxWorkspace);
     }
 
     static void maxBackwardInputF64(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
@@ -31,8 +31,8 @@ final class Pool2dKernelSupport {
         runMaxBackwardInputF32(outGrad.getFloat32Data(), outGrad.getShapeUnsafe(), gradInput.getFloat32Data(), op.getInputShape(), argmaxWorkspace);
     }
 
-    static void maxBackwardInputF16(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
-        runMaxBackwardInputF16(outGrad.getFloat16Data(), outGrad.getShapeUnsafe(), gradInput.getFloat16Data(), op.getInputShape(), argmaxWorkspace);
+    static void maxBackwardInputBF16(maxPool2dBackwardInput op, Tensor outGrad, Tensor gradInput, int[] argmaxWorkspace) {
+        runMaxBackwardInputF16(outGrad.getBFloat16Data(), outGrad.getShapeUnsafe(), gradInput.getBFloat16Data(), op.getInputShape(), argmaxWorkspace);
     }
 
     static void avgForwardF64(avgPool2d op, Tensor input, Tensor out) {
@@ -43,8 +43,8 @@ final class Pool2dKernelSupport {
         runAvgForwardF32(input.getFloat32Data(), input.getShapeUnsafe(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions());
     }
 
-    static void avgForwardF16(avgPool2d op, Tensor input, Tensor out) {
-        runAvgForwardF16(input.getFloat16Data(), input.getShapeUnsafe(), out.getFloat16Data(), out.getShapeUnsafe(), op.getOptions());
+    static void avgForwardBF16(avgPool2d op, Tensor input, Tensor out) {
+        runAvgForwardF16(input.getBFloat16Data(), input.getShapeUnsafe(), out.getBFloat16Data(), out.getShapeUnsafe(), op.getOptions());
     }
 
     static void avgBackwardInputF64(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
@@ -55,8 +55,8 @@ final class Pool2dKernelSupport {
         runAvgBackwardInputF32(outGrad.getFloat32Data(), outGrad.getShapeUnsafe(), gradInput.getFloat32Data(), op.getInputShape(), op.getOptions());
     }
 
-    static void avgBackwardInputF16(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
-        runAvgBackwardInputF16(outGrad.getFloat16Data(), outGrad.getShapeUnsafe(), gradInput.getFloat16Data(), op.getInputShape(), op.getOptions());
+    static void avgBackwardInputBF16(avgPool2dBackwardInput op, Tensor outGrad, Tensor gradInput) {
+        runAvgBackwardInputF16(outGrad.getBFloat16Data(), outGrad.getShapeUnsafe(), gradInput.getBFloat16Data(), op.getInputShape(), op.getOptions());
     }
 
     private static void runMaxForwardF64(double[] input, int[] inputShape, double[] out, int[] outShape, Pool2dOptions options, int[] argmaxWorkspace) {
@@ -180,7 +180,7 @@ final class Pool2dKernelSupport {
                                 if (iw < 0 || iw >= inW) {
                                     continue;
                                 }
-                                float value = CpuDTypeOps.fromHalfBits(input[indexNCHW(batch, channel, ih, iw, c, inH, inW)]);
+                                float value = CpuDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, channel, ih, iw, c, inH, inW)]);
                                 if (!found || value > best) {
                                     best = value;
                                     bestIndex = indexNCHW(batch, channel, ih, iw, c, inH, inW);
@@ -192,7 +192,7 @@ final class Pool2dKernelSupport {
                             throw new IllegalArgumentException("maxPool2d window has no valid input elements.");
                         }
                         int outputIndex = indexNCHW(batch, channel, oh, ow, c, outH, outW);
-                        out[outputIndex] = CpuDTypeOps.toHalfBits(best);
+                        out[outputIndex] = CpuDTypeOps.toBFloat16Bits(best);
                         argmaxWorkspace[outputIndex] = bestIndex;
                     }
                 }
@@ -253,9 +253,9 @@ final class Pool2dKernelSupport {
                     for (int ow = 0; ow < outW; ow++) {
                         int outputIndex = indexNCHW(batch, channel, oh, ow, c, outH, outW);
                         int bestIndex = argmaxWorkspace[outputIndex];
-                        float updated = CpuDTypeOps.fromHalfBits(gradInput[bestIndex])
-                                + CpuDTypeOps.fromHalfBits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]);
-                        gradInput[bestIndex] = CpuDTypeOps.toHalfBits(updated);
+                        float updated = CpuDTypeOps.fromBFloat16Bits(gradInput[bestIndex])
+                                + CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]);
+                        gradInput[bestIndex] = CpuDTypeOps.toBFloat16Bits(updated);
                     }
                 }
             }
@@ -370,7 +370,7 @@ final class Pool2dKernelSupport {
                                 if (iw < 0 || iw >= inW) {
                                     continue;
                                 }
-                                acc += CpuDTypeOps.fromHalfBits(input[indexNCHW(batch, channel, ih, iw, c, inH, inW)]);
+                                acc += CpuDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, channel, ih, iw, c, inH, inW)]);
                                 validCount++;
                             }
                         }
@@ -378,7 +378,7 @@ final class Pool2dKernelSupport {
                         if (divisor <= 0) {
                             throw new IllegalArgumentException("avgPool2d window has no valid input elements.");
                         }
-                        out[indexNCHW(batch, channel, oh, ow, c, outH, outW)] = CpuDTypeOps.toHalfBits(acc / divisor);
+                        out[indexNCHW(batch, channel, oh, ow, c, outH, outW)] = CpuDTypeOps.toBFloat16Bits(acc / divisor);
                     }
                 }
             }
@@ -485,7 +485,7 @@ final class Pool2dKernelSupport {
                         if (divisor <= 0) {
                             throw new IllegalArgumentException("avgPool2d backward window has no valid input elements.");
                         }
-                        float contribution = CpuDTypeOps.fromHalfBits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]) / divisor;
+                        float contribution = CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, channel, oh, ow, c, outH, outW)]) / divisor;
                         for (int kh = 0; kh < options.kernelH(); kh++) {
                             int ih = inOriginH + kh;
                             if (ih < 0 || ih >= inH) {
@@ -497,8 +497,8 @@ final class Pool2dKernelSupport {
                                     continue;
                                 }
                                 int inputIndex = indexNCHW(batch, channel, ih, iw, c, inH, inW);
-                                float updated = CpuDTypeOps.fromHalfBits(gradInput[inputIndex]) + contribution;
-                                gradInput[inputIndex] = CpuDTypeOps.toHalfBits(updated);
+                                float updated = CpuDTypeOps.fromBFloat16Bits(gradInput[inputIndex]) + contribution;
+                                gradInput[inputIndex] = CpuDTypeOps.toBFloat16Bits(updated);
                             }
                         }
                     }

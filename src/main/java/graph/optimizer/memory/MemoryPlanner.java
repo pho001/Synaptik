@@ -349,7 +349,7 @@ public final class MemoryPlanner {
         return switch (dataType) {
             case FLOAT64 -> 8;
             case FLOAT32 -> 4;
-            case FLOAT16 -> 2;
+            case BFLOAT16 -> 2;
             case INT32 -> 4;
             case BOOL -> 1;
         };

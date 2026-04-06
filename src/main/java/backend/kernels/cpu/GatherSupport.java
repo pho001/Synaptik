@@ -26,10 +26,10 @@ public final class GatherSupport {
         );
     }
 
-    public static void runF16(Tensor input, Tensor indices, Tensor out, int dimension) {
+    public static void runBF16(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateGather(input, indices, out, dimension);
-        short[] in = input.getFloat16Data();
-        short[] dst = out.getFloat16Data();
+        short[] in = input.getBFloat16Data();
+        short[] dst = out.getBFloat16Data();
         forEachGather(input, indices, out, dimension, (baseIn, baseOut, axisStrideIn, axisStrideOut, axisIndex) ->
                 dst[baseOut] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -73,8 +73,8 @@ public final class GatherSupport {
 
     public static void takeAlongAxisF16(Tensor input, Tensor indices, Tensor out, int dimension) {
         validateTakeAlongAxis(input, indices, out, dimension);
-        short[] in = input.getFloat16Data();
-        short[] dst = out.getFloat16Data();
+        short[] in = input.getBFloat16Data();
+        short[] dst = out.getBFloat16Data();
         forEachTakeAlongAxis(input, indices, out, dimension, (baseIn, outOffset, axisStrideIn, axisIndex) ->
                 dst[outOffset] = in[baseIn + axisIndex * axisStrideIn]
         );
@@ -116,13 +116,13 @@ public final class GatherSupport {
         );
     }
 
-    public static void scatterF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
+    public static void scatterBF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateScatter(indices, outGrad, node, dimension);
-        short[] grad = outGrad.getFloat16Data();
-        short[] dst = node.getFloat16Data();
+        short[] grad = outGrad.getBFloat16Data();
+        short[] dst = node.getBFloat16Data();
         forEachScatter(indices, outGrad, node, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) -> {
-            float acc = CpuDTypeOps.fromHalfBits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromHalfBits(grad[baseGrad]);
-            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toHalfBits(acc);
+            float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(grad[baseGrad]);
+            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);
         });
     }
 
@@ -146,14 +146,14 @@ public final class GatherSupport {
         );
     }
 
-    public static void scatterAddF16(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
+    public static void scatterAddBF16(Tensor base, Tensor indices, Tensor src, Tensor out, int dimension) {
         validateScatterAdd(base, indices, src, out, dimension);
         out.copyDataFrom(base);
-        short[] srcData = src.getFloat16Data();
-        short[] dst = out.getFloat16Data();
+        short[] srcData = src.getBFloat16Data();
+        short[] dst = out.getBFloat16Data();
         forEachScatter(indices, src, out, dimension, (baseNode, baseGrad, axisStrideNode, axisStrideGrad, axisIndex) -> {
-            float acc = CpuDTypeOps.fromHalfBits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromHalfBits(srcData[baseGrad]);
-            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toHalfBits(acc);
+            float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(srcData[baseGrad]);
+            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);
         });
     }
 
@@ -175,13 +175,13 @@ public final class GatherSupport {
         );
     }
 
-    public static void takeAlongAxisScatterF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
+    public static void takeAlongAxisScatterBF16(Tensor indices, Tensor outGrad, Tensor node, int dimension) {
         validateTakeAlongAxisScatter(indices, outGrad, node, dimension);
-        short[] grad = outGrad.getFloat16Data();
-        short[] dst = node.getFloat16Data();
+        short[] grad = outGrad.getBFloat16Data();
+        short[] dst = node.getBFloat16Data();
         forEachTakeAlongAxisScatter(indices, outGrad, node, dimension, (baseNode, gradOffset, axisStrideNode, axisIndex) -> {
-            float acc = CpuDTypeOps.fromHalfBits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromHalfBits(grad[gradOffset]);
-            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toHalfBits(acc);
+            float acc = CpuDTypeOps.fromBFloat16Bits(dst[baseNode + axisIndex * axisStrideNode]) + CpuDTypeOps.fromBFloat16Bits(grad[gradOffset]);
+            dst[baseNode + axisIndex * axisStrideNode] = CpuDTypeOps.toBFloat16Bits(acc);
         });
     }
 

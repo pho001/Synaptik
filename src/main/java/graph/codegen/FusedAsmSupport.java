@@ -122,7 +122,7 @@ final class FusedAsmSupport {
         switch (dataType) {
             case FLOAT32 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat32Data", "()[F", false);
             case FLOAT64 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat64Data", "()[D", false);
-            case FLOAT16 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFloat16Data", "()[S", false);
+            case BFLOAT16 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getBFloat16Data", "()[S", false);
             case BOOL -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getBoolData", "()[B", false);
             case INT32 -> mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getInt32Data", "()[I", false);
         }
@@ -242,7 +242,7 @@ final class FusedAsmSupport {
     }
 
     static void emitVectorBinaryOpCall(MethodVisitor mv, String op, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F16) {
+        if (precisionMode == FusedDTypeOps.MODE_BF16) {
             mv.visitLdcInsn(precisionMode);
             mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", op, "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
             return;
@@ -259,7 +259,7 @@ final class FusedAsmSupport {
     static void emitVectorUnaryOpCall(MethodVisitor mv, String op, int precisionMode, SlotManager sm) {
         boolean expOp = "exp".equals(op);
         boolean tanhOp = "tanh".equals(op);
-        if (precisionMode == FusedDTypeOps.MODE_F16) {
+        if (precisionMode == FusedDTypeOps.MODE_BF16) {
             mv.visitLdcInsn(precisionMode);
             if (expOp || tanhOp) {
                 mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
@@ -294,7 +294,7 @@ final class FusedAsmSupport {
     }
 
     static void emitVectorMulScalarCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F16) {
+        if (precisionMode == FusedDTypeOps.MODE_BF16) {
             mv.visitLdcInsn(precisionMode);
             mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", "mulScalar", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
@@ -308,7 +308,7 @@ final class FusedAsmSupport {
     }
 
     static void emitVectorPowCall(MethodVisitor mv, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F16) {
+        if (precisionMode == FusedDTypeOps.MODE_BF16) {
             mv.visitLdcInsn(precisionMode);
             mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", "pow", "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;
@@ -322,7 +322,7 @@ final class FusedAsmSupport {
     }
 
     static void emitVectorClampCall(MethodVisitor mv, String op, int precisionMode) {
-        if (precisionMode == FusedDTypeOps.MODE_F16) {
+        if (precisionMode == FusedDTypeOps.MODE_BF16) {
             mv.visitLdcInsn(precisionMode);
             mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", op, "(Ljava/lang/Object;DI)Ljava/lang/Object;", false);
             return;

@@ -19,9 +19,12 @@ final class Conv2dGemmKernelSupport {
                 bias == null ? null : bias.getFloat32Data(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions());
     }
 
-    static void forwardF16(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
-        runF16(input.getFloat16Data(), input.getShapeUnsafe(), weight.getFloat16Data(), weight.getShapeUnsafe(),
-                bias == null ? null : bias.getFloat16Data(), out.getFloat16Data(), out.getShapeUnsafe(), op.getOptions());
+    static void forwardBF16(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+        runBF16(input.getBFloat16Data(), input.getShapeUnsafe(), weight.getBFloat16Data(), weight.getShapeUnsafe(),
+                bias == null ? null : bias.getBFloat16Data(), out.getBFloat16Data(),
+                out.getShapeUnsafe(),
+                context == null || context.cpuWorkspace() == null ? null : context.cpuWorkspace().requireFloatWorkspace(),
+                op.getOptions());
     }
 
     private static void runF64(
@@ -94,11 +97,12 @@ final class Conv2dGemmKernelSupport {
         }
     }
 
-    private static void runF16(
+    private static void runBF16(
             short[] input, int[] inputShape,
             short[] weight, int[] weightShape,
             short[] bias,
             short[] out, int[] outShape,
+            float[] workspace,
             Conv2dOptions options
     ) {
         int batch = inputShape[0];
@@ -112,16 +116,28 @@ final class Conv2dGemmKernelSupport {
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
 
-        float[] packedWeight = new float[kSize * outChannelsPerGroup];
-        float[] im2col = new float[outSpatial * kSize];
-        float[] gemmOut = new float[outSpatial * outChannelsPerGroup];
+        short[] packedWeight = new short[kSize * outChannelsPerGroup];
+        short[] im2col = new short[outSpatial * kSize];
+        float[] gemmOut = workspace != null && workspace.length >= outSpatial * outChannelsPerGroup
+                ? workspace
+                : new float[outSpatial * outChannelsPerGroup];
 
         for (int b = 0; b < batch; b++) {
             for (int g = 0; g < options.groups(); g++) {
-                packWeightF16(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
-                fillIm2colF16(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
-                runJavaGemmF32(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize);
-                scatterOutputF16(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
+                packWeightBF16(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
+                fillIm2colBF16(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
+                if (!tryBlasBF16(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize)) {
+                    float[] packedWeightF32 = new float[packedWeight.length];
+                    float[] im2colF32 = new float[im2col.length];
+                    for (int i = 0; i < packedWeight.length; i++) {
+                        packedWeightF32[i] = CpuDTypeOps.fromBFloat16Bits(packedWeight[i]);
+                    }
+                    for (int i = 0; i < im2col.length; i++) {
+                        im2colF32[i] = CpuDTypeOps.fromBFloat16Bits(im2col[i]);
+                    }
+                    runJavaGemmF32(im2colF32, packedWeightF32, gemmOut, outSpatial, outChannelsPerGroup, kSize);
+                }
+                scatterOutputBF16(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
             }
         }
     }
@@ -186,8 +202,8 @@ final class Conv2dGemmKernelSupport {
         }
     }
 
-    private static void fillIm2colF16(short[] input, int[] inputShape, int batch, int group, int outH, int outW,
-                                      int channelsPerGroup, int kernelH, int kernelW, Conv2dOptions options, float[] out) {
+    private static void fillIm2colBF16(short[] input, int[] inputShape, int batch, int group, int outH, int outW,
+                                      int channelsPerGroup, int kernelH, int kernelW, Conv2dOptions options, short[] out) {
         int inChannels = inputShape[1];
         int inH = inputShape[2];
         int inW = inputShape[3];
@@ -206,8 +222,8 @@ final class Conv2dGemmKernelSupport {
                             int iw = inOriginW + kw * options.dilationW();
                             out[row * (channelsPerGroup * kernelH * kernelW) + col++] =
                                     (ih < 0 || ih >= inH || iw < 0 || iw >= inW)
-                                            ? 0.0f
-                                            : CpuDTypeOps.fromHalfBits(input[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)]);
+                                            ? (short) 0
+                                            : input[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)];
                         }
                     }
                 }
@@ -252,8 +268,8 @@ final class Conv2dGemmKernelSupport {
         }
     }
 
-    private static void packWeightF16(short[] weight, int[] weightShape, int group, int outChannelsPerGroup,
-                                      int channelsPerGroup, int kernelH, int kernelW, float[] packed) {
+    private static void packWeightBF16(short[] weight, int[] weightShape, int group, int outChannelsPerGroup,
+                                      int channelsPerGroup, int kernelH, int kernelW, short[] packed) {
         int outChannelBase = group * outChannelsPerGroup;
         for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
             int oc = outChannelBase + ocg;
@@ -262,11 +278,23 @@ final class Conv2dGemmKernelSupport {
                 for (int kh = 0; kh < kernelH; kh++) {
                     for (int kw = 0; kw < kernelW; kw++) {
                         packed[kIndex * outChannelsPerGroup + ocg] =
-                                CpuDTypeOps.fromHalfBits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
+                                weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)];
                         kIndex++;
                     }
                 }
             }
+        }
+    }
+
+    private static boolean tryBlasBF16(short[] a, short[] b, float[] c, int m, int n, int k) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            return false;
+        }
+        try {
+            OpenBlasFfmBridge.sbgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 0.0f, c, n);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
@@ -356,7 +384,7 @@ final class Conv2dGemmKernelSupport {
         }
     }
 
-    private static void scatterOutputF16(float[] gemmOut, short[] out, short[] bias, int batch, int group,
+    private static void scatterOutputBF16(float[] gemmOut, short[] out, short[] bias, int batch, int group,
                                          int outChannelsPerGroup, int outH, int outW, int outChannels) {
         int outChannelBase = group * outChannelsPerGroup;
         int row = 0;
@@ -364,8 +392,8 @@ final class Conv2dGemmKernelSupport {
             for (int ow = 0; ow < outW; ow++) {
                 for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
                     int oc = outChannelBase + ocg;
-                    float value = gemmOut[row * outChannelsPerGroup + ocg] + (bias == null ? 0.0f : CpuDTypeOps.fromHalfBits(bias[oc]));
-                    out[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)] = CpuDTypeOps.toHalfBits(value);
+                    float value = gemmOut[row * outChannelsPerGroup + ocg] + (bias == null ? 0.0f : CpuDTypeOps.fromBFloat16Bits(bias[oc]));
+                    out[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)] = CpuDTypeOps.toBFloat16Bits(value);
                 }
                 row++;
             }

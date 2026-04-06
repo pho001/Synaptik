@@ -26,12 +26,12 @@ public final class CpuGatherGradKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof gatherGrad gatherGradOp)) {
             throw new IllegalArgumentException("CpuGatherGradKernel requires gatherGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.scatterF16(pair[0], pair[1], node, gatherGradOp.getDimension());
+        GatherSupport.scatterBF16(pair[0], pair[1], node, gatherGradOp.getDimension());
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

@@ -65,7 +65,7 @@ public class CpuMatMulKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor a = inputs.get(0);
         Tensor b = inputs.get(1);
         int[] as = a.getShapeUnsafe();
@@ -74,11 +74,21 @@ public class CpuMatMulKernel implements CpuKernel {
         int k = as[as.length - 1];
         int n = bs[bs.length - 1];
 
-        short[] ad = a.getFloat16Data();
-        short[] bd = b.getFloat16Data();
-        short[] out = node.getFloat16Data();
+        short[] ad = a.getBFloat16Data();
+        short[] bd = b.getBFloat16Data();
+        short[] out = node.getBFloat16Data();
+        ResolvedMatMulHints hints = requireHints(context);
+        float[] tmp = (hints.useBlas() || hints.useBatchedBlas()) && context.cpuWorkspace() != null
+                ? context.cpuWorkspace().requireFloatWorkspace()
+                : null;
+        if (as.length == 2 && bs.length == 2 && hints.useBlas() && tryBlasBF16(ad, bd, out, tmp, m, n, k)) {
+            return;
+        }
+        if (hints.useBatchedBlas() && tryBatchedBlasBF16(ad, as, bd, bs, out, tmp, node.getShapeUnsafe(), m, n, k)) {
+            return;
+        }
         Arrays.fill(out, (short) 0);
-        runF16(ad, as, bd, bs, out, node.getShapeUnsafe(), requireHints(context));
+        runBF16(ad, as, bd, bs, out, node.getShapeUnsafe(), hints);
     }
 
     static void runF64(double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints) {
@@ -211,7 +221,7 @@ public class CpuMatMulKernel implements CpuKernel {
         }
     }
 
-    static void runF16(short[] a, int[] aShape, short[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints) {
+    static void runBF16(short[] a, int[] aShape, short[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints) {
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -256,12 +266,12 @@ public class CpuMatMulKernel implements CpuKernel {
                     int aRow = aOffset + i * k;
                     int oRow = outOffset + i * n;
                     for (int p = kk; p < kkEnd; p++) {
-                        float av = CpuDTypeOps.fromHalfBits(a[aRow + p]);
+                        float av = CpuDTypeOps.fromBFloat16Bits(a[aRow + p]);
                         int bRow = bOffset + p * n;
                         for (int j = jj; j < jjEnd; j++) {
-                            float cur = CpuDTypeOps.fromHalfBits(out[oRow + j]);
-                            float bv = CpuDTypeOps.fromHalfBits(b[bRow + j]);
-                            out[oRow + j] = CpuDTypeOps.toHalfBits(cur + av * bv);
+                            float cur = CpuDTypeOps.fromBFloat16Bits(out[oRow + j]);
+                            float bv = CpuDTypeOps.fromBFloat16Bits(b[bRow + j]);
+                            out[oRow + j] = CpuDTypeOps.toBFloat16Bits(cur + av * bv);
                         }
                     }
                 }
@@ -464,6 +474,89 @@ public class CpuMatMulKernel implements CpuKernel {
         } catch (Throwable t) {
             if (BlasRuntime.debug()) {
                 System.err.println("[BLAS] Batched SGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
+    }
+
+    static boolean tryBlasBF16(
+            short[] ad,
+            short[] bd,
+            short[] od,
+            float[] tmp,
+            int m,
+            int n,
+            int k
+    ) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            maybeLogBlasUnavailable();
+            return false;
+        }
+        try {
+            if (tmp == null || tmp.length < m * n) {
+                return false;
+            }
+            OpenBlasFfmBridge.sbgemmRowMajorNoTrans(
+                    m, n, k,
+                    1.0f,
+                    ad, k,
+                    bd, n,
+                    0.0f,
+                    tmp, n
+            );
+            for (int i = 0; i < tmp.length; i++) {
+                od[i] = CpuDTypeOps.toBFloat16Bits(tmp[i]);
+            }
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] SBGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
+    }
+
+    static boolean tryBatchedBlasBF16(
+            short[] ad,
+            int[] as,
+            short[] bd,
+            int[] bs,
+            short[] od,
+            float[] tmp,
+            int[] outShape,
+            int m,
+            int n,
+            int k
+    ) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            maybeLogBlasUnavailable();
+            return false;
+        }
+        try {
+            if (tmp == null || tmp.length < od.length) {
+                return false;
+            }
+            int batchCount = batchCount(outShape);
+            int[] aBatchOffsets = computeBatchOffsets(as, outShape);
+            int[] bBatchOffsets = computeBatchOffsets(bs, outShape);
+            int mn = m * n;
+            for (int batch = 0; batch < batchCount; batch++) {
+                OpenBlasFfmBridge.sbgemmRowMajorNoTransOffsets(
+                        m, n, k,
+                        1.0f,
+                        ad, aBatchOffsets[batch], k,
+                        bd, bBatchOffsets[batch], n,
+                        0.0f,
+                        tmp, batch * mn, n
+                );
+            }
+            for (int i = 0; i < od.length; i++) {
+                od[i] = CpuDTypeOps.toBFloat16Bits(tmp[i]);
+            }
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] Batched SBGEMM failed, fallback to Java kernel: " + t.getMessage());
             }
             return false;
         }

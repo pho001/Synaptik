@@ -21,7 +21,7 @@ final class ReductionMinMaxGradKernelSupport {
         runAxisF32(input, inputShape, inputStrides, inputBaseOffset, reduced, reducedShape, reducedBaseOffset, outGrad, out, outBaseOffset, dimension, isMax);
     }
 
-    static void runF16(short[] input, int[] inputShape, int[] inputStrides, int inputBaseOffset, short[] reduced, int[] reducedShape, int reducedBaseOffset, short[] outGrad, short[] out, int outBaseOffset, int dimension, boolean isMax) {
+    static void runBF16(short[] input, int[] inputShape, int[] inputStrides, int inputBaseOffset, short[] reduced, int[] reducedShape, int reducedBaseOffset, short[] outGrad, short[] out, int outBaseOffset, int dimension, boolean isMax) {
         if (dimension == -1) {
             runAllF16(input, inputShape, inputStrides, inputBaseOffset, reduced[reducedBaseOffset], outGrad[outBaseOffset], out, outBaseOffset, isMax);
             return;
@@ -64,21 +64,21 @@ final class ReductionMinMaxGradKernelSupport {
     }
 
     private static void runAllF16(short[] input, int[] inputShape, int[] inputStrides, int inputBaseOffset, short reducedValueBits, short gradValueBits, short[] out, int outBaseOffset, boolean isMax) {
-        float reducedValue = CpuDTypeOps.fromHalfBits(reducedValueBits);
-        float gradValue = CpuDTypeOps.fromHalfBits(gradValueBits);
+        float reducedValue = CpuDTypeOps.fromBFloat16Bits(reducedValueBits);
+        float gradValue = CpuDTypeOps.fromBFloat16Bits(gradValueBits);
         int logicalSize = logicalSize(inputShape);
         int[] denseStrides = TensorMetadata.computeStrides(inputShape);
         int winners = 0;
         for (int logical = 0; logical < logicalSize; logical++) {
-            float value = CpuDTypeOps.fromHalfBits(input[logicalToOffset(logical, inputShape, inputStrides, denseStrides, inputBaseOffset)]);
+            float value = CpuDTypeOps.fromBFloat16Bits(input[logicalToOffset(logical, inputShape, inputStrides, denseStrides, inputBaseOffset)]);
             if (matches(value, reducedValue, isMax)) {
                 winners++;
             }
         }
         float share = winners == 0 ? 0.0f : gradValue / winners;
         for (int logical = 0; logical < logicalSize; logical++) {
-            float value = CpuDTypeOps.fromHalfBits(input[logicalToOffset(logical, inputShape, inputStrides, denseStrides, inputBaseOffset)]);
-            out[outBaseOffset + logical] = CpuDTypeOps.toHalfBits(matches(value, reducedValue, isMax) ? share : 0.0f);
+            float value = CpuDTypeOps.fromBFloat16Bits(input[logicalToOffset(logical, inputShape, inputStrides, denseStrides, inputBaseOffset)]);
+            out[outBaseOffset + logical] = CpuDTypeOps.toBFloat16Bits(matches(value, reducedValue, isMax) ? share : 0.0f);
         }
     }
 
@@ -145,17 +145,17 @@ final class ReductionMinMaxGradKernelSupport {
         for (int group = 0; group < groups; group++) {
             int baseInput = reductionBaseOffset(group, reducedShape, reducedDense, inputStrides, dimension, inputBaseOffset);
             int baseOut = reductionBaseOffset(group, reducedShape, reducedDense, outDense, dimension, outBaseOffset);
-            float reducedValue = CpuDTypeOps.fromHalfBits(reduced[reducedBaseOffset + group]);
+            float reducedValue = CpuDTypeOps.fromBFloat16Bits(reduced[reducedBaseOffset + group]);
             int winners = 0;
             for (int r = 0; r < reducedSize; r++) {
-                if (matches(CpuDTypeOps.fromHalfBits(input[baseInput + r * inStep]), reducedValue, isMax)) {
+                if (matches(CpuDTypeOps.fromBFloat16Bits(input[baseInput + r * inStep]), reducedValue, isMax)) {
                     winners++;
                 }
             }
-            float share = winners == 0 ? 0.0f : CpuDTypeOps.fromHalfBits(outGrad[outBaseOffset + group]) / winners;
+            float share = winners == 0 ? 0.0f : CpuDTypeOps.fromBFloat16Bits(outGrad[outBaseOffset + group]) / winners;
             for (int r = 0; r < reducedSize; r++) {
-                float value = CpuDTypeOps.fromHalfBits(input[baseInput + r * inStep]);
-                out[baseOut + r * outStep] = CpuDTypeOps.toHalfBits(matches(value, reducedValue, isMax) ? share : 0.0f);
+                float value = CpuDTypeOps.fromBFloat16Bits(input[baseInput + r * inStep]);
+                out[baseOut + r * outStep] = CpuDTypeOps.toBFloat16Bits(matches(value, reducedValue, isMax) ? share : 0.0f);
             }
         }
     }

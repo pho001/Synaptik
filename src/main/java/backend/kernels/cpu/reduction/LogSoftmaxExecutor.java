@@ -15,9 +15,9 @@ public final class LogSoftmaxExecutor {
         LogSoftmaxLoops.executeF32(input, node, op.getDimension(), context);
     }
 
-    public void executeF16(logSoftmax op, Tensor input, Tensor node, CpuKernelContext context) {
+    public void executeBF16(logSoftmax op, Tensor input, Tensor node, CpuKernelContext context) {
         validate(op, input, node, context);
-        LogSoftmaxLoops.executeF16(input, node, op.getDimension(), context);
+        LogSoftmaxLoops.executeBF16(input, node, op.getDimension(), context);
     }
 
     private static void validate(logSoftmax op, Tensor input, Tensor node, CpuKernelContext context) {

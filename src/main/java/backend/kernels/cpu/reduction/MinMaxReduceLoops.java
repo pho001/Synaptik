@@ -70,18 +70,18 @@ final class MinMaxReduceLoops {
         reduceAxisF32(in, shape, input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), out, node.getShapeUnsafe(), node.getStorageOffsetUnsafe(), dimension, context, isMax);
     }
 
-    static void executeF16(Tensor input, Tensor node, int dimension, CpuKernelContext context, boolean isMax) {
+    static void executeBF16(Tensor input, Tensor node, int dimension, CpuKernelContext context, boolean isMax) {
         int[] shape = input.getShapeUnsafe();
         validateDimension(shape, dimension);
 
-        short[] in = input.getFloat16Data();
-        short[] out = node.getFloat16Data();
+        short[] in = input.getBFloat16Data();
+        short[] out = node.getBFloat16Data();
         if (in == null || out == null) {
-            throw new IllegalStateException("F16 storage is missing");
+            throw new IllegalStateException("BF16 storage is missing");
         }
 
         if (dimension == -1) {
-            out[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toHalfBits((float) reduceAllF16(
+            out[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits((float) reduceAllF16(
                     in,
                     shape,
                     input.getStridesUnsafe(),
@@ -236,12 +236,12 @@ final class MinMaxReduceLoops {
         int reducedStride = inputStrides[dimension];
         for (int outIndex = start; outIndex < end; outIndex++) {
             int baseOffset = reductionBaseOffset(outIndex, outShape, outDenseStrides, inputStrides, dimension, inputBaseOffset);
-            float best = CpuDTypeOps.fromHalfBits(in[baseOffset]);
+            float best = CpuDTypeOps.fromBFloat16Bits(in[baseOffset]);
             for (int r = 1; r < reducedSize; r++) {
-                float value = CpuDTypeOps.fromHalfBits(in[baseOffset + r * reducedStride]);
+                float value = CpuDTypeOps.fromBFloat16Bits(in[baseOffset + r * reducedStride]);
                 best = isMax ? Math.max(best, value) : Math.min(best, value);
             }
-            out[outBaseOffset + outIndex] = CpuDTypeOps.toHalfBits(best);
+            out[outBaseOffset + outIndex] = CpuDTypeOps.toBFloat16Bits(best);
         }
     }
 
@@ -373,9 +373,9 @@ final class MinMaxReduceLoops {
     }
 
     private static double reduceContiguousRangeF16(short[] in, int start, int end, boolean isMax) {
-        float best = CpuDTypeOps.fromHalfBits(in[start]);
+        float best = CpuDTypeOps.fromBFloat16Bits(in[start]);
         for (int i = start + 1; i < end; i++) {
-            float value = CpuDTypeOps.fromHalfBits(in[i]);
+            float value = CpuDTypeOps.fromBFloat16Bits(in[i]);
             best = isMax ? Math.max(best, value) : Math.min(best, value);
         }
         return best;
@@ -404,9 +404,9 @@ final class MinMaxReduceLoops {
 
     private static double reduceStridedRangeF16(short[] in, int[] shape, int[] strides, int[] denseStrides, int baseOffset, int start, int end, boolean isMax) {
         int offset = logicalToOffset(start, shape, strides, denseStrides, baseOffset);
-        float best = CpuDTypeOps.fromHalfBits(in[offset]);
+        float best = CpuDTypeOps.fromBFloat16Bits(in[offset]);
         for (int logical = start + 1; logical < end; logical++) {
-            float value = CpuDTypeOps.fromHalfBits(in[logicalToOffset(logical, shape, strides, denseStrides, baseOffset)]);
+            float value = CpuDTypeOps.fromBFloat16Bits(in[logicalToOffset(logical, shape, strides, denseStrides, baseOffset)]);
             best = isMax ? Math.max(best, value) : Math.min(best, value);
         }
         return best;

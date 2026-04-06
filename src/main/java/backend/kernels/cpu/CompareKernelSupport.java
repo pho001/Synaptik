@@ -21,7 +21,7 @@ final class CompareKernelSupport {
         scalarDirectF32(type, a, b, out, 0, out.length);
     }
 
-    static void runF16(Operation.OpType type, short[] a, short[] b, byte[] out, ResolvedBroadcastPlan plan, ResolvedDispatchHints hints) {
+    static void runBF16(Operation.OpType type, short[] a, short[] b, byte[] out, ResolvedBroadcastPlan plan, ResolvedDispatchHints hints) {
         if (plan != null && !plan.isNoBroadcast()) {
             scalarBroadcastF16(type, a, b, out, plan, 0, out.length);
             return;
@@ -43,7 +43,7 @@ final class CompareKernelSupport {
 
     private static void scalarDirectF16(Operation.OpType type, short[] a, short[] b, byte[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            out[i] = compare(type, CpuDTypeOps.fromHalfBits(a[i]), CpuDTypeOps.fromHalfBits(b[i]));
+            out[i] = compare(type, CpuDTypeOps.fromBFloat16Bits(a[i]), CpuDTypeOps.fromBFloat16Bits(b[i]));
         }
     }
 
@@ -115,7 +115,7 @@ final class CompareKernelSupport {
             bIdx += coords[d] * bEff[d];
         }
         for (int i = start; i < end; i++) {
-            out[i] = compare(type, CpuDTypeOps.fromHalfBits(a[aIdx]), CpuDTypeOps.fromHalfBits(b[bIdx]));
+            out[i] = compare(type, CpuDTypeOps.fromBFloat16Bits(a[aIdx]), CpuDTypeOps.fromBFloat16Bits(b[bIdx]));
             if (i + 1 < end) {
                 int[] next = nextIndices(coords, outShape, aEff, bEff, aResets, bResets, rank, aIdx, bIdx);
                 aIdx = next[0];

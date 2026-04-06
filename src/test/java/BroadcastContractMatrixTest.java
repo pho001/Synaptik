@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 public class BroadcastContractMatrixTest {
     @ParameterizedTest
-    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void allBroadcastAwareOpsSupportRightAlignedLowerRankRightOperand(DataType dataType) {
         Tensor left = tensor(new double[]{
                 1, 2, 3, 4,
@@ -35,7 +35,7 @@ public class BroadcastContractMatrixTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void allBroadcastAwareOpsSupportRightAlignedLowerRankLeftOperand(DataType dataType) {
         Tensor left = tensor(new double[]{
                 10, 20, 30, 40,
@@ -56,7 +56,7 @@ public class BroadcastContractMatrixTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void addSubMulDivReduceGradientsCorrectlyForRankMismatchBroadcast(DataType dataType) {
         assertBackward("add", dataType);
         assertBackward("sub", dataType);
@@ -65,7 +65,7 @@ public class BroadcastContractMatrixTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void addSubMulDivReduceGradientsCorrectlyWhenBothOperandsBroadcastAcrossDifferentAxes(DataType dataType) {
         assertBackward(
                 "add",
@@ -274,12 +274,12 @@ public class BroadcastContractMatrixTest {
                 }
                 yield new Tensor(out, shape, null, label, DataType.FLOAT32);
             }
-            case FLOAT16 -> {
+            case BFLOAT16 -> {
                 short[] out = new short[values.length];
                 for (int i = 0; i < values.length; i++) {
-                    out[i] = backend.kernels.cpu.CpuDTypeOps.toHalfBits((float) values[i]);
+                    out[i] = backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits((float) values[i]);
                 }
-                yield new Tensor(out, shape, null, label, DataType.FLOAT16);
+                yield new Tensor(out, shape, null, label, DataType.BFLOAT16);
             }
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of BroadcastContractMatrixTest.");
         };
@@ -289,7 +289,7 @@ public class BroadcastContractMatrixTest {
         return switch (dataType) {
             case FLOAT64 -> 1e-9;
             case FLOAT32 -> 1e-5;
-            case FLOAT16 -> 2e-2;
+            case BFLOAT16 -> 2e-2;
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of BroadcastContractMatrixTest.");
         };
     }

@@ -135,7 +135,7 @@ public class Tensor {
         this.metadata = new TensorMetadata(shape, strides, label, previous != null && previous.stream().anyMatch(Tensor::getRequiresGrad), dataType);
         this.prevTensors = previous != null ? new ArrayList<>(previous) : new ArrayList<>();
         validateInputLength(data.length, metadata.getFlatSize(), "short[]");
-        initStorageFromFloat16Array(data);
+        initStorageFromBFloat16Array(data);
     }
 
     public Tensor(byte[] data, int[] shape, List<Tensor> previous, String label) {
@@ -318,7 +318,7 @@ public class Tensor {
             throw new IllegalArgumentException("data cannot be null");
         }
         validateInputLength(data.length, metadata.getFlatSize(), "short[]");
-        initStorageFromFloat16Array(data);
+        initStorageFromBFloat16Array(data);
     }
 
     public void setData(byte[] data) {
@@ -443,8 +443,8 @@ public class Tensor {
         return null;
     }
 
-    public short[] getFloat16Data() {
-        if (storage instanceof Float16Storage s) {
+    public short[] getBFloat16Data() {
+        if (storage instanceof BFloat16Storage s) {
             return s.getShortArray();
         }
         return null;
@@ -1138,7 +1138,7 @@ public class Tensor {
         }
         storage = switch (type) {
             case BOOL -> new BoolStorage(size);
-            case FLOAT16 -> new Float16Storage(size);
+            case BFLOAT16 -> new BFloat16Storage(size);
             case FLOAT32 -> new Float32Storage(size);
             case INT32 -> new Int32Storage(size);
             case FLOAT64 -> throw new IllegalStateException("Unexpected dtype branch");
@@ -1168,9 +1168,9 @@ public class Tensor {
         }
         short[] converted = new short[size];
         for (int i = 0; i < size; i++) {
-            converted[i] = CpuDTypeOps.toHalfBits((float) source[i]);
+            converted[i] = CpuDTypeOps.toBFloat16Bits((float) source[i]);
         }
-        storage = new Float16Storage(converted);
+        storage = new BFloat16Storage(converted);
     }
 
     private void initStorageFromFloatArray(float[] source) {
@@ -1193,17 +1193,17 @@ public class Tensor {
                 }
                 storage = new Float64Storage(converted);
             }
-            case FLOAT16 -> {
+            case BFLOAT16 -> {
                 short[] converted = new short[size];
                 for (int i = 0; i < size; i++) {
-                    converted[i] = CpuDTypeOps.toHalfBits(source[i]);
+                    converted[i] = CpuDTypeOps.toBFloat16Bits(source[i]);
                 }
-                storage = new Float16Storage(converted);
+                storage = new BFloat16Storage(converted);
             }
         }
     }
 
-    private void initStorageFromFloat16Array(short[] source) {
+    private void initStorageFromBFloat16Array(short[] source) {
         if (source == null) {
             throw new IllegalArgumentException("source data cannot be null");
         }
@@ -1213,20 +1213,20 @@ public class Tensor {
         }
         int size = source.length;
         switch (type) {
-            case FLOAT16 -> {
-                storage = new Float16Storage(source);
+            case BFLOAT16 -> {
+                storage = new BFloat16Storage(source);
             }
             case FLOAT32 -> {
                 float[] converted = new float[size];
                 for (int i = 0; i < size; i++) {
-                    converted[i] = CpuDTypeOps.fromHalfBits(source[i]);
+                    converted[i] = CpuDTypeOps.fromBFloat16Bits(source[i]);
                 }
                 storage = new Float32Storage(converted);
             }
             case FLOAT64 -> {
                 double[] converted = new double[size];
                 for (int i = 0; i < size; i++) {
-                    converted[i] = CpuDTypeOps.fromHalfBits(source[i]);
+                    converted[i] = CpuDTypeOps.fromBFloat16Bits(source[i]);
                 }
                 storage = new Float64Storage(converted);
             }
@@ -1275,7 +1275,7 @@ public class Tensor {
         return switch (storage.getType()) {
             case FLOAT64 -> getFloat64Data()[offset];
             case FLOAT32 -> getFloat32Data()[offset];
-            case FLOAT16 -> CpuDTypeOps.fromHalfBits(getFloat16Data()[offset]);
+            case BFLOAT16 -> CpuDTypeOps.fromBFloat16Bits(getBFloat16Data()[offset]);
             case INT32 -> getInt32Data()[offset];
             case BOOL -> getBoolData()[offset] == 0 ? 0.0d : 1.0d;
         };
@@ -1291,7 +1291,7 @@ public class Tensor {
         switch (storage.getType()) {
             case FLOAT64 -> getFloat64Data()[offset] = value;
             case FLOAT32 -> getFloat32Data()[offset] = (float) value;
-            case FLOAT16 -> getFloat16Data()[offset] = CpuDTypeOps.toHalfBits((float) value);
+            case BFLOAT16 -> getBFloat16Data()[offset] = CpuDTypeOps.toBFloat16Bits((float) value);
             case INT32 -> {
                 long integral = Math.round(value);
                 if (Math.abs(value - integral) > 1e-9) {

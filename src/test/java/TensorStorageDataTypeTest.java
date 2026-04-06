@@ -4,7 +4,7 @@ import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
-import tensor.Float16Storage;
+import tensor.BFloat16Storage;
 import tensor.Float32Storage;
 import tensor.Float64Storage;
 import tensor.Tensor;
@@ -36,23 +36,23 @@ public class TensorStorageDataTypeTest {
     }
 
     @Test
-    void float16StorageQuantizesNonFusedOps() {
+    void bfloat16StorageQuantizesNonFusedOps() {
         Tensor a = new Tensor(new double[]{0.123456, 1.654321, -2.222222}, new int[]{3}, null, "a16");
         Tensor b = new Tensor(new double[]{0.333333, -0.777777, 0.999999}, new int[]{3}, null, "b16");
-        a.setDataType(DataType.FLOAT16);
-        b.setDataType(DataType.FLOAT16);
+        a.setDataType(DataType.BFLOAT16);
+        b.setDataType(DataType.BFLOAT16);
 
         Tensor out = a.add(b).sigmoid();
         CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
-        assertTrue(out.getStorage() instanceof Float16Storage, "Output tensor should use Float16Storage");
+        assertTrue(out.getStorage() instanceof BFloat16Storage, "Output tensor should use BFloat16Storage");
 
         double[] expected = new double[out.toDoubleArrayCopy().length];
         double[] aVals = a.toDoubleArrayCopy();
         double[] bVals = b.toDoubleArrayCopy();
         for (int i = 0; i < expected.length; i++) {
-            double s = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_F16);
-            expected[i] = FusedDTypeOps.sigmoid(s, FusedDTypeOps.MODE_F16);
+            double s = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_BF16);
+            expected[i] = FusedDTypeOps.sigmoid(s, FusedDTypeOps.MODE_BF16);
         }
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-3);
     }
@@ -87,11 +87,11 @@ public class TensorStorageDataTypeTest {
     }
 
     @Test
-    void float16NonFusedAddAppliesPerOpPrecision() {
+    void bfloat16NonFusedAddAppliesPerOpPrecision() {
         Tensor a = new Tensor(new double[]{0.1000123, 0.2000456, -0.3000789}, new int[]{3}, null, "a16Strict");
         Tensor b = new Tensor(new double[]{0.000031, -0.000047, 0.000059}, new int[]{3}, null, "b16Strict");
-        a.setDataType(DataType.FLOAT16);
-        b.setDataType(DataType.FLOAT16);
+        a.setDataType(DataType.BFLOAT16);
+        b.setDataType(DataType.BFLOAT16);
 
         Tensor out = a.add(b);
         CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
@@ -100,7 +100,7 @@ public class TensorStorageDataTypeTest {
         double[] aVals = a.toDoubleArrayCopy();
         double[] bVals = b.toDoubleArrayCopy();
         for (int i = 0; i < expected.length; i++) {
-            expected[i] = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_F16);
+            expected[i] = FusedDTypeOps.add(aVals[i], bVals[i], FusedDTypeOps.MODE_BF16);
         }
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 0.0);
     }

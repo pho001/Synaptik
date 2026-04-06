@@ -17,7 +17,7 @@ public final class FusedStorageOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> tensor.getFloat64Data()[index];
             case FusedDTypeOps.MODE_F32 -> tensor.getFloat32Data()[index];
-            case FusedDTypeOps.MODE_F16 -> CpuDTypeOps.fromHalfBits(tensor.getFloat16Data()[index]);
+            case FusedDTypeOps.MODE_BF16 -> CpuDTypeOps.fromBFloat16Bits(tensor.getBFloat16Data()[index]);
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -26,7 +26,7 @@ public final class FusedStorageOps {
         switch (mode) {
             case FusedDTypeOps.MODE_F64 -> tensor.getFloat64Data()[index] = value;
             case FusedDTypeOps.MODE_F32 -> tensor.getFloat32Data()[index] = (float) value;
-            case FusedDTypeOps.MODE_F16 -> tensor.getFloat16Data()[index] = CpuDTypeOps.toHalfBits((float) value);
+            case FusedDTypeOps.MODE_BF16 -> tensor.getBFloat16Data()[index] = CpuDTypeOps.toBFloat16Bits((float) value);
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         }
     }
@@ -39,10 +39,10 @@ public final class FusedStorageOps {
             case FusedDTypeOps.MODE_F32 -> {
                 return loadVectorF32(tensor, index);
             }
-            case FusedDTypeOps.MODE_F16 -> {
+            case FusedDTypeOps.MODE_BF16 -> {
                 double[] lanes = new double[DOUBLE_SPECIES.length()];
-                short[] src = tensor.getFloat16Data();
-                for (int i = 0; i < lanes.length; i++) lanes[i] = CpuDTypeOps.fromHalfBits(src[index + i]);
+                short[] src = tensor.getBFloat16Data();
+                for (int i = 0; i < lanes.length; i++) lanes[i] = CpuDTypeOps.fromBFloat16Bits(src[index + i]);
                 return DoubleVector.fromArray(DOUBLE_SPECIES, lanes, 0);
             }
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
@@ -55,22 +55,22 @@ public final class FusedStorageOps {
             case FusedDTypeOps.MODE_F32 -> {
                 storeVectorF32(tensor, index, (FloatVector) vector);
             }
-            case FusedDTypeOps.MODE_F16 -> {
+            case FusedDTypeOps.MODE_BF16 -> {
                 double[] lanes = new double[DOUBLE_SPECIES.length()];
                 ((DoubleVector) vector).intoArray(lanes, 0);
-                short[] dst = tensor.getFloat16Data();
-                for (int i = 0; i < lanes.length; i++) dst[index + i] = CpuDTypeOps.toHalfBits((float) lanes[i]);
+                short[] dst = tensor.getBFloat16Data();
+                for (int i = 0; i < lanes.length; i++) dst[index + i] = CpuDTypeOps.toBFloat16Bits((float) lanes[i]);
             }
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         }
     }
 
     public static double loadScalarF16Array(short[] src, int index) {
-        return CpuDTypeOps.fromHalfBits(src[index]);
+        return CpuDTypeOps.fromBFloat16Bits(src[index]);
     }
 
     public static void storeScalarF16Array(short[] dst, int index, double value) {
-        dst[index] = CpuDTypeOps.toHalfBits((float) value);
+        dst[index] = CpuDTypeOps.toBFloat16Bits((float) value);
     }
 
     public static DoubleVector loadVectorF64(Tensor tensor, int index) {
@@ -92,7 +92,7 @@ public final class FusedStorageOps {
     public static Object loadVectorF16Array(short[] src, int index) {
         double[] lanes = new double[DOUBLE_SPECIES.length()];
         for (int i = 0; i < lanes.length; i++) {
-            lanes[i] = CpuDTypeOps.fromHalfBits(src[index + i]);
+            lanes[i] = CpuDTypeOps.fromBFloat16Bits(src[index + i]);
         }
         return DoubleVector.fromArray(DOUBLE_SPECIES, lanes, 0);
     }
@@ -131,7 +131,7 @@ public final class FusedStorageOps {
         double[] lanes = new double[DOUBLE_SPECIES.length()];
         ((DoubleVector) vector).intoArray(lanes, 0);
         for (int i = 0; i < lanes.length; i++) {
-            dst[index + i] = CpuDTypeOps.toHalfBits((float) lanes[i]);
+            dst[index + i] = CpuDTypeOps.toBFloat16Bits((float) lanes[i]);
         }
     }
 }

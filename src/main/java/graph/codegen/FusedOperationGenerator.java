@@ -11,7 +11,7 @@ public final class FusedOperationGenerator {
     ) {
         if (precisionMode != FusedDTypeOps.MODE_F32
                 && precisionMode != FusedDTypeOps.MODE_F64
-                && precisionMode != FusedDTypeOps.MODE_F16) {
+                && precisionMode != FusedDTypeOps.MODE_BF16) {
             throw new IllegalArgumentException("Unsupported fused precision mode=" + precisionMode);
         }
 

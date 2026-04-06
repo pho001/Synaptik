@@ -14,7 +14,7 @@ public final class CpuNotEqualToKernel implements CpuKernel {
         switch (inputs.get(0).getDataType()) {
             case FLOAT64 -> CompareKernelSupport.runF64(Operation.OpType.NE, inputs.get(0).getFloat64Data(), inputs.get(1).getFloat64Data(), node.getBoolData(), context.broadcastPlan(), context.dispatchHints());
             case FLOAT32 -> CompareKernelSupport.runF32(Operation.OpType.NE, inputs.get(0).getFloat32Data(), inputs.get(1).getFloat32Data(), node.getBoolData(), context.broadcastPlan(), context.dispatchHints());
-            case FLOAT16 -> CompareKernelSupport.runF16(Operation.OpType.NE, inputs.get(0).getFloat16Data(), inputs.get(1).getFloat16Data(), node.getBoolData(), context.broadcastPlan(), context.dispatchHints());
+            case BFLOAT16 -> CompareKernelSupport.runBF16(Operation.OpType.NE, inputs.get(0).getBFloat16Data(), inputs.get(1).getBFloat16Data(), node.getBoolData(), context.broadcastPlan(), context.dispatchHints());
             case INT32, BOOL -> throw new IllegalArgumentException("notEqualTo does not support INT32/BOOL inputs.");
         }
     }

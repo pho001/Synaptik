@@ -20,9 +20,9 @@ public final class CpuLinearKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         linear linear = require(op);
-        LinearKernelSupport.forwardF16(linear, inputs.get(0), inputs.get(1), linear.hasBias() ? inputs.get(2) : null, node, context);
+        LinearKernelSupport.forwardBF16(linear, inputs.get(0), inputs.get(1), linear.hasBias() ? inputs.get(2) : null, node, context);
     }
 
     private static linear require(Operation op) {

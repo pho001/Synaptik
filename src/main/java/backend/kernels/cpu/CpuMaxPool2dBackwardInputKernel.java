@@ -18,8 +18,8 @@ public final class CpuMaxPool2dBackwardInputKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dKernelSupport.maxBackwardInputF16(require(op), inputs.get(0), node, context.cpuWorkspace().requireIntWorkspace());
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        Pool2dKernelSupport.maxBackwardInputBF16(require(op), inputs.get(0), node, context.cpuWorkspace().requireIntWorkspace());
     }
 
     private static maxPool2dBackwardInput require(Operation op) {

@@ -18,6 +18,7 @@ import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
 import operations.FusedOperation;
 import operations.Operation;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -227,7 +228,7 @@ public class CompiledGraph {
             switch (tensor.getGradient().getDataType()) {
                 case FLOAT64 -> java.util.Arrays.fill(tensor.getGradient().getFloat64Data(), 0.0d);
                 case FLOAT32 -> java.util.Arrays.fill(tensor.getGradient().getFloat32Data(), 0.0f);
-                case FLOAT16 -> java.util.Arrays.fill(tensor.getGradient().getFloat16Data(), (short) 0);
+                case BFLOAT16 -> java.util.Arrays.fill(tensor.getGradient().getBFloat16Data(), (short) 0);
                 case INT32 -> java.util.Arrays.fill(tensor.getGradient().getInt32Data(), 0);
                 case BOOL -> java.util.Arrays.fill(tensor.getGradient().getBoolData(), (byte) 0);
             }
@@ -273,20 +274,34 @@ public class CompiledGraph {
         if (operation.opType() == Operation.OpType.FUSED) {
             fusedKernel = FUSED_KERNEL_FACTORY.create((FusedOperation) operation);
         }
-        CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(tensor, operation, preparedMetadata);
+        CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(tensor, operation, cpuPlan, preparedMetadata);
         return new CompiledNodeExecutionMetadata(backend, kernel, cpuPlan, fusedKernel, cpuWorkspace);
     }
 
     private CpuNodeWorkspace resolveCpuWorkspace(
             Tensor tensor,
             Operation operation,
+            CpuNodeExecutionPlan cpuPlan,
             Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata
     ) {
         return switch (operation.opType()) {
             case MAX_POOL2D -> CpuNodeWorkspace.withIntWorkspace(tensor.getFlatDataSize());
             case MAX_POOL2D_BACKWARD_INPUT -> resolveSharedMaxPoolWorkspace(tensor, preparedMetadata);
+            case MATMUL, LINEAR -> needsBFloat16BlasWorkspace(tensor, cpuPlan)
+                    ? CpuNodeWorkspace.withFloatWorkspace(tensor.getFlatDataSize())
+                    : null;
+            case CONV2D_GEMM -> tensor.getDataType() == DataType.BFLOAT16
+                    ? CpuNodeWorkspace.withFloatWorkspace(tensor.getFlatDataSize())
+                    : null;
             default -> null;
         };
+    }
+
+    private boolean needsBFloat16BlasWorkspace(Tensor tensor, CpuNodeExecutionPlan cpuPlan) {
+        return tensor.getDataType() == DataType.BFLOAT16
+                && cpuPlan != null
+                && cpuPlan.matMulHints() != null
+                && (cpuPlan.matMulHints().useBlas() || cpuPlan.matMulHints().useBatchedBlas());
     }
 
     private CpuNodeWorkspace resolveSharedMaxPoolWorkspace(

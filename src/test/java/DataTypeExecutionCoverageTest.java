@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class DataTypeExecutionCoverageTest {
 
     @ParameterizedTest
-    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void nonFusedElementWiseAcrossAllDataTypes(DataType dataType) {
         int mode = modeFor(dataType);
         double eps = epsFor(dataType);
@@ -54,7 +54,7 @@ public class DataTypeExecutionCoverageTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void fusedElementWiseAcrossAllDataTypes(DataType dataType) {
         int mode = modeFor(dataType);
         double eps = epsForChain(dataType);
@@ -71,7 +71,7 @@ public class DataTypeExecutionCoverageTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "FLOAT16"})
+    @EnumSource(value = DataType.class, names = {"FLOAT64", "FLOAT32", "BFLOAT16"})
     void sumAndContiguousAcrossAllDataTypes(DataType dataType) {
         int mode = modeFor(dataType);
         double eps = epsFor(dataType);
@@ -106,7 +106,7 @@ public class DataTypeExecutionCoverageTest {
         return switch (dataType) {
             case FLOAT64 -> FusedDTypeOps.MODE_F64;
             case FLOAT32 -> FusedDTypeOps.MODE_F32;
-            case FLOAT16 -> FusedDTypeOps.MODE_F16;
+            case BFLOAT16 -> FusedDTypeOps.MODE_BF16;
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of DataTypeExecutionCoverageTest.");
         };
     }
@@ -115,7 +115,7 @@ public class DataTypeExecutionCoverageTest {
         return switch (dataType) {
             case FLOAT64 -> 1e-9;
             case FLOAT32 -> 1e-6;
-            case FLOAT16 -> 2e-3;
+            case BFLOAT16 -> 2e-3;
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of DataTypeExecutionCoverageTest.");
         };
     }
@@ -124,7 +124,7 @@ public class DataTypeExecutionCoverageTest {
         return switch (dataType) {
             case FLOAT64 -> 1e-9;
             case FLOAT32 -> 1e-6;
-            case FLOAT16 -> 6e-3;
+            case BFLOAT16 -> 6e-3;
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of DataTypeExecutionCoverageTest.");
         };
     }

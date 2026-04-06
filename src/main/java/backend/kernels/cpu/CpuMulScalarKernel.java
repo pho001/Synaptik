@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.f16.MulScalarF16;
+import backend.kernels.cpu.bf16.MulScalarBF16;
 import backend.kernels.cpu.f32.MulScalarF32;
 import backend.kernels.cpu.f64.MulScalarF64;
 import operations.Operation;
@@ -26,9 +26,9 @@ public class CpuMulScalarKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        short[] in = inputs.get(0).getFloat16Data();
-        short[] out = node.getFloat16Data();
-        MulScalarF16.run(in, ((mulScalar) op).getScalar(), out, context.dispatchHints());
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        short[] in = inputs.get(0).getBFloat16Data();
+        short[] out = node.getBFloat16Data();
+        MulScalarBF16.run(in, ((mulScalar) op).getScalar(), out, context.dispatchHints());
     }
 }

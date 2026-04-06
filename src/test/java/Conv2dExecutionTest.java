@@ -110,7 +110,7 @@ public class Conv2dExecutionTest {
     }
 
     @Test
-    void conv2dSupportsFloat32AndFloat16Execution() {
+    void conv2dSupportsFloat32AndBFloat16Execution() {
         Tensor input32 = new Tensor(new float[]{
                 1, 2, 3,
                 4, 5, 6,
@@ -126,24 +126,24 @@ public class Conv2dExecutionTest {
         assertArrayEquals(new double[]{-4, -4, -4, -4}, out32.toDoubleArrayCopy(), 1e-6);
 
         short[] input16Data = new short[]{
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(1),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(2),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(3),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(4),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(5),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(6),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(7),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(8),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(9)
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(1),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(2),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(3),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(4),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(5),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(6),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(7),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(8),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(9)
         };
         short[] weight16Data = new short[]{
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(1),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(0),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(0),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(-1)
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(1),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(0),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(0),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(-1)
         };
-        Tensor input16 = new Tensor(input16Data, new int[]{1, 1, 3, 3}, null, "input16", DataType.FLOAT16);
-        Tensor weight16 = new Tensor(weight16Data, new int[]{1, 1, 2, 2}, null, "weight16", DataType.FLOAT16);
+        Tensor input16 = new Tensor(input16Data, new int[]{1, 1, 3, 3}, null, "input16", DataType.BFLOAT16);
+        Tensor weight16 = new Tensor(weight16Data, new int[]{1, 1, 2, 2}, null, "weight16", DataType.BFLOAT16);
         Tensor out16 = input16.conv2d(weight16, Conv2dOptions.defaults());
         CompiledGraph.compile(out16, OptimizerConfig.noOptimization())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);

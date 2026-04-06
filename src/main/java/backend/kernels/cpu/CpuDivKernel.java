@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.f16.DivF16;
+import backend.kernels.cpu.bf16.DivBF16;
 import backend.kernels.cpu.f32.DivF32;
 import backend.kernels.cpu.f64.DivF64;
 import operations.Operation;
@@ -40,16 +40,16 @@ public class CpuDivKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        short[] a = inputs.get(0).getFloat16Data();
-        short[] b = inputs.get(1).getFloat16Data();
-        short[] out = node.getFloat16Data();
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        short[] a = inputs.get(0).getBFloat16Data();
+        short[] b = inputs.get(1).getBFloat16Data();
+        short[] out = node.getBFloat16Data();
         ResolvedDispatchHints hints = context.dispatchHints();
         ResolvedBroadcastPlan plan = context.broadcastPlan();
         if (plan != null && !plan.isNoBroadcast()) {
-            BroadcastBinaryKernel.runF16(Operation.OpType.DIV, a, b, out, plan, hints);
+            BroadcastBinaryKernel.runBF16(Operation.OpType.DIV, a, b, out, plan, hints);
             return;
         }
-        DivF16.run(a, b, out, hints);
+        DivBF16.run(a, b, out, hints);
     }
 }

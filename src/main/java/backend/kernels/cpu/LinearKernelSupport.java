@@ -21,10 +21,10 @@ final class LinearKernelSupport {
         }
     }
 
-    static void forwardF16(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
-        runMatMulF16(input, weight, out, context);
+    static void forwardBF16(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+        runMatMulBF16(input, weight, out, context);
         if (op.hasBias()) {
-            addBiasF16(out, bias);
+            addBiasBF16(out, bias);
         }
     }
 
@@ -68,12 +68,27 @@ final class LinearKernelSupport {
         CpuMatMulKernel.runF32(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
     }
 
-    private static void runMatMulF16(Tensor input, Tensor weight, Tensor out, CpuKernelContext context) {
-        short[] ad = input.getFloat16Data();
-        short[] bd = weight.getFloat16Data();
-        short[] od = out.getFloat16Data();
+    private static void runMatMulBF16(Tensor input, Tensor weight, Tensor out, CpuKernelContext context) {
+        int[] as = input.getShapeUnsafe();
+        int[] bs = weight.getShapeUnsafe();
+        int m = as[as.length - 2];
+        int k = as[as.length - 1];
+        int n = bs[bs.length - 1];
+        short[] ad = input.getBFloat16Data();
+        short[] bd = weight.getBFloat16Data();
+        short[] od = out.getBFloat16Data();
+        ResolvedMatMulHints hints = requireHints(context);
+        float[] tmp = (hints.useBlas() || hints.useBatchedBlas()) && context.cpuWorkspace() != null
+                ? context.cpuWorkspace().requireFloatWorkspace()
+                : null;
+        if (as.length == 2 && bs.length == 2 && hints.useBlas() && CpuMatMulKernel.tryBlasBF16(ad, bd, od, tmp, m, n, k)) {
+            return;
+        }
+        if (hints.useBatchedBlas() && CpuMatMulKernel.tryBatchedBlasBF16(ad, as, bd, bs, od, tmp, out.getShapeUnsafe(), m, n, k)) {
+            return;
+        }
         java.util.Arrays.fill(od, (short) 0);
-        CpuMatMulKernel.runF16(ad, input.getShapeUnsafe(), bd, weight.getShapeUnsafe(), od, out.getShapeUnsafe(), requireHints(context));
+        CpuMatMulKernel.runBF16(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
     }
 
     private static void addBiasF64(Tensor out, Tensor bias) {
@@ -94,13 +109,13 @@ final class LinearKernelSupport {
         }
     }
 
-    private static void addBiasF16(Tensor out, Tensor bias) {
-        short[] outData = out.getFloat16Data();
-        short[] biasData = bias.getFloat16Data();
+    private static void addBiasBF16(Tensor out, Tensor bias) {
+        short[] outData = out.getBFloat16Data();
+        short[] biasData = bias.getBFloat16Data();
         int outFeatures = bias.getShapeUnsafe()[0];
         for (int i = 0; i < outData.length; i++) {
-            float value = CpuDTypeOps.fromHalfBits(outData[i]) + CpuDTypeOps.fromHalfBits(biasData[i % outFeatures]);
-            outData[i] = CpuDTypeOps.toHalfBits(value);
+            float value = CpuDTypeOps.fromBFloat16Bits(outData[i]) + CpuDTypeOps.fromBFloat16Bits(biasData[i % outFeatures]);
+            outData[i] = CpuDTypeOps.toBFloat16Bits(value);
         }
     }
 

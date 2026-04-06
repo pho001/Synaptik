@@ -72,14 +72,14 @@ public class AddBroadcastTest {
     }
 
     @Test
-    public void testAddBackwardBroadcastFloat16() {
+    public void testAddBackwardBroadcastBFloat16() {
         Tensor a = new Tensor(new short[]{
-                CpuDTypeOps.toHalfBits(1f), CpuDTypeOps.toHalfBits(2f), CpuDTypeOps.toHalfBits(3f),
-                CpuDTypeOps.toHalfBits(4f), CpuDTypeOps.toHalfBits(5f), CpuDTypeOps.toHalfBits(6f)
-        }, new int[]{2, 3}, null, "a", DataType.FLOAT16);
+                CpuDTypeOps.toBFloat16Bits(1f), CpuDTypeOps.toBFloat16Bits(2f), CpuDTypeOps.toBFloat16Bits(3f),
+                CpuDTypeOps.toBFloat16Bits(4f), CpuDTypeOps.toBFloat16Bits(5f), CpuDTypeOps.toBFloat16Bits(6f)
+        }, new int[]{2, 3}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new short[]{
-                CpuDTypeOps.toHalfBits(10f), CpuDTypeOps.toHalfBits(20f), CpuDTypeOps.toHalfBits(30f)
-        }, new int[]{3}, null, "b", DataType.FLOAT16);
+                CpuDTypeOps.toBFloat16Bits(10f), CpuDTypeOps.toBFloat16Bits(20f), CpuDTypeOps.toBFloat16Bits(30f)
+        }, new int[]{3}, null, "b", DataType.BFLOAT16);
         a.setRequiresGrad(true);
         b.setRequiresGrad(true);
 

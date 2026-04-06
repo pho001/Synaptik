@@ -12,6 +12,7 @@ import tuning.validate.DefaultValidationEngine;
 import tuning.validate.TensorSnapshot;
 import tuning.validate.ValidationPolicy;
 import tuning.validate.ValidationReference;
+import tuning.validate.ValidationTarget;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadEnvironment;
 import tuning.workload.WorkloadKind;
@@ -86,6 +87,32 @@ public class ValidationEngineTest {
         );
 
         Candidate candidate = new Candidate("baseline", profile(ExecutionMode.FORWARD));
+        var instance = workload.instantiate(new WorkloadEnvironment(candidate.profile()));
+        var result = new DefaultValidationEngine().validate(candidate, workload, instance, ValidationPolicy.defaults());
+
+        assertTrue(result.valid());
+    }
+
+    @Test
+    void validationUsesExplicitValidationRootInsteadOfBenchmarkRoot() {
+        TensorRootWorkloadSpec workload = new TensorRootWorkloadSpec(
+                "validation_root",
+                WorkloadKind.GENERIC,
+                environment -> {
+                    Tensor validationOutput = Tensor.scalar(2.0).add(Tensor.scalar(3.0));
+                    validationOutput.setLabel("validation_target");
+                    return validationOutput.sum();
+                },
+                environment -> ValidationTarget.label("validation_target"),
+                environment -> ValidationReference.snapshot(
+                        TensorSnapshot.capture("out", Tensor.scalar(5.0)),
+                        Map.of(),
+                        List.of()
+                ),
+                environment -> WorkloadMetadata.of("validation_root", WorkloadKind.GENERIC)
+        );
+
+        Candidate candidate = new Candidate("validation_root", profile(ExecutionMode.FORWARD));
         var instance = workload.instantiate(new WorkloadEnvironment(candidate.profile()));
         var result = new DefaultValidationEngine().validate(candidate, workload, instance, ValidationPolicy.defaults());
 

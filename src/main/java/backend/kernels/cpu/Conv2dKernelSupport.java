@@ -20,9 +20,9 @@ final class Conv2dKernelSupport {
                 input.getShapeUnsafe(), weight.getShapeUnsafe(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions());
     }
 
-    static void forwardF16(conv2d op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
-        runForwardF16(input.getFloat16Data(), weight.getFloat16Data(), bias == null ? null : bias.getFloat16Data(),
-                input.getShapeUnsafe(), weight.getShapeUnsafe(), out.getFloat16Data(), out.getShapeUnsafe(), op.getOptions());
+    static void forwardBF16(conv2d op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
+        runForwardF16(input.getBFloat16Data(), weight.getBFloat16Data(), bias == null ? null : bias.getBFloat16Data(),
+                input.getShapeUnsafe(), weight.getShapeUnsafe(), out.getBFloat16Data(), out.getShapeUnsafe(), op.getOptions());
     }
 
     static void backwardInputF64(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
@@ -36,7 +36,7 @@ final class Conv2dKernelSupport {
     }
 
     static void backwardInputF16(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
-        runBackwardInputF16(weight.getFloat16Data(), outGrad.getFloat16Data(), gradInput.getFloat16Data(),
+        runBackwardInputF16(weight.getBFloat16Data(), outGrad.getBFloat16Data(), gradInput.getBFloat16Data(),
                 op.getInputShape(), weight.getShapeUnsafe(), outGrad.getShapeUnsafe(), op.getOptions());
     }
 
@@ -51,7 +51,7 @@ final class Conv2dKernelSupport {
     }
 
     static void backwardWeightF16(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
-        runBackwardWeightF16(input.getFloat16Data(), outGrad.getFloat16Data(), gradWeight.getFloat16Data(),
+        runBackwardWeightF16(input.getBFloat16Data(), outGrad.getBFloat16Data(), gradWeight.getBFloat16Data(),
                 input.getShapeUnsafe(), op.getWeightShape(), outGrad.getShapeUnsafe(), op.getOptions());
     }
 
@@ -179,7 +179,7 @@ final class Conv2dKernelSupport {
                 int outChannelBase = g * outChannelsPerGroup;
                 for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
                     int oc = outChannelBase + ocg;
-                    float biasValue = bias == null ? 0.0f : CpuDTypeOps.fromHalfBits(bias[oc]);
+                    float biasValue = bias == null ? 0.0f : CpuDTypeOps.fromBFloat16Bits(bias[oc]);
                     for (int oh = 0; oh < outH; oh++) {
                         int inOriginH = oh * options.strideH() - options.padH();
                         for (int ow = 0; ow < outW; ow++) {
@@ -193,12 +193,12 @@ final class Conv2dKernelSupport {
                                     for (int kw = 0; kw < kernelW; kw++) {
                                         int iw = inOriginW + kw * options.dilationW();
                                         if (iw < 0 || iw >= inW) continue;
-                                        acc += CpuDTypeOps.fromHalfBits(input[indexNCHW(batch, ic, ih, iw, inputShape[1], inH, inW)])
-                                                * CpuDTypeOps.fromHalfBits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
+                                        acc += CpuDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, ic, ih, iw, inputShape[1], inH, inW)])
+                                                * CpuDTypeOps.fromBFloat16Bits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
                                     }
                                 }
                             }
-                            out[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)] = CpuDTypeOps.toHalfBits(acc);
+                            out[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)] = CpuDTypeOps.toBFloat16Bits(acc);
                         }
                     }
                 }
@@ -332,7 +332,7 @@ final class Conv2dKernelSupport {
                     for (int oh = 0; oh < outH; oh++) {
                         int inOriginH = oh * options.strideH() - options.padH();
                         for (int ow = 0; ow < outW; ow++) {
-                            float grad = CpuDTypeOps.fromHalfBits(outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)]);
+                            float grad = CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)]);
                             int inOriginW = ow * options.strideW() - options.padW();
                             for (int icg = 0; icg < channelsPerGroup; icg++) {
                                 int ic = inChannelBase + icg;
@@ -343,7 +343,7 @@ final class Conv2dKernelSupport {
                                         int iw = inOriginW + kw * options.dilationW();
                                         if (iw < 0 || iw >= inW) continue;
                                         accum[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)] +=
-                                                grad * CpuDTypeOps.fromHalfBits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
+                                                grad * CpuDTypeOps.fromBFloat16Bits(weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)]);
                                     }
                                 }
                             }
@@ -353,7 +353,7 @@ final class Conv2dKernelSupport {
             }
         }
         for (int i = 0; i < accum.length; i++) {
-            gradInput[i] = CpuDTypeOps.toHalfBits(accum[i]);
+            gradInput[i] = CpuDTypeOps.toBFloat16Bits(accum[i]);
         }
     }
 
@@ -489,8 +489,8 @@ final class Conv2dKernelSupport {
                                     for (int ow = 0; ow < outW; ow++) {
                                         int iw = ow * options.strideW() - options.padW() + kw * options.dilationW();
                                         if (iw < 0 || iw >= inW) continue;
-                                        acc += CpuDTypeOps.fromHalfBits(input[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)])
-                                                * CpuDTypeOps.fromHalfBits(outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)]);
+                                        acc += CpuDTypeOps.fromBFloat16Bits(input[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)])
+                                                * CpuDTypeOps.fromBFloat16Bits(outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)]);
                                     }
                                 }
                             }
@@ -501,7 +501,7 @@ final class Conv2dKernelSupport {
             }
         }
         for (int i = 0; i < size; i++) {
-            gradWeight[i] = CpuDTypeOps.toHalfBits(accum[i]);
+            gradWeight[i] = CpuDTypeOps.toBFloat16Bits(accum[i]);
         }
     }
 

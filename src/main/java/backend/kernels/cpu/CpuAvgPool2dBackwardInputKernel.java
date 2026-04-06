@@ -18,8 +18,8 @@ public final class CpuAvgPool2dBackwardInputKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dKernelSupport.avgBackwardInputF16(require(op), inputs.get(0), node);
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        Pool2dKernelSupport.avgBackwardInputBF16(require(op), inputs.get(0), node);
     }
 
     private static avgPool2dBackwardInput require(Operation op) {

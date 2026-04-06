@@ -44,17 +44,17 @@ public class FusedExecutionModesTest {
     }
 
     @Test
-    void fusedGraphRespectsFloat32AndFloat16Modes() {
+    void fusedGraphRespectsFloat32AndBFloat16Modes() {
         int size = 4096;
         double[] aVals = buildInput(size, 0.06);
         double[] bVals = buildInput(size, -0.02);
         double[] cVals = buildInput(size, 0.01);
 
         double[] outF32 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT32);
-        double[] outF16 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT16);
+        double[] outF16 = runTypedFused(aVals, bVals, cVals, DataType.BFLOAT16);
 
         double[] expectedF32 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_F32);
-        double[] expectedF16 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_F16);
+        double[] expectedF16 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_BF16);
 
         assertArrayEquals(expectedF32, outF32, 1e-6);
         assertArrayEquals(expectedF16, outF16, 2e-3);
@@ -96,7 +96,7 @@ public class FusedExecutionModesTest {
     }
 
     @Test
-    void fusedFloat16MatchesBaselineWithBroadcastInputs() {
+    void fusedBFloat16MatchesBaselineWithBroadcastInputs() {
         Tensor aBase = new Tensor(new double[]{
                 1, 2, 3, 4,
                 5, 6, 7, 8
@@ -123,9 +123,9 @@ public class FusedExecutionModesTest {
         Tensor a = new Tensor(aBase.toDoubleArrayCopy(), new int[]{2, 1, 4}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(bBase.toDoubleArrayCopy(), new int[]{1, 3, 4}, null, "b", DataType.FLOAT64);
         Tensor c = new Tensor(cBase.toDoubleArrayCopy(), new int[]{2, 3, 4}, null, "c", DataType.FLOAT64);
-        a.setDataType(DataType.FLOAT16);
-        b.setDataType(DataType.FLOAT16);
-        c.setDataType(DataType.FLOAT16);
+        a.setDataType(DataType.BFLOAT16);
+        b.setDataType(DataType.BFLOAT16);
+        c.setDataType(DataType.BFLOAT16);
 
         Tensor out = a.add(b).mul(c).add(a).sigmoid();
         CompiledGraph.compile(out, fuseOnlyInferenceConfig())
@@ -135,7 +135,7 @@ public class FusedExecutionModesTest {
     }
 
     @Test
-    void fusedFloat16MatchesBaselineWithNonContiguousInputs() {
+    void fusedBFloat16MatchesBaselineWithNonContiguousInputs() {
         Tensor aBase = new Tensor(
                 new double[]{1, 2, 3, 4, 5, 6},
                 new int[]{2, 3},
@@ -173,8 +173,8 @@ public class FusedExecutionModesTest {
                 "b",
                 DataType.FLOAT64
         );
-        a.setDataType(DataType.FLOAT16);
-        b.setDataType(DataType.FLOAT16);
+        a.setDataType(DataType.BFLOAT16);
+        b.setDataType(DataType.BFLOAT16);
 
         Tensor out = a.add(b).mul(a).sigmoid();
         CompiledGraph.compile(out, fuseOnlyInferenceConfig())
@@ -369,7 +369,7 @@ public class FusedExecutionModesTest {
     }
 
     @Test
-    void fusedFloat16SupportsCompareLogicalWhereGraph() {
+    void fusedBFloat16SupportsCompareLogicalWhereGraph() {
         int size = 4096;
         double[] aVals = buildInput(size, 0.08);
         double[] bVals = buildInput(size, -0.03);
@@ -389,10 +389,10 @@ public class FusedExecutionModesTest {
         Tensor b = new Tensor(bVals.clone(), new int[]{size}, null, "b", DataType.FLOAT64);
         Tensor x = new Tensor(xVals.clone(), new int[]{size}, null, "x", DataType.FLOAT64);
         Tensor y = new Tensor(yVals.clone(), new int[]{size}, null, "y", DataType.FLOAT64);
-        a.setDataType(DataType.FLOAT16);
-        b.setDataType(DataType.FLOAT16);
-        x.setDataType(DataType.FLOAT16);
-        y.setDataType(DataType.FLOAT16);
+        a.setDataType(DataType.BFLOAT16);
+        b.setDataType(DataType.BFLOAT16);
+        x.setDataType(DataType.BFLOAT16);
+        y.setDataType(DataType.BFLOAT16);
 
         Tensor out = Tensor.where(a.greaterThan(b).logicalOr(a.lessThan(b)), x, y).sigmoid();
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
@@ -400,12 +400,12 @@ public class FusedExecutionModesTest {
 
         boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
                 .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in FLOAT16 compare/logical/where graph");
+        assertTrue(hasFused, "Expected fused node in BFLOAT16 compare/logical/where graph");
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 
     @Test
-    void fusedFloat16SupportsAbsAndClampGraph() {
+    void fusedBFloat16SupportsAbsAndClampGraph() {
         int size = 4096;
         double[] aVals = buildInput(size, 0.06);
         double[] bVals = buildInput(size, -0.05);
@@ -419,8 +419,8 @@ public class FusedExecutionModesTest {
 
         Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(bVals.clone(), new int[]{size}, null, "b", DataType.FLOAT64);
-        a.setDataType(DataType.FLOAT16);
-        b.setDataType(DataType.FLOAT16);
+        a.setDataType(DataType.BFLOAT16);
+        b.setDataType(DataType.BFLOAT16);
 
         Tensor out = a.sub(b).abs().clampMin(-0.25).clampMax(0.75).sigmoid();
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
@@ -428,7 +428,7 @@ public class FusedExecutionModesTest {
 
         boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
                 .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in FLOAT16 abs/clamp graph");
+        assertTrue(hasFused, "Expected fused node in BFLOAT16 abs/clamp graph");
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 

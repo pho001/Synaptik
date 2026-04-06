@@ -43,10 +43,10 @@ public final class NllLossLoops {
         );
     }
 
-    public static void executeF16(Tensor logProbs, Tensor targets, Tensor node, int classDimension, CpuKernelContext context) {
+    public static void executeBF16(Tensor logProbs, Tensor targets, Tensor node, int classDimension, CpuKernelContext context) {
         validate(logProbs, targets, node, classDimension);
-        short[] logData = logProbs.getFloat16Data();
-        short[] targetData = targets.getFloat16Data();
+        short[] logData = logProbs.getBFloat16Data();
+        short[] targetData = targets.getBFloat16Data();
         float loss = (float) reduceMeanLoss(
                 logProbs.getShapeUnsafe(),
                 logProbs.getStridesUnsafe(),
@@ -57,7 +57,7 @@ public final class NllLossLoops {
                 context.reductionHints(),
                 group -> computeGroupF16(logData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
         );
-        node.getFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toHalfBits(loss);
+        node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
     }
 
     private static void validate(Tensor logProbs, Tensor targets, Tensor node, int classDimension) {
@@ -102,7 +102,7 @@ public final class NllLossLoops {
     private static double computeGroupF16(short[] logData, short[] targetData, int baseLog, int baseTarget, int axisStrideLog, int axisStrideTarget, int axisSize) {
         double loss = 0.0;
         for (int i = 0, logOffset = baseLog, targetOffset = baseTarget; i < axisSize; i++, logOffset += axisStrideLog, targetOffset += axisStrideTarget) {
-            loss -= CpuDTypeOps.fromHalfBits(targetData[targetOffset]) * CpuDTypeOps.fromHalfBits(logData[logOffset]);
+            loss -= CpuDTypeOps.fromBFloat16Bits(targetData[targetOffset]) * CpuDTypeOps.fromBFloat16Bits(logData[logOffset]);
         }
         return loss;
     }

@@ -6,7 +6,7 @@ import tensor.Tensor;
 public final class CpuDTypeOps {
     static final int MODE_F64 = 0;
     static final int MODE_F32 = 1;
-    static final int MODE_F16 = 2;
+    static final int MODE_BF16 = 2;
 
     private CpuDTypeOps() {}
 
@@ -16,7 +16,7 @@ public final class CpuDTypeOps {
         return switch (dataType) {
             case FLOAT64 -> MODE_F64;
             case FLOAT32 -> MODE_F32;
-            case FLOAT16 -> MODE_F16;
+            case BFLOAT16 -> MODE_BF16;
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not supported by CpuDTypeOps.");
         };
     }
@@ -29,7 +29,7 @@ public final class CpuDTypeOps {
         return switch (mode) {
             case MODE_F64 -> value;
             case MODE_F32 -> (double) ((float) value);
-            case MODE_F16 -> fromHalfBits(toHalfBits((float) value));
+            case MODE_BF16 -> fromBFloat16Bits(toBFloat16Bits((float) value));
             default -> throw new IllegalArgumentException("Unsupported dtype mode: " + mode);
         };
     }
@@ -91,99 +91,29 @@ public final class CpuDTypeOps {
         return cast(1.0 / (1.0 + Math.exp(-x)), mode);
     }
 
-    public static float fromHalfBits(short halfBits) {
-        return halfBitsToFloat(halfBits);
+    public static float fromBFloat16Bits(short halfBits) {
+        return bfloat16BitsToFloat(halfBits);
     }
 
-    public static short toHalfBits(float value) {
-        return floatToHalfBits(value);
+    public static short toBFloat16Bits(float value) {
+        return floatToBFloat16Bits(value);
     }
 
-    private static float halfBitsToFloat(short halfBits) {
-        int bits = halfBits & 0xFFFF;
-        int sign = (bits >>> 15) & 0x1;
-        int exponent = (bits >>> 10) & 0x1F;
-        int mantissa = bits & 0x3FF;
-
-        int floatSign = sign << 31;
-        int floatExponent;
-        int floatMantissa;
-
-        if (exponent == 0) {
-            if (mantissa == 0) {
-                return Float.intBitsToFloat(floatSign);
-            }
-            int normalizedMantissa = mantissa;
-            int adjustedExponent = -14;
-            while ((normalizedMantissa & 0x400) == 0) {
-                normalizedMantissa <<= 1;
-                adjustedExponent--;
-            }
-            normalizedMantissa &= 0x3FF;
-            floatExponent = (adjustedExponent + 127) << 23;
-            floatMantissa = normalizedMantissa << 13;
-            return Float.intBitsToFloat(floatSign | floatExponent | floatMantissa);
-        }
-
-        if (exponent == 0x1F) {
-            floatExponent = 0xFF << 23;
-            floatMantissa = mantissa << 13;
-            return Float.intBitsToFloat(floatSign | floatExponent | floatMantissa);
-        }
-
-        floatExponent = ((exponent - 15) + 127) << 23;
-        floatMantissa = mantissa << 13;
-        return Float.intBitsToFloat(floatSign | floatExponent | floatMantissa);
+    private static float bfloat16BitsToFloat(short halfBits) {
+        int floatBits = (halfBits & 0xFFFF) << 16;
+        return Float.intBitsToFloat(floatBits);
     }
 
-    private static short floatToHalfBits(float value) {
+    private static short floatToBFloat16Bits(float value) {
         int bits = Float.floatToIntBits(value);
-        int sign = (bits >>> 16) & 0x8000;
-        int exponent = (bits >>> 23) & 0xFF;
-        int mantissa = bits & 0x7FFFFF;
-
-        if (exponent == 0xFF) {
-            if (mantissa == 0) {
-                return (short) (sign | 0x7C00);
-            }
-            int nanMantissa = mantissa >>> 13;
-            if (nanMantissa == 0) {
-                nanMantissa = 1;
-            }
-            return (short) (sign | 0x7C00 | nanMantissa);
+        if (Float.isNaN(value)) {
+            return (short) 0x7FC0;
         }
-
-        int halfExponent = exponent - 127 + 15;
-        if (halfExponent >= 0x1F) {
-            return (short) (sign | 0x7C00);
+        int upper = bits >>> 16;
+        int lower = bits & 0xFFFF;
+        if (lower > 0x8000 || (lower == 0x8000 && (upper & 0x1) != 0)) {
+            upper++;
         }
-        if (halfExponent <= 0) {
-            if (halfExponent < -10) {
-                return (short) sign;
-            }
-            mantissa |= 0x800000;
-            int shift = 14 - halfExponent;
-            int halfMantissa = mantissa >>> shift;
-            int remainder = mantissa & ((1 << shift) - 1);
-            int halfway = 1 << (shift - 1);
-            if (remainder > halfway || (remainder == halfway && (halfMantissa & 0x1) != 0)) {
-                halfMantissa++;
-            }
-            return (short) (sign | halfMantissa);
-        }
-
-        int halfMantissa = mantissa >>> 13;
-        int remainder = mantissa & 0x1FFF;
-        if (remainder > 0x1000 || (remainder == 0x1000 && (halfMantissa & 0x1) != 0)) {
-            halfMantissa++;
-            if (halfMantissa == 0x400) {
-                halfMantissa = 0;
-                halfExponent++;
-                if (halfExponent >= 0x1F) {
-                    return (short) (sign | 0x7C00);
-                }
-            }
-        }
-        return (short) (sign | (halfExponent << 10) | halfMantissa);
+        return (short) upper;
     }
 }

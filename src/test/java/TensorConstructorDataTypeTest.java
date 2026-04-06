@@ -1,6 +1,6 @@
 import operations.noop;
 import tensor.DataType;
-import tensor.Float16Storage;
+import tensor.BFloat16Storage;
 import tensor.Float32Storage;
 import tensor.Float64Storage;
 import tensor.Tensor;
@@ -54,21 +54,21 @@ public class TensorConstructorDataTypeTest {
         assertNotNull(c5);
 
         Tensor e1 = c1.newInstance(new double[]{1.0, 2.0}, new int[]{2}, null, "e1", DataType.FLOAT64);
-        Tensor e2 = c2.newInstance(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, new int[]{2, 1}, null, "e2", DataType.FLOAT16);
+        Tensor e2 = c2.newInstance(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, new int[]{2, 1}, null, "e2", DataType.BFLOAT16);
         Tensor e3 = c3.newInstance(new int[]{2, 2}, null, "e3", DataType.FLOAT32);
         Tensor e4 = c4.newInstance(new int[]{2}, List.of(e1), new noop(), "e4", DataType.FLOAT64);
-        Tensor e5 = c5.newInstance(new double[][]{{1.0, 2.0}}, null, "e5", DataType.FLOAT16);
+        Tensor e5 = c5.newInstance(new double[][]{{1.0, 2.0}}, null, "e5", DataType.BFLOAT16);
 
         assertEquals(DataType.FLOAT64, e1.getDataType());
-        assertEquals(DataType.FLOAT16, e2.getDataType());
+        assertEquals(DataType.BFLOAT16, e2.getDataType());
         assertEquals(DataType.FLOAT32, e3.getDataType());
         assertEquals(DataType.FLOAT64, e4.getDataType());
-        assertEquals(DataType.FLOAT16, e5.getDataType());
+        assertEquals(DataType.BFLOAT16, e5.getDataType());
 
         assertTrue(e1.getStorage() instanceof Float64Storage);
-        assertTrue(e2.getStorage() instanceof Float16Storage);
+        assertTrue(e2.getStorage() instanceof BFloat16Storage);
         assertTrue(e3.getStorage() instanceof Float32Storage);
         assertTrue(e4.getStorage() instanceof Float64Storage);
-        assertTrue(e5.getStorage() instanceof Float16Storage);
+        assertTrue(e5.getStorage() instanceof BFloat16Storage);
     }
 }

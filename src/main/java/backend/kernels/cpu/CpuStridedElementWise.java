@@ -38,8 +38,8 @@ public final class CpuStridedElementWise {
                 forwardF32(op, inputs, node, useFastExpApprox, useFastTanhApprox);
                 return;
             }
-            case FLOAT16 -> {
-                forwardF16(op, inputs, node, useFastExpApprox, useFastTanhApprox);
+            case BFLOAT16 -> {
+                forwardBF16(op, inputs, node, useFastExpApprox, useFastTanhApprox);
                 return;
             }
             case FLOAT64 -> {
@@ -178,14 +178,14 @@ public final class CpuStridedElementWise {
         }
     }
 
-    private static void forwardF16(
+    private static void forwardBF16(
             Operation op,
             List<Tensor> inputs,
             Tensor node,
             boolean useFastExpApprox,
             boolean useFastTanhApprox
     ) {
-        short[] out = node.getFloat16Data();
+        short[] out = node.getBFloat16Data();
         if (out == null) {
             return;
         }
@@ -204,13 +204,13 @@ public final class CpuStridedElementWise {
         int bBaseOffset = 0;
         if (!inputs.isEmpty()) {
             Tensor ta = inputs.get(0);
-            a = ta.getFloat16Data();
+            a = ta.getBFloat16Data();
             aStrides = ta.getStridesUnsafe();
             aBaseOffset = ta.getStorageOffsetUnsafe();
         }
         if (inputs.size() > 1) {
             Tensor tb = inputs.get(1);
-            b = tb.getFloat16Data();
+            b = tb.getBFloat16Data();
             bStrides = tb.getStridesUnsafe();
             bBaseOffset = tb.getStorageOffsetUnsafe();
         }
@@ -334,9 +334,9 @@ public final class CpuStridedElementWise {
                     out[outIdx] = evalCompare(op, a[aIdx], b[bIdx]);
                 }
             }
-            case FLOAT16 -> {
-                short[] a = ta.getFloat16Data();
-                short[] b = tb.getFloat16Data();
+            case BFLOAT16 -> {
+                short[] a = ta.getBFloat16Data();
+                short[] b = tb.getBFloat16Data();
                 int[] aStrides = ta.getStridesUnsafe();
                 int[] bStrides = tb.getStridesUnsafe();
                 int aBaseOffset = ta.getStorageOffsetUnsafe();
@@ -345,8 +345,8 @@ public final class CpuStridedElementWise {
                     for (int i = 0; i < node.getFlatDataSize(); i++) {
                         out[outBaseOffset + i * outStrides[0]] = evalCompare(
                                 op,
-                                CpuDTypeOps.fromHalfBits(a[aBaseOffset + i * aStrides[0]]),
-                                CpuDTypeOps.fromHalfBits(b[bBaseOffset + i * bStrides[0]])
+                                CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * aStrides[0]]),
+                                CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * bStrides[0]])
                         );
                     }
                     return;
@@ -355,7 +355,7 @@ public final class CpuStridedElementWise {
                     int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
                     int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
                     int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
-                    out[outIdx] = evalCompare(op, CpuDTypeOps.fromHalfBits(a[aIdx]), CpuDTypeOps.fromHalfBits(b[bIdx]));
+                    out[outIdx] = evalCompare(op, CpuDTypeOps.fromBFloat16Bits(a[aIdx]), CpuDTypeOps.fromBFloat16Bits(b[bIdx]));
                 }
             }
             case INT32, BOOL -> throw new UnsupportedOperationException("Unsupported BOOL strided input contract for opType=" + op.opType());
@@ -418,8 +418,8 @@ public final class CpuStridedElementWise {
 
     private static void forwardWhereF16(List<Tensor> inputs, Tensor node, short[] out) {
         byte[] cond = inputs.get(0).getBoolData();
-        short[] ifTrue = inputs.get(1).getFloat16Data();
-        short[] ifFalse = inputs.get(2).getFloat16Data();
+        short[] ifTrue = inputs.get(1).getBFloat16Data();
+        short[] ifFalse = inputs.get(2).getBFloat16Data();
         int[] outShape = node.getShapeUnsafe();
         int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
@@ -603,8 +603,8 @@ public final class CpuStridedElementWise {
             boolean useFastExpApprox,
             boolean useFastTanhApprox
     ) {
-        float av = a != null ? CpuDTypeOps.fromHalfBits(a[aIdx]) : 0.0f;
-        float bv = b != null ? CpuDTypeOps.fromHalfBits(b[bIdx]) : 0.0f;
+        float av = a != null ? CpuDTypeOps.fromBFloat16Bits(a[aIdx]) : 0.0f;
+        float bv = b != null ? CpuDTypeOps.fromBFloat16Bits(b[bIdx]) : 0.0f;
         float value = switch (op.opType()) {
             case ADD -> av + bv;
             case SUB -> av - bv;
@@ -635,6 +635,6 @@ public final class CpuStridedElementWise {
             }
             default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
         };
-        return CpuDTypeOps.toHalfBits(value);
+        return CpuDTypeOps.toBFloat16Bits(value);
     }
 }

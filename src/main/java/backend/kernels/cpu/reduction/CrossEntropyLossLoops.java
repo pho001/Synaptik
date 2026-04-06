@@ -43,10 +43,10 @@ public final class CrossEntropyLossLoops {
         );
     }
 
-    public static void executeF16(Tensor logits, Tensor targets, Tensor node, int classDimension, CpuKernelContext context) {
+    public static void executeBF16(Tensor logits, Tensor targets, Tensor node, int classDimension, CpuKernelContext context) {
         validate(logits, targets, node, classDimension);
-        short[] logitsData = logits.getFloat16Data();
-        short[] targetData = targets.getFloat16Data();
+        short[] logitsData = logits.getBFloat16Data();
+        short[] targetData = targets.getBFloat16Data();
         float loss = (float) reduceMeanLoss(
                 logits.getShapeUnsafe(),
                 logits.getStridesUnsafe(),
@@ -57,7 +57,7 @@ public final class CrossEntropyLossLoops {
                 context.reductionHints(),
                 group -> computeGroupF16(logitsData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
         );
-        node.getFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toHalfBits(loss);
+        node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
     }
 
     private static void validate(Tensor logits, Tensor targets, Tensor node, int classDimension) {
@@ -128,15 +128,15 @@ public final class CrossEntropyLossLoops {
     private static double computeGroupF16(short[] logitsData, short[] targetData, int baseLogits, int baseTargets, int axisStrideLogits, int axisStrideTargets, int axisSize) {
         float max = Float.NEGATIVE_INFINITY;
         for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStrideLogits) {
-            max = Math.max(max, CpuDTypeOps.fromHalfBits(logitsData[offset]));
+            max = Math.max(max, CpuDTypeOps.fromBFloat16Bits(logitsData[offset]));
         }
 
         double sumExp = 0.0;
         double weightedLogits = 0.0;
         double targetSum = 0.0;
         for (int i = 0, logitsOffset = baseLogits, targetOffset = baseTargets; i < axisSize; i++, logitsOffset += axisStrideLogits, targetOffset += axisStrideTargets) {
-            double target = CpuDTypeOps.fromHalfBits(targetData[targetOffset]);
-            double logit = CpuDTypeOps.fromHalfBits(logitsData[logitsOffset]);
+            double target = CpuDTypeOps.fromBFloat16Bits(targetData[targetOffset]);
+            double logit = CpuDTypeOps.fromBFloat16Bits(logitsData[logitsOffset]);
             sumExp += Math.exp(logit - max);
             weightedLogits += target * logit;
             targetSum += target;

@@ -89,9 +89,10 @@ The intended extension path is:
 
 1. create a new `WorkloadSpec`
 2. instantiate a fresh tensor graph from `WorkloadEnvironment`
-3. attach stable `WorkloadMetadata`
-4. attach a `ValidationReference`
-5. register the spec in `StandardWorkloads` or in a local `WorkloadCatalog`
+3. decide whether validation should compare the benchmark root or a labeled semantic target inside the graph
+4. attach stable `WorkloadMetadata`
+5. attach a `ValidationReference`
+6. register the spec in `StandardWorkloads` or in a local `WorkloadCatalog`
 
 Minimal example:
 
@@ -103,10 +104,14 @@ WorkloadSpec spec = new TensorRootWorkloadSpec(
             Tensor x = Tensor.randn(new int[]{32, 128}, environment.profile().dataType(), "x");
             Tensor w = Tensor.randn(new int[]{128, 128}, environment.profile().dataType(), "w");
             Tensor b = Tensor.randn(new int[]{128}, environment.profile().dataType(), "b");
-            return x.matmul(w).add(b).gelu().sum();
+            Tensor y = x.matmul(w).add(b).gelu();
+            y.setLabel("custom_bias_gelu_output");
+            return y.sum();
         },
+        environment -> ValidationTarget.label("custom_bias_gelu_output"),
         environment -> ValidationReference.baselineProfile(
-                WorkloadValidationProfiles.conservativeReferenceProfile(environment.profile())
+                WorkloadValidationProfiles.baselineFor(environment.profile()),
+                java.util.List.of()
         ),
         environment -> WorkloadMetadata.of(
                 "custom_bias_gelu",
@@ -124,13 +129,18 @@ Input:
 Output:
 
 - one reproducible workload scenario with:
-  - graph root
+  - benchmark root
+  - validation target
   - metadata
   - validation contract
 
 That is the key design rule:
 
 - scenarios are graph builders, not precompiled artifacts
+- benchmark root and validation target may differ
+- benchmark root may be a scalarized wrapper such as `sum(output)`
+- validation target should point at the semantic tensor you actually want to compare
+- the target should be stable across rewrite and optimization, typically via an explicit output label
 
 ## Preset Surface
 

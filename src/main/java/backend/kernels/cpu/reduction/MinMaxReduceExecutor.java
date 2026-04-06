@@ -26,14 +26,14 @@ public final class MinMaxReduceExecutor {
         MinMaxReduceLoops.executeF32(input, node, op.getDimension(), context, true);
     }
 
-    public void executeF16(reduceMin op, Tensor input, Tensor node, CpuKernelContext context) {
+    public void executeBF16(reduceMin op, Tensor input, Tensor node, CpuKernelContext context) {
         validate(op, input, node, context);
-        MinMaxReduceLoops.executeF16(input, node, op.getDimension(), context, false);
+        MinMaxReduceLoops.executeBF16(input, node, op.getDimension(), context, false);
     }
 
-    public void executeF16(reduceMax op, Tensor input, Tensor node, CpuKernelContext context) {
+    public void executeBF16(reduceMax op, Tensor input, Tensor node, CpuKernelContext context) {
         validate(op, input, node, context);
-        MinMaxReduceLoops.executeF16(input, node, op.getDimension(), context, true);
+        MinMaxReduceLoops.executeBF16(input, node, op.getDimension(), context, true);
     }
 
     private static void validate(Object op, Tensor input, Tensor node, CpuKernelContext context) {

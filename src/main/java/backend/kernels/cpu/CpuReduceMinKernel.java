@@ -27,10 +27,10 @@ public final class CpuReduceMinKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof reduceMin reduction)) {
             throw new IllegalArgumentException("CpuReduceMinKernel requires reduceMin operation");
         }
-        EXECUTOR.executeF16(reduction, inputs.getFirst(), node, context);
+        EXECUTOR.executeBF16(reduction, inputs.getFirst(), node, context);
     }
 }

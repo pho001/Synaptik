@@ -4,6 +4,7 @@ import config.profile.ExecutionProfile;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.validate.ValidationReference;
+import tuning.validate.ValidationTarget;
 
 import java.util.List;
 import java.util.Map;
@@ -52,9 +53,11 @@ public final class MatMulWorkloadSpec implements WorkloadSpec {
             right = tensor("MATMUL_B", 102, dataType, requiresGrad, batch, k, n);
         }
 
-        Tensor root = finalizeRoot(left.matmul(right), profile.mode());
+        Tensor output = left.matmul(right);
+        Tensor root = finalizeRoot(output, profile.mode());
         return new DefaultWorkloadInstance(
                 root,
+                ValidationTarget.label(output.getLabel()),
                 ValidationReference.baselineProfile(
                         WorkloadValidationProfiles.baselineFor(profile),
                         requiresGrad ? List.of("MATMUL_A", "MATMUL_B") : List.of()

@@ -29,10 +29,10 @@ public final class LogSoftmaxLoops {
         , context.reductionHints());
     }
 
-    public static void executeF16(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
+    public static void executeBF16(Tensor input, Tensor node, int dimension, CpuKernelContext context) {
         validateShapes(input, node, dimension);
-        short[] in = input.getFloat16Data();
-        short[] out = node.getFloat16Data();
+        short[] in = input.getBFloat16Data();
+        short[] out = node.getBFloat16Data();
         runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, group ->
                 computeGroupF16(in, out, group.baseIn(), group.baseOut(), group.axisStrideIn(), group.axisStrideOut(), group.axisSize())
         , context.reductionHints());
@@ -94,18 +94,18 @@ public final class LogSoftmaxLoops {
     private static void computeGroupF16(short[] in, short[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
         float max = Float.NEGATIVE_INFINITY;
         for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
-            max = Math.max(max, CpuDTypeOps.fromHalfBits(in[inOffset]));
+            max = Math.max(max, CpuDTypeOps.fromBFloat16Bits(in[inOffset]));
         }
 
         float sum = 0.0f;
         for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
-            sum += (float) Math.exp(CpuDTypeOps.fromHalfBits(in[inOffset]) - max);
+            sum += (float) Math.exp(CpuDTypeOps.fromBFloat16Bits(in[inOffset]) - max);
         }
         float logSumExp = (float) (max + Math.log(sum));
 
         for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
-            float value = CpuDTypeOps.fromHalfBits(in[inOffset]) - logSumExp;
-            out[outOffset] = CpuDTypeOps.toHalfBits(value);
+            float value = CpuDTypeOps.fromBFloat16Bits(in[inOffset]) - logSumExp;
+            out[outOffset] = CpuDTypeOps.toBFloat16Bits(value);
         }
     }
 

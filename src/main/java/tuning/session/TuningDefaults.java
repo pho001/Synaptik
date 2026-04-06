@@ -30,11 +30,15 @@ public final class TuningDefaults {
     }
 
     public static ValidationPolicy quickValidation() {
-        return new ValidationPolicy(1e-8, 1e-8, false, true);
+        return ValidationPolicy.quickDTypeAware(false);
+    }
+
+    public static ValidationPolicy balancedValidation() {
+        return ValidationPolicy.balancedDTypeAware(false);
     }
 
     public static ValidationPolicy thoroughValidation() {
-        return new ValidationPolicy(1e-9, 1e-9, true, true);
+        return ValidationPolicy.thoroughDTypeAware(true);
     }
 
     public static ReportPolicy defaultReportPolicy() {

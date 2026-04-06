@@ -15,9 +15,9 @@ public final class SumExecutor {
         SumLoops.executeF32(input, node, op.getDimension(), context);
     }
 
-    public void executeF16(sum op, Tensor input, Tensor node, CpuKernelContext context) {
+    public void executeBF16(sum op, Tensor input, Tensor node, CpuKernelContext context) {
         validate(op, input, node, context);
-        SumLoops.executeF16(input, node, op.getDimension(), context);
+        SumLoops.executeBF16(input, node, op.getDimension(), context);
     }
 
     private static void validate(sum op, Tensor input, Tensor node, CpuKernelContext context) {

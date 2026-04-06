@@ -15,9 +15,9 @@ public final class NllLossExecutor {
         NllLossLoops.executeF32(logProbs, targets, node, op.getClassDimension(), context);
     }
 
-    public void executeF16(nllLoss op, Tensor logProbs, Tensor targets, Tensor node, CpuKernelContext context) {
+    public void executeBF16(nllLoss op, Tensor logProbs, Tensor targets, Tensor node, CpuKernelContext context) {
         validate(op, logProbs, targets, node, context);
-        NllLossLoops.executeF16(logProbs, targets, node, op.getClassDimension(), context);
+        NllLossLoops.executeBF16(logProbs, targets, node, op.getClassDimension(), context);
     }
 
     private static void validate(nllLoss op, Tensor logProbs, Tensor targets, Tensor node, CpuKernelContext context) {

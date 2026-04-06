@@ -26,13 +26,13 @@ public final class MeanSupport {
     }
 
     public static void divideF16(Tensor node, int divisor) {
-        short[] out = node.getFloat16Data();
+        short[] out = node.getBFloat16Data();
         float scale = 1.0f / divisor;
         int baseOffset = node.getStorageOffsetUnsafe();
         for (int i = 0; i < node.getFlatDataSize(); i++) {
             int idx = baseOffset + i;
-            float value = CpuDTypeOps.fromHalfBits(out[idx]) * scale;
-            out[idx] = CpuDTypeOps.toHalfBits(value);
+            float value = CpuDTypeOps.fromBFloat16Bits(out[idx]) * scale;
+            out[idx] = CpuDTypeOps.toBFloat16Bits(value);
         }
     }
 }

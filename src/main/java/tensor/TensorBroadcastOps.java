@@ -68,7 +68,7 @@ final class TensorBroadcastOps {
         return switch (dtype) {
             case FLOAT64 -> minMaxGradF64(first, second, outGrad, plan, forFirst, isMax);
             case FLOAT32 -> minMaxGradF32(first, second, outGrad, plan, forFirst, isMax);
-            case FLOAT16 -> minMaxGradF16(first, second, outGrad, plan, forFirst, isMax);
+            case BFLOAT16 -> minMaxGradF16(first, second, outGrad, plan, forFirst, isMax);
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not supported by min/max numeric gradient helpers.");
         };
     }
@@ -96,22 +96,22 @@ final class TensorBroadcastOps {
     }
 
     private static Tensor minMaxGradF16(Tensor first, Tensor second, Tensor outGrad, BroadcastPlan plan, boolean forFirst, boolean isMax) {
-        short[] a = first.getFloat16Data();
-        short[] b = second.getFloat16Data();
-        short[] og = outGrad.getFloat16Data();
+        short[] a = first.getBFloat16Data();
+        short[] b = second.getBFloat16Data();
+        short[] og = outGrad.getBFloat16Data();
         float[] gradAcc = new float[(forFirst ? first : second).getFlatDataSize()];
         accumulateMinMaxGrad(og.length, plan, isMax, forFirst,
-                i -> CpuDTypeOps.fromHalfBits(a[i]),
-                i -> CpuDTypeOps.fromHalfBits(b[i]),
-                i -> CpuDTypeOps.fromHalfBits(og[i]),
+                i -> CpuDTypeOps.fromBFloat16Bits(a[i]),
+                i -> CpuDTypeOps.fromBFloat16Bits(b[i]),
+                i -> CpuDTypeOps.fromBFloat16Bits(og[i]),
                 (idx, val) -> gradAcc[idx] += (float) val);
 
         short[] grad = new short[gradAcc.length];
         for (int i = 0; i < gradAcc.length; i++) {
-            grad[i] = CpuDTypeOps.toHalfBits(gradAcc[i]);
+            grad[i] = CpuDTypeOps.toBFloat16Bits(gradAcc[i]);
         }
         return new Tensor(grad, (forFirst ? first : second).getShape().clone(), null,
-                (isMax ? "max" : "min") + "_grad_" + (forFirst ? "a" : "b"), DataType.FLOAT16);
+                (isMax ? "max" : "min") + "_grad_" + (forFirst ? "a" : "b"), DataType.BFLOAT16);
     }
 
     private static void accumulateMinMaxGrad(

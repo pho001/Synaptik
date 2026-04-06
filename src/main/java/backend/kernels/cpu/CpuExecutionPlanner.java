@@ -141,7 +141,7 @@ public final class CpuExecutionPlanner {
         return switch (dataType) {
             case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
             case FLOAT32 -> FloatVector.SPECIES_PREFERRED.length();
-            case FLOAT16 -> 1;
+            case BFLOAT16 -> 1;
             case INT32 -> 1;
             case BOOL -> 1;
         };
@@ -266,7 +266,7 @@ public final class CpuExecutionPlanner {
             int k,
             BlasConfig blasConfig
     ) {
-        if (out.getDataType() != DataType.FLOAT32 && out.getDataType() != DataType.FLOAT64) {
+        if (out.getDataType() != DataType.FLOAT32 && out.getDataType() != DataType.FLOAT64 && out.getDataType() != DataType.BFLOAT16) {
             return false;
         }
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
@@ -279,7 +279,7 @@ public final class CpuExecutionPlanner {
         if (!a.isContiguous() || !b.isContiguous() || !out.isContiguous()) {
             return false;
         }
-        if (out.getDataType() == DataType.FLOAT32) {
+        if (out.getDataType() == DataType.FLOAT32 || out.getDataType() == DataType.BFLOAT16) {
             if (blasConfig.f32RequireMgeK() && m < k) {
                 return false;
             }
@@ -300,7 +300,7 @@ public final class CpuExecutionPlanner {
             long work,
             BlasConfig blasConfig
     ) {
-        if (out.getDataType() != DataType.FLOAT32 && out.getDataType() != DataType.FLOAT64) {
+        if (out.getDataType() != DataType.FLOAT32 && out.getDataType() != DataType.FLOAT64 && out.getDataType() != DataType.BFLOAT16) {
             return false;
         }
         if (!isAttentionLikeBatchedMatMul(a, b, out)) {
@@ -321,7 +321,7 @@ public final class CpuExecutionPlanner {
         if (work < blasConfig.matMulMinWork()) {
             return false;
         }
-        if (out.getDataType() == DataType.FLOAT32) {
+        if (out.getDataType() == DataType.FLOAT32 || out.getDataType() == DataType.BFLOAT16) {
             if (blasConfig.f32RequireMgeK() && m < k) {
                 return false;
             }

@@ -26,12 +26,12 @@ public final class CpuScatterAddKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof scatterAdd scatterAddOp)) {
             throw new IllegalArgumentException("CpuScatterAddKernel requires scatterAdd operation");
         }
         Tensor[] triple = requireTriple(inputs);
-        GatherSupport.scatterAddF16(triple[0], triple[1], triple[2], node, scatterAddOp.getDimension());
+        GatherSupport.scatterAddBF16(triple[0], triple[1], triple[2], node, scatterAddOp.getDimension());
     }
 
     private static Tensor[] requireTriple(List<Tensor> inputs) {

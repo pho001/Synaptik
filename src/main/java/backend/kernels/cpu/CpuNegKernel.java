@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.f16.NegF16;
+import backend.kernels.cpu.bf16.NegBF16;
 import backend.kernels.cpu.f32.NegF32;
 import backend.kernels.cpu.f64.NegF64;
 import operations.Operation;
@@ -24,9 +24,9 @@ public class CpuNegKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        short[] in = inputs.get(0).getFloat16Data();
-        short[] out = node.getFloat16Data();
-        NegF16.run(in, out, context.dispatchHints());
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        short[] in = inputs.get(0).getBFloat16Data();
+        short[] out = node.getBFloat16Data();
+        NegBF16.run(in, out, context.dispatchHints());
     }
 }

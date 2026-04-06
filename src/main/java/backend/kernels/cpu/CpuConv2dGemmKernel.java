@@ -20,9 +20,9 @@ public final class CpuConv2dGemmKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         conv2dGemm conv = require(op);
-        Conv2dGemmKernelSupport.forwardF16(conv, inputs.get(0), inputs.get(1), inputs.size() > 2 ? inputs.get(2) : null, node);
+        Conv2dGemmKernelSupport.forwardBF16(conv, inputs.get(0), inputs.get(1), inputs.size() > 2 ? inputs.get(2) : null, node, context);
     }
 
     private static conv2dGemm require(Operation op) {

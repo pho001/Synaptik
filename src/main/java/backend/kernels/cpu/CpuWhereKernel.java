@@ -25,12 +25,12 @@ public final class CpuWhereKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         byte[] cond = inputs.get(0).getBoolData();
-        short[] ifTrue = inputs.get(1).getFloat16Data();
-        short[] ifFalse = inputs.get(2).getFloat16Data();
-        short[] out = node.getFloat16Data();
-        runF16(cond, ifTrue, ifFalse, out, context.whereBroadcastPlan());
+        short[] ifTrue = inputs.get(1).getBFloat16Data();
+        short[] ifFalse = inputs.get(2).getBFloat16Data();
+        short[] out = node.getBFloat16Data();
+        runBF16(cond, ifTrue, ifFalse, out, context.whereBroadcastPlan());
     }
 
     private static void runF64(byte[] cond, double[] ifTrue, double[] ifFalse, double[] out, ResolvedWhereBroadcastPlan plan) {
@@ -109,7 +109,7 @@ public final class CpuWhereKernel implements CpuKernel {
         }
     }
 
-    private static void runF16(byte[] cond, short[] ifTrue, short[] ifFalse, short[] out, ResolvedWhereBroadcastPlan plan) {
+    private static void runBF16(byte[] cond, short[] ifTrue, short[] ifFalse, short[] out, ResolvedWhereBroadcastPlan plan) {
         if (plan == null || plan.isNoBroadcast()) {
             for (int i = 0; i < out.length; i++) {
                 out[i] = cond[i] != 0 ? ifTrue[i] : ifFalse[i];

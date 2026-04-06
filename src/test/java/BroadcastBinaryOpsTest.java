@@ -267,14 +267,14 @@ public class BroadcastBinaryOpsTest {
     }
 
     @Test
-    public void testMinAndMaxBroadcastBackwardFloat16() {
+    public void testMinAndMaxBroadcastBackwardBFloat16() {
         Tensor a = new Tensor(new short[]{
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(1f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(5f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(3f),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(7f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(2f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(9f)
-        }, new int[]{2, 3}, null, "a", DataType.FLOAT16);
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(1f), backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(5f), backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(3f),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(7f), backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(2f), backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(9f)
+        }, new int[]{2, 3}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new short[]{
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f), backend.kernels.cpu.CpuDTypeOps.toHalfBits(4f)
-        }, new int[]{3}, null, "b", DataType.FLOAT16);
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(4f), backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(4f), backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(4f)
+        }, new int[]{3}, null, "b", DataType.BFLOAT16);
         a.setRequiresGrad(true);
         b.setRequiresGrad(true);
 

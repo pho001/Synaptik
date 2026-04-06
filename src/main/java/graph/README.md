@@ -347,7 +347,7 @@ It carries:
 - `inputIndex`
   - which external input this is
 - `dataType`
-  - input dtype (`FLOAT64`, `FLOAT32`, `FLOAT16`, `BOOL`)
+  - input dtype (`FLOAT64`, `FLOAT32`, `BFLOAT16`, `BOOL`)
 - `logicalOutputShape`
   - fused kernel output logical space
 - `logicalOutputDenseStrides`
@@ -437,9 +437,9 @@ Important current rule:
 
 - scalar path is the correctness baseline
 - vector path is enabled only where the codegen/runtime contract is explicit
-- F16 uses the same fused generator family as F32/F64
+- BF16 uses the same fused generator family as F32/F64
   - unsupported vector cases fall back to scalar fused execution
-  - there is no separate legacy F16 generator path
+  - there is no separate legacy BF16 generator path
 
 ### Example: vector-friendly fused cluster
 

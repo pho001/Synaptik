@@ -43,7 +43,7 @@ public final class BroadcastBinaryKernel {
         scalarF32(type, a, b, out, plan, 0, out.length);
     }
 
-    public static void runF16(
+    public static void runBF16(
             Operation.OpType type,
             short[] a,
             short[] b,
@@ -138,44 +138,44 @@ public final class BroadcastBinaryKernel {
         switch (type) {
             case ADD -> {
                 for (int i = 0; i < out.length; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
-                    out[i] = CpuDTypeOps.toHalfBits(av + bv);
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(av + bv);
                 }
             }
             case SUB -> {
                 for (int i = 0; i < out.length; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
-                    out[i] = CpuDTypeOps.toHalfBits(av - bv);
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(av - bv);
                 }
             }
             case MUL -> {
                 for (int i = 0; i < out.length; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
-                    out[i] = CpuDTypeOps.toHalfBits(av * bv);
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(av * bv);
                 }
             }
             case DIV -> {
                 for (int i = 0; i < out.length; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
-                    out[i] = CpuDTypeOps.toHalfBits(av / bv);
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(av / bv);
                 }
             }
             case MIN -> {
                 for (int i = 0; i < out.length; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
-                    out[i] = CpuDTypeOps.toHalfBits(Math.min(av, bv));
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(Math.min(av, bv));
                 }
             }
             case MAX -> {
                 for (int i = 0; i < out.length; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[i * strideA]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[i * strideB]);
-                    out[i] = CpuDTypeOps.toHalfBits(Math.max(av, bv));
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[i * strideB]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(Math.max(av, bv));
                 }
             }
             default -> {
@@ -502,9 +502,9 @@ public final class BroadcastBinaryKernel {
         switch (type) {
             case ADD -> {
                 for (int i = start; i < end; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[aIdx]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[bIdx]);
-                    out[i] = CpuDTypeOps.toHalfBits(av + bv);
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aIdx]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bIdx]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(av + bv);
                     for (int d = rank - 1; d >= 0; d--) {
                         coords[d]++;
                         aIdx += aEffStrides[d];
@@ -520,9 +520,9 @@ public final class BroadcastBinaryKernel {
             }
             case SUB -> {
                 for (int i = start; i < end; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[aIdx]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[bIdx]);
-                    out[i] = CpuDTypeOps.toHalfBits(av - bv);
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aIdx]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bIdx]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(av - bv);
                     for (int d = rank - 1; d >= 0; d--) {
                         coords[d]++;
                         aIdx += aEffStrides[d];
@@ -538,9 +538,9 @@ public final class BroadcastBinaryKernel {
             }
             case MUL -> {
                 for (int i = start; i < end; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[aIdx]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[bIdx]);
-                    out[i] = CpuDTypeOps.toHalfBits(av * bv);
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aIdx]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bIdx]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(av * bv);
                     for (int d = rank - 1; d >= 0; d--) {
                         coords[d]++;
                         aIdx += aEffStrides[d];
@@ -556,9 +556,9 @@ public final class BroadcastBinaryKernel {
             }
             case DIV -> {
                 for (int i = start; i < end; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[aIdx]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[bIdx]);
-                    out[i] = CpuDTypeOps.toHalfBits(av / bv);
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aIdx]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bIdx]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(av / bv);
                     for (int d = rank - 1; d >= 0; d--) {
                         coords[d]++;
                         aIdx += aEffStrides[d];
@@ -574,9 +574,9 @@ public final class BroadcastBinaryKernel {
             }
             case MIN -> {
                 for (int i = start; i < end; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[aIdx]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[bIdx]);
-                    out[i] = CpuDTypeOps.toHalfBits(Math.min(av, bv));
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aIdx]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bIdx]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(Math.min(av, bv));
                     for (int d = rank - 1; d >= 0; d--) {
                         coords[d]++;
                         aIdx += aEffStrides[d];
@@ -592,9 +592,9 @@ public final class BroadcastBinaryKernel {
             }
             case MAX -> {
                 for (int i = start; i < end; i++) {
-                    float av = CpuDTypeOps.fromHalfBits(a[aIdx]);
-                    float bv = CpuDTypeOps.fromHalfBits(b[bIdx]);
-                    out[i] = CpuDTypeOps.toHalfBits(Math.max(av, bv));
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aIdx]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bIdx]);
+                    out[i] = CpuDTypeOps.toBFloat16Bits(Math.max(av, bv));
                     for (int d = rank - 1; d >= 0; d--) {
                         coords[d]++;
                         aIdx += aEffStrides[d];

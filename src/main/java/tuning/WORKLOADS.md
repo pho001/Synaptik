@@ -38,7 +38,8 @@ Defines:
 
 Defines:
 
-- graph root
+- benchmark root
+- validation target
 - validation reference
 - workload metadata
 
@@ -47,6 +48,9 @@ This separation is important:
 - one spec can instantiate many fresh graphs
 - every candidate gets a fresh graph
 - benchmark/autotune do not reuse mutated graph state between candidates
+- a workload may scalarize the benchmark root to force full execution
+- validation can still compare the semantic tensor output instead of a numerically sensitive reduction
+- validation target is resolved against the current graph after rewrite/optimization
 
 ## Built-in Workload Families
 
@@ -76,10 +80,15 @@ Output root:
 
 - `sum(matmul(left, right))`
 
+Validation target:
+
+- label of `matmul(left, right)`
+
 Why summed:
 
 - forward-only and forward-backward modes then both end in a scalar root
 - this keeps comparison and timing shape-stable across modes
+- validation still compares the matrix output, not the scalar reduction
 
 ### Conv2d
 
@@ -114,6 +123,16 @@ Input:
 Output root:
 
 - `sum(conv2d(...))`
+
+Validation target:
+
+- label of `conv2d(...)`
+
+Why the split matters:
+
+- the benchmark still forces materialization of the full convolution output
+- validation avoids using a numerically sensitive scalar reduction as the semantic correctness target
+- this prevents false mismatches between legitimate F32 implementations such as direct conv vs lowered GEMM conv
 
 ### Transformer Hot Path
 
@@ -159,6 +178,10 @@ Output:
 
 - scalar root from the whole block composition
 
+Validation target:
+
+- label of the final block tensor before scalarization
+
 ### Normalization
 
 - [NormalizationWorkloadSpec.java](./workload/NormalizationWorkloadSpec.java)
@@ -187,6 +210,10 @@ Input:
 Output:
 
 - scalar root via `sum(normalizedOutput)`
+
+Validation target:
+
+- label of the normalized tensor output before reduction
 
 ### MLP Classification
 
@@ -366,10 +393,14 @@ WorkloadSpec spec = new TensorRootWorkloadSpec(
             Tensor b1 = Tensor.randn(new int[]{256}, environment.profile().dataType(), "b1");
             Tensor w2 = Tensor.randn(new int[]{256, 128}, environment.profile().dataType(), "w2");
             Tensor b2 = Tensor.randn(new int[]{128}, environment.profile().dataType(), "b2");
-            return x.matmul(w1).add(b1).relu().matmul(w2).add(b2).sum();
+            Tensor y = x.matmul(w1).add(b1).relu().matmul(w2).add(b2);
+            y.setLabel("mlp_block_output");
+            return y.sum();
         },
+        environment -> ValidationTarget.label("mlp_block_output"),
         environment -> ValidationReference.baselineProfile(
-                WorkloadValidationProfiles.conservativeReferenceProfile(environment.profile())
+                WorkloadValidationProfiles.baselineFor(environment.profile()),
+                java.util.List.of()
         ),
         environment -> WorkloadMetadata.of(
                 "mlp_block",
@@ -387,6 +418,12 @@ Input:
 Output:
 
 - reproducible benchmark/autotune scenario
+
+Recommended rule:
+
+- if you scalarize only for benchmarking, expose the pre-reduction tensor through a stable validation target
+- if the scalar is the real semantic result, use the same tensor for both roots
+- for rewriteable workloads, prefer an explicit label-based target over object identity
 
 ## Selecting Scenarios for Benchmark Runs
 

@@ -24,13 +24,13 @@ public interface CpuKernel {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support FLOAT32");
     }
 
-    default void forwardF16(
+    default void forwardBF16(
             Operation op,
             List<Tensor> inputs,
             Tensor node,
             CpuKernelContext context
     ) {
-        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support FLOAT16");
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support BFLOAT16");
     }
 
     default void forwardBOOL(

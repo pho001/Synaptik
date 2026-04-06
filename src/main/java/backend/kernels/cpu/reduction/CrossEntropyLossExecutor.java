@@ -15,9 +15,9 @@ public final class CrossEntropyLossExecutor {
         CrossEntropyLossLoops.executeF32(logits, targets, node, op.getClassDimension(), context);
     }
 
-    public void executeF16(crossEntropyLoss op, Tensor logits, Tensor targets, Tensor node, CpuKernelContext context) {
+    public void executeBF16(crossEntropyLoss op, Tensor logits, Tensor targets, Tensor node, CpuKernelContext context) {
         validate(op, logits, targets, node, context);
-        CrossEntropyLossLoops.executeF16(logits, targets, node, op.getClassDimension(), context);
+        CrossEntropyLossLoops.executeBF16(logits, targets, node, op.getClassDimension(), context);
     }
 
     private static void validate(crossEntropyLoss op, Tensor logits, Tensor targets, Tensor node, CpuKernelContext context) {

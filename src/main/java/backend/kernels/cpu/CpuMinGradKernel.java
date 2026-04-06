@@ -33,13 +33,13 @@ public final class CpuMinGradKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         minGrad gradOp = (minGrad) op;
-        runF16(
-                inputs.get(0).getFloat16Data(), inputs.get(0).getStorageOffsetUnsafe(),
-                inputs.get(1).getFloat16Data(), inputs.get(1).getStorageOffsetUnsafe(),
-                inputs.get(2).getFloat16Data(), inputs.get(2).getStorageOffsetUnsafe(),
-                node.getFloat16Data(), node.getStorageOffsetUnsafe(),
+        runBF16(
+                inputs.get(0).getBFloat16Data(), inputs.get(0).getStorageOffsetUnsafe(),
+                inputs.get(1).getBFloat16Data(), inputs.get(1).getStorageOffsetUnsafe(),
+                inputs.get(2).getBFloat16Data(), inputs.get(2).getStorageOffsetUnsafe(),
+                node.getBFloat16Data(), node.getStorageOffsetUnsafe(),
                 gradOp.getBroadcastPlan(), gradOp.isForFirstInput()
         );
     }
@@ -52,7 +52,7 @@ public final class CpuMinGradKernel implements CpuKernel {
         MinMaxGradKernelSupport.runF32(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
     }
 
-    static void runF16(short[] a, int aBaseOffset, short[] b, int bBaseOffset, short[] outGrad, int outGradBaseOffset, short[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput) {
-        MinMaxGradKernelSupport.runF16(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
+    static void runBF16(short[] a, int aBaseOffset, short[] b, int bBaseOffset, short[] outGrad, int outGradBaseOffset, short[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput) {
+        MinMaxGradKernelSupport.runBF16(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
     }
 }

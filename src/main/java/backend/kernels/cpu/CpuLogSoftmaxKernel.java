@@ -27,11 +27,11 @@ public final class CpuLogSoftmaxKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof logSoftmax reduction)) {
             throw new IllegalArgumentException("CpuLogSoftmaxKernel requires logSoftmax operation");
         }
-        EXECUTOR.executeF16(reduction, requireSingleInput(inputs), node, context);
+        EXECUTOR.executeBF16(reduction, requireSingleInput(inputs), node, context);
     }
 
     private static Tensor requireSingleInput(List<Tensor> inputs) {

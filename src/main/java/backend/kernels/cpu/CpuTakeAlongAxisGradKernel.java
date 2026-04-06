@@ -26,12 +26,12 @@ public final class CpuTakeAlongAxisGradKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof takeAlongAxisGrad gradOp)) {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisScatterF16(pair[0], pair[1], node, gradOp.getDimension());
+        GatherSupport.takeAlongAxisScatterBF16(pair[0], pair[1], node, gradOp.getDimension());
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

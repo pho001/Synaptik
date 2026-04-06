@@ -7,6 +7,7 @@ import tensor.AttentionOptions;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.validate.ValidationReference;
+import tuning.validate.ValidationTarget;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -62,7 +63,8 @@ public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
 
         Tensor ff = norm.linear(w1, b1).relu().linear(w2, b2);
         Tensor rmsGamma = tensor("RMS_GAMMA", 311, dataType, requiresGrad, modelDim);
-        Tensor root = finalizeRoot(ff.add(residual).rmsNorm(rmsGamma, 1e-5), profile.mode());
+        Tensor output = ff.add(residual).rmsNorm(rmsGamma, 1e-5);
+        Tensor root = finalizeRoot(output, profile.mode());
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("batch", workload.batch());
         metadata.put("heads", workload.heads());
@@ -88,6 +90,7 @@ public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
 
         return new DefaultWorkloadInstance(
                 root,
+                ValidationTarget.label(output.getLabel()),
                 ValidationReference.baselineProfile(
                         WorkloadValidationProfiles.baselineFor(profile),
                         gradientLabels

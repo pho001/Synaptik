@@ -46,9 +46,9 @@ public class MemoryOptimizerRuleDataTypeTest {
     }
 
     @Test
-    void memoryRuleBypassesFloat16Graph() {
-        Tensor a = new Tensor(new double[]{1.0}, new int[]{1}, null, "a16", DataType.FLOAT16);
-        Tensor b = new Tensor(new double[]{2.0}, new int[]{1}, null, "b16", DataType.FLOAT16);
+    void memoryRuleBypassesBFloat16Graph() {
+        Tensor a = new Tensor(new double[]{1.0}, new int[]{1}, null, "a16", DataType.BFLOAT16);
+        Tensor b = new Tensor(new double[]{2.0}, new int[]{1}, null, "b16", DataType.BFLOAT16);
         List<Tensor> graph = List.of(a, b);
 
         List<Tensor> out = new MemoryOptimizerRule().apply(graph);

@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.f16.MaxF16;
+import backend.kernels.cpu.bf16.MaxBF16;
 import backend.kernels.cpu.f32.MaxF32;
 import backend.kernels.cpu.f64.MaxF64;
 import operations.Operation;
@@ -40,16 +40,16 @@ public class CpuMaxKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        short[] a = inputs.get(0).getFloat16Data();
-        short[] b = inputs.get(1).getFloat16Data();
-        short[] out = node.getFloat16Data();
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        short[] a = inputs.get(0).getBFloat16Data();
+        short[] b = inputs.get(1).getBFloat16Data();
+        short[] out = node.getBFloat16Data();
         ResolvedDispatchHints hints = context.dispatchHints();
         ResolvedBroadcastPlan plan = context.broadcastPlan();
         if (plan != null && !plan.isNoBroadcast()) {
-            BroadcastBinaryKernel.runF16(Operation.OpType.MAX, a, b, out, plan, hints);
+            BroadcastBinaryKernel.runBF16(Operation.OpType.MAX, a, b, out, plan, hints);
             return;
         }
-        MaxF16.run(a, b, out, hints);
+        MaxBF16.run(a, b, out, hints);
     }
 }

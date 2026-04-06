@@ -4,6 +4,7 @@ import config.profile.ExecutionProfile;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.validate.ValidationReference;
+import tuning.validate.ValidationTarget;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -65,14 +66,14 @@ public final class NormalizationWorkloadSpec implements WorkloadSpec {
         boolean requiresGrad = profile.mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
 
-        Tensor root;
+        Tensor output;
         List<String> gradientLabels = new ArrayList<>();
         switch (normalizationKind) {
             case BATCH_NORM -> {
                 Tensor input = tensor("BN_INPUT", 401, dataType, requiresGrad, batch, channels, height, width);
                 Tensor gamma = tensor("BN_GAMMA", 402, dataType, requiresGrad, channels);
                 Tensor beta = tensor("BN_BETA", 403, dataType, requiresGrad, channels);
-                root = input.batchNorm(gamma, beta, 1, epsilon);
+                output = input.batchNorm(gamma, beta, 1, epsilon);
                 if (requiresGrad) {
                     gradientLabels.add("BN_INPUT");
                     gradientLabels.add("BN_GAMMA");
@@ -83,7 +84,7 @@ public final class NormalizationWorkloadSpec implements WorkloadSpec {
                 Tensor input = tensor("LN_INPUT", 404, dataType, requiresGrad, batch, height, channels);
                 Tensor gamma = tensor("LN_GAMMA", 405, dataType, requiresGrad, channels);
                 Tensor beta = tensor("LN_BETA", 406, dataType, requiresGrad, channels);
-                root = input.layerNorm(gamma, beta, epsilon);
+                output = input.layerNorm(gamma, beta, epsilon);
                 if (requiresGrad) {
                     gradientLabels.add("LN_INPUT");
                     gradientLabels.add("LN_GAMMA");
@@ -93,7 +94,7 @@ public final class NormalizationWorkloadSpec implements WorkloadSpec {
             case RMS_NORM -> {
                 Tensor input = tensor("RMS_INPUT", 407, dataType, requiresGrad, batch, height, channels);
                 Tensor gamma = tensor("RMS_GAMMA", 408, dataType, requiresGrad, channels);
-                root = input.rmsNorm(gamma, epsilon);
+                output = input.rmsNorm(gamma, epsilon);
                 if (requiresGrad) {
                     gradientLabels.add("RMS_INPUT");
                     gradientLabels.add("RMS_GAMMA");
@@ -102,7 +103,7 @@ public final class NormalizationWorkloadSpec implements WorkloadSpec {
             default -> throw new IllegalStateException("Unsupported normalization kind: " + normalizationKind);
         }
 
-        root = finalizeRoot(root, profile.mode());
+        Tensor root = finalizeRoot(output, profile.mode());
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("normalizationKind", normalizationKind.name());
         metadata.put("batch", batch);
@@ -113,6 +114,7 @@ public final class NormalizationWorkloadSpec implements WorkloadSpec {
 
         return new DefaultWorkloadInstance(
                 root,
+                ValidationTarget.label(output.getLabel()),
                 ValidationReference.baselineProfile(
                         WorkloadValidationProfiles.baselineFor(profile),
                         gradientLabels

@@ -44,23 +44,38 @@ public final class DefaultValidationEngine implements ValidationEngine {
 
         return switch (reference.kind()) {
             case NONE -> ValidationResult.skipped();
-            case SNAPSHOT -> validateAgainstSnapshot(workload.root(), candidate.profile(), (SnapshotValidationReference) reference.payload(), policy);
-            case BASELINE_PROFILE -> validateAgainstBaseline(workloadSpec, workload.root(), candidate.profile(), (BaselineProfileValidationReference) reference.payload(), policy);
+            case SNAPSHOT -> validateAgainstSnapshot(
+                    workload.root(),
+                    workload.validationTarget(),
+                    candidate.profile(),
+                    (SnapshotValidationReference) reference.payload(),
+                    policy
+            );
+            case BASELINE_PROFILE -> validateAgainstBaseline(
+                    workloadSpec,
+                    workload.root(),
+                    workload.validationTarget(),
+                    candidate.profile(),
+                    (BaselineProfileValidationReference) reference.payload(),
+                    policy
+            );
         };
     }
 
     private ValidationResult validateAgainstSnapshot(
-            Tensor candidateRoot,
+            Tensor executionRoot,
+            ValidationTarget candidateValidationTarget,
             ExecutionProfile candidateProfile,
             SnapshotValidationReference reference,
             ValidationPolicy policy
     ) {
-        execute(candidateRoot, candidateProfile);
+        execute(executionRoot, candidateProfile);
+        Tensor candidateValidationRoot = candidateValidationTarget.resolve(executionRoot);
 
         LinkedHashMap<String, Double> metrics = new LinkedHashMap<>();
         ValidationResult outputResult = compareTensor(
                 "output",
-                candidateRoot,
+                candidateValidationRoot,
                 reference.output(),
                 policy,
                 metrics
@@ -71,7 +86,7 @@ public final class DefaultValidationEngine implements ValidationEngine {
 
         if (policy.requireGradientMatch()) {
             ValidationResult gradResult = compareSnapshotGradients(
-                    candidateRoot,
+                    executionRoot,
                     reference.gradients(),
                     reference.gradientTargetLabels(),
                     policy,
@@ -88,21 +103,24 @@ public final class DefaultValidationEngine implements ValidationEngine {
     private ValidationResult validateAgainstBaseline(
             WorkloadSpec workloadSpec,
             Tensor candidateRoot,
+            ValidationTarget candidateValidationTarget,
             ExecutionProfile candidateProfile,
             BaselineProfileValidationReference reference,
             ValidationPolicy policy
     ) {
         execute(candidateRoot, candidateProfile);
+        Tensor candidateValidationRoot = candidateValidationTarget.resolve(candidateRoot);
 
         WorkloadInstance baselineWorkload = workloadSpec.instantiate(new WorkloadEnvironment(reference.baselineProfile()));
         Tensor baselineRoot = baselineWorkload.root();
         execute(baselineRoot, reference.baselineProfile());
+        Tensor baselineValidationRoot = baselineWorkload.validationTarget().resolve(baselineRoot);
 
         LinkedHashMap<String, Double> metrics = new LinkedHashMap<>();
         ValidationResult outputResult = compareTensor(
                 "output",
-                candidateRoot,
-                TensorSnapshot.capture("baseline_output", baselineRoot),
+                candidateValidationRoot,
+                TensorSnapshot.capture("baseline_output", baselineValidationRoot),
                 policy,
                 metrics
         );
@@ -260,12 +278,14 @@ public final class DefaultValidationEngine implements ValidationEngine {
 
         double maxAbs = 0.0d;
         double maxRel = 0.0d;
+        double absTolerance = policy.absTolerance(actualTensor.getDataType());
+        double relTolerance = policy.relTolerance(actualTensor.getDataType());
         for (int i = 0; i < actual.length; i++) {
             double abs = Math.abs(actual[i] - expected[i]);
             double rel = abs / Math.max(1e-30d, Math.abs(expected[i]));
             maxAbs = Math.max(maxAbs, abs);
             maxRel = Math.max(maxRel, rel);
-            if (abs > policy.absTolerance() && rel > policy.relTolerance()) {
+            if (abs > absTolerance && rel > relTolerance) {
                 return ValidationResult.failure(prefix + " mismatch at index " + i
                         + ": actual=" + actual[i]
                         + ", expected=" + expected[i]

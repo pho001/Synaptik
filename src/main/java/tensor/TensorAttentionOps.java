@@ -114,7 +114,7 @@ final class TensorAttentionOps {
         return switch (dataType) {
             case FLOAT64 -> -1.0e30d;
             case FLOAT32 -> -1.0e9d;
-            case FLOAT16 -> -65504.0d;
+            case BFLOAT16 -> -1.0e30d;
             case INT32, BOOL -> throw new IllegalArgumentException("attention mask fill requires floating dtype.");
         };
     }

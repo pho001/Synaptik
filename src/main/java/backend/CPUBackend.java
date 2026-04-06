@@ -76,7 +76,7 @@ public final class CPUBackend {
         switch (node.getDataType()) {
             case FLOAT64 -> kernel.forwardF64(op, inputs, node, kernelContext);
             case FLOAT32 -> kernel.forwardF32(op, inputs, node, kernelContext);
-            case FLOAT16 -> kernel.forwardF16(op, inputs, node, kernelContext);
+            case BFLOAT16 -> kernel.forwardBF16(op, inputs, node, kernelContext);
             case INT32 -> kernel.forwardI32(op, inputs, node, kernelContext);
             case BOOL -> kernel.forwardBOOL(op, inputs, node, kernelContext);
         }
@@ -303,7 +303,7 @@ public final class CPUBackend {
             case GT, GE, LT, LE, EQ, NE ->
                     input.getDataType() == DataType.FLOAT64
                             || input.getDataType() == DataType.FLOAT32
-                            || input.getDataType() == DataType.FLOAT16;
+                            || input.getDataType() == DataType.BFLOAT16;
             case WHERE -> inputIndex == 0
                     ? input.getDataType() == DataType.BOOL
                     : input.getDataType() == targetType;
@@ -604,8 +604,8 @@ public final class CPUBackend {
         if (left == DataType.FLOAT32 || right == DataType.FLOAT32) {
             return DataType.FLOAT32;
         }
-        if (left == DataType.FLOAT16 || right == DataType.FLOAT16) {
-            return DataType.FLOAT16;
+        if (left == DataType.BFLOAT16 || right == DataType.BFLOAT16) {
+            return DataType.BFLOAT16;
         }
         throw new IllegalArgumentException("BOOL is not supported by generic numeric promotion. left=" + left + ", right=" + right);
     }

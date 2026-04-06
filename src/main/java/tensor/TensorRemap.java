@@ -126,7 +126,7 @@ public final class TensorRemap {
         switch (src.getDataType()) {
             case FLOAT64 -> applyF64(src, dst, plan, parallelThreshold);
             case FLOAT32 -> applyF32(src, dst, plan, parallelThreshold);
-            case FLOAT16 -> applyF16(src, dst, plan, parallelThreshold);
+            case BFLOAT16 -> applyBF16(src, dst, plan, parallelThreshold);
             case INT32 -> applyI32(src, dst, plan, parallelThreshold);
             case BOOL -> applyBool(src, dst, plan, parallelThreshold);
         }
@@ -230,7 +230,7 @@ public final class TensorRemap {
         });
     }
 
-    private static void applyF16(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
+    private static void applyBF16(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
         if (tryFastCopyF16(src, dst, plan, plan.logicalSize)) {
             return;
         }
@@ -264,16 +264,16 @@ public final class TensorRemap {
     }
 
     private static void sequentialApplyF16(Tensor src, Tensor dst, RemapPlan plan) {
-        short[] srcData = src.getFloat16Data();
-        short[] dstData = dst.getFloat16Data();
+        short[] srcData = src.getBFloat16Data();
+        short[] dstData = dst.getBFloat16Data();
         walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, 0, plan.logicalSize, (srcOffset, dstOffset) -> {
             dstData[dstOffset] = srcData[srcOffset];
         });
     }
 
     private static void parallelApplyF16(Tensor src, Tensor dst, RemapPlan plan) {
-        short[] srcData = src.getFloat16Data();
-        short[] dstData = dst.getFloat16Data();
+        short[] srcData = src.getBFloat16Data();
+        short[] dstData = dst.getBFloat16Data();
         parallelForRanges(plan.logicalSize, (start, end) -> {
             walkOffsets(plan.srcShape, plan.denseStrides, plan.srcStrides, plan.dstStrides, plan.srcBaseOffset, plan.dstBaseOffset, start, end, (srcOffset, dstOffset) -> {
                 dstData[dstOffset] = srcData[srcOffset];
@@ -401,8 +401,8 @@ public final class TensorRemap {
     }
 
     private static boolean tryFastCopyF16(Tensor src, Tensor dst, RemapPlan plan, int logicalSize) {
-        short[] srcData = src.getFloat16Data();
-        short[] dstData = dst.getFloat16Data();
+        short[] srcData = src.getBFloat16Data();
+        short[] dstData = dst.getBFloat16Data();
         if (srcData == null || dstData == null) {
             return false;
         }

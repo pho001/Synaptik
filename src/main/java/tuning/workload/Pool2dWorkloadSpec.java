@@ -5,6 +5,7 @@ import tensor.DataType;
 import tensor.Pool2dOptions;
 import tensor.Tensor;
 import tuning.validate.ValidationReference;
+import tuning.validate.ValidationTarget;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -63,11 +64,11 @@ public final class Pool2dWorkloadSpec implements WorkloadSpec {
         DataType dataType = profile.dataType();
 
         Tensor input = tensor("POOL_INPUT", 501, dataType, requiresGrad, batch, channels, height, width);
-        Tensor root = switch (poolKind) {
+        Tensor output = switch (poolKind) {
             case MAX -> input.maxPool2d(options);
             case AVG -> input.avgPool2d(options);
         };
-        root = finalizeRoot(root, profile.mode());
+        Tensor root = finalizeRoot(output, profile.mode());
 
         List<String> gradientLabels = requiresGrad ? List.of("POOL_INPUT") : List.of();
         Map<String, Object> metadata = new LinkedHashMap<>();
@@ -86,6 +87,7 @@ public final class Pool2dWorkloadSpec implements WorkloadSpec {
 
         return new DefaultWorkloadInstance(
                 root,
+                ValidationTarget.label(output.getLabel()),
                 ValidationReference.baselineProfile(
                         WorkloadValidationProfiles.baselineFor(profile),
                         gradientLabels

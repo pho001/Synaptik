@@ -20,7 +20,8 @@ public enum TuningPreset {
 
     public ValidationPolicy benchmarkValidation() {
         return switch (this) {
-            case QUICK, BALANCED -> TuningDefaults.quickValidation();
+            case QUICK -> TuningDefaults.quickValidation();
+            case BALANCED -> TuningDefaults.balancedValidation();
             case THOROUGH -> TuningDefaults.thoroughValidation();
         };
     }
@@ -31,7 +32,8 @@ public enum TuningPreset {
 
     public ValidationPolicy autotuneValidation() {
         return switch (this) {
-            case QUICK, BALANCED -> TuningDefaults.quickValidation();
+            case QUICK -> TuningDefaults.quickValidation();
+            case BALANCED -> TuningDefaults.balancedValidation();
             case THOROUGH -> TuningDefaults.thoroughValidation();
         };
     }

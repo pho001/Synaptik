@@ -43,7 +43,7 @@ It is not the primary owner of explicit compile/runtime artifacts. Those live in
 - Storage/type abstractions:
   - [src/main/java/tensor/TensorStorage.java](../tensor/TensorStorage.java)
   - [src/main/java/tensor/DataType.java](../tensor/DataType.java)
-  - [src/main/java/tensor/Float16Storage.java](../tensor/Float16Storage.java)
+  - [src/main/java/tensor/BFloat16Storage.java](../tensor/BFloat16Storage.java)
   - [src/main/java/tensor/Float32Storage.java](../tensor/Float32Storage.java)
   - [src/main/java/tensor/Float64Storage.java](../tensor/Float64Storage.java)
 
@@ -51,7 +51,7 @@ It is not the primary owner of explicit compile/runtime artifacts. Those live in
 
 `Tensor` stores:
 
-- tensor storage (`FLOAT16`, `FLOAT32`, `FLOAT64`, `BOOL`)
+- tensor storage (`BFLOAT16`, `FLOAT32`, `FLOAT64`, `BOOL`)
 - metadata (`shape`, `strides`, `label`, `requiresGrad`)
 - producing operation (`Operation`) or `null` for leaves/constants
 - graph input links (`prevTensors`)
@@ -772,7 +772,7 @@ This is handled in backend planning/execution, not directly in tensor graph cons
 Storage is dtype-native:
 
 - `BoolStorage`
-- `Float16Storage`
+- `BFloat16Storage`
 - `Float32Storage`
 - `Float64Storage`
 

@@ -20,9 +20,9 @@ public final class CpuConv2dKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         conv2d conv = require(op);
-        Conv2dKernelSupport.forwardF16(conv, inputs.get(0), inputs.get(1), inputs.size() > 2 ? inputs.get(2) : null, node);
+        Conv2dKernelSupport.forwardBF16(conv, inputs.get(0), inputs.get(1), inputs.size() > 2 ? inputs.get(2) : null, node);
     }
 
     private static conv2d require(Operation op) {

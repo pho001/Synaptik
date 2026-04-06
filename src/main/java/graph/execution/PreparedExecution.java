@@ -235,7 +235,7 @@ public final class PreparedExecution {
         switch (gradient.getDataType()) {
             case FLOAT64 -> Arrays.fill(gradient.getFloat64Data(), 1.0);
             case FLOAT32 -> Arrays.fill(gradient.getFloat32Data(), 1.0f);
-            case FLOAT16 -> Arrays.fill(gradient.getFloat16Data(), CpuDTypeOps.toHalfBits(1.0f));
+            case BFLOAT16 -> Arrays.fill(gradient.getBFloat16Data(), CpuDTypeOps.toBFloat16Bits(1.0f));
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL tensors do not support gradient seeding.");
         }
     }
@@ -244,7 +244,7 @@ public final class PreparedExecution {
         switch (gradient.getDataType()) {
             case FLOAT64 -> Arrays.fill(gradient.getFloat64Data(), 0.0);
             case FLOAT32 -> Arrays.fill(gradient.getFloat32Data(), 0.0f);
-            case FLOAT16 -> Arrays.fill(gradient.getFloat16Data(), (short) 0);
+            case BFLOAT16 -> Arrays.fill(gradient.getBFloat16Data(), (short) 0);
             case INT32 -> Arrays.fill(gradient.getInt32Data(), 0);
             case BOOL -> Arrays.fill(gradient.getBoolData(), (byte) 0);
         }

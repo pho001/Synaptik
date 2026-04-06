@@ -103,9 +103,9 @@ public class CompareSelectExecutionTest {
         Tensor condition = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "cond", DataType.BOOL);
 
         Tensor f16 = new Tensor(new short[]{
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(1.0f),
-                backend.kernels.cpu.CpuDTypeOps.toHalfBits(2.0f)
-        }, new int[]{2}, null, "f16", DataType.FLOAT16);
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(1.0f),
+                backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(2.0f)
+        }, new int[]{2}, null, "f16", DataType.BFLOAT16);
         Tensor f32 = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "f32", DataType.FLOAT32);
         Tensor f64 = new Tensor(new double[]{100, 200}, new int[]{2}, null, "f64", DataType.FLOAT64);
 

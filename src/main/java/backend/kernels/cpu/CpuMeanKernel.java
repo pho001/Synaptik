@@ -30,12 +30,12 @@ public final class CpuMeanKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof mean reduction)) {
             throw new IllegalArgumentException("CpuMeanKernel requires mean operation");
         }
         Tensor input = requireSingleInput(inputs);
-        SumLoops.executeF16(input, node, reduction.getDimension(), context);
+        SumLoops.executeBF16(input, node, reduction.getDimension(), context);
         MeanSupport.divideF16(node, divisor(input, reduction.getDimension()));
     }
 

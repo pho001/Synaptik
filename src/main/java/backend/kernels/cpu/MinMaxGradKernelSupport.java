@@ -47,7 +47,7 @@ final class MinMaxGradKernelSupport {
         }
     }
 
-    static void runF16(short[] a, int aBaseOffset, short[] b, int bBaseOffset, short[] outGrad, int outGradBaseOffset, short[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput, boolean isMax) {
+    static void runBF16(short[] a, int aBaseOffset, short[] b, int bBaseOffset, short[] outGrad, int outGradBaseOffset, short[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput, boolean isMax) {
         int[] outShape = plan.outShape();
         int[] aEff = plan.aEffStrides();
         int[] bEff = plan.bEffStrides();
@@ -58,10 +58,10 @@ final class MinMaxGradKernelSupport {
         int aIdx = aBaseOffset;
         int bIdx = bBaseOffset;
         for (int i = 0; i < outSize; i++) {
-            float av = CpuDTypeOps.fromHalfBits(a[aIdx]);
-            float bv = CpuDTypeOps.fromHalfBits(b[bIdx]);
-            float gv = CpuDTypeOps.fromHalfBits(outGrad[outGradBaseOffset + i]);
-            out[outBaseOffset + i] = CpuDTypeOps.toHalfBits((float) gradValue(av, bv, gv, forFirstInput, isMax));
+            float av = CpuDTypeOps.fromBFloat16Bits(a[aIdx]);
+            float bv = CpuDTypeOps.fromBFloat16Bits(b[bIdx]);
+            float gv = CpuDTypeOps.fromBFloat16Bits(outGrad[outGradBaseOffset + i]);
+            out[outBaseOffset + i] = CpuDTypeOps.toBFloat16Bits((float) gradValue(av, bv, gv, forFirstInput, isMax));
             if (i + 1 < outSize) {
                 int[] next = nextIndices(coords, outShape, aEff, bEff, rank, aIdx, bIdx);
                 aIdx = next[0];

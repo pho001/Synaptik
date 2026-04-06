@@ -33,13 +33,13 @@ public class CpuSumKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof sum reduction)) {
             throw new IllegalArgumentException("CpuSumKernel requires sum operation");
         }
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("Sum expects exactly one input tensor");
         }
-        EXECUTOR.executeF16(reduction, inputs.getFirst(), node, context);
+        EXECUTOR.executeBF16(reduction, inputs.getFirst(), node, context);
     }
 }

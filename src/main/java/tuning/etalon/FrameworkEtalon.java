@@ -93,7 +93,7 @@ public final class FrameworkEtalon {
         return List.of(
                 candidate("f64_infer_default", DataType.FLOAT64, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()),
                 candidate("f32_infer_default", DataType.FLOAT32, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()),
-                candidate("f16_infer_default", DataType.FLOAT16, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()),
+                candidate("bf16_infer_default", DataType.BFLOAT16, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()),
                 candidate("f64_infer_no_fuse", DataType.FLOAT64, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.MEM)), RuntimeConfig.inferenceDefaults()),
                 candidate("f32_infer_no_fuse", DataType.FLOAT32, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.MEM)), RuntimeConfig.inferenceDefaults()),
                 candidate("f64_infer_blas", DataType.FLOAT64, ExecutionMode.FORWARD, OptimizerConfig.inferenceDefaults(), withRuntime(RuntimeConfig.inferenceDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, BlasThreadPolicy.AUTO, 0)),
@@ -105,7 +105,7 @@ public final class FrameworkEtalon {
         return List.of(
                 candidate("f64_train_default", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), RuntimeConfig.trainingDefaults()),
                 candidate("f32_train_default", DataType.FLOAT32, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), RuntimeConfig.trainingDefaults()),
-                candidate("f16_train_default", DataType.FLOAT16, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), RuntimeConfig.trainingDefaults()),
+                candidate("bf16_train_default", DataType.BFLOAT16, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), RuntimeConfig.trainingDefaults()),
                 candidate("f64_train_fuse_mem", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.FUSE, OptimizerStage.MEM)), RuntimeConfig.trainingDefaults()),
                 candidate("f32_train_fuse_mem", DataType.FLOAT32, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.FUSE, OptimizerStage.MEM)), RuntimeConfig.trainingDefaults()),
                 candidate("f64_train_blas", DataType.FLOAT64, ExecutionMode.FORWARD_BACKWARD, OptimizerConfig.trainingDefaults(), withRuntime(RuntimeConfig.trainingDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, BlasThreadPolicy.FIXED, 4)),

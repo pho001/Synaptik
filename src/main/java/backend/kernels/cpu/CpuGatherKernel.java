@@ -26,12 +26,12 @@ public final class CpuGatherKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         if (!(op instanceof gather gatherOp)) {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.runF16(pair[0], pair[1], node, gatherOp.getDimension());
+        GatherSupport.runBF16(pair[0], pair[1], node, gatherOp.getDimension());
     }
 
     @Override

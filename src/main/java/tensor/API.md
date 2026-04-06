@@ -2935,8 +2935,8 @@ Returns raw `double[]` storage when dtype is `FLOAT64`, otherwise `null`.
 #### `getFloat32Data()`
 Returns raw `float[]` storage when dtype is `FLOAT32`, otherwise `null`.
 
-#### `getFloat16Data()`
-Returns raw `short[]` storage when dtype is `FLOAT16`, otherwise `null`.
+#### `getBFloat16Data()`
+Returns raw `short[]` storage when dtype is `BFLOAT16`, otherwise `null`.
 
 #### `getBoolData()`
 Returns raw `byte[]` storage when dtype is `BOOL`, otherwise `null`.
@@ -2952,7 +2952,7 @@ Replaces tensor data for numeric tensors using `double[]` input.
 Replaces tensor data using `float[]` input.
 
 #### `setData(short[] data)`
-Replaces tensor data using `FLOAT16` raw storage input.
+Replaces tensor data using `BFLOAT16` raw storage input.
 
 #### `setData(byte[] data)`
 Replaces tensor data using raw `BOOL` storage input.

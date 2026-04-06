@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import tuning.candidate.Candidate;
 import tuning.session.TuningPreset;
 import tuning.validate.ValidationReferenceKind;
+import tuning.validate.ValidationTargetKind;
 import tuning.workload.StandardWorkloads;
 import tuning.workload.WorkloadCatalog;
 import tuning.workload.WorkloadEnvironment;
@@ -47,6 +48,8 @@ public class StandardWorkloadsTest {
         assertEquals("transformer_hot_path", instance.metadata().name());
         assertEquals(tuning.workload.WorkloadKind.TRANSFORMER_HOT_PATH, instance.metadata().kind());
         assertEquals(1, instance.root().getShapeUnsafe().length);
+        assertEquals(ValidationTargetKind.LABEL, instance.validationTarget().kind());
+        assertEquals("rmsNorm", instance.validationTarget().label());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, instance.reference().kind());
     }
 
@@ -107,6 +110,16 @@ public class StandardWorkloadsTest {
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, norm.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, pool.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, loss.reference().kind());
+
+        assertEquals(ValidationTargetKind.LABEL, matmul.validationTarget().kind());
+        assertEquals("matmul", matmul.validationTarget().label());
+        assertEquals(ValidationTargetKind.LABEL, conv.validationTarget().kind());
+        assertEquals("conv2d", conv.validationTarget().label());
+        assertEquals(ValidationTargetKind.LABEL, norm.validationTarget().kind());
+        assertEquals("layerNorm", norm.validationTarget().label());
+        assertEquals(ValidationTargetKind.LABEL, pool.validationTarget().kind());
+        assertEquals("maxPool2d", pool.validationTarget().label());
+        assertEquals(ValidationTargetKind.ROOT, loss.validationTarget().kind());
     }
 
     @Test

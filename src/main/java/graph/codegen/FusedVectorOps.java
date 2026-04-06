@@ -35,7 +35,7 @@ public final class FusedVectorOps {
     public static boolean isRecommended(int mode) {
         return switch (mode) {
             case FusedDTypeOps.MODE_F32 -> FLOAT_SPECIES.length() >= 4;
-            case FusedDTypeOps.MODE_F64, FusedDTypeOps.MODE_F16 -> DOUBLE_SPECIES.length() >= 4;
+            case FusedDTypeOps.MODE_F64, FusedDTypeOps.MODE_BF16 -> DOUBLE_SPECIES.length() >= 4;
             default -> false;
         };
     }
@@ -44,7 +44,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).add((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).add((FloatVector) b);
-            case FusedDTypeOps.MODE_F16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.add(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.add(x, y, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -56,7 +56,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).sub((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).sub((FloatVector) b);
-            case FusedDTypeOps.MODE_F16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.sub(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.sub(x, y, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -68,7 +68,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).mul((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).mul((FloatVector) b);
-            case FusedDTypeOps.MODE_F16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.mul(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.mul(x, y, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -80,7 +80,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).div((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).div((FloatVector) b);
-            case FusedDTypeOps.MODE_F16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.div(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.div(x, y, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -92,7 +92,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).min((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).min((FloatVector) b);
-            case FusedDTypeOps.MODE_F16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.min(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.min(x, y, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -104,7 +104,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max((FloatVector) b);
-            case FusedDTypeOps.MODE_F16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.max(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.max(x, y, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -116,7 +116,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).neg();
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).neg();
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.neg(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.neg(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -128,7 +128,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> DOUBLE_ONE.div((DoubleVector) a);
             case FusedDTypeOps.MODE_F32 -> FLOAT_ONE.div((FloatVector) a);
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.inv(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.inv(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -140,7 +140,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).mul(scalar);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).mul((float) scalar);
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.mulScalar(x, scalar, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.mulScalar(x, scalar, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -152,7 +152,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max(DOUBLE_ZERO);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max(FLOAT_ZERO);
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.relu(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.relu(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -164,7 +164,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).abs();
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).abs();
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.abs(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.abs(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -176,7 +176,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max(minValue);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max((float) minValue);
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.clampMin(x, minValue, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.clampMin(x, minValue, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -188,7 +188,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).min(maxValue);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).min((float) maxValue);
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.clampMax(x, maxValue, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.clampMax(x, maxValue, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -207,7 +207,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::sqrt);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.sqrt(x));
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.sqrt(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.sqrt(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -226,7 +226,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::exp);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.exp(x));
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.exp(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.exp(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -250,7 +250,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastExp::fastExpF64);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastExp::fastExpF32);
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.fastExp(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.fastExp(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -262,7 +262,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::log);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.log(x));
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.log(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.log(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -281,7 +281,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::tanh);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.tanh(x));
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.tanh(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.tanh(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -305,7 +305,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastExp::fastTanhF64);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastExp::fastTanhF32);
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.fastTanh(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.fastTanh(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -317,7 +317,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, x -> 1.0 / (1.0 + Math.exp(-x)));
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) (1.0 / (1.0 + Math.exp(-x))));
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.sigmoid(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.sigmoid(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -329,7 +329,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, x -> Math.pow(x, exponent));
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.pow(x, exponent));
-            case FusedDTypeOps.MODE_F16 -> mapUnaryD(a, x -> FusedDTypeOps.pow(x, exponent, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.pow(x, exponent, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }

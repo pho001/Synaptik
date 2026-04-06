@@ -18,7 +18,7 @@ public final class TensorLayoutTransform {
         switch (src.getDataType()) {
             case FLOAT64 -> copyLinearizedF64(src.getFloat64Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
             case FLOAT32 -> copyLinearizedF32(src.getFloat32Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
-            case FLOAT16 -> copyLinearizedF16(src.getFloat16Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
+            case BFLOAT16 -> copyLinearizedBF16(src.getBFloat16Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
             case INT32 -> copyLinearizedI32(src.getInt32Data(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
             case BOOL -> copyLinearizedBool(src.getBoolData(), dst, srcShape, srcStrides, srcDenseStrides, srcBaseOffset, size);
         }
@@ -46,7 +46,7 @@ public final class TensorLayoutTransform {
         switch (src.getDataType()) {
             case FLOAT64 -> copyPermutedF64(src.getFloat64Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
             case FLOAT32 -> copyPermutedF32(src.getFloat32Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
-            case FLOAT16 -> copyPermutedF16(src.getFloat16Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
+            case BFLOAT16 -> copyPermutedBF16(src.getBFloat16Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
             case INT32 -> copyPermutedI32(src.getInt32Data(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
             case BOOL -> copyPermutedBool(src.getBoolData(), dst, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, size, rank);
         }
@@ -75,10 +75,10 @@ public final class TensorLayoutTransform {
             }
             return;
         }
-        short[] dstF16 = dst.getFloat16Data();
+        short[] dstF16 = dst.getBFloat16Data();
         if (dstF16 != null) {
             for (int i = 0; i < size; i++) {
-                dstF16[i] = backend.kernels.cpu.CpuDTypeOps.toHalfBits((float) srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)]);
+                dstF16[i] = backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits((float) srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)]);
             }
             return;
         }
@@ -108,17 +108,17 @@ public final class TensorLayoutTransform {
             }
             return;
         }
-        short[] dstF16 = dst.getFloat16Data();
+        short[] dstF16 = dst.getBFloat16Data();
         if (dstF16 != null) {
             for (int i = 0; i < size; i++) {
-                dstF16[i] = backend.kernels.cpu.CpuDTypeOps.toHalfBits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)]);
+                dstF16[i] = backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)]);
             }
             return;
         }
         throw new IllegalStateException("Destination storage is missing");
     }
 
-    private static void copyLinearizedF16(
+    private static void copyLinearizedBF16(
             short[] srcData,
             Tensor dst,
             int[] srcShape,
@@ -130,18 +130,18 @@ public final class TensorLayoutTransform {
         double[] dstF64 = dst.getFloat64Data();
         if (dstF64 != null) {
             for (int i = 0; i < size; i++) {
-                dstF64[i] = backend.kernels.cpu.CpuDTypeOps.fromHalfBits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)]);
+                dstF64[i] = backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)]);
             }
             return;
         }
         float[] dstF32 = dst.getFloat32Data();
         if (dstF32 != null) {
             for (int i = 0; i < size; i++) {
-                dstF32[i] = backend.kernels.cpu.CpuDTypeOps.fromHalfBits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)]);
+                dstF32[i] = backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)]);
             }
             return;
         }
-        short[] dstF16 = dst.getFloat16Data();
+        short[] dstF16 = dst.getBFloat16Data();
         if (dstF16 != null) {
             for (int i = 0; i < size; i++) {
                 dstF16[i] = srcData[logicalToOffset(i, srcShape, srcStrides, srcDenseStrides, srcBaseOffset)];
@@ -213,10 +213,10 @@ public final class TensorLayoutTransform {
             }
             return;
         }
-        short[] dstF16 = dst.getFloat16Data();
+        short[] dstF16 = dst.getBFloat16Data();
         if (dstF16 != null) {
             for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
-                dstF16[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.toHalfBits((float) srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)]);
+                dstF16[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits((float) srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)]);
             }
             return;
         }
@@ -247,17 +247,17 @@ public final class TensorLayoutTransform {
             }
             return;
         }
-        short[] dstF16 = dst.getFloat16Data();
+        short[] dstF16 = dst.getBFloat16Data();
         if (dstF16 != null) {
             for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
-                dstF16[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.toHalfBits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)]);
+                dstF16[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)]);
             }
             return;
         }
         throw new IllegalStateException("Destination storage is missing");
     }
 
-    private static void copyPermutedF16(
+    private static void copyPermutedBF16(
             short[] srcData,
             Tensor dst,
             int[] normalizedAxes,
@@ -270,18 +270,18 @@ public final class TensorLayoutTransform {
         double[] dstF64 = dst.getFloat64Data();
         if (dstF64 != null) {
             for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
-                dstF64[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.fromHalfBits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)]);
+                dstF64[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)]);
             }
             return;
         }
         float[] dstF32 = dst.getFloat32Data();
         if (dstF32 != null) {
             for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
-                dstF32[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.fromHalfBits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)]);
+                dstF32[logicalIndex] = backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)]);
             }
             return;
         }
-        short[] dstF16 = dst.getFloat16Data();
+        short[] dstF16 = dst.getBFloat16Data();
         if (dstF16 != null) {
             for (int logicalIndex = 0; logicalIndex < size; logicalIndex++) {
                 dstF16[logicalIndex] = srcData[permutedSourceOffset(logicalIndex, normalizedAxes, srcStrides, dstDenseStrides, srcBaseOffset, rank)];

@@ -1,12 +1,12 @@
-package backend.kernels.cpu.f16;
+package backend.kernels.cpu.bf16;
 
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.ResolvedDispatchHints;
 
-public final class MulScalarF16 {
-    private MulScalarF16() {}
+public final class MulScalarBF16 {
+    private MulScalarBF16() {}
 
     public static void run(short[] in, double scalar, short[] out, ResolvedDispatchHints hints) {
         float s = (float) scalar;
@@ -19,7 +19,7 @@ public final class MulScalarF16 {
 
     private static void scalar(short[] in, float scalar, short[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            out[i] = CpuDTypeOps.toHalfBits(CpuDTypeOps.fromHalfBits(in[i]) * scalar);
+            out[i] = CpuDTypeOps.toBFloat16Bits(CpuDTypeOps.fromBFloat16Bits(in[i]) * scalar);
         }
     }
 

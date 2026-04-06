@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.f16.UnaryF16;
+import backend.kernels.cpu.bf16.UnaryBF16;
 import backend.kernels.cpu.f32.UnaryF32;
 import backend.kernels.cpu.f64.UnaryF64;
 import operations.Operation;
@@ -21,7 +21,7 @@ public final class CpuClampMinKernel implements CpuKernel {
     }
 
     @Override
-    public void forwardF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        UnaryF16.clampMin(inputs.get(0).getFloat16Data(), ((clampMin) op).getMinValueF32(), node.getFloat16Data(), context.dispatchHints());
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        UnaryBF16.clampMin(inputs.get(0).getBFloat16Data(), ((clampMin) op).getMinValueF32(), node.getBFloat16Data(), context.dispatchHints());
     }
 }
