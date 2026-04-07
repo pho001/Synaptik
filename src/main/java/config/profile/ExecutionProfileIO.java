@@ -24,6 +24,8 @@ import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.RewriteConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
+import config.runtime.FusedExecutionPolicy;
+import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;
 
@@ -135,12 +137,16 @@ public final class ExecutionProfileIO {
                     findInt(json, "cpuMatMulTileK", defaultKernel.cpu().matMulTileK()),
                     findInt(json, "cpuVectorMinSize", defaultKernel.cpu().vectorMinSize()),
                     findInt(json, "cpuParallelMinSize", defaultKernel.cpu().parallelMinSize()),
-                    findInt(json, "cpuParallelism", defaultKernel.cpu().parallelism()),
-                    findInt(json, "cpuChunksPerWorker", defaultKernel.cpu().chunksPerWorker()),
-                    findInt(json, "cpuMinChunkSize", defaultKernel.cpu().minChunkSize()),
                     findInt(json, "cpuContiguousMaterializeThreshold", defaultKernel.cpu().contiguousMaterializeThreshold()),
+                    findInt(json, "cpuLowCostTargetChunksPerWorker", defaultKernel.cpu().lowCostTargetChunksPerWorker()),
+                    findInt(json, "cpuMediumCostTargetChunksPerWorker", defaultKernel.cpu().mediumCostTargetChunksPerWorker()),
+                    findInt(json, "cpuHighCostTargetChunksPerWorker", defaultKernel.cpu().highCostTargetChunksPerWorker()),
+                    findInt(json, "cpuMinScalarChunkSize", defaultKernel.cpu().minScalarChunkSize()),
+                    findInt(json, "cpuMinVectorChunkSize", defaultKernel.cpu().minVectorChunkSize()),
+                    findInt(json, "cpuMinReductionChunkSize", defaultKernel.cpu().minReductionChunkSize()),
+                    findInt(json, "cpuCommonPoolLowCostMaxWorkPerWorker", defaultKernel.cpu().commonPoolLowCostMaxWorkPerWorker()),
+                    findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedAsmVectorWidth()),
                     findEnum(json, "cpuSumAccuracyMode", defaultKernel.cpu().sumAccuracyMode(), SumAccuracyMode.class),
-                    findDouble(json, "cpuLowCostNsPerElementThreshold", defaultKernel.cpu().lowCostNsPerElementThreshold()),
                     findEnum(json, "cpuVectorPolicyCheap", defaultKernel.cpu().vectorPolicyCheap(), VectorPolicy.class),
                     findEnum(json, "cpuVectorPolicyTranscendental", defaultKernel.cpu().vectorPolicyTranscendental(), VectorPolicy.class),
                     findEnum(json, "cpuVectorPolicyReduction", defaultKernel.cpu().vectorPolicyReduction(), VectorPolicy.class),
@@ -177,7 +183,12 @@ public final class ExecutionProfileIO {
                     findEnum(json, "threadPolicy", defaultProfile.runtime().blas().threadPolicy(), BlasThreadPolicy.class),
                     findInt(json, "threads", defaultProfile.runtime().blas().threads())
             );
-            RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas);
+            FusedExecutionPolicy fused = new FusedExecutionPolicy(
+                    findEnum(json, "fusedPrimaryBackend", defaultProfile.runtime().fused().primaryBackend(), FusedPrimaryBackend.class),
+                    findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback()),
+                    findBoolean(json, "fusedPreferDirectForCompareSelect", defaultProfile.runtime().fused().preferDirectForCompareSelect())
+            );
+            RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas, fused);
 
             WorkloadProfile defaultWorkload = defaultProfile.workload();
             WorkloadKind workloadKind = findEnum(json, "kind", defaultWorkload.kind(), WorkloadKind.class);
@@ -226,6 +237,7 @@ public final class ExecutionProfileIO {
         var opencl = kernel.opencl();
         var blas = runtime.blas();
         var approximation = runtime.approximation();
+        var fused = runtime.fused();
         var workload = profile.workload();
 
         return "{\n" +
@@ -278,12 +290,16 @@ public final class ExecutionProfileIO {
                 "        \"cpuVectorMinSize\": " + cpu.vectorMinSize() + ",\n" +
                 "        \"cpuParallelMinSize\": " + cpu.parallelMinSize() + ",\n" +
                 "        \"cpuMatMulParallelMinSize\": " + cpu.matMulParallelMinSize() + ",\n" +
-                "        \"cpuParallelism\": " + cpu.parallelism() + ",\n" +
-                "        \"cpuChunksPerWorker\": " + cpu.chunksPerWorker() + ",\n" +
-                "        \"cpuMinChunkSize\": " + cpu.minChunkSize() + ",\n" +
                 "        \"cpuContiguousMaterializeThreshold\": " + cpu.contiguousMaterializeThreshold() + ",\n" +
+                "        \"cpuLowCostTargetChunksPerWorker\": " + cpu.lowCostTargetChunksPerWorker() + ",\n" +
+                "        \"cpuMediumCostTargetChunksPerWorker\": " + cpu.mediumCostTargetChunksPerWorker() + ",\n" +
+                "        \"cpuHighCostTargetChunksPerWorker\": " + cpu.highCostTargetChunksPerWorker() + ",\n" +
+                "        \"cpuMinScalarChunkSize\": " + cpu.minScalarChunkSize() + ",\n" +
+                "        \"cpuMinVectorChunkSize\": " + cpu.minVectorChunkSize() + ",\n" +
+                "        \"cpuMinReductionChunkSize\": " + cpu.minReductionChunkSize() + ",\n" +
+                "        \"cpuCommonPoolLowCostMaxWorkPerWorker\": " + cpu.commonPoolLowCostMaxWorkPerWorker() + ",\n" +
+                "        \"cpuFusedAsmVectorWidth\": " + cpu.fusedAsmVectorWidth() + ",\n" +
                 "        \"cpuSumAccuracyMode\": \"" + cpu.sumAccuracyMode().name() + "\",\n" +
-                "        \"cpuLowCostNsPerElementThreshold\": " + cpu.lowCostNsPerElementThreshold() + ",\n" +
                 "        \"cpuVectorPolicyCheap\": \"" + cpu.vectorPolicyCheap().name() + "\",\n" +
                 "        \"cpuVectorPolicyTranscendental\": \"" + cpu.vectorPolicyTranscendental().name() + "\",\n" +
                 "        \"cpuVectorPolicyReduction\": \"" + cpu.vectorPolicyReduction().name() + "\",\n" +
@@ -310,6 +326,11 @@ public final class ExecutionProfileIO {
                 "      \"debug\": " + blas.debug() + ",\n" +
                 "      \"threadPolicy\": \"" + blas.threadPolicy().name() + "\",\n" +
                 "      \"threads\": " + blas.threads() + "\n" +
+                "    },\n" +
+                "    \"fused\": {\n" +
+                "      \"fusedPrimaryBackend\": \"" + fused.primaryBackend().name() + "\",\n" +
+                "      \"fusedAllowBackendFallback\": " + fused.allowBackendFallback() + ",\n" +
+                "      \"fusedPreferDirectForCompareSelect\": " + fused.preferDirectForCompareSelect() + "\n" +
                 "    },\n" +
                 "    \"workload\": {\n" +
                 "      \"kind\": \"" + workload.kind().name() + "\",\n" +

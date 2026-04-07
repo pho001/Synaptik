@@ -13,10 +13,6 @@ import java.util.function.DoubleUnaryOperator;
 public final class FusedVectorOps {
     private static final VectorSpecies<Double> DOUBLE_SPECIES = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
-    private static final DoubleVector DOUBLE_ZERO = DoubleVector.zero(DOUBLE_SPECIES);
-    private static final DoubleVector DOUBLE_ONE = DoubleVector.broadcast(DOUBLE_SPECIES, 1.0);
-    private static final FloatVector FLOAT_ZERO = FloatVector.zero(FLOAT_SPECIES);
-    private static final FloatVector FLOAT_ONE = FloatVector.broadcast(FLOAT_SPECIES, 1.0f);
 
     private FusedVectorOps() {}
 
@@ -30,14 +26,6 @@ public final class FusedVectorOps {
 
     public static int widthF32() {
         return FLOAT_SPECIES.length();
-    }
-
-    public static boolean isRecommended(int mode) {
-        return switch (mode) {
-            case FusedDTypeOps.MODE_F32 -> FLOAT_SPECIES.length() >= 4;
-            case FusedDTypeOps.MODE_F64, FusedDTypeOps.MODE_BF16 -> DOUBLE_SPECIES.length() >= 4;
-            default -> false;
-        };
     }
 
     public static Object add(Object a, Object b, int mode) {
@@ -126,15 +114,15 @@ public final class FusedVectorOps {
 
     public static Object inv(Object a, int mode) {
         return switch (mode) {
-            case FusedDTypeOps.MODE_F64 -> DOUBLE_ONE.div((DoubleVector) a);
-            case FusedDTypeOps.MODE_F32 -> FLOAT_ONE.div((FloatVector) a);
+            case FusedDTypeOps.MODE_F64 -> doubleOne((DoubleVector) a).div((DoubleVector) a);
+            case FusedDTypeOps.MODE_F32 -> floatOne((FloatVector) a).div((FloatVector) a);
             case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.inv(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
-    public static DoubleVector invF64(DoubleVector a) { return DOUBLE_ONE.div(a); }
-    public static FloatVector invF32(FloatVector a) { return FLOAT_ONE.div(a); }
+    public static DoubleVector invF64(DoubleVector a) { return doubleOne(a).div(a); }
+    public static FloatVector invF32(FloatVector a) { return floatOne(a).div(a); }
 
     public static Object mulScalar(Object a, double scalar, int mode) {
         return switch (mode) {
@@ -150,15 +138,15 @@ public final class FusedVectorOps {
 
     public static Object relu(Object a, int mode) {
         return switch (mode) {
-            case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max(DOUBLE_ZERO);
-            case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max(FLOAT_ZERO);
+            case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max(doubleZero((DoubleVector) a));
+            case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max(floatZero((FloatVector) a));
             case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.relu(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
-    public static DoubleVector reluF64(DoubleVector a) { return a.max(DOUBLE_ZERO); }
-    public static FloatVector reluF32(FloatVector a) { return a.max(FLOAT_ZERO); }
+    public static DoubleVector reluF64(DoubleVector a) { return a.max(doubleZero(a)); }
+    public static FloatVector reluF32(FloatVector a) { return a.max(floatZero(a)); }
 
     public static Object abs(Object a, int mode) {
         return switch (mode) {
@@ -419,44 +407,68 @@ public final class FusedVectorOps {
 
     private static Object mapUnaryD(Object vector, DoubleUnaryOperator fn) {
         DoubleVector v = (DoubleVector) vector;
-        double[] buf = new double[DOUBLE_SPECIES.length()];
+        VectorSpecies<Double> species = v.species();
+        double[] buf = new double[species.length()];
         v.intoArray(buf, 0);
         for (int i = 0; i < buf.length; i++) {
             buf[i] = fn.applyAsDouble(buf[i]);
         }
-        return DoubleVector.fromArray(DOUBLE_SPECIES, buf, 0);
+        return DoubleVector.fromArray(species, buf, 0);
     }
 
     private static Object mapUnaryF(Object vector, FloatUnaryOperator fn) {
         FloatVector v = (FloatVector) vector;
-        float[] buf = new float[FLOAT_SPECIES.length()];
+        VectorSpecies<Float> species = v.species();
+        float[] buf = new float[species.length()];
         v.intoArray(buf, 0);
         for (int i = 0; i < buf.length; i++) {
             buf[i] = fn.applyAsFloat(buf[i]);
         }
-        return FloatVector.fromArray(FLOAT_SPECIES, buf, 0);
+        return FloatVector.fromArray(species, buf, 0);
     }
 
     private static Object mapBinaryD(Object left, Object right, DoubleBinaryOperator fn) {
-        double[] a = new double[DOUBLE_SPECIES.length()];
-        double[] b = new double[DOUBLE_SPECIES.length()];
-        ((DoubleVector) left).intoArray(a, 0);
-        ((DoubleVector) right).intoArray(b, 0);
+        DoubleVector lv = (DoubleVector) left;
+        DoubleVector rv = (DoubleVector) right;
+        VectorSpecies<Double> species = lv.species();
+        double[] a = new double[species.length()];
+        double[] b = new double[species.length()];
+        lv.intoArray(a, 0);
+        rv.intoArray(b, 0);
         for (int i = 0; i < a.length; i++) {
             a[i] = fn.applyAsDouble(a[i], b[i]);
         }
-        return DoubleVector.fromArray(DOUBLE_SPECIES, a, 0);
+        return DoubleVector.fromArray(species, a, 0);
     }
 
     private static Object mapBinaryF(Object left, Object right, FloatBinaryOperator fn) {
-        float[] a = new float[FLOAT_SPECIES.length()];
-        float[] b = new float[FLOAT_SPECIES.length()];
-        ((FloatVector) left).intoArray(a, 0);
-        ((FloatVector) right).intoArray(b, 0);
+        FloatVector lv = (FloatVector) left;
+        FloatVector rv = (FloatVector) right;
+        VectorSpecies<Float> species = lv.species();
+        float[] a = new float[species.length()];
+        float[] b = new float[species.length()];
+        lv.intoArray(a, 0);
+        rv.intoArray(b, 0);
         for (int i = 0; i < a.length; i++) {
             a[i] = fn.applyAsFloat(a[i], b[i]);
         }
-        return FloatVector.fromArray(FLOAT_SPECIES, a, 0);
+        return FloatVector.fromArray(species, a, 0);
+    }
+
+    private static DoubleVector doubleZero(DoubleVector vector) {
+        return DoubleVector.zero(vector.species());
+    }
+
+    private static DoubleVector doubleOne(DoubleVector vector) {
+        return DoubleVector.broadcast(vector.species(), 1.0d);
+    }
+
+    private static FloatVector floatZero(FloatVector vector) {
+        return FloatVector.zero(vector.species());
+    }
+
+    private static FloatVector floatOne(FloatVector vector) {
+        return FloatVector.broadcast(vector.species(), 1.0f);
     }
 
     @FunctionalInterface

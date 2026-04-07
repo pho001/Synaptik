@@ -11,31 +11,67 @@ public final class FusedBroadcastVectorOps {
 
     private FusedBroadcastVectorOps() {}
 
-    public static FloatVector loadVectorF32(FusedBroadcastCursor cursor, float[] input) {
-        int[] idx = cursor.nextIndices(F32.length());
-        return FloatVector.fromArray(F32, input, 0, idx, 0);
+    public static FloatVector loadVectorF32(FusedBroadcastCursor cursor, float[] input, int width) {
+        VectorSpecies<Float> species = speciesF32(width);
+        int[] idx = cursor.nextIndices(species.length());
+        return FloatVector.fromArray(species, input, 0, idx, 0);
     }
 
-    public static DoubleVector loadVectorF64(FusedBroadcastCursor cursor, double[] input) {
-        int[] idx = cursor.nextIndices(F64.length());
-        return DoubleVector.fromArray(F64, input, 0, idx, 0);
+    public static DoubleVector loadVectorF64(FusedBroadcastCursor cursor, double[] input, int width) {
+        VectorSpecies<Double> species = speciesF64(width);
+        int[] idx = cursor.nextIndices(species.length());
+        return DoubleVector.fromArray(species, input, 0, idx, 0);
     }
 
-    public static Object loadMaskF32(FusedBroadcastCursor cursor, byte[] input) {
-        int[] idx = cursor.nextIndices(F32.length());
-        boolean[] lanes = new boolean[F32.length()];
+    public static Object loadMaskF32(FusedBroadcastCursor cursor, byte[] input, int width) {
+        VectorSpecies<Float> species = speciesF32(width);
+        int[] idx = cursor.nextIndices(species.length());
+        boolean[] lanes = new boolean[species.length()];
         for (int i = 0; i < lanes.length; i++) {
             lanes[i] = input[idx[i]] != 0;
         }
-        return VectorMask.fromArray(F32, lanes, 0);
+        return VectorMask.fromArray(species, lanes, 0);
     }
 
-    public static Object loadMaskF64(FusedBroadcastCursor cursor, byte[] input) {
-        int[] idx = cursor.nextIndices(F64.length());
-        boolean[] lanes = new boolean[F64.length()];
+    public static Object loadMaskF64(FusedBroadcastCursor cursor, byte[] input, int width) {
+        VectorSpecies<Double> species = speciesF64(width);
+        int[] idx = cursor.nextIndices(species.length());
+        boolean[] lanes = new boolean[species.length()];
         for (int i = 0; i < lanes.length; i++) {
             lanes[i] = input[idx[i]] != 0;
         }
-        return VectorMask.fromArray(F64, lanes, 0);
+        return VectorMask.fromArray(species, lanes, 0);
+    }
+
+    private static VectorSpecies<Float> speciesF32(int width) {
+        return switch (normalizeWidth(width)) {
+            case 2 -> FloatVector.SPECIES_64;
+            case 4 -> FloatVector.SPECIES_128;
+            case 8 -> FloatVector.SPECIES_256;
+            default -> F32;
+        };
+    }
+
+    private static VectorSpecies<Double> speciesF64(int width) {
+        return switch (normalizeWidth(width)) {
+            case 1 -> DoubleVector.SPECIES_64;
+            case 2 -> DoubleVector.SPECIES_128;
+            case 4 -> DoubleVector.SPECIES_256;
+            case 8 -> DoubleVector.SPECIES_512;
+            default -> F64;
+        };
+    }
+
+    private static int normalizeWidth(int width) {
+        if (width <= 1) {
+            return 1;
+        }
+        if (width <= 2) {
+            return 2;
+        }
+        if (width <= 4) {
+            return 4;
+        }
+        return 8;
     }
 }

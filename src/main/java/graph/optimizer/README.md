@@ -391,9 +391,17 @@ Current model:
 - optimizer replaces a cluster with a `FusedOperation` descriptor node
 - `FusedOperationFactory` builds `FusedExpressionPlan`
 - `FusedAccessResolver` validates absorbable access chains and resolves backing runtime inputs
-- `CompiledGraph.prepare(...)` compiles a runtime fused executable through `CompiledFusedKernelFactory`
-- prepared fused executable is stored in `CompiledNodeExecutionMetadata`
-- `CpuFusedKernel` executes that prepared executable
+- `CompiledGraph.prepare(...)` resolves per-node compute mode first
+- `CompiledGraph.prepare(...)` resolves a fused runtime backend through `FusedExecutionBackendResolver`
+- the selected backend produces one `PreparedFusedExecutable`
+- current backends are:
+  - direct fused backend
+  - ASM fallback backend
+- current direct fused backend coverage:
+  - `FLOAT32`
+  - `FLOAT64`
+  - `BF16_F32_COMPUTE`
+- `CpuFusedKernel` executes that prepared executable without caring which backend produced it
 
 This means:
 

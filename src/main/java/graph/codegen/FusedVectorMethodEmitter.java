@@ -34,7 +34,7 @@ public final class FusedVectorMethodEmitter {
         FusedOutputBindingEmitter.emitVectorBinding(mv, context, sm);
         FusedInputBindingEmitter.emitVectorCursorBindings(mv, plan.inputs(), sm);
 
-        FusedAsmSupport.emitVectorWidthCall(mv, context.precisionMode());
+        FusedAsmSupport.emitVectorWidthCall(mv, sm);
         mv.visitVarInsn(ISTORE, sm.get(SlotKey.SECOND_LOOP_COUNTER));
 
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_END));
@@ -71,6 +71,7 @@ public final class FusedVectorMethodEmitter {
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
         mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
         if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
+            mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
             FusedAsmSupport.emitStoreBoolVectorToArrayCall(mv, context.precisionMode());
         } else {
             FusedAsmSupport.emitStoreVectorToArrayCall(mv, context.precisionMode());
@@ -91,6 +92,7 @@ public final class FusedVectorMethodEmitter {
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR));
+        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_UPPER));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_END));
         mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
@@ -110,21 +112,7 @@ public final class FusedVectorMethodEmitter {
 
     private static boolean supportsVector(FusedGenerationContext context, FusedExpressionPlan plan) {
         if (context.precisionMode() == FusedDTypeOps.MODE_BF16) {
-            for (FusedExternalInputPlan input : plan.inputs()) {
-                if (input.usesCursor()) {
-                    return false;
-                }
-            }
-            for (FusedNodePlan node : plan.nodes()) {
-                if (node.outputType() == tensor.DataType.BOOL || node.opType() == operations.Operation.OpType.WHERE) {
-                    return false;
-                }
-            }
-            for (FusedExternalInputPlan input : plan.inputs()) {
-                if (input.dataType() == tensor.DataType.BOOL) {
-                    return false;
-                }
-            }
+            return false;
         }
         return true;
     }
@@ -133,9 +121,10 @@ public final class FusedVectorMethodEmitter {
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitVarInsn(ALOAD, 2);
-        mv.visitVarInsn(ILOAD, 3);
+        mv.visitVarInsn(ALOAD, 3);
         mv.visitVarInsn(ILOAD, 4);
-        mv.visitVarInsn(ALOAD, 5);
+        mv.visitVarInsn(ILOAD, 5);
+        mv.visitVarInsn(ALOAD, 6);
         mv.visitMethodInsn(
                 INVOKEVIRTUAL,
                 context.internalClassName(),

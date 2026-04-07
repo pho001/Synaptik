@@ -120,10 +120,12 @@ public final class FusedInputBindingEmitter {
                         mv.visitLdcInsn(meta.storageOffset());
                         mv.visitInsn(IADD);
                     }
+                    mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
                     FusedAsmSupport.emitLoadBoolVectorFromArrayCall(mv, precisionMode);
                 } else {
                     mv.visitVarInsn(ALOAD, cursorSlots.get(i));
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                    mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
                     FusedAsmSupport.emitLoadBoolVectorFromCursorCall(mv, precisionMode);
                 }
             } else {
@@ -134,10 +136,12 @@ public final class FusedInputBindingEmitter {
                         mv.visitLdcInsn(meta.storageOffset());
                         mv.visitInsn(IADD);
                     }
+                    mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
                     FusedAsmSupport.emitLoadVectorFromArrayCall(mv, precisionMode);
                 } else {
                     mv.visitVarInsn(ALOAD, cursorSlots.get(i));
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));
+                    mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
                     FusedAsmSupport.emitLoadVectorFromCursorCall(mv, precisionMode);
                 }
             }

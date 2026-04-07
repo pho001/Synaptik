@@ -73,11 +73,13 @@ Element-wise mode selection is threshold-based in [src/main/java/backend/kernels
 
 Reduction (`SUM`) mode selection uses `ResolvedReductionHints`.
 
-Parallel chunking knobs:
+Parallel chunking behavior:
 
-- `parallelism` (`0` = use available processors)
-- `chunksPerWorker`
-- `minChunkSize`
+- available CPU workers are derived from the runtime environment (`Runtime.getRuntime().availableProcessors()`)
+- chunk sizing is derived during `prepare(...)`
+- the derivation is driven by advanced CPU scheduler policy values stored in `CpuKernelConfig`
+- those values are transparent in execution profiles, but are not part of the default autotune candidate surface
+- runtime execution follows prepared chunk sizes instead of recomputing chunk heuristics per call
 
 Parallel execution uses [src/main/java/backend/kernels/cpu/CpuThreadPool.java](../backend/kernels/cpu/CpuThreadPool.java) with per-parallelism `ForkJoinPool` reuse.
 
@@ -166,6 +168,90 @@ Notes:
 - fallback to Java kernel is automatic on any lookup/call failure
 - FFM native access warning can be suppressed by running with:
   - `--enable-native-access=ALL-UNNAMED`
+
+## Compute Mode
+
+CPU execution distinguishes between:
+
+- tensor storage dtype
+- resolved compute mode
+
+This matters most for `BFLOAT16`.
+
+Examples:
+
+- `FLOAT64` storage -> `F64`
+- `FLOAT32` storage -> `F32`
+- `BFLOAT16` storage -> `BF16_F32_COMPUTE`
+- `BFLOAT16` storage for eligible GEMM nodes -> `BF16_BLAS`
+
+The compute mode is resolved during prepare and stored in the prepared execution recipe.
+Hot execution then follows the recipe instead of re-deciding the path per step.
+
+Important consequence for fused execution:
+
+- `FLOAT64` and `FLOAT32` fused nodes still prepare a generated compiled fused kernel
+- `BF16_F32_COMPUTE` fused nodes do not prepare ASM bytecode
+- BF16 fused execution runs through the direct Java executor, computing in `float` over `BFLOAT16` storage
+- that direct executor now has a vector fast path for contiguous numeric chains built from basic arithmetic / clamp / abs / sqrt style ops
+- compare/select/logical and transcendental-heavy chains still fall back to scalar BF16 direct execution
+
+For BLAS-backed BF16 nodes:
+
+- `MATMUL` still materializes its result into `BFLOAT16` because it is itself the public graph result of that node
+- `LINEAR` keeps BF16 BLAS output in `float[]` through the internal bias-add phase and only then materializes once to `BFLOAT16`
+- `CONV2D_GEMM` already follows the same pattern when scattering GEMM output with bias into the tensor result
+
+So current continuation scope is:
+
+- inside one compound kernel node: yes
+- across a subsequent graph node: not yet
+
+There is now one narrow cross-node exception for BF16 inference:
+
+- a `BF16_BLAS` `MATMUL` or `LINEAR` node may publish its result as float continuation instead of immediately materializing to `BFLOAT16`
+- this is enabled only when:
+  - the graph is inference-only
+  - the producer has exactly one consumer
+  - that consumer is a supported BF16 consumer shape
+- currently supported unary consumers are:
+  - `RELU`
+  - `ABS`
+  - `CLAMP_MIN`
+  - `CLAMP_MAX`
+  - `SQRT`
+  - `EXP`
+  - `FAST_EXP`
+  - `LOG`
+  - `TANH`
+  - `FAST_TANH`
+  - `SIGMOID`
+  - `INV`
+- currently supported binary consumers are:
+  - `ADD`
+  - `SUB`
+  - `MUL`
+  - `DIV`
+  - `MIN`
+  - `MAX`
+  - only in no-broadcast shape-equal contiguous cases
+- currently supported fused consumers are:
+  - numeric-only contiguous BF16 fused chains
+  - no bool/select/compare/logical semantics
+  - all external inputs must use linear access
+
+This is intentionally narrow:
+
+- no branching fan-out
+- no training/backward graphs
+- no broadcast consumers
+- no cross-node continuation for arbitrary tensors
+
+That keeps the storage contract small:
+
+- graph/runtime still stores tensors as `BFLOAT16`
+- planner decides whether the node should compute as float-backed direct execution or as BLAS-backed BF16 GEMM
+- prepare stores only the executable artifact that the resolved mode actually needs
 
 ## Profile-Driven Runtime Configuration
 

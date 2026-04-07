@@ -84,6 +84,75 @@ public class ProfileGridCandidateSpaceTest {
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("attentionMatMul=FORCE_ON")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasProvider=OPENBLAS_FFM")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("vectorPolicies=")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("fused=")));
+    }
+
+    @Test
+    void mlpNormalizationAndLossMutatorsAlsoProduceFusedPolicyVariants() {
+        ExecutionProfile base = new ExecutionProfile(
+                "policy-grid",
+                "policy-grid",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        var mlpCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.mlpWorkloadMutators())
+                .generate(StandardWorkloads.mlpClassification("mlp_test", 8, 16, 24, 12, 4, tensor.LossReduction.MEAN));
+        var normCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.normalizationWorkloadMutators())
+                .generate(StandardWorkloads.normalization(
+                        "norm_test",
+                        tuning.workload.NormalizationWorkloadSpec.NormalizationKind.LAYER_NORM,
+                        2, 16, 4, 1, 1e-5
+                ));
+        var lossCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.lossWorkloadMutators())
+                .generate(StandardWorkloads.indexedLoss(
+                        "loss_test",
+                        tuning.workload.LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES,
+                        4, 8, tensor.LossReduction.MEAN
+                ));
+        var genericCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.genericWorkloadMutators())
+                .generate(new tuning.workload.TensorRootWorkloadSpec(
+                        "generic",
+                        tuning.workload.WorkloadKind.GENERIC,
+                        environment -> tensor.Tensor.scalar(1.0).add(tensor.Tensor.scalar(2.0))
+                ));
+
+        assertTrue(mlpCandidates.stream().anyMatch(c -> c.name().contains("fused=")));
+        assertTrue(normCandidates.stream().anyMatch(c -> c.name().contains("fused=")));
+        assertTrue(lossCandidates.stream().anyMatch(c -> c.name().contains("fused=")));
+        assertTrue(genericCandidates.stream().anyMatch(c -> c.name().contains("fused=")));
+    }
+
+    @Test
+    void advancedSchedulerPoliciesAreAvailableOnlyViaExplicitOptInMutator() {
+        ExecutionProfile base = new ExecutionProfile(
+                "advanced-scheduler",
+                "advanced-scheduler",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        var candidates = new ProfileGridCandidateSpace(
+                base,
+                List.of(ProfileMutators.advancedSchedulerPolicies(
+                        List.of(4, 6),
+                        List.of(2),
+                        List.of(1),
+                        List.of(2048),
+                        List.of(4096, 8192),
+                        List.of(16384),
+                        List.of(16384, 32768)
+                ))
+        ).generate(StandardWorkloads.transformerHotPath("transformer_hot_path"));
+
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("scheduler=")));
+        assertEquals(8, candidates.size());
     }
 
     @Test

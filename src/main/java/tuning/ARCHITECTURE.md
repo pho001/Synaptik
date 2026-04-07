@@ -282,6 +282,9 @@ This keeps the layering clean:
 Current architectural strengths:
 
 - `ExecutionProfile` is the single execution source of truth
+- fused backend routing policy also belongs inside `ExecutionProfile.runtime()`
+- tuning is allowed to vary fused runtime backend preference only through that policy surface
+- workload mutator families may include fused backend policy variants when fused routing materially affects the workload family
 - workload construction is isolated from search logic
 - validation is a first-class stage, not an optional afterthought
 - search strategies are pluggable instead of being hardwired into one monolithic autotune loop

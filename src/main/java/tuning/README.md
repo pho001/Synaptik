@@ -10,6 +10,8 @@ It is designed around one central rule:
 That means:
 
 - execution candidates are represented through `ExecutionProfile`
+- fused backend routing policy is part of `ExecutionProfile.runtime()`
+- advanced CPU scheduler policy is also represented in `ExecutionProfile.runtime().kernel().cpu()`
 - benchmark and autotune work above:
   - `Tensor`
   - `CompiledGraph`
@@ -51,6 +53,8 @@ tuning/
 - defines benchmark and autotune requests
 - defines workload models
 - generates execution-profile candidates
+- can vary fused backend routing policy through execution-profile candidate mutation
+- can vary advanced scheduler policy through explicit opt-in mutators when deeper tuning is desired
 - measures compile / prepare / traced run / steady-state timings
 - validates candidates against explicit references or baseline execution profiles
 - searches candidate spaces with pluggable strategies

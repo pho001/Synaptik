@@ -23,6 +23,8 @@ import config.profile.ExecutionProfileIO;
 import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
+import config.runtime.FusedExecutionPolicy;
+import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -56,15 +58,18 @@ public class ExecutionProfileIoTest {
                 ),
                 new RuntimeConfig(
                         new KernelTuningConfig(
-                                new CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 0, 2, 2_048, 16_384,
-                                        config.backend.SumAccuracyMode.FAST, 2.0d,
+                                new CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 16_384,
+                                        5, 3, 2,
+                                        2_048, 4_096, 8_192, 32_768,
+                                        config.backend.SumAccuracyMode.FAST,
                                         config.backend.VectorPolicy.AUTO, config.backend.VectorPolicy.AUTO, config.backend.VectorPolicy.AUTO,
                                         2_000_000, AttentionMatMulPolicy.FORCE_ON),
                                 CudaKernelConfig.defaultsInference(),
                                 OpenClKernelConfig.defaultsInference()
                         ),
                         new ApproximationConfig(ApproxMode.OFF, false),
-                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, BlasThreadPolicy.FIXED, 2)
+                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, BlasThreadPolicy.FIXED, 2),
+                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true, false)
                 ),
                 new WorkloadProfile(config.profile.WorkloadKind.TRANSFORMER_HOT_PATH, 4, 8, 64, 32, 32, 256, true)
         );
@@ -83,11 +88,19 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.optimizer().memory(), actual.optimizer().memory());
         assertEquals(expected.runtime().kernel().cpu().vectorMinSize(), actual.runtime().kernel().cpu().vectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().contiguousMaterializeThreshold(), actual.runtime().kernel().cpu().contiguousMaterializeThreshold());
+        assertEquals(expected.runtime().kernel().cpu().lowCostTargetChunksPerWorker(), actual.runtime().kernel().cpu().lowCostTargetChunksPerWorker());
+        assertEquals(expected.runtime().kernel().cpu().mediumCostTargetChunksPerWorker(), actual.runtime().kernel().cpu().mediumCostTargetChunksPerWorker());
+        assertEquals(expected.runtime().kernel().cpu().highCostTargetChunksPerWorker(), actual.runtime().kernel().cpu().highCostTargetChunksPerWorker());
+        assertEquals(expected.runtime().kernel().cpu().minScalarChunkSize(), actual.runtime().kernel().cpu().minScalarChunkSize());
+        assertEquals(expected.runtime().kernel().cpu().minVectorChunkSize(), actual.runtime().kernel().cpu().minVectorChunkSize());
+        assertEquals(expected.runtime().kernel().cpu().minReductionChunkSize(), actual.runtime().kernel().cpu().minReductionChunkSize());
+        assertEquals(expected.runtime().kernel().cpu().commonPoolLowCostMaxWorkPerWorker(), actual.runtime().kernel().cpu().commonPoolLowCostMaxWorkPerWorker());
         assertEquals(expected.runtime().kernel().cpu().attentionMatMulPolicy(), actual.runtime().kernel().cpu().attentionMatMulPolicy());
         assertEquals(expected.runtime().blas().provider(), actual.runtime().blas().provider());
         assertEquals(expected.runtime().blas().threadPolicy(), actual.runtime().blas().threadPolicy());
         assertEquals(expected.runtime().blas().threads(), actual.runtime().blas().threads());
         assertEquals(expected.runtime().approximation().approxMode(), actual.runtime().approximation().approxMode());
+        assertEquals(expected.runtime().fused(), actual.runtime().fused());
         assertEquals(expected.workload(), actual.workload());
     }
 

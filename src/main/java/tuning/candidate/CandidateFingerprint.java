@@ -61,12 +61,16 @@ public final class CandidateFingerprint {
         sb.append("cpu.vectorMin=").append(cpu.vectorMinSize()).append('|');
         sb.append("cpu.parallelMin=").append(cpu.parallelMinSize()).append('|');
         sb.append("cpu.matmulParallelMin=").append(cpu.matMulParallelMinSize()).append('|');
-        sb.append("cpu.parallelism=").append(cpu.parallelism()).append('|');
-        sb.append("cpu.chunksPerWorker=").append(cpu.chunksPerWorker()).append('|');
-        sb.append("cpu.minChunkSize=").append(cpu.minChunkSize()).append('|');
         sb.append("cpu.contiguousThreshold=").append(cpu.contiguousMaterializeThreshold()).append('|');
+        sb.append("cpu.lowChunksPerWorker=").append(cpu.lowCostTargetChunksPerWorker()).append('|');
+        sb.append("cpu.mediumChunksPerWorker=").append(cpu.mediumCostTargetChunksPerWorker()).append('|');
+        sb.append("cpu.highChunksPerWorker=").append(cpu.highCostTargetChunksPerWorker()).append('|');
+        sb.append("cpu.minScalarChunk=").append(cpu.minScalarChunkSize()).append('|');
+        sb.append("cpu.minVectorChunk=").append(cpu.minVectorChunkSize()).append('|');
+        sb.append("cpu.minReductionChunk=").append(cpu.minReductionChunkSize()).append('|');
+        sb.append("cpu.commonPoolLowCostMaxWorkPerWorker=").append(cpu.commonPoolLowCostMaxWorkPerWorker()).append('|');
+        sb.append("cpu.fusedAsmVectorWidth=").append(cpu.fusedAsmVectorWidth()).append('|');
         sb.append("cpu.sumAccuracy=").append(cpu.sumAccuracyMode()).append('|');
-        sb.append("cpu.lowCost=").append(fmt(cpu.lowCostNsPerElementThreshold())).append('|');
         sb.append("cpu.vecCheap=").append(cpu.vectorPolicyCheap()).append('|');
         sb.append("cpu.vecTrans=").append(cpu.vectorPolicyTranscendental()).append('|');
         sb.append("cpu.vecRed=").append(cpu.vectorPolicyReduction()).append('|');
@@ -79,6 +83,9 @@ public final class CandidateFingerprint {
         sb.append("blas.f32MaxNOverK=").append(fmt(runtime.blas().f32MaxNOverK())).append('|');
         sb.append("blas.threadPolicy=").append(runtime.blas().threadPolicy()).append('|');
         sb.append("blas.threads=").append(runtime.blas().threads()).append('|');
+        sb.append("fused.primary=").append(runtime.fused().primaryBackend()).append('|');
+        sb.append("fused.allowFallback=").append(runtime.fused().allowBackendFallback()).append('|');
+        sb.append("fused.compareDirect=").append(runtime.fused().preferDirectForCompareSelect()).append('|');
 
         var workload = profile.workload();
         sb.append("workload.kind=").append(workload.kind()).append('|');

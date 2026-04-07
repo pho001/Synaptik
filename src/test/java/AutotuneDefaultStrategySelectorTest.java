@@ -69,7 +69,7 @@ public class AutotuneDefaultStrategySelectorTest {
                 ExecutionMode.FORWARD,
                 config.optimizer.OptimizerConfig.inferenceDefaults(),
                 new config.runtime.RuntimeConfig(
-                        new config.backend.CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 0, 4, 4_096),
+                        new config.backend.CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 1_000_000_000),
                         config.runtime.ApproximationConfig.defaults(),
                         new config.runtime.BlasConfig(
                                 backend.blas.BlasProvider.OPENBLAS_FFM,
