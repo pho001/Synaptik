@@ -6,14 +6,15 @@ import backend.kernels.cpu.CpuExecutionPlanner;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.CpuNodeWorkspace;
-import backend.kernels.cpu.fused.CompiledFusedKernel;
 import backend.registry.CpuKernelRegistry;
 import backend.runtime.ExecutionMode;
-import graph.codegen.CompiledFusedKernelFactory;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
 import graph.execution.trace.CompileTrace;
+import graph.fused.FusedExecutionBackendResolver;
+import graph.fused.FusedExecutionPlan;
+import graph.fused.PreparedFusedExecutable;
 import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
 import operations.FusedOperation;
@@ -30,7 +31,7 @@ import java.util.HashMap;
 import java.util.Set;
 
 public class CompiledGraph {
-    private static final CompiledFusedKernelFactory FUSED_KERNEL_FACTORY = new CompiledFusedKernelFactory();
+    private static final FusedExecutionBackendResolver FUSED_BACKEND_RESOLVER = new FusedExecutionBackendResolver();
     private final Tensor rootTensor;
     private final GraphOptimizer optimizer;
     private CompileTrace compileTrace = CompileTrace.skipped();
@@ -141,6 +142,7 @@ public class CompiledGraph {
         List<PreparedNodeExecution> forwardSteps = new ArrayList<>();
         List<PreparedNodeExecution> backwardSteps = new ArrayList<>();
         Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata = new HashMap<>();
+        Map<Tensor, List<Tensor>> consumers = buildConsumerMap(finalGraph);
         for (int i = 0; i < finalGraph.size(); i++) {
             Tensor tensor = finalGraph.get(i);
             if (tensor.getOperation() == null || tensor.getPrevTensors() == null) {
@@ -148,7 +150,7 @@ public class CompiledGraph {
             }
             PreparedNodeExecution step = new PreparedNodeExecution(
                     tensor,
-                    prepareMetadata(tensor, planner, backendRuntimeConfig, preparedMetadata)
+                    prepareMetadata(tensor, planner, backendRuntimeConfig, preparedMetadata, consumers)
             );
             preparedMetadata.put(tensor, step.metadata());
             if (i <= forwardEndIndex) {
@@ -251,7 +253,8 @@ public class CompiledGraph {
             Tensor tensor,
             CpuExecutionPlanner planner,
             backend.runtime.RuntimeConfig runtimeConfig,
-            Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata
+            Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata,
+            Map<Tensor, List<Tensor>> consumers
     ) {
         ComputeBackend backend = tensor.resolveBackend();
         if (backend != ComputeBackend.CPU) {
@@ -268,14 +271,23 @@ public class CompiledGraph {
                 tensor.getPrevTensors(),
                 tensor,
                 planner,
-                runtimeConfig.blasConfig()
+                runtimeConfig.blasConfig(),
+                shouldPublishFloatContinuation(tensor, operation, consumers)
         );
-        CompiledFusedKernel fusedKernel = null;
-        if (operation.opType() == Operation.OpType.FUSED) {
-            fusedKernel = FUSED_KERNEL_FACTORY.create((FusedOperation) operation);
+        PreparedFusedExecutable fusedExecutable = null;
+        if (operation.opType() == Operation.OpType.FUSED && cpuPlan != null) {
+            fusedExecutable = FUSED_BACKEND_RESOLVER.resolve(
+                    new FusedExecutionPlan(
+                            (FusedOperation) operation,
+                            cpuPlan.computeMode(),
+                            tensor.getFlatDataSize(),
+                            runtimeConfig.cpuKernelConfig().vectorMinSize()
+                    ),
+                    runtimeConfig.fusedExecutionPolicy()
+            );
         }
         CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(tensor, operation, cpuPlan, preparedMetadata);
-        return new CompiledNodeExecutionMetadata(backend, kernel, cpuPlan, fusedKernel, cpuWorkspace);
+        return new CompiledNodeExecutionMetadata(backend, kernel, cpuPlan, fusedExecutable, cpuWorkspace);
     }
 
     private CpuNodeWorkspace resolveCpuWorkspace(
@@ -322,6 +334,119 @@ public class CompiledGraph {
             return metadata.cpuWorkspace();
         }
         throw new IllegalStateException("maxPool2d backward node is missing its forward maxPool2d dependency.");
+    }
+
+    private Map<Tensor, List<Tensor>> buildConsumerMap(List<Tensor> graph) {
+        Map<Tensor, List<Tensor>> consumers = new HashMap<>();
+        for (Tensor tensor : graph) {
+            consumers.computeIfAbsent(tensor, ignored -> new ArrayList<>());
+        }
+        for (Tensor tensor : graph) {
+            if (tensor.getPrevTensors() == null) {
+                continue;
+            }
+            for (Tensor input : tensor.getPrevTensors()) {
+                if (input == null) {
+                    continue;
+                }
+                consumers.computeIfAbsent(input, ignored -> new ArrayList<>()).add(tensor);
+            }
+        }
+        return consumers;
+    }
+
+    private boolean shouldPublishFloatContinuation(
+            Tensor tensor,
+            Operation operation,
+            Map<Tensor, List<Tensor>> consumers
+    ) {
+        if (supportsBackward()) {
+            return false;
+        }
+        if (tensor.getDataType() != DataType.BFLOAT16 || operation == null) {
+            return false;
+        }
+        if (operation.opType() != Operation.OpType.MATMUL && operation.opType() != Operation.OpType.LINEAR) {
+            return false;
+        }
+        List<Tensor> next = consumers.getOrDefault(tensor, List.of());
+        if (next.size() != 1) {
+            return false;
+        }
+        Tensor consumer = next.getFirst();
+        if (consumer == null || consumer.getOperation() == null || consumer.getDataType() != DataType.BFLOAT16) {
+            return false;
+        }
+        return switch (consumer.getOperation().opType()) {
+            case RELU, ABS, CLAMP_MIN, CLAMP_MAX, SQRT, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, INV ->
+                    isSupportedUnaryContinuationConsumer(consumer, tensor);
+            case ADD, SUB, MUL, DIV, MIN, MAX ->
+                    isSupportedBinaryContinuationConsumer(consumer, tensor);
+            case FUSED -> isSupportedFusedContinuationConsumer((FusedOperation) consumer.getOperation(), consumer, tensor);
+            default -> false;
+        };
+    }
+
+    private boolean isSupportedUnaryContinuationConsumer(Tensor consumer, Tensor producer) {
+        return consumer.getPrevTensors() != null
+                && consumer.getPrevTensors().size() == 1
+                && consumer.getPrevTensors().getFirst() == producer;
+    }
+
+    private boolean isSupportedBinaryContinuationConsumer(Tensor consumer, Tensor producer) {
+        if (consumer.getPrevTensors() == null || consumer.getPrevTensors().size() != 2) {
+            return false;
+        }
+        Tensor left = consumer.getPrevTensors().get(0);
+        Tensor right = consumer.getPrevTensors().get(1);
+        if (left != producer && right != producer) {
+            return false;
+        }
+        Tensor other = left == producer ? right : left;
+        if (other == null || other.getDataType() != DataType.BFLOAT16) {
+            return false;
+        }
+        if (!java.util.Arrays.equals(producer.getShapeUnsafe(), consumer.getShapeUnsafe())
+                || !java.util.Arrays.equals(other.getShapeUnsafe(), consumer.getShapeUnsafe())) {
+            return false;
+        }
+        return producer.isContiguous() && !producer.hasStorageOffset()
+                && other.isContiguous() && !other.hasStorageOffset()
+                && consumer.isContiguous() && !consumer.hasStorageOffset();
+    }
+
+    private boolean isSupportedFusedContinuationConsumer(FusedOperation fused, Tensor consumer, Tensor producer) {
+        if (fused == null || consumer.getPrevTensors() == null || !consumer.getPrevTensors().contains(producer)) {
+            return false;
+        }
+        var plan = fused.getPlan();
+        if (plan.outputNode().outputType() != DataType.BFLOAT16 || !consumer.isContiguous() || consumer.hasStorageOffset()) {
+            return false;
+        }
+        for (int i = 0; i < plan.inputCount(); i++) {
+            var inputPlan = plan.inputs().get(i);
+            Tensor input = consumer.getPrevTensors().get(i);
+            if (inputPlan.dataType() != DataType.BFLOAT16 || !inputPlan.isLinearAccess()) {
+                return false;
+            }
+            if (input == null || input.getDataType() != DataType.BFLOAT16 || !input.isContiguous() || input.hasStorageOffset()) {
+                return false;
+            }
+        }
+        for (var node : plan.nodes()) {
+            if (node.outputType() == DataType.BOOL) {
+                return false;
+            }
+            switch (node.opType()) {
+                case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
+                        POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, NOOP -> {
+                }
+                default -> {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private boolean hasTrainableLeafInputs() {

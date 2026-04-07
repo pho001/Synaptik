@@ -8,18 +8,37 @@ import java.util.Objects;
 public record RuntimeConfig(
         KernelTuningConfig kernel,
         ApproximationConfig approximation,
-        BlasConfig blas
+        BlasConfig blas,
+        FusedExecutionPolicy fused
 ) {
     public RuntimeConfig {
         kernel = Objects.requireNonNull(kernel, "kernel cannot be null");
         approximation = approximation == null ? ApproximationConfig.defaults() : approximation;
         blas = blas == null ? BlasConfig.disabled() : blas;
+        fused = fused == null ? FusedExecutionPolicy.defaultsTraining() : fused;
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas
+    ) {
+        this(kernel, approximation, blas, FusedExecutionPolicy.defaultsTraining());
     }
 
     public RuntimeConfig(
             CpuKernelConfig cpuKernelConfig,
             ApproximationConfig approximation,
             BlasConfig blas
+    ) {
+        this(cpuKernelConfig, approximation, blas, FusedExecutionPolicy.defaultsTraining());
+    }
+
+    public RuntimeConfig(
+            CpuKernelConfig cpuKernelConfig,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            FusedExecutionPolicy fused
     ) {
         this(
                 new KernelTuningConfig(
@@ -28,7 +47,8 @@ public record RuntimeConfig(
                         KernelTuningConfig.defaultsTraining().opencl()
                 ),
                 approximation,
-                blas
+                blas,
+                fused
         );
     }
 
@@ -36,7 +56,8 @@ public record RuntimeConfig(
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsTraining(),
                 ApproximationConfig.defaults(),
-                BlasConfig.disabled()
+                BlasConfig.disabled(),
+                FusedExecutionPolicy.defaultsTraining()
         );
     }
 
@@ -44,7 +65,8 @@ public record RuntimeConfig(
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
                 ApproximationConfig.defaults(),
-                BlasConfig.disabled()
+                BlasConfig.disabled(),
+                FusedExecutionPolicy.defaultsInference()
         );
     }
 
@@ -52,7 +74,8 @@ public record RuntimeConfig(
         return new backend.runtime.RuntimeConfig(
                 kernel.cpu(),
                 approximation.toBackendRuntimeConfig(),
-                blas.toBackendRuntimeConfig()
+                blas.toBackendRuntimeConfig(),
+                fused
         );
     }
 
@@ -71,7 +94,8 @@ public record RuntimeConfig(
                         KernelTuningConfig.defaultsTraining().opencl()
                 ),
                 ApproximationConfig.fromBackendRuntimeConfig(config.approximationConfig()),
-                BlasConfig.fromBackendRuntimeConfig(config.blasConfig())
+                BlasConfig.fromBackendRuntimeConfig(config.blasConfig()),
+                config.fusedExecutionPolicy()
         );
     }
 }

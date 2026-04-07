@@ -1,8 +1,7 @@
 package backend.kernels.cpu;
 
-import graph.codegen.FusedVectorOps;
-import backend.kernels.cpu.fused.CompiledFusedKernel;
 import backend.kernels.cpu.fused.FusedExecutionOptions;
+import graph.fused.PreparedFusedExecutable;
 import operations.FusedOperation;
 import operations.Operation;
 import tensor.Tensor;
@@ -26,9 +25,9 @@ public class CpuFusedKernel implements CpuKernel {
             throw new IllegalStateException("CpuFusedKernel requires FusedOperation descriptor");
         }
 
-        CompiledFusedKernel ranged = context.fusedKernel();
-        if (ranged == null) {
-            throw new IllegalStateException("Missing compiled fused kernel in prepared metadata");
+        PreparedFusedExecutable executable = context.fusedExecutable();
+        if (executable == null) {
+            throw new IllegalStateException("Missing prepared fused executable in prepared metadata");
         }
 
         ResolvedDispatchHints hints = requireDispatchHints(context);
@@ -42,60 +41,54 @@ public class CpuFusedKernel implements CpuKernel {
                 ? CpuKernelCostClass.LOW
                 : CpuKernelCostClass.MEDIUM;
         String schedulerKey = fused.getSchedulerSignature();
-        boolean recommendVector = FusedVectorOps.isRecommended(fused.getPrecisionMode());
+        boolean recommendVector = hints.vectorWidth() > 1;
         long t0 = FusedExecutionProfiler.enabled() ? System.nanoTime() : 0L;
         switch (mode) {
             case SCALAR -> {
-                ranged.applyRangeScalar(inputs, node, 0, length, options);
+                executable.applyRangeScalar(inputs, node, context, 0, length, options);
                 recordProfile(fused, mode, length, 1, false, false, t0);
             }
             case VECTOR -> {
                 if (recommendVector) {
-                    ranged.applyRangeVector(inputs, node, 0, length, options);
+                    executable.applyRangeVector(inputs, node, context, 0, length, options);
                     recordProfile(fused, mode, length, 1, false, true, t0);
                 } else {
-                    ranged.applyRangeScalar(inputs, node, 0, length, options);
+                    executable.applyRangeScalar(inputs, node, context, 0, length, options);
                     recordProfile(fused, mode, length, 1, false, false, t0);
                 }
             }
             case PARALLEL -> runParallel(
-                    ranged,
+                    executable,
                     inputs,
                     node,
+                    context,
                     hints,
-                    context.planner().lowCostNsPerElementThreshold(),
                     options,
                     false,
                     fused,
                     mode,
-                    costClass,
-                    schedulerKey
+                    costClass
             );
             case PARALLEL_VECTOR -> runParallel(
-                    ranged,
+                    executable,
                     inputs,
                     node,
+                    context,
                     hints,
-                    context.planner().lowCostNsPerElementThreshold(),
                     options,
                     recommendVector,
                     fused,
                     mode,
-                    costClass,
-                    schedulerKey
+                    costClass
             );
         }
     }
 
     @Override
-    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        forwardF64(op, inputs, node, context);
-    }
+    public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) { forwardF64(op, inputs, node, context); }
 
     @Override
-    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        forwardF64(op, inputs, node, context);
-    }
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) { forwardF64(op, inputs, node, context); }
 
     @Override
     public void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
@@ -103,39 +96,32 @@ public class CpuFusedKernel implements CpuKernel {
     }
 
     private static void runParallel(
-            CompiledFusedKernel ranged,
+            PreparedFusedExecutable executable,
             List<Tensor> inputs,
             Tensor node,
+            CpuKernelContext context,
             ResolvedDispatchHints hints,
-            double lowCostNsPerElementThreshold,
             FusedExecutionOptions options,
             boolean preferVector,
             FusedOperation fused,
             CpuExecutionMode mode,
-            CpuKernelCostClass costClass,
-            String schedulerKey
+            CpuKernelCostClass costClass
     ) {
         int length = node.getFlatDataSize();
         int chunkSize = preferVector ? hints.vectorChunkSize() : hints.scalarChunkSize();
         int chunks = (length + chunkSize - 1) / chunkSize;
-        boolean useCommonPool = CpuSchedulerAdvisor.shouldUseCommonPool(
-                costClass,
-                schedulerKey,
-                length,
-                lowCostNsPerElementThreshold
-        );
+        boolean useCommonPool = hints.useCommonPool() && costClass == CpuKernelCostClass.LOW;
         long t0 = System.nanoTime();
         CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
             int start = chunk * chunkSize;
             int end = Math.min(start + chunkSize, length);
             if (preferVector) {
-                ranged.applyRangeVector(inputs, node, start, end, options);
+                executable.applyRangeVector(inputs, node, context, start, end, options);
             } else {
-                ranged.applyRangeScalar(inputs, node, start, end, options);
+                executable.applyRangeScalar(inputs, node, context, start, end, options);
             }
         }, useCommonPool);
         long elapsed = System.nanoTime() - t0;
-        CpuSchedulerAdvisor.recordSample(schedulerKey, length, elapsed);
         if (FusedExecutionProfiler.enabled()) {
             FusedExecutionProfiler.recordRun(
                     fused.getSchedulerSignature(),

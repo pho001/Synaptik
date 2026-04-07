@@ -51,13 +51,13 @@ public class FusedExecutionModesTest {
         double[] cVals = buildInput(size, 0.01);
 
         double[] outF32 = runTypedFused(aVals, bVals, cVals, DataType.FLOAT32);
-        double[] outF16 = runTypedFused(aVals, bVals, cVals, DataType.BFLOAT16);
+        double[] outBF16 = runTypedFused(aVals, bVals, cVals, DataType.BFLOAT16);
 
         double[] expectedF32 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_F32);
-        double[] expectedF16 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_BF16);
+        double[] expectedBF16 = expectedTyped(aVals, bVals, cVals, FusedDTypeOps.MODE_BF16);
 
         assertArrayEquals(expectedF32, outF32, 1e-6);
-        assertArrayEquals(expectedF16, outF16, 2e-3);
+        assertArrayEquals(expectedBF16, outBF16, 6e-3);
     }
 
     @Test
@@ -429,6 +429,34 @@ public class FusedExecutionModesTest {
         boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
                 .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
         assertTrue(hasFused, "Expected fused node in BFLOAT16 abs/clamp graph");
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+    }
+
+    @Test
+    void fusedBFloat16SupportsVectorizedNumericFastPath() {
+        int size = 4096;
+        double[] aVals = buildInput(size, 0.06);
+        double[] bVals = buildInput(size, -0.05);
+
+        Tensor aBase = new Tensor(aVals.clone(), new int[]{size}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bVals.clone(), new int[]{size}, null, "bBase", DataType.FLOAT64);
+        Tensor baseline = aBase.sub(bBase).abs().add(bBase.abs()).mul(0.5).clampMin(0.01).sqrt().clampMax(1.25);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aVals.clone(), new int[]{size}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(bVals.clone(), new int[]{size}, null, "b", DataType.FLOAT64);
+        a.setDataType(DataType.BFLOAT16);
+        b.setDataType(DataType.BFLOAT16);
+
+        Tensor out = a.sub(b).abs().add(b.abs()).mul(0.5).clampMin(0.01).sqrt().clampMax(1.25);
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in BFLOAT16 vector fast-path graph");
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 

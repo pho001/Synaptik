@@ -15,7 +15,7 @@ public final class FusedClassEmitter {
                 context.internalClassName(),
                 null,
                 "java/lang/Object",
-                new String[]{"backend/kernels/cpu/fused/CompiledFusedKernel"}
+                new String[]{"graph/fused/PreparedFusedExecutable"}
         );
         return cw;
     }
