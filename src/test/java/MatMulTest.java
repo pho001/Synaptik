@@ -1,10 +1,16 @@
 import backend.runtime.ExecutionMode;
+import backend.blas.BlasProvider;
+import backend.blas.BlasThreadPolicy;
+import backend.blas.OpenBlasFfmBridge;
+import config.backend.KernelTuningConfig;
 import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
+import config.runtime.BlasConfig;
 import config.backend.CpuKernelConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Tensor;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -33,7 +39,7 @@ public class MatMulTest {
         RuntimeConfig runtimeConfig = new RuntimeConfig(new CpuKernelConfig(
                 4, 1, 2, 1,
                 1, 1,
-                0, 2, 64
+                1_000_000_000
         ), config.runtime.ApproximationConfig.defaults(), config.runtime.BlasConfig.disabled());
 
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
@@ -84,5 +90,102 @@ public class MatMulTest {
 
         assertArrayEquals(new int[]{2, 2, 1}, out.getShape());
         assertArrayEquals(new double[]{5, 11, 11, 25}, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void bfloat16MatmulThenReluMatchesBaselineWhenBlasContinuationIsEnabled() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+
+        double[] aValues = random(64 * 64, 71);
+        double[] bValues = random(64 * 96, 73);
+
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.FLOAT64);
+        Tensor baseline = aBase.matmul(bBase).relu();
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).relu();
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+    }
+
+    @Test
+    void bfloat16MatmulThenAddMatchesBaselineWhenBlasContinuationIsEnabled() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+
+        double[] aValues = random(64 * 64, 81);
+        double[] bValues = random(64 * 96, 83);
+        double[] cValues = random(64 * 96, 89);
+
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.FLOAT64);
+        Tensor cBase = new Tensor(cValues.clone(), new int[]{64, 96}, null, "cBase", DataType.FLOAT64);
+        Tensor baseline = aBase.matmul(bBase).add(cBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor c = new Tensor(cValues.clone(), new int[]{64, 96}, null, "c", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).add(c);
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+    }
+
+    @Test
+    void bfloat16MatmulThenFusedNumericChainMatchesBaselineWhenBlasContinuationIsEnabled() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+
+        double[] aValues = random(64 * 64, 91);
+        double[] bValues = random(64 * 96, 97);
+
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.FLOAT64);
+        Tensor baseline = aBase.matmul(bBase).relu().abs().clampMax(1.0);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).relu().abs().clampMax(1.0);
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+    }
+
+    private static RuntimeConfig bfloat16BlasRuntime() {
+        return new RuntimeConfig(
+                KernelTuningConfig.defaultsInference(),
+                config.runtime.ApproximationConfig.defaults(),
+                new BlasConfig(
+                        BlasProvider.OPENBLAS_FFM,
+                        1L,
+                        false,
+                        100.0d,
+                        false,
+                        BlasThreadPolicy.FIXED,
+                        1
+                )
+        );
+    }
+
+    private static double[] random(int size, int seed) {
+        java.util.Random random = new java.util.Random(seed);
+        double[] out = new double[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = Math.sin(i * 0.031) + (random.nextDouble() - 0.5) * 0.1;
+        }
+        return out;
     }
 }

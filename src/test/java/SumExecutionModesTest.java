@@ -18,7 +18,7 @@ public class SumExecutionModesTest {
     public void testSumAllParallelVectorMatchesReference() {
         RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
-                1, 1, 0, 8, 256, 1_000_000_000, SumAccuracyMode.FAST
+                1, 1, 1_000_000_000, SumAccuracyMode.FAST
         ));
 
         double[] values = new double[20_000];
@@ -37,7 +37,7 @@ public class SumExecutionModesTest {
     public void testSumAxisLastDimParallelVectorMatchesReference() {
         RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
-                1, 1, 0, 8, 128, 1_000_000_000, SumAccuracyMode.FAST
+                1, 1, 1_000_000_000, SumAccuracyMode.FAST
         ));
 
         int rows = 128;
@@ -125,7 +125,7 @@ public class SumExecutionModesTest {
 
         RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
-                1_024, 100_000, 0, 4, 4_096, 1_000_000_000, SumAccuracyMode.FAST
+                1_024, 100_000, 1_000_000_000, SumAccuracyMode.FAST
         ));
         Tensor stridedAll = a.sum();
         CompiledGraph.compile(stridedAll, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
@@ -134,7 +134,7 @@ public class SumExecutionModesTest {
 
         RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
-                1_024, 100_000, 0, 4, 4_096, 0, SumAccuracyMode.FAST
+                1_024, 100_000, 0, SumAccuracyMode.FAST
         ));
         Tensor materializedAll = a.sum();
         CompiledGraph.compile(materializedAll, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
@@ -156,7 +156,7 @@ public class SumExecutionModesTest {
         Tensor fastTensor = new Tensor(values.clone(), new int[]{values.length}, null, "fast");
         RuntimeConfig fastConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
-                1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.FAST
+                1, 1, 1_000_000_000, SumAccuracyMode.FAST
         ));
         Tensor fast = fastTensor.sum();
         CompiledGraph.compile(fast, OptimizerConfig.noOptimization()).execute(fastConfig, ExecutionMode.FORWARD);
@@ -164,7 +164,7 @@ public class SumExecutionModesTest {
         Tensor kahanTensor = new Tensor(values.clone(), new int[]{values.length}, null, "kahan");
         RuntimeConfig kahanConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
-                1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.KAHAN
+                1, 1, 1_000_000_000, SumAccuracyMode.KAHAN
         ));
         Tensor kahan = kahanTensor.sum();
         CompiledGraph.compile(kahan, OptimizerConfig.noOptimization()).execute(kahanConfig, ExecutionMode.FORWARD);
@@ -172,7 +172,7 @@ public class SumExecutionModesTest {
         Tensor neumaierTensor = new Tensor(values.clone(), new int[]{values.length}, null, "neumaier");
         RuntimeConfig neumaierConfig = runtimeConfig(new CpuKernelConfig(
                 4, 32, 32, 32,
-                1, 1, 0, 8, 512, 1_000_000_000, SumAccuracyMode.NEUMAIER
+                1, 1, 1_000_000_000, SumAccuracyMode.NEUMAIER
         ));
         Tensor neumaier = neumaierTensor.sum();
         CompiledGraph.compile(neumaier, OptimizerConfig.noOptimization()).execute(neumaierConfig, ExecutionMode.FORWARD);

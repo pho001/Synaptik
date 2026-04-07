@@ -5,6 +5,7 @@ import backend.kernels.cpu.CpuDTypeOps;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
+import graph.execution.trace.ComputeTraceMetadata;
 import graph.execution.trace.DispatchTraceMetadata;
 import graph.execution.trace.ExecutionStepTrace;
 import graph.execution.trace.FusedTraceMetadata;
@@ -17,8 +18,10 @@ import graph.execution.trace.StepExecutionMetadata;
 import tensor.Tensor;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public final class PreparedExecution {
@@ -30,6 +33,7 @@ public final class PreparedExecution {
     private final Tensor rootTensor;
     private final Tensor forwardOutput;
     private final PrepareTrace prepareTrace;
+    private final Map<Tensor, CompiledNodeExecutionMetadata> metadataIndex;
 
     public PreparedExecution(
             RuntimeConfig runtimeConfig,
@@ -49,6 +53,7 @@ public final class PreparedExecution {
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         this.forwardOutput = Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
         this.prepareTrace = prepareTrace == null ? PrepareTrace.skipped() : prepareTrace;
+        this.metadataIndex = buildMetadataIndex(this.forwardSteps, this.backwardSteps);
     }
 
     public RuntimeConfig runtimeConfig() {
@@ -87,7 +92,7 @@ public final class PreparedExecution {
 
         long runStart = System.nanoTime();
         java.util.ArrayList<ExecutionStepTrace> steps = captureTrace ? new java.util.ArrayList<>() : null;
-        ExecutionContext context = new ExecutionContext(runtimeConfig.toBackendRuntimeConfig(), mode);
+        ExecutionContext context = new ExecutionContext(runtimeConfig.toBackendRuntimeConfig(), mode, metadataIndex);
         executeSteps(forwardSteps, context, captureTrace, steps, 0);
 
         syncRootData(mode);
@@ -112,10 +117,24 @@ public final class PreparedExecution {
             fillGradientOnes(rootTensor.getGradient());
         }
 
-        ExecutionContext context = ExecutionContext.forwardBackward(runtimeConfig.toBackendRuntimeConfig());
+        ExecutionContext context = new ExecutionContext(runtimeConfig.toBackendRuntimeConfig(), ExecutionMode.FORWARD_BACKWARD, metadataIndex);
         for (PreparedNodeExecution step : backwardSteps) {
             ComputeEngine.compute(step.node(), step.metadata(), context);
         }
+    }
+
+    private static Map<Tensor, CompiledNodeExecutionMetadata> buildMetadataIndex(
+            List<PreparedNodeExecution> forwardSteps,
+            List<PreparedNodeExecution> backwardSteps
+    ) {
+        Map<Tensor, CompiledNodeExecutionMetadata> out = new HashMap<>();
+        for (PreparedNodeExecution step : forwardSteps) {
+            out.put(step.node(), step.metadata());
+        }
+        for (PreparedNodeExecution step : backwardSteps) {
+            out.put(step.node(), step.metadata());
+        }
+        return Map.copyOf(out);
     }
 
     private static void executeSteps(
@@ -157,6 +176,7 @@ public final class PreparedExecution {
         Tensor node = step.node();
         var metadata = step.metadata();
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        ComputeTraceMetadata compute = null;
         LayoutTraceMetadata layout = new LayoutTraceMetadata(
                 node.getStorageOffsetUnsafe(),
                 node.isContiguous(),
@@ -170,6 +190,7 @@ public final class PreparedExecution {
 
         if (metadata.cpuPlan() != null) {
             var plan = metadata.cpuPlan();
+            compute = new ComputeTraceMetadata(plan.computeMode().name());
             if (plan.dispatchHints() != null) {
                 dispatch = new DispatchTraceMetadata(
                         plan.dispatchHints().mode().name(),
@@ -213,7 +234,7 @@ public final class PreparedExecution {
             );
         }
 
-        return new StepExecutionMetadata("node", attrs, layout, dispatch, reduction, matMul, fusedMeta);
+        return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, fusedMeta);
     }
 
     private void syncRootData(ExecutionMode mode) {

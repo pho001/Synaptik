@@ -22,6 +22,12 @@ final class LinearKernelSupport {
     }
 
     static void forwardBF16(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+        if (context.publishFloatContinuation() && tryPublishFloatContinuationBF16(input, weight, bias, out, context)) {
+            return;
+        }
+        if (op.hasBias() && tryBlasForwardBF16WithFloatContinuation(input, weight, bias, out, context)) {
+            return;
+        }
         runMatMulBF16(input, weight, out, context);
         if (op.hasBias()) {
             addBiasBF16(out, bias);
@@ -91,6 +97,82 @@ final class LinearKernelSupport {
         CpuMatMulKernel.runBF16(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
     }
 
+    private static boolean tryBlasForwardBF16WithFloatContinuation(
+            Tensor input,
+            Tensor weight,
+            Tensor bias,
+            Tensor out,
+            CpuKernelContext context
+    ) {
+        if (context == null || context.cpuWorkspace() == null) {
+            return false;
+        }
+        ResolvedMatMulHints hints = requireHints(context);
+        if (!hints.useBlas() && !hints.useBatchedBlas()) {
+            return false;
+        }
+
+        int[] as = input.getShapeUnsafe();
+        int[] bs = weight.getShapeUnsafe();
+        int m = as[as.length - 2];
+        int k = as[as.length - 1];
+        int n = bs[bs.length - 1];
+        short[] ad = input.getBFloat16Data();
+        short[] bd = weight.getBFloat16Data();
+        short[] od = out.getBFloat16Data();
+        float[] tmp = context.cpuWorkspace().requireFloatWorkspace();
+
+        boolean executed = (as.length == 2 && bs.length == 2 && hints.useBlas()
+                && CpuMatMulKernel.tryBlasBF16ToFloat(ad, bd, tmp, m, n, k))
+                || (hints.useBatchedBlas()
+                && CpuMatMulKernel.tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, out.getShapeUnsafe(), m, n, k));
+        if (!executed) {
+            return false;
+        }
+
+        addBiasAndMaterializeBF16(tmp, od, bias.getBFloat16Data(), bias.getShapeUnsafe()[0], od.length);
+        return true;
+    }
+
+    private static boolean tryPublishFloatContinuationBF16(
+            Tensor input,
+            Tensor weight,
+            Tensor bias,
+            Tensor out,
+            CpuKernelContext context
+    ) {
+        if (context == null || context.cpuWorkspace() == null) {
+            return false;
+        }
+        ResolvedMatMulHints hints = requireHints(context);
+        if (!hints.useBlas() && !hints.useBatchedBlas()) {
+            return false;
+        }
+
+        int[] as = input.getShapeUnsafe();
+        int[] bs = weight.getShapeUnsafe();
+        int m = as[as.length - 2];
+        int k = as[as.length - 1];
+        int n = bs[bs.length - 1];
+        short[] ad = input.getBFloat16Data();
+        short[] bd = weight.getBFloat16Data();
+        float[] tmp = context.cpuWorkspace().requireFloatWorkspace();
+
+        boolean executed = (as.length == 2 && bs.length == 2 && hints.useBlas()
+                && CpuMatMulKernel.tryBlasBF16ToFloat(ad, bd, tmp, m, n, k))
+                || (hints.useBatchedBlas()
+                && CpuMatMulKernel.tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, out.getShapeUnsafe(), m, n, k));
+        if (!executed) {
+            return false;
+        }
+
+        if (bias != null) {
+            addBiasInPlace(tmp, bias.getBFloat16Data(), bias.getShapeUnsafe()[0], out.getFlatDataSize());
+        }
+        context.cpuWorkspace().publishFloatContinuation(out.getFlatDataSize());
+        return true;
+    }
+
     private static void addBiasF64(Tensor out, Tensor bias) {
         double[] outData = out.getFloat64Data();
         double[] biasData = bias.getFloat64Data();
@@ -116,6 +198,27 @@ final class LinearKernelSupport {
         for (int i = 0; i < outData.length; i++) {
             float value = CpuDTypeOps.fromBFloat16Bits(outData[i]) + CpuDTypeOps.fromBFloat16Bits(biasData[i % outFeatures]);
             outData[i] = CpuDTypeOps.toBFloat16Bits(value);
+        }
+    }
+
+    private static void addBiasAndMaterializeBF16(
+            float[] src,
+            short[] out,
+            short[] bias,
+            int outFeatures,
+            int length
+    ) {
+        int limit = Math.min(length, Math.min(src.length, out.length));
+        for (int i = 0; i < limit; i++) {
+            float value = src[i] + CpuDTypeOps.fromBFloat16Bits(bias[i % outFeatures]);
+            out[i] = CpuDTypeOps.toBFloat16Bits(value);
+        }
+    }
+
+    private static void addBiasInPlace(float[] src, short[] bias, int outFeatures, int length) {
+        int limit = Math.min(length, src.length);
+        for (int i = 0; i < limit; i++) {
+            src[i] += CpuDTypeOps.fromBFloat16Bits(bias[i % outFeatures]);
         }
     }
 

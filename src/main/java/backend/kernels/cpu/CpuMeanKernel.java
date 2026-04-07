@@ -36,7 +36,7 @@ public final class CpuMeanKernel implements CpuKernel {
         }
         Tensor input = requireSingleInput(inputs);
         SumLoops.executeBF16(input, node, reduction.getDimension(), context);
-        MeanSupport.divideF16(node, divisor(input, reduction.getDimension()));
+        MeanSupport.divideBF16(node, divisor(input, reduction.getDimension()));
     }
 
     private static Tensor requireSingleInput(List<Tensor> inputs) {

@@ -3,10 +3,14 @@ package backend.kernels.cpu;
 public final class CpuNodeWorkspace {
     private final int[] intWorkspace;
     private final float[] floatWorkspace;
+    private volatile boolean floatContinuationValid;
+    private volatile int floatContinuationLength;
 
     private CpuNodeWorkspace(int[] intWorkspace, float[] floatWorkspace) {
         this.intWorkspace = intWorkspace;
         this.floatWorkspace = floatWorkspace;
+        this.floatContinuationValid = false;
+        this.floatContinuationLength = 0;
     }
 
     public static CpuNodeWorkspace withIntWorkspace(int size) {
@@ -45,5 +49,22 @@ public final class CpuNodeWorkspace {
             throw new IllegalStateException("CPU node workspace does not provide float[] storage.");
         }
         return floatWorkspace;
+    }
+
+    public void clearFloatContinuation() {
+        floatContinuationValid = false;
+        floatContinuationLength = 0;
+    }
+
+    public void publishFloatContinuation(int length) {
+        if (floatWorkspace == null) {
+            throw new IllegalStateException("CPU node workspace does not provide float[] continuation storage.");
+        }
+        floatContinuationLength = Math.max(0, Math.min(length, floatWorkspace.length));
+        floatContinuationValid = true;
+    }
+
+    public boolean hasFloatContinuation(int requiredLength) {
+        return floatContinuationValid && floatWorkspace != null && floatContinuationLength >= requiredLength;
     }
 }

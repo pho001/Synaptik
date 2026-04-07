@@ -13,6 +13,7 @@ import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
 
+import java.util.List;
 import java.util.Objects;
 
 public final class CpuExecutionPlanner {
@@ -20,20 +21,22 @@ public final class CpuExecutionPlanner {
     public static final int DEFAULT_MATMUL_TILE_N = 64;
     public static final int DEFAULT_MATMUL_TILE_K = 64;
 
-
-
     private final int matMulTileM;
     private final int matMulTileN;
     private final int matMulTileK;
     private final int vectorMinSize;
     private final int parallelMinSize;
     private final int matMulParallelMinSize;
-    private final int parallelism;
-    private final int chunksPerWorker;
-    private final int minChunkSize;
     private final int contiguousMaterializeThreshold;
+    private final int lowCostTargetChunksPerWorker;
+    private final int mediumCostTargetChunksPerWorker;
+    private final int highCostTargetChunksPerWorker;
+    private final int minScalarChunkSize;
+    private final int minVectorChunkSize;
+    private final int minReductionChunkSize;
+    private final int commonPoolLowCostMaxWorkPerWorker;
+    private final int fusedAsmVectorWidth;
     private final SumAccuracyMode sumAccuracyMode;
-    private final double lowCostNsPerElementThreshold;
     private final VectorPolicy vectorPolicyCheap;
     private final VectorPolicy vectorPolicyTranscendental;
     private final VectorPolicy vectorPolicyReduction;
@@ -46,12 +49,16 @@ public final class CpuExecutionPlanner {
             int matMulTileK,
             int parallelMinSize,
             int matMulParallelMinSize,
-            int parallelism,
-            int chunksPerWorker,
-            int minChunkSize,
             int contiguousMaterializeThreshold,
+            int lowCostTargetChunksPerWorker,
+            int mediumCostTargetChunksPerWorker,
+            int highCostTargetChunksPerWorker,
+            int minScalarChunkSize,
+            int minVectorChunkSize,
+            int minReductionChunkSize,
+            int commonPoolLowCostMaxWorkPerWorker,
+            int fusedAsmVectorWidth,
             SumAccuracyMode sumAccuracyMode,
-            double lowCostNsPerElementThreshold,
             VectorPolicy vectorPolicyCheap,
             VectorPolicy vectorPolicyTranscendental,
             VectorPolicy vectorPolicyReduction,
@@ -63,12 +70,16 @@ public final class CpuExecutionPlanner {
         this.matMulTileK = positiveOrDefault(matMulTileK, DEFAULT_MATMUL_TILE_K);
         this.parallelMinSize = Math.max(1, parallelMinSize);
         this.matMulParallelMinSize = Math.max(1, matMulParallelMinSize);
-        this.parallelism = Math.max(0, parallelism);
-        this.chunksPerWorker = Math.max(1, chunksPerWorker);
-        this.minChunkSize = Math.max(1, minChunkSize);
         this.contiguousMaterializeThreshold = Math.max(0, contiguousMaterializeThreshold);
+        this.lowCostTargetChunksPerWorker = Math.max(1, lowCostTargetChunksPerWorker);
+        this.mediumCostTargetChunksPerWorker = Math.max(1, mediumCostTargetChunksPerWorker);
+        this.highCostTargetChunksPerWorker = Math.max(1, highCostTargetChunksPerWorker);
+        this.minScalarChunkSize = Math.max(1, minScalarChunkSize);
+        this.minVectorChunkSize = Math.max(1, minVectorChunkSize);
+        this.minReductionChunkSize = Math.max(1, minReductionChunkSize);
+        this.commonPoolLowCostMaxWorkPerWorker = Math.max(1, commonPoolLowCostMaxWorkPerWorker);
+        this.fusedAsmVectorWidth = Math.max(1, fusedAsmVectorWidth);
         this.sumAccuracyMode = Objects.requireNonNullElse(sumAccuracyMode, SumAccuracyMode.FAST);
-        this.lowCostNsPerElementThreshold = lowCostNsPerElementThreshold > 0.0d ? lowCostNsPerElementThreshold : 2.0d;
         this.vectorPolicyCheap = Objects.requireNonNullElse(vectorPolicyCheap, VectorPolicy.AUTO);
         this.vectorPolicyTranscendental = Objects.requireNonNullElse(vectorPolicyTranscendental, VectorPolicy.AUTO);
         this.vectorPolicyReduction = Objects.requireNonNullElse(vectorPolicyReduction, VectorPolicy.AUTO);
@@ -84,12 +95,16 @@ public final class CpuExecutionPlanner {
                 config.matMulTileK(),
                 config.parallelMinSize(),
                 config.matMulParallelMinSize(),
-                config.parallelism(),
-                config.chunksPerWorker(),
-                config.minChunkSize(),
                 config.contiguousMaterializeThreshold(),
+                config.lowCostTargetChunksPerWorker(),
+                config.mediumCostTargetChunksPerWorker(),
+                config.highCostTargetChunksPerWorker(),
+                config.minScalarChunkSize(),
+                config.minVectorChunkSize(),
+                config.minReductionChunkSize(),
+                config.commonPoolLowCostMaxWorkPerWorker(),
+                config.fusedAsmVectorWidth(),
                 config.sumAccuracyMode(),
-                config.lowCostNsPerElementThreshold(),
                 config.vectorPolicyCheap(),
                 config.vectorPolicyTranscendental(),
                 config.vectorPolicyReduction(),
@@ -103,10 +118,6 @@ public final class CpuExecutionPlanner {
 
     public SumAccuracyMode sumAccuracyMode() {
         return sumAccuracyMode;
-    }
-
-    public double lowCostNsPerElementThreshold() {
-        return lowCostNsPerElementThreshold;
     }
 
     public int matMulTileM() {
@@ -126,17 +137,19 @@ public final class CpuExecutionPlanner {
     }
 
     public int plannedWorkers() {
-        int configured = parallelism > 0 ? parallelism : Runtime.getRuntime().availableProcessors();
-        return Math.max(1, configured);
+        return Math.max(1, Runtime.getRuntime().availableProcessors());
     }
 
     public boolean shouldMaterializeNonContiguous(int logicalSize) {
         return logicalSize >= contiguousMaterializeThreshold;
     }
 
-    public int preferredVectorWidth(DataType dataType) {
+    public int preferredVectorWidth(DataType dataType, CpuComputeMode computeMode) {
         if (dataType == null) {
             return 1;
+        }
+        if (computeMode != null && computeMode.usesF32Compute()) {
+            return FloatVector.SPECIES_PREFERRED.length();
         }
         return switch (dataType) {
             case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
@@ -147,16 +160,62 @@ public final class CpuExecutionPlanner {
         };
     }
 
-    public ResolvedDispatchHints resolveDispatchHints(Operation op, Tensor node) {
+    public int resolvedFusedAsmVectorWidth(CpuComputeMode computeMode) {
+        if (computeMode == null) {
+            return 1;
+        }
+        int available = switch (computeMode) {
+            case F32, BF16_F32_COMPUTE, BF16_BLAS -> FloatVector.SPECIES_PREFERRED.length();
+            case F64 -> DoubleVector.SPECIES_PREFERRED.length();
+            default -> 1;
+        };
+        if (fusedAsmVectorWidth <= 1 || available <= 1) {
+            return 1;
+        }
+        int width = Math.min(fusedAsmVectorWidth, available);
+        if (width >= 8) {
+            return 8;
+        }
+        if (width >= 4) {
+            return 4;
+        }
+        if (width >= 2) {
+            return 2;
+        }
+        return 1;
+    }
+
+    public CpuComputeMode resolveComputeMode(Operation op, List<Tensor> inputs, Tensor node, BlasConfig blasConfig) {
+        Objects.requireNonNull(node, "node cannot be null");
+        DataType dataType = node.getDataType();
+        if (dataType == null) {
+            return CpuComputeMode.F64;
+        }
+        return switch (dataType) {
+            case FLOAT64 -> CpuComputeMode.F64;
+            case FLOAT32 -> CpuComputeMode.F32;
+            case INT32 -> CpuComputeMode.INT32;
+            case BOOL -> CpuComputeMode.BOOL;
+            case BFLOAT16 -> resolveBFloat16ComputeMode(op, inputs, node, blasConfig);
+        };
+    }
+
+    public ResolvedDispatchHints resolveDispatchHints(Operation op, Tensor node, CpuComputeMode computeMode) {
         if (op == null || node == null
                 || (op.opType().category() != Operation.OpArityClass.ELEMENT_WISE && op.opType() != Operation.OpType.FUSED)) {
-            return new ResolvedDispatchHints(0, CpuExecutionMode.SCALAR, 1, 1, 1, 1);
+            return new ResolvedDispatchHints(0, CpuExecutionMode.SCALAR, 1, 1, 1, 1, false);
         }
 
         int totalLength = Math.max(0, node.getFlatDataSize());
-        int vectorWidth = preferredVectorWidth(node.getDataType());
-        VectorPolicy policy = resolveElementWisePolicy(op);
-        boolean vectorAllowed = vectorWidth > 1 && isVectorAllowed(policy, totalLength, effectiveVectorMinSize(op));
+        boolean fused = op.opType() == Operation.OpType.FUSED;
+        int vectorWidth = fused
+                ? resolvedFusedAsmVectorWidth(computeMode)
+                : preferredVectorWidth(node.getDataType(), computeMode);
+        VectorPolicy policy = fused ? VectorPolicy.AUTO : resolveElementWisePolicy(op);
+        boolean vectorAllowed = fused
+                ? vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op)
+                : vectorWidth > 1 && isVectorAllowed(policy, totalLength, effectiveVectorMinSize(op));
+        CpuKernelCostClass costClass = resolveDispatchCostClass(op);
 
         CpuExecutionMode mode;
         if (totalLength >= effectiveParallelMinSize(op)) {
@@ -168,16 +227,18 @@ public final class CpuExecutionPlanner {
         return new ResolvedDispatchHints(
                 totalLength,
                 mode,
-                computeChunkSize(totalLength, 1),
-                computeChunkSize(totalLength, vectorWidth),
+                computeChunkSize(totalLength, 1, resolveTargetChunksPerWorker(costClass), minScalarChunkSize),
+                computeChunkSize(totalLength, vectorWidth, resolveTargetChunksPerWorker(costClass), minVectorChunkSize),
                 vectorWidth,
-                plannedWorkers()
+                plannedWorkers(),
+                (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR)
+                        && shouldUseCommonPool(costClass, totalLength)
         );
     }
 
-    public ResolvedReductionHints resolveReductionHints(int logicalSize, DataType dataType) {
+    public ResolvedReductionHints resolveReductionHints(int logicalSize, DataType dataType, CpuComputeMode computeMode) {
         int size = Math.max(0, logicalSize);
-        int vectorWidth = preferredVectorWidth(dataType);
+        int vectorWidth = preferredVectorWidth(dataType, computeMode);
         boolean vectorAllowed = vectorWidth > 1 && isVectorAllowed(vectorPolicyReduction, size, vectorMinSize);
 
         CpuExecutionMode mode;
@@ -189,7 +250,9 @@ public final class CpuExecutionPlanner {
 
         int chunkSize = computeChunkSize(
                 size,
-                mode == CpuExecutionMode.VECTOR || mode == CpuExecutionMode.PARALLEL_VECTOR ? vectorWidth : 1
+                mode == CpuExecutionMode.VECTOR || mode == CpuExecutionMode.PARALLEL_VECTOR ? vectorWidth : 1,
+                1,
+                minReductionChunkSize
         );
 
         return new ResolvedReductionHints(
@@ -200,6 +263,33 @@ public final class CpuExecutionPlanner {
                 plannedWorkers(),
                 sumAccuracyMode
         );
+    }
+
+    private CpuComputeMode resolveBFloat16ComputeMode(Operation op, List<Tensor> inputs, Tensor node, BlasConfig blasConfig) {
+        if (op == null) {
+            return CpuComputeMode.BF16_F32_COMPUTE;
+        }
+        return switch (op.opType()) {
+            case MATMUL, LINEAR -> {
+                if (inputs != null && inputs.size() >= 2) {
+                    Tensor a = inputs.get(0);
+                    Tensor b = inputs.get(1);
+                    int[] as = a.getShapeUnsafe();
+                    int[] bs = b.getShapeUnsafe();
+                    int m = as[as.length - 2];
+                    int k = as[as.length - 1];
+                    int n = bs[bs.length - 1];
+                    yield shouldUseBlas(a, b, node, m, n, k, blasConfig)
+                            ? CpuComputeMode.BF16_BLAS
+                            : CpuComputeMode.BF16_F32_COMPUTE;
+                }
+                yield CpuComputeMode.BF16_F32_COMPUTE;
+            }
+            case CONV2D_GEMM -> blasConfig.provider() == BlasProvider.OPENBLAS_FFM
+                    ? CpuComputeMode.BF16_BLAS
+                    : CpuComputeMode.BF16_F32_COMPUTE;
+            default -> CpuComputeMode.BF16_F32_COMPUTE;
+        };
     }
 
     public ResolvedMatMulHints resolveMatMulHints(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig) {
@@ -240,12 +330,12 @@ public final class CpuExecutionPlanner {
         );
     }
 
-    public int computeChunkSize(int totalLength, int alignment) {
+    public int computeChunkSize(int totalLength, int alignment, int targetChunksPerWorker, int minChunkSize) {
         int length = Math.max(1, totalLength);
         int workers = plannedWorkers();
-        int targets = Math.max(workers, workers * chunksPerWorker);
+        int targets = Math.max(workers, workers * Math.max(1, targetChunksPerWorker));
         int candidate = (length + targets - 1) / targets;
-        int chunk = Math.max(minChunkSize, candidate);
+        int chunk = Math.max(Math.max(1, minChunkSize), candidate);
 
         int align = Math.max(1, alignment);
         if (align > 1) {
@@ -312,12 +402,6 @@ public final class CpuExecutionPlanner {
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
             return false;
         }
-        if (attentionMatMulPolicy == AttentionMatMulPolicy.FORCE_OFF) {
-            return false;
-        }
-        if (attentionMatMulPolicy == AttentionMatMulPolicy.FORCE_ON) {
-            return true;
-        }
         if (work < blasConfig.matMulMinWork()) {
             return false;
         }
@@ -329,68 +413,105 @@ public final class CpuExecutionPlanner {
                 return false;
             }
         }
-        return true;
+        return switch (attentionMatMulPolicy) {
+            case FORCE_OFF -> false;
+            case FORCE_ON -> true;
+            case AUTO -> true;
+        };
     }
 
-    private static boolean isAttentionLikeBatchedMatMul(Tensor a, Tensor b, Tensor out) {
+    private boolean isAttentionLikeBatchedMatMul(Tensor a, Tensor b, Tensor out) {
         int[] as = a.getShapeUnsafe();
         int[] bs = b.getShapeUnsafe();
         int[] os = out.getShapeUnsafe();
         if (as.length < 3 || bs.length < 3 || os.length < 3) {
             return false;
         }
-        boolean scoreLike = os[os.length - 2] == bs[bs.length - 1];
-        boolean weightsValueLike = as[as.length - 2] == as[as.length - 1];
-        return scoreLike || weightsValueLike;
+        int aBatchRank = as.length - 2;
+        int bBatchRank = bs.length - 2;
+        int oBatchRank = os.length - 2;
+        if (aBatchRank != bBatchRank || aBatchRank != oBatchRank) {
+            return false;
+        }
+        if (aBatchRank < 1) {
+            return false;
+        }
+        if (oBatchRank == 1) {
+            return false;
+        }
+        return os[oBatchRank - 1] == as[aBatchRank - 1];
     }
 
     private VectorPolicy resolveElementWisePolicy(Operation op) {
-        if (op == null || op.opType() == null) {
-            return vectorPolicyCheap;
+        if (op == null) {
+            return VectorPolicy.AUTO;
         }
         return switch (op.opType()) {
-            case LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, SIGMOID -> vectorPolicyTranscendental;
-            case FUSED -> {
-                if (op instanceof FusedOperation fused) {
-                    yield fused.isLowCostHint() ? vectorPolicyCheap : vectorPolicyTranscendental;
-                }
-                yield vectorPolicyTranscendental;
-            }
+            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> vectorPolicyTranscendental;
             default -> vectorPolicyCheap;
         };
     }
 
-    private boolean isVectorAllowed(VectorPolicy policy, int size, int effectiveVectorMinSize) {
+    private boolean isVectorAllowed(VectorPolicy policy, int size, int minSize) {
         return switch (policy) {
             case FORCE_ON -> true;
             case FORCE_OFF -> false;
-            case AUTO -> size >= Math.max(1, effectiveVectorMinSize);
+            case AUTO -> size >= Math.max(1, minSize);
         };
     }
 
     private int effectiveVectorMinSize(Operation op) {
         int base = Math.max(1, vectorMinSize);
-        if (op instanceof FusedOperation fused) {
-            int scale = Math.max(1, fused.getDispatchScale());
-            if (scale > 1) {
-                return Math.max(1, base / scale);
-            }
+        if (op == null) {
+            return base;
+        }
+        if (op.opType() == Operation.OpType.FUSED) {
+            int scale = ((FusedOperation) op).getDispatchScale();
+            return Math.max(1, base / Math.max(1, scale));
         }
         return base;
     }
 
     private int effectiveParallelMinSize(Operation op) {
         int base = Math.max(1, parallelMinSize);
-        if (op instanceof FusedOperation fused) {
-            int scale = Math.max(1, fused.getDispatchScale());
-            if (scale > 1) {
-                return Math.max(1, base / scale);
-            }
+        if (op == null) {
+            return base;
+        }
+        if (op.opType() == Operation.OpType.FUSED) {
+            int scale = ((FusedOperation) op).getDispatchScale();
+            return Math.max(1, base / Math.max(1, scale));
         }
         return base;
     }
 
-    private static int positiveOrDefault(int value, int fallback) {
-        return value > 0 ? value : fallback;
+    private CpuKernelCostClass resolveDispatchCostClass(Operation op) {
+        if (op == null) {
+            return CpuKernelCostClass.MEDIUM;
+        }
+        if (op instanceof FusedOperation fused) {
+            return fused.isLowCostHint() && fused.getDispatchScale() == 1
+                    ? CpuKernelCostClass.LOW
+                    : CpuKernelCostClass.MEDIUM;
+        }
+        return op.isCheap() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
+    }
+
+    private int resolveTargetChunksPerWorker(CpuKernelCostClass costClass) {
+        return switch (costClass) {
+            case LOW -> lowCostTargetChunksPerWorker;
+            case MEDIUM -> mediumCostTargetChunksPerWorker;
+            case HIGH -> highCostTargetChunksPerWorker;
+        };
+    }
+
+    private boolean shouldUseCommonPool(CpuKernelCostClass costClass, int totalLength) {
+        if (costClass != CpuKernelCostClass.LOW) {
+            return false;
+        }
+        return totalLength <= (long) plannedWorkers() * commonPoolLowCostMaxWorkPerWorker;
+    }
+
+    private static int positiveOrDefault(int value, int defaultValue) {
+        return value > 0 ? value : defaultValue;
     }
 }

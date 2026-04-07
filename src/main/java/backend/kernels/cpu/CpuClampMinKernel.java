@@ -22,6 +22,11 @@ public final class CpuClampMinKernel implements CpuKernel {
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        float[] continuation = context.inputFloatContinuation(0, node.getFlatDataSize());
+        if (continuation != null) {
+            UnaryBF16.clampMin(continuation, ((clampMin) op).getMinValueF32(), node.getBFloat16Data(), context.dispatchHints());
+            return;
+        }
         UnaryBF16.clampMin(inputs.get(0).getBFloat16Data(), ((clampMin) op).getMinValueF32(), node.getBFloat16Data(), context.dispatchHints());
     }
 }

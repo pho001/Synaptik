@@ -81,6 +81,16 @@ public class CpuMatMulKernel implements CpuKernel {
         float[] tmp = (hints.useBlas() || hints.useBatchedBlas()) && context.cpuWorkspace() != null
                 ? context.cpuWorkspace().requireFloatWorkspace()
                 : null;
+        if (context.publishFloatContinuation()) {
+            if (as.length == 2 && bs.length == 2 && hints.useBlas() && tryBlasBF16ToFloat(ad, bd, tmp, m, n, k)) {
+                context.cpuWorkspace().publishFloatContinuation(m * n);
+                return;
+            }
+            if (hints.useBatchedBlas() && tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, node.getShapeUnsafe(), m, n, k)) {
+                context.cpuWorkspace().publishFloatContinuation(out.length);
+                return;
+            }
+        }
         if (as.length == 2 && bs.length == 2 && hints.useBlas() && tryBlasBF16(ad, bd, out, tmp, m, n, k)) {
             return;
         }
@@ -488,32 +498,11 @@ public class CpuMatMulKernel implements CpuKernel {
             int n,
             int k
     ) {
-        if (!OpenBlasFfmBridge.isAvailable()) {
-            maybeLogBlasUnavailable();
+        if (!tryBlasBF16ToFloat(ad, bd, tmp, m, n, k)) {
             return false;
         }
-        try {
-            if (tmp == null || tmp.length < m * n) {
-                return false;
-            }
-            OpenBlasFfmBridge.sbgemmRowMajorNoTrans(
-                    m, n, k,
-                    1.0f,
-                    ad, k,
-                    bd, n,
-                    0.0f,
-                    tmp, n
-            );
-            for (int i = 0; i < tmp.length; i++) {
-                od[i] = CpuDTypeOps.toBFloat16Bits(tmp[i]);
-            }
-            return true;
-        } catch (Throwable t) {
-            if (BlasRuntime.debug()) {
-                System.err.println("[BLAS] SBGEMM failed, fallback to Java kernel: " + t.getMessage());
-            }
-            return false;
-        }
+        materializeBFloat16(tmp, od, m * n);
+        return true;
     }
 
     static boolean tryBatchedBlasBF16(
@@ -528,18 +517,69 @@ public class CpuMatMulKernel implements CpuKernel {
             int n,
             int k
     ) {
+        if (!tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, outShape, m, n, k)) {
+            return false;
+        }
+        materializeBFloat16(tmp, od, od.length);
+        return true;
+    }
+
+    static boolean tryBlasBF16ToFloat(
+            short[] ad,
+            short[] bd,
+            float[] out,
+            int m,
+            int n,
+            int k
+    ) {
         if (!OpenBlasFfmBridge.isAvailable()) {
             maybeLogBlasUnavailable();
             return false;
         }
         try {
-            if (tmp == null || tmp.length < od.length) {
+            if (out == null || out.length < m * n) {
                 return false;
             }
+            OpenBlasFfmBridge.sbgemmRowMajorNoTrans(
+                    m, n, k,
+                    1.0f,
+                    ad, k,
+                    bd, n,
+                    0.0f,
+                    out, n
+            );
+            return true;
+        } catch (Throwable t) {
+            if (BlasRuntime.debug()) {
+                System.err.println("[BLAS] SBGEMM failed, fallback to Java kernel: " + t.getMessage());
+            }
+            return false;
+        }
+    }
+
+    static boolean tryBatchedBlasBF16ToFloat(
+            short[] ad,
+            int[] as,
+            short[] bd,
+            int[] bs,
+            float[] out,
+            int[] outShape,
+            int m,
+            int n,
+            int k
+    ) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            maybeLogBlasUnavailable();
+            return false;
+        }
+        try {
             int batchCount = batchCount(outShape);
+            int mn = m * n;
+            if (out == null || out.length < batchCount * mn) {
+                return false;
+            }
             int[] aBatchOffsets = computeBatchOffsets(as, outShape);
             int[] bBatchOffsets = computeBatchOffsets(bs, outShape);
-            int mn = m * n;
             for (int batch = 0; batch < batchCount; batch++) {
                 OpenBlasFfmBridge.sbgemmRowMajorNoTransOffsets(
                         m, n, k,
@@ -547,11 +587,8 @@ public class CpuMatMulKernel implements CpuKernel {
                         ad, aBatchOffsets[batch], k,
                         bd, bBatchOffsets[batch], n,
                         0.0f,
-                        tmp, batch * mn, n
+                        out, batch * mn, n
                 );
-            }
-            for (int i = 0; i < od.length; i++) {
-                od[i] = CpuDTypeOps.toBFloat16Bits(tmp[i]);
             }
             return true;
         } catch (Throwable t) {
@@ -559,6 +596,13 @@ public class CpuMatMulKernel implements CpuKernel {
                 System.err.println("[BLAS] Batched SBGEMM failed, fallback to Java kernel: " + t.getMessage());
             }
             return false;
+        }
+    }
+
+    static void materializeBFloat16(float[] src, short[] dst, int length) {
+        int limit = Math.min(length, Math.min(src.length, dst.length));
+        for (int i = 0; i < limit; i++) {
+            dst[i] = CpuDTypeOps.toBFloat16Bits(src[i]);
         }
     }
 

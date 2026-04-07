@@ -50,6 +50,20 @@ public class CpuDivKernel implements CpuKernel {
             BroadcastBinaryKernel.runBF16(Operation.OpType.DIV, a, b, out, plan, hints);
             return;
         }
+        float[] ac = context.inputFloatContinuation(0, node.getFlatDataSize());
+        float[] bc = context.inputFloatContinuation(1, node.getFlatDataSize());
+        if (ac != null && bc != null) {
+            DivBF16.run(ac, bc, out, hints);
+            return;
+        }
+        if (ac != null) {
+            DivBF16.run(ac, b, out, hints);
+            return;
+        }
+        if (bc != null) {
+            DivBF16.run(a, bc, out, hints);
+            return;
+        }
         DivBF16.run(a, b, out, hints);
     }
 }

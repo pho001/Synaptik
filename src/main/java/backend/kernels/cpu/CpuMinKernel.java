@@ -50,6 +50,20 @@ public class CpuMinKernel implements CpuKernel {
             BroadcastBinaryKernel.runBF16(Operation.OpType.MIN, a, b, out, plan, hints);
             return;
         }
+        float[] ac = context.inputFloatContinuation(0, node.getFlatDataSize());
+        float[] bc = context.inputFloatContinuation(1, node.getFlatDataSize());
+        if (ac != null && bc != null) {
+            MinBF16.run(ac, bc, out, hints);
+            return;
+        }
+        if (ac != null) {
+            MinBF16.run(ac, b, out, hints);
+            return;
+        }
+        if (bc != null) {
+            MinBF16.run(a, bc, out, hints);
+            return;
+        }
         MinBF16.run(a, b, out, hints);
     }
 }

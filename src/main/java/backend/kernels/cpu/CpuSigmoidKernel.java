@@ -21,6 +21,11 @@ public class CpuSigmoidKernel implements CpuKernel {
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        float[] continuation = context.inputFloatContinuation(0, node.getFlatDataSize());
+        if (continuation != null) {
+            UnaryBF16.sigmoid(continuation, node.getBFloat16Data(), context.dispatchHints());
+            return;
+        }
         UnaryBF16.sigmoid(inputs.get(0).getBFloat16Data(), node.getBFloat16Data(), context.dispatchHints());
     }
 }

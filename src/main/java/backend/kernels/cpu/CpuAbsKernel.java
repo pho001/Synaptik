@@ -21,6 +21,11 @@ public final class CpuAbsKernel implements CpuKernel {
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        float[] continuation = context.inputFloatContinuation(0, node.getFlatDataSize());
+        if (continuation != null) {
+            UnaryBF16.abs(continuation, node.getBFloat16Data(), context.dispatchHints());
+            return;
+        }
         UnaryBF16.abs(inputs.get(0).getBFloat16Data(), node.getBFloat16Data(), context.dispatchHints());
     }
 }

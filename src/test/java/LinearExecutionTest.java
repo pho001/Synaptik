@@ -1,7 +1,13 @@
 import backend.runtime.ExecutionMode;
+import backend.blas.BlasProvider;
+import backend.blas.BlasThreadPolicy;
+import backend.blas.OpenBlasFfmBridge;
+import config.backend.KernelTuningConfig;
 import config.optimizer.OptimizerConfig;
+import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -90,5 +96,82 @@ public class LinearExecutionTest {
 
         assertThrows(IllegalArgumentException.class, () -> input.linear(badWeight));
         assertThrows(IllegalArgumentException.class, () -> input.linear(goodWeight, badBias));
+    }
+
+    @Test
+    void bfloat16LinearWithBiasMatchesBaselineWhenBlasIsEnabled() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+
+        double[] inputValues = random(32 * 64, 11);
+        double[] weightValues = random(64 * 96, 17);
+        double[] biasValues = random(96, 23);
+
+        Tensor inputBase = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "inputBase", DataType.FLOAT64);
+        Tensor weightBase = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weightBase", DataType.FLOAT64);
+        Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.FLOAT64);
+        Tensor baseline = inputBase.linear(weightBase, biasBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "input", DataType.BFLOAT16);
+        Tensor weight = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weight", DataType.BFLOAT16);
+        Tensor bias = new Tensor(biasValues.clone(), new int[]{96}, null, "bias", DataType.BFLOAT16);
+        Tensor out = input.linear(weight, bias);
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+    }
+
+    @Test
+    void bfloat16LinearThenReluMatchesBaselineWhenBlasContinuationIsEnabled() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+
+        double[] inputValues = random(32 * 64, 31);
+        double[] weightValues = random(64 * 96, 37);
+        double[] biasValues = random(96, 41);
+
+        Tensor inputBase = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "inputBase", DataType.FLOAT64);
+        Tensor weightBase = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weightBase", DataType.FLOAT64);
+        Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.FLOAT64);
+        Tensor baseline = inputBase.linear(weightBase, biasBase).relu();
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "input", DataType.BFLOAT16);
+        Tensor weight = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weight", DataType.BFLOAT16);
+        Tensor bias = new Tensor(biasValues.clone(), new int[]{96}, null, "bias", DataType.BFLOAT16);
+        Tensor out = input.linear(weight, bias).relu();
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16BlasRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
+    }
+
+    private static RuntimeConfig bfloat16BlasRuntime() {
+        return new RuntimeConfig(
+                KernelTuningConfig.defaultsInference(),
+                config.runtime.ApproximationConfig.defaults(),
+                new BlasConfig(
+                        BlasProvider.OPENBLAS_FFM,
+                        1L,
+                        false,
+                        100.0d,
+                        false,
+                        BlasThreadPolicy.FIXED,
+                        1
+                )
+        );
+    }
+
+    private static double[] random(int size, int seed) {
+        java.util.Random random = new java.util.Random(seed);
+        double[] out = new double[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = Math.sin(i * 0.031) + (random.nextDouble() - 0.5) * 0.1;
+        }
+        return out;
     }
 }

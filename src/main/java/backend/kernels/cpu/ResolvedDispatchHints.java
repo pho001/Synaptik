@@ -8,7 +8,8 @@ public record ResolvedDispatchHints(
         int scalarChunkSize,
         int vectorChunkSize,
         int vectorWidth,
-        int plannedWorkers
+        int plannedWorkers,
+        boolean useCommonPool
 ) {
     public ResolvedDispatchHints {
         totalLength = Math.max(0, totalLength);

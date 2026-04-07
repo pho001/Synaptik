@@ -29,6 +29,15 @@ public class CpuTanhKernel implements CpuKernel {
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        float[] continuation = context.inputFloatContinuation(0, node.getFlatDataSize());
+        if (continuation != null) {
+            if (context.useFastTanhApprox()) {
+                UnaryBF16.fastTanh(continuation, node.getBFloat16Data(), context.dispatchHints());
+            } else {
+                UnaryBF16.tanh(continuation, node.getBFloat16Data(), context.dispatchHints());
+            }
+            return;
+        }
         if (context.useFastTanhApprox()) {
             UnaryBF16.fastTanh(inputs.get(0).getBFloat16Data(), node.getBFloat16Data(), context.dispatchHints());
         } else {

@@ -5,6 +5,7 @@ import java.util.Map;
 public record StepExecutionMetadata(
         String kind,
         Map<String, Object> attributes,
+        ComputeTraceMetadata compute,
         LayoutTraceMetadata layout,
         DispatchTraceMetadata dispatch,
         ReductionTraceMetadata reduction,
@@ -17,6 +18,6 @@ public record StepExecutionMetadata(
     }
 
     public static StepExecutionMetadata none() {
-        return new StepExecutionMetadata("none", Map.of(), null, null, null, null, null);
+        return new StepExecutionMetadata("none", Map.of(), null, null, null, null, null, null);
     }
 }

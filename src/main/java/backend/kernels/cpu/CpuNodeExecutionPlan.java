@@ -9,12 +9,15 @@ import java.util.Objects;
 
 public record CpuNodeExecutionPlan(
         CpuLayoutPlan layoutPlan,
+        CpuComputeMode computeMode,
+        boolean publishFloatContinuation,
         ResolvedDispatchHints dispatchHints,
         ResolvedReductionHints reductionHints,
         ResolvedMatMulHints matMulHints
 ) {
     public CpuNodeExecutionPlan {
         Objects.requireNonNull(layoutPlan, "layoutPlan cannot be null");
+        computeMode = computeMode == null ? CpuComputeMode.F64 : computeMode;
     }
 
     public List<Tensor> apply(List<Tensor> originalInputs) {

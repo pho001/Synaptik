@@ -1,6 +1,7 @@
 package backend;
 
 import backend.kernels.cpu.CpuExecutionPlanner;
+import backend.kernels.cpu.CpuComputeMode;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuStridedElementWise;
@@ -57,6 +58,9 @@ public final class CPUBackend {
                             " (operation class: " + op.getClass().getName() + ")"
             );
         }
+        if (metadata.cpuWorkspace() != null) {
+            metadata.cpuWorkspace().clearFloatContinuation();
+        }
 
         CpuExecutionPlanner planner = executionContext.cpuPlanner();
 
@@ -65,13 +69,15 @@ public final class CPUBackend {
             throw new IllegalStateException("Missing CpuNodeExecutionPlan for node " + node.getLabel());
         }
 
-        List<Tensor> inputs = executionPlan.apply(node.getPrevTensors());
+        List<Tensor> originalInputs = node.getPrevTensors();
+        List<Tensor> inputs = executionPlan.apply(originalInputs);
+        List<CompiledNodeExecutionMetadata> inputMetadatas = resolveInputMetadatas(originalInputs, inputs, executionContext);
         if (executionPlan.stridedPath()) {
-            CpuStridedElementWise.forward(op, inputs, node, new CpuKernelContext(planner, executionPlan, executionContext, metadata));
+            CpuStridedElementWise.forward(op, inputs, node, new CpuKernelContext(planner, executionPlan, executionContext, metadata, inputMetadatas));
             return;
         }
 
-        CpuKernelContext kernelContext = new CpuKernelContext(planner, executionPlan, executionContext, metadata);
+        CpuKernelContext kernelContext = new CpuKernelContext(planner, executionPlan, executionContext, metadata, inputMetadatas);
 
         switch (node.getDataType()) {
             case FLOAT64 -> kernel.forwardF64(op, inputs, node, kernelContext);
@@ -91,7 +97,8 @@ public final class CPUBackend {
             List<Tensor> inputs,
             Tensor node,
             CpuExecutionPlanner planner,
-            BlasConfig blasConfig
+            BlasConfig blasConfig,
+            boolean publishFloatContinuation
     ) {
         Objects.requireNonNull(node, "node cannot be null");
         Objects.requireNonNull(planner, "planner cannot be null");
@@ -117,9 +124,11 @@ public final class CPUBackend {
                 prepared.runtimeInputs()
         );
 
+        CpuComputeMode computeMode = planner.resolveComputeMode(op, prepared.runtimeInputs(), node, blasConfig);
+
         ResolvedDispatchHints dispatchHints =
                 (op != null && (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE || op.opType() == Operation.OpType.FUSED))
-                        ? planner.resolveDispatchHints(op, node)
+                        ? planner.resolveDispatchHints(op, node, computeMode)
                         : null;
 
         ResolvedReductionHints reductionHints =
@@ -127,7 +136,7 @@ public final class CPUBackend {
                     case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS -> true;
                     default -> false;
                 })
-                        ? planner.resolveReductionHints(estimateReductionLogicalSize(prepared.runtimeInputs(), node), targetType)
+                        ? planner.resolveReductionHints(estimateReductionLogicalSize(prepared.runtimeInputs(), node), targetType, computeMode)
                         : null;
 
         ResolvedMatMulHints matMulHints =
@@ -140,7 +149,28 @@ public final class CPUBackend {
                 )
                         : null;
 
-        return new CpuNodeExecutionPlan(layoutPlan, dispatchHints, reductionHints, matMulHints);
+        return new CpuNodeExecutionPlan(layoutPlan, computeMode, publishFloatContinuation, dispatchHints, reductionHints, matMulHints);
+    }
+
+    private static List<CompiledNodeExecutionMetadata> resolveInputMetadatas(
+            List<Tensor> originalInputs,
+            List<Tensor> runtimeInputs,
+            ExecutionContext executionContext
+    ) {
+        if (runtimeInputs == null || runtimeInputs.isEmpty()) {
+            return List.of();
+        }
+        List<CompiledNodeExecutionMetadata> out = new ArrayList<>(runtimeInputs.size());
+        for (int i = 0; i < runtimeInputs.size(); i++) {
+            Tensor runtime = runtimeInputs.get(i);
+            Tensor original = (originalInputs != null && i < originalInputs.size()) ? originalInputs.get(i) : null;
+            if (runtime != original || original == null) {
+                out.add(null);
+                continue;
+            }
+            out.add(executionContext.metadataFor(original));
+        }
+        return out;
     }
 
     private static PreparedInputsResult prepareInputs(

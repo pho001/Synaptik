@@ -15,7 +15,7 @@ public class NonContiguousExecutionTest {
     @Test
     public void testAddNonContiguousStridedPath() {
         // size=6 < threshold(100): strided path should be selected
-        RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 100));
+        RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
 
         Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig", DataType.FLOAT64);
@@ -30,7 +30,7 @@ public class NonContiguousExecutionTest {
     @Test
     public void testAddNonContiguousMaterializePath() {
         // threshold(0): materialize path should be selected
-        RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 0));
+        RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
 
         Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{10, 20, 30, 40, 50, 60}, new int[]{2, 3}, null, "b_contig", DataType.FLOAT64);
@@ -46,12 +46,12 @@ public class NonContiguousExecutionTest {
     public void testLogNonContiguousStridedVsMaterializeEquivalence() {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
 
-        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 100));
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
         Tensor s = a.log();
         CompiledGraph.compile(s, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
         double[] strided = s.toDoubleArrayCopy().clone();
 
-        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 0));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
         Tensor m = a.log();
         CompiledGraph.compile(m, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
         double[] materialized = m.toDoubleArrayCopy().clone();
@@ -61,7 +61,7 @@ public class NonContiguousExecutionTest {
 
     @Test
     public void testAddBroadcastWithNonContiguousInput() {
-        RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 100));
+        RuntimeConfig runtimeConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
 
         Tensor a = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "b_broadcast", DataType.FLOAT64);

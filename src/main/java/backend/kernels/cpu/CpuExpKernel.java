@@ -29,6 +29,15 @@ public class CpuExpKernel implements CpuKernel {
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        float[] continuation = context.inputFloatContinuation(0, node.getFlatDataSize());
+        if (continuation != null) {
+            if (context.useFastExpApprox()) {
+                UnaryBF16.fastExp(continuation, node.getBFloat16Data(), context.dispatchHints());
+            } else {
+                UnaryBF16.exp(continuation, node.getBFloat16Data(), context.dispatchHints());
+            }
+            return;
+        }
         if (context.useFastExpApprox()) {
             UnaryBF16.fastExp(inputs.get(0).getBFloat16Data(), node.getBFloat16Data(), context.dispatchHints());
         } else {

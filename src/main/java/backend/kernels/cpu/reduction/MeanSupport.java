@@ -25,7 +25,7 @@ public final class MeanSupport {
         }
     }
 
-    public static void divideF16(Tensor node, int divisor) {
+    public static void divideBF16(Tensor node, int divisor) {
         short[] out = node.getBFloat16Data();
         float scale = 1.0f / divisor;
         int baseOffset = node.getStorageOffsetUnsafe();

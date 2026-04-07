@@ -76,11 +76,11 @@ public class MinMaxReductionExecutionTest {
     void minNonContiguousStridedVsMaterializedEquivalence() {
         Tensor a = new Tensor(new double[]{2, 1, 5, 4, 3, 0}, new int[]{2, 3}, new int[]{1, 2}, null, "a_noncontig", DataType.FLOAT64);
 
-        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 100_000));
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100_000));
         Tensor strided = a.min(1);
         CompiledGraph.compile(strided, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
 
-        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0, 4, 4_096, 0));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
         Tensor materialized = a.min(1);
         CompiledGraph.compile(materialized, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
 
