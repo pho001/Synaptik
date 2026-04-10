@@ -1,7 +1,9 @@
 package config.runtime;
 
+import backend.ApproxMode;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
+import config.backend.SumAccuracyMode;
 
 import java.util.Objects;
 
@@ -69,6 +71,31 @@ public record RuntimeConfig(
                 FusedExecutionPolicy.defaultsInference()
         );
     }
+
+    public static RuntimeConfig noOptNoVecNoPar() {
+        CpuKernelConfig cpuNoVecNoPar = new CpuKernelConfig(
+                1,                  // loopUnrollFactor
+                16, 16, 16,         // matmul tiles, tady v zásadě irelevantní bez BLAS/vector/parallel
+                Integer.MAX_VALUE,  // vectorMinSize => vektor se prakticky nikdy nezapne
+                Integer.MAX_VALUE,  // parallelMinSize => paralelizace se prakticky nikdy nezapne
+                Integer.MAX_VALUE,  // contiguousMaterializeThreshold
+                SumAccuracyMode.FAST
+        );
+        RuntimeConfig runtime = new RuntimeConfig(
+                cpuNoVecNoPar,
+                new ApproximationConfig(ApproxMode.OFF, true), // bez fast aproximací
+                BlasConfig.disabled(),                         // bez BLAS
+                new FusedExecutionPolicy(
+                        FusedPrimaryBackend.ASM,
+                        false
+                )
+
+        );
+        return runtime;
+    }
+
+
+
 
     public backend.runtime.RuntimeConfig toBackendRuntimeConfig() {
         return new backend.runtime.RuntimeConfig(

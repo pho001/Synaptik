@@ -1,6 +1,5 @@
 import backend.runtime.ExecutionMode;
 import backend.blas.BlasProvider;
-import backend.blas.BlasThreadPolicy;
 import backend.blas.OpenBlasFfmBridge;
 import config.backend.KernelTuningConfig;
 import config.optimizer.OptimizerConfig;
@@ -160,7 +159,6 @@ public class LinearExecutionTest {
                         false,
                         100.0d,
                         false,
-                        BlasThreadPolicy.FIXED,
                         1
                 )
         );

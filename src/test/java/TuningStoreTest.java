@@ -3,6 +3,7 @@ import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.report.BenchmarkReport;
+import tuning.session.BenchmarkEntry;
 import tuning.store.HardwareFingerprint;
 import tuning.store.JsonFileBestProfileStore;
 import tuning.store.JsonFileBenchmarkReportStore;
@@ -40,7 +41,7 @@ public class TuningStoreTest {
 
         BenchmarkReport report = tuning.session.BenchmarkSession.create(new tuning.session.BenchmarkRequest(
                 new TensorRootWorkloadSpec("store_workload", WorkloadKind.GENERIC, environment -> tensor.Tensor.scalar(1.0)),
-                List.of(new tuning.candidate.Candidate("store", profile)),
+                List.of(BenchmarkEntry.candidate("store", profile)),
                 new tuning.measure.MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
                 tuning.report.ReportPolicy.defaults()

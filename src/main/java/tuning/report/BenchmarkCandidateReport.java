@@ -2,19 +2,27 @@ package tuning.report;
 
 import tuning.candidate.Candidate;
 import tuning.measure.MeasurementResult;
+import tuning.session.BenchmarkEntry;
+import tuning.session.BenchmarkEntryRole;
 import tuning.validate.ValidationResult;
 
 public record BenchmarkCandidateReport(
-        Candidate candidate,
+        BenchmarkEntry entry,
         ValidationResult validation,
         MeasurementResult measurement,
         boolean success,
-        String failureReason,
-        BenchmarkBaselineKind baselineKind
+        String failureReason
 ) {
     public BenchmarkCandidateReport {
         failureReason = failureReason == null ? "" : failureReason;
-        baselineKind = baselineKind == null ? BenchmarkBaselineKind.NONE : baselineKind;
+    }
+
+    public static BenchmarkCandidateReport success(
+            BenchmarkEntry entry,
+            ValidationResult validation,
+            MeasurementResult measurement
+    ) {
+        return new BenchmarkCandidateReport(entry, validation, measurement, true, "");
     }
 
     public static BenchmarkCandidateReport success(
@@ -22,16 +30,15 @@ public record BenchmarkCandidateReport(
             ValidationResult validation,
             MeasurementResult measurement
     ) {
-        return new BenchmarkCandidateReport(candidate, validation, measurement, true, "", BenchmarkBaselineKind.NONE);
+        return success(BenchmarkEntry.candidate(candidate.name(), candidate.profile()), validation, measurement);
     }
 
-    public static BenchmarkCandidateReport success(
-            Candidate candidate,
+    public static BenchmarkCandidateReport failure(
+            BenchmarkEntry entry,
             ValidationResult validation,
-            MeasurementResult measurement,
-            BenchmarkBaselineKind baselineKind
+            String failureReason
     ) {
-        return new BenchmarkCandidateReport(candidate, validation, measurement, true, "", baselineKind);
+        return new BenchmarkCandidateReport(entry, validation, null, false, failureReason);
     }
 
     public static BenchmarkCandidateReport failure(
@@ -39,15 +46,14 @@ public record BenchmarkCandidateReport(
             ValidationResult validation,
             String failureReason
     ) {
-        return new BenchmarkCandidateReport(candidate, validation, null, false, failureReason, BenchmarkBaselineKind.NONE);
+        return failure(BenchmarkEntry.candidate(candidate.name(), candidate.profile()), validation, failureReason);
     }
 
-    public static BenchmarkCandidateReport failure(
-            Candidate candidate,
-            ValidationResult validation,
-            String failureReason,
-            BenchmarkBaselineKind baselineKind
-    ) {
-        return new BenchmarkCandidateReport(candidate, validation, null, false, failureReason, baselineKind);
+    public boolean baseline() {
+        return entry != null && entry.role() == BenchmarkEntryRole.BASELINE;
+    }
+
+    public Candidate candidate() {
+        return entry == null ? null : entry.toCandidate();
     }
 }

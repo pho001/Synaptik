@@ -1,8 +1,10 @@
 package tuning.report;
 
+import tuning.session.BenchmarkEntryRole;
+
 public record BenchmarkCandidateDiff(
         String candidateName,
-        BenchmarkBaselineKind baselineKind,
+        BenchmarkEntryRole role,
         boolean previousSuccess,
         boolean currentSuccess,
         double previousMedianMs,
@@ -12,6 +14,6 @@ public record BenchmarkCandidateDiff(
 ) {
     public BenchmarkCandidateDiff {
         candidateName = candidateName == null ? "" : candidateName;
-        baselineKind = baselineKind == null ? BenchmarkBaselineKind.NONE : baselineKind;
+        role = role == null ? BenchmarkEntryRole.CANDIDATE : role;
     }
 }

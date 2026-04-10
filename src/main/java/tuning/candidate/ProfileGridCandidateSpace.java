@@ -19,6 +19,10 @@ public final class ProfileGridCandidateSpace implements RefinableCandidateSpace 
         this.mutators = mutators == null ? List.of() : List.copyOf(mutators);
     }
 
+    public ExecutionProfile baseProfile() {
+        return baseProfile;
+    }
+
     @Override
     public List<Candidate> generate(WorkloadSpec workload) {
         Objects.requireNonNull(workload, "workload cannot be null");

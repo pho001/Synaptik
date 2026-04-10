@@ -3,69 +3,103 @@
 ## Contents
 
 - [Purpose](#purpose)
-- [Fingerprints](#fingerprints)
-- [Stored Records](#stored-records)
-- [History Workflow](#history-workflow)
-- [Best Profile Workflow](#best-profile-workflow)
-- [Current Limitations](#current-limitations)
-- [Operational Notes](#operational-notes)
+- [Artifact Types](#artifact-types)
+- [Platform Runtime Profile Persistence](#platform-runtime-profile-persistence)
+- [Graph Autotune Persistence](#graph-autotune-persistence)
+- [Explain Artifact Persistence](#explain-artifact-persistence)
+- [Fingerprints And Identity](#fingerprints-and-identity)
+- [Invalidation Rules](#invalidation-rules)
+- [Recommended Layout Split](#recommended-layout-split)
 - [Examples](#examples)
 
 ## Purpose
 
-Persistence in `tuning` exists for one reason:
+Persistence exists so that tuning workflows can reuse results across runs without inventing a second execution model.
 
-- to let benchmark/autotune learn across runs without inventing a second execution model
+Important distinction:
 
-The persisted result is still:
+- execution artifacts
+- tuning priors
+- explain artifacts
 
-- an `ExecutionProfile`
+must not be mixed together.
 
-not a benchmark-only shadow object.
+## Artifact Types
 
-## Fingerprints
+### 1. Built-in defaults
 
-### Hardware
+These live in code.
 
-- [HardwareFingerprint.java](./store/HardwareFingerprint.java)
+They are:
 
-Current key includes:
+- fallback values
+- not tuned artifacts
 
-- OS
-- architecture
-- VM name
-- vendor
-- CPU core count
+### 2. Platform runtime profile
 
-Example key:
+Persisted runtime-default artifact:
 
-```text
-os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle|cores=10
-```
+- `PlatformRuntimeProfile`
 
-### Workload
+This is the output of platform calibration.
 
-- [WorkloadFingerprint.java](./store/WorkloadFingerprint.java)
+It is not a benchmark report and not a graph-tuned profile.
 
-Current key includes:
+### 3. Best graph-tuned profile
 
-- workload name
-- workload kind
-- dtype
-- mode
-- workload attributes
+Persisted graph-level winner:
 
-Example key:
+- best `ExecutionProfile` for one hardware/workload context
 
-```text
-name=conv2d_resnet_3x3|kind=CONV2D|dtype=FLOAT32|mode=FORWARD|batch=2|inChannels=64|outChannels=128|...
-```
+This is the output of per-graph autotune.
 
-These two fingerprints form the identity context for best-profile reuse and history reuse.
+### 4. Tuning history
 
-## Stored Records
+Append-only evidence used to influence later graph autotune search.
 
-### Best profile
+This is not the same thing as a final winner.
+
+### 5. Explain artifacts
+
+Human/audit artifacts:
+
+- benchmark reports
+- autotune reports
+- platform calibration reports
+
+These are not source of truth for execute.
+
+## Platform Runtime Profile Persistence
+
+Current core types:
+
+- [PlatformRuntimeProfile.java](../config/profile/PlatformRuntimeProfile.java)
+- [PlatformRuntimeProfileIO.java](../config/profile/PlatformRuntimeProfileIO.java)
+- [PlatformRuntimeProfileStore.java](./store/PlatformRuntimeProfileStore.java)
+- [JsonFilePlatformRuntimeProfileStore.java](./store/JsonFilePlatformRuntimeProfileStore.java)
+
+Persisted sections:
+
+- metadata
+- matmul family
+- fused family
+- element-wise dispatch family
+- reduction family
+- scheduler family
+- materialization family
+- numerics family
+
+That means one persisted platform profile can be:
+
+- loaded
+- partially replaced by recalibration of one family
+- re-used to assemble future `ExecutionProfile` instances
+
+## Graph Autotune Persistence
+
+Graph autotune still persists `ExecutionProfile` as the runnable winner.
+
+Main types:
 
 - [BestProfileRecord.java](./store/BestProfileRecord.java)
 - [BestProfileStore.java](./store/BestProfileStore.java)
@@ -75,94 +109,136 @@ Stored fields:
 
 - hardware fingerprint
 - workload fingerprint
-- execution profile
+- best `ExecutionProfile`
 - score
 - timestamp
 
-### Tuning history
+This persistence is intentionally separate from platform calibration persistence.
 
-- [TuningHistoryEntry.java](./store/TuningHistoryEntry.java)
-- [TuningHistoryStore.java](./store/TuningHistoryStore.java)
-- [JsonFileTuningHistoryStore.java](./store/JsonFileTuningHistoryStore.java)
+Reason:
 
-Stored fields:
+- platform runtime profile is reusable across many graphs
+- best graph profile is workload-specific
 
-- candidate fingerprint
-- candidate name
-- valid / invalid
-- median / mean
-- score
-- failure reason
-- summary
+## Explain Artifact Persistence
+
+Platform calibration explain persistence:
+
+- [PlatformCalibrationSaveHelper.java](./store/PlatformCalibrationSaveHelper.java)
+- [JsonFilePlatformCalibrationResultStore.java](./store/JsonFilePlatformCalibrationResultStore.java)
+
+Benchmark and autotune explain artifacts are stored separately through their report renderers and stores.
+
+Important rule:
+
+- explain artifacts are never used as execute source of truth
+
+## Fingerprints And Identity
+
+### Hardware fingerprint
+
+Core type:
+
+- [HardwareFingerprint.java](./store/HardwareFingerprint.java)
+
+Current captured properties include:
+
+- OS
+- architecture
+- VM
+- vendor
+- CPU core count
+
+This fingerprint identifies the platform context for:
+
+- platform runtime profile reuse
+- best-profile reuse
+- tuning-history reuse
+
+### Workload fingerprint
+
+Core type:
+
+- [WorkloadFingerprint.java](./store/WorkloadFingerprint.java)
+
+Current workload identity includes:
+
+- workload name
+- workload kind
+- dtype
+- execution mode
+- workload-specific attributes
+
+This fingerprint identifies the graph/workload context for best-profile and history reuse.
+
+## Invalidation Rules
+
+Persisted runtime artifacts must not be treated as permanently valid.
+
+Platform runtime profile invalidation should happen when:
+
+- hardware fingerprint changes materially
+- framework version changes
+- runtime/planner schema changes
+- persistence schema changes
+- knob semantics change
+
+That is why `PlatformRuntimeProfile` metadata carries:
+
+- platform profile id
+- hardware key
+- framework version
+- planner schema version
+- persistence schema version
 - timestamp
-- hardware/workload context
+- dtype
+- execution mode
 
-This is more than report data.
-It is used by search as a prior.
+Best graph profiles become invalid when:
 
-## History Workflow
+- hardware fingerprint no longer matches
+- workload fingerprint no longer matches
+- the runtime/profile schema changes so that old profile values no longer mean the same thing
 
-The current history-aware flow is:
-
-1. generate candidates
-2. resolve hardware + workload fingerprint
-3. load matching history entries
-4. sort historically good candidates earlier
-5. optionally drop historically invalid candidates if pruning is enabled
-
-This is implemented in:
-
-- [HistoryAwareSearchStrategy.java](./search/HistoryAwareSearchStrategy.java)
-
-## Best Profile Workflow
-
-The current best-profile flow is:
-
-1. run autotune
-2. choose best finalist
-3. save best profile record
-4. next run resolves the same hardware + workload key
-5. best profile is moved to the front of candidate ordering
-
-Relevant classes:
-
-- [BestProfileResolver.java](./store/BestProfileResolver.java)
-- [FileBestProfileResolver.java](./store/FileBestProfileResolver.java)
-
-## Current Limitations
-
-This persistence layer is already usable, but it is not the final lifecycle yet.
-
-Current important limitations:
-
-- no retention policy
-- no multi-objective best-profile store
-- no merge/update conflict policy for multiple sources
-- no explicit “unsafe candidate” semantic separate from generic invalid
-- no compaction/index format beyond current file layout
-
-Those are workflow limitations, not architectural blockers.
-
-## Operational Notes
-
-Current persistence expectations:
-
-- best-profile store keeps the current winner for one hardware/workload context
-- tuning-history store keeps append-only evidence for search reuse
-- benchmark report store and tuning result store are report artifacts, not search priors
+## Recommended Layout Split
 
 Recommended practical split:
 
-- keep best-profile/history files small and frequently reused
-- keep full benchmark/tuning reports in a separate report directory
+- platform runtime profiles
+  - small, reusable, long-lived
 
-This prevents a common failure mode:
+- best graph profiles
+  - workload-specific winners
 
-- mixing machine-readable priors with large human-facing report dumps in one place
+- tuning history
+  - append-only search priors
+
+- explain reports
+  - larger human-facing artifacts
+
+This avoids a common failure mode:
+
+- mixing machine-readable priors with large explain dumps in one directory and one lifecycle
 
 ## Examples
 
-### Example: save a best profile
+### Example: save a platform runtime profile
+
+```java
+config.profile.PlatformRuntimeProfile profile = result.finalRuntimeProfile();
+config.profile.PlatformRuntimeProfileIO.save(path, profile);
+```
+
+Input:
+
+- path
+- runtime profile
+
+Output:
+
+- JSON runtime-default artifact
+
+### Example: save a best graph profile
 
 ```java
 BestProfileStore store = new JsonFileBestProfileStore();
@@ -171,29 +247,27 @@ store.save(path, new BestProfileRecord(
         WorkloadFingerprint.of(workload, metadata, profile),
         profile,
         1.23,
-        OffsetDateTime.now()
+        java.time.OffsetDateTime.now()
 ));
 ```
 
 Input:
 
-- path
-- hardware fingerprint
-- workload fingerprint
-- best profile
-- score
+- hardware context
+- workload context
+- best `ExecutionProfile`
 
 Output:
 
-- JSON file containing the profile and its context
+- graph-specific best-profile record
 
-### Example: history-aware search
+### Example: history-aware graph autotune
 
 ```java
-SearchStrategy strategy = new HistoryAwareSearchStrategy(
+tuning.search.SearchStrategy strategy = new tuning.search.HistoryAwareSearchStrategy(
         baseStrategy,
-        new FileBestProfileResolver(new JsonFileBestProfileStore()),
-        new JsonFileTuningHistoryStore(),
+        new tuning.store.FileBestProfileResolver(new JsonFileBestProfileStore()),
+        new tuning.store.JsonFileTuningHistoryStore(),
         bestProfilePath,
         historyPath
 );
@@ -201,6 +275,6 @@ SearchStrategy strategy = new HistoryAwareSearchStrategy(
 
 Effect:
 
-- preferred known-good profiles come first
-- known-bad candidates may be skipped
-- search reuses information from earlier runs
+- historically good graph candidates are considered earlier
+- historically bad ones may be pruned or delayed
+- search reuses prior evidence without changing execution semantics

@@ -2,7 +2,7 @@ import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
-import tuning.candidate.Candidate;
+import tuning.session.BenchmarkEntry;
 import tuning.session.TuningPreset;
 import tuning.validate.ValidationReferenceKind;
 import tuning.validate.ValidationTargetKind;
@@ -124,7 +124,7 @@ public class StandardWorkloadsTest {
 
     @Test
     void standardWorkloadsSupportsPresetDrivenBenchmarkRequests() {
-        Candidate candidate = new Candidate("preset", new ExecutionProfile(
+        BenchmarkEntry candidate = BenchmarkEntry.candidate("preset", new ExecutionProfile(
                 "preset",
                 "preset",
                 tensor.DataType.FLOAT64,
@@ -138,12 +138,12 @@ public class StandardWorkloadsTest {
 
         assertEquals("matmul_small", request.workload().name());
         assertEquals(2, request.measurement().warmupIters());
-        assertTrue(request.baselines().includeNoOptBaseline());
+        assertEquals(1, request.entries().size());
     }
 
     @Test
     void standardWorkloadsSupportsRecommendedWorkloadAwarePresets() {
-        Candidate candidate = new Candidate("preset", new ExecutionProfile(
+        BenchmarkEntry candidate = BenchmarkEntry.candidate("preset", new ExecutionProfile(
                 "preset",
                 "preset",
                 tensor.DataType.FLOAT64,

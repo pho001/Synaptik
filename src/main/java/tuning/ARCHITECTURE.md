@@ -3,83 +3,170 @@
 ## Contents
 
 - [Core Rule](#core-rule)
-- [Responsibilities](#responsibilities)
-- [Execution Surface](#execution-surface)
-- [Module Breakdown](#module-breakdown)
+- [Execution Layers](#execution-layers)
+- [Workflow Split](#workflow-split)
+- [Module Responsibilities](#module-responsibilities)
+- [Family Ownership](#family-ownership)
+- [Assembly Rules](#assembly-rules)
 - [Benchmark Flow](#benchmark-flow)
-- [Autotune Flow](#autotune-flow)
-- [Baseline Model](#baseline-model)
-- [Tracing Surface](#tracing-surface)
-- [Architectural Review](#architectural-review)
-- [Examples](#examples)
+- [Per-Graph Autotune Flow](#per-graph-autotune-flow)
+- [Platform Calibration Flow](#platform-calibration-flow)
+- [Calibration Progress Reporting](#calibration-progress-reporting)
+- [Score Policy Model](#score-policy-model)
+- [Tracing Boundary](#tracing-boundary)
+- [Current State](#current-state)
 
 ## Core Rule
 
-The package is built around one architectural rule:
+The package is built around one rule:
 
-- the execution core is the source of truth
-- tuning is a client of that core
+- execution owns execution semantics
+- tuning consumes execution semantics
 
-That means:
+Tuning is not allowed to invent a hidden execute-only model.
 
-- candidates are described through `ExecutionProfile`
-- benchmark and autotune never invent a second execution model
-- every chosen candidate must be runnable through normal execution APIs
+Final execution still happens through:
 
-This avoids the usual benchmark-framework failure mode:
+- `ExecutionProfile`
+- `Tensor`
+- `CompiledGraph`
+- `PreparedExecution`
 
-- benchmark-specific knobs drift away from the runtime that they claim to tune
+This prevents the common failure mode where a benchmark/autotune framework drifts away from the runtime it claims to tune.
 
-## Responsibilities
+## Execution Layers
 
-The package is split so that each part owns one decision type only.
+The target architecture has three layers.
+
+### 1. `PlatformRuntimeProfile`
+
+Represents machine-specific runtime defaults.
+
+This layer owns:
+
+- runtime thresholds
+- runtime scheduling knobs
+- runtime numerics policy
+
+It does not own:
+
+- graph optimizer stage order
+- rewrite policy
+
+### 2. `GraphExecutionPolicy`
+
+Represents graph-level policy.
+
+Current first version:
+
+- `OptimizerConfig`
+
+Future direction:
+
+- explicit per-subsystem graph policy records
+
+### 3. `ExecutionProfileAssembler`
+
+Assembler merges:
+
+- built-in defaults
+- `PlatformRuntimeProfile`
+- `GraphExecutionPolicy`
+- explicit caller override
+
+into final:
+
+- `ExecutionProfile`
+
+This is the only allowed merge point.
+
+## Workflow Split
+
+Three workflows exist and must stay separate:
+
+### Benchmark
+
+Role:
+
+- compare concrete runnable variants
+- explain speed
+- track regressions
+
+Benchmark does not tune platform defaults and does not search graph policy.
+
+### Per-graph autotune
+
+Role:
+
+- search graph-level execution variants for one workload family
+
+Autotune can persist:
+
+- best profile
+- history
+
+But it still evaluates runnable `ExecutionProfile` candidates.
+
+### Platform calibration
+
+Role:
+
+- calibrate reusable runtime defaults for one platform and dtype/mode pair
+
+Platform calibration does not tune:
+
+- graph optimizer stage order
+- graph rewrite policy
+
+It tunes runtime families only.
+
+## Module Responsibilities
 
 ### `workload`
 
 Owns:
 
-- what graph is being measured
-- what metadata describes that workload
-- what validation reference belongs to it
+- graph construction contracts
+- workload metadata
+- validation references
 
 ### `candidate`
 
 Owns:
 
-- how execution-profile candidates are represented
-- how candidate spaces are generated
-- how profile mutators expand profile families
+- generic `ExecutionProfile` candidate spaces
+- mainly for per-graph autotune
 
 ### `measure`
 
 Owns:
 
-- timing policies
+- measurement policy
 - measurement engine
-- compile / prepare / traced run / steady-state timing collection
+- compile / prepare / traced run / steady-state collection
 
 ### `validate`
 
 Owns:
 
-- validation references
-- numeric and bool comparison logic
-- baseline-profile validation
+- validation policies
+- tensor comparisons
+- baseline/reference-driven correctness checks
 
 ### `search`
 
 Owns:
 
-- candidate selection strategy
-- refinement
+- candidate ordering
+- refinement strategies
 - tree search
-- best-first and branch-and-bound variants
+- score/bound models for graph autotune search
 
 ### `report`
 
 Owns:
 
-- benchmark and tuning report DTO
+- benchmark/tuning/calibration report DTOs
 - text renderers
 - JSON renderers
 
@@ -87,342 +174,293 @@ Owns:
 
 Owns:
 
-- best-profile persistence
-- tuning-history persistence
-- hardware and workload fingerprints
+- persistence helpers
+- best-profile store
+- tuning history
+- hardware/workload fingerprints
 
 ### `session`
 
+Owns orchestration.
+
+This is where:
+
+- requests are interpreted
+- measurement and validation are combined
+- reports are built
+- persistence hooks are triggered
+
+It also owns the platform-calibration runtime-profile candidate layer:
+
+- `PlatformRuntimeCandidateSpace`
+- `PlatformRuntimeProfileMutator`
+
+## Family Ownership
+
+Every runtime knob must belong to exactly one family.
+
+### `MATMUL`
+
 Owns:
 
-- orchestration of the above components
-- user-facing request/result presets
+- BLAS min-work threshold
+- BLAS threads
+- F32/BF16 shape heuristics
+- Java matmul parallel threshold
 
-## Execution Surface
+### `FUSED`
 
-Everything here is intentionally built on top of:
+Owns:
 
-- [Tensor.java](../tensor/Tensor.java)
-- [CompiledGraph.java](../graph/CompiledGraph.java)
-- [PreparedExecution.java](../graph/execution/PreparedExecution.java)
-- [ExecutionProfile.java](../config/profile/ExecutionProfile.java)
+- fused cheap vector threshold
+- fused transcendental vector threshold
+- fused cheap parallel threshold
+- fused transcendental parallel threshold
 
-That has two consequences:
+Important:
 
-### Good consequence
+- these are dispatch thresholds
+- not backend-selection knobs
 
-- tuning results are directly reusable in real execution
+### `ELEMENTWISE_DISPATCH`
 
-### Deliberate constraint
+Owns:
 
-- if execution policy is not representable through `ExecutionProfile`, tuning is not allowed to invent it silently
+- non-fused cheap vector threshold
+- non-fused transcendental vector threshold
+- non-fused cheap parallel threshold
+- non-fused transcendental parallel threshold
 
-It must first be added to the execution surface properly.
+This family is intentionally separate from `FUSED`.
 
-## Module Breakdown
+### `REDUCTION`
 
-### Candidate model
+Owns:
 
-The minimal unit is:
+- reduction vector threshold
+- reduction parallel threshold
+- sum accuracy mode
 
-```java
-record Candidate(
-    String name,
-    ExecutionProfile profile
-) {}
-```
+### `SCHEDULER`
 
-This is a strong design choice:
+Owns:
 
-- no parallel hidden execution model
-- no “benchmark-only config object” as final source of truth
+- chunk-target knobs
+- minimum chunk-size knobs
+- common-pool threshold
 
-### Request model
+### `MATERIALIZATION`
 
-Benchmark:
+Owns:
 
-```java
-BenchmarkRequest
-BenchmarkSuiteRequest
-```
+- contiguous materialization threshold
 
-Autotune:
+### `NUMERICS`
 
-```java
-AutotuneRequest
-```
+Owns:
 
-### Result model
+- approximation mode
+- exact transcendentals flag
 
-Benchmark:
+Important:
 
-```java
-BenchmarkReport
-BenchmarkSuiteReport
-```
+- these are policy knobs
+- not pure hardware threshold knobs
 
-Autotune:
+### `GRAPH_POLICY`
 
-```java
-TuningResult
-TuningSummary
-```
+Owns:
+
+- optimizer stage order
+- rewrite policy
+- graph optimizer sub-configs
+
+## Assembly Rules
+
+Assembler must obey strict precedence:
+
+1. built-in defaults
+2. `PlatformRuntimeProfile`
+3. `GraphExecutionPolicy`
+4. explicit caller override
+
+It must also obey ownership rules:
+
+- platform runtime profile never writes graph policy
+- graph policy never writes runtime family knobs
+- if two families want to write the same knob, the design is wrong
 
 ## Benchmark Flow
 
-The benchmark flow is:
+Benchmark flow:
 
-1. resolve workload
-2. enrich candidate list with benchmark baselines
-3. validate candidates if validation is enabled
-4. measure valid candidates
-5. build report
+1. instantiate workload for each entry profile
+2. validate candidate if validation is enabled
+3. measure valid candidates
+4. build report
 
-Pseudo-code:
+Important properties:
 
-```java
-List<Candidate> candidates = withBaselines(request.candidates());
-for (Candidate candidate : candidates) {
-    WorkloadInstance workload = request.workload().instantiate(...);
-    ValidationResult validation = validate(candidate, workload, policy);
-    if (validation.valid()) {
-        MeasurementResult measurement = measure(candidate, workload, policy);
-        reports.add(success(candidate, validation, measurement));
-    } else {
-        reports.add(failure(candidate, validation, ...));
-    }
-}
-```
+- benchmark has explicit entries
+- benchmark may have one explicit baseline
+- benchmark does not enrich candidates implicitly
 
-## Autotune Flow
+## Per-Graph Autotune Flow
 
-The autotune flow is:
+Per-graph autotune flow:
 
-1. search chooses initial candidates
-2. candidates are validated
-3. valid candidates are measured
-4. if strategy supports refinement, new candidates are generated from measured frontier
-5. finalists are sorted by score
-6. best profile and history may be persisted
+1. build `AutotuneRequest`
+2. attach:
+   - workload
+   - seed `PlatformRuntimeProfile`
+   - seed `GraphExecutionPolicy`
+   - generic `ExecutionProfile` candidate space
+3. search strategy chooses a batch
+4. session validates and measures candidates
+5. if search supports refinement, repeat
+6. finalists are ranked
+7. best `ExecutionProfile` may be persisted
 
-Pseudo-code:
+Current important detail:
 
-```java
-SearchResult seed = strategy.search(context);
-evaluate(seed.selectedCandidates());
+- graph autotune still evaluates `ExecutionProfile` candidates
+- but the request model already carries explicit platform/runtime and graph-policy layers
 
-for (round = 1; round < maxRounds; round++) {
-    SearchResult refined = strategy.refine(...);
-    if (refined.selectedCandidates().isEmpty()) break;
-    evaluate(refined.selectedCandidates());
-}
+That means the public surface already matches the target architecture, even though some graph candidate generation is still implemented through generic profile mutators.
 
-pick finalists;
-persist if configured;
-return TuningResult;
-```
+## Platform Calibration Flow
 
-## Baseline Model
+Platform calibration flow:
 
-Every benchmark can now include two explicit baseline candidates:
+1. start from seed `ExecutionProfile`
+2. derive:
+   - `PlatformRuntimeProfile`
+   - `GraphExecutionPolicy`
+3. for each calibration step:
+   - take current runtime profile
+   - generate runtime-profile candidates
+   - assemble executable `ExecutionProfile` candidates
+   - benchmark them across the step workload set
+   - score them through the step score policy
+   - choose winner
+   - carry winning runtime profile forward
+4. persist final `PlatformRuntimeProfile`
+5. persist JSON/text explain reports
 
-- `BASELINE_NO_OPT`
-- `BASELINE_NO_OPT_CONSERVATIVE_RUNTIME`
+This is the key improvement over the old model:
 
-These answer two different questions.
+- platform calibration no longer mutates generic execution profiles directly
+- runtime family tuning is separated from graph policy tuning
 
-### `BASELINE_NO_OPT`
+## Calibration Progress Reporting
 
-Compile-time baseline:
+Platform calibration should have its own explicit progress-event layer.
 
-- `OptimizerConfig.noOptimization()`
-- same runtime policy as measured candidate
+It should not blindly reuse graph-autotune phases, because calibration has a different hierarchy:
 
-This isolates:
+- family step
+- workload / scenario inside the family
+- runtime-profile candidate inside the family candidate set
 
-- what optimizer stages, rewrite, fuse and memory policy changed
+The correct event model is:
 
-### `BASELINE_NO_OPT_CONSERVATIVE_RUNTIME`
+- run started
+- family started
+- workload started
+- candidate validating
+- candidate measuring
+- candidate scored
+- family leader updated
+- family completed
+- run completed
+- run failed
 
-Compile-time + runtime conservative baseline:
+Required event payload should include at least:
 
-- `OptimizerConfig.noOptimization()`
-- BLAS disabled
-- approximation off
-- exact transcendentals forced
+- platform id
+- family name
+- family step index / total family steps
+- workload name
+- workload index / total workloads in family
+- candidate id
+- candidate index / total candidates in family
+- current phase
+- current best candidate id, if known
+- current best score, if known
+- message / failure reason
 
-This isolates:
+Architectural rule:
 
-- graph optimization plus conservative runtime versus tuned runtime
+- event emission belongs to session orchestration
+- score policy and measurement engine stay pure
+- reporting/logging consumes the emitted structured events
 
-## Tracing Surface
+## Score Policy Model
 
-Tracing is intentionally implemented in the core execution layer, not in `tuning`.
+Calibration score is a strategy layer.
 
-Reason:
+It is not hardcoded inside session orchestration.
 
-- benchmark/autotune need observations
-- they must not own execution instrumentation semantics
+Core types:
 
-Current trace pipeline:
+- `PlatformCalibrationScorePolicy`
+- `PlatformCalibrationScore`
+- `PlatformCalibrationCandidateSummary`
 
-1. execution core emits `CompileTrace`
-2. execution core emits `PrepareTrace`
-3. execution core emits `RunTrace`
-4. `tuning.measure` converts those into measurement results
-5. `tuning.report` renders them for humans and JSON consumers
+Required properties:
+
+- swappable
+- reportable
+- versionable
+- family-specific
+
+Current default score implementation is still simple:
+
+- `averageMedianMs`
+
+But the architecture already supports richer family-specific policies such as:
+
+- weighted geometric mean
+- worst-bucket penalty
+- validation-gated numerics scoring
+- variance-aware scheduler scoring
+
+## Tracing Boundary
+
+Tracing belongs to execution, not to tuning.
+
+Execution produces facts:
+
+- compile trace
+- prepare trace
+- run trace
+
+Tuning consumes those facts:
+
+- measurement interprets them
+- reporting renders them
 
 This keeps the layering clean:
 
-- trace production belongs to execution
-- trace interpretation belongs to tuning/reporting
+- execution produces
+- tuning observes
 
-## Architectural Review
+## Current State
 
-Current architectural strengths:
+### What is already in place
 
-- `ExecutionProfile` is the single execution source of truth
-- fused backend routing policy also belongs inside `ExecutionProfile.runtime()`
-- tuning is allowed to vary fused runtime backend preference only through that policy surface
-- workload mutator families may include fused backend policy variants when fused routing materially affects the workload family
-- workload construction is isolated from search logic
-- validation is a first-class stage, not an optional afterthought
-- search strategies are pluggable instead of being hardwired into one monolithic autotune loop
-- reporting is separate from persistence
-- baseline execution is explicit instead of being hidden in benchmark code
+- `PlatformRuntimeProfile`
+- `GraphExecutionPolicy`
+- `ExecutionProfileAssembler`
+- platform calibration returns and persists runtime profiles
+- platform calibration candidate generation uses runtime-profile mutators
+- calibration scoring is a strategy layer with candidate-level breakdown
+- autotune request surface carries platform/runtime + graph-policy seed model
 
-Current deliberate constraints:
+### What is still transitional
 
-- benchmark candidates are expected to be comparable variants of the same workload family
-- persistence is optimized for usability today, not for multi-tenant fleet-scale lifecycle
-- workload families are code-defined, not dynamically loaded from an external scenario DSL
+- generic per-graph autotune candidate generation is still execution-profile based
+- tuning documentation outside these core docs may still contain stale examples
+- family-specific calibration score policies beyond the simple default are not all implemented yet
 
-Current weak spots to keep in mind:
-
-- benchmark reports are still primarily per-run artifacts; suite-level aggregation exists, but long-horizon report comparison is still thin
-- baseline derivation currently assumes the benchmark is comparing one coherent candidate family
-- workload families are still code-defined Java builders rather than a higher-level declarative scenario format
-
-None of those are blockers for the current design.
-They are follow-up hardening areas.
-
-## Examples
-
-### Example: benchmark session layering
-
-```java
-BenchmarkRequest request = TuningDefaults.quickBenchmark(
-        StandardWorkloads.matmul("matmul_small", 1, 64, 64, 64),
-        java.util.List.of(new Candidate("candidate", profile))
-);
-
-BenchmarkReport report = BenchmarkSession.create(request).run();
-```
-
-Pipeline:
-
-1. request owns policies
-2. session orchestrates workload instantiation, validation and measurement
-3. measurement consumes core execution traces
-4. report is a pure DTO/result object
-
-Output:
-
-- no mutation of execution-core architecture
-- no benchmark-owned hidden execution representation
-
-Relevant classes:
-
-- [CompileTrace.java](../graph/execution/trace/CompileTrace.java)
-- [PrepareTrace.java](../graph/execution/trace/PrepareTrace.java)
-- [RunTrace.java](../graph/execution/trace/RunTrace.java)
-- [ExecutionStepTrace.java](../graph/execution/trace/ExecutionStepTrace.java)
-
-That keeps the layering correct:
-
-- execution core emits facts
-- tuning consumes and reports them
-
-The most important current trace metadata families are:
-
-- `LayoutTraceMetadata`
-- `DispatchTraceMetadata`
-- `ReductionTraceMetadata`
-- `MatMulTraceMetadata`
-- `FusedTraceMetadata`
-
-## Examples
-
-### Example 1: Quick benchmark
-
-```java
-ExecutionProfile profile = new ExecutionProfile(
-        "quick-matmul",
-        "quick-matmul",
-        DataType.FLOAT64,
-        ExecutionMode.FORWARD,
-        OptimizerConfig.inferenceDefaults(),
-        RuntimeConfig.inferenceDefaults(),
-        WorkloadProfile.none()
-);
-
-BenchmarkRequest request = TuningDefaults.quickBenchmark(
-        StandardWorkloads.matmul("matmul_small", 1, 64, 64, 64),
-        java.util.List.of(new Candidate("matmul", profile))
-);
-
-BenchmarkReport report = BenchmarkSession.create(request).run();
-```
-
-Input:
-
-- workload: `matmul_small`
-- one explicit candidate
-
-Output:
-
-- 3 benchmark candidates in practice:
-  - user candidate
-  - `BASELINE_NO_OPT`
-  - `BASELINE_NO_OPT_CONSERVATIVE_RUNTIME`
-
-### Example 2: Quick autotune
-
-```java
-ExecutionProfile base = new ExecutionProfile(
-        "conv-base",
-        "conv-base",
-        DataType.FLOAT32,
-        ExecutionMode.FORWARD,
-        OptimizerConfig.inferenceDefaults(),
-        RuntimeConfig.inferenceDefaults(),
-        WorkloadProfile.none()
-);
-
-AutotuneRequest request = TuningDefaults.quickAutotune(
-        StandardWorkloads.conv2d(
-                "conv2d_resnet_3x3",
-                2, 64, 128, 56, 56, 3, 3,
-                new Conv2dOptions(1, 1, 1, 1, 1, 1, 1),
-                true
-        ),
-        new ProfileGridCandidateSpace(
-                base,
-                ProfileMutators.conv2dWorkloadMutators()
-        )
-);
-
-TuningResult result = AutotuneSession.create(request).run();
-```
-
-Input:
-
-- one base profile
-- workload-aware mutator family
-
-Output:
-
-- search-selected candidate subset
-- validation results
-- finalist ranking
-- best `ExecutionProfile`
+These are cleanup and hardening tasks, not architectural blockers.

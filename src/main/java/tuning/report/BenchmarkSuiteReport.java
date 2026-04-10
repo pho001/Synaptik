@@ -1,5 +1,7 @@
 package tuning.report;
 
+import tuning.session.BenchmarkEntryRole;
+
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,6 +36,7 @@ public record BenchmarkSuiteReport(
                 .flatMap(report -> report.candidates().stream())
                 .filter(BenchmarkCandidateReport::success)
                 .filter(report -> report.measurement() != null)
+                .filter(report -> !report.baseline())
                 .min(Comparator.comparingDouble(report -> report.measurement().steadyStateStats().medianMs()));
     }
 
@@ -42,8 +45,8 @@ public record BenchmarkSuiteReport(
         for (BenchmarkReport workloadReport : workloadReports) {
             for (BenchmarkCandidateReport candidateReport : workloadReport.candidates()) {
                 CandidateAccumulator accumulator = grouped.computeIfAbsent(
-                        candidateReport.candidate().name(),
-                        ignored -> new CandidateAccumulator(candidateReport.candidate().name(), candidateReport.baselineKind())
+                        candidateReport.entry().name(),
+                        ignored -> new CandidateAccumulator(candidateReport.entry().name(), candidateReport.entry().role())
                 );
                 accumulator.workloadCount++;
                 if (candidateReport.success() && candidateReport.measurement() != null) {
@@ -51,22 +54,17 @@ public record BenchmarkSuiteReport(
                     accumulator.totalMedianMs += candidateReport.measurement().steadyStateStats().medianMs();
                     accumulator.medianSamples++;
                 }
-                double speedupNoOpt = workloadReport.speedupVsNoOpt(candidateReport);
-                if (Double.isFinite(speedupNoOpt)) {
-                    accumulator.totalSpeedupVsNoOpt += speedupNoOpt;
-                    accumulator.speedupVsNoOptSamples++;
-                }
-                double speedupNoOptCr = workloadReport.speedupVsNoOptConservativeRuntime(candidateReport);
-                if (Double.isFinite(speedupNoOptCr)) {
-                    accumulator.totalSpeedupVsNoOptConservativeRuntime += speedupNoOptCr;
-                    accumulator.speedupVsNoOptConservativeRuntimeSamples++;
+                double speedup = workloadReport.speedupVsBaseline(candidateReport);
+                if (Double.isFinite(speedup)) {
+                    accumulator.totalSpeedupVsBaseline += speedup;
+                    accumulator.speedupVsBaselineSamples++;
                 }
             }
         }
         return grouped.values().stream()
                 .map(CandidateAccumulator::toSummary)
                 .sorted(Comparator
-                        .comparing(BenchmarkSuiteCandidateSummary::baselineKind)
+                        .comparing(BenchmarkSuiteCandidateSummary::role)
                         .thenComparing(BenchmarkSuiteCandidateSummary::candidateName))
                 .toList();
     }
@@ -84,7 +82,7 @@ public record BenchmarkSuiteReport(
                 for (graph.execution.trace.ExecutionStepTrace step : candidateReport.measurement().trace().run().steps()) {
                     hotspots.add(new BenchmarkSuiteHotspot(
                             workloadReport.workloadName(),
-                            candidateReport.candidate().name(),
+                            candidateReport.entry().name(),
                             step.opType(),
                             step.label(),
                             step.durationNs()
@@ -98,34 +96,40 @@ public record BenchmarkSuiteReport(
                 .toList();
     }
 
+    public List<BenchmarkCandidateReport> candidateReports(String candidateName) {
+        if (candidateName == null || candidateName.isBlank()) {
+            return List.of();
+        }
+        return workloadReports.stream()
+                .flatMap(report -> report.candidates().stream())
+                .filter(report -> report.entry() != null)
+                .filter(report -> candidateName.equals(report.entry().name()))
+                .toList();
+    }
+
     private static final class CandidateAccumulator {
         private final String candidateName;
-        private final BenchmarkBaselineKind baselineKind;
+        private final BenchmarkEntryRole role;
         private long workloadCount;
         private long successCount;
         private double totalMedianMs;
         private int medianSamples;
-        private double totalSpeedupVsNoOpt;
-        private int speedupVsNoOptSamples;
-        private double totalSpeedupVsNoOptConservativeRuntime;
-        private int speedupVsNoOptConservativeRuntimeSamples;
+        private double totalSpeedupVsBaseline;
+        private int speedupVsBaselineSamples;
 
-        private CandidateAccumulator(String candidateName, BenchmarkBaselineKind baselineKind) {
+        private CandidateAccumulator(String candidateName, BenchmarkEntryRole role) {
             this.candidateName = candidateName;
-            this.baselineKind = baselineKind;
+            this.role = role;
         }
 
         private BenchmarkSuiteCandidateSummary toSummary() {
             return new BenchmarkSuiteCandidateSummary(
                     candidateName,
-                    baselineKind,
+                    role,
                     workloadCount,
                     successCount,
                     medianSamples == 0 ? Double.NaN : totalMedianMs / medianSamples,
-                    speedupVsNoOptSamples == 0 ? Double.NaN : totalSpeedupVsNoOpt / speedupVsNoOptSamples,
-                    speedupVsNoOptConservativeRuntimeSamples == 0
-                            ? Double.NaN
-                            : totalSpeedupVsNoOptConservativeRuntime / speedupVsNoOptConservativeRuntimeSamples
+                    speedupVsBaselineSamples == 0 ? Double.NaN : totalSpeedupVsBaseline / speedupVsBaselineSamples
             );
         }
     }

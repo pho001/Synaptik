@@ -3,6 +3,9 @@ package tuning.report;
 import java.util.Locale;
 
 public final class TextBenchmarkSuiteReportRenderer {
+    private static final String ANSI_GREEN = "\u001B[32m";
+    private static final String ANSI_RESET = "\u001B[0m";
+
     private TextBenchmarkSuiteReportRenderer() {
     }
 
@@ -20,7 +23,7 @@ public final class TextBenchmarkSuiteReportRenderer {
         sb.append("totalSuccesses=").append(report.totalSuccessCount()).append('\n');
         sb.append("totalFailures=").append(report.totalFailureCount()).append("\n\n");
         report.overallBestCandidate().ifPresent(best -> sb.append("overallBestCandidate=")
-                .append(best.candidate().name())
+                .append(colorize(best.entry().name()))
                 .append('\n'));
         report.overallBestCandidate().ifPresent(best -> sb.append("overallBestMedianMs=")
                 .append(String.format(Locale.US, "%.6f", best.measurement().steadyStateStats().medianMs()))
@@ -33,34 +36,34 @@ public final class TextBenchmarkSuiteReportRenderer {
                 "name", "bestCandidate", "successes", "failures"
         ));
         for (BenchmarkReport workloadReport : report.workloadReports()) {
-            sb.append(String.format(
+            String row = String.format(
                     Locale.US,
                     "%-28s %-16s %-12d %-12d%n",
                     workloadReport.workloadName(),
                     workloadReport.bestCandidateName().isBlank() ? "n/a" : workloadReport.bestCandidateName(),
                     workloadReport.successCount(),
                     workloadReport.failureCount()
-            ));
+            );
+            sb.append(colorizeWorkloadRowIfNeeded(row, workloadReport));
         }
         sb.append("\n");
 
         sb.append("Candidate Summaries\n");
         sb.append(String.format(
                 Locale.US,
-                "%-34s %-12s %-10s %-10s %-14s %-12s %-12s%n",
-                "name", "baseline", "workloads", "successes", "avgMedianMs", "avgVsNoOpt", "avgVsNoOptCR"
+                "%-34s %-12s %-10s %-10s %-14s %-14s%n",
+                "name", "role", "workloads", "successes", "avgMedianMs", "avgVsBaseline"
         ));
         for (BenchmarkSuiteCandidateSummary summary : report.candidateSummaries()) {
             sb.append(String.format(
                     Locale.US,
-                    "%-34s %-12s %-10d %-10d %-14s %-12s %-12s%n",
+                    "%-34s %-12s %-10d %-10d %-14s %-14s%n",
                     summary.candidateName(),
-                    summary.baselineKind().name(),
+                    summary.role().name(),
                     summary.workloadCount(),
                     summary.successCount(),
                     formatDouble(summary.averageMedianMs()),
-                    formatRatio(summary.averageSpeedupVsNoOpt()),
-                    formatRatio(summary.averageSpeedupVsNoOptConservativeRuntime())
+                    formatRatio(summary.averageSpeedupVsBaseline())
             ));
         }
         sb.append("\n");
@@ -99,5 +102,19 @@ public final class TextBenchmarkSuiteReportRenderer {
 
     private static String formatRatio(double ratio) {
         return Double.isFinite(ratio) ? String.format(Locale.US, "%.3fx", ratio) : "n/a";
+    }
+
+    private static String colorize(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        return ANSI_GREEN + value + ANSI_RESET;
+    }
+
+    private static String colorizeWorkloadRowIfNeeded(String row, BenchmarkReport workloadReport) {
+        if (row == null || row.isEmpty() || workloadReport == null || workloadReport.bestCandidateName().isBlank()) {
+            return row;
+        }
+        return ANSI_GREEN + row + ANSI_RESET;
     }
 }

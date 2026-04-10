@@ -10,15 +10,15 @@ public class FrameworkEtalonTest {
     void inferenceEtalonBuildsNonEmptySuite() {
         var request = FrameworkEtalon.inferenceSuite(TuningPreset.QUICK);
         assertFalse(request.workloads().isEmpty());
-        assertFalse(request.candidates().isEmpty());
-        assertTrue(request.candidates().stream().allMatch(c -> c.profile().mode() == backend.runtime.ExecutionMode.FORWARD));
+        assertFalse(request.entries().isEmpty());
+        assertTrue(request.entries().stream().allMatch(c -> c.profile().mode() == backend.runtime.ExecutionMode.FORWARD));
     }
 
     @Test
     void trainingEtalonBuildsNonEmptySuite() {
         var request = FrameworkEtalon.trainingSuite(TuningPreset.QUICK);
         assertFalse(request.workloads().isEmpty());
-        assertFalse(request.candidates().isEmpty());
-        assertTrue(request.candidates().stream().allMatch(c -> c.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD));
+        assertFalse(request.entries().isEmpty());
+        assertTrue(request.entries().stream().allMatch(c -> c.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD));
     }
 }

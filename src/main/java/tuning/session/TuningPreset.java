@@ -20,6 +20,7 @@ public enum TuningPreset {
 
     public ValidationPolicy benchmarkValidation() {
         return switch (this) {
+
             case QUICK -> TuningDefaults.quickValidation();
             case BALANCED -> TuningDefaults.balancedValidation();
             case THOROUGH -> TuningDefaults.thoroughValidation();
@@ -32,6 +33,7 @@ public enum TuningPreset {
 
     public ValidationPolicy autotuneValidation() {
         return switch (this) {
+
             case QUICK -> TuningDefaults.quickValidation();
             case BALANCED -> TuningDefaults.balancedValidation();
             case THOROUGH -> TuningDefaults.thoroughValidation();
@@ -40,6 +42,7 @@ public enum TuningPreset {
 
     public SearchPolicy autotuneSearch() {
         return switch (this) {
+
             case QUICK -> TuningDefaults.quickSearchPolicy();
             case BALANCED -> TuningDefaults.balancedSearchPolicy();
             case THOROUGH -> TuningDefaults.thoroughSearchPolicy();
@@ -50,7 +53,4 @@ public enum TuningPreset {
         return TuningDefaults.defaultReportPolicy();
     }
 
-    public BaselinePolicy baselinePolicy() {
-        return BaselinePolicy.defaults();
-    }
 }

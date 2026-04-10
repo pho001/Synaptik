@@ -3,28 +3,28 @@
 ## Contents
 
 - [Purpose](#purpose)
-- [Benchmark Reports](#benchmark-reports)
-- [Tuning Reports](#tuning-reports)
-- [Baseline Reporting](#baseline-reporting)
-- [Trace Reporting](#trace-reporting)
-- [Search Tree Reporting](#search-tree-reporting)
-- [Cross-Run Diff Reporting](#cross-run-diff-reporting)
-- [JSON Contract Notes](#json-contract-notes)
-- [Examples](#examples)
+- [Benchmark Reporting](#benchmark-reporting)
+- [Autotune Reporting](#autotune-reporting)
+- [Platform Calibration Reporting](#platform-calibration-reporting)
+- [Calibration Progress Reporting](#calibration-progress-reporting)
+- [Trace-Derived Reporting](#trace-derived-reporting)
+- [Diff Reporting](#diff-reporting)
+- [JSON Expectations](#json-expectations)
 
 ## Purpose
 
 The reporting layer has two jobs:
 
-1. make benchmark/autotune results readable for a human
-2. make them exportable in machine-friendly form
+1. make results readable for humans
+2. make results exportable for tooling
 
-That is why every major report family has:
+Reporting is intentionally separate from:
 
-- text renderer
-- JSON renderer
+- execution
+- measurement
+- persistence decisions
 
-## Benchmark Reports
+## Benchmark Reporting
 
 Core types:
 
@@ -32,339 +32,150 @@ Core types:
 - [BenchmarkReport.java](./report/BenchmarkReport.java)
 - [BenchmarkSuiteReport.java](./report/BenchmarkSuiteReport.java)
 
-### Candidate report
+Benchmark reporting answers:
 
-Per candidate:
+- which concrete candidate won
+- whether validation passed
+- what the measured timings were
+- how candidates compare against a baseline
 
-- candidate identity
+Typical benchmark report contains:
+
 - validation result
 - measurement result
-- success/failure
-- failure reason
-- baseline role
-
-### Benchmark report
-
-Per workload:
-
-- workload name
-- candidate list
 - best candidate
-- success/failure counts
-- baseline references
 - speedup helpers
+- suite-level summaries
+- suite hotspots
 
-### Suite report
-
-Across workloads:
-
-- total candidate count
-- total success/failure count
-- per-workload reports
-- overall best measured candidate across the suite
-- candidate summaries aggregated by candidate name
-- suite-level hotspots collected from traced run steps
-
-## Tuning Reports
+## Autotune Reporting
 
 Core types:
 
-- [TuningSummary.java](./report/TuningSummary.java)
 - [TuningResult.java](./session/TuningResult.java)
+- [TuningSummary.java](./report/TuningSummary.java)
 - [TextTuningResultRenderer.java](./report/TextTuningResultRenderer.java)
 - [JsonTuningResultRenderer.java](./report/JsonTuningResultRenderer.java)
 
-`TuningResult` now contains:
+Autotune reporting answers:
 
-- best profile
-- finalists
-- summary string
-- structured summary details
-- persisted flag
+- which graph candidate won
+- how many candidates were evaluated
+- what search strategy was used
+- how many finalists survived validation/measurement
 
-### Structured summary
+## Platform Calibration Reporting
 
-Current fields include:
+Core types:
 
-- strategy name
-- selected count
-- evaluated count
-- valid count
-- finalist count
-- history entries written
-- best median time
+- [PlatformCalibrationResult.java](./session/PlatformCalibrationResult.java)
+- [PlatformCalibrationStepResult.java](./session/PlatformCalibrationStepResult.java)
+- [PlatformCalibrationCandidateSummary.java](./session/PlatformCalibrationCandidateSummary.java)
+- [PlatformCalibrationScore.java](./session/PlatformCalibrationScore.java)
+- [TextPlatformCalibrationResultRenderer.java](./report/TextPlatformCalibrationResultRenderer.java)
+- [JsonPlatformCalibrationResultRenderer.java](./report/JsonPlatformCalibrationResultRenderer.java)
 
-## Baseline Reporting
+Platform calibration reporting answers:
 
-Benchmarks now support two explicit baseline roles:
+- which runtime family was being calibrated
+- which candidate won in each family step
+- what score model was used
+- what the candidate-level score breakdown looked like
+- which runtime profile became the new family winner
 
-- `BASELINE_NO_OPT`
-- `BASELINE_NO_OPT_CONSERVATIVE_RUNTIME`
+## Calibration Progress Reporting
 
-Relevant types:
+Platform calibration should also expose a live progress-reporting channel.
 
-- [BenchmarkBaselineKind.java](./report/BenchmarkBaselineKind.java)
-- [BaselinePolicy.java](./session/BaselinePolicy.java)
-- [BenchmarkBaselineProfiles.java](./session/BenchmarkBaselineProfiles.java)
+This is different from final calibration reporting.
 
-This allows reports to answer:
+Final report answers:
 
-- how much did optimizer stages help?
-- how much did tuned runtime help over no-opt + conservative runtime?
+- what happened
 
-### Speedup fields
+Progress reporting answers:
 
-`BenchmarkReport` exposes:
+- what is happening right now
 
-- `speedupVsNoOpt(...)`
-- `speedupVsNoOptConservativeRuntime(...)`
+The intended live hierarchy is:
 
-The renderers surface those values directly.
+- family
+- workload/scenario
+- candidate
+- phase
 
-Interpretation:
+Minimum live fields:
 
-- `> 1.0x` means the candidate is faster than the baseline
-- `1.0x` means parity
-- `< 1.0x` means the candidate is slower than the baseline
-- `null` / `n/a` means no valid comparable baseline measurement existed
+- `platformId`
+- `family`
+- `familyStepIndex`
+- `familyStepCount`
+- `workloadName`
+- `workloadIndex`
+- `workloadCount`
+- `candidateId`
+- `candidateIndex`
+- `candidateCount`
+- `phase`
+- `currentLeaderId`
+- `currentLeaderScore`
+- `message`
 
-## Suite-Level Aggregation
+Expected use:
 
-The suite renderers now expose two additional views that matter in practice.
+- long-running calibration sessions
+- local terminal monitoring
+- CI visibility
+- debugging of stalls, invalid candidates, or unexpectedly large candidate spaces
 
-### Candidate summaries
+Boundary rule:
 
-Relevant type:
+- progress reporting belongs to orchestration
+- not to score policy
+- not to measurement engine
+- not to persistence
 
-- [BenchmarkSuiteCandidateSummary.java](./report/BenchmarkSuiteCandidateSummary.java)
+## Trace-Derived Reporting
 
-Purpose:
+Reporting does not generate trace data.
 
-- answer how one candidate family behaves across many workloads
+Execution does.
 
-Current fields:
+Trace-based reporting consumes:
 
-- candidate name
-- baseline role
-- number of workloads seen
-- number of successful measurements
-- average median time
-- average speedup vs no-opt
-- average speedup vs no-opt conservative runtime
+- compile trace
+- prepare trace
+- run trace
+- execution-step trace
 
-This is the first useful cross-workload comparison layer.
-
-### Suite hotspots
-
-Relevant type:
-
-- [BenchmarkSuiteHotspot.java](./report/BenchmarkSuiteHotspot.java)
-
-Purpose:
-
-- surface the slowest traced steps across the whole benchmark suite
-
-Current fields:
-
-- workload name
-- candidate name
-- op type
-- trace label
-- duration
-
-This lets you answer:
-
-- which exact step is dominating the suite
-- whether the same candidate is consistently hot
-- whether one workload family is the true bottleneck
-
-## Trace Reporting
-
-Benchmark reports now use execution trace data emitted by the core execution layer.
-
-Important core trace types:
-
-- [CompileTrace.java](../graph/execution/trace/CompileTrace.java)
-- [PrepareTrace.java](../graph/execution/trace/PrepareTrace.java)
-- [RunTrace.java](../graph/execution/trace/RunTrace.java)
-- [ExecutionStepTrace.java](../graph/execution/trace/ExecutionStepTrace.java)
-
-Current benchmark reporting uses:
+and exposes:
 
 - compile time
 - prepare time
-- traced representative run time
-- hot steps
+- traced run time
+- step hotspots
 - step count
 
-Important measurement detail:
+## Diff Reporting
 
-- if steady-state measurement is enabled, `trace.run()` is taken from a traced run after warmup
-- it is therefore intended to be representative of warm execution
-- it is not just the very first cold-start execution snapshot
+Current diff families:
 
-### Hot steps
+- benchmark report diffs
+- benchmark suite diffs
+- tuning result diffs
 
-Current benchmark report renderers show:
+They compare already materialized report DTOs.
 
-- top step durations from traced run
+They do not rerun workloads.
 
-That is enough to identify major hotspots even before full family aggregation is added.
+## JSON Expectations
 
-## Search Tree Reporting
+JSON renderers should be treated as:
 
-Tree search debugging uses:
+- machine-readable explain artifacts
+- not execute source of truth
 
-- [SearchTreeSnapshot.java](./search/SearchTreeSnapshot.java)
-- [SearchTreeReport.java](./search/SearchTreeReport.java)
-- [TextSearchTreeReportRenderer.java](./search/TextSearchTreeReportRenderer.java)
-- [JsonSearchTreeReportRenderer.java](./search/JsonSearchTreeReportRenderer.java)
+Source-of-truth persistence remains:
 
-These are separate from benchmark reports because they describe:
-
-- the search process
-- not the execution result itself
-
-### What tree reports show
-
-- strategy name
-- node count
-- frontier size
-- max depth
-- node lineage
-- frontier fingerprints
-
-## Cross-Run Diff Reporting
-
-The reporting layer now also supports comparing two already-produced runs.
-
-This is intentionally a pure reporting concern:
-
-- it does not re-execute workloads
-- it does not require benchmark/autotune orchestration
-- it compares already materialized report/result DTOs
-
-Current diff types:
-
-- [BenchmarkReportDiff.java](./report/BenchmarkReportDiff.java)
-- [BenchmarkSuiteReportDiff.java](./report/BenchmarkSuiteReportDiff.java)
-- [TuningResultDiff.java](./report/TuningResultDiff.java)
-
-Current renderers:
-
-- [TextBenchmarkSuiteReportDiffRenderer.java](./report/TextBenchmarkSuiteReportDiffRenderer.java)
-- [JsonBenchmarkSuiteReportDiffRenderer.java](./report/JsonBenchmarkSuiteReportDiffRenderer.java)
-- [TextTuningResultDiffRenderer.java](./report/TextTuningResultDiffRenderer.java)
-- [JsonTuningResultDiffRenderer.java](./report/JsonTuningResultDiffRenderer.java)
-
-Typical questions this answers:
-
-- did the new run get faster or slower?
-- did the winning candidate change?
-- did one workload regress while the rest improved?
-- did autotune converge on a different best profile?
-
-## JSON Contract Notes
-
-The JSON renderers intentionally use:
-
-- numeric values for valid timings and speedups
-- `null` for non-finite values such as missing speedups
-- explicit `baselineKind` markers on benchmark candidates
-
-Why this matters:
-
-- downstream tools do not need to parse `NaN`/`Infinity`
-- baseline rows stay machine-distinguishable from user candidates
-- partial benchmark failure is still representable without breaking the whole report
-
-## Examples
-
-### Example: text benchmark report
-
-```java
-String text = TextBenchmarkReportRenderer.render(report);
-```
-
-Input:
-
-- one `BenchmarkReport`
-
-Output:
-
-- human-readable summary
-- candidate table
-- per-candidate detail
-- hot-step section
-
-### Example: JSON benchmark suite report
-
-```java
-String json = JsonBenchmarkSuiteReportRenderer.render(report);
-```
-
-Output includes:
-
-- suite summary
-- overall best candidate
-- candidate summaries
-- suite hotspots
-- workload reports
-- per-candidate timing
-- trace summary
-
-Example fragment:
-
-```json
-{
-  "name": "candidate-a",
-  "baselineKind": "NONE",
-  "success": true,
-  "timing": {
-    "compileMs": 2.104221,
-    "prepareMs": 0.442991,
-    "tracedRunMs": 1.334882,
-    "meanMs": 0.991400,
-    "medianMs": 0.982113,
-    "p90Ms": 1.031287
-  },
-  "speedup": {
-    "vsNoOpt": 1.317000,
-    "vsNoOptConservativeRuntime": null
-  }
-}
-```
-
-Meaning:
-
-- the candidate beat the no-opt baseline by `1.317x`
-- no comparable conservative-runtime baseline measurement existed
-
-### Example: tuning result
-
-```java
-String text = TextTuningResultRenderer.render(result);
-String json = JsonTuningResultRenderer.render(result);
-```
-
-Output includes:
-
-- best profile
-- persistence flag
-- strategy used
-- finalist count
-- finalist timing summary
-
-### Example: suite diff
-
-```java
-BenchmarkSuiteReportDiff diff = BenchmarkSuiteReportDiff.compare(previousSuite, currentSuite);
-String text = TextBenchmarkSuiteReportDiffRenderer.render(diff);
-String json = JsonBenchmarkSuiteReportDiffRenderer.render(diff);
-```
-
-Output includes:
-
-- previous/current overall best candidate
-- workload-level best-candidate change summary
-- current best timing and speedup vs previous run
+- `PlatformRuntimeProfile` for platform runtime defaults
+- `ExecutionProfile` for runnable graph winners

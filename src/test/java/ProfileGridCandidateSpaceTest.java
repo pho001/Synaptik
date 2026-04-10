@@ -31,10 +31,7 @@ public class ProfileGridCandidateSpaceTest {
                                 config.optimizer.Conv2dLoweringMode.HEURISTIC,
                                 config.optimizer.Conv2dLoweringMode.OFF
                         )),
-                        ProfileMutators.blasThreadPolicies(
-                                List.of(backend.blas.BlasThreadPolicy.AUTO, backend.blas.BlasThreadPolicy.FIXED),
-                                List.of(1, 2)
-                        )
+                        ProfileMutators.blasThreads(List.of(0, 1, 2))
                 )
         );
 
@@ -47,7 +44,7 @@ public class ProfileGridCandidateSpaceTest {
 
         assertEquals(6, candidates.size());
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("conv2dLowering=OFF")));
-        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasThread=FIXED:2")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasThreads=2")));
     }
 
     @Test
@@ -67,7 +64,6 @@ public class ProfileGridCandidateSpaceTest {
                                 true,
                                 3.0d,
                                 false,
-                                backend.blas.BlasThreadPolicy.AUTO,
                                 0
                         )
                 ),
@@ -83,7 +79,7 @@ public class ProfileGridCandidateSpaceTest {
 
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("attentionMatMul=FORCE_ON")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasProvider=OPENBLAS_FFM")));
-        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("vectorPolicies=")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("vectorThresholds=")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("fused=")));
     }
 
@@ -153,6 +149,59 @@ public class ProfileGridCandidateSpaceTest {
 
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("scheduler=")));
         assertEquals(8, candidates.size());
+    }
+
+    @Test
+    void matmulBlasShapeHeuristicsProduceExpectedVariants() {
+        ExecutionProfile base = new ExecutionProfile(
+                "matmul-heuristics",
+                "matmul-heuristics",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        var candidates = new ProfileGridCandidateSpace(
+                base,
+                List.of(ProfileMutators.matmulBlasShapeHeuristics(
+                        List.of(true, false),
+                        List.of(2.0, 4.0)
+                ))
+        ).generate(StandardWorkloads.matmul("matmul", 1, 64, 64, 64));
+
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasShape=true:2.0")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasShape=false:4.0")));
+    }
+
+    @Test
+    void parallelThresholdMutatorProducesExpectedVariants() {
+        ExecutionProfile base = new ExecutionProfile(
+                "parallel-thresholds",
+                "parallel-thresholds",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        var candidates = new ProfileGridCandidateSpace(
+                base,
+                List.of(ProfileMutators.parallelThresholds(
+                        List.of(4_096, 16_384),
+                        List.of(2_048),
+                        List.of(8_192)
+                ))
+        ).generate(new tuning.workload.TensorRootWorkloadSpec(
+                "generic",
+                tuning.workload.WorkloadKind.GENERIC,
+                environment -> tensor.Tensor.scalar(1.0).add(tensor.Tensor.scalar(2.0))
+        ));
+
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("parallelThresholds=4096/2048/8192")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("parallelThresholds=16384/2048/8192")));
     }
 
     @Test

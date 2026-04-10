@@ -7,7 +7,6 @@ import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import operations.Operation;
 import backend.blas.BlasProvider;
-import backend.blas.BlasThreadPolicy;
 import config.backend.KernelTuningConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -68,7 +67,7 @@ public class PreparedExecutionBuildTest {
                         kernelWithVectorMin(1),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true, true)
+                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -91,7 +90,7 @@ public class PreparedExecutionBuildTest {
                         kernelWithVectorMin(1),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true, true)
+                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -114,7 +113,7 @@ public class PreparedExecutionBuildTest {
                         config.backend.KernelTuningConfig.defaultsInference(),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true, true)
+                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -136,7 +135,7 @@ public class PreparedExecutionBuildTest {
                         kernelWithVectorMin(1_000_000),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true, true)
+                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -213,7 +212,6 @@ public class PreparedExecutionBuildTest {
                         false,
                         100.0d,
                         false,
-                        BlasThreadPolicy.FIXED,
                         1
                 )
         );
@@ -229,6 +227,10 @@ public class PreparedExecutionBuildTest {
                         cpu.matMulTileN(),
                         cpu.matMulTileK(),
                         vectorMinSize,
+                        vectorMinSize,
+                        vectorMinSize,
+                        cpu.parallelMinSize(),
+                        cpu.parallelMinSize(),
                         cpu.parallelMinSize(),
                         cpu.contiguousMaterializeThreshold(),
                         cpu.lowCostTargetChunksPerWorker(),
@@ -238,10 +240,8 @@ public class PreparedExecutionBuildTest {
                         cpu.minVectorChunkSize(),
                         cpu.minReductionChunkSize(),
                         cpu.commonPoolLowCostMaxWorkPerWorker(),
+                        cpu.fusedAsmVectorWidth(),
                         cpu.sumAccuracyMode(),
-                        cpu.vectorPolicyCheap(),
-                        cpu.vectorPolicyTranscendental(),
-                        cpu.vectorPolicyReduction(),
                         cpu.matMulParallelMinSize(),
                         cpu.attentionMatMulPolicy()
                 ),

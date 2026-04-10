@@ -1,5 +1,4 @@
 import backend.blas.BlasProvider;
-import backend.blas.BlasThreadPolicy;
 import backend.blas.OpenBlasFfmBridge;
 import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
@@ -94,7 +93,6 @@ public class BFloat16BlasDispatchTest {
                         false,
                         100.0d,
                         false,
-                        BlasThreadPolicy.FIXED,
                         1
                 )
         );

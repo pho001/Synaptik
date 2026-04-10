@@ -17,7 +17,7 @@ public final class JsonBenchmarkSuiteReportRenderer {
         sb.append("  \"totalSuccesses\": ").append(report.totalSuccessCount()).append(",\n");
         sb.append("  \"totalFailures\": ").append(report.totalFailureCount()).append(",\n");
         report.overallBestCandidate().ifPresent(best -> {
-            sb.append("  \"overallBestCandidate\": \"").append(escape(best.candidate().name())).append("\",\n");
+            sb.append("  \"overallBestCandidate\": \"").append(escape(best.entry().name())).append("\",\n");
             sb.append("  \"overallBestMedianMs\": ")
                     .append(format(best.measurement().steadyStateStats().medianMs()))
                     .append(",\n");
@@ -30,13 +30,11 @@ public final class JsonBenchmarkSuiteReportRenderer {
             BenchmarkSuiteCandidateSummary summary = report.candidateSummaries().get(i);
             sb.append("    {");
             sb.append("\"name\": \"").append(escape(summary.candidateName())).append("\", ");
-            sb.append("\"baselineKind\": \"").append(summary.baselineKind().name()).append("\", ");
+            sb.append("\"role\": \"").append(summary.role().name()).append("\", ");
             sb.append("\"workloads\": ").append(summary.workloadCount()).append(", ");
             sb.append("\"successes\": ").append(summary.successCount()).append(", ");
             sb.append("\"averageMedianMs\": ").append(format(summary.averageMedianMs())).append(", ");
-            sb.append("\"averageSpeedupVsNoOpt\": ").append(format(summary.averageSpeedupVsNoOpt())).append(", ");
-            sb.append("\"averageSpeedupVsNoOptConservativeRuntime\": ")
-                    .append(format(summary.averageSpeedupVsNoOptConservativeRuntime()));
+            sb.append("\"averageSpeedupVsBaseline\": ").append(format(summary.averageSpeedupVsBaseline()));
             sb.append("}");
         }
         sb.append("\n  ],\n");

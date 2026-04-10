@@ -2,7 +2,6 @@ package config.profile;
 
 import backend.ApproxMode;
 import backend.blas.BlasProvider;
-import backend.blas.BlasThreadPolicy;
 import backend.runtime.ExecutionMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
@@ -10,7 +9,6 @@ import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
 import config.backend.SumAccuracyMode;
-import config.backend.VectorPolicy;
 import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
@@ -135,8 +133,16 @@ public final class ExecutionProfileIO {
                     findInt(json, "cpuMatMulTileM", defaultKernel.cpu().matMulTileM()),
                     findInt(json, "cpuMatMulTileN", defaultKernel.cpu().matMulTileN()),
                     findInt(json, "cpuMatMulTileK", defaultKernel.cpu().matMulTileK()),
-                    findInt(json, "cpuVectorMinSize", defaultKernel.cpu().vectorMinSize()),
-                    findInt(json, "cpuParallelMinSize", defaultKernel.cpu().parallelMinSize()),
+                    findInt(json, "cpuCheapVectorMinSize", defaultKernel.cpu().cheapVectorMinSize()),
+                    findInt(json, "cpuTranscendentalVectorMinSize", defaultKernel.cpu().transcendentalVectorMinSize()),
+                    findInt(json, "cpuFusedCheapVectorMinSize", defaultKernel.cpu().fusedCheapVectorMinSize()),
+                    findInt(json, "cpuFusedTranscendentalVectorMinSize", defaultKernel.cpu().fusedTranscendentalVectorMinSize()),
+                    findInt(json, "cpuReductionVectorMinSize", defaultKernel.cpu().reductionVectorMinSize()),
+                    findInt(json, "cpuCheapParallelMinSize", defaultKernel.cpu().cheapParallelMinSize()),
+                    findInt(json, "cpuTranscendentalParallelMinSize", defaultKernel.cpu().transcendentalParallelMinSize()),
+                    findInt(json, "cpuFusedCheapParallelMinSize", defaultKernel.cpu().fusedCheapParallelMinSize()),
+                    findInt(json, "cpuFusedTranscendentalParallelMinSize", defaultKernel.cpu().fusedTranscendentalParallelMinSize()),
+                    findInt(json, "cpuReductionParallelMinSize", defaultKernel.cpu().reductionParallelMinSize()),
                     findInt(json, "cpuContiguousMaterializeThreshold", defaultKernel.cpu().contiguousMaterializeThreshold()),
                     findInt(json, "cpuLowCostTargetChunksPerWorker", defaultKernel.cpu().lowCostTargetChunksPerWorker()),
                     findInt(json, "cpuMediumCostTargetChunksPerWorker", defaultKernel.cpu().mediumCostTargetChunksPerWorker()),
@@ -147,9 +153,6 @@ public final class ExecutionProfileIO {
                     findInt(json, "cpuCommonPoolLowCostMaxWorkPerWorker", defaultKernel.cpu().commonPoolLowCostMaxWorkPerWorker()),
                     findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedAsmVectorWidth()),
                     findEnum(json, "cpuSumAccuracyMode", defaultKernel.cpu().sumAccuracyMode(), SumAccuracyMode.class),
-                    findEnum(json, "cpuVectorPolicyCheap", defaultKernel.cpu().vectorPolicyCheap(), VectorPolicy.class),
-                    findEnum(json, "cpuVectorPolicyTranscendental", defaultKernel.cpu().vectorPolicyTranscendental(), VectorPolicy.class),
-                    findEnum(json, "cpuVectorPolicyReduction", defaultKernel.cpu().vectorPolicyReduction(), VectorPolicy.class),
                     findInt(json, "cpuMatMulParallelMinSize", defaultKernel.cpu().matMulParallelMinSize()),
                     findEnum(json, "cpuAttentionMatMulPolicy", defaultKernel.cpu().attentionMatMulPolicy(), AttentionMatMulPolicy.class)
             );
@@ -180,13 +183,11 @@ public final class ExecutionProfileIO {
                     findBoolean(json, "f32RequireMgeK", defaultProfile.runtime().blas().f32RequireMgeK()),
                     findDouble(json, "f32MaxNOverK", defaultProfile.runtime().blas().f32MaxNOverK()),
                     findBoolean(json, "debug", defaultProfile.runtime().blas().debug()),
-                    findEnum(json, "threadPolicy", defaultProfile.runtime().blas().threadPolicy(), BlasThreadPolicy.class),
                     findInt(json, "threads", defaultProfile.runtime().blas().threads())
             );
             FusedExecutionPolicy fused = new FusedExecutionPolicy(
                     findEnum(json, "fusedPrimaryBackend", defaultProfile.runtime().fused().primaryBackend(), FusedPrimaryBackend.class),
-                    findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback()),
-                    findBoolean(json, "fusedPreferDirectForCompareSelect", defaultProfile.runtime().fused().preferDirectForCompareSelect())
+                    findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback())
             );
             RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas, fused);
 
@@ -287,8 +288,16 @@ public final class ExecutionProfileIO {
                 "        \"cpuMatMulTileM\": " + cpu.matMulTileM() + ",\n" +
                 "        \"cpuMatMulTileN\": " + cpu.matMulTileN() + ",\n" +
                 "        \"cpuMatMulTileK\": " + cpu.matMulTileK() + ",\n" +
-                "        \"cpuVectorMinSize\": " + cpu.vectorMinSize() + ",\n" +
-                "        \"cpuParallelMinSize\": " + cpu.parallelMinSize() + ",\n" +
+                "        \"cpuCheapVectorMinSize\": " + cpu.cheapVectorMinSize() + ",\n" +
+                "        \"cpuTranscendentalVectorMinSize\": " + cpu.transcendentalVectorMinSize() + ",\n" +
+                "        \"cpuFusedCheapVectorMinSize\": " + cpu.fusedCheapVectorMinSize() + ",\n" +
+                "        \"cpuFusedTranscendentalVectorMinSize\": " + cpu.fusedTranscendentalVectorMinSize() + ",\n" +
+                "        \"cpuReductionVectorMinSize\": " + cpu.reductionVectorMinSize() + ",\n" +
+                "        \"cpuCheapParallelMinSize\": " + cpu.cheapParallelMinSize() + ",\n" +
+                "        \"cpuTranscendentalParallelMinSize\": " + cpu.transcendentalParallelMinSize() + ",\n" +
+                "        \"cpuFusedCheapParallelMinSize\": " + cpu.fusedCheapParallelMinSize() + ",\n" +
+                "        \"cpuFusedTranscendentalParallelMinSize\": " + cpu.fusedTranscendentalParallelMinSize() + ",\n" +
+                "        \"cpuReductionParallelMinSize\": " + cpu.reductionParallelMinSize() + ",\n" +
                 "        \"cpuMatMulParallelMinSize\": " + cpu.matMulParallelMinSize() + ",\n" +
                 "        \"cpuContiguousMaterializeThreshold\": " + cpu.contiguousMaterializeThreshold() + ",\n" +
                 "        \"cpuLowCostTargetChunksPerWorker\": " + cpu.lowCostTargetChunksPerWorker() + ",\n" +
@@ -300,9 +309,6 @@ public final class ExecutionProfileIO {
                 "        \"cpuCommonPoolLowCostMaxWorkPerWorker\": " + cpu.commonPoolLowCostMaxWorkPerWorker() + ",\n" +
                 "        \"cpuFusedAsmVectorWidth\": " + cpu.fusedAsmVectorWidth() + ",\n" +
                 "        \"cpuSumAccuracyMode\": \"" + cpu.sumAccuracyMode().name() + "\",\n" +
-                "        \"cpuVectorPolicyCheap\": \"" + cpu.vectorPolicyCheap().name() + "\",\n" +
-                "        \"cpuVectorPolicyTranscendental\": \"" + cpu.vectorPolicyTranscendental().name() + "\",\n" +
-                "        \"cpuVectorPolicyReduction\": \"" + cpu.vectorPolicyReduction().name() + "\",\n" +
                 "        \"cpuAttentionMatMulPolicy\": \"" + cpu.attentionMatMulPolicy().name() + "\"\n" +
                 "      },\n" +
                 "      \"cuda\": {\n" +
@@ -324,13 +330,11 @@ public final class ExecutionProfileIO {
                 "      \"f32RequireMgeK\": " + blas.f32RequireMgeK() + ",\n" +
                 "      \"f32MaxNOverK\": " + blas.f32MaxNOverK() + ",\n" +
                 "      \"debug\": " + blas.debug() + ",\n" +
-                "      \"threadPolicy\": \"" + blas.threadPolicy().name() + "\",\n" +
                 "      \"threads\": " + blas.threads() + "\n" +
                 "    },\n" +
                 "    \"fused\": {\n" +
                 "      \"fusedPrimaryBackend\": \"" + fused.primaryBackend().name() + "\",\n" +
-                "      \"fusedAllowBackendFallback\": " + fused.allowBackendFallback() + ",\n" +
-                "      \"fusedPreferDirectForCompareSelect\": " + fused.preferDirectForCompareSelect() + "\n" +
+                "      \"fusedAllowBackendFallback\": " + fused.allowBackendFallback() + "\n" +
                 "    },\n" +
                 "    \"workload\": {\n" +
                 "      \"kind\": \"" + workload.kind().name() + "\",\n" +

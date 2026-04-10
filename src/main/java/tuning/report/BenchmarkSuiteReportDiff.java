@@ -47,8 +47,8 @@ public record BenchmarkSuiteReportDiff(
         return new BenchmarkSuiteReportDiff(
                 previous.createdAt(),
                 current.createdAt(),
-                previous.overallBestCandidate().map(c -> c.candidate().name()).orElse(""),
-                current.overallBestCandidate().map(c -> c.candidate().name()).orElse(""),
+                previous.overallBestCandidate().map(c -> c.entry().name()).orElse(""),
+                current.overallBestCandidate().map(c -> c.entry().name()).orElse(""),
                 previous.totalSuccessCount(),
                 current.totalSuccessCount(),
                 diffs

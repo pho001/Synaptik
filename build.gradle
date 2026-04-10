@@ -24,6 +24,11 @@ java {
     }
 }
 
+def runtimeJvmArgs = [
+        '--add-modules=jdk.incubator.vector',
+        '--enable-native-access=ALL-UNNAMED'
+]
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.compilerArgs += ['--add-modules', 'jdk.incubator.vector']
@@ -31,12 +36,16 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
-    jvmArgs '--add-modules=jdk.incubator.vector'
+    jvmArgs runtimeJvmArgs
+}
+
+tasks.withType(JavaExec).configureEach {
+    jvmArgs runtimeJvmArgs
 }
 
 application {
     mainClass = 'synaptik.app.Main'
-    applicationDefaultJvmArgs = ['--add-modules=jdk.incubator.vector']
+    applicationDefaultJvmArgs = runtimeJvmArgs
 }
 
 def sourceArtifactRoots = [layout.projectDirectory.dir('src'), layout.projectDirectory.dir('test')]

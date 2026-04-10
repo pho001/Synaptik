@@ -1,16 +1,17 @@
 package tuning.report;
 
+import tuning.session.BenchmarkEntryRole;
+
 public record BenchmarkSuiteCandidateSummary(
         String candidateName,
-        BenchmarkBaselineKind baselineKind,
+        BenchmarkEntryRole role,
         long workloadCount,
         long successCount,
         double averageMedianMs,
-        double averageSpeedupVsNoOpt,
-        double averageSpeedupVsNoOptConservativeRuntime
+        double averageSpeedupVsBaseline
 ) {
     public BenchmarkSuiteCandidateSummary {
         candidateName = candidateName == null ? "" : candidateName;
-        baselineKind = baselineKind == null ? BenchmarkBaselineKind.NONE : baselineKind;
+        role = role == null ? BenchmarkEntryRole.CANDIDATE : role;
     }
 }

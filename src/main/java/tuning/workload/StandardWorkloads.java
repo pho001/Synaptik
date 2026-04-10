@@ -4,6 +4,7 @@ import config.profile.WorkloadProfile;
 import tuning.candidate.Candidate;
 import tuning.candidate.CandidateSpace;
 import tuning.session.AutotuneRequest;
+import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkRequest;
 import tuning.session.BenchmarkSuiteRequest;
 import tuning.session.TuningDefaults;
@@ -119,24 +120,25 @@ public final class StandardWorkloads {
                 .register(transformerHotPath("transformer_hot_path"));
     }
 
-    public static BenchmarkRequest benchmark(String workloadName, List<Candidate> candidates, TuningPreset preset) {
-        return defaultCatalog().benchmarkRequest(workloadName, candidates, preset);
+    public static BenchmarkRequest benchmark(String workloadName, List<BenchmarkEntry> entries, TuningPreset preset) {
+        return defaultCatalog().benchmarkRequest(workloadName, entries, preset);
     }
 
-    public static BenchmarkRequest benchmark(String workloadName, List<Candidate> candidates) {
-        return defaultCatalog().benchmarkRequest(workloadName, candidates);
+    public static BenchmarkRequest benchmark(String workloadName, List<BenchmarkEntry> entries) {
+        return defaultCatalog().benchmarkRequest(workloadName, entries);
     }
 
-    public static BenchmarkSuiteRequest benchmarkSuite(List<String> workloadNames, List<Candidate> candidates, TuningPreset preset) {
-        return defaultCatalog().benchmarkSuiteRequest(workloadNames, candidates, preset);
+    public static BenchmarkSuiteRequest benchmarkSuite(List<String> workloadNames, List<BenchmarkEntry> entries, TuningPreset preset) {
+        return defaultCatalog().benchmarkSuiteRequest(workloadNames, entries, preset);
     }
 
-    public static BenchmarkSuiteRequest benchmarkSuite(List<String> workloadNames, List<Candidate> candidates) {
-        return defaultCatalog().benchmarkSuiteRequest(workloadNames, candidates);
+    public static BenchmarkSuiteRequest benchmarkSuite(List<String> workloadNames, List<BenchmarkEntry> entries) {
+        return defaultCatalog().benchmarkSuiteRequest(workloadNames, entries);
     }
 
     public static AutotuneRequest autotune(
             String workloadName,
+            config.profile.ExecutionProfile seedProfile,
             CandidateSpace candidateSpace,
             TuningPreset preset,
             tuning.store.PersistencePolicy persistence
@@ -144,6 +146,7 @@ public final class StandardWorkloads {
         return TuningDefaults.autotune(
                 preset,
                 defaultCatalog().require(workloadName),
+                seedProfile,
                 candidateSpace,
                 persistence
         );
@@ -151,11 +154,13 @@ public final class StandardWorkloads {
 
     public static AutotuneRequest autotune(
             String workloadName,
+            config.profile.ExecutionProfile seedProfile,
             CandidateSpace candidateSpace,
             tuning.store.PersistencePolicy persistence
     ) {
         return TuningDefaults.recommendedAutotune(
                 defaultCatalog().require(workloadName),
+                seedProfile,
                 candidateSpace,
                 persistence
         );

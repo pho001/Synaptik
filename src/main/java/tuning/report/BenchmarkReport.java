@@ -22,8 +22,9 @@ public record BenchmarkReport(
         String best = candidates == null ? "" : candidates.stream()
                 .filter(BenchmarkCandidateReport::success)
                 .filter(r -> r.measurement() != null)
+                .filter(r -> !r.baseline())
                 .min(Comparator.comparingDouble(r -> r.measurement().steadyStateStats().medianMs()))
-                .map(r -> r.candidate().name())
+                .map(r -> r.entry().name())
                 .orElse("");
         return new BenchmarkReport(workloadName, OffsetDateTime.now(), candidates, best);
     }
@@ -40,36 +41,21 @@ public record BenchmarkReport(
         return candidates.stream()
                 .filter(BenchmarkCandidateReport::success)
                 .filter(r -> r.measurement() != null)
+                .filter(r -> !r.baseline())
                 .min(Comparator.comparingDouble(r -> r.measurement().steadyStateStats().medianMs()));
     }
 
-    public Optional<BenchmarkCandidateReport> baselineNoOpt() {
+    public Optional<BenchmarkCandidateReport> baseline() {
         return candidates.stream()
-                .filter(r -> r.baselineKind() == BenchmarkBaselineKind.NO_OPT)
+                .filter(BenchmarkCandidateReport::baseline)
                 .findFirst();
     }
 
-    public Optional<BenchmarkCandidateReport> baselineNoOptConservativeRuntime() {
-        return candidates.stream()
-                .filter(r -> r.baselineKind() == BenchmarkBaselineKind.NO_OPT_CONSERVATIVE_RUNTIME)
-                .findFirst();
-    }
-
-    public double speedupVsNoOpt(BenchmarkCandidateReport candidate) {
+    public double speedupVsBaseline(BenchmarkCandidateReport candidate) {
         if (candidate == null || candidate.measurement() == null) {
             return Double.NaN;
         }
-        return baselineNoOpt()
-                .filter(base -> base.measurement() != null)
-                .map(base -> base.measurement().steadyStateStats().medianMs() / candidate.measurement().steadyStateStats().medianMs())
-                .orElse(Double.NaN);
-    }
-
-    public double speedupVsNoOptConservativeRuntime(BenchmarkCandidateReport candidate) {
-        if (candidate == null || candidate.measurement() == null) {
-            return Double.NaN;
-        }
-        return baselineNoOptConservativeRuntime()
+        return baseline()
                 .filter(base -> base.measurement() != null)
                 .map(base -> base.measurement().steadyStateStats().medianMs() / candidate.measurement().steadyStateStats().medianMs())
                 .orElse(Double.NaN);

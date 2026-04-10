@@ -29,11 +29,11 @@ public final class OpenBlasFfmBridge {
         return STATE.reason;
     }
 
-    public static void applyThreadPolicy(BlasThreadPolicy policy, int threads) {
+    public static void applyThreads(int threads) {
         if (!STATE.available) {
             return;
         }
-        if (policy == null || policy == BlasThreadPolicy.AUTO) {
+        if (threads <= 0) {
             if (STATE.setThreads != null) {
                 try {
                     STATE.setThreads.invokeExact(0);

@@ -2,8 +2,7 @@ package config.runtime;
 
 public record FusedExecutionPolicy(
         FusedPrimaryBackend primaryBackend,
-        boolean allowBackendFallback,
-        boolean preferDirectForCompareSelect
+        boolean allowBackendFallback
 ) {
     public FusedExecutionPolicy {
         primaryBackend = primaryBackend == null ? FusedPrimaryBackend.DIRECT_VECTOR : primaryBackend;
@@ -12,7 +11,6 @@ public record FusedExecutionPolicy(
     public static FusedExecutionPolicy defaultsTraining() {
         return new FusedExecutionPolicy(
                 FusedPrimaryBackend.DIRECT_VECTOR,
-                true,
                 true
         );
     }
@@ -20,20 +18,15 @@ public record FusedExecutionPolicy(
     public static FusedExecutionPolicy defaultsInference() {
         return new FusedExecutionPolicy(
                 FusedPrimaryBackend.ASM,
-                true,
-                false
+                true
         );
     }
 
     public FusedExecutionPolicy withPrimaryBackend(FusedPrimaryBackend value) {
-        return new FusedExecutionPolicy(value, allowBackendFallback, preferDirectForCompareSelect);
+        return new FusedExecutionPolicy(value, allowBackendFallback);
     }
 
     public FusedExecutionPolicy withAllowBackendFallback(boolean value) {
-        return new FusedExecutionPolicy(primaryBackend, value, preferDirectForCompareSelect);
-    }
-
-    public FusedExecutionPolicy withPreferDirectForCompareSelect(boolean value) {
-        return new FusedExecutionPolicy(primaryBackend, allowBackendFallback, value);
+        return new FusedExecutionPolicy(primaryBackend, value);
     }
 }

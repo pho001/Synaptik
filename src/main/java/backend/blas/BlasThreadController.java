@@ -4,7 +4,6 @@ import backend.runtime.BlasConfig;
 
 public final class BlasThreadController {
     private static volatile BlasProvider lastProvider;
-    private static volatile BlasThreadPolicy lastPolicy;
     private static volatile int lastThreads = Integer.MIN_VALUE;
 
     private BlasThreadController() {
@@ -15,16 +14,14 @@ public final class BlasThreadController {
             return;
         }
         BlasProvider provider = config.provider();
-        BlasThreadPolicy policy = config.threadPolicy();
         int threads = config.threads();
-        if (provider == lastProvider && policy == lastPolicy && threads == lastThreads) {
+        if (provider == lastProvider && threads == lastThreads) {
             return;
         }
         if (provider == BlasProvider.OPENBLAS_FFM && OpenBlasFfmBridge.isAvailable()) {
-            OpenBlasFfmBridge.applyThreadPolicy(policy, threads);
+            OpenBlasFfmBridge.applyThreads(threads);
         }
         lastProvider = provider;
-        lastPolicy = policy;
         lastThreads = threads;
     }
 }

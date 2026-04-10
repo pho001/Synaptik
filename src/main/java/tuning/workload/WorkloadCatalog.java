@@ -1,8 +1,8 @@
 package tuning.workload;
 
-import tuning.candidate.Candidate;
 import tuning.measure.MeasurementPolicy;
 import tuning.report.ReportPolicy;
+import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkRequest;
 import tuning.session.BenchmarkSuiteRequest;
 import tuning.session.TuningDefaults;
@@ -56,51 +56,51 @@ public final class WorkloadCatalog {
 
     public BenchmarkRequest benchmarkRequest(
             String workloadName,
-            List<Candidate> candidates,
+            List<BenchmarkEntry> entries,
             MeasurementPolicy measurement,
             ValidationPolicy validation,
             ReportPolicy report
     ) {
-        return new BenchmarkRequest(require(workloadName), candidates, measurement, validation, report);
+        return new BenchmarkRequest(require(workloadName), entries, measurement, validation, report);
     }
 
     public BenchmarkRequest benchmarkRequest(
             String workloadName,
-            List<Candidate> candidates,
+            List<BenchmarkEntry> entries,
             TuningPreset preset
     ) {
-        return TuningDefaults.benchmark(preset, require(workloadName), candidates);
+        return TuningDefaults.benchmark(preset, require(workloadName), entries);
     }
 
     public BenchmarkRequest benchmarkRequest(
             String workloadName,
-            List<Candidate> candidates
+            List<BenchmarkEntry> entries
     ) {
-        return TuningDefaults.recommendedBenchmark(require(workloadName), candidates);
+        return TuningDefaults.recommendedBenchmark(require(workloadName), entries);
     }
 
     public BenchmarkSuiteRequest benchmarkSuiteRequest(
             List<String> workloadNames,
-            List<Candidate> candidates,
+            List<BenchmarkEntry> entries,
             MeasurementPolicy measurement,
             ValidationPolicy validation,
             ReportPolicy report
     ) {
-        return new BenchmarkSuiteRequest(requireAll(workloadNames), candidates, measurement, validation, report);
+        return new BenchmarkSuiteRequest(requireAll(workloadNames), entries, measurement, validation, report);
     }
 
     public BenchmarkSuiteRequest benchmarkSuiteRequest(
             List<String> workloadNames,
-            List<Candidate> candidates,
+            List<BenchmarkEntry> entries,
             TuningPreset preset
     ) {
-        return TuningDefaults.benchmarkSuite(preset, requireAll(workloadNames), candidates);
+        return TuningDefaults.benchmarkSuite(preset, requireAll(workloadNames), entries);
     }
 
     public BenchmarkSuiteRequest benchmarkSuiteRequest(
             List<String> workloadNames,
-            List<Candidate> candidates
+            List<BenchmarkEntry> entries
     ) {
-        return TuningDefaults.recommendedBenchmarkSuite(requireAll(workloadNames), candidates);
+        return TuningDefaults.recommendedBenchmarkSuite(requireAll(workloadNames), entries);
     }
 }

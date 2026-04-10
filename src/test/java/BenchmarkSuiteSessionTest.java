@@ -4,12 +4,11 @@ import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tuning.candidate.Candidate;
 import tuning.measure.MeasurementPolicy;
 import tuning.report.BenchmarkSuiteReport;
 import tuning.report.JsonBenchmarkSuiteReportRenderer;
 import tuning.report.TextBenchmarkSuiteReportRenderer;
-import tuning.session.BaselinePolicy;
+import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkSuiteRequest;
 import tuning.session.BenchmarkSuiteSession;
 import tuning.workload.TensorRootWorkloadSpec;
@@ -37,7 +36,7 @@ public class BenchmarkSuiteSessionTest {
                         environment -> Tensor.scalar(3.0).mul(Tensor.scalar(4.0))
                 ));
 
-        Candidate candidate = new Candidate(
+        BenchmarkEntry baseline = BenchmarkEntry.baseline(
                 "suite-baseline",
                 new ExecutionProfile(
                         "suite-profile",
@@ -52,7 +51,7 @@ public class BenchmarkSuiteSessionTest {
 
         BenchmarkSuiteRequest request = catalog.benchmarkSuiteRequest(
                 List.of("add_only", "mul_only"),
-                List.of(candidate),
+                List.of(baseline),
                 new MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
                 tuning.report.ReportPolicy.defaults()
@@ -63,14 +62,12 @@ public class BenchmarkSuiteSessionTest {
         assertEquals(2, report.workloadReports().size());
         assertEquals("add_only", report.workloadReports().get(0).workloadName());
         assertEquals("mul_only", report.workloadReports().get(1).workloadName());
-        assertEquals(6, report.totalCandidateCount());
-        assertTrue(report.overallBestCandidate().isPresent());
+        assertEquals(2, report.totalCandidateCount());
+        assertFalse(report.overallBestCandidate().isPresent());
         assertFalse(report.candidateSummaries().isEmpty());
         assertFalse(report.hotspots(5).isEmpty());
-        assertTrue(report.workloadReports().get(0).bestCandidateName().equals("suite-baseline")
-                || report.workloadReports().get(0).bestCandidateName().startsWith("BASELINE_"));
-        assertTrue(report.workloadReports().get(1).bestCandidateName().equals("suite-baseline")
-                || report.workloadReports().get(1).bestCandidateName().startsWith("BASELINE_"));
+        assertTrue(report.workloadReports().get(0).bestCandidateName().isBlank());
+        assertTrue(report.workloadReports().get(1).bestCandidateName().isBlank());
     }
 
     @Test
@@ -82,7 +79,7 @@ public class BenchmarkSuiteSessionTest {
                         environment -> Tensor.scalar(2.0).mul(Tensor.scalar(5.0))
                 ));
 
-        Candidate candidate = new Candidate(
+        BenchmarkEntry candidate = BenchmarkEntry.candidate(
                 "render-suite",
                 new ExecutionProfile(
                         "render-suite-profile",
@@ -113,7 +110,7 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(rendered.contains("Suite Hotspots"));
         assertTrue(rendered.contains("=== single_case ==="));
         assertTrue(rendered.contains("bestCandidate="));
-        assertTrue(rendered.contains("BASELINE_NO_OPT"));
+        assertTrue(rendered.contains("render-suite"));
     }
 
     @Test
@@ -125,7 +122,7 @@ public class BenchmarkSuiteSessionTest {
                         environment -> Tensor.scalar(2.0).mul(Tensor.scalar(5.0))
                 ));
 
-        Candidate candidate = new Candidate(
+        BenchmarkEntry candidate = BenchmarkEntry.candidate(
                 "json-suite",
                 new ExecutionProfile(
                         "json-suite-profile",
@@ -149,7 +146,7 @@ public class BenchmarkSuiteSessionTest {
         ).run();
 
         String json = JsonBenchmarkSuiteReportRenderer.render(report);
-        assertTrue(json.contains("\"totalCandidates\": 3"));
+        assertTrue(json.contains("\"totalCandidates\": 1"));
         assertTrue(json.contains("\"candidateSummaries\": ["));
         assertTrue(json.contains("\"hotspots\": ["));
         assertTrue(json.contains("\"workloads\": ["));
@@ -157,7 +154,7 @@ public class BenchmarkSuiteSessionTest {
     }
 
     @Test
-    void suitePropagatesDisabledBaselinePolicyToPerWorkloadRuns() {
+    void suiteRunsWithoutBaselineWhenEntriesContainNoBaseline() {
         WorkloadCatalog catalog = new WorkloadCatalog()
                 .register(new TensorRootWorkloadSpec(
                         "no_baseline_case",
@@ -165,7 +162,7 @@ public class BenchmarkSuiteSessionTest {
                         environment -> Tensor.scalar(2.0).mul(Tensor.scalar(5.0))
                 ));
 
-        Candidate candidate = new Candidate(
+        BenchmarkEntry candidate = BenchmarkEntry.candidate(
                 "no-baseline-candidate",
                 new ExecutionProfile(
                         "no-baseline-profile",
@@ -183,12 +180,10 @@ public class BenchmarkSuiteSessionTest {
                 List.of(candidate),
                 new MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults(),
-                BaselinePolicy.disabled()
+                tuning.report.ReportPolicy.defaults()
         )).run();
 
         assertEquals(1, report.workloadReports().getFirst().candidates().size());
-        assertFalse(report.workloadReports().getFirst().baselineNoOpt().isPresent());
-        assertFalse(report.workloadReports().getFirst().baselineNoOptConservativeRuntime().isPresent());
+        assertFalse(report.workloadReports().getFirst().baseline().isPresent());
     }
 }

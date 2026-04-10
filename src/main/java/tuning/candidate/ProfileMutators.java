@@ -6,13 +6,11 @@ import config.optimizer.OptimizerStage;
 import config.optimizer.RewriteConfig;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
-import config.backend.VectorPolicy;
 import config.profile.ExecutionProfile;
 import config.runtime.BlasConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import backend.blas.BlasProvider;
-import backend.blas.BlasThreadPolicy;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadSpec;
 
@@ -31,10 +29,10 @@ public final class ProfileMutators {
                         Conv2dLoweringMode.ALWAYS
                 )),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L)),
+                blasThreads(List.of(0, 1, 2, 4)),
                 fusedExecutionPolicies(
                         List.of(FusedPrimaryBackend.DIRECT_VECTOR, FusedPrimaryBackend.ASM),
-                        List.of(true),
-                        List.of(true, false)
+                        List.of(true)
                 )
         );
     }
@@ -42,12 +40,11 @@ public final class ProfileMutators {
     public static List<ExecutionProfileMutator> matmulWorkloadMutators() {
         return List.of(
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
-                blasThreadPolicies(List.of(BlasThreadPolicy.AUTO, BlasThreadPolicy.FIXED), List.of(1, 4)),
+                blasThreads(List.of(0, 1, 2, 4)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
                 fusedExecutionPolicies(
                         List.of(FusedPrimaryBackend.DIRECT_VECTOR, FusedPrimaryBackend.ASM),
-                        List.of(true),
-                        List.of(true, false)
+                        List.of(true)
                 )
         );
     }
@@ -129,16 +126,15 @@ public final class ProfileMutators {
                         AttentionMatMulPolicy.FORCE_ON
                 )),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L)),
-                blasThreadPolicies(List.of(BlasThreadPolicy.AUTO, BlasThreadPolicy.FIXED), List.of(1, 4)),
-                vectorPolicies(
-                        List.of(VectorPolicy.AUTO, VectorPolicy.FORCE_ON),
-                        List.of(VectorPolicy.AUTO, VectorPolicy.FORCE_OFF),
-                        List.of(VectorPolicy.AUTO)
+                blasThreads(List.of(0, 1, 2, 4)),
+                vectorThresholds(
+                        List.of(256, 1_024, 4_096),
+                        List.of(512, 2_048, 8_192),
+                        List.of(1_024, 4_096, 16_384)
                 ),
                 fusedExecutionPolicies(
                         List.of(FusedPrimaryBackend.DIRECT_VECTOR, FusedPrimaryBackend.ASM),
-                        List.of(true),
-                        List.of(true, false)
+                        List.of(true)
                 )
         );
     }
@@ -146,57 +142,53 @@ public final class ProfileMutators {
     public static List<ExecutionProfileMutator> mlpWorkloadMutators() {
         return List.of(
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
-                blasThreadPolicies(List.of(BlasThreadPolicy.AUTO, BlasThreadPolicy.FIXED), List.of(1, 4)),
+                blasThreads(List.of(0, 1, 2, 4)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
                 fusedExecutionPolicies(
                         List.of(FusedPrimaryBackend.DIRECT_VECTOR, FusedPrimaryBackend.ASM),
-                        List.of(true),
-                        List.of(true, false)
+                        List.of(true)
                 )
         );
     }
 
     public static List<ExecutionProfileMutator> normalizationWorkloadMutators() {
         return List.of(
-                vectorPolicies(
-                        List.of(VectorPolicy.AUTO, VectorPolicy.FORCE_ON),
-                        List.of(VectorPolicy.AUTO, VectorPolicy.FORCE_ON, VectorPolicy.FORCE_OFF),
-                        List.of(VectorPolicy.AUTO)
+                vectorThresholds(
+                        List.of(128, 512, 2_048),
+                        List.of(256, 1_024, 4_096),
+                        List.of(512, 2_048, 8_192)
                 ),
                 fusedExecutionPolicies(
                         List.of(FusedPrimaryBackend.DIRECT_VECTOR, FusedPrimaryBackend.ASM),
-                        List.of(true),
-                        List.of(true, false)
+                        List.of(true)
                 )
         );
     }
 
     public static List<ExecutionProfileMutator> lossWorkloadMutators() {
         return List.of(
-                vectorPolicies(
-                        List.of(VectorPolicy.AUTO, VectorPolicy.FORCE_ON),
-                        List.of(VectorPolicy.AUTO, VectorPolicy.FORCE_ON, VectorPolicy.FORCE_OFF),
-                        List.of(VectorPolicy.AUTO)
+                vectorThresholds(
+                        List.of(128, 512, 2_048),
+                        List.of(256, 1_024, 4_096),
+                        List.of(512, 2_048, 8_192)
                 ),
                 fusedExecutionPolicies(
                         List.of(FusedPrimaryBackend.DIRECT_VECTOR, FusedPrimaryBackend.ASM),
-                        List.of(true),
-                        List.of(true, false)
+                        List.of(true)
                 )
         );
     }
 
     public static List<ExecutionProfileMutator> genericWorkloadMutators() {
         return List.of(
-                vectorPolicies(
-                        List.of(VectorPolicy.AUTO, VectorPolicy.FORCE_ON),
-                        List.of(VectorPolicy.AUTO, VectorPolicy.FORCE_ON, VectorPolicy.FORCE_OFF),
-                        List.of(VectorPolicy.AUTO)
+                vectorThresholds(
+                        List.of(128, 512, 2_048),
+                        List.of(256, 1_024, 4_096),
+                        List.of(512, 2_048, 8_192)
                 ),
                 fusedExecutionPolicies(
                         List.of(FusedPrimaryBackend.DIRECT_VECTOR, FusedPrimaryBackend.ASM),
-                        List.of(true),
-                        List.of(true, false)
+                        List.of(true)
                 )
         );
     }
@@ -232,8 +224,12 @@ public final class ProfileMutators {
                                                 baseCpu.matMulTileM(),
                                                 baseCpu.matMulTileN(),
                                                 baseCpu.matMulTileK(),
-                                                baseCpu.vectorMinSize(),
-                                                baseCpu.parallelMinSize(),
+                                                baseCpu.cheapVectorMinSize(),
+                                                baseCpu.transcendentalVectorMinSize(),
+                                                baseCpu.reductionVectorMinSize(),
+                                                baseCpu.cheapParallelMinSize(),
+                                                baseCpu.transcendentalParallelMinSize(),
+                                                baseCpu.reductionParallelMinSize(),
                                                 baseCpu.contiguousMaterializeThreshold(),
                                                 low,
                                                 medium,
@@ -244,9 +240,6 @@ public final class ProfileMutators {
                                                 commonPool,
                                                 baseCpu.fusedAsmVectorWidth(),
                                                 baseCpu.sumAccuracyMode(),
-                                                baseCpu.vectorPolicyCheap(),
-                                                baseCpu.vectorPolicyTranscendental(),
-                                                baseCpu.vectorPolicyReduction(),
                                                 baseCpu.matMulParallelMinSize(),
                                                 baseCpu.attentionMatMulPolicy()
                                         );
@@ -270,12 +263,10 @@ public final class ProfileMutators {
 
     public static ExecutionProfileMutator fusedExecutionPolicies(
             List<FusedPrimaryBackend> primaryBackends,
-            List<Boolean> allowFallbackValues,
-            List<Boolean> preferDirectCompareSelectValues
+            List<Boolean> allowFallbackValues
     ) {
         List<FusedPrimaryBackend> safePrimary = primaryBackends == null ? List.of() : List.copyOf(primaryBackends);
         List<Boolean> safeFallback = allowFallbackValues == null ? List.of() : List.copyOf(allowFallbackValues);
-        List<Boolean> safeCompare = preferDirectCompareSelectValues == null ? List.of() : List.copyOf(preferDirectCompareSelectValues);
         return (baseProfile, workload) -> {
             if (!usesFusedRuntimePolicies(workload.kind())) {
                 return List.of(new ExecutionProfileVariant("fusedPolicy=current", baseProfile));
@@ -283,24 +274,20 @@ public final class ProfileMutators {
             List<ExecutionProfileVariant> variants = new ArrayList<>();
             for (FusedPrimaryBackend primary : safePrimary) {
                 for (Boolean allowFallback : safeFallback) {
-                    for (Boolean compareDirect : safeCompare) {
-                        FusedExecutionPolicy policy = new FusedExecutionPolicy(
-                                primary,
-                                allowFallback,
-                                compareDirect
-                        );
-                        variants.add(new ExecutionProfileVariant(
-                                "fused=" + primary.name()
-                                        + ":fallback=" + allowFallback
-                                        + ":cmp=" + compareDirect,
-                                withRuntime(baseProfile, new config.runtime.RuntimeConfig(
-                                        baseProfile.runtime().kernel(),
-                                        baseProfile.runtime().approximation(),
-                                        baseProfile.runtime().blas(),
-                                        policy
-                                ))
-                        ));
-                    }
+                    FusedExecutionPolicy policy = new FusedExecutionPolicy(
+                            primary,
+                            allowFallback
+                    );
+                    variants.add(new ExecutionProfileVariant(
+                            "fused=" + primary.name()
+                                    + ":fallback=" + allowFallback,
+                            withRuntime(baseProfile, new config.runtime.RuntimeConfig(
+                                    baseProfile.runtime().kernel(),
+                                    baseProfile.runtime().approximation(),
+                                    baseProfile.runtime().blas(),
+                                    policy
+                            ))
+                    ));
                 }
             }
             return variants;
@@ -332,70 +319,39 @@ public final class ProfileMutators {
         };
     }
 
-    public static ExecutionProfileMutator blasThreadPolicies(List<BlasThreadPolicy> policies, List<Integer> fixedThreadCounts) {
-        List<BlasThreadPolicy> safePolicies = policies == null ? List.of() : List.copyOf(policies);
-        List<Integer> safeCounts = fixedThreadCounts == null ? List.of(1) : List.copyOf(fixedThreadCounts);
+    public static ExecutionProfileMutator blasThreads(List<Integer> threadCounts) {
+        List<Integer> safeCounts = threadCounts == null ? List.of() : List.copyOf(threadCounts);
         return (baseProfile, workload) -> {
             if (!usesMatmulRuntimePolicies(workload.kind())) {
-                return List.of(new ExecutionProfileVariant("blasThread=" + baseProfile.runtime().blas().threadPolicy().name(), baseProfile));
+                return List.of(new ExecutionProfileVariant("blasThreads=" + formatBlasThreads(baseProfile.runtime().blas().threads()), baseProfile));
             }
             List<ExecutionProfileVariant> variants = new ArrayList<>();
-            for (BlasThreadPolicy policy : safePolicies) {
-                if (policy == BlasThreadPolicy.FIXED) {
-                    for (Integer threads : safeCounts) {
-                        BlasConfig cfg = new BlasConfig(
-                                baseProfile.runtime().blas().provider(),
-                                baseProfile.runtime().blas().matmulMinWork(),
-                                baseProfile.runtime().blas().f32RequireMgeK(),
-                                baseProfile.runtime().blas().f32MaxNOverK(),
-                                baseProfile.runtime().blas().debug(),
-                                policy,
-                                threads
-                        );
-                        variants.add(new ExecutionProfileVariant(
-                                "blasThread=" + policy.name() + ":" + threads,
-                                new ExecutionProfile(
-                                        baseProfile.profileName(),
-                                        baseProfile.candidateName(),
-                                        baseProfile.dataType(),
-                                        baseProfile.mode(),
-                                        baseProfile.optimizer(),
-                                        new config.runtime.RuntimeConfig(
-                                                baseProfile.runtime().kernel(),
-                                                baseProfile.runtime().approximation(),
-                                                cfg
-                                        ),
-                                        baseProfile.workload()
-                                )
-                        ));
-                    }
-                } else {
-                    BlasConfig cfg = new BlasConfig(
-                            baseProfile.runtime().blas().provider(),
-                            baseProfile.runtime().blas().matmulMinWork(),
-                            baseProfile.runtime().blas().f32RequireMgeK(),
-                            baseProfile.runtime().blas().f32MaxNOverK(),
-                            baseProfile.runtime().blas().debug(),
-                            policy,
-                            0
-                    );
-                    variants.add(new ExecutionProfileVariant(
-                            "blasThread=" + policy.name(),
-                            new ExecutionProfile(
-                                    baseProfile.profileName(),
-                                    baseProfile.candidateName(),
-                                    baseProfile.dataType(),
-                                    baseProfile.mode(),
-                                    baseProfile.optimizer(),
-                                    new config.runtime.RuntimeConfig(
-                                            baseProfile.runtime().kernel(),
-                                            baseProfile.runtime().approximation(),
-                                            cfg
-                                    ),
-                                    baseProfile.workload()
-                            )
-                    ));
-                }
+            for (Integer threads : safeCounts) {
+                BlasConfig cfg = new BlasConfig(
+                        baseProfile.runtime().blas().provider(),
+                        baseProfile.runtime().blas().matmulMinWork(),
+                        baseProfile.runtime().blas().f32RequireMgeK(),
+                        baseProfile.runtime().blas().f32MaxNOverK(),
+                        baseProfile.runtime().blas().debug(),
+                        threads == null ? 0 : threads
+                );
+                variants.add(new ExecutionProfileVariant(
+                        "blasThreads=" + formatBlasThreads(cfg.threads()),
+                        new ExecutionProfile(
+                                baseProfile.profileName(),
+                                baseProfile.candidateName(),
+                                baseProfile.dataType(),
+                                baseProfile.mode(),
+                                baseProfile.optimizer(),
+                                new config.runtime.RuntimeConfig(
+                                        baseProfile.runtime().kernel(),
+                                        baseProfile.runtime().approximation(),
+                                        cfg,
+                                        baseProfile.runtime().fused()
+                                ),
+                                baseProfile.workload()
+                        )
+                ));
             }
             return variants;
         };
@@ -424,11 +380,46 @@ public final class ProfileMutators {
                             baseProfile.runtime().blas().f32RequireMgeK(),
                             baseProfile.runtime().blas().f32MaxNOverK(),
                             baseProfile.runtime().blas().debug(),
-                            baseProfile.runtime().blas().threadPolicy(),
                             baseProfile.runtime().blas().threads()
                     );
                     variants.add(new ExecutionProfileVariant(
                             "blasProvider=" + provider.name() + ":minWork=" + cfg.matmulMinWork(),
+                            withBlas(baseProfile, cfg)
+                    ));
+                }
+            }
+            return variants;
+        };
+    }
+
+    public static ExecutionProfileMutator matmulBlasShapeHeuristics(
+            List<Boolean> requireMgeKValues,
+            List<Double> maxNOverKValues
+    ) {
+        List<Boolean> safeRequire = requireMgeKValues == null ? List.of() : List.copyOf(requireMgeKValues);
+        List<Double> safeRatios = maxNOverKValues == null ? List.of() : List.copyOf(maxNOverKValues);
+        return (baseProfile, workload) -> {
+            if (!usesMatmulRuntimePolicies(workload.kind())) {
+                return List.of(new ExecutionProfileVariant(
+                        "blasShape="
+                                + baseProfile.runtime().blas().f32RequireMgeK()
+                                + ":" + baseProfile.runtime().blas().f32MaxNOverK(),
+                        baseProfile
+                ));
+            }
+            List<ExecutionProfileVariant> variants = new ArrayList<>();
+            for (Boolean requireMgeK : safeRequire) {
+                for (Double maxNOverK : safeRatios) {
+                    BlasConfig cfg = new BlasConfig(
+                            baseProfile.runtime().blas().provider(),
+                            baseProfile.runtime().blas().matmulMinWork(),
+                            requireMgeK == null ? baseProfile.runtime().blas().f32RequireMgeK() : requireMgeK,
+                            maxNOverK == null ? baseProfile.runtime().blas().f32MaxNOverK() : maxNOverK,
+                            baseProfile.runtime().blas().debug(),
+                            baseProfile.runtime().blas().threads()
+                    );
+                    variants.add(new ExecutionProfileVariant(
+                            "blasShape=" + cfg.f32RequireMgeK() + ":" + cfg.f32MaxNOverK(),
                             withBlas(baseProfile, cfg)
                     ));
                 }
@@ -455,6 +446,13 @@ public final class ProfileMutators {
                                 null,
                                 null,
                                 null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
                                 policy,
                                 null
                         ))
@@ -464,29 +462,43 @@ public final class ProfileMutators {
         };
     }
 
-    public static ExecutionProfileMutator vectorPolicies(
-            List<VectorPolicy> cheapPolicies,
-            List<VectorPolicy> transcendentalPolicies,
-            List<VectorPolicy> reductionPolicies
+    public static ExecutionProfileMutator vectorThresholds(
+            List<Integer> cheapThresholds,
+            List<Integer> transcendentalThresholds,
+            List<Integer> reductionThresholds
     ) {
-        List<VectorPolicy> safeCheap = cheapPolicies == null ? List.of() : List.copyOf(cheapPolicies);
-        List<VectorPolicy> safeTrans = transcendentalPolicies == null ? List.of() : List.copyOf(transcendentalPolicies);
-        List<VectorPolicy> safeRed = reductionPolicies == null ? List.of() : List.copyOf(reductionPolicies);
+        List<Integer> safeCheap = cheapThresholds == null ? List.of() : List.copyOf(cheapThresholds);
+        List<Integer> safeTrans = transcendentalThresholds == null ? List.of() : List.copyOf(transcendentalThresholds);
+        List<Integer> safeRed = reductionThresholds == null ? List.of() : List.copyOf(reductionThresholds);
         return (baseProfile, workload) -> {
             if (!usesVectorRuntimePolicies(workload.kind())) {
-                return List.of(new ExecutionProfileVariant("vectorPolicies=current", baseProfile));
+                CpuKernelConfig cpu = baseProfile.runtime().kernel().cpu();
+                return List.of(new ExecutionProfileVariant(
+                        "vectorThresholds="
+                                + cpu.cheapVectorMinSize() + "/"
+                                + cpu.transcendentalVectorMinSize() + "/"
+                                + cpu.reductionVectorMinSize(),
+                        baseProfile
+                ));
             }
             List<ExecutionProfileVariant> variants = new ArrayList<>();
-            for (VectorPolicy cheap : safeCheap) {
-                for (VectorPolicy trans : safeTrans) {
-                    for (VectorPolicy red : safeRed) {
+            for (Integer cheap : safeCheap) {
+                for (Integer trans : safeTrans) {
+                    for (Integer red : safeRed) {
                         variants.add(new ExecutionProfileVariant(
-                                "vectorPolicies=" + cheap.name() + "/" + trans.name() + "/" + red.name(),
+                                "vectorThresholds=" + cheap + "/" + trans + "/" + red,
                                 withCpuKernelConfig(baseProfile, copyCpuKernelConfig(
                                         baseProfile.runtime().kernel().cpu(),
                                         cheap,
                                         trans,
+                                        null,
+                                        null,
                                         red,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
                                         null,
                                         null
                                 ))
@@ -515,8 +527,16 @@ public final class ProfileMutators {
                         baseCpu.matMulTileM(),
                         baseCpu.matMulTileN(),
                         baseCpu.matMulTileK(),
-                        baseCpu.vectorMinSize(),
-                        baseCpu.parallelMinSize(),
+                        baseCpu.cheapVectorMinSize(),
+                        baseCpu.transcendentalVectorMinSize(),
+                        baseCpu.fusedCheapVectorMinSize(),
+                        baseCpu.fusedTranscendentalVectorMinSize(),
+                        baseCpu.reductionVectorMinSize(),
+                        baseCpu.cheapParallelMinSize(),
+                        baseCpu.transcendentalParallelMinSize(),
+                        baseCpu.fusedCheapParallelMinSize(),
+                        baseCpu.fusedTranscendentalParallelMinSize(),
+                        baseCpu.reductionParallelMinSize(),
                         baseCpu.contiguousMaterializeThreshold(),
                         baseCpu.lowCostTargetChunksPerWorker(),
                         baseCpu.mediumCostTargetChunksPerWorker(),
@@ -527,9 +547,6 @@ public final class ProfileMutators {
                         baseCpu.commonPoolLowCostMaxWorkPerWorker(),
                         width == null ? baseCpu.fusedAsmVectorWidth() : width,
                         baseCpu.sumAccuracyMode(),
-                        baseCpu.vectorPolicyCheap(),
-                        baseCpu.vectorPolicyTranscendental(),
-                        baseCpu.vectorPolicyReduction(),
                         baseCpu.matMulParallelMinSize(),
                         baseCpu.attentionMatMulPolicy()
                 );
@@ -561,9 +578,134 @@ public final class ProfileMutators {
                                 null,
                                 null,
                                 null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
                                 threshold
                         ))
                 ));
+            }
+            return variants;
+        };
+    }
+
+    public static ExecutionProfileMutator parallelThresholds(
+            List<Integer> cheapThresholds,
+            List<Integer> transcendentalThresholds,
+            List<Integer> reductionThresholds
+    ) {
+        List<Integer> safeCheap = cheapThresholds == null ? List.of() : List.copyOf(cheapThresholds);
+        List<Integer> safeTrans = transcendentalThresholds == null ? List.of() : List.copyOf(transcendentalThresholds);
+        List<Integer> safeRed = reductionThresholds == null ? List.of() : List.copyOf(reductionThresholds);
+        return (baseProfile, workload) -> {
+            if (!usesVectorRuntimePolicies(workload.kind())) {
+                CpuKernelConfig cpu = baseProfile.runtime().kernel().cpu();
+                return List.of(new ExecutionProfileVariant(
+                        "parallelThresholds="
+                                + cpu.cheapParallelMinSize() + "/"
+                                + cpu.transcendentalParallelMinSize() + "/"
+                                + cpu.reductionParallelMinSize(),
+                        baseProfile
+                ));
+            }
+            List<ExecutionProfileVariant> variants = new ArrayList<>();
+            for (Integer cheap : safeCheap) {
+                for (Integer trans : safeTrans) {
+                    for (Integer red : safeRed) {
+                        CpuKernelConfig baseCpu = baseProfile.runtime().kernel().cpu();
+                        CpuKernelConfig tunedCpu = new CpuKernelConfig(
+                                baseCpu.loopUnrollFactor(),
+                                baseCpu.matMulTileM(),
+                                baseCpu.matMulTileN(),
+                                baseCpu.matMulTileK(),
+                                baseCpu.cheapVectorMinSize(),
+                                baseCpu.transcendentalVectorMinSize(),
+                                baseCpu.fusedCheapVectorMinSize(),
+                                baseCpu.fusedTranscendentalVectorMinSize(),
+                                baseCpu.reductionVectorMinSize(),
+                                cheap == null ? baseCpu.cheapParallelMinSize() : cheap,
+                                trans == null ? baseCpu.transcendentalParallelMinSize() : trans,
+                                baseCpu.fusedCheapParallelMinSize(),
+                                baseCpu.fusedTranscendentalParallelMinSize(),
+                                red == null ? baseCpu.reductionParallelMinSize() : red,
+                                baseCpu.contiguousMaterializeThreshold(),
+                                baseCpu.lowCostTargetChunksPerWorker(),
+                                baseCpu.mediumCostTargetChunksPerWorker(),
+                                baseCpu.highCostTargetChunksPerWorker(),
+                                baseCpu.minScalarChunkSize(),
+                                baseCpu.minVectorChunkSize(),
+                                baseCpu.minReductionChunkSize(),
+                                baseCpu.commonPoolLowCostMaxWorkPerWorker(),
+                                baseCpu.fusedAsmVectorWidth(),
+                                baseCpu.sumAccuracyMode(),
+                                baseCpu.matMulParallelMinSize(),
+                                baseCpu.attentionMatMulPolicy()
+                        );
+                        variants.add(new ExecutionProfileVariant(
+                                "parallelThresholds=" + tunedCpu.cheapParallelMinSize()
+                                        + "/" + tunedCpu.transcendentalParallelMinSize()
+                                        + "/" + tunedCpu.reductionParallelMinSize(),
+                                withCpuKernelConfig(baseProfile, tunedCpu)
+                        ));
+                    }
+                }
+            }
+            return variants;
+        };
+    }
+
+    public static ExecutionProfileMutator fusedDispatchThresholds(
+            List<Integer> cheapVectorThresholds,
+            List<Integer> transcendentalVectorThresholds,
+            List<Integer> cheapParallelThresholds,
+            List<Integer> transcendentalParallelThresholds
+    ) {
+        List<Integer> safeCheapVec = cheapVectorThresholds == null ? List.of() : List.copyOf(cheapVectorThresholds);
+        List<Integer> safeTransVec = transcendentalVectorThresholds == null ? List.of() : List.copyOf(transcendentalVectorThresholds);
+        List<Integer> safeCheapPar = cheapParallelThresholds == null ? List.of() : List.copyOf(cheapParallelThresholds);
+        List<Integer> safeTransPar = transcendentalParallelThresholds == null ? List.of() : List.copyOf(transcendentalParallelThresholds);
+        return (baseProfile, workload) -> {
+            if (!usesFusedRuntimePolicies(workload.kind())) {
+                CpuKernelConfig cpu = baseProfile.runtime().kernel().cpu();
+                return List.of(new ExecutionProfileVariant(
+                        "fusedDispatchThresholds="
+                                + cpu.fusedCheapVectorMinSize() + "/"
+                                + cpu.fusedTranscendentalVectorMinSize() + "/"
+                                + cpu.fusedCheapParallelMinSize() + "/"
+                                + cpu.fusedTranscendentalParallelMinSize(),
+                        baseProfile
+                ));
+            }
+            List<ExecutionProfileVariant> variants = new ArrayList<>();
+            for (Integer cheapVec : safeCheapVec) {
+                for (Integer transVec : safeTransVec) {
+                    for (Integer cheapPar : safeCheapPar) {
+                        for (Integer transPar : safeTransPar) {
+                            variants.add(new ExecutionProfileVariant(
+                                    "fusedDispatchThresholds=" + cheapVec + "/" + transVec + "/" + cheapPar + "/" + transPar,
+                                    withCpuKernelConfig(baseProfile, copyCpuKernelConfig(
+                                            baseProfile.runtime().kernel().cpu(),
+                                            null,
+                                            null,
+                                            cheapVec,
+                                            transVec,
+                                            null,
+                                            null,
+                                            null,
+                                            cheapPar,
+                                            transPar,
+                                            null,
+                                            null,
+                                            null
+                                    ))
+                            ));
+                        }
+                    }
+                }
             }
             return variants;
         };
@@ -638,9 +780,16 @@ public final class ProfileMutators {
 
     private static CpuKernelConfig copyCpuKernelConfig(
             CpuKernelConfig base,
-            VectorPolicy cheap,
-            VectorPolicy transcendental,
-            VectorPolicy reduction,
+            Integer cheapVectorMinSize,
+            Integer transcendentalVectorMinSize,
+            Integer fusedCheapVectorMinSize,
+            Integer fusedTranscendentalVectorMinSize,
+            Integer reductionVectorMinSize,
+            Integer cheapParallelMinSize,
+            Integer transcendentalParallelMinSize,
+            Integer fusedCheapParallelMinSize,
+            Integer fusedTranscendentalParallelMinSize,
+            Integer reductionParallelMinSize,
             AttentionMatMulPolicy attention,
             Integer matmulParallelMin
     ) {
@@ -649,8 +798,16 @@ public final class ProfileMutators {
                 base.matMulTileM(),
                 base.matMulTileN(),
                 base.matMulTileK(),
-                base.vectorMinSize(),
-                base.parallelMinSize(),
+                cheapVectorMinSize == null ? base.cheapVectorMinSize() : cheapVectorMinSize,
+                transcendentalVectorMinSize == null ? base.transcendentalVectorMinSize() : transcendentalVectorMinSize,
+                fusedCheapVectorMinSize == null ? base.fusedCheapVectorMinSize() : fusedCheapVectorMinSize,
+                fusedTranscendentalVectorMinSize == null ? base.fusedTranscendentalVectorMinSize() : fusedTranscendentalVectorMinSize,
+                reductionVectorMinSize == null ? base.reductionVectorMinSize() : reductionVectorMinSize,
+                cheapParallelMinSize == null ? base.cheapParallelMinSize() : cheapParallelMinSize,
+                transcendentalParallelMinSize == null ? base.transcendentalParallelMinSize() : transcendentalParallelMinSize,
+                fusedCheapParallelMinSize == null ? base.fusedCheapParallelMinSize() : fusedCheapParallelMinSize,
+                fusedTranscendentalParallelMinSize == null ? base.fusedTranscendentalParallelMinSize() : fusedTranscendentalParallelMinSize,
+                reductionParallelMinSize == null ? base.reductionParallelMinSize() : reductionParallelMinSize,
                 base.contiguousMaterializeThreshold(),
                 base.lowCostTargetChunksPerWorker(),
                 base.mediumCostTargetChunksPerWorker(),
@@ -661,9 +818,6 @@ public final class ProfileMutators {
                 base.commonPoolLowCostMaxWorkPerWorker(),
                 base.fusedAsmVectorWidth(),
                 base.sumAccuracyMode(),
-                cheap == null ? base.vectorPolicyCheap() : cheap,
-                transcendental == null ? base.vectorPolicyTranscendental() : transcendental,
-                reduction == null ? base.vectorPolicyReduction() : reduction,
                 matmulParallelMin == null ? base.matMulParallelMinSize() : matmulParallelMin,
                 attention == null ? base.attentionMatMulPolicy() : attention
         );
@@ -697,6 +851,10 @@ public final class ProfileMutators {
             return "NONE";
         }
         return String.join("-", stageOrder.stream().map(Enum::name).toList());
+    }
+
+    private static String formatBlasThreads(int threads) {
+        return threads <= 0 ? "AUTO" : Integer.toString(threads);
     }
 
     private static boolean isConstrainedStageOrder(List<OptimizerStage> stageOrder) {

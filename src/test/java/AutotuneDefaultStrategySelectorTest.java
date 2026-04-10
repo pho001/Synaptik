@@ -77,7 +77,6 @@ public class AutotuneDefaultStrategySelectorTest {
                                 true,
                                 3.0d,
                                 false,
-                                backend.blas.BlasThreadPolicy.AUTO,
                                 0
                         )
                 ),

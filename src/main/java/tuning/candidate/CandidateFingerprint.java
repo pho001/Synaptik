@@ -58,8 +58,12 @@ public final class CandidateFingerprint {
         sb.append("cpu.tileM=").append(cpu.matMulTileM()).append('|');
         sb.append("cpu.tileN=").append(cpu.matMulTileN()).append('|');
         sb.append("cpu.tileK=").append(cpu.matMulTileK()).append('|');
-        sb.append("cpu.vectorMin=").append(cpu.vectorMinSize()).append('|');
-        sb.append("cpu.parallelMin=").append(cpu.parallelMinSize()).append('|');
+        sb.append("cpu.cheapVectorMin=").append(cpu.cheapVectorMinSize()).append('|');
+        sb.append("cpu.transVectorMin=").append(cpu.transcendentalVectorMinSize()).append('|');
+        sb.append("cpu.redVectorMin=").append(cpu.reductionVectorMinSize()).append('|');
+        sb.append("cpu.cheapParallelMin=").append(cpu.cheapParallelMinSize()).append('|');
+        sb.append("cpu.transParallelMin=").append(cpu.transcendentalParallelMinSize()).append('|');
+        sb.append("cpu.redParallelMin=").append(cpu.reductionParallelMinSize()).append('|');
         sb.append("cpu.matmulParallelMin=").append(cpu.matMulParallelMinSize()).append('|');
         sb.append("cpu.contiguousThreshold=").append(cpu.contiguousMaterializeThreshold()).append('|');
         sb.append("cpu.lowChunksPerWorker=").append(cpu.lowCostTargetChunksPerWorker()).append('|');
@@ -71,9 +75,6 @@ public final class CandidateFingerprint {
         sb.append("cpu.commonPoolLowCostMaxWorkPerWorker=").append(cpu.commonPoolLowCostMaxWorkPerWorker()).append('|');
         sb.append("cpu.fusedAsmVectorWidth=").append(cpu.fusedAsmVectorWidth()).append('|');
         sb.append("cpu.sumAccuracy=").append(cpu.sumAccuracyMode()).append('|');
-        sb.append("cpu.vecCheap=").append(cpu.vectorPolicyCheap()).append('|');
-        sb.append("cpu.vecTrans=").append(cpu.vectorPolicyTranscendental()).append('|');
-        sb.append("cpu.vecRed=").append(cpu.vectorPolicyReduction()).append('|');
         sb.append("cpu.attnMatMul=").append(cpu.attentionMatMulPolicy()).append('|');
         sb.append("approx.mode=").append(runtime.approximation().approxMode()).append('|');
         sb.append("approx.forceExact=").append(runtime.approximation().forceExactTranscendentals()).append('|');
@@ -81,21 +82,9 @@ public final class CandidateFingerprint {
         sb.append("blas.minWork=").append(runtime.blas().matmulMinWork()).append('|');
         sb.append("blas.f32Req=").append(runtime.blas().f32RequireMgeK()).append('|');
         sb.append("blas.f32MaxNOverK=").append(fmt(runtime.blas().f32MaxNOverK())).append('|');
-        sb.append("blas.threadPolicy=").append(runtime.blas().threadPolicy()).append('|');
         sb.append("blas.threads=").append(runtime.blas().threads()).append('|');
         sb.append("fused.primary=").append(runtime.fused().primaryBackend()).append('|');
         sb.append("fused.allowFallback=").append(runtime.fused().allowBackendFallback()).append('|');
-        sb.append("fused.compareDirect=").append(runtime.fused().preferDirectForCompareSelect()).append('|');
-
-        var workload = profile.workload();
-        sb.append("workload.kind=").append(workload.kind()).append('|');
-        sb.append("workload.batch=").append(workload.batch()).append('|');
-        sb.append("workload.heads=").append(workload.heads()).append('|');
-        sb.append("workload.seqLen=").append(workload.seqLen()).append('|');
-        sb.append("workload.headDim=").append(workload.headDim()).append('|');
-        sb.append("workload.valueDim=").append(workload.valueDim()).append('|');
-        sb.append("workload.ffHiddenDim=").append(workload.ffHiddenDim()).append('|');
-        sb.append("workload.causal=").append(workload.causal()).append('|');
         return sb.toString();
     }
 

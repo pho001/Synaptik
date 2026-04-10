@@ -77,7 +77,6 @@ public class ComputeModeTraceTest {
                         false,
                         100.0d,
                         false,
-                        backend.blas.BlasThreadPolicy.FIXED,
                         1
                 )
         );

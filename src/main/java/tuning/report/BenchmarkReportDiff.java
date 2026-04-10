@@ -1,5 +1,7 @@
 package tuning.report;
 
+import tuning.session.BenchmarkEntryRole;
+
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -28,11 +30,11 @@ public record BenchmarkReportDiff(
         }
         Map<String, BenchmarkCandidateReport> previousByName = new LinkedHashMap<>();
         for (BenchmarkCandidateReport candidate : previous.candidates()) {
-            previousByName.put(candidate.candidate().name(), candidate);
+            previousByName.put(candidate.entry().name(), candidate);
         }
         Map<String, BenchmarkCandidateReport> currentByName = new LinkedHashMap<>();
         for (BenchmarkCandidateReport candidate : current.candidates()) {
-            currentByName.put(candidate.candidate().name(), candidate);
+            currentByName.put(candidate.entry().name(), candidate);
         }
 
         java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
@@ -47,7 +49,7 @@ public record BenchmarkReportDiff(
             double currentMedian = median(after);
             diffs.add(new BenchmarkCandidateDiff(
                     name,
-                    after != null ? after.baselineKind() : before != null ? before.baselineKind() : BenchmarkBaselineKind.NONE,
+                    after != null ? after.entry().role() : before != null ? before.entry().role() : BenchmarkEntryRole.CANDIDATE,
                     before != null && before.success(),
                     after != null && after.success(),
                     previousMedian,

@@ -281,7 +281,7 @@ public class CompiledGraph {
                             (FusedOperation) operation,
                             cpuPlan.computeMode(),
                             tensor.getFlatDataSize(),
-                            runtimeConfig.cpuKernelConfig().vectorMinSize()
+                            planner.fusedDirectVectorMinSize((FusedOperation) operation)
                     ),
                     runtimeConfig.fusedExecutionPolicy()
             );

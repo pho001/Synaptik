@@ -350,6 +350,7 @@ public class SearchStrategiesTest {
         );
         var request = new AutotuneRequest(
                 workload,
+                candidate("seed").profile(),
                 new ListCandidateSpace(List.of()),
                 tuning.measure.MeasurementPolicy.defaults(),
                 tuning.validate.ValidationPolicy.disabled(),
@@ -381,6 +382,7 @@ public class SearchStrategiesTest {
     void workloadAwareBoundModelPenalizesTransformerForceOff() {
         var request = new AutotuneRequest(
                 tuning.workload.StandardWorkloads.transformerHotPath("transformer"),
+                candidate("seed").profile(),
                 new ListCandidateSpace(List.of()),
                 tuning.measure.MeasurementPolicy.defaults(),
                 tuning.validate.ValidationPolicy.disabled(),

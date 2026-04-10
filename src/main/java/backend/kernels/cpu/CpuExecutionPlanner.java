@@ -5,7 +5,6 @@ import backend.runtime.BlasConfig;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
-import config.backend.VectorPolicy;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import operations.FusedOperation;
@@ -24,8 +23,16 @@ public final class CpuExecutionPlanner {
     private final int matMulTileM;
     private final int matMulTileN;
     private final int matMulTileK;
-    private final int vectorMinSize;
-    private final int parallelMinSize;
+    private final int cheapVectorMinSize;
+    private final int transcendentalVectorMinSize;
+    private final int fusedCheapVectorMinSize;
+    private final int fusedTranscendentalVectorMinSize;
+    private final int reductionVectorMinSize;
+    private final int cheapParallelMinSize;
+    private final int transcendentalParallelMinSize;
+    private final int fusedCheapParallelMinSize;
+    private final int fusedTranscendentalParallelMinSize;
+    private final int reductionParallelMinSize;
     private final int matMulParallelMinSize;
     private final int contiguousMaterializeThreshold;
     private final int lowCostTargetChunksPerWorker;
@@ -37,17 +44,22 @@ public final class CpuExecutionPlanner {
     private final int commonPoolLowCostMaxWorkPerWorker;
     private final int fusedAsmVectorWidth;
     private final SumAccuracyMode sumAccuracyMode;
-    private final VectorPolicy vectorPolicyCheap;
-    private final VectorPolicy vectorPolicyTranscendental;
-    private final VectorPolicy vectorPolicyReduction;
     private final AttentionMatMulPolicy attentionMatMulPolicy;
 
     public CpuExecutionPlanner(
-            int vectorMinSize,
             int matMulTileM,
             int matMulTileN,
             int matMulTileK,
-            int parallelMinSize,
+            int cheapVectorMinSize,
+            int transcendentalVectorMinSize,
+            int fusedCheapVectorMinSize,
+            int fusedTranscendentalVectorMinSize,
+            int reductionVectorMinSize,
+            int cheapParallelMinSize,
+            int transcendentalParallelMinSize,
+            int fusedCheapParallelMinSize,
+            int fusedTranscendentalParallelMinSize,
+            int reductionParallelMinSize,
             int matMulParallelMinSize,
             int contiguousMaterializeThreshold,
             int lowCostTargetChunksPerWorker,
@@ -59,16 +71,21 @@ public final class CpuExecutionPlanner {
             int commonPoolLowCostMaxWorkPerWorker,
             int fusedAsmVectorWidth,
             SumAccuracyMode sumAccuracyMode,
-            VectorPolicy vectorPolicyCheap,
-            VectorPolicy vectorPolicyTranscendental,
-            VectorPolicy vectorPolicyReduction,
             AttentionMatMulPolicy attentionMatMulPolicy
     ) {
-        this.vectorMinSize = Math.max(1, vectorMinSize);
         this.matMulTileM = positiveOrDefault(matMulTileM, DEFAULT_MATMUL_TILE_M);
         this.matMulTileN = positiveOrDefault(matMulTileN, DEFAULT_MATMUL_TILE_N);
         this.matMulTileK = positiveOrDefault(matMulTileK, DEFAULT_MATMUL_TILE_K);
-        this.parallelMinSize = Math.max(1, parallelMinSize);
+        this.cheapVectorMinSize = Math.max(1, cheapVectorMinSize);
+        this.transcendentalVectorMinSize = Math.max(1, transcendentalVectorMinSize);
+        this.fusedCheapVectorMinSize = Math.max(1, fusedCheapVectorMinSize);
+        this.fusedTranscendentalVectorMinSize = Math.max(1, fusedTranscendentalVectorMinSize);
+        this.reductionVectorMinSize = Math.max(1, reductionVectorMinSize);
+        this.cheapParallelMinSize = Math.max(1, cheapParallelMinSize);
+        this.transcendentalParallelMinSize = Math.max(1, transcendentalParallelMinSize);
+        this.fusedCheapParallelMinSize = Math.max(1, fusedCheapParallelMinSize);
+        this.fusedTranscendentalParallelMinSize = Math.max(1, fusedTranscendentalParallelMinSize);
+        this.reductionParallelMinSize = Math.max(1, reductionParallelMinSize);
         this.matMulParallelMinSize = Math.max(1, matMulParallelMinSize);
         this.contiguousMaterializeThreshold = Math.max(0, contiguousMaterializeThreshold);
         this.lowCostTargetChunksPerWorker = Math.max(1, lowCostTargetChunksPerWorker);
@@ -80,20 +97,25 @@ public final class CpuExecutionPlanner {
         this.commonPoolLowCostMaxWorkPerWorker = Math.max(1, commonPoolLowCostMaxWorkPerWorker);
         this.fusedAsmVectorWidth = Math.max(1, fusedAsmVectorWidth);
         this.sumAccuracyMode = Objects.requireNonNullElse(sumAccuracyMode, SumAccuracyMode.FAST);
-        this.vectorPolicyCheap = Objects.requireNonNullElse(vectorPolicyCheap, VectorPolicy.AUTO);
-        this.vectorPolicyTranscendental = Objects.requireNonNullElse(vectorPolicyTranscendental, VectorPolicy.AUTO);
-        this.vectorPolicyReduction = Objects.requireNonNullElse(vectorPolicyReduction, VectorPolicy.AUTO);
         this.attentionMatMulPolicy = Objects.requireNonNullElse(attentionMatMulPolicy, AttentionMatMulPolicy.AUTO);
     }
 
     public static CpuExecutionPlanner from(CpuKernelConfig config) {
         Objects.requireNonNull(config, "config cannot be null");
         return new CpuExecutionPlanner(
-                config.vectorMinSize(),
                 config.matMulTileM(),
                 config.matMulTileN(),
                 config.matMulTileK(),
-                config.parallelMinSize(),
+                config.cheapVectorMinSize(),
+                config.transcendentalVectorMinSize(),
+                config.fusedCheapVectorMinSize(),
+                config.fusedTranscendentalVectorMinSize(),
+                config.reductionVectorMinSize(),
+                config.cheapParallelMinSize(),
+                config.transcendentalParallelMinSize(),
+                config.fusedCheapParallelMinSize(),
+                config.fusedTranscendentalParallelMinSize(),
+                config.reductionParallelMinSize(),
                 config.matMulParallelMinSize(),
                 config.contiguousMaterializeThreshold(),
                 config.lowCostTargetChunksPerWorker(),
@@ -105,9 +127,6 @@ public final class CpuExecutionPlanner {
                 config.commonPoolLowCostMaxWorkPerWorker(),
                 config.fusedAsmVectorWidth(),
                 config.sumAccuracyMode(),
-                config.vectorPolicyCheap(),
-                config.vectorPolicyTranscendental(),
-                config.vectorPolicyReduction(),
                 config.attentionMatMulPolicy()
         );
     }
@@ -211,10 +230,9 @@ public final class CpuExecutionPlanner {
         int vectorWidth = fused
                 ? resolvedFusedAsmVectorWidth(computeMode)
                 : preferredVectorWidth(node.getDataType(), computeMode);
-        VectorPolicy policy = fused ? VectorPolicy.AUTO : resolveElementWisePolicy(op);
         boolean vectorAllowed = fused
                 ? vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op)
-                : vectorWidth > 1 && isVectorAllowed(policy, totalLength, effectiveVectorMinSize(op));
+                : vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op);
         CpuKernelCostClass costClass = resolveDispatchCostClass(op);
 
         CpuExecutionMode mode;
@@ -239,10 +257,10 @@ public final class CpuExecutionPlanner {
     public ResolvedReductionHints resolveReductionHints(int logicalSize, DataType dataType, CpuComputeMode computeMode) {
         int size = Math.max(0, logicalSize);
         int vectorWidth = preferredVectorWidth(dataType, computeMode);
-        boolean vectorAllowed = vectorWidth > 1 && isVectorAllowed(vectorPolicyReduction, size, vectorMinSize);
+        boolean vectorAllowed = vectorWidth > 1 && size >= reductionVectorMinSize;
 
         CpuExecutionMode mode;
-        if (size >= parallelMinSize) {
+        if (size >= reductionParallelMinSize) {
             mode = vectorAllowed ? CpuExecutionMode.PARALLEL_VECTOR : CpuExecutionMode.PARALLEL;
         } else {
             mode = vectorAllowed ? CpuExecutionMode.VECTOR : CpuExecutionMode.SCALAR;
@@ -442,26 +460,8 @@ public final class CpuExecutionPlanner {
         return os[oBatchRank - 1] == as[aBatchRank - 1];
     }
 
-    private VectorPolicy resolveElementWisePolicy(Operation op) {
-        if (op == null) {
-            return VectorPolicy.AUTO;
-        }
-        return switch (op.opType()) {
-            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> vectorPolicyTranscendental;
-            default -> vectorPolicyCheap;
-        };
-    }
-
-    private boolean isVectorAllowed(VectorPolicy policy, int size, int minSize) {
-        return switch (policy) {
-            case FORCE_ON -> true;
-            case FORCE_OFF -> false;
-            case AUTO -> size >= Math.max(1, minSize);
-        };
-    }
-
     private int effectiveVectorMinSize(Operation op) {
-        int base = Math.max(1, vectorMinSize);
+        int base = Math.max(1, resolveBaseVectorMinSize(op));
         if (op == null) {
             return base;
         }
@@ -470,10 +470,14 @@ public final class CpuExecutionPlanner {
             return Math.max(1, base / Math.max(1, scale));
         }
         return base;
+    }
+
+    public int fusedDirectVectorMinSize(FusedOperation operation) {
+        return effectiveVectorMinSize(operation);
     }
 
     private int effectiveParallelMinSize(Operation op) {
-        int base = Math.max(1, parallelMinSize);
+        int base = Math.max(1, resolveBaseParallelMinSize(op));
         if (op == null) {
             return base;
         }
@@ -482,6 +486,19 @@ public final class CpuExecutionPlanner {
             return Math.max(1, base / Math.max(1, scale));
         }
         return base;
+    }
+
+    private int resolveBaseParallelMinSize(Operation op) {
+        if (op == null) {
+            return cheapParallelMinSize;
+        }
+        if (op.opType() == Operation.OpType.FUSED && op instanceof FusedOperation fused) {
+            return fusedContainsTranscendental(fused) ? fusedTranscendentalParallelMinSize : fusedCheapParallelMinSize;
+        }
+        return switch (op.opType()) {
+            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> transcendentalParallelMinSize;
+            default -> cheapParallelMinSize;
+        };
     }
 
     private CpuKernelCostClass resolveDispatchCostClass(Operation op) {
@@ -494,6 +511,29 @@ public final class CpuExecutionPlanner {
                     : CpuKernelCostClass.MEDIUM;
         }
         return op.isCheap() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
+    }
+
+    private int resolveBaseVectorMinSize(Operation op) {
+        if (op == null) {
+            return cheapVectorMinSize;
+        }
+        if (op.opType() == Operation.OpType.FUSED && op instanceof FusedOperation fused) {
+            return fusedContainsTranscendental(fused) ? fusedTranscendentalVectorMinSize : fusedCheapVectorMinSize;
+        }
+        return switch (op.opType()) {
+            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> transcendentalVectorMinSize;
+            default -> cheapVectorMinSize;
+        };
+    }
+
+    private boolean fusedContainsTranscendental(FusedOperation fused) {
+        if (fused == null || fused.getPlan() == null) {
+            return false;
+        }
+        return fused.getPlan().nodes().stream().anyMatch(node -> switch (node.opType()) {
+            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> true;
+            default -> false;
+        });
     }
 
     private int resolveTargetChunksPerWorker(CpuKernelCostClass costClass) {

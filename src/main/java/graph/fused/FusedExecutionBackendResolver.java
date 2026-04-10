@@ -2,7 +2,6 @@ package graph.fused;
 
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
-import operations.Operation;
 import graph.fused.asm.AsmFusedExecutionBackend;
 import graph.fused.vector.DirectFusedExecutionBackend;
 
@@ -54,26 +53,6 @@ public final class FusedExecutionBackendResolver {
         if (plan == null || policy == null) {
             return true;
         }
-        if (plan.outputLength() < plan.cpuVectorMinSize()) {
-            return false;
-        }
-        if (!policy.preferDirectForCompareSelect() && containsCompareSelect(plan)) {
-            return false;
-        }
-        return true;
-    }
-
-    private static boolean containsCompareSelect(FusedExecutionPlan plan) {
-        for (var node : plan.descriptor().getPlan().nodes()) {
-            Operation.OpType type = node.opType();
-            switch (type) {
-                case GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> {
-                    return true;
-                }
-                default -> {
-                }
-            }
-        }
-        return false;
+        return plan.outputLength() >= plan.cpuVectorMinSize();
     }
 }

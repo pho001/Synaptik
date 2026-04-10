@@ -20,4 +20,5 @@ public interface BenchmarkSession {
     ) {
         return new DefaultBenchmarkSession(request, measurementEngine, validationEngine);
     }
+
 }

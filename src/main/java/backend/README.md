@@ -85,9 +85,9 @@ Parallel execution uses [src/main/java/backend/kernels/cpu/CpuThreadPool.java](.
 
 Vector dispatch policy can be controlled per operation group via `CpuKernelConfig`:
 
-- `vectorPolicyCheap`
-- `vectorPolicyTranscendental`
-- `vectorPolicyReduction`
+- `cheapVectorMinSize`
+- `transcendentalVectorMinSize`
+- `reductionVectorMinSize`
 
 Each policy supports `AUTO | FORCE_ON | FORCE_OFF`.
 
@@ -152,7 +152,7 @@ Runtime properties:
 - `cg.cpu.blas.debug=true|false` (default `false`)
 - `cg.cpu.blas.f32RequireMgeK=true|false` (default `true`)
 - `cg.cpu.blas.f32MaxNOverK=<double>` (default `3.0`)
-- `cg.cpu.blas.threadPolicy=AUTO|FIXED` (profile/runtime controlled)
+- `cg.cpu.blas.threads=<0|1|2|4|...>` (`0` means auto, profile/runtime controlled)
 - `cg.cpu.blas.threads=<int>` (used when policy is `FIXED`)
 - optional library override:
   - `-Dopenblas.lib=<absolute-path-to-library>`

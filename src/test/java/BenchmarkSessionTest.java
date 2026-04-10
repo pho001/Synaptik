@@ -4,12 +4,10 @@ import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tuning.candidate.Candidate;
 import tuning.report.BenchmarkReport;
-import tuning.report.BenchmarkBaselineKind;
 import tuning.report.JsonBenchmarkReportRenderer;
 import tuning.report.TextBenchmarkReportRenderer;
-import tuning.session.BaselinePolicy;
+import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkRequest;
 import tuning.session.BenchmarkSession;
 import tuning.workload.TensorRootWorkloadSpec;
@@ -48,7 +46,7 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        Candidate candidate = new Candidate("baseline", profile);
+        BenchmarkEntry candidate = BenchmarkEntry.baseline("baseline", profile);
 
         BenchmarkRequest request = new BenchmarkRequest(
                 workload,
@@ -61,10 +59,8 @@ public class BenchmarkSessionTest {
         BenchmarkReport report = BenchmarkSession.create(request).run();
 
         assertEquals("simple_add_mul", report.workloadName());
-        assertEquals(3, report.candidates().size());
-        assertTrue(report.bestCandidateName().equals("baseline")
-                || report.bestCandidateName().equals("BASELINE_NO_OPT")
-                || report.bestCandidateName().equals("BASELINE_NO_OPT_CONSERVATIVE_RUNTIME"));
+        assertEquals(1, report.candidates().size());
+        assertTrue(report.bestCandidateName().isBlank());
         assertTrue(report.candidates().getFirst().success());
         assertTrue(report.candidates().getFirst().measurement().trace().compile().measured());
         assertTrue(report.candidates().getFirst().measurement().trace().prepare().measured());
@@ -73,14 +69,14 @@ public class BenchmarkSessionTest {
     }
 
     @Test
-    void benchmarkSessionAddsBothBaselineVariantsAndReportsSpeedups() {
+    void benchmarkSessionUsesExplicitBaselineAndReportsSpeedup() {
         TensorRootWorkloadSpec workload = new TensorRootWorkloadSpec(
                 "baseline_workload",
                 WorkloadKind.GENERIC,
                 environment -> Tensor.scalar(1.0).add(Tensor.scalar(2.0)).mul(Tensor.scalar(3.0))
         );
 
-        Candidate candidate = new Candidate(
+        BenchmarkEntry baseline = BenchmarkEntry.baseline(
                 "optimized",
                 new ExecutionProfile(
                         "optimized-profile",
@@ -93,20 +89,19 @@ public class BenchmarkSessionTest {
                 )
         );
 
+        BenchmarkEntry tuned = BenchmarkEntry.candidate("candidate", baseline.profile());
+
         BenchmarkReport report = BenchmarkSession.create(new BenchmarkRequest(
                 workload,
-                List.of(candidate),
+                List.of(baseline, tuned),
                 new tuning.measure.MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults(),
-                BaselinePolicy.defaults()
+                tuning.report.ReportPolicy.defaults()
         )).run();
 
-        assertTrue(report.baselineNoOpt().isPresent());
-        assertTrue(report.baselineNoOptConservativeRuntime().isPresent());
-        assertTrue(report.candidates().stream().anyMatch(r -> r.baselineKind() == BenchmarkBaselineKind.NO_OPT));
-        assertTrue(report.candidates().stream().anyMatch(r -> r.baselineKind() == BenchmarkBaselineKind.NO_OPT_CONSERVATIVE_RUNTIME));
-        assertTrue(Double.isFinite(report.speedupVsNoOpt(report.candidates().stream().filter(r -> r.baselineKind() == BenchmarkBaselineKind.NONE).findFirst().orElseThrow())));
+        assertTrue(report.baseline().isPresent());
+        assertTrue(report.candidates().stream().anyMatch(r -> r.baseline()));
+        assertTrue(Double.isFinite(report.speedupVsBaseline(report.candidates().stream().filter(r -> !r.baseline()).findFirst().orElseThrow())));
     }
 
     @Test
@@ -117,7 +112,7 @@ public class BenchmarkSessionTest {
                 environment -> Tensor.scalar(1.0).add(Tensor.scalar(2.0))
         );
 
-        Candidate candidate = new Candidate(
+        BenchmarkEntry candidate = BenchmarkEntry.candidate(
                 "renderer-candidate",
                 new ExecutionProfile(
                         "renderer-profile",
@@ -144,7 +139,6 @@ public class BenchmarkSessionTest {
         assertTrue(rendered.contains("Candidates"));
         assertTrue(rendered.contains("workload=renderer_workload"));
         assertTrue(rendered.contains("bestCandidate="));
-        assertTrue(rendered.contains("BASELINE_NO_OPT"));
         assertTrue(rendered.contains("steadyStateMedianMs="));
         assertFalse(rendered.isBlank());
     }
@@ -157,7 +151,7 @@ public class BenchmarkSessionTest {
                 environment -> Tensor.scalar(1.0).add(Tensor.scalar(2.0))
         );
 
-        Candidate candidate = new Candidate(
+        BenchmarkEntry candidate = BenchmarkEntry.candidate(
                 "json-candidate",
                 new ExecutionProfile(
                         "json-profile",
@@ -181,7 +175,7 @@ public class BenchmarkSessionTest {
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"workloadName\": \"json_workload\""));
         assertTrue(json.contains("\"bestCandidateName\":"));
-        assertTrue(json.contains("\"baselineKind\": \"NO_OPT\""));
+        assertTrue(json.contains("\"role\": \"CANDIDATE\""));
         assertTrue(json.contains("\"candidates\": ["));
         assertTrue(json.contains("\"timing\": {"));
         assertTrue(json.contains("\"speedup\": {"));
@@ -189,27 +183,25 @@ public class BenchmarkSessionTest {
 
     @Test
     void renderersHandleMissingBaselineMeasurementsAndNonFiniteSpeedups() {
-        Candidate candidate = new Candidate(
+        var profile = new ExecutionProfile(
+                "candidate-profile",
                 "candidate",
-                new ExecutionProfile(
-                        "candidate-profile",
-                        "candidate",
-                        DataType.FLOAT64,
-                        ExecutionMode.FORWARD,
-                        config.optimizer.OptimizerConfig.noOptimization(),
-                        config.runtime.RuntimeConfig.inferenceDefaults(),
-                        WorkloadProfile.none()
-                )
+                DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
         );
+        BenchmarkEntry baseline = BenchmarkEntry.baseline("baseline", profile);
+        BenchmarkEntry candidate = BenchmarkEntry.candidate("candidate", profile);
 
         BenchmarkReport report = BenchmarkReport.of(
                 "manual_report",
                 List.of(
                         tuning.report.BenchmarkCandidateReport.failure(
-                                new Candidate("BASELINE_NO_OPT", candidate.profile()),
+                                baseline,
                                 tuning.validate.ValidationResult.failure("boom"),
-                                "boom",
-                                BenchmarkBaselineKind.NO_OPT
+                                "boom"
                         ),
                         tuning.report.BenchmarkCandidateReport.success(
                                 candidate,
@@ -229,6 +221,6 @@ public class BenchmarkSessionTest {
 
         assertDoesNotThrow(() -> TextBenchmarkReportRenderer.render(report));
         String json = assertDoesNotThrow(() -> JsonBenchmarkReportRenderer.render(report));
-        assertTrue(json.contains("\"vsNoOpt\": null"));
+        assertTrue(json.contains("\"vsBaseline\": null"));
     }
 }

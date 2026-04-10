@@ -32,11 +32,10 @@ final class DefaultBenchmarkSuiteSession implements BenchmarkSuiteSession {
         for (WorkloadSpec workload : request.workloads()) {
             BenchmarkRequest workloadRequest = new BenchmarkRequest(
                     workload,
-                    request.candidates(),
+                    request.entries(),
                     request.measurement(),
                     request.validation(),
-                    request.report(),
-                    request.baselines()
+                    request.report()
             );
             reports.add(BenchmarkSession.create(workloadRequest, measurementEngine, validationEngine).run());
         }

@@ -3,6 +3,7 @@ import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.candidate.ListCandidateSpace;
+import tuning.session.BenchmarkEntry;
 import tuning.session.TuningDefaults;
 import tuning.session.TuningPreset;
 import tuning.session.WorkloadPresetFamily;
@@ -25,6 +26,7 @@ public class TuningDefaultsTest {
 
         var request = TuningDefaults.quickAutotune(
                 workload,
+                profile("seed"),
                 new ListCandidateSpace(List.of(candidate))
         );
 
@@ -43,6 +45,7 @@ public class TuningDefaultsTest {
         );
         var request = TuningDefaults.thoroughAutotune(
                 workload,
+                profile("seed"),
                 new ListCandidateSpace(List.of()),
                 tuning.store.PersistencePolicy.disabled()
         );
@@ -59,7 +62,7 @@ public class TuningDefaultsTest {
                 tuning.workload.WorkloadKind.GENERIC,
                 environment -> tensor.Tensor.scalar(1.0)
         );
-        var candidate = new tuning.candidate.Candidate("base", profile("base"));
+        var candidate = BenchmarkEntry.candidate("base", profile("base"));
 
         var request = TuningDefaults.benchmark(TuningPreset.BALANCED, workload, List.of(candidate));
 
@@ -68,7 +71,7 @@ public class TuningDefaultsTest {
         assertEquals(ValidationToleranceProfile.BALANCED_DTYPE_AWARE, request.validation().toleranceProfile());
         assertEquals(1e-6, request.validation().absTolerance(tensor.DataType.FLOAT32));
         assertEquals(2e-3, request.validation().absTolerance(tensor.DataType.BFLOAT16));
-        assertTrue(request.baselines().includeNoOptBaseline());
+        assertEquals(1, request.entries().size());
     }
 
     @Test
@@ -92,6 +95,7 @@ public class TuningDefaultsTest {
         assertEquals(TuningPreset.THOROUGH, WorkloadPresetFamily.autotunePresetFor(workload));
         var request = TuningDefaults.recommendedAutotune(
                 workload,
+                profile("seed"),
                 new ListCandidateSpace(List.of()),
                 tuning.store.PersistencePolicy.disabled()
         );
