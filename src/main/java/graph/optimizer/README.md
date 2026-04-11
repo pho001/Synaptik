@@ -400,7 +400,7 @@ Current model:
 - current direct fused backend coverage:
   - `FLOAT32`
   - `FLOAT64`
-  - `BF16_F32_COMPUTE`
+  - `BFLOAT16` storage with resolved compute type `F32`
 - `CpuFusedKernel` executes that prepared executable without caring which backend produced it
 
 This means:

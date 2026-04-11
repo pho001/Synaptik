@@ -169,29 +169,31 @@ Notes:
 - FFM native access warning can be suppressed by running with:
   - `--enable-native-access=ALL-UNNAMED`
 
-## Compute Mode
+## Compute Contract
 
 CPU execution distinguishes between:
 
 - tensor storage dtype
-- resolved compute mode
+- resolved compute dtype
+- resolved execution backend
+- resolved accumulate dtype where relevant
 
 This matters most for `BFLOAT16`.
 
 Examples:
 
-- `FLOAT64` storage -> `F64`
-- `FLOAT32` storage -> `F32`
-- `BFLOAT16` storage -> `BF16_F32_COMPUTE`
-- `BFLOAT16` storage for eligible GEMM nodes -> `BF16_BLAS`
+- `FLOAT64` storage -> compute `F64` -> backend `CPU_*`
+- `FLOAT32` storage -> compute `F32` -> backend `CPU_*`
+- `BFLOAT16` storage -> compute `F32` -> backend `CPU_FUSED`
+- `BFLOAT16` storage -> compute `F32` -> backend `CPU_MATMUL_BLAS`
 
-The compute mode is resolved during prepare and stored in the prepared execution recipe.
+The resolved compute contract is built during `prepare(...)` and stored in the prepared execution recipe.
 Hot execution then follows the recipe instead of re-deciding the path per step.
 
 Important consequence for fused execution:
 
 - `FLOAT64` and `FLOAT32` fused nodes still prepare a generated compiled fused kernel
-- `BF16_F32_COMPUTE` fused nodes do not prepare ASM bytecode
+- `BFLOAT16` fused nodes use `BFLOAT16` storage but currently compute as `F32` in the direct runtime backend
 - BF16 fused execution runs through the direct Java executor, computing in `float` over `BFLOAT16` storage
 - that direct executor now has a vector fast path for contiguous numeric chains built from basic arithmetic / clamp / abs / sqrt style ops
 - compare/select/logical and transcendental-heavy chains still fall back to scalar BF16 direct execution
@@ -209,7 +211,7 @@ So current continuation scope is:
 
 There is now one narrow cross-node exception for BF16 inference:
 
-- a `BF16_BLAS` `MATMUL` or `LINEAR` node may publish its result as float continuation instead of immediately materializing to `BFLOAT16`
+- a `CPU_MATMUL_BLAS` BF16 `MATMUL` or `LINEAR` node may publish its result as float continuation instead of immediately materializing to `BFLOAT16`
 - this is enabled only when:
   - the graph is inference-only
   - the producer has exactly one consumer

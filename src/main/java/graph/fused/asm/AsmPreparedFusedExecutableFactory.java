@@ -1,6 +1,6 @@
 package graph.fused.asm;
 
-import backend.kernels.cpu.FusedExecutionProfiler;
+import backend.kernels.cpu.fused.FusedExecutionProfiler;
 import graph.codegen.FusedKernelGeneratorRouter;
 import graph.codegen.FusedKernelCacheKey;
 import graph.fused.PreparedFusedExecutable;

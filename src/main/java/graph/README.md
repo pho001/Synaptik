@@ -84,7 +84,7 @@ For fused nodes this now means:
 - resolver reads fused backend policy from `RuntimeConfig.fused()`
 - `FLOAT64` currently resolves to direct fused backend when `Vector API` is available
 - `FLOAT32` currently resolves to direct fused backend when `Vector API` is available
-- `BF16_F32_COMPUTE` currently resolves to direct fused backend when `Vector API` is available
+- `BFLOAT16` with resolved compute type `F32` currently resolves to direct fused backend when `Vector API` is available
 - ASM remains the fused fallback backend when direct fused backend is unavailable or does not support the runtime combination
 - prepared metadata stores one unified `PreparedFusedExecutable`, regardless of which backend produced it
 
@@ -230,9 +230,9 @@ When `FuseElementWiseRule` collapses a cluster:
 
 Important note:
 
-- tensor storage dtype and compute mode are now distinct concepts
-- example: a `BFLOAT16` tensor may execute as `BF16_F32_COMPUTE` or `BF16_BLAS`
-- the mode is resolved during prepare and stored in the execution recipe
+- tensor storage dtype and resolved compute contract are now distinct concepts
+- example: a `BFLOAT16` tensor may execute with compute `F32` and backend `CPU_FUSED` or backend `CPU_MATMUL_BLAS`
+- the contract is resolved during prepare and stored in the execution recipe
 - F32/F64/BF16 direct fused execution no longer pays prepare-time ASM compilation cost when the resolver selects the direct fused backend
 - direct fused execution may use vector fast paths for contiguous numeric chains, including arithmetic, clamp, abs, sqrt, exp/log/tanh family, sigmoid and selected `pow` exponents
 - mixed-bool/broadcast-heavy chains still stay on scalar direct fallback
@@ -245,7 +245,7 @@ Related BF16 GEMM note:
 
 There is one first prepared-execution continuation contract already active:
 
-- inference-only `BF16_BLAS` `MATMUL` / `LINEAR`
+- inference-only BF16 `MATMUL` / `LINEAR` with backend `CPU_MATMUL_BLAS`
 - exactly one supported BF16 consumer
 - producer publishes float continuation into prepared workspace
 - consumer reads that float continuation directly and only then materializes to `BFLOAT16`

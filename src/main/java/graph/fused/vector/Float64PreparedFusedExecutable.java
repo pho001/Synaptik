@@ -1,7 +1,7 @@
 package graph.fused.vector;
 
 import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.Float64FusedExecutor;
+import backend.kernels.cpu.fused.Float64FusedExecutor;
 import backend.kernels.cpu.fused.FusedExecutionOptions;
 import graph.fused.PreparedFusedExecutable;
 import operations.FusedOperation;

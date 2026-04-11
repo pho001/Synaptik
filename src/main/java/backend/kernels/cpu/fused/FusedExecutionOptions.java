@@ -1,5 +1,7 @@
 package backend.kernels.cpu.fused;
 
+import backend.kernels.cpu.*;
+
 public record FusedExecutionOptions(
         boolean useFastExpApprox,
         boolean useFastTanhApprox

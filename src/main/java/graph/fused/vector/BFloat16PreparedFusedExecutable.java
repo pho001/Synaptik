@@ -1,6 +1,6 @@
 package graph.fused.vector;
 
-import backend.kernels.cpu.BFloat16FusedExecutor;
+import backend.kernels.cpu.fused.BFloat16FusedExecutor;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.fused.FusedExecutionOptions;
 import graph.fused.PreparedFusedExecutable;
