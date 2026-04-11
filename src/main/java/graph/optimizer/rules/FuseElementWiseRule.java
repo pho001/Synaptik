@@ -3,6 +3,8 @@ package graph.optimizer.rules;
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.OptimizerGraphSupport;
 import config.optimizer.FuseConfig;
+import graph.codegen.FusedExpressionPlan;
+import graph.codegen.FusedPlanBuilder;
 import operations.FusedOperation;
 import operations.FusedOperationFactory;
 import operations.Operation;
@@ -107,7 +109,7 @@ public class FuseElementWiseRule implements OptimizationRule {
                 if (cluster.size() > 1) {
                     // Najdeme externí vstupy pro tento nový obří uzel
                     List<Tensor> externalInputs = findOuterTensors(cluster);
-                    if (!shouldFuseCluster(cluster, externalInputs, allConsumerCounts)) {
+                    if (!shouldFuseCluster(cluster, t, externalInputs, allConsumerCounts)) {
                         // Pokud cost model cluster odmítne, nesmíme jeho interní uzly zahodit.
                         // Kořen by jinak odkazoval na tensor, který už není v execution listu.
                         retainedNodes.addAll(cluster);
@@ -190,12 +192,17 @@ public class FuseElementWiseRule implements OptimizationRule {
 
     private boolean shouldFuseCluster(
             List<Tensor> cluster,
+            Tensor root,
             List<Tensor> externalInputs,
             Map<Tensor, Integer> allConsumerCounts
     ) {
         int nodes = cluster.size();
         if (nodes < 2) return false;
         if (nodes > config.maxClusterNodes()) return false;
+        FusedExpressionPlan previewPlan = FusedPlanBuilder.build(cluster, externalInputs, root);
+        if (graph.optimizer.fusion.FusedCostModel.rejectBroadcastHeavySmallAffinePlan(previewPlan)) {
+            return false;
+        }
 
         Set<Tensor> clusterSet = new HashSet<>(cluster);
         int internalEdges = 0;
@@ -225,6 +232,7 @@ public class FuseElementWiseRule implements OptimizationRule {
                 + config.nonCheapBonus() * nonCheapNodes;
         double cost = config.externalInputPenalty() * externalInputs.size()
                 + config.sharedExpensivePenalty() * sharedExpensive;
+        cost += graph.optimizer.fusion.FusedCostModel.estimateFusionAccessPenalty(previewPlan);
         double score = benefit - cost;
 
         return score >= config.scoreThreshold();

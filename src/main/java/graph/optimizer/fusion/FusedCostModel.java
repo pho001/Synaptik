@@ -115,4 +115,44 @@ public class FusedCostModel {
         int normalized = (Math.max(1, dispatchComplexity) + 7) / 8;
         return Math.max(1, Math.min(8, normalized));
     }
+
+    public static double estimateFusionAccessPenalty(FusedExpressionPlan plan) {
+        if (plan == null || plan.inputs().isEmpty()) {
+            return 0.0d;
+        }
+        double total = 0.0d;
+        for (FusedExternalInputPlan input : plan.inputs()) {
+            total += switch (input.accessKind()) {
+                case DIRECT_CONTIGUOUS -> 0.0d;
+                case OFFSET_CONTIGUOUS -> 0.10d;
+                case DIRECT_STRIDED -> 0.35d;
+                case OFFSET_STRIDED -> 0.55d;
+                case BROADCAST_STRIDED -> 0.75d;
+            };
+        }
+        return total;
+    }
+
+    public static boolean rejectBroadcastHeavySmallAffinePlan(FusedExpressionPlan plan) {
+        if (plan == null || plan.nodes().isEmpty()) {
+            return false;
+        }
+        long broadcastInputs = plan.inputs().stream()
+                .filter(input -> input.accessKind() == FusedAccessKind.BROADCAST_STRIDED)
+                .count();
+        if (broadcastInputs < 2) {
+            return false;
+        }
+        boolean normalizationStyle = false;
+        for (FusedNodePlan node : plan.nodes()) {
+            switch (node.opType()) {
+                case DIV, SQRT -> normalizationStyle = true;
+                case ADD, SUB, MUL, RELU, CLAMP_MIN, CLAMP_MAX, ABS, NOOP -> { }
+                default -> {
+                    return false;
+                }
+            }
+        }
+        return normalizationStyle;
+    }
 }

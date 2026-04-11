@@ -34,7 +34,10 @@ public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
     @Override
     public WorkloadInstance instantiate(WorkloadEnvironment environment) {
         ExecutionProfile profile = environment.profile();
-        WorkloadProfile workload = profile.workload();
+        WorkloadProfile requested = profile.workload();
+        WorkloadProfile workload = requested.kind() == WorkloadKind.NONE
+                ? WorkloadProfile.transformerHotPathDefaults()
+                : requested;
         if (workload.kind() != WorkloadKind.TRANSFORMER_HOT_PATH) {
             throw new IllegalArgumentException("TransformerHotPathWorkloadSpec requires profile.workload.kind == TRANSFORMER_HOT_PATH");
         }

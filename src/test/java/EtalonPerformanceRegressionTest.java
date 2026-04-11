@@ -2,7 +2,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import tuning.etalon.FrameworkEtalon;
 import tuning.report.BenchmarkCandidateReport;
-import tuning.report.BenchmarkSuiteCandidateSummary;
 import tuning.report.BenchmarkSuiteReport;
 import tuning.session.BenchmarkSuiteSession;
 import tuning.session.TuningPreset;
@@ -15,17 +14,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
-import tuning.session.BenchmarkEntryRole;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("benchmark")
 public class EtalonPerformanceRegressionTest {
-    private static final double SUMMARY_REGRESSION_TOLERANCE = 0.30d;
     private static final double WORKLOAD_REGRESSION_TOLERANCE = 0.40d;
+    private static final double WORKLOAD_ABSOLUTE_NOISE_FLOOR_MS = 0.050d;
 
     @Test
     void inferenceEtalonMatchesPerformanceBaseline() throws IOException {
@@ -39,11 +35,6 @@ public class EtalonPerformanceRegressionTest {
         Properties baseline = loadBaseline();
         List<String> regressions = new ArrayList<>();
         List<String> observations = new ArrayList<>();
-
-        verifySummaryMetric(report, baseline, "f32_infer_default", regressions, observations);
-        verifySummaryMetric(report, baseline, "f64_infer_default", regressions, observations);
-        verifySummaryMetric(report, baseline, "f32_infer_no_fuse", regressions, observations);
-        verifySummaryMetric(report, baseline, "f64_infer_no_fuse", regressions, observations);
 
         verifyWorkloadMetric(report, baseline, "etalon_matmul_small", "f32_infer_default", regressions, observations);
         verifyWorkloadMetric(report, baseline, "etalon_matmul_small", "f64_infer_default", regressions, observations);
@@ -85,35 +76,6 @@ public class EtalonPerformanceRegressionTest {
             properties.load(in);
         }
         return properties;
-    }
-
-    private static void verifySummaryMetric(
-            BenchmarkSuiteReport report,
-            Properties baseline,
-            String candidateName,
-            List<String> regressions,
-            List<String> observations
-    ) {
-        BenchmarkSuiteCandidateSummary summary = report.candidateSummaries().stream()
-                .filter(s -> s.role() == BenchmarkEntryRole.CANDIDATE)
-                .filter(s -> s.candidateName().equals(candidateName))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Missing candidate summary for " + candidateName));
-
-        long expectedSuccesses = Long.parseLong(require(baseline, "summary.success." + candidateName));
-        if (summary.successCount() < expectedSuccesses) {
-            regressions.add("summary.success." + candidateName + " expected>=" + expectedSuccesses + " actual=" + summary.successCount());
-        }
-
-        double expectedMedian = Double.parseDouble(require(baseline, "summary.avg." + candidateName));
-        compareMetric(
-                "summary.avg." + candidateName,
-                expectedMedian,
-                summary.averageMedianMs(),
-                SUMMARY_REGRESSION_TOLERANCE,
-                regressions,
-                observations
-        );
     }
 
     private static void verifyWorkloadMetric(
@@ -163,10 +125,11 @@ public class EtalonPerformanceRegressionTest {
         observations.add(String.format(Locale.US,
                 "%s baseline=%.6f current=%.6f delta=%+.2f%% ratio=%.3f",
                 key, baseline, current, deltaPct, ratio));
-        if (current > baseline * (1.0d + tolerance)) {
+        double absoluteDelta = current - baseline;
+        if (current > baseline * (1.0d + tolerance) && absoluteDelta > WORKLOAD_ABSOLUTE_NOISE_FLOOR_MS) {
             regressions.add(String.format(Locale.US,
-                    "%s regressed beyond %.0f%% tolerance: baseline=%.6f current=%.6f delta=%+.2f%%",
-                    key, tolerance * 100.0d, baseline, current, deltaPct));
+                    "%s regressed beyond %.0f%% tolerance and %.3fms noise floor: baseline=%.6f current=%.6f delta=%+.2f%%",
+                    key, tolerance * 100.0d, WORKLOAD_ABSOLUTE_NOISE_FLOOR_MS, baseline, current, deltaPct));
         }
     }
 

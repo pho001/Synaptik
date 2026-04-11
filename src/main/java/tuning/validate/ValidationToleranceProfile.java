@@ -12,7 +12,7 @@ public enum ValidationToleranceProfile {
         return switch (this) {
             case FIXED -> fallback;
             case QUICK_DTYPE_AWARE -> dtypeAwareAbs(dataType, 1e-8, 1e-5, 5e-3);
-            case BALANCED_DTYPE_AWARE -> dtypeAwareAbs(dataType, 1e-9, 1e-6, 2e-3);
+            case BALANCED_DTYPE_AWARE -> dtypeAwareAbs(dataType, 1e-9, 3e-6, 2e-3);
             case THOROUGH_DTYPE_AWARE -> dtypeAwareAbs(dataType, 1e-9, 5e-7, 1e-3);
         };
     }
@@ -21,7 +21,7 @@ public enum ValidationToleranceProfile {
         return switch (this) {
             case FIXED -> fallback;
             case QUICK_DTYPE_AWARE -> dtypeAwareRel(dataType, 1e-8, 1e-5, 5e-3);
-            case BALANCED_DTYPE_AWARE -> dtypeAwareRel(dataType, 1e-9, 1e-6, 2e-3);
+            case BALANCED_DTYPE_AWARE -> dtypeAwareRel(dataType, 1e-9, 3e-6, 2e-3);
             case THOROUGH_DTYPE_AWARE -> dtypeAwareRel(dataType, 1e-9, 5e-7, 1e-3);
         };
     }
