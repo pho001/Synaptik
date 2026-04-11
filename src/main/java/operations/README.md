@@ -557,13 +557,13 @@ This keeps `Tensor` small and keeps actual graph-building in the specialized hel
 For CPU support you must:
 
 1. implement or extend the CPU kernel
-2. register it in `CpuKernelRegistry`
+2. register it in `CpuKernelResolver`
 3. ensure planner/backend dispatch can resolve the op
 
 Relevant places:
 
 - [src/main/java/backend/kernels/cpu/](../backend/kernels/cpu)
-- [src/main/java/backend/registry/CpuKernelRegistry.java](../backend/registry/CpuKernelRegistry.java)
+- [src/main/java/backend/registry/CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
 - [src/main/java/backend/CPUBackend.java](../backend/CPUBackend.java)
 
 Depending on the op, you may also need:

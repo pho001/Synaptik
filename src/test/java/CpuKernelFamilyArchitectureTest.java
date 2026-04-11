@@ -1,5 +1,5 @@
 import backend.kernels.cpu.CpuKernel;
-import backend.registry.CpuKernelRegistry;
+import backend.registry.CpuKernelResolver;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 
@@ -77,7 +77,7 @@ public class CpuKernelFamilyArchitectureTest {
     }
 
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {
-        CpuKernel kernel = CpuKernelRegistry.resolve(opType);
+        CpuKernel kernel = CpuKernelResolver.resolve(opType);
         assertEquals(expectedPackage, kernel.getClass().getPackageName(), () ->
                 "Kernel for " + opType + " should live in " + expectedPackage + " but was " + kernel.getClass().getPackageName());
     }

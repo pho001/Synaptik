@@ -6,7 +6,7 @@ import backend.kernels.cpu.CpuExecutionPlanner;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.CpuNodeWorkspace;
-import backend.registry.CpuKernelRegistry;
+import backend.registry.CpuKernelResolver;
 import backend.runtime.ExecutionMode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
@@ -262,7 +262,7 @@ public class CompiledGraph {
         }
 
         Operation operation = tensor.getOperation();
-        CpuKernel kernel = CpuKernelRegistry.resolve(operation.opType());
+        CpuKernel kernel = CpuKernelResolver.resolve(operation.opType());
         if (kernel == null) {
             throw new IllegalStateException("Missing CPU kernel for opType=" + operation.opType());
         }

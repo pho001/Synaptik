@@ -20,7 +20,7 @@ Current backend targets:
   - [src/main/java/backend/CudaBackend.java](../backend/CudaBackend.java)
   - [src/main/java/backend/OpenClBackend.java](../backend/OpenClBackend.java)
 - Kernel registries:
-  - [src/main/java/backend/registry/CpuKernelRegistry.java](../backend/registry/CpuKernelRegistry.java)
+  - [src/main/java/backend/registry/CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
   - [src/main/java/backend/registry/CudaKernelRegistry.java](../backend/registry/CudaKernelRegistry.java)
   - [src/main/java/backend/registry/OpenClKernelRegistry.java](../backend/registry/OpenClKernelRegistry.java)
 - Kernel interfaces/impls:
@@ -109,7 +109,7 @@ Non-contiguous input handling is hybrid:
 CPU family packages now follow one naming rule:
 
 - `Cpu*Kernel`
-  - graph/runtime entrypoint registered in `CpuKernelRegistry`
+  - graph/runtime entrypoint resolved by `CpuKernelResolver`
 - `*Executor`
   - family orchestration layer
   - validates family-specific execution path and dispatches to the concrete low-level implementation
@@ -526,7 +526,7 @@ Missing kernels throw `UnsupportedOperationException` at execution time.
 ## Adding a New CPU Operation Kernel
 
 1. Implement `CpuKernel` in `src/main/java/backend/kernels/cpu/` (forward path and mode dispatch).
-2. Register new op type in `CpuKernelRegistry`.
+2. Register new op type in `CpuKernelResolver`.
 3. Ensure operation class reports correct `opType`.
 4. Add regression tests and benchmark coverage.
 
