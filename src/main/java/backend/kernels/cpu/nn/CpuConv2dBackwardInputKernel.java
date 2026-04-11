@@ -12,19 +12,19 @@ public final class CpuConv2dBackwardInputKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         conv2dBackwardInput grad = require(op);
-        Conv2dKernelSupport.backwardInputF64(grad, inputs.get(0), inputs.get(1), node);
+        Conv2dExecutor.backwardInputF64(grad, inputs.get(0), inputs.get(1), node);
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         conv2dBackwardInput grad = require(op);
-        Conv2dKernelSupport.backwardInputF32(grad, inputs.get(0), inputs.get(1), node);
+        Conv2dExecutor.backwardInputF32(grad, inputs.get(0), inputs.get(1), node);
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         conv2dBackwardInput grad = require(op);
-        Conv2dKernelSupport.backwardInputF16(grad, inputs.get(0), inputs.get(1), node);
+        Conv2dExecutor.backwardInputF16(grad, inputs.get(0), inputs.get(1), node);
     }
 
     private static conv2dBackwardInput require(Operation op) {

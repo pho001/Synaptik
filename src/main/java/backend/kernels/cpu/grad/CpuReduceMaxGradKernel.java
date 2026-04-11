@@ -12,7 +12,7 @@ public final class CpuReduceMaxGradKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         reduceMaxGrad gradOp = (reduceMaxGrad) op;
-        ReductionMinMaxGradKernelSupport.runF64(
+        ReductionMinMaxGradExecutor.runF64(
                 inputs.get(0).getFloat64Data(),
                 inputs.get(0).getShapeUnsafe(),
                 inputs.get(0).getStridesUnsafe(),
@@ -31,7 +31,7 @@ public final class CpuReduceMaxGradKernel implements CpuKernel {
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         reduceMaxGrad gradOp = (reduceMaxGrad) op;
-        ReductionMinMaxGradKernelSupport.runF32(
+        ReductionMinMaxGradExecutor.runF32(
                 inputs.get(0).getFloat32Data(),
                 inputs.get(0).getShapeUnsafe(),
                 inputs.get(0).getStridesUnsafe(),
@@ -50,7 +50,7 @@ public final class CpuReduceMaxGradKernel implements CpuKernel {
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         reduceMaxGrad gradOp = (reduceMaxGrad) op;
-        ReductionMinMaxGradKernelSupport.runBF16(
+        ReductionMinMaxGradExecutor.runBF16(
                 inputs.get(0).getBFloat16Data(),
                 inputs.get(0).getShapeUnsafe(),
                 inputs.get(0).getStridesUnsafe(),

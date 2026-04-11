@@ -1,8 +1,7 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.bf16.UnaryBF16;
-import backend.kernels.cpu.f32.UnaryF32;
-import backend.kernels.cpu.f64.UnaryF64;
+import backend.kernels.cpu.elementwise.ElementwiseUnaryExecutor;
+import backend.kernels.cpu.elementwise.ScalarUnaryOp;
 import operations.Operation;
 import operations.clampMin;
 import tensor.Tensor;
@@ -12,21 +11,19 @@ import java.util.List;
 public final class CpuClampMinKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        UnaryF64.clampMin(inputs.get(0).getFloat64Data(), ((clampMin) op).getMinValue(), node.getFloat64Data(), context.dispatchHints());
+        clampMin clamp = (clampMin) op;
+        ElementwiseUnaryExecutor.execute(ScalarUnaryOp.CLAMP_MIN, clamp.getMinValue(), clamp.getMinValueF32(), inputs, node, context);
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        UnaryF32.clampMin(inputs.get(0).getFloat32Data(), ((clampMin) op).getMinValueF32(), node.getFloat32Data(), context.dispatchHints());
+        clampMin clamp = (clampMin) op;
+        ElementwiseUnaryExecutor.execute(ScalarUnaryOp.CLAMP_MIN, clamp.getMinValue(), clamp.getMinValueF32(), inputs, node, context);
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        float[] continuation = context.inputFloatContinuation(0, node.getFlatDataSize());
-        if (continuation != null) {
-            UnaryBF16.clampMin(continuation, ((clampMin) op).getMinValueF32(), node.getBFloat16Data(), context.dispatchHints());
-            return;
-        }
-        UnaryBF16.clampMin(inputs.get(0).getBFloat16Data(), ((clampMin) op).getMinValueF32(), node.getBFloat16Data(), context.dispatchHints());
+        clampMin clamp = (clampMin) op;
+        ElementwiseUnaryExecutor.execute(ScalarUnaryOp.CLAMP_MIN, clamp.getMinValue(), clamp.getMinValueF32(), inputs, node, context);
     }
 }

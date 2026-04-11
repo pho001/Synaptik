@@ -11,17 +11,17 @@ import java.util.List;
 public final class CpuAvgPool2dBackwardInputKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dKernelSupport.avgBackwardInputF64(require(op), inputs.get(0), node);
+        Pool2dExecutor.avgBackwardInputF64(require(op), inputs.get(0), node);
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dKernelSupport.avgBackwardInputF32(require(op), inputs.get(0), node);
+        Pool2dExecutor.avgBackwardInputF32(require(op), inputs.get(0), node);
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        Pool2dKernelSupport.avgBackwardInputBF16(require(op), inputs.get(0), node);
+        Pool2dExecutor.avgBackwardInputBF16(require(op), inputs.get(0), node);
     }
 
     private static avgPool2dBackwardInput require(Operation op) {

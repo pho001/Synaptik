@@ -1,9 +1,7 @@
 package backend.kernels.cpu.reduction;
 
-import backend.kernels.cpu.*;
-
-import backend.kernels.cpu.reduction.SumLoops;
-import backend.kernels.cpu.reduction.MeanSupport;
+import backend.kernels.cpu.CpuKernel;
+import backend.kernels.cpu.CpuKernelContext;
 import operations.Operation;
 import operations.mean;
 import tensor.Tensor;
@@ -13,48 +11,29 @@ import java.util.List;
 public final class CpuMeanKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof mean reduction)) {
-            throw new IllegalArgumentException("CpuMeanKernel requires mean operation");
-        }
-        Tensor input = requireSingleInput(inputs);
-        SumLoops.execute(input, node, reduction.getDimension(), context);
-        MeanSupport.divideF64(node, divisor(input, reduction.getDimension()));
+        mean reduction = require(op);
+        Tensor input = CpuSumKernel.requireSingleInput(inputs, "Mean");
+        SumLikeReductionExecutor.executeF64(SumLikeReduction.MEAN, input, node, reduction.getDimension(), context);
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        if (!(op instanceof mean reduction)) {
-            throw new IllegalArgumentException("CpuMeanKernel requires mean operation");
-        }
-        Tensor input = requireSingleInput(inputs);
-        SumLoops.executeF32(input, node, reduction.getDimension(), context);
-        MeanSupport.divideF32(node, divisor(input, reduction.getDimension()));
+        mean reduction = require(op);
+        Tensor input = CpuSumKernel.requireSingleInput(inputs, "Mean");
+        SumLikeReductionExecutor.executeF32(SumLikeReduction.MEAN, input, node, reduction.getDimension(), context);
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        mean reduction = require(op);
+        Tensor input = CpuSumKernel.requireSingleInput(inputs, "Mean");
+        SumLikeReductionExecutor.executeBF16(SumLikeReduction.MEAN, input, node, reduction.getDimension(), context);
+    }
+
+    private static mean require(Operation op) {
         if (!(op instanceof mean reduction)) {
             throw new IllegalArgumentException("CpuMeanKernel requires mean operation");
         }
-        Tensor input = requireSingleInput(inputs);
-        float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());
-        if (continuation != null) {
-            SumLoops.executeF32ToBF16(input, continuation, node, reduction.getDimension(), context);
-            MeanSupport.divideBF16(node, divisor(input, reduction.getDimension()));
-            return;
-        }
-        SumLoops.executeBF16(input, node, reduction.getDimension(), context);
-        MeanSupport.divideBF16(node, divisor(input, reduction.getDimension()));
-    }
-
-    private static Tensor requireSingleInput(List<Tensor> inputs) {
-        if (inputs == null || inputs.size() != 1) {
-            throw new IllegalArgumentException("Mean expects exactly one input tensor");
-        }
-        return inputs.getFirst();
-    }
-
-    private static int divisor(Tensor input, int dimension) {
-        return dimension == -1 ? input.getFlatDataSize() : input.getShapeUnsafe()[dimension];
+        return reduction;
     }
 }

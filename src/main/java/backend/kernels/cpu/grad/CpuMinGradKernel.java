@@ -47,14 +47,14 @@ public final class CpuMinGradKernel implements CpuKernel {
     }
 
     static void runF64(double[] a, int aBaseOffset, double[] b, int bBaseOffset, double[] outGrad, int outGradBaseOffset, double[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput) {
-        MinMaxGradKernelSupport.runF64(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
+        MinMaxGradExecutor.runF64(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
     }
 
     static void runF32(float[] a, int aBaseOffset, float[] b, int bBaseOffset, float[] outGrad, int outGradBaseOffset, float[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput) {
-        MinMaxGradKernelSupport.runF32(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
+        MinMaxGradExecutor.runF32(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
     }
 
     static void runBF16(short[] a, int aBaseOffset, short[] b, int bBaseOffset, short[] outGrad, int outGradBaseOffset, short[] out, int outBaseOffset, BroadcastPlan plan, boolean forFirstInput) {
-        MinMaxGradKernelSupport.runBF16(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
+        MinMaxGradExecutor.runBF16(a, aBaseOffset, b, bBaseOffset, outGrad, outGradBaseOffset, out, outBaseOffset, plan, forFirstInput, false);
     }
 }

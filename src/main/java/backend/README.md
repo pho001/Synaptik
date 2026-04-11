@@ -103,8 +103,191 @@ Non-contiguous input handling is hybrid:
 `SUM` is also excluded from generic preprocessing and handled by its own reduction pipeline:
 
 - [src/main/java/backend/kernels/cpu/CpuSumKernel.java](../backend/kernels/cpu/CpuSumKernel.java)
-- [src/main/java/backend/kernels/cpu/reduction/SumExecutor.java](../backend/kernels/cpu/reduction/SumExecutor.java)
+- [src/main/java/backend/kernels/cpu/reduction/SumLikeReductionExecutor.java](../backend/kernels/cpu/reduction/SumLikeReductionExecutor.java)
 - [src/main/java/backend/kernels/cpu/reduction/SumLoops.java](../backend/kernels/cpu/reduction/SumLoops.java)
+
+CPU family packages now follow one naming rule:
+
+- `Cpu*Kernel`
+  - graph/runtime entrypoint registered in `CpuKernelRegistry`
+- `*Executor`
+  - family orchestration layer
+  - validates family-specific execution path and dispatches to the concrete low-level implementation
+- `*Loops`
+  - tight low-level loop implementation
+
+This keeps orchestration separate from the actual inner compute loops without adding a new global abstraction hierarchy.
+
+For the pointwise batch, CPU now also uses an explicit split between:
+
+- local element algebra
+  - for example numeric binary ops such as `ADD/SUB/MUL/DIV/MIN/MAX`
+  - unary ops such as `NEG/ABS/INV/SQRT/EXP/LOG/TANH/SIGMOID/RELU`
+  - scalar-parameter unary ops such as `CLAMP_*`, `MUL_SCALAR`, `POW`
+  - compare ops
+  - logical ops
+  - `WHERE`
+- shared loop execution
+  - scalar loop
+  - vector loop where available
+  - parallel chunk scheduling
+  - broadcast/stride walking
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/elementwise/](../backend/kernels/cpu/elementwise)
+
+This means the operation definition is no longer encoded as a hand-written full loop inside each kernel class.
+Instead:
+
+- `Cpu*Kernel`
+  - selects the family entrypoint
+- elementwise op descriptor
+  - defines the local per-element algebra
+- shared executor
+  - owns loop structure and dispatch policy
+
+For simple reductions, CPU now follows the same direction for shared traversal:
+
+- `REDUCE_MIN/MAX`
+- `REDUCE_ALL/ANY`
+
+These reductions now share common axis-group traversal logic in:
+
+- [src/main/java/backend/kernels/cpu/reduction/ReductionTraversal.java](../backend/kernels/cpu/reduction/ReductionTraversal.java)
+
+That shared layer owns:
+
+- reduction-axis group walking
+- shape/stride to base-offset mapping
+- optional reduction parallel chunk scheduling for supported families
+
+while the per-op algebra stays in the leaf reduction implementation.
+
+For sum-like reductions, CPU now shares one family orchestration layer across:
+
+- `SUM`
+- `MEAN`
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/reduction/SumLikeReduction.java](../backend/kernels/cpu/reduction/SumLikeReduction.java)
+- [src/main/java/backend/kernels/cpu/reduction/SumLikeReductionExecutor.java](../backend/kernels/cpu/reduction/SumLikeReductionExecutor.java)
+
+The fold engine remains in `SumLoops`, while `SUM` vs `MEAN` differs only in finalization.
+
+For softmax-like structured reductions, CPU now also shares one family layer across:
+
+- `SOFTMAX`
+- `LOG_SOFTMAX`
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/reduction/SoftmaxLikeReduction.java](../backend/kernels/cpu/reduction/SoftmaxLikeReduction.java)
+- [src/main/java/backend/kernels/cpu/reduction/SoftmaxLikeTraversal.java](../backend/kernels/cpu/reduction/SoftmaxLikeTraversal.java)
+- [src/main/java/backend/kernels/cpu/reduction/SoftmaxLikeExecutor.java](../backend/kernels/cpu/reduction/SoftmaxLikeExecutor.java)
+
+This shared layer owns:
+
+- group traversal over the softmax axis
+- dtype-specific execution routing
+- BF16 continuation materialization / float-publish handling for `LOG_SOFTMAX`
+
+while the algebraic difference between `SOFTMAX` and `LOG_SOFTMAX` stays in the reduction descriptor.
+
+For loss reductions, CPU now also shares one structured family layer across:
+
+- `NLL_LOSS`
+- `CROSS_ENTROPY_LOSS`
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/reduction/LossReduction.java](../backend/kernels/cpu/reduction/LossReduction.java)
+- [src/main/java/backend/kernels/cpu/reduction/LossReductionTraversal.java](../backend/kernels/cpu/reduction/LossReductionTraversal.java)
+- [src/main/java/backend/kernels/cpu/reduction/LossReductionExecutor.java](../backend/kernels/cpu/reduction/LossReductionExecutor.java)
+
+This shared layer owns:
+
+- class-axis group traversal
+- scalar loss aggregation over groups
+- dtype-specific routing
+- BF16 continuation handling
+
+while the difference between `NLL_LOSS` and `CROSS_ENTROPY_LOSS` stays in the reduction descriptor algebra.
+
+For linear algebra kernels, CPU now separates:
+
+- `CpuMatMulKernel`
+  - thin runtime entrypoint
+- `MatMulExecutor`
+  - execution orchestration
+  - chooses BLAS vs Java backend
+  - handles BF16 continuation publish/materialize policy
+- `MatMulBlasBackend`
+  - OpenBLAS/FFM dispatch
+- `MatMulJavaBackend`
+  - tiled Java compute backend
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/linalg/CpuMatMulKernel.java](../backend/kernels/cpu/linalg/CpuMatMulKernel.java)
+- [src/main/java/backend/kernels/cpu/linalg/MatMulExecutor.java](../backend/kernels/cpu/linalg/MatMulExecutor.java)
+- [src/main/java/backend/kernels/cpu/linalg/MatMulBlasBackend.java](../backend/kernels/cpu/linalg/MatMulBlasBackend.java)
+- [src/main/java/backend/kernels/cpu/linalg/MatMulJavaBackend.java](../backend/kernels/cpu/linalg/MatMulJavaBackend.java)
+
+`LINEAR` now reuses the same matmul executor and adds only the bias epilogue / BF16 continuation policy in:
+
+- [src/main/java/backend/kernels/cpu/linalg/LinearExecutor.java](../backend/kernels/cpu/linalg/LinearExecutor.java)
+
+For neural-network spatial kernels, CPU now follows the same separation:
+
+- `CpuConv2dKernel` / backward kernels
+  - thin runtime entrypoints
+- `Conv2dExecutor`
+  - family orchestration layer
+- `Conv2dDirectBackend`
+  - direct convolution compute implementation
+
+- `CpuConv2dGemmKernel`
+  - thin runtime entrypoint
+- `Conv2dGemmExecutor`
+  - family orchestration layer
+- `Conv2dGemmBackend`
+  - im2col + GEMM backend implementation
+
+- `CpuMaxPool2dKernel`, `CpuAvgPool2dKernel`, backward kernels
+  - thin runtime entrypoints
+- `Pool2dExecutor`
+  - family orchestration layer
+- `Pool2dDirectBackend`
+  - pooling compute implementation
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/nn/Conv2dExecutor.java](../backend/kernels/cpu/nn/Conv2dExecutor.java)
+- [src/main/java/backend/kernels/cpu/nn/Conv2dDirectBackend.java](../backend/kernels/cpu/nn/Conv2dDirectBackend.java)
+- [src/main/java/backend/kernels/cpu/nn/Conv2dGemmExecutor.java](../backend/kernels/cpu/nn/Conv2dGemmExecutor.java)
+- [src/main/java/backend/kernels/cpu/nn/Conv2dGemmBackend.java](../backend/kernels/cpu/nn/Conv2dGemmBackend.java)
+- [src/main/java/backend/kernels/cpu/nn/Pool2dExecutor.java](../backend/kernels/cpu/nn/Pool2dExecutor.java)
+- [src/main/java/backend/kernels/cpu/nn/Pool2dDirectBackend.java](../backend/kernels/cpu/nn/Pool2dDirectBackend.java)
+
+For fused kernels, CPU now separates:
+
+- `CpuFusedKernel`
+  - thin runtime entrypoint
+- `FusedExecutor`
+  - fused dispatch orchestration
+  - scalar/vector/parallel scheduling
+  - profiler integration
+- `PreparedFusedExecutable`
+  - prepared backend implementation contract
+  - implemented today by ASM-generated and direct fused prepared executables
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/fused/CpuFusedKernel.java](../backend/kernels/cpu/fused/CpuFusedKernel.java)
+- [src/main/java/backend/kernels/cpu/fused/FusedExecutor.java](../backend/kernels/cpu/fused/FusedExecutor.java)
+- [src/main/java/graph/fused/PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
 
 The reduction pipeline supports:
 

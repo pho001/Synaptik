@@ -1,5 +1,7 @@
 package backend.kernels.cpu;
 
+import backend.kernels.cpu.elementwise.CompareExecutor;
+import backend.kernels.cpu.elementwise.CompareOp;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -11,11 +13,6 @@ public final class CpuGreaterThanKernel implements CpuKernel {
         if (node.getDataType() != tensor.DataType.BOOL) {
             throw new IllegalArgumentException("greaterThan kernel requires BOOL output.");
         }
-        switch (inputs.get(0).getDataType()) {
-            case FLOAT64 -> CompareKernelSupport.runF64(Operation.OpType.GT, inputs.get(0).getFloat64Data(), inputs.get(1).getFloat64Data(), node.getBoolData(), context.broadcastPlan(), context.dispatchHints());
-            case FLOAT32 -> CompareKernelSupport.runF32(Operation.OpType.GT, inputs.get(0).getFloat32Data(), inputs.get(1).getFloat32Data(), node.getBoolData(), context.broadcastPlan(), context.dispatchHints());
-            case BFLOAT16 -> CompareKernelSupport.runBF16(Operation.OpType.GT, inputs.get(0).getBFloat16Data(), inputs.get(1).getBFloat16Data(), node.getBoolData(), context.broadcastPlan(), context.dispatchHints());
-            case INT32, BOOL -> throw new IllegalArgumentException("greaterThan does not support INT32/BOOL inputs.");
-        }
+        CompareExecutor.execute(CompareOp.GT, inputs, node, context);
     }
 }
