@@ -1,4 +1,6 @@
-package backend.kernels.cpu;
+package backend.kernels.cpu.reduction;
+
+import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.SumExecutor;
 import operations.Operation;
@@ -40,6 +42,12 @@ public class CpuSumKernel implements CpuKernel {
         if (inputs == null || inputs.size() != 1) {
             throw new IllegalArgumentException("Sum expects exactly one input tensor");
         }
-        EXECUTOR.executeBF16(reduction, inputs.getFirst(), node, context);
+        Tensor input = inputs.getFirst();
+        float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());
+        if (continuation != null) {
+            backend.kernels.cpu.reduction.SumLoops.executeF32ToBF16(input, continuation, node, reduction.getDimension(), context);
+            return;
+        }
+        EXECUTOR.executeBF16(reduction, input, node, context);
     }
 }

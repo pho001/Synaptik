@@ -1,4 +1,6 @@
-package backend.kernels.cpu;
+package backend.kernels.cpu.reduction;
+
+import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.MinMaxReduceExecutor;
 import operations.Operation;

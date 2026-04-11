@@ -1,4 +1,6 @@
-package backend.kernels.cpu;
+package backend.kernels.cpu.reduction;
+
+import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.SumLoops;
 import backend.kernels.cpu.reduction.MeanSupport;
@@ -35,6 +37,12 @@ public final class CpuMeanKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuMeanKernel requires mean operation");
         }
         Tensor input = requireSingleInput(inputs);
+        float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());
+        if (continuation != null) {
+            SumLoops.executeF32ToBF16(input, continuation, node, reduction.getDimension(), context);
+            MeanSupport.divideBF16(node, divisor(input, reduction.getDimension()));
+            return;
+        }
         SumLoops.executeBF16(input, node, reduction.getDimension(), context);
         MeanSupport.divideBF16(node, divisor(input, reduction.getDimension()));
     }

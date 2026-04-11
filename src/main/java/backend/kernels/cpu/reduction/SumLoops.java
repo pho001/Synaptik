@@ -1,5 +1,7 @@
 package backend.kernels.cpu.reduction;
 
+import backend.kernels.cpu.*;
+
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.ResolvedReductionHints;
 import backend.kernels.cpu.CpuExecutionMode;
@@ -97,6 +99,38 @@ public final class SumLoops {
             return;
         }
         sumAxisBF16(input, in, out, logicalSize, dimension, context, node.getStorageOffsetUnsafe());
+    }
+
+    public static void executeF32ToBF16(Tensor input, float[] data, Tensor node, int dimension, CpuKernelContext context) {
+        int[] shape = input.getShapeUnsafe();
+        if (shape == null || shape.length == 0) {
+            throw new IllegalArgumentException("Input shape must not be empty");
+        }
+        if (dimension < -1 || dimension >= shape.length) {
+            throw new IllegalArgumentException("Dimension out of bounds: " + dimension);
+        }
+
+        int logicalSize = logicalSize(shape);
+        int expectedOut = (dimension == -1) ? 1 : (logicalSize / shape[dimension]);
+        short[] out = node.getBFloat16Data();
+        if (out == null || out.length != expectedOut) {
+            throw new IllegalArgumentException("Output tensor has wrong size for sum reduction");
+        }
+        if (data == null || data.length < logicalSize) {
+            throw new IllegalArgumentException("Float continuation input is missing or too small");
+        }
+
+        if (dimension == -1) {
+            out[0] = CpuDTypeOps.toBFloat16Bits((float) sumAllContiguousF32(data, logicalSize, context));
+            return;
+        }
+
+        float[] tmp = new float[expectedOut];
+        sumAxisContiguousF32(data, shape, input.getStridesUnsafe(), 0, tmp, 0, dimension, context);
+        int baseOffset = node.getStorageOffsetUnsafe();
+        for (int i = 0; i < expectedOut; i++) {
+            out[baseOffset + i] = CpuDTypeOps.toBFloat16Bits(tmp[i]);
+        }
     }
 
     private static double sumAll(Tensor input, int logicalSize, CpuKernelContext context) {

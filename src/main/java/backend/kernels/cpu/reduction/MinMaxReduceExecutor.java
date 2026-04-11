@@ -1,5 +1,7 @@
 package backend.kernels.cpu.reduction;
 
+import backend.kernels.cpu.*;
+
 import backend.kernels.cpu.CpuKernelContext;
 import operations.reduceMax;
 import operations.reduceMin;

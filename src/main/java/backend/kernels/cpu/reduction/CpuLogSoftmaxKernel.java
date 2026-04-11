@@ -1,4 +1,6 @@
-package backend.kernels.cpu;
+package backend.kernels.cpu.reduction;
+
+import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.LogSoftmaxExecutor;
 import operations.Operation;
@@ -31,7 +33,19 @@ public final class CpuLogSoftmaxKernel implements CpuKernel {
         if (!(op instanceof logSoftmax reduction)) {
             throw new IllegalArgumentException("CpuLogSoftmaxKernel requires logSoftmax operation");
         }
-        EXECUTOR.executeBF16(reduction, requireSingleInput(inputs), node, context);
+        Tensor input = requireSingleInput(inputs);
+        float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());
+        if (context.publishFloatContinuation() && context.cpuWorkspace() != null && continuation != null) {
+            float[] out = context.cpuWorkspace().requireFloatWorkspace();
+            backend.kernels.cpu.reduction.LogSoftmaxLoops.executeF32ToFloat(input, continuation, out, reduction.getDimension(), context);
+            context.cpuWorkspace().publishFloatContinuation(input.getFlatDataSize());
+            return;
+        }
+        if (continuation != null) {
+            backend.kernels.cpu.reduction.LogSoftmaxLoops.executeF32ToBF16(input, continuation, node, reduction.getDimension(), context);
+            return;
+        }
+        EXECUTOR.executeBF16(reduction, input, node, context);
     }
 
     private static Tensor requireSingleInput(List<Tensor> inputs) {

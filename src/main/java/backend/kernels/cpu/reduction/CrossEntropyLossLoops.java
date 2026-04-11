@@ -1,5 +1,7 @@
 package backend.kernels.cpu.reduction;
 
+import backend.kernels.cpu.*;
+
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuThreadPool;
@@ -56,6 +58,22 @@ public final class CrossEntropyLossLoops {
                 classDimension,
                 context.reductionHints(),
                 group -> computeGroupF16(logitsData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
+        );
+        node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
+    }
+
+    public static void executeF32ToBF16(Tensor logits, float[] logitsData, Tensor targets, Tensor node, int classDimension, CpuKernelContext context) {
+        validate(logits, targets, node, classDimension);
+        short[] targetData = targets.getBFloat16Data();
+        float loss = (float) reduceMeanLoss(
+                logits.getShapeUnsafe(),
+                logits.getStridesUnsafe(),
+                0,
+                targets.getStridesUnsafe(),
+                targets.getStorageOffsetUnsafe(),
+                classDimension,
+                context.reductionHints(),
+                group -> computeGroupF32ToBF16(logitsData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
         );
         node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
     }
@@ -137,6 +155,27 @@ public final class CrossEntropyLossLoops {
         for (int i = 0, logitsOffset = baseLogits, targetOffset = baseTargets; i < axisSize; i++, logitsOffset += axisStrideLogits, targetOffset += axisStrideTargets) {
             double target = CpuDTypeOps.fromBFloat16Bits(targetData[targetOffset]);
             double logit = CpuDTypeOps.fromBFloat16Bits(logitsData[logitsOffset]);
+            sumExp += Math.exp(logit - max);
+            weightedLogits += target * logit;
+            targetSum += target;
+        }
+
+        double logSumExp = max + Math.log(sumExp);
+        return targetSum * logSumExp - weightedLogits;
+    }
+
+    private static double computeGroupF32ToBF16(float[] logitsData, short[] targetData, int baseLogits, int baseTargets, int axisStrideLogits, int axisStrideTargets, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, offset = baseLogits; i < axisSize; i++, offset += axisStrideLogits) {
+            max = Math.max(max, logitsData[offset]);
+        }
+
+        double sumExp = 0.0;
+        double weightedLogits = 0.0;
+        double targetSum = 0.0;
+        for (int i = 0, logitsOffset = baseLogits, targetOffset = baseTargets; i < axisSize; i++, logitsOffset += axisStrideLogits, targetOffset += axisStrideTargets) {
+            double target = CpuDTypeOps.fromBFloat16Bits(targetData[targetOffset]);
+            double logit = logitsData[logitsOffset];
             sumExp += Math.exp(logit - max);
             weightedLogits += target * logit;
             targetSum += target;

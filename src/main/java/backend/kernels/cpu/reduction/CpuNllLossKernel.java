@@ -1,4 +1,6 @@
-package backend.kernels.cpu;
+package backend.kernels.cpu.reduction;
+
+import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.NllLossExecutor;
 import operations.Operation;
@@ -34,7 +36,16 @@ public final class CpuNllLossKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuNllLossKernel requires nllLoss operation");
         }
         Tensor[] pair = requirePair(inputs);
+        float[] continuation = context.inputFloatContinuation(0, pair[0].getFlatDataSize());
+        if (continuation != null && pair[1].getDataType() == tensor.DataType.BFLOAT16) {
+            backend.kernels.cpu.reduction.NllLossLoops.executeF32ToBF16(lossInput(pair[0]), continuation, pair[1], node, loss.getClassDimension(), context);
+            return;
+        }
         EXECUTOR.executeBF16(loss, pair[0], pair[1], node, context);
+    }
+
+    private static Tensor lossInput(Tensor tensor) {
+        return tensor;
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

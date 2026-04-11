@@ -1,5 +1,7 @@
 package backend.kernels.cpu.reduction;
 
+import backend.kernels.cpu.*;
+
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuThreadPool;
@@ -35,6 +37,17 @@ public final class SoftmaxLoops {
         short[] out = node.getBFloat16Data();
         runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), input.getStorageOffsetUnsafe(), node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, group ->
                 computeGroupF16(in, out, group.baseIn(), group.baseOut(), group.axisStrideIn(), group.axisStrideOut(), group.axisSize())
+        , context.reductionHints());
+    }
+
+    public static void executeF32ToBF16(Tensor input, float[] in, Tensor node, int dimension, CpuKernelContext context) {
+        validateShapes(input, node, dimension);
+        short[] out = node.getBFloat16Data();
+        if (in == null) {
+            throw new IllegalArgumentException("Float continuation input cannot be null");
+        }
+        runGroups(input.getShapeUnsafe(), input.getStridesUnsafe(), 0, node.getStridesUnsafe(), node.getStorageOffsetUnsafe(), dimension, group ->
+                computeGroupF32ToBF16(in, out, group.baseIn(), group.baseOut(), group.axisStrideIn(), group.axisStrideOut(), group.axisSize())
         , context.reductionHints());
     }
 
@@ -104,6 +117,26 @@ public final class SoftmaxLoops {
         float sum = 0.0f;
         for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
             float value = (float) Math.exp(CpuDTypeOps.fromBFloat16Bits(in[inOffset]) - max);
+            out[outOffset] = CpuDTypeOps.toBFloat16Bits(value);
+            sum += value;
+        }
+
+        float invSum = 1.0f / sum;
+        for (int i = 0, outOffset = baseOut; i < axisSize; i++, outOffset += axisStrideOut) {
+            float normalized = CpuDTypeOps.fromBFloat16Bits(out[outOffset]) * invSum;
+            out[outOffset] = CpuDTypeOps.toBFloat16Bits(normalized);
+        }
+    }
+
+    private static void computeGroupF32ToBF16(float[] in, short[] out, int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0, inOffset = baseIn; i < axisSize; i++, inOffset += axisStrideIn) {
+            max = Math.max(max, in[inOffset]);
+        }
+
+        float sum = 0.0f;
+        for (int i = 0, inOffset = baseIn, outOffset = baseOut; i < axisSize; i++, inOffset += axisStrideIn, outOffset += axisStrideOut) {
+            float value = (float) Math.exp(in[inOffset] - max);
             out[outOffset] = CpuDTypeOps.toBFloat16Bits(value);
             sum += value;
         }

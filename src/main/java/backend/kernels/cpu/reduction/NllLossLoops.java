@@ -1,5 +1,7 @@
 package backend.kernels.cpu.reduction;
 
+import backend.kernels.cpu.*;
+
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuThreadPool;
@@ -60,6 +62,22 @@ public final class NllLossLoops {
         node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
     }
 
+    public static void executeF32ToBF16(Tensor logProbs, float[] logData, Tensor targets, Tensor node, int classDimension, CpuKernelContext context) {
+        validate(logProbs, targets, node, classDimension);
+        short[] targetData = targets.getBFloat16Data();
+        float loss = (float) reduceMeanLoss(
+                logProbs.getShapeUnsafe(),
+                logProbs.getStridesUnsafe(),
+                0,
+                targets.getStridesUnsafe(),
+                targets.getStorageOffsetUnsafe(),
+                classDimension,
+                context.reductionHints(),
+                group -> computeGroupF32ToBF16(logData, targetData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
+        );
+        node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
+    }
+
     private static void validate(Tensor logProbs, Tensor targets, Tensor node, int classDimension) {
         int[] shape = logProbs.getShapeUnsafe();
         if (shape == null || shape.length == 0) {
@@ -103,6 +121,14 @@ public final class NllLossLoops {
         double loss = 0.0;
         for (int i = 0, logOffset = baseLog, targetOffset = baseTarget; i < axisSize; i++, logOffset += axisStrideLog, targetOffset += axisStrideTarget) {
             loss -= CpuDTypeOps.fromBFloat16Bits(targetData[targetOffset]) * CpuDTypeOps.fromBFloat16Bits(logData[logOffset]);
+        }
+        return loss;
+    }
+
+    private static double computeGroupF32ToBF16(float[] logData, short[] targetData, int baseLog, int baseTarget, int axisStrideLog, int axisStrideTarget, int axisSize) {
+        double loss = 0.0;
+        for (int i = 0, logOffset = baseLog, targetOffset = baseTarget; i < axisSize; i++, logOffset += axisStrideLog, targetOffset += axisStrideTarget) {
+            loss -= CpuDTypeOps.fromBFloat16Bits(targetData[targetOffset]) * logData[logOffset];
         }
         return loss;
     }

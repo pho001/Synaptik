@@ -1,4 +1,6 @@
-package backend.kernels.cpu;
+package backend.kernels.cpu.reduction;
+
+import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.SoftmaxExecutor;
 import operations.Operation;
@@ -31,7 +33,13 @@ public final class CpuSoftmaxKernel implements CpuKernel {
         if (!(op instanceof softmax reduction)) {
             throw new IllegalArgumentException("CpuSoftmaxKernel requires softmax operation");
         }
-        EXECUTOR.executeBF16(reduction, requireSingleInput(inputs), node, context);
+        Tensor input = requireSingleInput(inputs);
+        float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());
+        if (continuation != null) {
+            backend.kernels.cpu.reduction.SoftmaxLoops.executeF32ToBF16(input, continuation, node, reduction.getDimension(), context);
+            return;
+        }
+        EXECUTOR.executeBF16(reduction, input, node, context);
     }
 
     private static Tensor requireSingleInput(List<Tensor> inputs) {

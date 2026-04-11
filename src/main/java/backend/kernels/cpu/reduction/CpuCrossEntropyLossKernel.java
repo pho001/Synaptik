@@ -1,4 +1,6 @@
-package backend.kernels.cpu;
+package backend.kernels.cpu.reduction;
+
+import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.CrossEntropyLossExecutor;
 import operations.Operation;
@@ -34,6 +36,11 @@ public final class CpuCrossEntropyLossKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuCrossEntropyLossKernel requires crossEntropyLoss operation");
         }
         Tensor[] pair = requirePair(inputs);
+        float[] continuation = context.inputFloatContinuation(0, pair[0].getFlatDataSize());
+        if (continuation != null && pair[1].getDataType() == tensor.DataType.BFLOAT16) {
+            backend.kernels.cpu.reduction.CrossEntropyLossLoops.executeF32ToBF16(pair[0], continuation, pair[1], node, loss.getClassDimension(), context);
+            return;
+        }
         EXECUTOR.executeBF16(loss, pair[0], pair[1], node, context);
     }
 
