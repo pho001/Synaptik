@@ -279,7 +279,7 @@ public class CompiledGraph {
             fusedExecutable = FUSED_BACKEND_RESOLVER.resolve(
                     new FusedExecutionPlan(
                             (FusedOperation) operation,
-                            cpuPlan.computeMode(),
+                            cpuPlan.computeContract(),
                             tensor.getFlatDataSize(),
                             planner.fusedDirectVectorMinSize((FusedOperation) operation)
                     ),
@@ -300,6 +300,9 @@ public class CompiledGraph {
             case MAX_POOL2D -> CpuNodeWorkspace.withIntWorkspace(tensor.getFlatDataSize());
             case MAX_POOL2D_BACKWARD_INPUT -> resolveSharedMaxPoolWorkspace(tensor, preparedMetadata);
             case MATMUL, LINEAR -> needsBFloat16BlasWorkspace(tensor, cpuPlan)
+                    ? CpuNodeWorkspace.withFloatWorkspace(tensor.getFlatDataSize())
+                    : null;
+            case LOG_SOFTMAX -> shouldPublishFloatContinuation(tensor, operation, buildConsumerMap(finalGraph))
                     ? CpuNodeWorkspace.withFloatWorkspace(tensor.getFlatDataSize())
                     : null;
             case CONV2D_GEMM -> tensor.getDataType() == DataType.BFLOAT16
@@ -366,7 +369,11 @@ public class CompiledGraph {
         if (tensor.getDataType() != DataType.BFLOAT16 || operation == null) {
             return false;
         }
-        if (operation.opType() != Operation.OpType.MATMUL && operation.opType() != Operation.OpType.LINEAR) {
+        if (operation.opType() != Operation.OpType.MATMUL && operation.opType() != Operation.OpType.LINEAR
+                && operation.opType() != Operation.OpType.SUM && operation.opType() != Operation.OpType.MEAN
+                && operation.opType() != Operation.OpType.LOG_SOFTMAX
+                && operation.opType() != Operation.OpType.EXPAND && operation.opType() != Operation.OpType.PERMUTE
+                && operation.opType() != Operation.OpType.RESHAPE && operation.opType() != Operation.OpType.CONTIGUOUS) {
             return false;
         }
         List<Tensor> next = consumers.getOrDefault(tensor, List.of());
@@ -377,11 +384,18 @@ public class CompiledGraph {
         if (consumer == null || consumer.getOperation() == null || consumer.getDataType() != DataType.BFLOAT16) {
             return false;
         }
+        if (operation.opType() == Operation.OpType.SUM || operation.opType() == Operation.OpType.MEAN
+                || operation.opType() == Operation.OpType.EXPAND || operation.opType() == Operation.OpType.PERMUTE
+                || operation.opType() == Operation.OpType.RESHAPE || operation.opType() == Operation.OpType.CONTIGUOUS) {
+            return isSingleInputAliasOrReductionChain(tensor, consumer, consumers);
+        }
         return switch (consumer.getOperation().opType()) {
             case RELU, ABS, CLAMP_MIN, CLAMP_MAX, SQRT, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, INV ->
                     isSupportedUnaryContinuationConsumer(consumer, tensor);
             case ADD, SUB, MUL, DIV, MIN, MAX ->
                     isSupportedBinaryContinuationConsumer(consumer, tensor);
+            case SUM, MEAN, SOFTMAX, LOG_SOFTMAX -> isSupportedReductionContinuationConsumer(consumer, tensor);
+            case NLL_LOSS, CROSS_ENTROPY_LOSS -> isSupportedDenseLossContinuationConsumer(consumer, tensor);
             case FUSED -> isSupportedFusedContinuationConsumer((FusedOperation) consumer.getOperation(), consumer, tensor);
             default -> false;
         };
@@ -413,6 +427,29 @@ public class CompiledGraph {
         return producer.isContiguous() && !producer.hasStorageOffset()
                 && other.isContiguous() && !other.hasStorageOffset()
                 && consumer.isContiguous() && !consumer.hasStorageOffset();
+    }
+
+    private boolean isSupportedReductionContinuationConsumer(Tensor consumer, Tensor producer) {
+        return consumer.getPrevTensors() != null
+                && consumer.getPrevTensors().size() == 1
+                && consumer.getPrevTensors().getFirst() == producer
+                && producer.isContiguous()
+                && !producer.hasStorageOffset();
+    }
+
+    private boolean isSupportedDenseLossContinuationConsumer(Tensor consumer, Tensor producer) {
+        if (consumer.getPrevTensors() == null || consumer.getPrevTensors().size() != 2) {
+            return false;
+        }
+        if (consumer.getPrevTensors().getFirst() != producer) {
+            return false;
+        }
+        Tensor targets = consumer.getPrevTensors().get(1);
+        return targets != null
+                && targets.getDataType() == DataType.BFLOAT16
+                && java.util.Arrays.equals(targets.getShapeUnsafe(), producer.getShapeUnsafe())
+                && producer.isContiguous()
+                && !producer.hasStorageOffset();
     }
 
     private boolean isSupportedFusedContinuationConsumer(FusedOperation fused, Tensor consumer, Tensor producer) {
@@ -447,6 +484,29 @@ public class CompiledGraph {
             }
         }
         return true;
+    }
+
+    private boolean isSingleInputAliasOrReductionChain(Tensor producer, Tensor consumer, Map<Tensor, List<Tensor>> consumers) {
+        if (consumer == null || consumer.getOperation() == null || consumer.getPrevTensors() == null
+                || consumer.getPrevTensors().size() != 1 || consumer.getPrevTensors().getFirst() != producer) {
+            return false;
+        }
+        Operation.OpType opType = consumer.getOperation().opType();
+        if (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN) {
+            return true;
+        }
+        if (opType != Operation.OpType.EXPAND && opType != Operation.OpType.PERMUTE
+                && opType != Operation.OpType.RESHAPE && opType != Operation.OpType.CONTIGUOUS) {
+            return false;
+        }
+        List<Tensor> next = consumers.getOrDefault(consumer, List.of());
+        if (next.size() != 1) {
+            return false;
+        }
+        Tensor nextConsumer = next.getFirst();
+        return nextConsumer != null
+                && nextConsumer.getDataType() == DataType.BFLOAT16
+                && isSingleInputAliasOrReductionChain(consumer, nextConsumer, consumers);
     }
 
     private boolean hasTrainableLeafInputs() {

@@ -1,11 +1,11 @@
 package backend;
 
 import backend.kernels.cpu.CpuExecutionPlanner;
-import backend.kernels.cpu.CpuComputeMode;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuStridedElementWise;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
+import backend.kernels.cpu.ResolvedCpuComputeContract;
 import backend.kernels.cpu.ResolvedBroadcastPlan;
 import backend.kernels.cpu.ResolvedDispatchHints;
 import backend.kernels.cpu.ResolvedMatMulHints;
@@ -124,21 +124,6 @@ public final class CPUBackend {
                 prepared.runtimeInputs()
         );
 
-        CpuComputeMode computeMode = planner.resolveComputeMode(op, prepared.runtimeInputs(), node, blasConfig);
-
-        ResolvedDispatchHints dispatchHints =
-                (op != null && (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE || op.opType() == Operation.OpType.FUSED))
-                        ? planner.resolveDispatchHints(op, node, computeMode)
-                        : null;
-
-        ResolvedReductionHints reductionHints =
-                (op != null && switch (op.opType()) {
-                    case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS -> true;
-                    default -> false;
-                })
-                        ? planner.resolveReductionHints(estimateReductionLogicalSize(prepared.runtimeInputs(), node), targetType, computeMode)
-                        : null;
-
         ResolvedMatMulHints matMulHints =
                 (op != null && (op.opType() == Operation.OpType.MATMUL || op.opType() == Operation.OpType.LINEAR) && prepared.runtimeInputs().size() >= 2)
                         ? planner.resolveMatMulHints(
@@ -148,8 +133,27 @@ public final class CPUBackend {
                         blasConfig
                 )
                         : null;
+        ResolvedCpuComputeContract computeContract = planner.resolveComputeContract(
+                op,
+                prepared.runtimeInputs(),
+                node,
+                blasConfig,
+                matMulHints
+        );
 
-        return new CpuNodeExecutionPlan(layoutPlan, computeMode, publishFloatContinuation, dispatchHints, reductionHints, matMulHints);
+        ResolvedDispatchHints dispatchHints =
+                (op != null && (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE || op.opType() == Operation.OpType.FUSED))
+                        ? planner.resolveDispatchHints(op, node, computeContract)
+                        : null;
+
+        ResolvedReductionHints reductionHints =
+                (op != null && switch (op.opType()) {
+                    case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS -> true;
+                    default -> false;
+                })
+                        ? planner.resolveReductionHints(estimateReductionLogicalSize(prepared.runtimeInputs(), node), computeContract)
+                        : null;
+        return new CpuNodeExecutionPlan(layoutPlan, computeContract, publishFloatContinuation, dispatchHints, reductionHints, matMulHints);
     }
 
     private static List<CompiledNodeExecutionMetadata> resolveInputMetadatas(

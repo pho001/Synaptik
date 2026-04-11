@@ -9,7 +9,7 @@ import java.util.Objects;
 
 public record CpuNodeExecutionPlan(
         CpuLayoutPlan layoutPlan,
-        CpuComputeMode computeMode,
+        ResolvedCpuComputeContract computeContract,
         boolean publishFloatContinuation,
         ResolvedDispatchHints dispatchHints,
         ResolvedReductionHints reductionHints,
@@ -17,7 +17,9 @@ public record CpuNodeExecutionPlan(
 ) {
     public CpuNodeExecutionPlan {
         Objects.requireNonNull(layoutPlan, "layoutPlan cannot be null");
-        computeMode = computeMode == null ? CpuComputeMode.F64 : computeMode;
+        computeContract = computeContract == null
+                ? new ResolvedCpuComputeContract(layoutPlan.targetType(), CpuComputeDType.F64, CpuExecutionBackend.CPU_GENERIC, CpuAccumulateDType.NONE)
+                : computeContract;
     }
 
     public List<Tensor> apply(List<Tensor> originalInputs) {

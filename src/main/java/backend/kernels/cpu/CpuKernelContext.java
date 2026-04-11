@@ -45,8 +45,8 @@ public final class CpuKernelContext {
         return nodePlan.layoutPlan();
     }
 
-    public CpuComputeMode computeMode() {
-        return nodePlan.computeMode();
+    public ResolvedCpuComputeContract computeContract() {
+        return nodePlan.computeContract();
     }
 
     public int fusedAsmVectorWidth() {

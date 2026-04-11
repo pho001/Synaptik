@@ -190,7 +190,13 @@ public final class PreparedExecution {
 
         if (metadata.cpuPlan() != null) {
             var plan = metadata.cpuPlan();
-            compute = new ComputeTraceMetadata(plan.computeMode().name());
+            compute = new ComputeTraceMetadata(
+                    plan.computeContract().computeType().name(),
+                    plan.computeContract().storageType().name(),
+                    plan.computeContract().computeType().name(),
+                    plan.computeContract().backend().name(),
+                    plan.computeContract().accumulateType().name()
+            );
             if (plan.dispatchHints() != null) {
                 dispatch = new DispatchTraceMetadata(
                         plan.dispatchHints().mode().name(),

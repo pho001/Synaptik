@@ -163,30 +163,25 @@ public final class CpuExecutionPlanner {
         return logicalSize >= contiguousMaterializeThreshold;
     }
 
-    public int preferredVectorWidth(DataType dataType, CpuComputeMode computeMode) {
-        if (dataType == null) {
+    public int preferredVectorWidth(ResolvedCpuComputeContract contract) {
+        if (contract == null) {
             return 1;
         }
-        if (computeMode != null && computeMode.usesF32Compute()) {
-            return FloatVector.SPECIES_PREFERRED.length();
-        }
-        return switch (dataType) {
-            case FLOAT64 -> DoubleVector.SPECIES_PREFERRED.length();
-            case FLOAT32 -> FloatVector.SPECIES_PREFERRED.length();
-            case BFLOAT16 -> 1;
-            case INT32 -> 1;
-            case BOOL -> 1;
+        return switch (contract.computeType()) {
+            case F64 -> DoubleVector.SPECIES_PREFERRED.length();
+            case F32, BF16_NATIVE -> FloatVector.SPECIES_PREFERRED.length();
+            case INT32, BOOL -> 1;
         };
     }
 
-    public int resolvedFusedAsmVectorWidth(CpuComputeMode computeMode) {
-        if (computeMode == null) {
+    public int resolvedFusedAsmVectorWidth(ResolvedCpuComputeContract contract) {
+        if (contract == null) {
             return 1;
         }
-        int available = switch (computeMode) {
-            case F32, BF16_F32_COMPUTE, BF16_BLAS -> FloatVector.SPECIES_PREFERRED.length();
+        int available = switch (contract.computeType()) {
+            case F32, BF16_NATIVE -> FloatVector.SPECIES_PREFERRED.length();
             case F64 -> DoubleVector.SPECIES_PREFERRED.length();
-            default -> 1;
+            case INT32, BOOL -> 1;
         };
         if (fusedAsmVectorWidth <= 1 || available <= 1) {
             return 1;
@@ -204,22 +199,7 @@ public final class CpuExecutionPlanner {
         return 1;
     }
 
-    public CpuComputeMode resolveComputeMode(Operation op, List<Tensor> inputs, Tensor node, BlasConfig blasConfig) {
-        Objects.requireNonNull(node, "node cannot be null");
-        DataType dataType = node.getDataType();
-        if (dataType == null) {
-            return CpuComputeMode.F64;
-        }
-        return switch (dataType) {
-            case FLOAT64 -> CpuComputeMode.F64;
-            case FLOAT32 -> CpuComputeMode.F32;
-            case INT32 -> CpuComputeMode.INT32;
-            case BOOL -> CpuComputeMode.BOOL;
-            case BFLOAT16 -> resolveBFloat16ComputeMode(op, inputs, node, blasConfig);
-        };
-    }
-
-    public ResolvedDispatchHints resolveDispatchHints(Operation op, Tensor node, CpuComputeMode computeMode) {
+    public ResolvedDispatchHints resolveDispatchHints(Operation op, Tensor node, ResolvedCpuComputeContract contract) {
         if (op == null || node == null
                 || (op.opType().category() != Operation.OpArityClass.ELEMENT_WISE && op.opType() != Operation.OpType.FUSED)) {
             return new ResolvedDispatchHints(0, CpuExecutionMode.SCALAR, 1, 1, 1, 1, false);
@@ -227,12 +207,8 @@ public final class CpuExecutionPlanner {
 
         int totalLength = Math.max(0, node.getFlatDataSize());
         boolean fused = op.opType() == Operation.OpType.FUSED;
-        int vectorWidth = fused
-                ? resolvedFusedAsmVectorWidth(computeMode)
-                : preferredVectorWidth(node.getDataType(), computeMode);
-        boolean vectorAllowed = fused
-                ? vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op)
-                : vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op);
+        int vectorWidth = fused ? resolvedFusedAsmVectorWidth(contract) : preferredVectorWidth(contract);
+        boolean vectorAllowed = vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op);
         CpuKernelCostClass costClass = resolveDispatchCostClass(op);
 
         CpuExecutionMode mode;
@@ -254,9 +230,9 @@ public final class CpuExecutionPlanner {
         );
     }
 
-    public ResolvedReductionHints resolveReductionHints(int logicalSize, DataType dataType, CpuComputeMode computeMode) {
+    public ResolvedReductionHints resolveReductionHints(int logicalSize, ResolvedCpuComputeContract contract) {
         int size = Math.max(0, logicalSize);
-        int vectorWidth = preferredVectorWidth(dataType, computeMode);
+        int vectorWidth = preferredVectorWidth(contract);
         boolean vectorAllowed = vectorWidth > 1 && size >= reductionVectorMinSize;
 
         CpuExecutionMode mode;
@@ -283,30 +259,59 @@ public final class CpuExecutionPlanner {
         );
     }
 
-    private CpuComputeMode resolveBFloat16ComputeMode(Operation op, List<Tensor> inputs, Tensor node, BlasConfig blasConfig) {
+    public ResolvedCpuComputeContract resolveComputeContract(
+            Operation op,
+            List<Tensor> inputs,
+            Tensor node,
+            BlasConfig blasConfig,
+            ResolvedMatMulHints matMulHints
+    ) {
+        Objects.requireNonNull(node, "node cannot be null");
+        DataType dataType = node.getDataType() == null ? DataType.FLOAT64 : node.getDataType();
         if (op == null) {
-            return CpuComputeMode.BF16_F32_COMPUTE;
+            return defaultContractFor(dataType, CpuExecutionBackend.CPU_GENERIC);
         }
         return switch (op.opType()) {
-            case MATMUL, LINEAR -> {
-                if (inputs != null && inputs.size() >= 2) {
-                    Tensor a = inputs.get(0);
-                    Tensor b = inputs.get(1);
-                    int[] as = a.getShapeUnsafe();
-                    int[] bs = b.getShapeUnsafe();
-                    int m = as[as.length - 2];
-                    int k = as[as.length - 1];
-                    int n = bs[bs.length - 1];
-                    yield shouldUseBlas(a, b, node, m, n, k, blasConfig)
-                            ? CpuComputeMode.BF16_BLAS
-                            : CpuComputeMode.BF16_F32_COMPUTE;
-                }
-                yield CpuComputeMode.BF16_F32_COMPUTE;
-            }
-            case CONV2D_GEMM -> blasConfig.provider() == BlasProvider.OPENBLAS_FFM
-                    ? CpuComputeMode.BF16_BLAS
-                    : CpuComputeMode.BF16_F32_COMPUTE;
-            default -> CpuComputeMode.BF16_F32_COMPUTE;
+            case MATMUL, LINEAR -> resolveMatMulContract(dataType, matMulHints);
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS ->
+                    resolveReductionContract(dataType);
+            case FUSED -> defaultContractFor(dataType, CpuExecutionBackend.CPU_FUSED);
+            default -> (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE)
+                    ? defaultContractFor(dataType, CpuExecutionBackend.CPU_ELEMENTWISE)
+                    : defaultContractFor(dataType, CpuExecutionBackend.CPU_GENERIC);
+        };
+    }
+
+    private ResolvedCpuComputeContract resolveMatMulContract(DataType dataType, ResolvedMatMulHints matMulHints) {
+        CpuExecutionBackend backend = (matMulHints != null && (matMulHints.useBlas() || matMulHints.useBatchedBlas()))
+                ? CpuExecutionBackend.CPU_MATMUL_BLAS
+                : CpuExecutionBackend.CPU_MATMUL_JAVA;
+        return switch (dataType) {
+            case FLOAT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F64, backend, CpuAccumulateDType.NONE);
+            case FLOAT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
+            case BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
+            case INT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT32, backend, CpuAccumulateDType.NONE);
+            case BOOL -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.BOOL, backend, CpuAccumulateDType.NONE);
+        };
+    }
+
+    private ResolvedCpuComputeContract resolveReductionContract(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F64, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
+            case FLOAT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
+            case BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
+            case INT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT32, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.NONE);
+            case BOOL -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.BOOL, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.NONE);
+        };
+    }
+
+    private ResolvedCpuComputeContract defaultContractFor(DataType dataType, CpuExecutionBackend backend) {
+        return switch (dataType) {
+            case FLOAT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F64, backend, CpuAccumulateDType.NONE);
+            case FLOAT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
+            case BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, backend, CpuAccumulateDType.NONE);
+            case INT32 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.INT32, backend, CpuAccumulateDType.NONE);
+            case BOOL -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.BOOL, backend, CpuAccumulateDType.NONE);
         };
     }
 

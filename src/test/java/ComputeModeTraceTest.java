@@ -25,7 +25,9 @@ public class ComputeModeTraceTest {
                 .orElse(null);
         assertNotNull(add);
         assertNotNull(add.metadata().compute());
-        assertEquals("BF16_F32_COMPUTE", add.metadata().compute().mode());
+        assertEquals("F32", add.metadata().compute().mode());
+        assertEquals("BFLOAT16", add.metadata().compute().storageType());
+        assertEquals("CPU_ELEMENTWISE", add.metadata().compute().backend());
     }
 
     @Test
@@ -42,7 +44,9 @@ public class ComputeModeTraceTest {
                 .orElse(null);
         assertNotNull(sum);
         assertNotNull(sum.metadata().compute());
-        assertEquals("BF16_F32_COMPUTE", sum.metadata().compute().mode());
+        assertEquals("F32", sum.metadata().compute().mode());
+        assertEquals("BFLOAT16", sum.metadata().compute().storageType());
+        assertEquals("CPU_REDUCTION", sum.metadata().compute().backend());
     }
 
     @Test
@@ -62,7 +66,9 @@ public class ComputeModeTraceTest {
                 .orElse(null);
         assertNotNull(matmul);
         assertNotNull(matmul.metadata().compute());
-        assertEquals("BF16_BLAS", matmul.metadata().compute().mode());
+        assertEquals("F32", matmul.metadata().compute().mode());
+        assertEquals("BFLOAT16", matmul.metadata().compute().storageType());
+        assertEquals("CPU_MATMUL_BLAS", matmul.metadata().compute().backend());
         assertNotNull(matmul.metadata().matMul());
         assertEquals(true, matmul.metadata().matMul().useBlas());
     }

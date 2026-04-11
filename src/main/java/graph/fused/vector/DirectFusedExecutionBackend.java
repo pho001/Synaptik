@@ -1,6 +1,6 @@
 package graph.fused.vector;
 
-import backend.kernels.cpu.CpuComputeMode;
+import backend.kernels.cpu.CpuComputeDType;
 import graph.fused.FusedExecutionBackend;
 import graph.fused.FusedExecutionPlan;
 import graph.fused.PreparedFusedExecutable;
@@ -13,8 +13,8 @@ public final class DirectFusedExecutionBackend implements FusedExecutionBackend 
         if (plan == null) {
             return false;
         }
-        return switch (plan.computeMode()) {
-            case BF16_F32_COMPUTE, F32 -> FloatVector.SPECIES_PREFERRED.length() > 1;
+        return switch (plan.computeContract().computeType()) {
+            case F32, BF16_NATIVE -> FloatVector.SPECIES_PREFERRED.length() > 1;
             case F64 -> DoubleVector.SPECIES_PREFERRED.length() > 1;
             default -> false;
         };
@@ -22,11 +22,15 @@ public final class DirectFusedExecutionBackend implements FusedExecutionBackend 
 
     @Override
     public PreparedFusedExecutable prepare(FusedExecutionPlan plan) {
-        return switch (plan.computeMode()) {
-            case BF16_F32_COMPUTE -> new BFloat16PreparedFusedExecutable(plan.descriptor());
-            case F32 -> new Float32PreparedFusedExecutable(plan.descriptor());
-            case F64 -> new Float64PreparedFusedExecutable(plan.descriptor());
-            default -> throw new IllegalStateException("Unsupported vector fused compute mode: " + plan.computeMode());
+        return switch (plan.computeContract().storageType()) {
+            case BFLOAT16 -> new BFloat16PreparedFusedExecutable(plan.descriptor());
+            case FLOAT32 -> new Float32PreparedFusedExecutable(plan.descriptor());
+            case FLOAT64 -> new Float64PreparedFusedExecutable(plan.descriptor());
+            default -> throw new IllegalStateException(
+                    "Unsupported vector fused compute contract: storage="
+                            + plan.computeContract().storageType()
+                            + ", compute=" + plan.computeContract().computeType()
+            );
         };
     }
 
