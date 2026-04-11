@@ -15,7 +15,7 @@ public final class CpuGatherKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.runF64(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.gatherF64(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     @Override
@@ -24,7 +24,7 @@ public final class CpuGatherKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.runF32(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.gatherF32(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     @Override
@@ -33,7 +33,7 @@ public final class CpuGatherKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.runBF16(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.gatherBF16(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     @Override
@@ -42,7 +42,7 @@ public final class CpuGatherKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.runBOOL(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.gatherBOOL(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     @Override
@@ -51,7 +51,7 @@ public final class CpuGatherKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuGatherKernel requires gather operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.runI32(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.gatherI32(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

@@ -15,7 +15,7 @@ public final class CpuTakeAlongAxisGradKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisScatterF64(pair[0], pair[1], node, gradOp.getDimension());
+        IndexExecutor.takeAlongAxisGradF64(pair[0], pair[1], node, gradOp.getDimension(), context);
     }
 
     @Override
@@ -24,7 +24,7 @@ public final class CpuTakeAlongAxisGradKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisScatterF32(pair[0], pair[1], node, gradOp.getDimension());
+        IndexExecutor.takeAlongAxisGradF32(pair[0], pair[1], node, gradOp.getDimension(), context);
     }
 
     @Override
@@ -33,7 +33,7 @@ public final class CpuTakeAlongAxisGradKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisGradKernel requires takeAlongAxisGrad operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisScatterBF16(pair[0], pair[1], node, gradOp.getDimension());
+        IndexExecutor.takeAlongAxisGradBF16(pair[0], pair[1], node, gradOp.getDimension(), context);
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

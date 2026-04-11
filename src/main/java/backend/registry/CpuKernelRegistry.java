@@ -1,6 +1,7 @@
 package backend.registry;
 
 import backend.kernels.cpu.*;
+import backend.kernels.cpu.elementwise.*;
 import backend.kernels.cpu.fused.*;
 import backend.kernels.cpu.grad.*;
 import backend.kernels.cpu.index.*;

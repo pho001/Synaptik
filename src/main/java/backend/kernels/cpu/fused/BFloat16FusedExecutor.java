@@ -1,4 +1,4 @@
-package backend.kernels.cpu.fused;
+apackage backend.kernels.cpu.fused;
 
 import backend.kernels.cpu.*;
 

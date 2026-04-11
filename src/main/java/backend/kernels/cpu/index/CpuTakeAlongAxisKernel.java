@@ -15,7 +15,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisF64(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.takeAlongAxisF64(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     @Override
@@ -24,7 +24,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisF32(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.takeAlongAxisF32(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     @Override
@@ -33,7 +33,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisF16(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.takeAlongAxisBF16(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     @Override
@@ -42,7 +42,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisBOOL(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.takeAlongAxisBOOL(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     @Override
@@ -51,7 +51,7 @@ public final class CpuTakeAlongAxisKernel implements CpuKernel {
             throw new IllegalArgumentException("CpuTakeAlongAxisKernel requires takeAlongAxis operation");
         }
         Tensor[] pair = requirePair(inputs);
-        GatherSupport.takeAlongAxisI32(pair[0], pair[1], node, gatherOp.getDimension());
+        IndexExecutor.takeAlongAxisI32(pair[0], pair[1], node, gatherOp.getDimension(), context);
     }
 
     private static Tensor[] requirePair(List<Tensor> inputs) {

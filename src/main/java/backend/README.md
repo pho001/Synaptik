@@ -118,6 +118,24 @@ CPU family packages now follow one naming rule:
 
 This keeps orchestration separate from the actual inner compute loops without adding a new global abstraction hierarchy.
 
+The root package `backend.kernels.cpu` now intentionally keeps only:
+
+- shared contracts
+- prepared execution metadata
+- planner / context / workspace
+- shared dispatch hints
+- shared runtime utilities
+
+Operation entrypoints now live in their family packages:
+
+- `elementwise/`
+- `reduction/`
+- `linalg/`
+- `nn/`
+- `index/`
+- `layout/`
+- `fused/`
+
 For the pointwise batch, CPU now also uses an explicit split between:
 
 - local element algebra
@@ -288,6 +306,33 @@ Implementation lives in:
 - [src/main/java/backend/kernels/cpu/fused/CpuFusedKernel.java](../backend/kernels/cpu/fused/CpuFusedKernel.java)
 - [src/main/java/backend/kernels/cpu/fused/FusedExecutor.java](../backend/kernels/cpu/fused/FusedExecutor.java)
 - [src/main/java/graph/fused/PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
+
+For indexing kernels, CPU now separates:
+
+- `CpuGatherKernel`, `CpuTakeAlongAxisKernel`, `CpuScatterAddKernel`, gradient variants
+  - thin runtime entrypoints
+- `IndexExecutor`
+  - family orchestration layer
+- `IndexReadWriteBackend`
+  - specialized hot loops for gather / scatter / takeAlongAxis / scatterAdd
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/index/IndexExecutor.java](../backend/kernels/cpu/index/IndexExecutor.java)
+- [src/main/java/backend/kernels/cpu/index/IndexReadWriteBackend.java](../backend/kernels/cpu/index/IndexReadWriteBackend.java)
+
+For layout kernels, CPU uses one small family executor:
+
+- alias/view-like ops
+  - `SELECT`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`
+- reshape-like ops
+  - alias when possible, materialize when necessary
+- `CONTIGUOUS`
+  - explicit materialization through `TensorRemap`
+
+Implementation lives in:
+
+- [src/main/java/backend/kernels/cpu/layout/LayoutExecutor.java](../backend/kernels/cpu/layout/LayoutExecutor.java)
 
 The reduction pipeline supports:
 
