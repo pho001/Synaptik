@@ -1,9 +1,10 @@
 package backend.kernels.cpu.elementwise;
 
-import backend.kernels.cpu.*;
-
-import backend.kernels.cpu.elementwise.ElementwiseUnaryExecutor;
-import backend.kernels.cpu.elementwise.ScalarUnaryOp;
+import backend.kernels.cpu.CpuKernel;
+import backend.kernels.cpu.CpuKernelContext;
+import backend.kernels.cpu.bf16.PowBF16;
+import backend.kernels.cpu.f32.PowF32;
+import backend.kernels.cpu.f64.PowF64;
 import operations.Operation;
 import operations.pow;
 import tensor.Tensor;
@@ -13,19 +14,16 @@ import java.util.List;
 public class CpuPowKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pow p = (pow) op;
-        ElementwiseUnaryExecutor.execute(ScalarUnaryOp.POW, p.getExponent(), p.getExponentF32(), inputs, node, context);
+        PowF64.run(inputs.get(0).getFloat64Data(), ((pow) op).getExponent(), node.getFloat64Data(), context.dispatchHints());
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pow p = (pow) op;
-        ElementwiseUnaryExecutor.execute(ScalarUnaryOp.POW, p.getExponent(), p.getExponentF32(), inputs, node, context);
+        PowF32.run(inputs.get(0).getFloat32Data(), ((pow) op).getExponentF32(), node.getFloat32Data(), context.dispatchHints());
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        pow p = (pow) op;
-        ElementwiseUnaryExecutor.execute(ScalarUnaryOp.POW, p.getExponent(), p.getExponentF32(), inputs, node, context);
+        PowBF16.run(inputs.get(0).getBFloat16Data(), ((pow) op).getExponent(), node.getBFloat16Data(), context.dispatchHints());
     }
 }

@@ -1,9 +1,10 @@
 package backend.kernels.cpu.elementwise;
 
-import backend.kernels.cpu.*;
-
-import backend.kernels.cpu.elementwise.ElementwiseUnaryExecutor;
-import backend.kernels.cpu.elementwise.UnaryOp;
+import backend.kernels.cpu.CpuKernel;
+import backend.kernels.cpu.CpuKernelContext;
+import backend.kernels.cpu.bf16.NegBF16;
+import backend.kernels.cpu.f32.NegF32;
+import backend.kernels.cpu.f64.NegF64;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -12,16 +13,16 @@ import java.util.List;
 public class CpuNegKernel implements CpuKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        ElementwiseUnaryExecutor.execute(UnaryOp.NEG, inputs, node, context);
+        NegF64.run(inputs.get(0).getFloat64Data(), node.getFloat64Data(), context.dispatchHints());
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        ElementwiseUnaryExecutor.execute(UnaryOp.NEG, inputs, node, context);
+        NegF32.run(inputs.get(0).getFloat32Data(), node.getFloat32Data(), context.dispatchHints());
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        ElementwiseUnaryExecutor.execute(UnaryOp.NEG, inputs, node, context);
+        NegBF16.run(inputs.get(0).getBFloat16Data(), node.getBFloat16Data(), context.dispatchHints());
     }
 }
