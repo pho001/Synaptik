@@ -5,7 +5,7 @@ public record FusedExecutionPolicy(
         boolean allowBackendFallback
 ) {
     public FusedExecutionPolicy {
-        primaryBackend = primaryBackend == null ? FusedPrimaryBackend.DIRECT_VECTOR : primaryBackend;
+        primaryBackend = primaryBackend == null ? FusedPrimaryBackend.ASM : primaryBackend;
     }
 
     public static FusedExecutionPolicy defaultsTraining() {

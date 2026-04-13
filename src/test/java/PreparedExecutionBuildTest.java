@@ -59,7 +59,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void float32FusedPrepareUsesDirectVectorExecutable() {
+    void float32FusedPrepareUsesAsmExecutable() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{0.5f, 1.5f, -2f, 3f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor out = a.add(b).mul(a).sigmoid();
@@ -69,7 +69,7 @@ public class PreparedExecutionBuildTest {
                         kernelWithVectorMin(1),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true)
+                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -80,11 +80,11 @@ public class PreparedExecutionBuildTest {
         assertEquals("FLOAT32", fusedStep.metadata().cpuPlan().computeContract().storageType().name());
         assertEquals("F32", fusedStep.metadata().cpuPlan().computeContract().computeType().name());
         assertEquals("CPU_FUSED", fusedStep.metadata().cpuPlan().computeContract().backend().name());
-        assertEquals("Float32PreparedFusedExecutable", fusedStep.metadata().fusedExecutable().getClass().getSimpleName());
+        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("graph.fused.asm."));
     }
 
     @Test
-    void float64FusedPrepareUsesDirectVectorExecutable() {
+    void float64FusedPrepareUsesAsmExecutable() {
         Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{0.5, 1.5, -2.0, 3.0}, new int[]{4}, null, "b", DataType.FLOAT64);
         Tensor out = a.add(b).mul(a).sigmoid();
@@ -94,7 +94,7 @@ public class PreparedExecutionBuildTest {
                         kernelWithVectorMin(1),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true)
+                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
@@ -105,7 +105,7 @@ public class PreparedExecutionBuildTest {
         assertEquals("FLOAT64", fusedStep.metadata().cpuPlan().computeContract().storageType().name());
         assertEquals("F64", fusedStep.metadata().cpuPlan().computeContract().computeType().name());
         assertEquals("CPU_FUSED", fusedStep.metadata().cpuPlan().computeContract().backend().name());
-        assertEquals("Float64PreparedFusedExecutable", fusedStep.metadata().fusedExecutable().getClass().getSimpleName());
+        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("graph.fused.asm."));
     }
 
     @Test
@@ -120,28 +120,6 @@ public class PreparedExecutionBuildTest {
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
                         new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
-                ));
-
-        var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
-                .findFirst()
-                .orElseThrow();
-
-        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("graph.fused.asm."));
-    }
-
-    @Test
-    void float32FusedPrepareCanBeRoutedToAsmFallbackByVectorThresholdPolicy() {
-        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
-        Tensor b = new Tensor(new float[]{0.5f, 1.5f, -2f, 3f}, new int[]{4}, null, "b", DataType.FLOAT32);
-        Tensor out = a.add(b).mul(a).sigmoid();
-
-        PreparedExecution execution = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
-                .prepare(new RuntimeConfig(
-                        kernelWithVectorMin(1_000_000),
-                        config.runtime.ApproximationConfig.defaults(),
-                        config.runtime.BlasConfig.disabled(),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.DIRECT_VECTOR, true)
                 ));
 
         var fusedStep = execution.forwardSteps().stream()

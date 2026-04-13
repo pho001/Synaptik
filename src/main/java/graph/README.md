@@ -82,28 +82,19 @@ For fused nodes this now means:
 
 - prepare resolves a fused execution backend through `FusedExecutionBackendResolver`
 - resolver reads fused backend policy from `RuntimeConfig.fused()`
-- `FLOAT64` currently resolves to direct fused backend when `Vector API` is available
-- `FLOAT32` currently resolves to direct fused backend when `Vector API` is available
-- `BFLOAT16` with resolved compute type `F32` currently resolves to direct fused backend when `Vector API` is available
-- ASM remains the fused fallback backend when direct fused backend is unavailable or does not support the runtime combination
+- CPU fused execution currently resolves to ASM-generated fused executables
 - prepared metadata stores one unified `PreparedFusedExecutable`, regardless of which backend produced it
 
 Current fused policy knobs are:
 
 - primary backend:
-  - `DIRECT_VECTOR`
   - `ASM`
 - whether backend fallback is allowed
-- whether compare/select chains should still prefer direct backend
 
-The vector-length threshold for direct fused backend selection is now unified under:
+Fused backend selection is therefore intentionally simple on CPU:
 
-- `cpu.vectorMinSize`
-
-That threshold therefore has one owner and is shared with the CPU planner instead of being duplicated inside fused policy.
-
-That means fused backend selection is no longer a hardcoded router rule.
-It is part of the execution profile surface and can therefore be autotuned.
+- unfused kernels use the normal CPU scalar/vector/parallel planners
+- fused kernels use ASM-generated specialized executables
 
 This preparation is runtime-specific because it depends on:
 

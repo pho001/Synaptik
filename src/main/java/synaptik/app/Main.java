@@ -65,7 +65,6 @@ public final class Main {
             case AUTOTUNE -> runAutotune(dtype);
             case BENCHMARK_WINNER -> runWinnerBenchmark(dtype);
             case BENCHMARK_STAGE_SPACE -> runStageSpaceBenchmark(dtype);
-            case BENCHMARK_FUSED_BACKENDS -> runFusedBackendBenchmark(dtype);
         }
     }
 
@@ -176,14 +175,6 @@ public final class Main {
         System.out.println(TextBenchmarkReportRenderer.render(report));
     }
 
-    private static void runFusedBackendBenchmark(DTypeTarget dtype) {
-        if (dtype != DTypeTarget.F64) {
-            throw new IllegalArgumentException("Fused backend benchmark is currently wired only for f64.");
-        }
-        System.out.println(header(dtype, "fused backend compare"));
-        FusedBackendCompareCli.main(new String[0]);
-    }
-
     private static ExecutionProfile trainingSeedProfile(DTypeTarget dtype) {
         return new ExecutionProfile(
                 "platform-seed-" + dtype.id + "-training",
@@ -285,7 +276,6 @@ public final class Main {
                   ./gradlew run --args="autotune <f64|f32|bf16>"
                   ./gradlew run --args="benchmark-winner <f64|f32|bf16>"
                   ./gradlew run --args="benchmark-stage-space <f64|f32|bf16>"
-                  ./gradlew run --args="benchmark-fused-backends f64"
 
                 Notes:
                   - no args defaults to `full f64`
@@ -300,8 +290,7 @@ public final class Main {
         CALIBRATE("calibrate"),
         AUTOTUNE("autotune"),
         BENCHMARK_WINNER("benchmark-winner"),
-        BENCHMARK_STAGE_SPACE("benchmark-stage-space"),
-        BENCHMARK_FUSED_BACKENDS("benchmark-fused-backends");
+        BENCHMARK_STAGE_SPACE("benchmark-stage-space");
 
         private final String cliName;
 
