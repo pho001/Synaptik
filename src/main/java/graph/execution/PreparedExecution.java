@@ -230,10 +230,14 @@ public final class PreparedExecution {
         }
 
         if (node.getOperation() instanceof operations.FusedOperation fused) {
+            String executionBackend = step.metadata().fusedExecutable() == null
+                    ? ""
+                    : step.metadata().fusedExecutable().getClass().getSimpleName();
             fusedMeta = new FusedTraceMetadata(
                     fused.getPrecisionMode(),
                     fused.isLowCostHint(),
                     fused.getSchedulerSignature(),
+                    executionBackend,
                     fused.getDispatchScale(),
                     fused.getPlan().nodeCount(),
                     fused.getPlan().inputCount()

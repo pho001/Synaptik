@@ -10,22 +10,22 @@ import tensor.Tensor;
 import java.util.List;
 
 public final class Float32PreparedFusedExecutable implements PreparedFusedExecutable {
-    private final FusedOperation fused;
+    private final DirectLinearF32Program program;
 
-    public Float32PreparedFusedExecutable(FusedOperation fused) {
-        if (fused == null) {
-            throw new IllegalArgumentException("fused cannot be null");
+    public Float32PreparedFusedExecutable(FusedOperation fused, DirectLinearF32Program program) {
+        if (fused == null || program == null) {
+            throw new IllegalArgumentException("fused/program cannot be null");
         }
-        this.fused = fused;
+        this.program = program;
     }
 
     @Override
     public void applyRangeScalar(List<Tensor> inputs, Tensor out, CpuKernelContext context, int startInclusive, int endExclusive, FusedExecutionOptions options) {
-        Float32FusedExecutor.applyRangeScalar(fused, inputs, out, context, options, startInclusive, endExclusive);
+        program.applyScalar(inputs, out, startInclusive, endExclusive, options);
     }
 
     @Override
     public void applyRangeVector(List<Tensor> inputs, Tensor out, CpuKernelContext context, int startInclusive, int endExclusive, FusedExecutionOptions options) {
-        Float32FusedExecutor.applyRangeVector(fused, inputs, out, context, options, startInclusive, endExclusive);
+        program.applyVector(inputs, out, startInclusive, endExclusive);
     }
 }

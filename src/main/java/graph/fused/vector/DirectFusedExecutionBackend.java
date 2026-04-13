@@ -13,19 +13,23 @@ public final class DirectFusedExecutionBackend implements FusedExecutionBackend 
         if (plan == null) {
             return false;
         }
-        return switch (plan.computeContract().computeType()) {
+        boolean vectorCapable = switch (plan.computeContract().computeType()) {
             case F32, BF16_NATIVE -> FloatVector.SPECIES_PREFERRED.length() > 1;
             case F64 -> DoubleVector.SPECIES_PREFERRED.length() > 1;
             default -> false;
         };
+        return vectorCapable
+                && DirectFusedPlanSupport.supportsPlan(
+                plan.descriptor().getPlan(),
+                plan.computeContract().storageType()
+        );
     }
 
     @Override
     public PreparedFusedExecutable prepare(FusedExecutionPlan plan) {
         return switch (plan.computeContract().storageType()) {
-            case BFLOAT16 -> new BFloat16PreparedFusedExecutable(plan.descriptor());
-            case FLOAT32 -> new Float32PreparedFusedExecutable(plan.descriptor());
-            case FLOAT64 -> new Float64PreparedFusedExecutable(plan.descriptor());
+            case FLOAT32 -> new Float32PreparedFusedExecutable(plan.descriptor(), DirectLinearF32Program.lower(plan.descriptor().getPlan()));
+            case FLOAT64 -> new Float64PreparedFusedExecutable(plan.descriptor(), DirectLinearF64Program.lower(plan.descriptor().getPlan()));
             default -> throw new IllegalStateException(
                     "Unsupported vector fused compute contract: storage="
                             + plan.computeContract().storageType()

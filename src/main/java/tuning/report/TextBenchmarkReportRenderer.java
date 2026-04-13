@@ -127,15 +127,23 @@ public final class TextBenchmarkReportRenderer {
         steps.stream()
                 .sorted(java.util.Comparator.comparingLong(graph.execution.trace.ExecutionStepTrace::durationNs).reversed())
                 .limit(limit)
-                .forEach(step -> sb.append("    ")
-                        .append(step.index())
-                        .append(": ")
-                        .append(step.opType())
-                        .append(" [")
-                        .append(step.label())
-                        .append("] ")
-                        .append(String.format(Locale.US, "%.6fms", nanosToMs(step.durationNs())))
-                        .append('\n'));
+                .forEach(step -> {
+                    sb.append("    ")
+                            .append(step.index())
+                            .append(": ")
+                            .append(step.opType())
+                            .append(" [")
+                            .append(step.label())
+                            .append("] ")
+                            .append(String.format(Locale.US, "%.6fms", nanosToMs(step.durationNs())));
+                    if (step.metadata() != null && step.metadata().fused() != null) {
+                        String backend = step.metadata().fused().executionBackend();
+                        if (backend != null && !backend.isBlank()) {
+                            sb.append(" backend=").append(backend);
+                        }
+                    }
+                    sb.append('\n');
+                });
     }
 
     private static String label(BenchmarkCandidateReport candidate) {
