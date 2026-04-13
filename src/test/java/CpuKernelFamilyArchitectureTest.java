@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class CpuKernelFamilyArchitectureTest {
     @Test
     void registryResolvesKernelsFromExpectedFamilyPackages() {
-        assertPackage(Operation.OpType.ADD, "backend.kernels.cpu.elementwise");
-        assertPackage(Operation.OpType.WHERE, "backend.kernels.cpu.elementwise");
+        assertPackage(Operation.OpType.ADD, "backend.kernels.cpu.elementwise.binary");
+        assertPackage(Operation.OpType.WHERE, "backend.kernels.cpu.elementwise.where");
         assertPackage(Operation.OpType.NOOP, "backend.kernels.cpu.layout");
         assertPackage(Operation.OpType.GATHER, "backend.kernels.cpu.index");
         assertPackage(Operation.OpType.SUM, "backend.kernels.cpu.reduction");

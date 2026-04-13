@@ -107,7 +107,7 @@ public class BroadcastContractMatrixTest {
         CompiledGraph.compile(out, OptimizerConfig.noOptimization())
                 .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
 
-        double[] expected = expectedForward(op, left.toDoubleArrayCopy(), left.getShape(), right.toDoubleArrayCopy(), right.getShape());
+        double[] expected = expectedForward(op, left.toDoubleArrayCopy(), left.getShape(), right.toDoubleArrayCopy(), right.getShape(), dataType);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), epsFor(dataType), "forward mismatch for op=" + op + ", dtype=" + dataType);
         assertArrayEquals(new int[]{2, 3, 4}, out.getShape(), "shape mismatch for op=" + op);
     }
@@ -145,7 +145,7 @@ public class BroadcastContractMatrixTest {
         assertArrayEquals(expected.right(), right.getGradient().toDoubleArrayCopy(), epsFor(dataType), "right grad mismatch for op=" + op + ", dtype=" + dataType);
     }
 
-    private static double[] expectedForward(String op, double[] left, int[] leftShape, double[] right, int[] rightShape) {
+    private static double[] expectedForward(String op, double[] left, int[] leftShape, double[] right, int[] rightShape, DataType dataType) {
         int[] outShape = broadcastShape(leftShape, rightShape);
         int[] outStrides = denseStrides(outShape);
         int[] leftStrides = denseStrides(leftShape);
@@ -158,7 +158,7 @@ public class BroadcastContractMatrixTest {
             int[] coords = coordsFor(i, outShape, outStrides);
             double a = left[offsetFor(coords, leftShape, leftStrides, leftOffset)];
             double b = right[offsetFor(coords, rightShape, rightStrides, rightOffset)];
-            out[i] = switch (op) {
+            double value = switch (op) {
                 case "add" -> a + b;
                 case "sub" -> a - b;
                 case "mul" -> a * b;
@@ -167,6 +167,9 @@ public class BroadcastContractMatrixTest {
                 case "max" -> Math.max(a, b);
                 default -> throw new IllegalArgumentException("Unsupported op: " + op);
             };
+            out[i] = dataType == DataType.BFLOAT16
+                    ? backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits((float) value))
+                    : value;
         }
         return out;
     }

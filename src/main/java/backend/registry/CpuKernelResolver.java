@@ -1,14 +1,18 @@
 package backend.registry;
 
 import backend.kernels.cpu.CpuKernel;
-import backend.kernels.cpu.elementwise.*;
+import backend.kernels.cpu.elementwise.binary.*;
+import backend.kernels.cpu.elementwise.compare.*;
 import backend.kernels.cpu.fused.CpuFusedKernel;
 import backend.kernels.cpu.grad.*;
 import backend.kernels.cpu.index.*;
 import backend.kernels.cpu.layout.*;
 import backend.kernels.cpu.linalg.*;
+import backend.kernels.cpu.elementwise.logical.*;
 import backend.kernels.cpu.nn.*;
 import backend.kernels.cpu.reduction.*;
+import backend.kernels.cpu.elementwise.unary.*;
+import backend.kernels.cpu.elementwise.where.*;
 import operations.Operation;
 
 public final class CpuKernelResolver {
