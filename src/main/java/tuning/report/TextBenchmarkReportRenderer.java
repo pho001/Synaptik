@@ -2,6 +2,7 @@ package tuning.report;
 
 import java.util.Comparator;
 import java.util.Locale;
+import java.util.Map;
 
 public final class TextBenchmarkReportRenderer {
     private static final String ANSI_GREEN = "\u001B[32m";
@@ -105,6 +106,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  steadyStateP90Ms=").append(String.format(Locale.US, "%.6f", stats.p90Ms())).append('\n');
                         sb.append("  speedupVsBaseline=").append(formatRatio(report.speedupVsBaseline(candidate))).append('\n');
                         appendHotSteps(sb, trace.run().steps(), 5);
+                        appendAllSteps(sb, trace.run().steps());
                     }
                 });
 
@@ -144,6 +146,92 @@ public final class TextBenchmarkReportRenderer {
                     }
                     sb.append('\n');
                 });
+    }
+
+    private static void appendAllSteps(StringBuilder sb, java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+        if (steps == null || steps.isEmpty()) {
+            return;
+        }
+        sb.append("  steps:\n");
+        for (var step : steps) {
+            sb.append("    - index=").append(step.index())
+                    .append(" label=").append(step.label())
+                    .append(" opType=").append(step.opType())
+                    .append(" shape=").append(step.shape())
+                    .append(" dtype=").append(step.dataType())
+                    .append(" backend=").append(step.backend())
+                    .append(" kernel=").append(step.kernel())
+                    .append(" durationMs=").append(String.format(Locale.US, "%.6f", nanosToMs(step.durationNs())))
+                    .append('\n');
+
+            var metadata = step.metadata();
+            if (metadata == null) {
+                continue;
+            }
+
+            sb.append("      kind=").append(metadata.kind()).append('\n');
+            if (metadata.attributes() != null && !metadata.attributes().isEmpty()) {
+                sb.append("      attributes=").append(formatMap(metadata.attributes())).append('\n');
+            }
+            if (metadata.compute() != null) {
+                sb.append("      compute: ")
+                        .append("mode=").append(metadata.compute().mode())
+                        .append(" storageType=").append(metadata.compute().storageType())
+                        .append(" computeType=").append(metadata.compute().computeType())
+                        .append(" backend=").append(metadata.compute().backend())
+                        .append(" accumulateType=").append(metadata.compute().accumulateType())
+                        .append('\n');
+            }
+            if (metadata.layout() != null) {
+                sb.append("      layout: ")
+                        .append("storageOffset=").append(metadata.layout().storageOffset())
+                        .append(" contiguous=").append(metadata.layout().contiguous())
+                        .append(" stridedPath=").append(metadata.layout().stridedPath())
+                        .append(" targetType=").append(metadata.layout().targetType())
+                        .append('\n');
+            }
+            if (metadata.dispatch() != null) {
+                sb.append("      dispatch: ")
+                        .append("mode=").append(metadata.dispatch().mode())
+                        .append(" vectorWidth=").append(metadata.dispatch().vectorWidth())
+                        .append(" plannedWorkers=").append(metadata.dispatch().plannedWorkers())
+                        .append(" scalarChunkSize=").append(metadata.dispatch().scalarChunkSize())
+                        .append(" vectorChunkSize=").append(metadata.dispatch().vectorChunkSize())
+                        .append('\n');
+            }
+            if (metadata.reduction() != null) {
+                sb.append("      reduction: ")
+                        .append("mode=").append(metadata.reduction().mode())
+                        .append(" plannedWorkers=").append(metadata.reduction().plannedWorkers())
+                        .append(" chunkSize=").append(metadata.reduction().chunkSize())
+                        .append(" vectorWidth=").append(metadata.reduction().vectorWidth())
+                        .append(" accuracyMode=").append(metadata.reduction().accuracyMode())
+                        .append('\n');
+            }
+            if (metadata.matMul() != null) {
+                sb.append("      matMul: ")
+                        .append("useBlas=").append(metadata.matMul().useBlas())
+                        .append(" useBatchedBlas=").append(metadata.matMul().useBatchedBlas())
+                        .append(" parallel=").append(metadata.matMul().parallel())
+                        .append(" tileM=").append(metadata.matMul().tileM())
+                        .append(" tileN=").append(metadata.matMul().tileN())
+                        .append(" tileK=").append(metadata.matMul().tileK())
+                        .append(" plannedWorkers=").append(metadata.matMul().plannedWorkers())
+                        .append(" work=").append(metadata.matMul().work())
+                        .append('\n');
+            }
+            if (metadata.fused() != null) {
+                sb.append("      fused: ")
+                        .append("precisionMode=").append(metadata.fused().precisionMode())
+                        .append(" lowCostHint=").append(metadata.fused().lowCostHint())
+                        .append(" schedulerSignature=").append(metadata.fused().schedulerSignature())
+                        .append(" executionBackend=").append(metadata.fused().executionBackend())
+                        .append(" dispatchScale=").append(metadata.fused().dispatchScale())
+                        .append(" fusedNodeCount=").append(metadata.fused().fusedNodeCount())
+                        .append(" fusedInputCount=").append(metadata.fused().fusedInputCount())
+                        .append('\n');
+            }
+        }
     }
 
     private static String label(BenchmarkCandidateReport candidate) {
@@ -228,5 +316,21 @@ public final class TextBenchmarkReportRenderer {
             return row;
         }
         return ANSI_GREEN + row + ANSI_RESET;
+    }
+
+    private static String formatMap(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        int index = 0;
+        for (var entry : map.entrySet()) {
+            if (index++ > 0) {
+                sb.append(", ");
+            }
+            sb.append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        sb.append('}');
+        return sb.toString();
     }
 }

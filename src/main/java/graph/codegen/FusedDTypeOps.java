@@ -94,7 +94,23 @@ public final class FusedDTypeOps {
     }
 
     public static double pow(double a, double exponent, int mode) {
-        return cast(Math.pow(cast(a, mode), exponent), mode);
+        double x = cast(a, mode);
+        if (exponent == 0.0d) {
+            return cast(1.0d, mode);
+        }
+        if (exponent == 1.0d) {
+            return x;
+        }
+        if (exponent == 2.0d) {
+            return cast(x * x, mode);
+        }
+        if (exponent == 0.5d) {
+            return cast(Math.sqrt(x), mode);
+        }
+        if (exponent == -1.0d) {
+            return cast(1.0d / x, mode);
+        }
+        return cast(Math.pow(x, exponent), mode);
     }
 
     public static double mulScalar(double a, double scalar, int mode) {

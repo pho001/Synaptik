@@ -54,10 +54,40 @@ public final class FusedScalarOps {
     }
 
     public static float powF32(float x, float exponent) {
+        if (exponent == 0.0f) {
+            return 1.0f;
+        }
+        if (exponent == 1.0f) {
+            return x;
+        }
+        if (exponent == 2.0f) {
+            return x * x;
+        }
+        if (exponent == 0.5f) {
+            return (float) Math.sqrt(x);
+        }
+        if (exponent == -1.0f) {
+            return 1.0f / x;
+        }
         return (float) Math.pow(x, exponent);
     }
 
     public static double powF64(double x, double exponent) {
+        if (exponent == 0.0d) {
+            return 1.0d;
+        }
+        if (exponent == 1.0d) {
+            return x;
+        }
+        if (exponent == 2.0d) {
+            return x * x;
+        }
+        if (exponent == 0.5d) {
+            return Math.sqrt(x);
+        }
+        if (exponent == -1.0d) {
+            return 1.0d / x;
+        }
         return Math.pow(x, exponent);
     }
 

@@ -315,15 +315,69 @@ public final class FusedVectorOps {
 
     public static Object pow(Object a, double exponent, int mode) {
         return switch (mode) {
-            case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, x -> Math.pow(x, exponent));
-            case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.pow(x, exponent));
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.pow(x, exponent, mode));
+            case FusedDTypeOps.MODE_F64 -> powF64((DoubleVector) a, exponent);
+            case FusedDTypeOps.MODE_F32 -> powF32((FloatVector) a, (float) exponent);
+            case FusedDTypeOps.MODE_BF16 -> powBF16(a, exponent);
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
-    public static DoubleVector powF64(DoubleVector a, double exponent) { return (DoubleVector) mapUnaryD(a, x -> Math.pow(x, exponent)); }
-    public static FloatVector powF32(FloatVector a, float exponent) { return (FloatVector) mapUnaryF(a, x -> (float) Math.pow(x, exponent)); }
+    public static DoubleVector powF64(DoubleVector a, double exponent) {
+        if (exponent == 0.0d) {
+            return doubleOne(a);
+        }
+        if (exponent == 1.0d) {
+            return a;
+        }
+        if (exponent == 2.0d) {
+            return a.mul(a);
+        }
+        if (exponent == 0.5d) {
+            return a.lanewise(VectorOperators.SQRT);
+        }
+        if (exponent == -1.0d) {
+            return doubleOne(a).div(a);
+        }
+        return (DoubleVector) mapUnaryD(a, x -> Math.pow(x, exponent));
+    }
+
+    public static FloatVector powF32(FloatVector a, float exponent) {
+        if (exponent == 0.0f) {
+            return floatOne(a);
+        }
+        if (exponent == 1.0f) {
+            return a;
+        }
+        if (exponent == 2.0f) {
+            return a.mul(a);
+        }
+        if (exponent == 0.5f) {
+            return a.lanewise(VectorOperators.SQRT);
+        }
+        if (exponent == -1.0f) {
+            return floatOne(a).div(a);
+        }
+        return (FloatVector) mapUnaryF(a, x -> (float) Math.pow(x, exponent));
+    }
+
+    private static Object powBF16(Object a, double exponent) {
+        if (exponent == 0.0d) {
+            return mapUnaryD(a, x -> FusedDTypeOps.cast(1.0d, FusedDTypeOps.MODE_BF16));
+        }
+        if (exponent == 1.0d) {
+            return a;
+        }
+        if (exponent == 2.0d) {
+            return mapUnaryD(a, x -> FusedDTypeOps.cast(x * x, FusedDTypeOps.MODE_BF16));
+        }
+        if (exponent == 0.5d) {
+            return mapUnaryD(a, x -> FusedDTypeOps.cast(Math.sqrt(x), FusedDTypeOps.MODE_BF16));
+        }
+        if (exponent == -1.0d) {
+            return mapUnaryD(a, x -> FusedDTypeOps.cast(1.0d / x, FusedDTypeOps.MODE_BF16));
+        }
+        return mapUnaryD(a, x -> FusedDTypeOps.pow(x, exponent, FusedDTypeOps.MODE_BF16));
+    }
 
     public static Object gt(Object a, Object b, int mode) {
         return switch (mode) {

@@ -1,6 +1,7 @@
 package tuning.report;
 
 import java.util.Locale;
+import java.util.Map;
 
 public final class JsonBenchmarkReportRenderer {
     private JsonBenchmarkReportRenderer() {
@@ -56,6 +57,16 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"stepCount\": ").append(trace.run().steps().size()).append(",\n");
                 sb.append("        \"parallelUsed\": ").append(usesParallel(trace.run().steps())).append(",\n");
                 sb.append("        \"vectorUsed\": ").append(usesVector(trace.run().steps())).append(",\n");
+                sb.append("        \"steps\": [\n");
+                var allSteps = trace.run().steps();
+                for (int j = 0; j < allSteps.size(); j++) {
+                    var step = allSteps.get(j);
+                    if (j > 0) {
+                        sb.append(",\n");
+                    }
+                    appendStepJson(sb, step, "          ");
+                }
+                sb.append("\n        ],\n");
                 sb.append("        \"hotSteps\": [\n");
                 java.util.List<graph.execution.trace.ExecutionStepTrace> hotSteps = trace.run().steps().stream()
                         .sorted(java.util.Comparator.comparingLong(graph.execution.trace.ExecutionStepTrace::durationNs).reversed())
@@ -66,12 +77,7 @@ public final class JsonBenchmarkReportRenderer {
                     if (j > 0) {
                         sb.append(",\n");
                     }
-                    sb.append("          {");
-                    sb.append("\"index\": ").append(step.index()).append(", ");
-                    sb.append("\"label\": \"").append(escape(step.label())).append("\", ");
-                    sb.append("\"opType\": \"").append(escape(step.opType())).append("\", ");
-                    sb.append("\"durationMs\": ").append(format(nanosToMs(step.durationNs())));
-                    sb.append("}");
+                    appendStepJson(sb, step, "          ");
                 }
                 sb.append("\n        ]\n");
                 sb.append("      }\n");
@@ -172,5 +178,174 @@ public final class JsonBenchmarkReportRenderer {
 
     private static boolean isVectorMode(String mode) {
         return "VECTOR".equals(mode) || "PARALLEL_VECTOR".equals(mode);
+    }
+
+    private static void appendStepJson(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step, String indent) {
+        sb.append(indent).append("{\n");
+        sb.append(indent).append("  \"index\": ").append(step.index()).append(",\n");
+        sb.append(indent).append("  \"label\": \"").append(escape(step.label())).append("\",\n");
+        sb.append(indent).append("  \"opType\": \"").append(escape(step.opType())).append("\",\n");
+        sb.append(indent).append("  \"shape\": ").append(intListJson(step.shape())).append(",\n");
+        sb.append(indent).append("  \"dataType\": \"").append(step.dataType() == null ? "" : escape(step.dataType().name())).append("\",\n");
+        sb.append(indent).append("  \"backend\": \"").append(escape(step.backend())).append("\",\n");
+        sb.append(indent).append("  \"kernel\": \"").append(escape(step.kernel())).append("\",\n");
+        sb.append(indent).append("  \"durationMs\": ").append(format(nanosToMs(step.durationNs()))).append(",\n");
+        appendStepMetadataJson(sb, step.metadata(), indent + "  ");
+        sb.append('\n').append(indent).append('}');
+    }
+
+    private static void appendStepMetadataJson(
+            StringBuilder sb,
+            graph.execution.trace.StepExecutionMetadata metadata,
+            String indent
+    ) {
+        if (metadata == null) {
+            sb.append(indent).append("\"metadata\": null");
+            return;
+        }
+        sb.append(indent).append("\"metadata\": {\n");
+        sb.append(indent).append("  \"kind\": \"").append(escape(metadata.kind())).append("\",\n");
+        sb.append(indent).append("  \"attributes\": ").append(mapJson(metadata.attributes())).append(",\n");
+        sb.append(indent).append("  \"compute\": ").append(computeJson(metadata.compute())).append(",\n");
+        sb.append(indent).append("  \"layout\": ").append(layoutJson(metadata.layout())).append(",\n");
+        sb.append(indent).append("  \"dispatch\": ").append(dispatchJson(metadata.dispatch())).append(",\n");
+        sb.append(indent).append("  \"reduction\": ").append(reductionJson(metadata.reduction())).append(",\n");
+        sb.append(indent).append("  \"matMul\": ").append(matMulJson(metadata.matMul())).append(",\n");
+        sb.append(indent).append("  \"fused\": ").append(fusedJson(metadata.fused())).append('\n');
+        sb.append(indent).append("}");
+    }
+
+    private static String computeJson(graph.execution.trace.ComputeTraceMetadata compute) {
+        if (compute == null) {
+            return "null";
+        }
+        return "{"
+                + "\"mode\": \"" + escape(compute.mode()) + "\", "
+                + "\"storageType\": \"" + escape(compute.storageType()) + "\", "
+                + "\"computeType\": \"" + escape(compute.computeType()) + "\", "
+                + "\"backend\": \"" + escape(compute.backend()) + "\", "
+                + "\"accumulateType\": \"" + escape(compute.accumulateType()) + "\""
+                + "}";
+    }
+
+    private static String layoutJson(graph.execution.trace.LayoutTraceMetadata layout) {
+        if (layout == null) {
+            return "null";
+        }
+        return "{"
+                + "\"storageOffset\": " + layout.storageOffset() + ", "
+                + "\"contiguous\": " + layout.contiguous() + ", "
+                + "\"stridedPath\": " + layout.stridedPath() + ", "
+                + "\"targetType\": \"" + escape(layout.targetType()) + "\""
+                + "}";
+    }
+
+    private static String dispatchJson(graph.execution.trace.DispatchTraceMetadata dispatch) {
+        if (dispatch == null) {
+            return "null";
+        }
+        return "{"
+                + "\"mode\": \"" + escape(dispatch.mode()) + "\", "
+                + "\"vectorWidth\": " + dispatch.vectorWidth() + ", "
+                + "\"plannedWorkers\": " + dispatch.plannedWorkers() + ", "
+                + "\"scalarChunkSize\": " + dispatch.scalarChunkSize() + ", "
+                + "\"vectorChunkSize\": " + dispatch.vectorChunkSize()
+                + "}";
+    }
+
+    private static String reductionJson(graph.execution.trace.ReductionTraceMetadata reduction) {
+        if (reduction == null) {
+            return "null";
+        }
+        return "{"
+                + "\"mode\": \"" + escape(reduction.mode()) + "\", "
+                + "\"plannedWorkers\": " + reduction.plannedWorkers() + ", "
+                + "\"chunkSize\": " + reduction.chunkSize() + ", "
+                + "\"vectorWidth\": " + reduction.vectorWidth() + ", "
+                + "\"accuracyMode\": \"" + escape(reduction.accuracyMode()) + "\""
+                + "}";
+    }
+
+    private static String matMulJson(graph.execution.trace.MatMulTraceMetadata matMul) {
+        if (matMul == null) {
+            return "null";
+        }
+        return "{"
+                + "\"useBlas\": " + matMul.useBlas() + ", "
+                + "\"useBatchedBlas\": " + matMul.useBatchedBlas() + ", "
+                + "\"parallel\": " + matMul.parallel() + ", "
+                + "\"tileM\": " + matMul.tileM() + ", "
+                + "\"tileN\": " + matMul.tileN() + ", "
+                + "\"tileK\": " + matMul.tileK() + ", "
+                + "\"plannedWorkers\": " + matMul.plannedWorkers() + ", "
+                + "\"work\": " + matMul.work()
+                + "}";
+    }
+
+    private static String fusedJson(graph.execution.trace.FusedTraceMetadata fused) {
+        if (fused == null) {
+            return "null";
+        }
+        return "{"
+                + "\"precisionMode\": " + fused.precisionMode() + ", "
+                + "\"lowCostHint\": " + fused.lowCostHint() + ", "
+                + "\"schedulerSignature\": \"" + escape(fused.schedulerSignature()) + "\", "
+                + "\"executionBackend\": \"" + escape(fused.executionBackend()) + "\", "
+                + "\"dispatchScale\": " + fused.dispatchScale() + ", "
+                + "\"fusedNodeCount\": " + fused.fusedNodeCount() + ", "
+                + "\"fusedInputCount\": " + fused.fusedInputCount()
+                + "}";
+    }
+
+    private static String intListJson(java.util.List<Integer> values) {
+        if (values == null || values.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(values.get(i));
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private static String mapJson(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        int index = 0;
+        for (var entry : map.entrySet()) {
+            if (index++ > 0) {
+                sb.append(", ");
+            }
+            sb.append('"').append(escape(entry.getKey())).append('"').append(": ").append(valueJson(entry.getValue()));
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static String valueJson(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return String.valueOf(value);
+        }
+        if (value instanceof java.util.List<?> list) {
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < list.size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(valueJson(list.get(i)));
+            }
+            sb.append(']');
+            return sb.toString();
+        }
+        return "\"" + escape(String.valueOf(value)) + "\"";
     }
 }
