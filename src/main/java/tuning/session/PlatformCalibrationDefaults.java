@@ -315,14 +315,16 @@ public final class PlatformCalibrationDefaults {
                 PlatformCalibrationFamily.MATERIALIZATION,
                 List.of(
                         CalibrationWorkloads.materializationStridedElementwise(name + "_workload_small", 128, 128),
-                        CalibrationWorkloads.materializationStridedElementwise(name + "_workload_medium", 256, 256)
+                        CalibrationWorkloads.materializationStridedElementwise(name + "_workload_medium", 256, 256),
+                        CalibrationWorkloads.materializationStridedElementwise(name + "_workload_threshold_524k", 512, 1024),
+                        CalibrationWorkloads.materializationStridedElementwise(name + "_workload_threshold_1m", 1024, 1024)
                 ),
                 preset,
                 base -> new PlatformRuntimeProfileGridCandidateSpace(
                         base,
                         List.of(
                                 PlatformRuntimeProfileMutators.materializationThresholds(
-                                        aroundScaled(base.materialization().contiguousMaterializeThreshold(), 4_096, 1_048_576)
+                                        materializationThresholdCandidates(base.materialization().contiguousMaterializeThreshold())
                                 )
                         )
                 ),
@@ -366,6 +368,18 @@ public final class PlatformCalibrationDefaults {
         out.add(base);
         out.add(clamp(base / 2, min, max));
         out.add(clamp(base * 2, min, max));
+        return List.copyOf(out);
+    }
+
+    private static List<Integer> materializationThresholdCandidates(int baseValue) {
+        java.util.LinkedHashSet<Integer> out = new java.util.LinkedHashSet<>();
+        int base = clamp(baseValue, 4_096, 1_048_576);
+        out.add(base);
+        out.add(clamp(base / 2, 4_096, 1_048_576));
+        out.add(clamp(base * 2, 4_096, 1_048_576));
+        out.add(262_144);
+        out.add(524_288);
+        out.add(1_048_576);
         return List.copyOf(out);
     }
 

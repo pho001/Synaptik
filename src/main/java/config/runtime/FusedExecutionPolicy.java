@@ -10,7 +10,7 @@ public record FusedExecutionPolicy(
 
     public static FusedExecutionPolicy defaultsTraining() {
         return new FusedExecutionPolicy(
-                FusedPrimaryBackend.DIRECT_VECTOR,
+                FusedPrimaryBackend.ASM,
                 true
         );
     }

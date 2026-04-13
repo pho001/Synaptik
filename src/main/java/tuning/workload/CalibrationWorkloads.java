@@ -36,8 +36,9 @@ public final class CalibrationWorkloads {
                 name,
                 WorkloadKind.GENERIC,
                 environment -> {
-                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 101), false, environment.profile().dataType(), size);
-                    tensor.Tensor b = tensor.TensorDataFactory.shapedTensor("B", random(size, 102), false, environment.profile().dataType(), size);
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 101), requiresGrad, environment.profile().dataType(), size);
+                    tensor.Tensor b = tensor.TensorDataFactory.shapedTensor("B", random(size, 102), requiresGrad, environment.profile().dataType(), size);
                     return a.add(b).mul(a).sub(b).relu().sum();
                 },
                 environment -> ValidationReference.none(),
@@ -50,7 +51,8 @@ public final class CalibrationWorkloads {
                 name,
                 WorkloadKind.GENERIC,
                 environment -> {
-                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 103), false, environment.profile().dataType(), size);
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 103), requiresGrad, environment.profile().dataType(), size);
                     return a.exp().tanh().log().sigmoid().sum();
                 },
                 environment -> ValidationReference.none(),
@@ -62,7 +64,10 @@ public final class CalibrationWorkloads {
         return new TensorRootWorkloadSpec(
                 name,
                 WorkloadKind.GENERIC,
-                environment -> tensor.TensorDataFactory.shapedTensor("REDUCE", random(size, 104), false, environment.profile().dataType(), size).sum(),
+                environment -> {
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    return tensor.TensorDataFactory.shapedTensor("REDUCE", random(size, 104), requiresGrad, environment.profile().dataType(), size).sum();
+                },
                 environment -> ValidationReference.none(),
                 environment -> WorkloadMetadata.of(name, WorkloadKind.GENERIC)
         );
@@ -73,8 +78,9 @@ public final class CalibrationWorkloads {
                 name,
                 WorkloadKind.GENERIC,
                 environment -> {
-                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 105), false, environment.profile().dataType(), size);
-                    tensor.Tensor b = tensor.TensorDataFactory.shapedTensor("B", random(size, 106), false, environment.profile().dataType(), size);
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 105), requiresGrad, environment.profile().dataType(), size);
+                    tensor.Tensor b = tensor.TensorDataFactory.shapedTensor("B", random(size, 106), requiresGrad, environment.profile().dataType(), size);
                     return a.add(b).mul(a).add(b).sum();
                 },
                 environment -> ValidationReference.none(),
@@ -88,8 +94,9 @@ public final class CalibrationWorkloads {
                 WorkloadKind.GENERIC,
                 environment -> {
                     int size = rows * cols;
-                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 107), false, environment.profile().dataType(), rows, cols);
-                    tensor.Tensor b = tensor.TensorDataFactory.shapedTensor("B", random(size, 108), false, environment.profile().dataType(), rows, cols);
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 107), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor b = tensor.TensorDataFactory.shapedTensor("B", random(size, 108), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor aT = a.transpose();
                     tensor.Tensor bT = b.transpose();
                     return aT.add(bT).mul(aT).sum();

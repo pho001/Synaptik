@@ -4,15 +4,16 @@ import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileAssembler;
 import config.profile.GraphExecutionPolicy;
+import config.profile.PlatformRuntimeProfile;
+import config.profile.PlatformRuntimeProfileIO;
 import config.profile.WorkloadProfile;
+import tensor.DataType;
 import tuning.candidate.ProfileGridCandidateSpace;
 import tuning.candidate.ProfileMutators;
-import tuning.measure.DefaultMeasurementEngine;
 import tuning.report.TextBenchmarkReportRenderer;
 import tuning.report.TextPlatformCalibrationResultRenderer;
 import tuning.report.TextTuningResultRenderer;
 import tuning.search.ExhaustiveSearchStrategy;
-import tuning.session.AutotuneRequest;
 import tuning.session.AutotuneSession;
 import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkSession;
@@ -22,139 +23,328 @@ import tuning.session.PlatformCalibrationRequest;
 import tuning.session.PlatformCalibrationSession;
 import tuning.session.TuningDefaults;
 import tuning.session.TuningPreset;
+import tuning.store.JsonFileBestProfileStore;
+import tuning.store.JsonFileTuningHistoryStore;
 import tuning.store.PersistencePolicy;
 import tuning.store.PlatformCalibrationLayout;
 import tuning.store.PlatformCalibrationPaths;
 import tuning.store.PlatformCalibrationSaveHelper;
-import tuning.store.JsonFileBestProfileStore;
-import tuning.store.JsonFileTuningHistoryStore;
 import tuning.validate.DefaultValidationEngine;
 import tuning.workload.StandardWorkloads;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Main {
-    public static void main(String[] args) {
-        runAbcFlow("f64", tensor.DataType.FLOAT64);
-        runAbcFlow("f32", tensor.DataType.FLOAT32);
-        runAbcFlow("bf16", tensor.DataType.BFLOAT16);
+public final class Main {
+    private Main() {
     }
 
-    private static void runAbcFlow(String dtypeId, tensor.DataType dataType) {
-        System.out.println("\n==============================");
-        System.out.println("Synaptik " + dtypeId.toUpperCase() + " calibration + ABC tuning example");
-        System.out.println("==============================");
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            runFull(DTypeTarget.F64);
+            return;
+        }
 
-        ExecutionProfile calibrationSeed = new ExecutionProfile(
-                "platform-seed-" + dtypeId + "-inference",
-                "platform-seed-" + dtypeId + "-inference",
-                dataType,
-                ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
-                config.runtime.RuntimeConfig.inferenceDefaults(),
-                WorkloadProfile.none()
-        );
+        if (args.length < 2) {
+            printUsage();
+            return;
+        }
 
-        Path rootDir = Path.of("build", "platform-calibration", dtypeId);
-        PlatformCalibrationLayout layout = PlatformCalibrationPaths.defaultLayout(rootDir, calibrationSeed);
-        PlatformCalibrationRequest baseCalibration = PlatformCalibrationDefaults.balancedInferenceFull(
+        Phase phase = Phase.parse(args[0]);
+        DTypeTarget dtype = DTypeTarget.parse(args[1]);
+        if (phase == null || dtype == null) {
+            printUsage();
+            return;
+        }
+
+        switch (phase) {
+            case FULL -> runFull(dtype);
+            case CALIBRATE -> runCalibration(dtype);
+            case AUTOTUNE -> runAutotune(dtype);
+            case BENCHMARK_WINNER -> runWinnerBenchmark(dtype);
+            case BENCHMARK_STAGE_SPACE -> runStageSpaceBenchmark(dtype);
+            case BENCHMARK_FUSED_BACKENDS -> runFusedBackendBenchmark(dtype);
+        }
+    }
+
+    private static void runFull(DTypeTarget dtype) {
+        System.out.println(header(dtype, "full flow"));
+        System.out.println("note=convenience flow for local iteration; for the cleanest performance numbers prefer running phases separately");
+        runCalibration(dtype);
+        runAutotune(dtype);
+        runWinnerBenchmark(dtype);
+    }
+
+    private static void runCalibration(DTypeTarget dtype) {
+        System.out.println(header(dtype, "training calibration"));
+        ExecutionProfile seed = trainingSeedProfile(dtype);
+        PlatformCalibrationLayout layout = calibrationLayout(dtype, seed);
+        PlatformCalibrationRequest baseRequest = PlatformCalibrationDefaults.balancedTrainingFull(
                 layout.platformId(),
-                calibrationSeed,
+                seed,
                 layout.profilePath()
         );
-        PlatformCalibrationRequest calibrationRequest = new PlatformCalibrationRequest(
-                baseCalibration.platformId(),
-                baseCalibration.profileName(),
-                baseCalibration.dataType(),
-                baseCalibration.executionMode(),
-                baseCalibration.graphPolicy(),
-                baseCalibration.seedRuntimeProfile(),
-                baseCalibration.steps(),
-                baseCalibration.outputProfilePath(),
+        PlatformCalibrationRequest request = new PlatformCalibrationRequest(
+                baseRequest.platformId(),
+                baseRequest.profileName(),
+                baseRequest.dataType(),
+                baseRequest.executionMode(),
+                baseRequest.graphPolicy(),
+                baseRequest.seedRuntimeProfile(),
+                baseRequest.steps(),
+                baseRequest.outputProfilePath(),
                 LoggingPlatformCalibrationProgressListener.defaults()
         );
 
-        var calibrationResult = PlatformCalibrationSession.create(calibrationRequest).run();
+        var result = PlatformCalibrationSession.create(request).run();
         PlatformCalibrationSaveHelper.saveAll(
-                calibrationResult,
+                result,
                 layout.profilePath(),
                 layout.jsonReportPath(),
                 layout.textReportPath()
         );
 
-        System.out.println("\n=== Platform Calibration (" + dtypeId.toUpperCase() + ") ===");
-        System.out.println(TextPlatformCalibrationResultRenderer.render(calibrationResult));
-        System.out.println("profilePath=" + calibrationResult.outputProfilePath());
+        System.out.println(TextPlatformCalibrationResultRenderer.render(result));
+        System.out.println("profilePath=" + result.outputProfilePath());
+    }
 
-        var abcWorkload = StandardWorkloads.abcSequenceMatmul("abc_sequence_matmul_" + dtypeId, 64, 10_000);
-        ExecutionProfile calibratedSeed = ExecutionProfileAssembler.assemble(
-                "abc-" + dtypeId + "-calibrated",
-                "abc-" + dtypeId + "-calibrated",
-                dataType,
-                ExecutionMode.FORWARD_BACKWARD,
-                calibrationResult.finalRuntimeProfile(),
-                GraphExecutionPolicy.inferenceDefaults(),
-                WorkloadProfile.none()
-        );
+    private static void runAutotune(DTypeTarget dtype) {
+        System.out.println(header(dtype, "ABC autotune"));
+        ExecutionProfile calibratedSeed = calibratedAbcSeed(dtype);
+        var workload = abcWorkload(dtype);
+        var candidateSpace = stageCandidateSpace(calibratedSeed);
+        PersistencePolicy persistence = tuningPersistence(dtype);
 
-        var stageCandidateSpace = new ProfileGridCandidateSpace(
+        var request = TuningDefaults.balancedAutotune(
+                workload,
                 calibratedSeed,
-                List.of(ProfileMutators.constrainedStageOrderSpace())
+                candidateSpace,
+                persistence
         );
-
-        PersistencePolicy autotunePersistence = new PersistencePolicy(
-                true,
-                true,
-                Path.of("build", "tuning", "best-profiles", "abc-" + dtypeId + "-best-profile.json"),
-                Path.of("build", "tuning", "history", "abc-" + dtypeId + "-history.jsonl")
-        );
-
-        AutotuneRequest autotuneRequest = TuningDefaults.balancedAutotune(
-                abcWorkload,
-                calibratedSeed,
-                stageCandidateSpace,
-                autotunePersistence
-        );
-        var tuningResult = AutotuneSession.create(
-                autotuneRequest,
+        var result = AutotuneSession.create(
+                request,
                 new ExhaustiveSearchStrategy(),
-                new DefaultMeasurementEngine(),
+                new tuning.measure.DefaultMeasurementEngine(),
                 new DefaultValidationEngine(),
                 new JsonFileBestProfileStore(),
                 new JsonFileTuningHistoryStore()
         ).run();
 
-        System.out.println("\n=== ABC Autotune (" + dtypeId.toUpperCase() + ") ===");
-        System.out.println(TextTuningResultRenderer.render(tuningResult));
-        System.out.println("autotuneBestProfilePath=" + autotunePersistence.bestProfilePath());
-        System.out.println("autotuneHistoryPath=" + autotunePersistence.historyPath());
+        System.out.println(TextTuningResultRenderer.render(result));
+        System.out.println("autotuneBestProfilePath=" + persistence.bestProfilePath());
+        System.out.println("autotuneHistoryPath=" + persistence.historyPath());
+    }
 
-        ExecutionProfile baselineProfile = new ExecutionProfile(
-                "abc-baseline-no-opt-" + dtypeId,
-                "abc-baseline-no-opt-" + dtypeId,
-                dataType,
+    private static void runWinnerBenchmark(DTypeTarget dtype) {
+        System.out.println(header(dtype, "ABC benchmark: baseline vs winner"));
+        ExecutionProfile baseline = baselineProfile(dtype);
+        ExecutionProfile winner = loadWinnerProfile(dtype);
+
+        var request = TuningDefaults.benchmark(
+                TuningPreset.BALANCED,
+                abcWorkload(dtype),
+                List.of(
+                        BenchmarkEntry.baseline("baseline-no-opt", baseline),
+                        BenchmarkEntry.candidate("best-profile", winner)
+                )
+        );
+        var report = BenchmarkSession.create(request).run();
+        System.out.println(TextBenchmarkReportRenderer.render(report));
+    }
+
+    private static void runStageSpaceBenchmark(DTypeTarget dtype) {
+        System.out.println(header(dtype, "ABC benchmark: stage space exploration"));
+        ExecutionProfile baseline = baselineProfile(dtype);
+        ExecutionProfile calibratedSeed = calibratedAbcSeed(dtype);
+        var workload = abcWorkload(dtype);
+        var candidateSpace = stageCandidateSpace(calibratedSeed);
+
+        List<BenchmarkEntry> entries = new ArrayList<>();
+        entries.add(BenchmarkEntry.baseline("baseline-no-opt", baseline));
+        candidateSpace.generate(workload).forEach(candidate ->
+                entries.add(BenchmarkEntry.candidate(candidate.name(), candidate.profile()))
+        );
+
+        var request = TuningDefaults.benchmark(
+                TuningPreset.BALANCED,
+                workload,
+                entries
+        );
+        var report = BenchmarkSession.create(request).run();
+        System.out.println(TextBenchmarkReportRenderer.render(report));
+    }
+
+    private static void runFusedBackendBenchmark(DTypeTarget dtype) {
+        if (dtype != DTypeTarget.F64) {
+            throw new IllegalArgumentException("Fused backend benchmark is currently wired only for f64.");
+        }
+        System.out.println(header(dtype, "fused backend compare"));
+        FusedBackendCompareCli.main(new String[0]);
+    }
+
+    private static ExecutionProfile trainingSeedProfile(DTypeTarget dtype) {
+        return new ExecutionProfile(
+                "platform-seed-" + dtype.id + "-training",
+                "platform-seed-" + dtype.id + "-training",
+                dtype.dataType,
+                ExecutionMode.FORWARD_BACKWARD,
+                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.runtime.RuntimeConfig.trainingDefaults(),
+                WorkloadProfile.none()
+        );
+    }
+
+    private static PlatformCalibrationLayout calibrationLayout(DTypeTarget dtype, ExecutionProfile seed) {
+        return PlatformCalibrationPaths.defaultLayout(
+                Path.of("build", "platform-calibration", dtype.id),
+                seed
+        );
+    }
+
+    private static PlatformRuntimeProfile loadCalibrationProfile(DTypeTarget dtype) {
+        ExecutionProfile seed = trainingSeedProfile(dtype);
+        PlatformCalibrationLayout layout = calibrationLayout(dtype, seed);
+        Path path = layout.profilePath();
+        if (!Files.exists(path)) {
+            throw new IllegalStateException("Missing calibration profile: " + path + ". Run `calibrate " + dtype.id + "` first.");
+        }
+        PlatformRuntimeProfile fallback = PlatformRuntimeProfile.fromExecutionProfile(
+                layout.platformId(),
+                layout.hardware().key(),
+                "fallback",
+                seed
+        );
+        return PlatformRuntimeProfileIO.loadOrDefault(path, fallback);
+    }
+
+    private static ExecutionProfile calibratedAbcSeed(DTypeTarget dtype) {
+        return ExecutionProfileAssembler.assemble(
+                "abc-" + dtype.id + "-calibrated",
+                "abc-" + dtype.id + "-calibrated",
+                dtype.dataType,
+                ExecutionMode.FORWARD_BACKWARD,
+                loadCalibrationProfile(dtype),
+                GraphExecutionPolicy.trainingDefaults(),
+                WorkloadProfile.none()
+        );
+    }
+
+    private static ProfileGridCandidateSpace stageCandidateSpace(ExecutionProfile seed) {
+        return new ProfileGridCandidateSpace(
+                seed,
+                List.of(ProfileMutators.constrainedStageOrderSpace())
+        );
+    }
+
+    private static ExecutionProfile baselineProfile(DTypeTarget dtype) {
+        return new ExecutionProfile(
+                "abc-baseline-no-opt-" + dtype.id,
+                "abc-baseline-no-opt-" + dtype.id,
+                dtype.dataType,
                 ExecutionMode.FORWARD_BACKWARD,
                 config.optimizer.OptimizerConfig.noOptimization(),
                 config.runtime.RuntimeConfig.noOptNoVecNoPar(),
                 WorkloadProfile.none()
         );
+    }
 
-        List<BenchmarkEntry> benchmarkEntries = new ArrayList<>();
-        benchmarkEntries.add(BenchmarkEntry.baseline("baseline-no-opt", baselineProfile));
-        stageCandidateSpace.generate(abcWorkload).forEach(candidate ->
-                benchmarkEntries.add(BenchmarkEntry.candidate(candidate.name(), candidate.profile()))
+    private static ExecutionProfile loadWinnerProfile(DTypeTarget dtype) {
+        Path path = tuningPersistence(dtype).bestProfilePath();
+        return new JsonFileBestProfileStore()
+                .load(path)
+                .orElseThrow(() -> new IllegalStateException("Missing best profile: " + path + ". Run `autotune " + dtype.id + "` first."))
+                .profile();
+    }
+
+    private static PersistencePolicy tuningPersistence(DTypeTarget dtype) {
+        return new PersistencePolicy(
+                true,
+                true,
+                Path.of("build", "tuning", "best-profiles", "abc-" + dtype.id + "-best-profile.json"),
+                Path.of("build", "tuning", "history", "abc-" + dtype.id + "-history.jsonl")
         );
+    }
 
-        var abcBenchmark = TuningDefaults.benchmark(
-                TuningPreset.BALANCED,
-                abcWorkload,
-                benchmarkEntries
-        );
-        var abcReport = BenchmarkSession.create(abcBenchmark).run();
+    private static tuning.workload.WorkloadSpec abcWorkload(DTypeTarget dtype) {
+        return StandardWorkloads.abcSequenceMatmul("abc_sequence_matmul_" + dtype.id, 64, 10_000);
+    }
 
-        System.out.println("\n=== ABC Benchmark: All Permissible Stage Orders (" + dtypeId.toUpperCase() + ") ===");
-        System.out.println(TextBenchmarkReportRenderer.render(abcReport));
+    private static String header(DTypeTarget dtype, String title) {
+        return "\n==============================\n"
+                + "Synaptik " + dtype.id.toUpperCase() + " " + title + "\n"
+                + "==============================";
+    }
+
+    private static void printUsage() {
+        System.out.println("""
+                Usage:
+                  ./gradlew run --args="full <f64|f32|bf16>"
+                  ./gradlew run --args="calibrate <f64|f32|bf16>"
+                  ./gradlew run --args="autotune <f64|f32|bf16>"
+                  ./gradlew run --args="benchmark-winner <f64|f32|bf16>"
+                  ./gradlew run --args="benchmark-stage-space <f64|f32|bf16>"
+                  ./gradlew run --args="benchmark-fused-backends f64"
+
+                Notes:
+                  - no args defaults to `full f64`
+                  - run phases separately to avoid cross-phase JVM warmup bias
+                  - `autotune` expects an existing calibration profile
+                  - `benchmark-winner` expects an existing best-profile artifact
+                """);
+    }
+
+    private enum Phase {
+        FULL("full"),
+        CALIBRATE("calibrate"),
+        AUTOTUNE("autotune"),
+        BENCHMARK_WINNER("benchmark-winner"),
+        BENCHMARK_STAGE_SPACE("benchmark-stage-space"),
+        BENCHMARK_FUSED_BACKENDS("benchmark-fused-backends");
+
+        private final String cliName;
+
+        Phase(String cliName) {
+            this.cliName = cliName;
+        }
+
+        private static Phase parse(String value) {
+            if (value == null) {
+                return null;
+            }
+            for (Phase phase : values()) {
+                if (phase.cliName.equalsIgnoreCase(value)) {
+                    return phase;
+                }
+            }
+            return null;
+        }
+    }
+
+    private enum DTypeTarget {
+        F64("f64", DataType.FLOAT64),
+        F32("f32", DataType.FLOAT32),
+        BF16("bf16", DataType.BFLOAT16);
+
+        private final String id;
+        private final DataType dataType;
+
+        DTypeTarget(String id, DataType dataType) {
+            this.id = id;
+            this.dataType = dataType;
+        }
+
+        private static DTypeTarget parse(String value) {
+            if (value == null) {
+                return null;
+            }
+            for (DTypeTarget target : values()) {
+                if (target.id.equalsIgnoreCase(value)) {
+                    return target;
+                }
+            }
+            return null;
+        }
     }
 }
