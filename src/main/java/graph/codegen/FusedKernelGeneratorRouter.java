@@ -9,8 +9,9 @@ public final class FusedKernelGeneratorRouter {
     public static byte[] generate(
             String internalClassName,
             FusedExpressionPlan plan,
-            int precisionMode
+            int precisionMode,
+            int vectorWidth
     ) {
-        return FusedOperationGenerator.generate(internalClassName, plan, precisionMode);
+        return FusedOperationGenerator.generate(internalClassName, plan, precisionMode, vectorWidth);
     }
 }

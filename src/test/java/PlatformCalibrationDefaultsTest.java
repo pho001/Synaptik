@@ -1,5 +1,6 @@
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
+import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.session.PlatformCalibrationDefaults;
@@ -7,6 +8,8 @@ import tuning.session.PlatformCalibrationFamily;
 import tuning.session.TuningPreset;
 
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,7 +37,11 @@ public class PlatformCalibrationDefaultsTest {
         assertEquals("test-platform", request.platformId());
         assertFalse(request.steps().isEmpty());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_ARITHMETIC));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_STRIDED));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_NON_CHEAP_CONTIGUOUS));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_NON_CHEAP_STRIDED));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ELEMENTWISE_DISPATCH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.SCHEDULER));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATERIALIZATION));
@@ -65,9 +72,13 @@ public class PlatformCalibrationDefaultsTest {
                 Path.of("build", "test-platform-profile.json")
         );
 
-        assertEquals(7, request.steps().size());
+        assertEquals(11, request.steps().size());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_ARITHMETIC));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_STRIDED));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_NON_CHEAP_CONTIGUOUS));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_NON_CHEAP_STRIDED));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ELEMENTWISE_DISPATCH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.REDUCTION));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.SCHEDULER));
@@ -95,5 +106,62 @@ public class PlatformCalibrationDefaultsTest {
 
         assertFalse(request.steps().isEmpty());
         assertTrue(request.steps().stream().allMatch(step -> step.preset() == TuningPreset.THOROUGH));
+    }
+
+    @Test
+    void matmulStepGeneratesDtypeSpecificTileCandidates() {
+        var step = PlatformCalibrationDefaults.matmulStep("matmul", TuningPreset.QUICK);
+
+        PlatformRuntimeProfile f64Base = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform-f64",
+                "hw",
+                "TEST",
+                new ExecutionProfile(
+                        "seed-f64",
+                        "seed-f64",
+                        tensor.DataType.FLOAT64,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.runtime.RuntimeConfig.inferenceDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+        var f64Candidates = step.candidateSpaceFactory().create(f64Base).generate(step.workloads().getFirst());
+        Set<String> f64Tiles = f64Candidates.stream()
+                .filter(candidate -> candidate.knobAssignments().containsKey("cpu.matMulTileM"))
+                .map(candidate -> candidate.runtimeProfile().matmul().matMulTileM()
+                        + "x" + candidate.runtimeProfile().matmul().matMulTileN()
+                        + "x" + candidate.runtimeProfile().matmul().matMulTileK())
+                .collect(Collectors.toSet());
+
+        PlatformRuntimeProfile f32Base = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform-f32",
+                "hw",
+                "TEST",
+                new ExecutionProfile(
+                        "seed-f32",
+                        "seed-f32",
+                        tensor.DataType.FLOAT32,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.runtime.RuntimeConfig.inferenceDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+        var f32Candidates = step.candidateSpaceFactory().create(f32Base).generate(step.workloads().getFirst());
+        Set<String> f32Tiles = f32Candidates.stream()
+                .filter(candidate -> candidate.knobAssignments().containsKey("cpu.matMulTileM"))
+                .map(candidate -> candidate.runtimeProfile().matmul().matMulTileM()
+                        + "x" + candidate.runtimeProfile().matmul().matMulTileN()
+                        + "x" + candidate.runtimeProfile().matmul().matMulTileK())
+                .collect(Collectors.toSet());
+
+        assertTrue(f64Tiles.contains("16x64x32"));
+        assertTrue(f64Tiles.contains("32x128x64"));
+        assertFalse(f64Tiles.contains("64x256x128"));
+
+        assertTrue(f32Tiles.contains("32x64x64"));
+        assertTrue(f32Tiles.contains("64x256x128"));
+        assertFalse(f32Tiles.contains("16x64x32"));
     }
 }

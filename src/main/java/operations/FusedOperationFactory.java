@@ -4,6 +4,7 @@ import graph.codegen.FusedExpressionPlan;
 import graph.codegen.FusedPlanBuilder;
 import graph.optimizer.fusion.FusedAccessResolver;
 import graph.optimizer.fusion.FusedCostModel;
+import graph.optimizer.fusion.FusedDispatchFamily;
 import graph.optimizer.fusion.FusedPrecisionResolver;
 import graph.optimizer.fusion.FusedSignatureBuilder;
 import tensor.Tensor;
@@ -23,6 +24,7 @@ public final class FusedOperationFactory {
 
         int precisionMode = FusedPrecisionResolver.resolve(cluster, root, externalInputsInOrder);
         boolean lowCostHint = FusedCostModel.resolveLowCostHint(plan);
+        FusedDispatchFamily dispatchFamily = FusedCostModel.resolveDispatchFamily(plan);
         int dispatchComplexity = FusedCostModel.estimateDispatchComplexity(plan);
         int dispatchScale = FusedCostModel.resolveDispatchScale(dispatchComplexity);
 
@@ -31,6 +33,7 @@ public final class FusedOperationFactory {
                         "fused(" + cluster.size() + ")",
                         precisionMode,
                         lowCostHint,
+                        dispatchFamily,
                         FusedSignatureBuilder.buildFromPlan(plan, precisionMode),
                         dispatchScale,
                         plan

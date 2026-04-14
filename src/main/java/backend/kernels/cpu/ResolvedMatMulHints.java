@@ -1,5 +1,7 @@
 package backend.kernels.cpu;
 
+import config.backend.CpuMatMulMicroKernel;
+
 public record ResolvedMatMulHints(
         boolean useBlas,
         boolean useBatchedBlas,
@@ -8,7 +10,8 @@ public record ResolvedMatMulHints(
         int tileN,
         int tileK,
         int plannedWorkers,
-        long work
+        long work,
+        CpuMatMulMicroKernel microKernel
 ) {
     public ResolvedMatMulHints {
         tileM = Math.max(1, tileM);
@@ -16,5 +19,6 @@ public record ResolvedMatMulHints(
         tileK = Math.max(1, tileK);
         plannedWorkers = Math.max(1, plannedWorkers);
         work = Math.max(0L, work);
+        microKernel = microKernel == null ? CpuMatMulMicroKernel.AUTO : microKernel;
     }
 }

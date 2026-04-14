@@ -14,7 +14,7 @@ public final class AsmFusedExecutionBackend implements FusedExecutionBackend {
 
     @Override
     public PreparedFusedExecutable prepare(FusedExecutionPlan plan) {
-        return FACTORY.create(plan.descriptor());
+        return FACTORY.create(plan);
     }
 
     @Override

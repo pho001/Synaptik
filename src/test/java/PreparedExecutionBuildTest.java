@@ -15,6 +15,7 @@ import tensor.Tensor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PreparedExecutionBuildTest {
@@ -106,6 +107,42 @@ public class PreparedExecutionBuildTest {
         assertEquals("F64", fusedStep.metadata().cpuPlan().computeContract().computeType().name());
         assertEquals("CPU_FUSED", fusedStep.metadata().cpuPlan().computeContract().backend().name());
         assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("graph.fused.asm."));
+    }
+
+    @Test
+    void fusedAsmExecutableCacheSeparatesWidthSpecializations() {
+        Tensor a1 = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "a1", DataType.FLOAT64);
+        Tensor b1 = new Tensor(new double[]{0.5, 1.5, -2.0, 3.0}, new int[]{4}, null, "b1", DataType.FLOAT64);
+        Tensor out1 = a1.add(b1).mul(a1).sigmoid();
+
+        PreparedExecution width1Execution = CompiledGraph.compile(out1, fuseOnlyInferenceConfig())
+                .prepare(runtimeWithFusedAsmWidth(1));
+
+        var width1Fused = width1Execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
+                .findFirst()
+                .orElseThrow();
+
+        Tensor a2 = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "a2", DataType.FLOAT64);
+        Tensor b2 = new Tensor(new double[]{0.5, 1.5, -2.0, 3.0}, new int[]{4}, null, "b2", DataType.FLOAT64);
+        Tensor out2 = a2.add(b2).mul(a2).sigmoid();
+
+        PreparedExecution width2Execution = CompiledGraph.compile(out2, fuseOnlyInferenceConfig())
+                .prepare(runtimeWithFusedAsmWidth(2));
+
+        var width2Fused = width2Execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(1, width1Fused.metadata().cpuPlan().dispatchHints().vectorWidth());
+        assertEquals(2, width2Fused.metadata().cpuPlan().dispatchHints().vectorWidth());
+        assertNotEquals(
+                width1Fused.metadata().fusedExecutable().getClass().getName(),
+                width2Fused.metadata().fusedExecutable().getClass().getName()
+        );
+        assertTrue(width1Fused.metadata().fusedExecutable().getClass().getName().endsWith("W1"));
+        assertTrue(width2Fused.metadata().fusedExecutable().getClass().getName().endsWith("W2"));
     }
 
     @Test
@@ -268,6 +305,19 @@ public class PreparedExecutionBuildTest {
     }
 
     private static KernelTuningConfig kernelWithVectorMin(int vectorMinSize) {
+        return kernelWithVectorMinAndFusedAsmWidth(vectorMinSize, KernelTuningConfig.defaultsInference().cpu().fusedCheapContiguousAsmVectorWidth());
+    }
+
+    private static RuntimeConfig runtimeWithFusedAsmWidth(int fusedAsmWidth) {
+        return new RuntimeConfig(
+                kernelWithVectorMinAndFusedAsmWidth(1, fusedAsmWidth),
+                config.runtime.ApproximationConfig.defaults(),
+                config.runtime.BlasConfig.disabled(),
+                new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
+        );
+    }
+
+    private static KernelTuningConfig kernelWithVectorMinAndFusedAsmWidth(int vectorMinSize, int fusedAsmWidth) {
         var base = KernelTuningConfig.defaultsInference();
         var cpu = base.cpu();
         return new KernelTuningConfig(
@@ -279,9 +329,13 @@ public class PreparedExecutionBuildTest {
                         vectorMinSize,
                         vectorMinSize,
                         vectorMinSize,
+                        vectorMinSize,
+                        vectorMinSize,
                         cpu.parallelMinSize(),
                         cpu.parallelMinSize(),
-                        cpu.parallelMinSize(),
+                        cpu.fusedCheapParallelMinSize(),
+                        cpu.fusedTranscendentalParallelMinSize(),
+                        cpu.reductionParallelMinSize(),
                         cpu.contiguousMaterializeThreshold(),
                         cpu.lowCostTargetChunksPerWorker(),
                         cpu.mediumCostTargetChunksPerWorker(),
@@ -290,7 +344,10 @@ public class PreparedExecutionBuildTest {
                         cpu.minVectorChunkSize(),
                         cpu.minReductionChunkSize(),
                         cpu.commonPoolLowCostMaxWorkPerWorker(),
-                        cpu.fusedAsmVectorWidth(),
+                        fusedAsmWidth,
+                        fusedAsmWidth,
+                        fusedAsmWidth,
+                        fusedAsmWidth,
                         cpu.sumAccuracyMode(),
                         cpu.matMulParallelMinSize(),
                         cpu.attentionMatMulPolicy()

@@ -1,6 +1,7 @@
 package tuning.session;
 
 import backend.ApproxMode;
+import config.backend.CpuMatMulMicroKernel;
 import config.profile.ElementwiseDispatchPlatformProfile;
 import config.profile.FusedPlatformProfile;
 import config.profile.MaterializationPlatformProfile;
@@ -9,6 +10,7 @@ import config.profile.MatmulPlatformProfile;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.ReductionPlatformProfile;
 import config.profile.SchedulerPlatformProfile;
+import graph.optimizer.fusion.FusedDispatchFamily;
 import tuning.workload.WorkloadKind;
 
 import java.util.ArrayList;
@@ -16,6 +18,14 @@ import java.util.List;
 import java.util.Map;
 
 public final class PlatformRuntimeProfileMutators {
+    public record MatmulTiles(int tileM, int tileN, int tileK) {
+        public MatmulTiles {
+            tileM = Math.max(1, tileM);
+            tileN = Math.max(1, tileN);
+            tileK = Math.max(1, tileK);
+        }
+    }
+
     private PlatformRuntimeProfileMutators() {
     }
 
@@ -42,7 +52,8 @@ public final class PlatformRuntimeProfileMutators {
                             baseProfile.matmul().matMulTileM(),
                             baseProfile.matmul().matMulTileN(),
                             baseProfile.matmul().matMulTileK(),
-                            baseProfile.matmul().matMulParallelMinSize()
+                            baseProfile.matmul().matMulParallelMinSize(),
+                            baseProfile.matmul().matMulMicroKernel()
                     );
                     out.add(new RuntimeProfileCandidate(
                             "matmulShape=" + matmul.f32RequireMgeK() + "/" + matmul.f32MaxNOverK(),
@@ -85,7 +96,8 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
                         baseProfile.matmul().matMulTileK(),
-                        baseProfile.matmul().matMulParallelMinSize()
+                        baseProfile.matmul().matMulParallelMinSize(),
+                        baseProfile.matmul().matMulMicroKernel()
                 );
                 out.add(new RuntimeProfileCandidate(
                         "blasThreads=" + matmul.blasThreads(),
@@ -124,7 +136,8 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
                         baseProfile.matmul().matMulTileK(),
-                        threshold == null ? baseProfile.matmul().matMulParallelMinSize() : threshold
+                        threshold == null ? baseProfile.matmul().matMulParallelMinSize() : threshold,
+                        baseProfile.matmul().matMulMicroKernel()
                 );
                 out.add(new RuntimeProfileCandidate(
                         "matmulParallel=" + matmul.matMulParallelMinSize(),
@@ -139,6 +152,57 @@ public final class PlatformRuntimeProfileMutators {
                                 baseProfile.numerics()
                         ),
                         Map.of("cpu.matMulParallelMinSize", String.valueOf(matmul.matMulParallelMinSize()))
+                ));
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator matmulTiles(List<MatmulTiles> tiles) {
+        List<MatmulTiles> safe = tiles == null ? List.of() : List.copyOf(tiles);
+        return (baseProfile, workload) -> {
+            if (!usesMatmulFamily(workload.kind()) || safe.isEmpty()) {
+                return List.of(new RuntimeProfileCandidate("matmulTiles=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (MatmulTiles tile : safe) {
+                MatmulTiles resolved = tile == null
+                        ? new MatmulTiles(
+                        baseProfile.matmul().matMulTileM(),
+                        baseProfile.matmul().matMulTileN(),
+                        baseProfile.matmul().matMulTileK()
+                )
+                        : tile;
+                MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                        baseProfile.matmul().blasProvider(),
+                        baseProfile.matmul().blasMatmulMinWork(),
+                        baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().f32RequireMgeK(),
+                        baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().loopUnrollFactor(),
+                        resolved.tileM(),
+                        resolved.tileN(),
+                        resolved.tileK(),
+                        baseProfile.matmul().matMulParallelMinSize(),
+                        baseProfile.matmul().matMulMicroKernel()
+                );
+                out.add(new RuntimeProfileCandidate(
+                        "matmulTiles=" + matmul.matMulTileM() + "x" + matmul.matMulTileN() + "x" + matmul.matMulTileK(),
+                        new PlatformRuntimeProfile(
+                                baseProfile.metadata(),
+                                matmul,
+                                baseProfile.fused(),
+                                baseProfile.elementwiseDispatch(),
+                                baseProfile.reduction(),
+                                baseProfile.scheduler(),
+                                baseProfile.materialization(),
+                                baseProfile.numerics()
+                        ),
+                        Map.of(
+                                "cpu.matMulTileM", String.valueOf(matmul.matMulTileM()),
+                                "cpu.matMulTileN", String.valueOf(matmul.matMulTileN()),
+                                "cpu.matMulTileK", String.valueOf(matmul.matMulTileK())
+                        )
                 ));
             }
             return out;
@@ -169,7 +233,10 @@ public final class PlatformRuntimeProfileMutators {
                                     transVec == null ? baseProfile.fused().fusedTranscendentalVectorMinSize() : transVec,
                                     cheapPar == null ? baseProfile.fused().fusedCheapParallelMinSize() : cheapPar,
                                     transPar == null ? baseProfile.fused().fusedTranscendentalParallelMinSize() : transPar,
-                                    baseProfile.fused().fusedAsmVectorWidth()
+                                    baseProfile.fused().fusedCheapContiguousAsmVectorWidth(),
+                                    baseProfile.fused().fusedCheapStridedAsmVectorWidth(),
+                                    baseProfile.fused().fusedNonCheapContiguousAsmVectorWidth(),
+                                    baseProfile.fused().fusedNonCheapStridedAsmVectorWidth()
                             );
                             out.add(new RuntimeProfileCandidate(
                                     "fusedDispatch=" + fused.fusedCheapVectorMinSize() + "/" + fused.fusedTranscendentalVectorMinSize()
@@ -199,6 +266,47 @@ public final class PlatformRuntimeProfileMutators {
         };
     }
 
+    public static PlatformRuntimeProfileMutator matmulMicroKernels(List<CpuMatMulMicroKernel> kernels) {
+        List<CpuMatMulMicroKernel> safe = kernels == null ? List.of() : List.copyOf(kernels);
+        return (baseProfile, workload) -> {
+            if (!usesMatmulFamily(workload.kind()) || safe.isEmpty()) {
+                return List.of(new RuntimeProfileCandidate("matmulMicroKernel=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (CpuMatMulMicroKernel kernel : safe) {
+                CpuMatMulMicroKernel resolved = kernel == null ? baseProfile.matmul().matMulMicroKernel() : kernel;
+                MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                        baseProfile.matmul().blasProvider(),
+                        baseProfile.matmul().blasMatmulMinWork(),
+                        baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().f32RequireMgeK(),
+                        baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().loopUnrollFactor(),
+                        baseProfile.matmul().matMulTileM(),
+                        baseProfile.matmul().matMulTileN(),
+                        baseProfile.matmul().matMulTileK(),
+                        baseProfile.matmul().matMulParallelMinSize(),
+                        resolved
+                );
+                out.add(new RuntimeProfileCandidate(
+                        "matmulMicroKernel=" + matmul.matMulMicroKernel().name(),
+                        new PlatformRuntimeProfile(
+                                baseProfile.metadata(),
+                                matmul,
+                                baseProfile.fused(),
+                                baseProfile.elementwiseDispatch(),
+                                baseProfile.reduction(),
+                                baseProfile.scheduler(),
+                                baseProfile.materialization(),
+                                baseProfile.numerics()
+                        ),
+                        Map.of("cpu.matMulMicroKernel", matmul.matMulMicroKernel().name())
+                ));
+            }
+            return out;
+        };
+    }
+
     public static PlatformRuntimeProfileMutator fusedAsmVectorWidths(List<Integer> widths) {
         List<Integer> safeWidths = widths == null ? List.of() : List.copyOf(widths);
         return (baseProfile, workload) -> {
@@ -212,7 +320,10 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.fused().fusedTranscendentalVectorMinSize(),
                         baseProfile.fused().fusedCheapParallelMinSize(),
                         baseProfile.fused().fusedTranscendentalParallelMinSize(),
-                        width == null ? baseProfile.fused().fusedAsmVectorWidth() : width
+                        width == null ? baseProfile.fused().fusedCheapContiguousAsmVectorWidth() : width,
+                        width == null ? baseProfile.fused().fusedCheapStridedAsmVectorWidth() : width,
+                        width == null ? baseProfile.fused().fusedNonCheapContiguousAsmVectorWidth() : width,
+                        width == null ? baseProfile.fused().fusedNonCheapStridedAsmVectorWidth() : width
                 );
                 out.add(new RuntimeProfileCandidate(
                         "fusedAsmVectorWidth=" + fused.fusedAsmVectorWidth(),
@@ -227,6 +338,38 @@ public final class PlatformRuntimeProfileMutators {
                                 baseProfile.numerics()
                         ),
                         Map.of("cpu.fusedAsmVectorWidth", String.valueOf(fused.fusedAsmVectorWidth()))
+                ));
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator fusedAsmVectorWidths(
+            FusedDispatchFamily family,
+            List<Integer> widths
+    ) {
+        List<Integer> safeWidths = widths == null ? List.of() : List.copyOf(widths);
+        return (baseProfile, workload) -> {
+            if (!usesGenericRuntimeFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("fusedAsmVectorWidth=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (Integer width : safeWidths) {
+                int resolvedWidth = width == null ? currentFusedAsmVectorWidth(baseProfile.fused(), family) : width;
+                FusedPlatformProfile fused = withFusedAsmVectorWidth(baseProfile.fused(), family, resolvedWidth);
+                out.add(new RuntimeProfileCandidate(
+                        "fusedAsmVectorWidth[" + family.id() + "]=" + currentFusedAsmVectorWidth(fused, family),
+                        new PlatformRuntimeProfile(
+                                baseProfile.metadata(),
+                                baseProfile.matmul(),
+                                fused,
+                                baseProfile.elementwiseDispatch(),
+                                baseProfile.reduction(),
+                                baseProfile.scheduler(),
+                                baseProfile.materialization(),
+                                baseProfile.numerics()
+                        ),
+                        Map.of(fusedAsmVectorWidthKey(family), String.valueOf(currentFusedAsmVectorWidth(fused, family)))
                 ));
             }
             return out;
@@ -567,5 +710,72 @@ public final class PlatformRuntimeProfileMutators {
                 || kind == WorkloadKind.MATMUL
                 || kind == WorkloadKind.MLP_CLASSIFICATION
                 || kind == WorkloadKind.ABC_SEQUENCE_MATMUL;
+    }
+
+    private static FusedPlatformProfile withFusedAsmVectorWidth(
+            FusedPlatformProfile base,
+            FusedDispatchFamily family,
+            int width
+    ) {
+        return switch (family) {
+            case CHEAP_CONTIGUOUS -> new FusedPlatformProfile(
+                    base.fusedCheapVectorMinSize(),
+                    base.fusedTranscendentalVectorMinSize(),
+                    base.fusedCheapParallelMinSize(),
+                    base.fusedTranscendentalParallelMinSize(),
+                    width,
+                    base.fusedCheapStridedAsmVectorWidth(),
+                    base.fusedNonCheapContiguousAsmVectorWidth(),
+                    base.fusedNonCheapStridedAsmVectorWidth()
+            );
+            case CHEAP_STRIDED -> new FusedPlatformProfile(
+                    base.fusedCheapVectorMinSize(),
+                    base.fusedTranscendentalVectorMinSize(),
+                    base.fusedCheapParallelMinSize(),
+                    base.fusedTranscendentalParallelMinSize(),
+                    base.fusedCheapContiguousAsmVectorWidth(),
+                    width,
+                    base.fusedNonCheapContiguousAsmVectorWidth(),
+                    base.fusedNonCheapStridedAsmVectorWidth()
+            );
+            case NON_CHEAP_CONTIGUOUS -> new FusedPlatformProfile(
+                    base.fusedCheapVectorMinSize(),
+                    base.fusedTranscendentalVectorMinSize(),
+                    base.fusedCheapParallelMinSize(),
+                    base.fusedTranscendentalParallelMinSize(),
+                    base.fusedCheapContiguousAsmVectorWidth(),
+                    base.fusedCheapStridedAsmVectorWidth(),
+                    width,
+                    base.fusedNonCheapStridedAsmVectorWidth()
+            );
+            case NON_CHEAP_STRIDED -> new FusedPlatformProfile(
+                    base.fusedCheapVectorMinSize(),
+                    base.fusedTranscendentalVectorMinSize(),
+                    base.fusedCheapParallelMinSize(),
+                    base.fusedTranscendentalParallelMinSize(),
+                    base.fusedCheapContiguousAsmVectorWidth(),
+                    base.fusedCheapStridedAsmVectorWidth(),
+                    base.fusedNonCheapContiguousAsmVectorWidth(),
+                    width
+            );
+        };
+    }
+
+    private static int currentFusedAsmVectorWidth(FusedPlatformProfile profile, FusedDispatchFamily family) {
+        return switch (family) {
+            case CHEAP_CONTIGUOUS -> profile.fusedCheapContiguousAsmVectorWidth();
+            case CHEAP_STRIDED -> profile.fusedCheapStridedAsmVectorWidth();
+            case NON_CHEAP_CONTIGUOUS -> profile.fusedNonCheapContiguousAsmVectorWidth();
+            case NON_CHEAP_STRIDED -> profile.fusedNonCheapStridedAsmVectorWidth();
+        };
+    }
+
+    private static String fusedAsmVectorWidthKey(FusedDispatchFamily family) {
+        return switch (family) {
+            case CHEAP_CONTIGUOUS -> "cpu.fusedCheapContiguousAsmVectorWidth";
+            case CHEAP_STRIDED -> "cpu.fusedCheapStridedAsmVectorWidth";
+            case NON_CHEAP_CONTIGUOUS -> "cpu.fusedNonCheapContiguousAsmVectorWidth";
+            case NON_CHEAP_STRIDED -> "cpu.fusedNonCheapStridedAsmVectorWidth";
+        };
     }
 }

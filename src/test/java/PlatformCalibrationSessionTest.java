@@ -70,7 +70,7 @@ public class PlatformCalibrationSessionTest {
     }
 
     @Test
-    void platformRuntimeProfilePreservesFusedAsmVectorWidth() {
+    void platformRuntimeProfilePreservesFusedAsmVectorWidths() {
         ExecutionProfile seed = new ExecutionProfile(
                 "seed",
                 "seed",
@@ -86,7 +86,7 @@ public class PlatformCalibrationSessionTest {
                                         16_384,
                                         5, 3, 2,
                                         2_048, 4_096, 8_192, 32_768,
-                                        4,
+                                        4, 2, 8, 1,
                                         config.backend.SumAccuracyMode.FAST,
                                         2_000_000,
                                         config.backend.AttentionMatMulPolicy.AUTO
@@ -112,9 +112,18 @@ public class PlatformCalibrationSessionTest {
                 PlatformRuntimeProfile.fromExecutionProfile("fallback", "fallback", "TEST", defaultSeed())
         );
 
-        assertEquals(4, profile.fused().fusedAsmVectorWidth());
-        assertEquals(4, loaded.fused().fusedAsmVectorWidth());
-        assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedAsmVectorWidth());
+        assertEquals(4, profile.fused().fusedCheapContiguousAsmVectorWidth());
+        assertEquals(2, profile.fused().fusedCheapStridedAsmVectorWidth());
+        assertEquals(8, profile.fused().fusedNonCheapContiguousAsmVectorWidth());
+        assertEquals(1, profile.fused().fusedNonCheapStridedAsmVectorWidth());
+        assertEquals(4, loaded.fused().fusedCheapContiguousAsmVectorWidth());
+        assertEquals(2, loaded.fused().fusedCheapStridedAsmVectorWidth());
+        assertEquals(8, loaded.fused().fusedNonCheapContiguousAsmVectorWidth());
+        assertEquals(1, loaded.fused().fusedNonCheapStridedAsmVectorWidth());
+        assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedCheapContiguousAsmVectorWidth());
+        assertEquals(2, loaded.toRuntimeConfig().kernel().cpu().fusedCheapStridedAsmVectorWidth());
+        assertEquals(8, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapContiguousAsmVectorWidth());
+        assertEquals(1, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapStridedAsmVectorWidth());
     }
 
     private static ExecutionProfile defaultSeed() {

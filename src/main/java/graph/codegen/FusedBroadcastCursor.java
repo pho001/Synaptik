@@ -5,15 +5,17 @@ public final class FusedBroadcastCursor {
     private final int[] outShape;
     private final int[] effStrides;
     private final int baseOffset;
+    private final boolean scalarBroadcast;
     private int idx;
     private int[] gatherIdx;
 
-    private FusedBroadcastCursor(int[] coords, int[] outShape, int[] effStrides, int baseOffset, int idx) {
+    private FusedBroadcastCursor(int[] coords, int[] outShape, int[] effStrides, int baseOffset, int idx, boolean scalarBroadcast) {
         this.coords = coords;
         this.outShape = outShape;
         this.effStrides = effStrides;
         this.baseOffset = baseOffset;
         this.idx = idx;
+        this.scalarBroadcast = scalarBroadcast;
     }
 
     public static FusedBroadcastCursor atStart(int start, int[] outShape, int[] outDenseStrides, int[] effStrides, int baseOffset) {
@@ -29,14 +31,21 @@ public final class FusedBroadcastCursor {
         for (int d = 0; d < rank; d++) {
             idx += coords[d] * effStrides[d];
         }
-        return new FusedBroadcastCursor(coords, outShape, effStrides, baseOffset, idx);
+        return new FusedBroadcastCursor(coords, outShape, effStrides, baseOffset, idx, isScalarBroadcast(effStrides));
     }
 
     public int idx() {
         return idx;
     }
 
+    public boolean isScalarBroadcast() {
+        return scalarBroadcast;
+    }
+
     public void step() {
+        if (scalarBroadcast) {
+            return;
+        }
         int rank = coords.length;
         for (int d = rank - 1; d >= 0; d--) {
             coords[d]++;
@@ -59,5 +68,17 @@ public final class FusedBroadcastCursor {
             step();
         }
         return gatherIdx;
+    }
+
+    private static boolean isScalarBroadcast(int[] effStrides) {
+        if (effStrides == null || effStrides.length == 0) {
+            return false;
+        }
+        for (int stride : effStrides) {
+            if (stride != 0) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -281,7 +281,8 @@ public class CompiledGraph {
                             (FusedOperation) operation,
                             cpuPlan.computeContract(),
                             tensor.getFlatDataSize(),
-                            planner.fusedDirectVectorMinSize((FusedOperation) operation)
+                            planner.fusedDirectVectorMinSize((FusedOperation) operation),
+                            cpuPlan.dispatchHints() == null ? 1 : cpuPlan.dispatchHints().vectorWidth()
                     ),
                     runtimeConfig.fusedExecutionPolicy()
             );

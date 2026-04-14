@@ -2,6 +2,7 @@ package config.profile;
 
 import backend.blas.BlasProvider;
 import config.backend.AttentionMatMulPolicy;
+import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.runtime.ApproximationConfig;
@@ -65,14 +66,18 @@ public record PlatformRuntimeProfile(
                         cpu.matMulTileM(),
                         cpu.matMulTileN(),
                         cpu.matMulTileK(),
-                        cpu.matMulParallelMinSize()
+                        cpu.matMulParallelMinSize(),
+                        cpu.matMulMicroKernel()
                 ),
                 new FusedPlatformProfile(
                         cpu.fusedCheapVectorMinSize(),
                         cpu.fusedTranscendentalVectorMinSize(),
                         cpu.fusedCheapParallelMinSize(),
                         cpu.fusedTranscendentalParallelMinSize(),
-                        cpu.fusedAsmVectorWidth()
+                        cpu.fusedCheapContiguousAsmVectorWidth(),
+                        cpu.fusedCheapStridedAsmVectorWidth(),
+                        cpu.fusedNonCheapContiguousAsmVectorWidth(),
+                        cpu.fusedNonCheapStridedAsmVectorWidth()
                 ),
                 new ElementwiseDispatchPlatformProfile(
                         cpu.cheapVectorMinSize(),
@@ -126,10 +131,14 @@ public record PlatformRuntimeProfile(
                 scheduler.minVectorChunkSize(),
                 scheduler.minReductionChunkSize(),
                 scheduler.commonPoolLowCostMaxWorkPerWorker(),
-                fused.fusedAsmVectorWidth(),
+                fused.fusedCheapContiguousAsmVectorWidth(),
+                fused.fusedCheapStridedAsmVectorWidth(),
+                fused.fusedNonCheapContiguousAsmVectorWidth(),
+                fused.fusedNonCheapStridedAsmVectorWidth(),
                 reduction.sumAccuracyMode(),
                 matmul.matMulParallelMinSize(),
-                AttentionMatMulPolicy.AUTO
+                AttentionMatMulPolicy.AUTO,
+                matmul.matMulMicroKernel() == null ? CpuMatMulMicroKernel.AUTO : matmul.matMulMicroKernel()
         );
         return new RuntimeConfig(
                 new KernelTuningConfig(

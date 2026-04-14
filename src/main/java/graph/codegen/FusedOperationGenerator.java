@@ -7,7 +7,8 @@ public final class FusedOperationGenerator {
     public static byte[] generate(
             String internalClassName,
             FusedExpressionPlan plan,
-            int precisionMode
+            int precisionMode,
+            int vectorWidth
     ) {
         if (precisionMode != FusedDTypeOps.MODE_F32
                 && precisionMode != FusedDTypeOps.MODE_F64
@@ -18,7 +19,8 @@ public final class FusedOperationGenerator {
         FusedGenerationContext context = FusedGenerationContext.create(
                 internalClassName,
                 plan,
-                precisionMode
+                precisionMode,
+                vectorWidth
         );
 
         ClassWriter cw = FusedClassEmitter.createClass(context);

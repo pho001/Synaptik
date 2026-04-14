@@ -12,7 +12,9 @@ public final class CalibrationWorkloads {
                 .register(matmulTallSkinny("calib_matmul_tall_skinny", 256, 64, 64))
                 .register(matmulBatchedAttentionLike("calib_matmul_attention_like", 8, 128, 64, 64))
                 .register(fusedCheapElementwise("calib_fused_cheap", 65_536))
+                .register(fusedCheapStridedElementwise("calib_fused_cheap_strided", 256, 256))
                 .register(fusedTranscendental("calib_fused_transcendental", 65_536))
+                .register(fusedTranscendentalStrided("calib_fused_transcendental_strided", 256, 256))
                 .register(reductionSum("calib_reduction_sum", 262_144))
                 .register(schedulerCheapParallel("calib_scheduler_cheap", 262_144))
                 .register(materializationStridedElementwise("calib_materialization_strided", 256, 256))
@@ -54,6 +56,40 @@ public final class CalibrationWorkloads {
                     boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 103), requiresGrad, environment.profile().dataType(), size);
                     return a.exp().tanh().log().sigmoid().sum();
+                },
+                environment -> ValidationReference.none(),
+                environment -> WorkloadMetadata.of(name, WorkloadKind.GENERIC)
+        );
+    }
+
+    public static TensorRootWorkloadSpec fusedCheapStridedElementwise(String name, int rows, int cols) {
+        return new TensorRootWorkloadSpec(
+                name,
+                WorkloadKind.GENERIC,
+                environment -> {
+                    int size = rows * cols;
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 109), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor b = tensor.TensorDataFactory.shapedTensor("B", random(size, 110), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor aT = a.transpose();
+                    tensor.Tensor bT = b.transpose();
+                    return aT.add(bT).mul(aT).sub(bT).relu().sum();
+                },
+                environment -> ValidationReference.none(),
+                environment -> WorkloadMetadata.of(name, WorkloadKind.GENERIC)
+        );
+    }
+
+    public static TensorRootWorkloadSpec fusedTranscendentalStrided(String name, int rows, int cols) {
+        return new TensorRootWorkloadSpec(
+                name,
+                WorkloadKind.GENERIC,
+                environment -> {
+                    int size = rows * cols;
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 111), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor aT = a.transpose();
+                    return aT.exp().tanh().log().sigmoid().sum();
                 },
                 environment -> ValidationReference.none(),
                 environment -> WorkloadMetadata.of(name, WorkloadKind.GENERIC)

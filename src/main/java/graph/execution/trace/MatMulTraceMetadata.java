@@ -8,6 +8,7 @@ public record MatMulTraceMetadata(
         int tileN,
         int tileK,
         int plannedWorkers,
-        long work
+        long work,
+        String microKernel
 ) {
 }

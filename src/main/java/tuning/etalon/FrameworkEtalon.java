@@ -140,9 +140,13 @@ public final class FrameworkEtalon {
                 cpu.matMulTileK(),
                 cpu.cheapVectorMinSize(),
                 cpu.transcendentalVectorMinSize(),
+                cpu.fusedCheapVectorMinSize(),
+                cpu.fusedTranscendentalVectorMinSize(),
                 cpu.reductionVectorMinSize(),
                 cpu.cheapParallelMinSize(),
                 cpu.transcendentalParallelMinSize(),
+                cpu.fusedCheapParallelMinSize(),
+                cpu.fusedTranscendentalParallelMinSize(),
                 cpu.reductionParallelMinSize(),
                 cpu.contiguousMaterializeThreshold(),
                 cpu.lowCostTargetChunksPerWorker(),
@@ -152,10 +156,14 @@ public final class FrameworkEtalon {
                 cpu.minVectorChunkSize(),
                 cpu.minReductionChunkSize(),
                 cpu.commonPoolLowCostMaxWorkPerWorker(),
-                cpu.fusedAsmVectorWidth(),
+                cpu.fusedCheapContiguousAsmVectorWidth(),
+                cpu.fusedCheapStridedAsmVectorWidth(),
+                cpu.fusedNonCheapContiguousAsmVectorWidth(),
+                cpu.fusedNonCheapStridedAsmVectorWidth(),
                 cpu.sumAccuracyMode(),
                 matmulParallelMin,
-                cpu.attentionMatMulPolicy()
+                cpu.attentionMatMulPolicy(),
+                cpu.matMulMicroKernel()
         );
         return new RuntimeConfig(
                 new KernelTuningConfig(tunedCpu, base.kernel().cuda(), base.kernel().opencl()),

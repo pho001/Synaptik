@@ -226,9 +226,8 @@ final class FusedAsmSupport {
                 : "Ljdk/incubator/vector/DoubleVector;";
     }
 
-    static void emitVectorWidthCall(MethodVisitor mv, SlotManager sm) {
-        mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
-        mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/CpuKernelContext", "fusedAsmVectorWidth", "()I", false);
+    static void emitVectorWidthConstant(MethodVisitor mv, int vectorWidth) {
+        mv.visitLdcInsn(Math.max(1, vectorWidth));
     }
 
     static void emitVectorBinaryOpCall(MethodVisitor mv, String op, int precisionMode) {

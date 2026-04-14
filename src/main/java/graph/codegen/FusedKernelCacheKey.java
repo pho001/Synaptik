@@ -2,5 +2,6 @@ package graph.codegen;
 
 public record FusedKernelCacheKey(
         String signature,
-        int precisionMode
+        int precisionMode,
+        int vectorWidth
 ) {}

@@ -4,6 +4,7 @@ import backend.ApproxMode;
 import backend.blas.BlasProvider;
 import backend.runtime.ExecutionMode;
 import config.backend.AttentionMatMulPolicy;
+import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
@@ -151,10 +152,30 @@ public final class ExecutionProfileIO {
                     findInt(json, "cpuMinVectorChunkSize", defaultKernel.cpu().minVectorChunkSize()),
                     findInt(json, "cpuMinReductionChunkSize", defaultKernel.cpu().minReductionChunkSize()),
                     findInt(json, "cpuCommonPoolLowCostMaxWorkPerWorker", defaultKernel.cpu().commonPoolLowCostMaxWorkPerWorker()),
-                    findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedAsmVectorWidth()),
+                    findInt(
+                            json,
+                            "cpuFusedCheapContiguousAsmVectorWidth",
+                            findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedCheapContiguousAsmVectorWidth())
+                    ),
+                    findInt(
+                            json,
+                            "cpuFusedCheapStridedAsmVectorWidth",
+                            findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedCheapStridedAsmVectorWidth())
+                    ),
+                    findInt(
+                            json,
+                            "cpuFusedNonCheapContiguousAsmVectorWidth",
+                            findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedNonCheapContiguousAsmVectorWidth())
+                    ),
+                    findInt(
+                            json,
+                            "cpuFusedNonCheapStridedAsmVectorWidth",
+                            findInt(json, "cpuFusedAsmVectorWidth", defaultKernel.cpu().fusedNonCheapStridedAsmVectorWidth())
+                    ),
                     findEnum(json, "cpuSumAccuracyMode", defaultKernel.cpu().sumAccuracyMode(), SumAccuracyMode.class),
                     findInt(json, "cpuMatMulParallelMinSize", defaultKernel.cpu().matMulParallelMinSize()),
-                    findEnum(json, "cpuAttentionMatMulPolicy", defaultKernel.cpu().attentionMatMulPolicy(), AttentionMatMulPolicy.class)
+                    findEnum(json, "cpuAttentionMatMulPolicy", defaultKernel.cpu().attentionMatMulPolicy(), AttentionMatMulPolicy.class),
+                    findEnum(json, "cpuMatMulMicroKernel", defaultKernel.cpu().matMulMicroKernel(), CpuMatMulMicroKernel.class)
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", defaultKernel.cuda().loopUnrollFactor()),
@@ -307,9 +328,13 @@ public final class ExecutionProfileIO {
                 "        \"cpuMinVectorChunkSize\": " + cpu.minVectorChunkSize() + ",\n" +
                 "        \"cpuMinReductionChunkSize\": " + cpu.minReductionChunkSize() + ",\n" +
                 "        \"cpuCommonPoolLowCostMaxWorkPerWorker\": " + cpu.commonPoolLowCostMaxWorkPerWorker() + ",\n" +
-                "        \"cpuFusedAsmVectorWidth\": " + cpu.fusedAsmVectorWidth() + ",\n" +
+                "        \"cpuFusedCheapContiguousAsmVectorWidth\": " + cpu.fusedCheapContiguousAsmVectorWidth() + ",\n" +
+                "        \"cpuFusedCheapStridedAsmVectorWidth\": " + cpu.fusedCheapStridedAsmVectorWidth() + ",\n" +
+                "        \"cpuFusedNonCheapContiguousAsmVectorWidth\": " + cpu.fusedNonCheapContiguousAsmVectorWidth() + ",\n" +
+                "        \"cpuFusedNonCheapStridedAsmVectorWidth\": " + cpu.fusedNonCheapStridedAsmVectorWidth() + ",\n" +
                 "        \"cpuSumAccuracyMode\": \"" + cpu.sumAccuracyMode().name() + "\",\n" +
-                "        \"cpuAttentionMatMulPolicy\": \"" + cpu.attentionMatMulPolicy().name() + "\"\n" +
+                "        \"cpuAttentionMatMulPolicy\": \"" + cpu.attentionMatMulPolicy().name() + "\",\n" +
+                "        \"cpuMatMulMicroKernel\": \"" + cpu.matMulMicroKernel().name() + "\"\n" +
                 "      },\n" +
                 "      \"cuda\": {\n" +
                 "        \"cudaLoopUnrollFactor\": " + cuda.loopUnrollFactor() + ",\n" +

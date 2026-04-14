@@ -224,7 +224,8 @@ public final class PreparedExecution {
                         plan.matMulHints().tileN(),
                         plan.matMulHints().tileK(),
                         plan.matMulHints().plannedWorkers(),
-                        plan.matMulHints().work()
+                        plan.matMulHints().work(),
+                        plan.matMulHints().microKernel().name()
                 );
             }
         }
@@ -236,6 +237,7 @@ public final class PreparedExecution {
             fusedMeta = new FusedTraceMetadata(
                     fused.getPrecisionMode(),
                     fused.isLowCostHint(),
+                    fused.getDispatchFamily().id(),
                     fused.getSchedulerSignature(),
                     executionBackend,
                     fused.getDispatchScale(),

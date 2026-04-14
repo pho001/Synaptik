@@ -11,6 +11,18 @@ import tensor.Tensor;
 import java.util.List;
 
 public class FusedCostModel {
+    public static FusedDispatchFamily resolveDispatchFamily(FusedExpressionPlan plan) {
+        if (plan == null || plan.nodes().isEmpty()) {
+            return FusedDispatchFamily.NON_CHEAP_STRIDED;
+        }
+        boolean contiguous = isContiguousAccessPlan(plan);
+        boolean cheap = containsOnlyCheapNumericOps(plan);
+        if (cheap) {
+            return contiguous ? FusedDispatchFamily.CHEAP_CONTIGUOUS : FusedDispatchFamily.CHEAP_STRIDED;
+        }
+        return contiguous ? FusedDispatchFamily.NON_CHEAP_CONTIGUOUS : FusedDispatchFamily.NON_CHEAP_STRIDED;
+    }
+
     public static boolean resolveLowCostHint(List<Tensor> cluster) {
         if (cluster == null || cluster.isEmpty()) {
             return false;
@@ -24,7 +36,7 @@ public class FusedCostModel {
                 return false;
             }
             switch (type) {
-                case ADD, SUB, MUL, MIN, MAX, NEG, MUL_SCALAR, RELU, NOOP -> {
+                case ADD, SUB, MUL, MIN, MAX, NEG, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, ABS, NOOP -> {
                     // keep scanning
                 }
                 default -> {
@@ -36,33 +48,7 @@ public class FusedCostModel {
     }
 
     public static boolean resolveLowCostHint(FusedExpressionPlan plan) {
-        if (plan == null || plan.nodes().isEmpty()) {
-            return false;
-        }
-        for (FusedExternalInputPlan input : plan.inputs()) {
-            if (input.accessKind() != FusedAccessKind.DIRECT_CONTIGUOUS
-                    && input.accessKind() != FusedAccessKind.OFFSET_CONTIGUOUS) {
-                return false;
-            }
-            if (input.dataType() == DataType.BOOL) {
-                return false;
-            }
-        }
-        for (FusedNodePlan node : plan.nodes()) {
-            if (node.outputType() == DataType.BOOL) {
-                return false;
-            }
-            Operation.OpType type = node.opType();
-            switch (type) {
-                case ADD, SUB, MUL, MIN, MAX, NEG, MUL_SCALAR, RELU, NOOP -> {
-                    // keep scanning
-                }
-                default -> {
-                    return false;
-                }
-            }
-        }
-        return true;
+        return resolveDispatchFamily(plan) == FusedDispatchFamily.CHEAP_CONTIGUOUS;
     }
 
     public static int estimateDispatchComplexity(List<Tensor> cluster) {
@@ -154,5 +140,44 @@ public class FusedCostModel {
             }
         }
         return normalizationStyle;
+    }
+
+    private static boolean isContiguousAccessPlan(FusedExpressionPlan plan) {
+        for (FusedExternalInputPlan input : plan.inputs()) {
+            if (input.accessKind() != FusedAccessKind.DIRECT_CONTIGUOUS
+                    && input.accessKind() != FusedAccessKind.OFFSET_CONTIGUOUS) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean containsOnlyCheapNumericOps(FusedExpressionPlan plan) {
+        for (FusedExternalInputPlan input : plan.inputs()) {
+            if (input.dataType() == DataType.BOOL) {
+                return false;
+            }
+        }
+        for (FusedNodePlan node : plan.nodes()) {
+            if (node.outputType() == DataType.BOOL) {
+                return false;
+            }
+            if (!isCheapNumericOp(node.opType())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isCheapNumericOp(Operation.OpType opType) {
+        if (opType == null) {
+            return false;
+        }
+        return switch (opType) {
+            case ADD, SUB, MUL, MIN, MAX, NEG, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, ABS, NOOP -> true;
+            case DIV, INV, SQRT, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, POW -> false;
+            case GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> false;
+            default -> false;
+        };
     }
 }

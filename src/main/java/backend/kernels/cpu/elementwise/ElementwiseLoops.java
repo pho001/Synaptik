@@ -253,6 +253,10 @@ public final class ElementwiseLoops {
             runBroadcast(out.length, hints, (start, end) -> scalarBroadcastF64(kernel, left, right, out, plan, start, end));
             return;
         }
+        if (kernel.supportsDirectF64()) {
+            kernel.runDirectF64(left, right, out, hints);
+            return;
+        }
         boolean vectorized = hints.vectorized() && kernel.supportsVectorF64();
         runDirect(out.length, hints, vectorized,
                 (start, end) -> scalarDirectF64(kernel, left, right, out, start, end),
@@ -269,6 +273,10 @@ public final class ElementwiseLoops {
     ) {
         if (plan != null && !plan.isNoBroadcast()) {
             runBroadcast(out.length, hints, (start, end) -> scalarBroadcastF32(kernel, left, right, out, plan, start, end));
+            return;
+        }
+        if (kernel.supportsDirectF32()) {
+            kernel.runDirectF32(left, right, out, hints);
             return;
         }
         boolean vectorized = hints.vectorized() && kernel.supportsVectorF32();
@@ -292,12 +300,20 @@ public final class ElementwiseLoops {
                     scalarBroadcastBF16(kernel, leftStorage, rightStorage, leftContinuation, rightContinuation, out, plan, start, end));
             return;
         }
+        if (kernel.supportsDirectBF16()) {
+            kernel.runDirectBF16(leftStorage, rightStorage, leftContinuation, rightContinuation, out, hints);
+            return;
+        }
         runDirect(out.length, hints, false,
                 (start, end) -> scalarDirectBF16(kernel, leftStorage, rightStorage, leftContinuation, rightContinuation, out, start, end),
                 null);
     }
 
     private static void runUnaryF64(UnaryElementwiseKernel kernel, double[] in, double[] out, ResolvedDispatchHints hints) {
+        if (kernel.supportsDirectF64()) {
+            kernel.runDirectF64(in, out, hints);
+            return;
+        }
         boolean vectorized = hints.vectorized() && kernel.supportsVectorF64();
         runDirect(out.length, hints, vectorized,
                 (start, end) -> scalarUnaryF64(kernel, in, out, start, end),
@@ -305,6 +321,10 @@ public final class ElementwiseLoops {
     }
 
     private static void runUnaryF32(UnaryElementwiseKernel kernel, float[] in, float[] out, ResolvedDispatchHints hints) {
+        if (kernel.supportsDirectF32()) {
+            kernel.runDirectF32(in, out, hints);
+            return;
+        }
         boolean vectorized = hints.vectorized() && kernel.supportsVectorF32();
         runDirect(out.length, hints, vectorized,
                 (start, end) -> scalarUnaryF32(kernel, in, out, start, end),
@@ -318,6 +338,10 @@ public final class ElementwiseLoops {
             short[] out,
             ResolvedDispatchHints hints
     ) {
+        if (kernel.supportsDirectBF16()) {
+            kernel.runDirectBF16(in, continuation, out, hints);
+            return;
+        }
         runDirect(out.length, hints, false,
                 (start, end) -> scalarUnaryBF16(kernel, in, continuation, out, start, end),
                 null);
@@ -330,6 +354,10 @@ public final class ElementwiseLoops {
             double[] out,
             ResolvedDispatchHints hints
     ) {
+        if (kernel.supportsDirectF64()) {
+            kernel.runDirectF64(in, parameter, out, hints);
+            return;
+        }
         boolean vectorized = hints.vectorized() && kernel.supportsVectorF64();
         runDirect(out.length, hints, vectorized,
                 (start, end) -> scalarUnaryF64(kernel, in, parameter, out, start, end),
@@ -343,6 +371,10 @@ public final class ElementwiseLoops {
             float[] out,
             ResolvedDispatchHints hints
     ) {
+        if (kernel.supportsDirectF32()) {
+            kernel.runDirectF32(in, parameter, out, hints);
+            return;
+        }
         boolean vectorized = hints.vectorized() && kernel.supportsVectorF32();
         runDirect(out.length, hints, vectorized,
                 (start, end) -> scalarUnaryF32(kernel, in, parameter, out, start, end),
@@ -357,6 +389,10 @@ public final class ElementwiseLoops {
             short[] out,
             ResolvedDispatchHints hints
     ) {
+        if (kernel.supportsDirectBF16()) {
+            kernel.runDirectBF16(in, continuation, parameter, out, hints);
+            return;
+        }
         runDirect(out.length, hints, false,
                 (start, end) -> scalarUnaryBF16(kernel, in, continuation, parameter, out, start, end),
                 null);

@@ -205,9 +205,13 @@ public final class ProfileMutators {
                                                 baseCpu.matMulTileK(),
                                                 baseCpu.cheapVectorMinSize(),
                                                 baseCpu.transcendentalVectorMinSize(),
+                                                baseCpu.fusedCheapVectorMinSize(),
+                                                baseCpu.fusedTranscendentalVectorMinSize(),
                                                 baseCpu.reductionVectorMinSize(),
                                                 baseCpu.cheapParallelMinSize(),
                                                 baseCpu.transcendentalParallelMinSize(),
+                                                baseCpu.fusedCheapParallelMinSize(),
+                                                baseCpu.fusedTranscendentalParallelMinSize(),
                                                 baseCpu.reductionParallelMinSize(),
                                                 baseCpu.contiguousMaterializeThreshold(),
                                                 low,
@@ -217,7 +221,10 @@ public final class ProfileMutators {
                                                 minVector,
                                                 minReduction,
                                                 commonPool,
-                                                baseCpu.fusedAsmVectorWidth(),
+                                                baseCpu.fusedCheapContiguousAsmVectorWidth(),
+                                                baseCpu.fusedCheapStridedAsmVectorWidth(),
+                                                baseCpu.fusedNonCheapContiguousAsmVectorWidth(),
+                                                baseCpu.fusedNonCheapStridedAsmVectorWidth(),
                                                 baseCpu.sumAccuracyMode(),
                                                 baseCpu.matMulParallelMinSize(),
                                                 baseCpu.attentionMatMulPolicy()
@@ -524,7 +531,10 @@ public final class ProfileMutators {
                         baseCpu.minVectorChunkSize(),
                         baseCpu.minReductionChunkSize(),
                         baseCpu.commonPoolLowCostMaxWorkPerWorker(),
-                        width == null ? baseCpu.fusedAsmVectorWidth() : width,
+                        width == null ? baseCpu.fusedCheapContiguousAsmVectorWidth() : width,
+                        width == null ? baseCpu.fusedCheapStridedAsmVectorWidth() : width,
+                        width == null ? baseCpu.fusedNonCheapContiguousAsmVectorWidth() : width,
+                        width == null ? baseCpu.fusedNonCheapStridedAsmVectorWidth() : width,
                         baseCpu.sumAccuracyMode(),
                         baseCpu.matMulParallelMinSize(),
                         baseCpu.attentionMatMulPolicy()
@@ -619,7 +629,10 @@ public final class ProfileMutators {
                                 baseCpu.minVectorChunkSize(),
                                 baseCpu.minReductionChunkSize(),
                                 baseCpu.commonPoolLowCostMaxWorkPerWorker(),
-                                baseCpu.fusedAsmVectorWidth(),
+                                baseCpu.fusedCheapContiguousAsmVectorWidth(),
+                                baseCpu.fusedCheapStridedAsmVectorWidth(),
+                                baseCpu.fusedNonCheapContiguousAsmVectorWidth(),
+                                baseCpu.fusedNonCheapStridedAsmVectorWidth(),
                                 baseCpu.sumAccuracyMode(),
                                 baseCpu.matMulParallelMinSize(),
                                 baseCpu.attentionMatMulPolicy()
@@ -795,10 +808,14 @@ public final class ProfileMutators {
                 base.minVectorChunkSize(),
                 base.minReductionChunkSize(),
                 base.commonPoolLowCostMaxWorkPerWorker(),
-                base.fusedAsmVectorWidth(),
+                base.fusedCheapContiguousAsmVectorWidth(),
+                base.fusedCheapStridedAsmVectorWidth(),
+                base.fusedNonCheapContiguousAsmVectorWidth(),
+                base.fusedNonCheapStridedAsmVectorWidth(),
                 base.sumAccuracyMode(),
                 matmulParallelMin == null ? base.matMulParallelMinSize() : matmulParallelMin,
-                attention == null ? base.attentionMatMulPolicy() : attention
+                attention == null ? base.attentionMatMulPolicy() : attention,
+                base.matMulMicroKernel()
         );
     }
 

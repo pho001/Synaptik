@@ -34,13 +34,10 @@ public final class FusedVectorMethodEmitter {
         FusedOutputBindingEmitter.emitVectorBinding(mv, context, sm);
         FusedInputBindingEmitter.emitVectorCursorBindings(mv, plan.inputs(), sm);
 
-        FusedAsmSupport.emitVectorWidthCall(mv, sm);
-        mv.visitVarInsn(ISTORE, sm.get(SlotKey.SECOND_LOOP_COUNTER));
-
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_END));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_START));
         mv.visitInsn(ISUB);
-        mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
+        FusedAsmSupport.emitVectorWidthConstant(mv, context.vectorWidth());
         mv.visitInsn(IREM);
         mv.visitVarInsn(ISTORE, sm.get(SlotKey.RANGE_UPPER));
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_END));
@@ -58,7 +55,14 @@ public final class FusedVectorMethodEmitter {
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.RANGE_UPPER));
         mv.visitJumpInsn(IF_ICMPGE, loopEnd);
 
-        FusedInputBindingEmitter.emitVectorCachedInputLoads(mv, plan.inputCount(), plan.inputs(), sm, context.precisionMode());
+        FusedInputBindingEmitter.emitVectorCachedInputLoads(
+                mv,
+                plan.inputCount(),
+                plan.inputs(),
+                sm,
+                context.precisionMode(),
+                context.vectorWidth()
+        );
 
         for (FusedNodePlan node : plan.nodes()) {
             FusedVectorExpressionEmitter.emitNodeEvaluationBytecode(
@@ -71,14 +75,14 @@ public final class FusedVectorMethodEmitter {
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
         mv.visitVarInsn(ALOAD, nodeVectorSlots[plan.outputRef() - plan.inputCount()]);
         if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
-            mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
+            FusedAsmSupport.emitVectorWidthConstant(mv, context.vectorWidth());
             FusedAsmSupport.emitStoreBoolVectorToArrayCall(mv, context.precisionMode());
         } else {
             FusedAsmSupport.emitStoreVectorToArrayCall(mv, context.precisionMode());
         }
 
         mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
-        mv.visitVarInsn(ILOAD, sm.get(SlotKey.SECOND_LOOP_COUNTER));
+        FusedAsmSupport.emitVectorWidthConstant(mv, context.vectorWidth());
         mv.visitInsn(IADD);
         mv.visitVarInsn(ISTORE, sm.get(SlotKey.LOOP_COUNTER));
         mv.visitJumpInsn(GOTO, loopStart);

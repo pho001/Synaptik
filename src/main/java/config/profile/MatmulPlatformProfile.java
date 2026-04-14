@@ -1,6 +1,7 @@
 package config.profile;
 
 import backend.blas.BlasProvider;
+import config.backend.CpuMatMulMicroKernel;
 
 import java.util.Objects;
 
@@ -14,9 +15,11 @@ public record MatmulPlatformProfile(
         int matMulTileM,
         int matMulTileN,
         int matMulTileK,
-        int matMulParallelMinSize
+        int matMulParallelMinSize,
+        CpuMatMulMicroKernel matMulMicroKernel
 ) {
     public MatmulPlatformProfile {
         blasProvider = Objects.requireNonNull(blasProvider, "blasProvider cannot be null");
+        matMulMicroKernel = matMulMicroKernel == null ? CpuMatMulMicroKernel.AUTO : matMulMicroKernel;
     }
 }

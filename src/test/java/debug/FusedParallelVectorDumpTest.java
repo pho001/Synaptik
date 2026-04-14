@@ -90,7 +90,12 @@ final class FusedParallelVectorDumpTest {
                 "Expected vector-capable fused dispatch mode");
 
         String internalName = binaryName.replace('.', '/');
-        byte[] bytecode = FusedKernelGeneratorRouter.generate(internalName, fused.getPlan(), fused.getPrecisionMode());
+        byte[] bytecode = FusedKernelGeneratorRouter.generate(
+                internalName,
+                fused.getPlan(),
+                fused.getPrecisionMode(),
+                hints.vectorWidth()
+        );
 
         Path classPath = OUTPUT_DIR.resolve(binaryName.replace('.', '/') + ".class");
         Files.createDirectories(classPath.getParent());

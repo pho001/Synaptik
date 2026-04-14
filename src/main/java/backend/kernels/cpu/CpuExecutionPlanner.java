@@ -3,8 +3,10 @@ package backend.kernels.cpu;
 import backend.blas.BlasProvider;
 import backend.runtime.BlasConfig;
 import config.backend.AttentionMatMulPolicy;
+import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
+import graph.optimizer.fusion.FusedDispatchFamily;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import operations.FusedOperation;
@@ -42,9 +44,13 @@ public final class CpuExecutionPlanner {
     private final int minVectorChunkSize;
     private final int minReductionChunkSize;
     private final int commonPoolLowCostMaxWorkPerWorker;
-    private final int fusedAsmVectorWidth;
+    private final int fusedCheapContiguousAsmVectorWidth;
+    private final int fusedCheapStridedAsmVectorWidth;
+    private final int fusedNonCheapContiguousAsmVectorWidth;
+    private final int fusedNonCheapStridedAsmVectorWidth;
     private final SumAccuracyMode sumAccuracyMode;
     private final AttentionMatMulPolicy attentionMatMulPolicy;
+    private final CpuMatMulMicroKernel matMulMicroKernel;
 
     public CpuExecutionPlanner(
             int matMulTileM,
@@ -69,9 +75,13 @@ public final class CpuExecutionPlanner {
             int minVectorChunkSize,
             int minReductionChunkSize,
             int commonPoolLowCostMaxWorkPerWorker,
-            int fusedAsmVectorWidth,
+            int fusedCheapContiguousAsmVectorWidth,
+            int fusedCheapStridedAsmVectorWidth,
+            int fusedNonCheapContiguousAsmVectorWidth,
+            int fusedNonCheapStridedAsmVectorWidth,
             SumAccuracyMode sumAccuracyMode,
-            AttentionMatMulPolicy attentionMatMulPolicy
+            AttentionMatMulPolicy attentionMatMulPolicy,
+            CpuMatMulMicroKernel matMulMicroKernel
     ) {
         this.matMulTileM = positiveOrDefault(matMulTileM, DEFAULT_MATMUL_TILE_M);
         this.matMulTileN = positiveOrDefault(matMulTileN, DEFAULT_MATMUL_TILE_N);
@@ -95,9 +105,13 @@ public final class CpuExecutionPlanner {
         this.minVectorChunkSize = Math.max(1, minVectorChunkSize);
         this.minReductionChunkSize = Math.max(1, minReductionChunkSize);
         this.commonPoolLowCostMaxWorkPerWorker = Math.max(1, commonPoolLowCostMaxWorkPerWorker);
-        this.fusedAsmVectorWidth = Math.max(1, fusedAsmVectorWidth);
+        this.fusedCheapContiguousAsmVectorWidth = Math.max(1, fusedCheapContiguousAsmVectorWidth);
+        this.fusedCheapStridedAsmVectorWidth = Math.max(1, fusedCheapStridedAsmVectorWidth);
+        this.fusedNonCheapContiguousAsmVectorWidth = Math.max(1, fusedNonCheapContiguousAsmVectorWidth);
+        this.fusedNonCheapStridedAsmVectorWidth = Math.max(1, fusedNonCheapStridedAsmVectorWidth);
         this.sumAccuracyMode = Objects.requireNonNullElse(sumAccuracyMode, SumAccuracyMode.FAST);
         this.attentionMatMulPolicy = Objects.requireNonNullElse(attentionMatMulPolicy, AttentionMatMulPolicy.AUTO);
+        this.matMulMicroKernel = Objects.requireNonNullElse(matMulMicroKernel, CpuMatMulMicroKernel.AUTO);
     }
 
     public static CpuExecutionPlanner from(CpuKernelConfig config) {
@@ -125,9 +139,13 @@ public final class CpuExecutionPlanner {
                 config.minVectorChunkSize(),
                 config.minReductionChunkSize(),
                 config.commonPoolLowCostMaxWorkPerWorker(),
-                config.fusedAsmVectorWidth(),
+                config.fusedCheapContiguousAsmVectorWidth(),
+                config.fusedCheapStridedAsmVectorWidth(),
+                config.fusedNonCheapContiguousAsmVectorWidth(),
+                config.fusedNonCheapStridedAsmVectorWidth(),
                 config.sumAccuracyMode(),
-                config.attentionMatMulPolicy()
+                config.attentionMatMulPolicy(),
+                config.matMulMicroKernel()
         );
     }
 
@@ -174,7 +192,7 @@ public final class CpuExecutionPlanner {
         };
     }
 
-    public int resolvedFusedAsmVectorWidth(ResolvedCpuComputeContract contract) {
+    public int resolvedFusedAsmVectorWidth(ResolvedCpuComputeContract contract, FusedOperation fused) {
         if (contract == null) {
             return 1;
         }
@@ -183,10 +201,13 @@ public final class CpuExecutionPlanner {
             case F64 -> DoubleVector.SPECIES_PREFERRED.length();
             case INT32, BOOL -> 1;
         };
-        if (fusedAsmVectorWidth <= 1 || available <= 1) {
+        int configuredWidth = resolveFusedAsmVectorWidthForFamily(
+                fused == null ? FusedDispatchFamily.NON_CHEAP_STRIDED : fused.getDispatchFamily()
+        );
+        if (configuredWidth <= 1 || available <= 1) {
             return 1;
         }
-        int width = Math.min(fusedAsmVectorWidth, available);
+        int width = Math.min(configuredWidth, available);
         if (width >= 8) {
             return 8;
         }
@@ -207,7 +228,7 @@ public final class CpuExecutionPlanner {
 
         int totalLength = Math.max(0, node.getFlatDataSize());
         boolean fused = op.opType() == Operation.OpType.FUSED;
-        int vectorWidth = fused ? resolvedFusedAsmVectorWidth(contract) : preferredVectorWidth(contract);
+        int vectorWidth = fused ? resolvedFusedAsmVectorWidth(contract, (FusedOperation) op) : preferredVectorWidth(contract);
         boolean vectorAllowed = vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op);
         CpuKernelCostClass costClass = resolveDispatchCostClass(op);
 
@@ -349,7 +370,8 @@ public final class CpuExecutionPlanner {
                 matMulTileN,
                 matMulTileK,
                 plannedWorkers(),
-                work
+                work,
+                matMulMicroKernel.resolve(out.getDataType())
         );
     }
 
@@ -554,6 +576,18 @@ public final class CpuExecutionPlanner {
             return false;
         }
         return totalLength <= (long) plannedWorkers() * commonPoolLowCostMaxWorkPerWorker;
+    }
+
+    private int resolveFusedAsmVectorWidthForFamily(FusedDispatchFamily family) {
+        if (family == null) {
+            return fusedNonCheapStridedAsmVectorWidth;
+        }
+        return switch (family) {
+            case CHEAP_CONTIGUOUS -> fusedCheapContiguousAsmVectorWidth;
+            case CHEAP_STRIDED -> fusedCheapStridedAsmVectorWidth;
+            case NON_CHEAP_CONTIGUOUS -> fusedNonCheapContiguousAsmVectorWidth;
+            case NON_CHEAP_STRIDED -> fusedNonCheapStridedAsmVectorWidth;
+        };
     }
 
     private static int positiveOrDefault(int value, int defaultValue) {

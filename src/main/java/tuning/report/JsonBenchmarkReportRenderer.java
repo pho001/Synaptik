@@ -278,7 +278,8 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"tileN\": " + matMul.tileN() + ", "
                 + "\"tileK\": " + matMul.tileK() + ", "
                 + "\"plannedWorkers\": " + matMul.plannedWorkers() + ", "
-                + "\"work\": " + matMul.work()
+                + "\"work\": " + matMul.work() + ", "
+                + "\"microKernel\": \"" + escape(matMul.microKernel()) + "\""
                 + "}";
     }
 
@@ -289,6 +290,7 @@ public final class JsonBenchmarkReportRenderer {
         return "{"
                 + "\"precisionMode\": " + fused.precisionMode() + ", "
                 + "\"lowCostHint\": " + fused.lowCostHint() + ", "
+                + "\"dispatchFamily\": \"" + escape(fused.dispatchFamily()) + "\", "
                 + "\"schedulerSignature\": \"" + escape(fused.schedulerSignature()) + "\", "
                 + "\"executionBackend\": \"" + escape(fused.executionBackend()) + "\", "
                 + "\"dispatchScale\": " + fused.dispatchScale() + ", "

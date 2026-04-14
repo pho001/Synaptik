@@ -1,5 +1,6 @@
 package backend.kernels.cpu.elementwise.unary;
 
+import backend.kernels.cpu.ResolvedDispatchHints;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 
@@ -24,5 +25,29 @@ public interface ScalarUnaryElementwiseKernel {
 
     default FloatVector applyVectorF32(FloatVector value, FloatVector parameter) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support FLOAT32 vectors");
+    }
+
+    default boolean supportsDirectF64() {
+        return false;
+    }
+
+    default void runDirectF64(double[] in, double parameter, double[] out, ResolvedDispatchHints hints) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support direct FLOAT64 execution");
+    }
+
+    default boolean supportsDirectF32() {
+        return false;
+    }
+
+    default void runDirectF32(float[] in, float parameter, float[] out, ResolvedDispatchHints hints) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support direct FLOAT32 execution");
+    }
+
+    default boolean supportsDirectBF16() {
+        return false;
+    }
+
+    default void runDirectBF16(short[] in, float[] continuation, float parameter, short[] out, ResolvedDispatchHints hints) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support direct BF16 execution");
     }
 }

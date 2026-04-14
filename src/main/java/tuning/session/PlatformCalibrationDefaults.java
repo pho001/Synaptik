@@ -1,6 +1,9 @@
 package tuning.session;
 
+import backend.kernels.cpu.CpuExecutionPlanner;
+import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;
+import graph.optimizer.fusion.FusedDispatchFamily;
 import tuning.workload.CalibrationWorkloads;
 import tensor.DataType;
 
@@ -21,14 +24,7 @@ public final class PlatformCalibrationDefaults {
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 platformId,
                 seedProfile,
-                List.of(
-                        matmulStep("calib-matmul", TuningPreset.BALANCED),
-                        fusedStep("calib-fused", TuningPreset.BALANCED, seedProfile.dataType()),
-                        elementwiseDispatchStep("calib-elementwise", TuningPreset.BALANCED),
-                        reductionStep("calib-reduction", TuningPreset.BALANCED),
-                        schedulerStep("calib-scheduler", TuningPreset.BALANCED),
-                        materializationStep("calib-materialization", TuningPreset.BALANCED)
-                ),
+                standardInferenceSteps("calib", TuningPreset.BALANCED, seedProfile.dataType(), true, true, false, true),
                 outputProfilePath
         );
     }
@@ -41,15 +37,7 @@ public final class PlatformCalibrationDefaults {
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 platformId,
                 seedProfile,
-                List.of(
-                        matmulStep("calib-matmul", TuningPreset.BALANCED),
-                        fusedStep("calib-fused", TuningPreset.BALANCED, seedProfile.dataType()),
-                        elementwiseDispatchStep("calib-elementwise", TuningPreset.BALANCED),
-                        reductionStep("calib-reduction", TuningPreset.BALANCED),
-                        schedulerStep("calib-scheduler", TuningPreset.BALANCED),
-                        materializationStep("calib-materialization", TuningPreset.BALANCED),
-                        numericsStep("calib-numerics", TuningPreset.BALANCED)
-                ),
+                standardInferenceSteps("calib", TuningPreset.BALANCED, seedProfile.dataType(), true, true, true, true),
                 outputProfilePath
         );
     }
@@ -62,14 +50,7 @@ public final class PlatformCalibrationDefaults {
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 platformId,
                 seedProfile,
-                List.of(
-                        matmulStep("calib-matmul", TuningPreset.THOROUGH),
-                        fusedStep("calib-fused", TuningPreset.THOROUGH, seedProfile.dataType()),
-                        elementwiseDispatchStep("calib-elementwise", TuningPreset.THOROUGH),
-                        reductionStep("calib-reduction", TuningPreset.THOROUGH),
-                        schedulerStep("calib-scheduler", TuningPreset.THOROUGH),
-                        materializationStep("calib-materialization", TuningPreset.THOROUGH)
-                ),
+                standardInferenceSteps("calib", TuningPreset.THOROUGH, seedProfile.dataType(), true, true, false, true),
                 outputProfilePath
         );
     }
@@ -82,15 +63,7 @@ public final class PlatformCalibrationDefaults {
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 platformId,
                 seedProfile,
-                List.of(
-                        matmulStep("calib-matmul", TuningPreset.THOROUGH),
-                        fusedStep("calib-fused", TuningPreset.THOROUGH, seedProfile.dataType()),
-                        elementwiseDispatchStep("calib-elementwise", TuningPreset.THOROUGH),
-                        reductionStep("calib-reduction", TuningPreset.THOROUGH),
-                        schedulerStep("calib-scheduler", TuningPreset.THOROUGH),
-                        materializationStep("calib-materialization", TuningPreset.THOROUGH),
-                        numericsStep("calib-numerics", TuningPreset.THOROUGH)
-                ),
+                standardInferenceSteps("calib", TuningPreset.THOROUGH, seedProfile.dataType(), true, true, true, true),
                 outputProfilePath
         );
     }
@@ -103,12 +76,7 @@ public final class PlatformCalibrationDefaults {
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 platformId,
                 seedProfile,
-                List.of(
-                        matmulStep("calib-matmul", TuningPreset.QUICK),
-                        fusedStep("calib-fused", TuningPreset.QUICK, seedProfile.dataType()),
-                        elementwiseDispatchStep("calib-elementwise", TuningPreset.QUICK),
-                        schedulerStep("calib-scheduler", TuningPreset.QUICK)
-                ),
+                standardInferenceSteps("calib", TuningPreset.QUICK, seedProfile.dataType(), false, false, false, true),
                 outputProfilePath
         );
     }
@@ -121,15 +89,7 @@ public final class PlatformCalibrationDefaults {
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 platformId,
                 seedProfile,
-                List.of(
-                        matmulStep("calib-matmul-train", TuningPreset.BALANCED),
-                        fusedStep("calib-fused-train", TuningPreset.BALANCED, seedProfile.dataType()),
-                        elementwiseDispatchStep("calib-elementwise-train", TuningPreset.BALANCED),
-                        reductionStep("calib-reduction-train", TuningPreset.BALANCED),
-                        schedulerStep("calib-scheduler-train", TuningPreset.BALANCED),
-                        materializationStep("calib-materialization-train", TuningPreset.BALANCED),
-                        numericsStep("calib-numerics-train", TuningPreset.BALANCED)
-                ),
+                standardTrainingSteps("calib", TuningPreset.BALANCED, seedProfile.dataType(), true, true, true, true),
                 outputProfilePath
         );
     }
@@ -150,15 +110,7 @@ public final class PlatformCalibrationDefaults {
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 platformId,
                 seedProfile,
-                List.of(
-                        matmulStep("calib-matmul-train", TuningPreset.THOROUGH),
-                        fusedStep("calib-fused-train", TuningPreset.THOROUGH, seedProfile.dataType()),
-                        elementwiseDispatchStep("calib-elementwise-train", TuningPreset.THOROUGH),
-                        reductionStep("calib-reduction-train", TuningPreset.THOROUGH),
-                        schedulerStep("calib-scheduler-train", TuningPreset.THOROUGH),
-                        materializationStep("calib-materialization-train", TuningPreset.THOROUGH),
-                        numericsStep("calib-numerics-train", TuningPreset.THOROUGH)
-                ),
+                standardTrainingSteps("calib", TuningPreset.THOROUGH, seedProfile.dataType(), true, true, true, true),
                 outputProfilePath
         );
     }
@@ -179,12 +131,7 @@ public final class PlatformCalibrationDefaults {
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 platformId,
                 seedProfile,
-                List.of(
-                        matmulStep("calib-matmul-train", TuningPreset.QUICK),
-                        fusedStep("calib-fused-train", TuningPreset.QUICK, seedProfile.dataType()),
-                        elementwiseDispatchStep("calib-elementwise-train", TuningPreset.QUICK),
-                        reductionStep("calib-reduction-train", TuningPreset.QUICK)
-                ),
+                standardTrainingSteps("calib", TuningPreset.QUICK, seedProfile.dataType(), true, false, false, false),
                 outputProfilePath
         );
     }
@@ -203,6 +150,8 @@ public final class PlatformCalibrationDefaults {
                 base -> new PlatformRuntimeProfileGridCandidateSpace(
                         base,
                         List.of(
+                                PlatformRuntimeProfileMutators.matmulMicroKernels(supportedMatMulMicroKernels(seedProfileDataType(base))),
+                                PlatformRuntimeProfileMutators.matmulTiles(supportedMatMulTiles(seedProfileDataType(base))),
                                 PlatformRuntimeProfileMutators.matmulShapeHeuristics(
                                         List.of(true, false),
                                         List.of(1.5, 2.0, 3.0, 4.0, 6.0)
@@ -215,10 +164,56 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
-    public static PlatformCalibrationStep fusedStep(String name, TuningPreset preset, DataType dataType) {
+    private static DataType seedProfileDataType(config.profile.PlatformRuntimeProfile base) {
+        return base.metadata().dataType();
+    }
+
+    private static List<CpuMatMulMicroKernel> supportedMatMulMicroKernels(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> List.of(
+                    CpuMatMulMicroKernel.F64_2X1,
+                    CpuMatMulMicroKernel.F64_4X1,
+                    CpuMatMulMicroKernel.F64_2X2
+            );
+            case FLOAT32 -> List.of(
+                    CpuMatMulMicroKernel.F32_2X4,
+                    CpuMatMulMicroKernel.F32_2X8,
+                    CpuMatMulMicroKernel.F32_4X2,
+                    CpuMatMulMicroKernel.F32_4X4
+            );
+            default -> List.of(CpuMatMulMicroKernel.AUTO);
+        };
+    }
+
+    private static List<PlatformRuntimeProfileMutators.MatmulTiles> supportedMatMulTiles(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> List.of(
+                    new PlatformRuntimeProfileMutators.MatmulTiles(16, 64, 32),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 32),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64)
+            );
+            case FLOAT32 -> List.of(
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 128),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 256, 128)
+            );
+            default -> List.of(
+                    new PlatformRuntimeProfileMutators.MatmulTiles(
+                            CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M,
+                            CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N,
+                            CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K
+                    )
+            );
+        };
+    }
+
+    public static PlatformCalibrationStep fusedDispatchStep(String name, TuningPreset preset) {
         return new PlatformCalibrationStep(
                 name,
-                PlatformCalibrationFamily.FUSED_ARITHMETIC,
+                PlatformCalibrationFamily.FUSED_THRESHOLDS,
                 List.of(
                         CalibrationWorkloads.fusedCheapElementwise(name + "_workload_cheap", 65_536),
                         CalibrationWorkloads.fusedTranscendental(name + "_workload_trans", 65_536)
@@ -232,11 +227,54 @@ public final class PlatformCalibrationDefaults {
                                         List.of(16, 32, 64, 128, 256),
                                         List.of(4_096, 8_192, 16_384, 32_768),
                                         List.of(1_024, 2_048, 4_096, 8_192)
-                                ),
-                                PlatformRuntimeProfileMutators.fusedAsmVectorWidths(supportedFusedAsmVectorWidths(dataType))
+                                )
                         )
                 ),
                 PlatformCalibrationScorePolicy.averageMedianMs()
+        );
+    }
+
+    public static PlatformCalibrationStep fusedCheapContiguousStep(String name, TuningPreset preset, DataType dataType) {
+        return fusedAsmWidthStep(
+                name,
+                PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS,
+                FusedDispatchFamily.CHEAP_CONTIGUOUS,
+                List.of(CalibrationWorkloads.fusedCheapElementwise(name + "_workload", 65_536)),
+                preset,
+                dataType
+        );
+    }
+
+    public static PlatformCalibrationStep fusedCheapStridedStep(String name, TuningPreset preset, DataType dataType) {
+        return fusedAsmWidthStep(
+                name,
+                PlatformCalibrationFamily.FUSED_CHEAP_STRIDED,
+                FusedDispatchFamily.CHEAP_STRIDED,
+                List.of(CalibrationWorkloads.fusedCheapStridedElementwise(name + "_workload", 256, 256)),
+                preset,
+                dataType
+        );
+    }
+
+    public static PlatformCalibrationStep fusedNonCheapContiguousStep(String name, TuningPreset preset, DataType dataType) {
+        return fusedAsmWidthStep(
+                name,
+                PlatformCalibrationFamily.FUSED_NON_CHEAP_CONTIGUOUS,
+                FusedDispatchFamily.NON_CHEAP_CONTIGUOUS,
+                List.of(CalibrationWorkloads.fusedTranscendental(name + "_workload", 65_536)),
+                preset,
+                dataType
+        );
+    }
+
+    public static PlatformCalibrationStep fusedNonCheapStridedStep(String name, TuningPreset preset, DataType dataType) {
+        return fusedAsmWidthStep(
+                name,
+                PlatformCalibrationFamily.FUSED_NON_CHEAP_STRIDED,
+                FusedDispatchFamily.NON_CHEAP_STRIDED,
+                List.of(CalibrationWorkloads.fusedTranscendentalStrided(name + "_workload", 256, 256)),
+                preset,
+                dataType
         );
     }
 
@@ -258,6 +296,101 @@ public final class PlatformCalibrationDefaults {
             widths.add(8);
         }
         return List.copyOf(widths);
+    }
+
+    private static PlatformCalibrationStep fusedAsmWidthStep(
+            String name,
+            PlatformCalibrationFamily family,
+            FusedDispatchFamily dispatchFamily,
+            List<tuning.workload.WorkloadSpec> workloads,
+            TuningPreset preset,
+            DataType dataType
+    ) {
+        return new PlatformCalibrationStep(
+                name,
+                family,
+                workloads,
+                preset,
+                base -> new PlatformRuntimeProfileGridCandidateSpace(
+                        base,
+                        List.of(
+                                PlatformRuntimeProfileMutators.fusedAsmVectorWidths(
+                                        dispatchFamily,
+                                        supportedFusedAsmVectorWidths(dataType)
+                                )
+                        )
+                ),
+                PlatformCalibrationScorePolicy.averageMedianMs()
+        );
+    }
+
+    private static List<PlatformCalibrationStep> standardInferenceSteps(
+            String prefix,
+            TuningPreset preset,
+            DataType dataType,
+            boolean includeReduction,
+            boolean includeMaterialization,
+            boolean includeNumerics,
+            boolean includeScheduler
+    ) {
+        List<PlatformCalibrationStep> steps = new ArrayList<>();
+        steps.add(matmulStep(prefix + "-matmul", preset));
+        addFusedSteps(steps, prefix + "-fused", preset, dataType);
+        steps.add(elementwiseDispatchStep(prefix + "-elementwise", preset));
+        if (includeReduction) {
+            steps.add(reductionStep(prefix + "-reduction", preset));
+        }
+        if (includeScheduler) {
+            steps.add(schedulerStep(prefix + "-scheduler", preset));
+        }
+        if (includeMaterialization) {
+            steps.add(materializationStep(prefix + "-materialization", preset));
+        }
+        if (includeNumerics) {
+            steps.add(numericsStep(prefix + "-numerics", preset));
+        }
+        return List.copyOf(steps);
+    }
+
+    private static List<PlatformCalibrationStep> standardTrainingSteps(
+            String prefix,
+            TuningPreset preset,
+            DataType dataType,
+            boolean includeReduction,
+            boolean includeMaterialization,
+            boolean includeNumerics,
+            boolean includeScheduler
+    ) {
+        List<PlatformCalibrationStep> steps = new ArrayList<>();
+        steps.add(matmulStep(prefix + "-matmul-train", preset));
+        addFusedSteps(steps, prefix + "-fused-train", preset, dataType);
+        steps.add(elementwiseDispatchStep(prefix + "-elementwise-train", preset));
+        if (includeReduction) {
+            steps.add(reductionStep(prefix + "-reduction-train", preset));
+        }
+        if (includeScheduler) {
+            steps.add(schedulerStep(prefix + "-scheduler-train", preset));
+        }
+        if (includeMaterialization) {
+            steps.add(materializationStep(prefix + "-materialization-train", preset));
+        }
+        if (includeNumerics) {
+            steps.add(numericsStep(prefix + "-numerics-train", preset));
+        }
+        return List.copyOf(steps);
+    }
+
+    private static void addFusedSteps(
+            List<PlatformCalibrationStep> steps,
+            String prefix,
+            TuningPreset preset,
+            DataType dataType
+    ) {
+        steps.add(fusedDispatchStep(prefix + "-thresholds", preset));
+        steps.add(fusedCheapContiguousStep(prefix + "-cheap-contig", preset, dataType));
+        steps.add(fusedCheapStridedStep(prefix + "-cheap-strided", preset, dataType));
+        steps.add(fusedNonCheapContiguousStep(prefix + "-noncheap-contig", preset, dataType));
+        steps.add(fusedNonCheapStridedStep(prefix + "-noncheap-strided", preset, dataType));
     }
 
     public static PlatformCalibrationStep elementwiseDispatchStep(String name, TuningPreset preset) {

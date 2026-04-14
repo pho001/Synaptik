@@ -218,12 +218,14 @@ public final class TextBenchmarkReportRenderer {
                         .append(" tileK=").append(metadata.matMul().tileK())
                         .append(" plannedWorkers=").append(metadata.matMul().plannedWorkers())
                         .append(" work=").append(metadata.matMul().work())
+                        .append(" microKernel=").append(metadata.matMul().microKernel())
                         .append('\n');
             }
             if (metadata.fused() != null) {
                 sb.append("      fused: ")
                         .append("precisionMode=").append(metadata.fused().precisionMode())
                         .append(" lowCostHint=").append(metadata.fused().lowCostHint())
+                        .append(" dispatchFamily=").append(metadata.fused().dispatchFamily())
                         .append(" schedulerSignature=").append(metadata.fused().schedulerSignature())
                         .append(" executionBackend=").append(metadata.fused().executionBackend())
                         .append(" dispatchScale=").append(metadata.fused().dispatchScale())

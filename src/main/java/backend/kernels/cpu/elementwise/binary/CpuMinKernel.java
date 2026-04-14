@@ -2,7 +2,6 @@ package backend.kernels.cpu.elementwise.binary;
 
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.ResolvedBroadcastPlan;
 import backend.kernels.cpu.ResolvedDispatchHints;
 import backend.kernels.cpu.elementwise.binary.bf16.MinBF16;
 import backend.kernels.cpu.elementwise.binary.f32.MinF32;
@@ -18,58 +17,17 @@ import java.util.List;
 public final class CpuMinKernel implements CpuKernel, BinaryElementwiseKernel {
     @Override
     public void forwardF64(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        double[] a = inputs.get(0).getFloat64Data();
-        double[] b = inputs.get(1).getFloat64Data();
-        double[] out = node.getFloat64Data();
-        ResolvedDispatchHints hints = context.dispatchHints();
-        ResolvedBroadcastPlan plan = context.broadcastPlan();
-        if (plan != null && !plan.isNoBroadcast()) {
-            ElementwiseBinaryExecutor.execute(this, inputs, node, context);
-            return;
-        }
-        MinF64.run(a, b, out, hints);
+        ElementwiseBinaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
     public void forwardF32(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        float[] a = inputs.get(0).getFloat32Data();
-        float[] b = inputs.get(1).getFloat32Data();
-        float[] out = node.getFloat32Data();
-        ResolvedDispatchHints hints = context.dispatchHints();
-        ResolvedBroadcastPlan plan = context.broadcastPlan();
-        if (plan != null && !plan.isNoBroadcast()) {
-            ElementwiseBinaryExecutor.execute(this, inputs, node, context);
-            return;
-        }
-        MinF32.run(a, b, out, hints);
+        ElementwiseBinaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
-        short[] a = inputs.get(0).getBFloat16Data();
-        short[] b = inputs.get(1).getBFloat16Data();
-        short[] out = node.getBFloat16Data();
-        ResolvedDispatchHints hints = context.dispatchHints();
-        ResolvedBroadcastPlan plan = context.broadcastPlan();
-        if (plan != null && !plan.isNoBroadcast()) {
-            ElementwiseBinaryExecutor.execute(this, inputs, node, context);
-            return;
-        }
-        float[] ac = context.inputFloatContinuation(0, node.getFlatDataSize());
-        float[] bc = context.inputFloatContinuation(1, node.getFlatDataSize());
-        if (ac != null && bc != null) {
-            MinBF16.run(ac, bc, out, hints);
-            return;
-        }
-        if (ac != null) {
-            MinBF16.run(ac, b, out, hints);
-            return;
-        }
-        if (bc != null) {
-            MinBF16.run(a, bc, out, hints);
-            return;
-        }
-        MinBF16.run(a, b, out, hints);
+        ElementwiseBinaryExecutor.execute(this, inputs, node, context);
     }
 
     @Override
@@ -105,5 +63,50 @@ public final class CpuMinKernel implements CpuKernel, BinaryElementwiseKernel {
     @Override
     public FloatVector applyVectorF32(FloatVector left, FloatVector right) {
         return left.lanewise(VectorOperators.MIN, right);
+    }
+
+    @Override
+    public boolean supportsDirectF64() {
+        return true;
+    }
+
+    @Override
+    public void runDirectF64(double[] left, double[] right, double[] out, ResolvedDispatchHints hints) {
+        MinF64.run(left, right, out, hints);
+    }
+
+    @Override
+    public boolean supportsDirectF32() {
+        return true;
+    }
+
+    @Override
+    public void runDirectF32(float[] left, float[] right, float[] out, ResolvedDispatchHints hints) {
+        MinF32.run(left, right, out, hints);
+    }
+
+    @Override
+    public boolean supportsDirectBF16() {
+        return true;
+    }
+
+    @Override
+    public void runDirectBF16(
+            short[] leftStorage,
+            short[] rightStorage,
+            float[] leftContinuation,
+            float[] rightContinuation,
+            short[] out,
+            ResolvedDispatchHints hints
+    ) {
+        if (leftContinuation != null && rightContinuation != null) {
+            MinBF16.run(leftContinuation, rightContinuation, out, hints);
+        } else if (leftContinuation != null) {
+            MinBF16.run(leftContinuation, rightStorage, out, hints);
+        } else if (rightContinuation != null) {
+            MinBF16.run(leftStorage, rightContinuation, out, hints);
+        } else {
+            MinBF16.run(leftStorage, rightStorage, out, hints);
+        }
     }
 }

@@ -6,6 +6,7 @@ import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
 import config.backend.AttentionMatMulPolicy;
+import config.backend.CpuMatMulMicroKernel;
 import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.CseConfig;
 import config.optimizer.Conv2dLoweringConfig;
@@ -57,11 +58,16 @@ public class ExecutionProfileIoTest {
                 ),
                 new RuntimeConfig(
                         new KernelTuningConfig(
-                                new CpuKernelConfig(4, 32, 32, 32, 256, 256, 256, 50_000, 50_000, 50_000, 16_384,
+                                new CpuKernelConfig(
+                                        4, 32, 32, 32,
+                                        256, 256, 256, 256, 256,
+                                        50_000, 50_000, 50_000, 50_000, 50_000,
+                                        16_384,
                                         5, 3, 2,
-                                        2_048, 4_096, 8_192, 32_768, 1,
+                                        2_048, 4_096, 8_192, 32_768,
+                                        1, 1, 1, 1,
                                         config.backend.SumAccuracyMode.FAST,
-                                        2_000_000, AttentionMatMulPolicy.FORCE_ON),
+                                        2_000_000, AttentionMatMulPolicy.FORCE_ON, CpuMatMulMicroKernel.F32_4X2),
                                 CudaKernelConfig.defaultsInference(),
                                 OpenClKernelConfig.defaultsInference()
                         ),
@@ -96,6 +102,7 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().kernel().cpu().minReductionChunkSize(), actual.runtime().kernel().cpu().minReductionChunkSize());
         assertEquals(expected.runtime().kernel().cpu().commonPoolLowCostMaxWorkPerWorker(), actual.runtime().kernel().cpu().commonPoolLowCostMaxWorkPerWorker());
         assertEquals(expected.runtime().kernel().cpu().attentionMatMulPolicy(), actual.runtime().kernel().cpu().attentionMatMulPolicy());
+        assertEquals(expected.runtime().kernel().cpu().matMulMicroKernel(), actual.runtime().kernel().cpu().matMulMicroKernel());
         assertEquals(expected.runtime().blas().provider(), actual.runtime().blas().provider());
         assertEquals(expected.runtime().blas().threads(), actual.runtime().blas().threads());
         assertEquals(expected.runtime().approximation().approxMode(), actual.runtime().approximation().approxMode());

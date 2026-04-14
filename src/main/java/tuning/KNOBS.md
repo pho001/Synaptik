@@ -73,15 +73,18 @@ Families:
 
 - `cpu.matMulTileM`
   - values:
-    - `16, 32, 64`
+    - calibrated as part of tile tuples
+    - current presets are dtype-specific
 
 - `cpu.matMulTileN`
   - values:
-    - `16, 32, 64, 128`
+    - calibrated as part of tile tuples
+    - current presets are dtype-specific
 
 - `cpu.matMulTileK`
   - values:
-    - `16, 32, 64, 128`
+    - calibrated as part of tile tuples
+    - current presets are dtype-specific
 
 - `cpu.matMulParallelMinSize`
   - values:

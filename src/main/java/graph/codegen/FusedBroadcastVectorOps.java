@@ -13,12 +13,18 @@ public final class FusedBroadcastVectorOps {
 
     public static FloatVector loadVectorF32(FusedBroadcastCursor cursor, float[] input, int width) {
         VectorSpecies<Float> species = speciesF32(width);
+        if (cursor.isScalarBroadcast()) {
+            return FloatVector.broadcast(species, input[cursor.idx()]);
+        }
         int[] idx = cursor.nextIndices(species.length());
         return FloatVector.fromArray(species, input, 0, idx, 0);
     }
 
     public static DoubleVector loadVectorF64(FusedBroadcastCursor cursor, double[] input, int width) {
         VectorSpecies<Double> species = speciesF64(width);
+        if (cursor.isScalarBroadcast()) {
+            return DoubleVector.broadcast(species, input[cursor.idx()]);
+        }
         int[] idx = cursor.nextIndices(species.length());
         return DoubleVector.fromArray(species, input, 0, idx, 0);
     }

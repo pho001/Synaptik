@@ -1,11 +1,13 @@
 package operations;
 
 import graph.codegen.FusedExpressionPlan;
+import graph.optimizer.fusion.FusedDispatchFamily;
 
 public final class FusedOperation implements Operation {
     private final String expression;
     private final int precisionMode;
     private final boolean lowCostHint;
+    private final FusedDispatchFamily dispatchFamily;
     private final String schedulerSignature;
     private final int dispatchScale;
     private final FusedExpressionPlan plan;
@@ -14,6 +16,7 @@ public final class FusedOperation implements Operation {
             String expression,
             int precisionMode,
             boolean lowCostHint,
+            FusedDispatchFamily dispatchFamily,
             String schedulerSignature,
             int dispatchScale,
             FusedExpressionPlan plan
@@ -23,6 +26,9 @@ public final class FusedOperation implements Operation {
         }
         if (schedulerSignature == null || schedulerSignature.isBlank()) {
             throw new IllegalArgumentException("schedulerSignature cannot be blank");
+        }
+        if (dispatchFamily == null) {
+            throw new IllegalArgumentException("dispatchFamily cannot be null");
         }
         if (plan == null) {
             throw new IllegalArgumentException("plan cannot be null");
@@ -34,6 +40,7 @@ public final class FusedOperation implements Operation {
         this.expression = expression;
         this.precisionMode = precisionMode;
         this.lowCostHint = lowCostHint;
+        this.dispatchFamily = dispatchFamily;
         this.schedulerSignature = schedulerSignature;
         this.dispatchScale = dispatchScale;
         this.plan = plan;
@@ -60,6 +67,10 @@ public final class FusedOperation implements Operation {
 
     public boolean isLowCostHint() {
         return lowCostHint;
+    }
+
+    public FusedDispatchFamily getDispatchFamily() {
+        return dispatchFamily;
     }
 
     public String getSchedulerSignature() {
