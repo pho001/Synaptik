@@ -42,6 +42,27 @@ public final class FusedBroadcastCursor {
         return scalarBroadcast;
     }
 
+    public boolean staysWithinInnermostDimension(int width) {
+        if (width <= 0 || coords.length == 0) {
+            return false;
+        }
+        int last = coords.length - 1;
+        return coords[last] + width <= outShape[last];
+    }
+
+    public int innermostLaneStride() {
+        if (effStrides.length == 0) {
+            return 0;
+        }
+        return effStrides[effStrides.length - 1];
+    }
+
+    public void advance(int steps) {
+        for (int i = 0; i < steps; i++) {
+            step();
+        }
+    }
+
     public void step() {
         if (scalarBroadcast) {
             return;

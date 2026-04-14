@@ -16,6 +16,17 @@ public final class FusedBroadcastVectorOps {
         if (cursor.isScalarBroadcast()) {
             return FloatVector.broadcast(species, input[cursor.idx()]);
         }
+        if (cursor.staysWithinInnermostDimension(species.length())) {
+            int base = cursor.idx();
+            int laneStride = cursor.innermostLaneStride();
+            cursor.advance(species.length());
+            if (laneStride == 0) {
+                return FloatVector.broadcast(species, input[base]);
+            }
+            if (laneStride == 1) {
+                return FloatVector.fromArray(species, input, base);
+            }
+        }
         int[] idx = cursor.nextIndices(species.length());
         return FloatVector.fromArray(species, input, 0, idx, 0);
     }
@@ -24,6 +35,17 @@ public final class FusedBroadcastVectorOps {
         VectorSpecies<Double> species = speciesF64(width);
         if (cursor.isScalarBroadcast()) {
             return DoubleVector.broadcast(species, input[cursor.idx()]);
+        }
+        if (cursor.staysWithinInnermostDimension(species.length())) {
+            int base = cursor.idx();
+            int laneStride = cursor.innermostLaneStride();
+            cursor.advance(species.length());
+            if (laneStride == 0) {
+                return DoubleVector.broadcast(species, input[base]);
+            }
+            if (laneStride == 1) {
+                return DoubleVector.fromArray(species, input, base);
+            }
         }
         int[] idx = cursor.nextIndices(species.length());
         return DoubleVector.fromArray(species, input, 0, idx, 0);
@@ -34,6 +56,11 @@ public final class FusedBroadcastVectorOps {
         if (cursor.isScalarBroadcast()) {
             return maskFromBroadcastF32(species, input[cursor.idx()] != 0);
         }
+        if (cursor.staysWithinInnermostDimension(species.length()) && cursor.innermostLaneStride() == 0) {
+            int base = cursor.idx();
+            cursor.advance(species.length());
+            return maskFromBroadcastF32(species, input[base] != 0);
+        }
         int[] idx = cursor.nextIndices(species.length());
         return maskFromIndicesF32(species, input, idx);
     }
@@ -42,6 +69,11 @@ public final class FusedBroadcastVectorOps {
         VectorSpecies<Double> species = speciesF64(width);
         if (cursor.isScalarBroadcast()) {
             return maskFromBroadcastF64(species, input[cursor.idx()] != 0);
+        }
+        if (cursor.staysWithinInnermostDimension(species.length()) && cursor.innermostLaneStride() == 0) {
+            int base = cursor.idx();
+            cursor.advance(species.length());
+            return maskFromBroadcastF64(species, input[base] != 0);
         }
         int[] idx = cursor.nextIndices(species.length());
         return maskFromIndicesF64(species, input, idx);
