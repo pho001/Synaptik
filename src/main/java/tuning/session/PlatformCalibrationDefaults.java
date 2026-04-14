@@ -2,6 +2,9 @@ package tuning.session;
 
 import config.profile.ExecutionProfile;
 import tuning.workload.CalibrationWorkloads;
+import tensor.DataType;
+
+import java.util.ArrayList;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -20,7 +23,7 @@ public final class PlatformCalibrationDefaults {
                 seedProfile,
                 List.of(
                         matmulStep("calib-matmul", TuningPreset.BALANCED),
-                        fusedStep("calib-fused", TuningPreset.BALANCED),
+                        fusedStep("calib-fused", TuningPreset.BALANCED, seedProfile.dataType()),
                         elementwiseDispatchStep("calib-elementwise", TuningPreset.BALANCED),
                         reductionStep("calib-reduction", TuningPreset.BALANCED),
                         schedulerStep("calib-scheduler", TuningPreset.BALANCED),
@@ -40,7 +43,7 @@ public final class PlatformCalibrationDefaults {
                 seedProfile,
                 List.of(
                         matmulStep("calib-matmul", TuningPreset.BALANCED),
-                        fusedStep("calib-fused", TuningPreset.BALANCED),
+                        fusedStep("calib-fused", TuningPreset.BALANCED, seedProfile.dataType()),
                         elementwiseDispatchStep("calib-elementwise", TuningPreset.BALANCED),
                         reductionStep("calib-reduction", TuningPreset.BALANCED),
                         schedulerStep("calib-scheduler", TuningPreset.BALANCED),
@@ -61,7 +64,7 @@ public final class PlatformCalibrationDefaults {
                 seedProfile,
                 List.of(
                         matmulStep("calib-matmul", TuningPreset.THOROUGH),
-                        fusedStep("calib-fused", TuningPreset.THOROUGH),
+                        fusedStep("calib-fused", TuningPreset.THOROUGH, seedProfile.dataType()),
                         elementwiseDispatchStep("calib-elementwise", TuningPreset.THOROUGH),
                         reductionStep("calib-reduction", TuningPreset.THOROUGH),
                         schedulerStep("calib-scheduler", TuningPreset.THOROUGH),
@@ -81,7 +84,7 @@ public final class PlatformCalibrationDefaults {
                 seedProfile,
                 List.of(
                         matmulStep("calib-matmul", TuningPreset.THOROUGH),
-                        fusedStep("calib-fused", TuningPreset.THOROUGH),
+                        fusedStep("calib-fused", TuningPreset.THOROUGH, seedProfile.dataType()),
                         elementwiseDispatchStep("calib-elementwise", TuningPreset.THOROUGH),
                         reductionStep("calib-reduction", TuningPreset.THOROUGH),
                         schedulerStep("calib-scheduler", TuningPreset.THOROUGH),
@@ -102,7 +105,7 @@ public final class PlatformCalibrationDefaults {
                 seedProfile,
                 List.of(
                         matmulStep("calib-matmul", TuningPreset.QUICK),
-                        fusedStep("calib-fused", TuningPreset.QUICK),
+                        fusedStep("calib-fused", TuningPreset.QUICK, seedProfile.dataType()),
                         elementwiseDispatchStep("calib-elementwise", TuningPreset.QUICK),
                         schedulerStep("calib-scheduler", TuningPreset.QUICK)
                 ),
@@ -120,7 +123,7 @@ public final class PlatformCalibrationDefaults {
                 seedProfile,
                 List.of(
                         matmulStep("calib-matmul-train", TuningPreset.BALANCED),
-                        fusedStep("calib-fused-train", TuningPreset.BALANCED),
+                        fusedStep("calib-fused-train", TuningPreset.BALANCED, seedProfile.dataType()),
                         elementwiseDispatchStep("calib-elementwise-train", TuningPreset.BALANCED),
                         reductionStep("calib-reduction-train", TuningPreset.BALANCED),
                         schedulerStep("calib-scheduler-train", TuningPreset.BALANCED),
@@ -149,7 +152,7 @@ public final class PlatformCalibrationDefaults {
                 seedProfile,
                 List.of(
                         matmulStep("calib-matmul-train", TuningPreset.THOROUGH),
-                        fusedStep("calib-fused-train", TuningPreset.THOROUGH),
+                        fusedStep("calib-fused-train", TuningPreset.THOROUGH, seedProfile.dataType()),
                         elementwiseDispatchStep("calib-elementwise-train", TuningPreset.THOROUGH),
                         reductionStep("calib-reduction-train", TuningPreset.THOROUGH),
                         schedulerStep("calib-scheduler-train", TuningPreset.THOROUGH),
@@ -178,7 +181,7 @@ public final class PlatformCalibrationDefaults {
                 seedProfile,
                 List.of(
                         matmulStep("calib-matmul-train", TuningPreset.QUICK),
-                        fusedStep("calib-fused-train", TuningPreset.QUICK),
+                        fusedStep("calib-fused-train", TuningPreset.QUICK, seedProfile.dataType()),
                         elementwiseDispatchStep("calib-elementwise-train", TuningPreset.QUICK),
                         reductionStep("calib-reduction-train", TuningPreset.QUICK)
                 ),
@@ -212,7 +215,7 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
-    public static PlatformCalibrationStep fusedStep(String name, TuningPreset preset) {
+    public static PlatformCalibrationStep fusedStep(String name, TuningPreset preset, DataType dataType) {
         return new PlatformCalibrationStep(
                 name,
                 PlatformCalibrationFamily.FUSED_ARITHMETIC,
@@ -229,11 +232,32 @@ public final class PlatformCalibrationDefaults {
                                         List.of(16, 32, 64, 128, 256),
                                         List.of(4_096, 8_192, 16_384, 32_768),
                                         List.of(1_024, 2_048, 4_096, 8_192)
-                                )
+                                ),
+                                PlatformRuntimeProfileMutators.fusedAsmVectorWidths(supportedFusedAsmVectorWidths(dataType))
                         )
                 ),
                 PlatformCalibrationScorePolicy.averageMedianMs()
         );
+    }
+
+    private static List<Integer> supportedFusedAsmVectorWidths(DataType dataType) {
+        int maxWidth = switch (dataType) {
+            case FLOAT64 -> jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.length();
+            case FLOAT32, BFLOAT16 -> jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.length();
+            default -> 1;
+        };
+        List<Integer> widths = new ArrayList<>();
+        widths.add(1);
+        if (maxWidth >= 2) {
+            widths.add(2);
+        }
+        if (maxWidth >= 4) {
+            widths.add(4);
+        }
+        if (maxWidth >= 8) {
+            widths.add(8);
+        }
+        return List.copyOf(widths);
     }
 
     public static PlatformCalibrationStep elementwiseDispatchStep(String name, TuningPreset preset) {

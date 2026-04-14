@@ -1,5 +1,6 @@
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
+import config.profile.PlatformRuntimeProfileIO;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
@@ -66,5 +67,65 @@ public class PlatformCalibrationSessionTest {
                 || Double.isFinite(result.steps().getFirst().selectedScore().score()));
         assertTrue(result.persisted());
         assertTrue(Files.size(out) > 0L);
+    }
+
+    @Test
+    void platformRuntimeProfilePreservesFusedAsmVectorWidth() {
+        ExecutionProfile seed = new ExecutionProfile(
+                "seed",
+                "seed",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                new config.runtime.RuntimeConfig(
+                        new config.backend.KernelTuningConfig(
+                                new config.backend.CpuKernelConfig(
+                                        4, 32, 32, 32,
+                                        256, 256, 256, 256, 256,
+                                        50_000, 50_000, 50_000, 50_000, 50_000,
+                                        16_384,
+                                        5, 3, 2,
+                                        2_048, 4_096, 8_192, 32_768,
+                                        4,
+                                        config.backend.SumAccuracyMode.FAST,
+                                        2_000_000,
+                                        config.backend.AttentionMatMulPolicy.AUTO
+                                ),
+                                config.backend.CudaKernelConfig.defaultsInference(),
+                                config.backend.OpenClKernelConfig.defaultsInference()
+                        ),
+                        config.runtime.ApproximationConfig.defaults(),
+                        config.runtime.BlasConfig.disabled(),
+                        config.runtime.FusedExecutionPolicy.defaultsInference()
+                ),
+                WorkloadProfile.none()
+        );
+
+        PlatformRuntimeProfile profile = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform",
+                "hardware",
+                "TEST",
+                seed
+        );
+        PlatformRuntimeProfile loaded = PlatformRuntimeProfileIO.fromJsonOrDefault(
+                PlatformRuntimeProfileIO.toJson(profile),
+                PlatformRuntimeProfile.fromExecutionProfile("fallback", "fallback", "TEST", defaultSeed())
+        );
+
+        assertEquals(4, profile.fused().fusedAsmVectorWidth());
+        assertEquals(4, loaded.fused().fusedAsmVectorWidth());
+        assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedAsmVectorWidth());
+    }
+
+    private static ExecutionProfile defaultSeed() {
+        return new ExecutionProfile(
+                "default",
+                "default",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
     }
 }

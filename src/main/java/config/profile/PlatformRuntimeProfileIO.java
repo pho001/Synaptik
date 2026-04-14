@@ -62,7 +62,8 @@ public final class PlatformRuntimeProfileIO {
                 "    \"fusedCheapVectorMinSize\": " + profile.fused().fusedCheapVectorMinSize() + ",\n" +
                 "    \"fusedTranscendentalVectorMinSize\": " + profile.fused().fusedTranscendentalVectorMinSize() + ",\n" +
                 "    \"fusedCheapParallelMinSize\": " + profile.fused().fusedCheapParallelMinSize() + ",\n" +
-                "    \"fusedTranscendentalParallelMinSize\": " + profile.fused().fusedTranscendentalParallelMinSize() + "\n" +
+                "    \"fusedTranscendentalParallelMinSize\": " + profile.fused().fusedTranscendentalParallelMinSize() + ",\n" +
+                "    \"fusedAsmVectorWidth\": " + profile.fused().fusedAsmVectorWidth() + "\n" +
                 "  },\n" +
                 "  \"elementwiseDispatch\": {\n" +
                 "    \"cheapVectorMinSize\": " + profile.elementwiseDispatch().cheapVectorMinSize() + ",\n" +
@@ -140,7 +141,8 @@ public final class PlatformRuntimeProfileIO {
                             findInt(json, "fusedCheapVectorMinSize", fallback.fused().fusedCheapVectorMinSize()),
                             findInt(json, "fusedTranscendentalVectorMinSize", fallback.fused().fusedTranscendentalVectorMinSize()),
                             findInt(json, "fusedCheapParallelMinSize", fallback.fused().fusedCheapParallelMinSize()),
-                            findInt(json, "fusedTranscendentalParallelMinSize", fallback.fused().fusedTranscendentalParallelMinSize())
+                            findInt(json, "fusedTranscendentalParallelMinSize", fallback.fused().fusedTranscendentalParallelMinSize()),
+                            findInt(json, "fusedAsmVectorWidth", fallback.fused().fusedAsmVectorWidth())
                     ),
                     new ElementwiseDispatchPlatformProfile(
                             findInt(json, "cheapVectorMinSize", fallback.elementwiseDispatch().cheapVectorMinSize()),

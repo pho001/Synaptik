@@ -168,7 +168,8 @@ public final class PlatformRuntimeProfileMutators {
                                     cheapVec == null ? baseProfile.fused().fusedCheapVectorMinSize() : cheapVec,
                                     transVec == null ? baseProfile.fused().fusedTranscendentalVectorMinSize() : transVec,
                                     cheapPar == null ? baseProfile.fused().fusedCheapParallelMinSize() : cheapPar,
-                                    transPar == null ? baseProfile.fused().fusedTranscendentalParallelMinSize() : transPar
+                                    transPar == null ? baseProfile.fused().fusedTranscendentalParallelMinSize() : transPar,
+                                    baseProfile.fused().fusedAsmVectorWidth()
                             );
                             out.add(new RuntimeProfileCandidate(
                                     "fusedDispatch=" + fused.fusedCheapVectorMinSize() + "/" + fused.fusedTranscendentalVectorMinSize()
@@ -193,6 +194,40 @@ public final class PlatformRuntimeProfileMutators {
                         }
                     }
                 }
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator fusedAsmVectorWidths(List<Integer> widths) {
+        List<Integer> safeWidths = widths == null ? List.of() : List.copyOf(widths);
+        return (baseProfile, workload) -> {
+            if (!usesGenericRuntimeFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("fusedAsmVectorWidth=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (Integer width : safeWidths) {
+                FusedPlatformProfile fused = new FusedPlatformProfile(
+                        baseProfile.fused().fusedCheapVectorMinSize(),
+                        baseProfile.fused().fusedTranscendentalVectorMinSize(),
+                        baseProfile.fused().fusedCheapParallelMinSize(),
+                        baseProfile.fused().fusedTranscendentalParallelMinSize(),
+                        width == null ? baseProfile.fused().fusedAsmVectorWidth() : width
+                );
+                out.add(new RuntimeProfileCandidate(
+                        "fusedAsmVectorWidth=" + fused.fusedAsmVectorWidth(),
+                        new PlatformRuntimeProfile(
+                                baseProfile.metadata(),
+                                baseProfile.matmul(),
+                                fused,
+                                baseProfile.elementwiseDispatch(),
+                                baseProfile.reduction(),
+                                baseProfile.scheduler(),
+                                baseProfile.materialization(),
+                                baseProfile.numerics()
+                        ),
+                        Map.of("cpu.fusedAsmVectorWidth", String.valueOf(fused.fusedAsmVectorWidth()))
+                ));
             }
             return out;
         };

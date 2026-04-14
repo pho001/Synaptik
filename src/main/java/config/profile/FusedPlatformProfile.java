@@ -4,5 +4,6 @@ public record FusedPlatformProfile(
         int fusedCheapVectorMinSize,
         int fusedTranscendentalVectorMinSize,
         int fusedCheapParallelMinSize,
-        int fusedTranscendentalParallelMinSize
+        int fusedTranscendentalParallelMinSize,
+        int fusedAsmVectorWidth
 ) {}
