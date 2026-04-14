@@ -1,5 +1,7 @@
 package backend.kernels.cpu;
 
+import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.VectorSpecies;
 import operations.Operation;
 import operations.clampMax;
 import operations.clampMin;
@@ -11,6 +13,8 @@ import utils.FastExp;
 import java.util.List;
 
 public final class CpuStridedElementWise {
+    private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
+
     private CpuStridedElementWise() {}
 
     public static boolean supports(Operation op) {
@@ -106,6 +110,25 @@ public final class CpuStridedElementWise {
                     useFastExpApprox,
                     useFastTanhApprox
             );
+            return;
+        }
+
+        if (rank == 2 && tryForwardRank2F64(
+                op,
+                a,
+                b,
+                aStrides,
+                bStrides,
+                aBaseOffset,
+                bBaseOffset,
+                out,
+                outShape[0],
+                outShape[1],
+                outStrides,
+                outBaseOffset,
+                useFastExpApprox,
+                useFastTanhApprox
+        )) {
             return;
         }
 
@@ -464,6 +487,267 @@ public final class CpuStridedElementWise {
             int bIdx = b != null ? bBaseOffset + i * strideB : -1;
             out[outIdx] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
         }
+    }
+
+    private static boolean tryForwardRank2F64(
+            Operation op,
+            double[] a,
+            double[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            double[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (out == null || outStrides == null || outStrides.length != 2) {
+            return false;
+        }
+        return switch (op.opType()) {
+            case ADD, SUB, MUL, DIV, MIN, MAX ->
+                    tryForwardRank2BinaryF64(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, rows, cols, outStrides, outBaseOffset);
+            case NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID ->
+                    tryForwardRank2UnaryF64(op, a, aStrides, aBaseOffset, out, rows, cols, outStrides, outBaseOffset, useFastExpApprox, useFastTanhApprox);
+            default -> false;
+        };
+    }
+
+    private static boolean tryForwardRank2BinaryF64(
+            Operation op,
+            double[] a,
+            double[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            double[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset
+    ) {
+        if (a == null || b == null || aStrides == null || bStrides == null || aStrides.length != 2 || bStrides.length != 2) {
+            return false;
+        }
+
+        int outRowStride = outStrides[0];
+        int outColStride = outStrides[1];
+        int aRowStride = aStrides[0];
+        int aColStride = aStrides[1];
+        int bRowStride = bStrides[0];
+        int bColStride = bStrides[1];
+
+        if (outColStride == 1 && aColStride == 1 && bColStride == 0) {
+            for (int row = 0; row < rows; row++) {
+                int outRowBase = outBaseOffset + row * outRowStride;
+                int aRowBase = aBaseOffset + row * aRowStride;
+                double right = b[bBaseOffset + row * bRowStride];
+                vectorBinaryBroadcastRightF64(op, a, aRowBase, right, out, outRowBase, cols);
+            }
+            return true;
+        }
+
+        if (outColStride == 1 && aColStride == 0 && bColStride == 1) {
+            for (int row = 0; row < rows; row++) {
+                int outRowBase = outBaseOffset + row * outRowStride;
+                int bRowBase = bBaseOffset + row * bRowStride;
+                double left = a[aBaseOffset + row * aRowStride];
+                vectorBinaryBroadcastLeftF64(op, left, b, bRowBase, out, outRowBase, cols);
+            }
+            return true;
+        }
+
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = switch (op.opType()) {
+                    case ADD -> a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
+                    case SUB -> a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
+                    case MUL -> a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
+                    case DIV -> a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
+                    case MIN -> Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+                    case MAX -> Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+                    default -> throw new UnsupportedOperationException("Unsupported rank-2 F64 binary op: " + op.opType());
+                };
+            }
+        }
+        return true;
+    }
+
+    private static boolean tryForwardRank2UnaryF64(
+            Operation op,
+            double[] a,
+            int[] aStrides,
+            int aBaseOffset,
+            double[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (a == null || aStrides == null || aStrides.length != 2) {
+            return false;
+        }
+
+        int outRowStride = outStrides[0];
+        int outColStride = outStrides[1];
+        int aRowStride = aStrides[0];
+        int aColStride = aStrides[1];
+
+        if (outColStride == 1 && aColStride == 0) {
+            for (int row = 0; row < rows; row++) {
+                int outRowBase = outBaseOffset + row * outRowStride;
+                double value = evalUnaryF64(op, a[aBaseOffset + row * aRowStride], useFastExpApprox, useFastTanhApprox);
+                fillRowF64(out, outRowBase, cols, value);
+            }
+            return true;
+        }
+
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = evalUnaryF64(
+                        op,
+                        a[aRowBase + col * aColStride],
+                        useFastExpApprox,
+                        useFastTanhApprox
+                );
+            }
+        }
+        return true;
+    }
+
+    private static void vectorBinaryBroadcastRightF64(
+            Operation op,
+            double[] left,
+            int leftBase,
+            double right,
+            double[] out,
+            int outBase,
+            int cols
+    ) {
+        int width = F64.length();
+        int upper = cols - (cols % width);
+        int col = 0;
+        DoubleVector rightVector = DoubleVector.broadcast(F64, right);
+        for (; col < upper; col += width) {
+            DoubleVector leftVector = DoubleVector.fromArray(F64, left, leftBase + col);
+            DoubleVector result = switch (op.opType()) {
+                case ADD -> leftVector.add(rightVector);
+                case SUB -> leftVector.sub(rightVector);
+                case MUL -> leftVector.mul(rightVector);
+                case DIV -> leftVector.div(rightVector);
+                case MIN -> leftVector.min(rightVector);
+                case MAX -> leftVector.max(rightVector);
+                default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F64 binary op: " + op.opType());
+            };
+            result.intoArray(out, outBase + col);
+        }
+        for (; col < cols; col++) {
+            out[outBase + col] = switch (op.opType()) {
+                case ADD -> left[leftBase + col] + right;
+                case SUB -> left[leftBase + col] - right;
+                case MUL -> left[leftBase + col] * right;
+                case DIV -> left[leftBase + col] / right;
+                case MIN -> Math.min(left[leftBase + col], right);
+                case MAX -> Math.max(left[leftBase + col], right);
+                default -> throw new UnsupportedOperationException("Unsupported scalar rank-2 F64 binary op: " + op.opType());
+            };
+        }
+    }
+
+    private static void vectorBinaryBroadcastLeftF64(
+            Operation op,
+            double left,
+            double[] right,
+            int rightBase,
+            double[] out,
+            int outBase,
+            int cols
+    ) {
+        int width = F64.length();
+        int upper = cols - (cols % width);
+        int col = 0;
+        DoubleVector leftVector = DoubleVector.broadcast(F64, left);
+        for (; col < upper; col += width) {
+            DoubleVector rightVector = DoubleVector.fromArray(F64, right, rightBase + col);
+            DoubleVector result = switch (op.opType()) {
+                case ADD -> leftVector.add(rightVector);
+                case SUB -> leftVector.sub(rightVector);
+                case MUL -> leftVector.mul(rightVector);
+                case DIV -> leftVector.div(rightVector);
+                case MIN -> leftVector.min(rightVector);
+                case MAX -> leftVector.max(rightVector);
+                default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F64 binary op: " + op.opType());
+            };
+            result.intoArray(out, outBase + col);
+        }
+        for (; col < cols; col++) {
+            out[outBase + col] = switch (op.opType()) {
+                case ADD -> left + right[rightBase + col];
+                case SUB -> left - right[rightBase + col];
+                case MUL -> left * right[rightBase + col];
+                case DIV -> left / right[rightBase + col];
+                case MIN -> Math.min(left, right[rightBase + col]);
+                case MAX -> Math.max(left, right[rightBase + col]);
+                default -> throw new UnsupportedOperationException("Unsupported scalar rank-2 F64 binary op: " + op.opType());
+            };
+        }
+    }
+
+    private static void fillRowF64(double[] out, int outBase, int cols, double value) {
+        int width = F64.length();
+        int upper = cols - (cols % width);
+        int col = 0;
+        DoubleVector vector = DoubleVector.broadcast(F64, value);
+        for (; col < upper; col += width) {
+            vector.intoArray(out, outBase + col);
+        }
+        for (; col < cols; col++) {
+            out[outBase + col] = value;
+        }
+    }
+
+    private static double evalUnaryF64(
+            Operation op,
+            double value,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        return switch (op.opType()) {
+            case NEG -> -value;
+            case INV -> 1.0 / value;
+            case LOG -> Math.log(value);
+            case EXP -> useFastExpApprox ? FastExp.fastExpF64(value) : Math.exp(value);
+            case FAST_EXP -> FastExp.fastExpF64(value);
+            case TANH -> useFastTanhApprox ? FastExp.fastTanhF64(value) : Math.tanh(value);
+            case FAST_TANH -> FastExp.fastTanhF64(value);
+            case SQRT -> Math.sqrt(value);
+            case ABS -> Math.abs(value);
+            case RELU -> Math.max(0.0, value);
+            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValue(), value);
+            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValue(), value);
+            case SIGMOID -> 1.0 / (1.0 + Math.exp(-value));
+            case MUL_SCALAR -> value * ((mulScalar) op).getScalar();
+            case POW -> {
+                double exponent = ((pow) op).getExponent();
+                if (exponent == 0.0) yield 1.0;
+                if (exponent == 1.0) yield value;
+                if (exponent == 2.0) yield value * value;
+                yield Math.pow(value, exponent);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported rank-2 F64 unary op: " + op.opType());
+        };
     }
 
     private static int remapIndex(int flatOut, int[] denseStrides, int[] targetStrides, int rank, int baseOffset) {

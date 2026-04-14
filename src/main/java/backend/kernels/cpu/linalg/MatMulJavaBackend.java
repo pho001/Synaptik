@@ -25,15 +25,20 @@ final class MatMulJavaBackend {
         boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
 
         int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
         int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
         int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
-        if (parallel && batchCount * blockRows > 1) {
-            CpuThreadPool.runChunks(batchCount * blockRows, hints.plannedWorkers(), task -> {
-                int batch = task / blockRows;
-                int block = task % blockRows;
-                int i0 = block * tm;
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
                 int i1 = Math.min(i0 + tm, m);
-                computeBlockF64(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, 0, n, 0, k, n, k, tn, tk);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                computeBlockF64(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tn, tk);
             });
             return;
         }
@@ -53,15 +58,20 @@ final class MatMulJavaBackend {
         boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
 
         int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
         int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
         int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
-        if (parallel && batchCount * blockRows > 1) {
-            CpuThreadPool.runChunks(batchCount * blockRows, hints.plannedWorkers(), task -> {
-                int batch = task / blockRows;
-                int block = task % blockRows;
-                int i0 = block * tm;
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
                 int i1 = Math.min(i0 + tm, m);
-                computeBlockF32(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, 0, n, 0, k, n, k, tn, tk);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                computeBlockF32(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tn, tk);
             });
             return;
         }
@@ -81,15 +91,20 @@ final class MatMulJavaBackend {
         boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
 
         int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
         int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
         int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
-        if (parallel && batchCount * blockRows > 1) {
-            CpuThreadPool.runChunks(batchCount * blockRows, hints.plannedWorkers(), task -> {
-                int batch = task / blockRows;
-                int block = task % blockRows;
-                int i0 = block * tm;
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
                 int i1 = Math.min(i0 + tm, m);
-                computeBlockBF16(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, 0, n, 0, k, n, k, tn, tk);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                computeBlockBF16(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tn, tk);
             });
             return;
         }
