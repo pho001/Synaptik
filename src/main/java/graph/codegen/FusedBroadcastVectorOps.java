@@ -31,22 +31,20 @@ public final class FusedBroadcastVectorOps {
 
     public static Object loadMaskF32(FusedBroadcastCursor cursor, byte[] input, int width) {
         VectorSpecies<Float> species = speciesF32(width);
-        int[] idx = cursor.nextIndices(species.length());
-        boolean[] lanes = new boolean[species.length()];
-        for (int i = 0; i < lanes.length; i++) {
-            lanes[i] = input[idx[i]] != 0;
+        if (cursor.isScalarBroadcast()) {
+            return maskFromBroadcastF32(species, input[cursor.idx()] != 0);
         }
-        return VectorMask.fromArray(species, lanes, 0);
+        int[] idx = cursor.nextIndices(species.length());
+        return maskFromIndicesF32(species, input, idx);
     }
 
     public static Object loadMaskF64(FusedBroadcastCursor cursor, byte[] input, int width) {
         VectorSpecies<Double> species = speciesF64(width);
-        int[] idx = cursor.nextIndices(species.length());
-        boolean[] lanes = new boolean[species.length()];
-        for (int i = 0; i < lanes.length; i++) {
-            lanes[i] = input[idx[i]] != 0;
+        if (cursor.isScalarBroadcast()) {
+            return maskFromBroadcastF64(species, input[cursor.idx()] != 0);
         }
-        return VectorMask.fromArray(species, lanes, 0);
+        int[] idx = cursor.nextIndices(species.length());
+        return maskFromIndicesF64(species, input, idx);
     }
 
     private static VectorSpecies<Float> speciesF32(int width) {
@@ -79,5 +77,40 @@ public final class FusedBroadcastVectorOps {
             return 4;
         }
         return 8;
+    }
+
+    private static VectorMask<Float> maskFromBroadcastF32(VectorSpecies<Float> species, boolean set) {
+        return VectorMask.fromLong(species, set ? allLanesMask(species.length()) : 0L);
+    }
+
+    private static VectorMask<Double> maskFromBroadcastF64(VectorSpecies<Double> species, boolean set) {
+        return VectorMask.fromLong(species, set ? allLanesMask(species.length()) : 0L);
+    }
+
+    private static VectorMask<Float> maskFromIndicesF32(VectorSpecies<Float> species, byte[] input, int[] idx) {
+        long bits = 0L;
+        for (int i = 0; i < species.length(); i++) {
+            if (input[idx[i]] != 0) {
+                bits |= (1L << i);
+            }
+        }
+        return VectorMask.fromLong(species, bits);
+    }
+
+    private static VectorMask<Double> maskFromIndicesF64(VectorSpecies<Double> species, byte[] input, int[] idx) {
+        long bits = 0L;
+        for (int i = 0; i < species.length(); i++) {
+            if (input[idx[i]] != 0) {
+                bits |= (1L << i);
+            }
+        }
+        return VectorMask.fromLong(species, bits);
+    }
+
+    private static long allLanesMask(int laneCount) {
+        if (laneCount >= Long.SIZE) {
+            return -1L;
+        }
+        return (1L << laneCount) - 1L;
     }
 }

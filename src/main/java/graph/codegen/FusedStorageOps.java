@@ -107,20 +107,24 @@ public final class FusedStorageOps {
 
     public static Object loadMaskF32Array(byte[] src, int index, int width) {
         VectorSpecies<Float> species = speciesF32(width);
-        boolean[] lanes = new boolean[species.length()];
-        for (int i = 0; i < lanes.length; i++) {
-            lanes[i] = src[index + i] != 0;
+        long bits = 0L;
+        for (int i = 0; i < species.length(); i++) {
+            if (src[index + i] != 0) {
+                bits |= (1L << i);
+            }
         }
-        return VectorMask.fromArray(species, lanes, 0);
+        return VectorMask.fromLong(species, bits);
     }
 
     public static Object loadMaskF64Array(byte[] src, int index, int width) {
         VectorSpecies<Double> species = speciesF64(width);
-        boolean[] lanes = new boolean[species.length()];
-        for (int i = 0; i < lanes.length; i++) {
-            lanes[i] = src[index + i] != 0;
+        long bits = 0L;
+        for (int i = 0; i < species.length(); i++) {
+            if (src[index + i] != 0) {
+                bits |= (1L << i);
+            }
         }
-        return VectorMask.fromArray(species, lanes, 0);
+        return VectorMask.fromLong(species, bits);
     }
 
     public static void storeMaskF32Array(byte[] dst, int index, Object maskObject, int width) {

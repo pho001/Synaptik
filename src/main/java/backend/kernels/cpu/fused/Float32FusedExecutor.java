@@ -487,11 +487,13 @@ public final class Float32FusedExecutor {
         Object load(int logicalIndex) {
             int base = storageOffset + logicalIndex;
             if (boolInput) {
-                boolean[] lanes = new boolean[SPECIES.length()];
-                for (int lane = 0; lane < lanes.length; lane++) {
-                    lanes[lane] = boolData[base + lane] != 0;
+                long bits = 0L;
+                for (int lane = 0; lane < SPECIES.length(); lane++) {
+                    if (boolData[base + lane] != 0) {
+                        bits |= (1L << lane);
+                    }
                 }
-                return VectorMask.fromArray(SPECIES, lanes, 0);
+                return VectorMask.fromLong(SPECIES, bits);
             }
             return FloatVector.fromArray(SPECIES, data, base);
         }
