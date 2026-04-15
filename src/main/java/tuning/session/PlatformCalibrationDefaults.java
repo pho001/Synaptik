@@ -278,7 +278,7 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
-    private static List<Integer> supportedFusedAsmVectorWidths(DataType dataType) {
+    private static List<Integer> supportedFusedAsmVectorWidths(FusedDispatchFamily family, DataType dataType) {
         int maxWidth = switch (dataType) {
             case FLOAT64 -> jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.length();
             case FLOAT32, BFLOAT16 -> jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.length();
@@ -292,7 +292,9 @@ public final class PlatformCalibrationDefaults {
         if (maxWidth >= 4) {
             widths.add(4);
         }
-        if (maxWidth >= 8) {
+        if (maxWidth >= 8
+                || (family == FusedDispatchFamily.CHEAP_CONTIGUOUS
+                && (dataType == DataType.FLOAT32 || dataType == DataType.BFLOAT16))) {
             widths.add(8);
         }
         return List.copyOf(widths);
@@ -316,7 +318,7 @@ public final class PlatformCalibrationDefaults {
                         List.of(
                                 PlatformRuntimeProfileMutators.fusedAsmVectorWidths(
                                         dispatchFamily,
-                                        supportedFusedAsmVectorWidths(dataType)
+                                        supportedFusedAsmVectorWidths(dispatchFamily, dataType)
                                 )
                         )
                 ),

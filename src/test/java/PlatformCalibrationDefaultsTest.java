@@ -164,4 +164,67 @@ public class PlatformCalibrationDefaultsTest {
         assertTrue(f32Tiles.contains("64x256x128"));
         assertFalse(f32Tiles.contains("16x64x32"));
     }
+
+    @Test
+    void fusedCheapContiguousCalibrationStepGeneratesFamilySpecificAsmWidthCandidates() {
+        var step = PlatformCalibrationDefaults.fusedCheapContiguousStep(
+                "fused-cheap-contig",
+                TuningPreset.QUICK,
+                tensor.DataType.FLOAT32
+        );
+
+        PlatformRuntimeProfile base = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform-f32",
+                "hw",
+                "TEST",
+                new ExecutionProfile(
+                        "seed-f32",
+                        "seed-f32",
+                        tensor.DataType.FLOAT32,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.runtime.RuntimeConfig.inferenceDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+
+        var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
+        var width8 = candidates.stream()
+                .filter(candidate -> "8".equals(candidate.knobAssignments().get("cpu.fusedCheapContiguousAsmVectorWidth")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Expected cheap-contiguous fused width candidate with width 8."));
+
+        assertEquals(8, width8.runtimeProfile().fused().fusedCheapContiguousAsmVectorWidth());
+        assertEquals(base.fused().fusedCheapStridedAsmVectorWidth(), width8.runtimeProfile().fused().fusedCheapStridedAsmVectorWidth());
+        assertEquals(base.fused().fusedNonCheapContiguousAsmVectorWidth(), width8.runtimeProfile().fused().fusedNonCheapContiguousAsmVectorWidth());
+        assertEquals(base.fused().fusedNonCheapStridedAsmVectorWidth(), width8.runtimeProfile().fused().fusedNonCheapStridedAsmVectorWidth());
+    }
+
+    @Test
+    void fusedCheapStridedCalibrationStepDoesNotGenerateExtendedAsmWidthCandidate() {
+        var step = PlatformCalibrationDefaults.fusedCheapStridedStep(
+                "fused-cheap-strided",
+                TuningPreset.QUICK,
+                tensor.DataType.FLOAT32
+        );
+
+        PlatformRuntimeProfile base = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform-f32",
+                "hw",
+                "TEST",
+                new ExecutionProfile(
+                        "seed-f32",
+                        "seed-f32",
+                        tensor.DataType.FLOAT32,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.runtime.RuntimeConfig.inferenceDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+
+        var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
+        assertFalse(candidates.stream()
+                .anyMatch(candidate -> "8".equals(candidate.knobAssignments().get("cpu.fusedCheapStridedAsmVectorWidth"))));
+    }
 }
