@@ -1,11 +1,17 @@
 package backend.kernels.cpu.linalg;
 
 import backend.kernels.cpu.*;
+import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
+import jdk.incubator.vector.VectorSpecies;
 
 import operations.linear;
 import tensor.Tensor;
 
 final class LinearExecutor {
+    private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
+
     private LinearExecutor() {
     }
 
@@ -116,8 +122,18 @@ final class LinearExecutor {
         double[] outData = out.getFloat64Data();
         double[] biasData = bias.getFloat64Data();
         int outFeatures = bias.getShapeUnsafe()[0];
-        for (int i = 0; i < outData.length; i++) {
-            outData[i] += biasData[i % outFeatures];
+        int width = F64.length();
+        int vectorLimit = outFeatures - (outFeatures % width);
+        for (int base = 0; base < outData.length; base += outFeatures) {
+            int j = 0;
+            for (; j < vectorLimit; j += width) {
+                DoubleVector.fromArray(F64, outData, base + j)
+                        .add(DoubleVector.fromArray(F64, biasData, j))
+                        .intoArray(outData, base + j);
+            }
+            for (; j < outFeatures; j++) {
+                outData[base + j] += biasData[j];
+            }
         }
     }
 
@@ -125,8 +141,18 @@ final class LinearExecutor {
         float[] outData = out.getFloat32Data();
         float[] biasData = bias.getFloat32Data();
         int outFeatures = bias.getShapeUnsafe()[0];
-        for (int i = 0; i < outData.length; i++) {
-            outData[i] += biasData[i % outFeatures];
+        int width = F32.length();
+        int vectorLimit = outFeatures - (outFeatures % width);
+        for (int base = 0; base < outData.length; base += outFeatures) {
+            int j = 0;
+            for (; j < vectorLimit; j += width) {
+                FloatVector.fromArray(F32, outData, base + j)
+                        .add(FloatVector.fromArray(F32, biasData, j))
+                        .intoArray(outData, base + j);
+            }
+            for (; j < outFeatures; j++) {
+                outData[base + j] += biasData[j];
+            }
         }
     }
 
