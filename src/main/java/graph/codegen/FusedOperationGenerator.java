@@ -8,7 +8,8 @@ public final class FusedOperationGenerator {
             String internalClassName,
             FusedExpressionPlan plan,
             int precisionMode,
-            int vectorWidth
+            int vectorWidth,
+            FusedAsmSpecializationKind specializationKind
     ) {
         if (precisionMode != FusedDTypeOps.MODE_F32
                 && precisionMode != FusedDTypeOps.MODE_F64
@@ -20,13 +21,18 @@ public final class FusedOperationGenerator {
                 internalClassName,
                 plan,
                 precisionMode,
-                vectorWidth
+                vectorWidth,
+                specializationKind
         );
 
         ClassWriter cw = FusedClassEmitter.createClass(context);
         FusedConstructorEmitter.emit(cw, context);
         FusedScalarMethodEmitter.emit(cw, context);
-        FusedVectorMethodEmitter.emit(cw, context);
+        if (specializationKind == FusedAsmSpecializationKind.NONE) {
+            FusedVectorMethodEmitter.emit(cw, context);
+        } else {
+            FusedSpecializedVectorMethodEmitter.emit(cw, context);
+        }
         cw.visitEnd();
         return cw.toByteArray();
     }

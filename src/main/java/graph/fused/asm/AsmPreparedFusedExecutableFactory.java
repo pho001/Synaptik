@@ -1,6 +1,8 @@
 package graph.fused.asm;
 
 import backend.kernels.cpu.fused.FusedExecutionProfiler;
+import graph.codegen.FusedAsmSpecializationKind;
+import graph.codegen.FusedAsmSpecializationMatcher;
 import graph.codegen.FusedKernelGeneratorRouter;
 import graph.codegen.FusedKernelCacheKey;
 import graph.fused.FusedExecutionPlan;
@@ -23,17 +25,20 @@ public final class AsmPreparedFusedExecutableFactory {
             throw new IllegalArgumentException("plan cannot be null");
         }
         FusedOperation descriptor = plan.descriptor();
+        FusedAsmSpecializationKind specializationKind =
+                FusedAsmSpecializationMatcher.match(descriptor.getPlan(), descriptor.getPrecisionMode());
 
         FusedKernelCacheKey key = new FusedKernelCacheKey(
                 descriptor.getSchedulerSignature(),
                 descriptor.getPrecisionMode(),
-                plan.asmVectorWidth()
+                plan.asmVectorWidth(),
+                specializationKind
         );
 
         try {
             Constructor<? extends PreparedFusedExecutable> ctor = cache.computeIfAbsent(
                     key,
-                    ignored -> compileConstructor(descriptor, key.vectorWidth())
+                    ignored -> compileConstructor(descriptor, key.vectorWidth(), key.specializationKind())
             );
             return ctor.newInstance();
         } catch (ReflectiveOperationException e) {
@@ -42,18 +47,28 @@ public final class AsmPreparedFusedExecutableFactory {
     }
 
     @SuppressWarnings("unchecked")
-    private Constructor<? extends PreparedFusedExecutable> compileConstructor(FusedOperation descriptor, int vectorWidth) {
+    private Constructor<? extends PreparedFusedExecutable> compileConstructor(
+            FusedOperation descriptor,
+            int vectorWidth,
+            FusedAsmSpecializationKind specializationKind
+    ) {
         long t0 = FusedExecutionProfiler.enabled() ? System.nanoTime() : 0L;
         try {
             int id = CLASS_COUNTER.incrementAndGet();
-            String binaryName = "graph.fused.asm.GeneratedFusedExecutable" + id + "W" + Math.max(1, vectorWidth);
+            String binaryName = "graph.fused.asm.GeneratedFusedExecutable"
+                    + id
+                    + "_"
+                    + specializationKind.cacheToken()
+                    + "W"
+                    + Math.max(1, vectorWidth);
             String internalName = binaryName.replace('.', '/');
 
             byte[] bytecode = FusedKernelGeneratorRouter.generate(
                     internalName,
                     descriptor.getPlan(),
                     descriptor.getPrecisionMode(),
-                    vectorWidth
+                    vectorWidth,
+                    specializationKind
             );
 
             CustomClassLoader loader = new CustomClassLoader();

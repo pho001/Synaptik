@@ -6,6 +6,8 @@ import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
+import graph.codegen.FusedAsmSpecializationKind;
+import graph.codegen.FusedAsmSpecializationMatcher;
 import graph.codegen.FusedAccessKind;
 import graph.codegen.FusedExternalInputPlan;
 import graph.codegen.FusedNodePlan;
@@ -199,6 +201,9 @@ public final class CpuExecutionPlanner {
         if (contract == null) {
             return 1;
         }
+        if (shouldForceScalarFusedAsm(fused)) {
+            return 1;
+        }
         int available = switch (contract.computeType()) {
             case F32, BF16_NATIVE -> FloatVector.SPECIES_PREFERRED.length();
             case F64 -> DoubleVector.SPECIES_PREFERRED.length();
@@ -223,6 +228,20 @@ public final class CpuExecutionPlanner {
         return 1;
     }
 
+    private boolean shouldForceScalarFusedAsm(FusedOperation fused) {
+        if (fused == null || fused.getPlan() == null) {
+            return false;
+        }
+        FusedAsmSpecializationKind specializationKind =
+                FusedAsmSpecializationMatcher.match(fused.getPlan(), fused.getPrecisionMode());
+        return specializationKind == FusedAsmSpecializationKind.F32_MASKED_SCALE_WHERE
+                || specializationKind == FusedAsmSpecializationKind.F32_MASKED_SCALE_WHERE_INVERTED;
+    }
+
+    private boolean shouldForceSerialScalarDispatch(FusedOperation fused) {
+        return shouldForceScalarFusedAsm(fused);
+    }
+
     public ResolvedDispatchHints resolveDispatchHints(Operation op, Tensor node, ResolvedCpuComputeContract contract) {
         if (op == null || node == null
                 || (op.opType().category() != Operation.OpArityClass.ELEMENT_WISE && op.opType() != Operation.OpType.FUSED)) {
@@ -231,9 +250,20 @@ public final class CpuExecutionPlanner {
 
         int totalLength = Math.max(0, node.getFlatDataSize());
         boolean fused = op.opType() == Operation.OpType.FUSED;
+        CpuKernelCostClass costClass = resolveDispatchCostClass(op);
+        if (fused && shouldForceSerialScalarDispatch((FusedOperation) op)) {
+            return new ResolvedDispatchHints(
+                    totalLength,
+                    CpuExecutionMode.SCALAR,
+                    computeChunkSize(totalLength, 1, resolveTargetChunksPerWorker(costClass), minScalarChunkSize),
+                    computeChunkSize(totalLength, 1, resolveTargetChunksPerWorker(costClass), minVectorChunkSize),
+                    1,
+                    1,
+                    false
+            );
+        }
         int vectorWidth = fused ? resolvedFusedAsmVectorWidth(contract, (FusedOperation) op) : preferredVectorWidth(contract);
         boolean vectorAllowed = vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op);
-        CpuKernelCostClass costClass = resolveDispatchCostClass(op);
 
         CpuExecutionMode mode;
         if (totalLength >= effectiveParallelMinSize(op)) {

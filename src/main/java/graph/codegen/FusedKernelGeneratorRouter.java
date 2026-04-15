@@ -12,6 +12,17 @@ public final class FusedKernelGeneratorRouter {
             int precisionMode,
             int vectorWidth
     ) {
-        return FusedOperationGenerator.generate(internalClassName, plan, precisionMode, vectorWidth);
+        FusedAsmSpecializationKind specializationKind = FusedAsmSpecializationMatcher.match(plan, precisionMode);
+        return FusedOperationGenerator.generate(internalClassName, plan, precisionMode, vectorWidth, specializationKind);
+    }
+
+    public static byte[] generate(
+            String internalClassName,
+            FusedExpressionPlan plan,
+            int precisionMode,
+            int vectorWidth,
+            FusedAsmSpecializationKind specializationKind
+    ) {
+        return FusedOperationGenerator.generate(internalClassName, plan, precisionMode, vectorWidth, specializationKind);
     }
 }

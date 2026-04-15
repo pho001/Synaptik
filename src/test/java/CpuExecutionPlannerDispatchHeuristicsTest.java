@@ -55,7 +55,7 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
     }
 
     @Test
-    void smallNonCheapWhereStyleFusedPlanStillUsesVectorModeWhenAsmWidthIsVectorized() {
+    void smallNonCheapMaskedScaleWherePlanStaysScalarEvenWhenAsmWidthIsVectorized() {
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(vectorizedFusedConfig());
         FusedOperation fused = new FusedOperation(
                 "fused(where)",
@@ -84,8 +84,8 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
         );
 
-        assertEquals(CpuExecutionMode.PARALLEL_VECTOR, hints.mode());
-        assertEquals(4, hints.vectorWidth());
+        assertEquals(CpuExecutionMode.SCALAR, hints.mode());
+        assertEquals(1, hints.vectorWidth());
     }
 
     @Test

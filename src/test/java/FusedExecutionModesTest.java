@@ -5,6 +5,7 @@ import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import graph.CompiledGraph;
 import graph.codegen.FusedDTypeOps;
+import graph.execution.PreparedExecution;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -206,6 +207,46 @@ public class FusedExecutionModesTest {
                 .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
         assertTrue(hasFused, "Expected fused node in graph containing where");
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    void fusedGraphSpecializesMaskedScaleWhereAsmVectorPath() {
+        int size = 4096;
+        byte[] maskValues = new byte[size];
+        float[] valueValues = new float[size];
+        for (int i = 0; i < size; i++) {
+            maskValues[i] = (byte) ((i & 3) == 0 ? 1 : 0);
+            valueValues[i] = (float) (Math.sin(i * 0.03125) + (i % 11) * 0.125);
+        }
+
+        Tensor maskBase = new Tensor(maskValues.clone(), new int[]{size}, null, "maskBase", DataType.BOOL);
+        Tensor fillBase = new Tensor(new float[]{-1000.0f}, new int[]{1}, null, "fillBase", DataType.FLOAT32);
+        Tensor valuesBase = new Tensor(valueValues.clone(), new int[]{size}, null, "valuesBase", DataType.FLOAT32);
+        Tensor baseline = Tensor.where(maskBase, valuesBase.mul(0.25), fillBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1)), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor mask = new Tensor(maskValues.clone(), new int[]{size}, null, "mask", DataType.BOOL);
+        Tensor fill = new Tensor(new float[]{-1000.0f}, new int[]{1}, null, "fill", DataType.FLOAT32);
+        Tensor values = new Tensor(valueValues.clone(), new int[]{size}, null, "values", DataType.FLOAT32);
+        Tensor out = Tensor.where(mask, values.mul(0.25), fill);
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1)));
+        var fusedStep = prepared.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null)
+                .filter(step -> step.node().getOperation().opType() == operations.Operation.OpType.FUSED)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Expected fused node for masked-scale-where graph"));
+
+        assertTrue(
+                fusedStep.metadata().fusedExecutable().getClass().getName().contains("f32MaskedScaleWhereInverted"),
+                "Expected specialized fused executable for masked-scale-where graph"
+        );
+
+        prepared.execute(ExecutionMode.FORWARD);
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test

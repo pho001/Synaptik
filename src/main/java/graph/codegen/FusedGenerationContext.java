@@ -6,17 +6,26 @@ public record FusedGenerationContext(
         String internalClassName,
         int precisionMode,
         int vectorWidth,
-        FusedExpressionPlan plan
+        FusedExpressionPlan plan,
+        FusedAsmSpecializationKind specializationKind
 ) {
     public static FusedGenerationContext create(
             String internalClassName,
             FusedExpressionPlan plan,
             int precisionMode,
-            int vectorWidth
+            int vectorWidth,
+            FusedAsmSpecializationKind specializationKind
     ) {
         Objects.requireNonNull(internalClassName, "internalClassName cannot be null");
         Objects.requireNonNull(plan, "plan cannot be null");
-        return new FusedGenerationContext(internalClassName, precisionMode, Math.max(1, vectorWidth), plan);
+        Objects.requireNonNull(specializationKind, "specializationKind cannot be null");
+        return new FusedGenerationContext(
+                internalClassName,
+                precisionMode,
+                Math.max(1, vectorWidth),
+                plan,
+                specializationKind
+        );
     }
 
     public int inputCount() {
