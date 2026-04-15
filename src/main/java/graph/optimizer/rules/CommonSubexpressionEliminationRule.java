@@ -18,6 +18,7 @@ import operations.expand;
 import operations.expandDims;
 import operations.gather;
 import operations.gatherGrad;
+import operations.layerNorm;
 import operations.maxPool2d;
 import operations.maxPool2dBackwardInput;
 import operations.scatterAdd;
@@ -38,6 +39,7 @@ import operations.reduceMinGrad;
 import operations.reshape;
 import operations.logSoftmax;
 import operations.linear;
+import operations.rmsNorm;
 import operations.select;
 import operations.squeeze;
 import operations.sum;
@@ -167,6 +169,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case MEAN -> new ReductionSignature(((mean) op).getDimension(), ((mean) op).keepDims());
             case SOFTMAX -> new AxisSignature(((softmax) op).getDimension());
             case LOG_SOFTMAX -> new AxisSignature(((logSoftmax) op).getDimension());
+            case LAYER_NORM -> new NormSignature(((layerNorm) op).getNormalizedRank(), Double.doubleToLongBits(((layerNorm) op).getEpsilon()));
+            case RMS_NORM -> new NormSignature(((rmsNorm) op).getNormalizedRank(), Double.doubleToLongBits(((rmsNorm) op).getEpsilon()));
             case NLL_LOSS -> new AxisSignature(((nllLoss) op).getClassDimension());
             case CROSS_ENTROPY_LOSS -> new AxisSignature(((crossEntropyLoss) op).getClassDimension());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
@@ -257,7 +261,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
     private sealed interface SignatureComponent
             permits StructuralSignature, IdentityLeafSignature, ScalarLeafSignature,
             NoParamsSignature, AxisSignature, ReductionSignature, InputSelectorSignature,
-            DoubleValue, IntArrayValue {
+            DoubleValue, IntArrayValue, NormSignature {
 
         String sortKey();
     }
@@ -347,6 +351,13 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         @Override
         public String sortKey() {
             return "ints:" + values;
+        }
+    }
+
+    private record NormSignature(int normalizedRank, long epsilonBits) implements SignatureComponent {
+        @Override
+        public String sortKey() {
+            return "norm:" + normalizedRank + ":" + epsilonBits;
         }
     }
 }

@@ -51,6 +51,8 @@ public interface Operation {
         MAX_POOL2D_BACKWARD_INPUT(OpArityClass.SPECIAL, false),
         AVG_POOL2D(OpArityClass.SPECIAL, false),
         AVG_POOL2D_BACKWARD_INPUT(OpArityClass.SPECIAL, false),
+        LAYER_NORM(OpArityClass.SPECIAL, false),
+        RMS_NORM(OpArityClass.SPECIAL, false),
         WHERE(OpArityClass.ELEMENT_WISE, true),
         MATMUL(OpArityClass.LINEAR_ALGEBRA, false),
         NEG(OpArityClass.ELEMENT_WISE, true),

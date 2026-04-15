@@ -1,5 +1,7 @@
 package tensor;
 
+import operations.rmsNorm;
+
 final class TensorNormalizationOps {
     private TensorNormalizationOps() {
     }
@@ -74,12 +76,52 @@ final class TensorNormalizationOps {
         requirePositiveEpsilon(epsilon, "layerNorm");
         validateMatchingTailParameters(input, gamma, beta, "layerNorm");
 
-        Tensor mean = reduceTrailingKeepDims(input, gamma.getShapeUnsafe().length);
-        Tensor centered = input.sub(mean);
-        Tensor variance = reduceTrailingKeepDims(centered.pow(2.0), gamma.getShapeUnsafe().length);
-        Tensor epsilonTensor = Tensor.scalar(epsilon, TensorDataTypeUtil.promote(input.getDataType(), gamma.getDataType()));
-        Tensor normalized = centered.div(variance.add(epsilonTensor).sqrt());
-        Tensor out = normalized.mul(gamma).add(beta);
+        int normalizedRank = gamma.getShapeUnsafe().length;
+        DataType outputType = TensorDataTypeUtil.promote(TensorDataTypeUtil.promote(input.getDataType(), gamma.getDataType()), beta.getDataType());
+        Tensor out = new Tensor(
+                input.getShape().clone(),
+                java.util.List.of(input, gamma, beta),
+                new operations.layerNorm(normalizedRank, epsilon),
+                "layerNorm"
+        );
+        out.setDataType(outputType);
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) {
+                return;
+            }
+
+            Tensor epsilonTensor = Tensor.scalar(epsilon, outputType);
+            Tensor mean = reduceTrailingKeepDims(input, normalizedRank);
+            Tensor centered = input.sub(mean);
+            Tensor variance = reduceTrailingKeepDims(centered.pow(2.0), normalizedRank);
+            Tensor invStd = variance.add(epsilonTensor).sqrt().inv();
+            Tensor xHat = centered.mul(invStd);
+
+            if (input.getRequiresGrad()) {
+                double normalizedSize = gamma.getFlatDataSize();
+                Tensor dxHat = outGrad.mul(gamma);
+                Tensor sumDxHat = reduceTrailingKeepDims(dxHat, normalizedRank);
+                Tensor sumDxHatXHat = reduceTrailingKeepDims(dxHat.mul(xHat), normalizedRank);
+                Tensor inputGrad = dxHat.mul(normalizedSize)
+                        .sub(sumDxHat)
+                        .sub(xHat.mul(sumDxHatXHat))
+                        .mul(invStd)
+                        .mul(1.0d / normalizedSize);
+                accumulateGradient(input, inputGrad);
+            }
+
+            if (gamma.getRequiresGrad()) {
+                Tensor gammaGrad = outGrad.mul(xHat);
+                gammaGrad = reduceLeadingKeepDims(gammaGrad, normalizedRank).reshape(gamma.getShape());
+                accumulateGradient(gamma, gammaGrad);
+            }
+
+            if (beta.getRequiresGrad()) {
+                Tensor betaGrad = reduceLeadingKeepDims(outGrad, normalizedRank).reshape(beta.getShape());
+                accumulateGradient(beta, betaGrad);
+            }
+        });
         out.setLabel("layerNorm");
         return out;
     }
@@ -94,9 +136,39 @@ final class TensorNormalizationOps {
         requirePositiveEpsilon(epsilon, "rmsNorm");
         validateMatchingTailParameter(input, gamma, "rmsNorm gamma");
 
-        Tensor meanSquares = reduceTrailingKeepDims(input.pow(2.0), gamma.getShapeUnsafe().length);
-        Tensor epsilonTensor = Tensor.scalar(epsilon, TensorDataTypeUtil.promote(input.getDataType(), gamma.getDataType()));
-        Tensor out = input.div(meanSquares.add(epsilonTensor).sqrt()).mul(gamma);
+        int normalizedRank = gamma.getShapeUnsafe().length;
+        DataType outputType = TensorDataTypeUtil.promote(input.getDataType(), gamma.getDataType());
+        Tensor out = new Tensor(
+                input.getShape().clone(),
+                java.util.List.of(input, gamma),
+                new rmsNorm(normalizedRank, epsilon),
+                "rmsNorm"
+        );
+        out.setDataType(outputType);
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) {
+                return;
+            }
+
+            Tensor epsilonTensor = Tensor.scalar(epsilon, outputType);
+            Tensor meanSquares = reduceTrailingKeepDims(input.pow(2.0), normalizedRank);
+            Tensor invRms = meanSquares.add(epsilonTensor).sqrt().inv();
+
+            if (input.getRequiresGrad()) {
+                Tensor weighted = outGrad.mul(gamma);
+                Tensor dotMean = reduceTrailingKeepDims(weighted.mul(input), normalizedRank);
+                Tensor invRmsCubed = invRms.mul(invRms).mul(invRms);
+                Tensor inputGrad = weighted.mul(invRms).sub(input.mul(dotMean).mul(invRmsCubed));
+                accumulateGradient(input, inputGrad);
+            }
+
+            if (gamma.getRequiresGrad()) {
+                Tensor gammaGrad = outGrad.mul(input).mul(invRms);
+                gammaGrad = reduceLeadingKeepDims(gammaGrad, normalizedRank).reshape(gamma.getShape());
+                accumulateGradient(gamma, gammaGrad);
+            }
+        });
         out.setLabel("rmsNorm");
         return out;
     }
@@ -153,6 +225,23 @@ final class TensorNormalizationOps {
             reduced = reduced.mean(axis, true);
         }
         return reduced;
+    }
+
+    private static Tensor reduceLeadingKeepDims(Tensor input, int trailingRank) {
+        int reductions = input.getShapeUnsafe().length - trailingRank;
+        Tensor reduced = input;
+        for (int i = 0; i < reductions; i++) {
+            reduced = reduced.sum(0, true);
+        }
+        return reduced;
+    }
+
+    private static void accumulateGradient(Tensor input, Tensor gradientDelta) {
+        if (input.getGradient() == null) {
+            input.setGradient(gradientDelta);
+            return;
+        }
+        input.setGradient(input.getGradient().add(gradientDelta));
     }
 
     private static void validateMatchingTailParameters(Tensor input, Tensor gamma, Tensor beta, String opName) {

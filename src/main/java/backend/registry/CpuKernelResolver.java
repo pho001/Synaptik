@@ -45,6 +45,8 @@ public final class CpuKernelResolver {
     private static final CpuMaxPool2dBackwardInputKernel MAX_POOL2D_BACKWARD_INPUT = new CpuMaxPool2dBackwardInputKernel();
     private static final CpuAvgPool2dKernel AVG_POOL2D = new CpuAvgPool2dKernel();
     private static final CpuAvgPool2dBackwardInputKernel AVG_POOL2D_BACKWARD_INPUT = new CpuAvgPool2dBackwardInputKernel();
+    private static final CpuLayerNormKernel LAYER_NORM = new CpuLayerNormKernel();
+    private static final CpuRmsNormKernel RMS_NORM = new CpuRmsNormKernel();
     private static final CpuMinGradKernel MIN_GRAD = new CpuMinGradKernel();
     private static final CpuMaxGradKernel MAX_GRAD = new CpuMaxGradKernel();
     private static final CpuReduceMinKernel REDUCE_MIN = new CpuReduceMinKernel();
@@ -118,6 +120,8 @@ public final class CpuKernelResolver {
             case MAX_POOL2D_BACKWARD_INPUT -> MAX_POOL2D_BACKWARD_INPUT;
             case AVG_POOL2D -> AVG_POOL2D;
             case AVG_POOL2D_BACKWARD_INPUT -> AVG_POOL2D_BACKWARD_INPUT;
+            case LAYER_NORM -> LAYER_NORM;
+            case RMS_NORM -> RMS_NORM;
             case MIN_GRAD -> MIN_GRAD;
             case MAX_GRAD -> MAX_GRAD;
             case REDUCE_MIN -> REDUCE_MIN;
