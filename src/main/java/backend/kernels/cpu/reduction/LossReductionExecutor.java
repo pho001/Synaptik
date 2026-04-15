@@ -14,7 +14,8 @@ final class LossReductionExecutor {
         double[] bData = b.getFloat64Data();
         node.getFloat64Data()[node.getStorageOffsetUnsafe()] = LossReductionTraversal.reduceMeanLoss(
                 a.getShapeUnsafe(), a.getStridesUnsafe(), a.getStorageOffsetUnsafe(), b.getStridesUnsafe(), b.getStorageOffsetUnsafe(), classDimension, context,
-                group -> reduction.computeF64(aData, bData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
+                (baseA, baseB, axisStrideA, axisStrideB, axisSize) ->
+                        reduction.computeF64(aData, bData, baseA, baseB, axisStrideA, axisStrideB, axisSize)
         );
     }
 
@@ -25,7 +26,8 @@ final class LossReductionExecutor {
         float[] bData = b.getFloat32Data();
         node.getFloat32Data()[node.getStorageOffsetUnsafe()] = (float) LossReductionTraversal.reduceMeanLoss(
                 a.getShapeUnsafe(), a.getStridesUnsafe(), a.getStorageOffsetUnsafe(), b.getStridesUnsafe(), b.getStorageOffsetUnsafe(), classDimension, context,
-                group -> reduction.computeF32(aData, bData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
+                (baseA, baseB, axisStrideA, axisStrideB, axisSize) ->
+                        reduction.computeF32(aData, bData, baseA, baseB, axisStrideA, axisStrideB, axisSize)
         );
     }
 
@@ -36,7 +38,8 @@ final class LossReductionExecutor {
         short[] bData = b.getBFloat16Data();
         float loss = (float) LossReductionTraversal.reduceMeanLoss(
                 a.getShapeUnsafe(), a.getStridesUnsafe(), a.getStorageOffsetUnsafe(), b.getStridesUnsafe(), b.getStorageOffsetUnsafe(), classDimension, context,
-                group -> reduction.computeBF16(aData, bData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
+                (baseA, baseB, axisStrideA, axisStrideB, axisSize) ->
+                        reduction.computeBF16(aData, bData, baseA, baseB, axisStrideA, axisStrideB, axisSize)
         );
         node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
     }
@@ -50,7 +53,8 @@ final class LossReductionExecutor {
         short[] bData = b.getBFloat16Data();
         float loss = (float) LossReductionTraversal.reduceMeanLoss(
                 a.getShapeUnsafe(), a.getStridesUnsafe(), 0, b.getStridesUnsafe(), b.getStorageOffsetUnsafe(), classDimension, context,
-                group -> reduction.computeF32ToBF16(aData, bData, group.baseA(), group.baseB(), group.axisStrideA(), group.axisStrideB(), group.axisSize())
+                (baseA, baseB, axisStrideA, axisStrideB, axisSize) ->
+                        reduction.computeF32ToBF16(aData, bData, baseA, baseB, axisStrideA, axisStrideB, axisSize)
         );
         node.getBFloat16Data()[node.getStorageOffsetUnsafe()] = CpuDTypeOps.toBFloat16Bits(loss);
     }

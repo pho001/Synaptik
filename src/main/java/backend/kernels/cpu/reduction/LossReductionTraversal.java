@@ -50,6 +50,9 @@ final class LossReductionTraversal {
         }
 
         ResolvedReductionHints hints = context.reductionHints();
+        if (canUseDenseContiguousLastAxisFastPath(shape, aStrides, bStrides, classDimension, axisStrideA, axisStrideB)) {
+            return reduceDenseContiguousLastAxis(groupCount, axisSize, aBaseOffset, bBaseOffset, hints, computer);
+        }
         if (hints != null && hints.parallel() && groupCount > 1) {
             int chunkSize = Math.max(1, hints.chunkSize());
             int chunks = (groupCount + chunkSize - 1) / chunkSize;
@@ -59,8 +62,7 @@ final class LossReductionTraversal {
                 int end = Math.min(start + chunkSize, groupCount);
                 double partial = 0.0d;
                 for (int group = start; group < end; group++) {
-                    GroupState state = groupState(group, shape, aStrides, aBaseOffset, bStrides, bBaseOffset, classDimension, reducedDenseStrides, axisSize, axisStrideA, axisStrideB);
-                    partial += computer.compute(state);
+                    partial += computeGenericGroup(group, shape, aStrides, aBaseOffset, bStrides, bBaseOffset, classDimension, reducedDenseStrides, axisSize, axisStrideA, axisStrideB, computer);
                 }
                 partials[chunk] = partial;
             });
@@ -73,13 +75,51 @@ final class LossReductionTraversal {
 
         double total = 0.0d;
         for (int group = 0; group < groupCount; group++) {
-            GroupState state = groupState(group, shape, aStrides, aBaseOffset, bStrides, bBaseOffset, classDimension, reducedDenseStrides, axisSize, axisStrideA, axisStrideB);
-            total += computer.compute(state);
+            total += computeGenericGroup(group, shape, aStrides, aBaseOffset, bStrides, bBaseOffset, classDimension, reducedDenseStrides, axisSize, axisStrideA, axisStrideB, computer);
         }
         return total / groupCount;
     }
 
-    private static GroupState groupState(
+    private static double reduceDenseContiguousLastAxis(
+            int groupCount,
+            int axisSize,
+            int aBaseOffset,
+            int bBaseOffset,
+            ResolvedReductionHints hints,
+            GroupComputer computer
+    ) {
+        if (hints != null && hints.parallel() && groupCount > 1) {
+            int chunkSize = Math.max(1, hints.chunkSize());
+            int chunks = (groupCount + chunkSize - 1) / chunkSize;
+            double[] partials = new double[chunks];
+            CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
+                int start = chunk * chunkSize;
+                int end = Math.min(start + chunkSize, groupCount);
+                double partial = 0.0d;
+                for (int group = start; group < end; group++) {
+                    int baseA = aBaseOffset + group * axisSize;
+                    int baseB = bBaseOffset + group * axisSize;
+                    partial += computer.compute(baseA, baseB, 1, 1, axisSize);
+                }
+                partials[chunk] = partial;
+            });
+            double total = 0.0d;
+            for (double partial : partials) {
+                total += partial;
+            }
+            return total / groupCount;
+        }
+
+        double total = 0.0d;
+        for (int group = 0; group < groupCount; group++) {
+            int baseA = aBaseOffset + group * axisSize;
+            int baseB = bBaseOffset + group * axisSize;
+            total += computer.compute(baseA, baseB, 1, 1, axisSize);
+        }
+        return total / groupCount;
+    }
+
+    private static double computeGenericGroup(
             int reducedIndex,
             int[] shape,
             int[] aStrides,
@@ -90,7 +130,8 @@ final class LossReductionTraversal {
             int[] reducedDenseStrides,
             int axisSize,
             int axisStrideA,
-            int axisStrideB
+            int axisStrideB,
+            GroupComputer computer
     ) {
         int rem = reducedIndex;
         int baseA = aBaseOffset;
@@ -105,7 +146,36 @@ final class LossReductionTraversal {
             baseB += coord * bStrides[d];
             rd++;
         }
-        return new GroupState(baseA, baseB, axisStrideA, axisStrideB, axisSize);
+        return computer.compute(baseA, baseB, axisStrideA, axisStrideB, axisSize);
+    }
+
+    private static boolean canUseDenseContiguousLastAxisFastPath(
+            int[] shape,
+            int[] aStrides,
+            int[] bStrides,
+            int classDimension,
+            int axisStrideA,
+            int axisStrideB
+    ) {
+        return classDimension == shape.length - 1
+                && axisStrideA == 1
+                && axisStrideB == 1
+                && isDenseContiguous(shape, aStrides)
+                && isDenseContiguous(shape, bStrides);
+    }
+
+    private static boolean isDenseContiguous(int[] shape, int[] strides) {
+        if (shape.length != strides.length) {
+            return false;
+        }
+        int expected = 1;
+        for (int i = shape.length - 1; i >= 0; i--) {
+            if (strides[i] != expected) {
+                return false;
+            }
+            expected *= shape[i];
+        }
+        return true;
     }
 
     private static int[] reduceShape(int[] shape, int axis) {
@@ -131,9 +201,6 @@ final class LossReductionTraversal {
 
     @FunctionalInterface
     interface GroupComputer {
-        double compute(GroupState state);
-    }
-
-    record GroupState(int baseA, int baseB, int axisStrideA, int axisStrideB, int axisSize) {
+        double compute(int baseA, int baseB, int axisStrideA, int axisStrideB, int axisSize);
     }
 }

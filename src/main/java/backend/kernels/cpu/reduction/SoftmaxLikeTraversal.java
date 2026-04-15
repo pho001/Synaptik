@@ -43,6 +43,11 @@ final class SoftmaxLikeTraversal {
         int axisStrideOut = outStrides[axis];
         ResolvedReductionHints hints = context.reductionHints();
 
+        if (canUseDenseContiguousLastAxisFastPath(shape, inStrides, outStrides, axis, axisStrideIn, axisStrideOut)) {
+            runDenseContiguousLastAxisGroups(groupCount, axisSize, inBaseOffset, outBaseOffset, hints, computer);
+            return;
+        }
+
         if (hints != null && hints.parallel() && groupCount > 1) {
             int chunkSize = Math.max(1, hints.chunkSize());
             int chunks = (groupCount + chunkSize - 1) / chunkSize;
@@ -50,20 +55,47 @@ final class SoftmaxLikeTraversal {
                 int start = chunk * chunkSize;
                 int end = Math.min(start + chunkSize, groupCount);
                 for (int group = start; group < end; group++) {
-                    GroupState state = groupState(group, shape, inStrides, inBaseOffset, outStrides, outBaseOffset, axis, reducedDenseStrides, axisSize, axisStrideIn, axisStrideOut);
-                    computer.compute(state);
+                    runGenericGroup(group, shape, inStrides, inBaseOffset, outStrides, outBaseOffset, axis, reducedDenseStrides, axisSize, axisStrideIn, axisStrideOut, computer);
                 }
             });
             return;
         }
 
         for (int group = 0; group < groupCount; group++) {
-            GroupState state = groupState(group, shape, inStrides, inBaseOffset, outStrides, outBaseOffset, axis, reducedDenseStrides, axisSize, axisStrideIn, axisStrideOut);
-            computer.compute(state);
+            runGenericGroup(group, shape, inStrides, inBaseOffset, outStrides, outBaseOffset, axis, reducedDenseStrides, axisSize, axisStrideIn, axisStrideOut, computer);
         }
     }
 
-    private static GroupState groupState(
+    private static void runDenseContiguousLastAxisGroups(
+            int groupCount,
+            int axisSize,
+            int inBaseOffset,
+            int outBaseOffset,
+            ResolvedReductionHints hints,
+            GroupComputer computer
+    ) {
+        if (hints != null && hints.parallel() && groupCount > 1) {
+            int chunkSize = Math.max(1, hints.chunkSize());
+            int chunks = (groupCount + chunkSize - 1) / chunkSize;
+            CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
+                int start = chunk * chunkSize;
+                int end = Math.min(start + chunkSize, groupCount);
+                for (int group = start; group < end; group++) {
+                    int baseIn = inBaseOffset + group * axisSize;
+                    int baseOut = outBaseOffset + group * axisSize;
+                    computer.compute(baseIn, baseOut, 1, 1, axisSize);
+                }
+            });
+            return;
+        }
+        for (int group = 0; group < groupCount; group++) {
+            int baseIn = inBaseOffset + group * axisSize;
+            int baseOut = outBaseOffset + group * axisSize;
+            computer.compute(baseIn, baseOut, 1, 1, axisSize);
+        }
+    }
+
+    private static void runGenericGroup(
             int reducedIndex,
             int[] shape,
             int[] inStrides,
@@ -74,7 +106,8 @@ final class SoftmaxLikeTraversal {
             int[] reducedDenseStrides,
             int axisSize,
             int axisStrideIn,
-            int axisStrideOut
+            int axisStrideOut,
+            GroupComputer computer
     ) {
         int rem = reducedIndex;
         int baseIn = inBaseOffset;
@@ -89,7 +122,36 @@ final class SoftmaxLikeTraversal {
             baseOut += coord * outStrides[d];
             rd++;
         }
-        return new GroupState(baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+        computer.compute(baseIn, baseOut, axisStrideIn, axisStrideOut, axisSize);
+    }
+
+    private static boolean canUseDenseContiguousLastAxisFastPath(
+            int[] shape,
+            int[] inStrides,
+            int[] outStrides,
+            int axis,
+            int axisStrideIn,
+            int axisStrideOut
+    ) {
+        return axis == shape.length - 1
+                && axisStrideIn == 1
+                && axisStrideOut == 1
+                && isDenseContiguous(shape, inStrides)
+                && isDenseContiguous(shape, outStrides);
+    }
+
+    private static boolean isDenseContiguous(int[] shape, int[] strides) {
+        if (shape.length != strides.length) {
+            return false;
+        }
+        int expected = 1;
+        for (int i = shape.length - 1; i >= 0; i--) {
+            if (strides[i] != expected) {
+                return false;
+            }
+            expected *= shape[i];
+        }
+        return true;
     }
 
     private static int[] reduceShape(int[] shape, int axis) {
@@ -115,9 +177,6 @@ final class SoftmaxLikeTraversal {
 
     @FunctionalInterface
     interface GroupComputer {
-        void compute(GroupState state);
-    }
-
-    record GroupState(int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize) {
+        void compute(int baseIn, int baseOut, int axisStrideIn, int axisStrideOut, int axisSize);
     }
 }
