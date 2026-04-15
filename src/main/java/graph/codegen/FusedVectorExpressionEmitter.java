@@ -3,8 +3,6 @@ package graph.codegen;
 import org.objectweb.asm.MethodVisitor;
 import utils.SlotManager;
 
-import static org.objectweb.asm.Opcodes.INVOKESTATIC;
-
 public final class FusedVectorExpressionEmitter {
     private FusedVectorExpressionEmitter() {}
 
@@ -57,16 +55,16 @@ public final class FusedVectorExpressionEmitter {
             }
             case SIGMOID -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "sigmoid", precisionMode);
             case NOOP -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "noop", precisionMode);
-            case GT -> emitVectorBoolOpCall(mv, "gt", precisionMode);
-            case GE -> emitVectorBoolOpCall(mv, "ge", precisionMode);
-            case LT -> emitVectorBoolOpCall(mv, "lt", precisionMode);
-            case LE -> emitVectorBoolOpCall(mv, "le", precisionMode);
-            case EQ -> emitVectorBoolOpCall(mv, "eq", precisionMode);
-            case NE -> emitVectorBoolOpCall(mv, "ne", precisionMode);
-            case LOGICAL_AND -> emitVectorBoolBinaryCall(mv, "logicalAnd", precisionMode);
-            case LOGICAL_OR -> emitVectorBoolBinaryCall(mv, "logicalOr", precisionMode);
-            case LOGICAL_NOT -> emitVectorBoolUnaryCall(mv, "logicalNot", precisionMode);
-            case WHERE -> emitVectorWhereCall(mv, precisionMode);
+            case GT -> FusedAsmSupport.emitVectorCompareOpCall(mv, "gt", precisionMode);
+            case GE -> FusedAsmSupport.emitVectorCompareOpCall(mv, "ge", precisionMode);
+            case LT -> FusedAsmSupport.emitVectorCompareOpCall(mv, "lt", precisionMode);
+            case LE -> FusedAsmSupport.emitVectorCompareOpCall(mv, "le", precisionMode);
+            case EQ -> FusedAsmSupport.emitVectorCompareOpCall(mv, "eq", precisionMode);
+            case NE -> FusedAsmSupport.emitVectorCompareOpCall(mv, "ne", precisionMode);
+            case LOGICAL_AND -> FusedAsmSupport.emitVectorLogicalBinaryOpCall(mv, "logicalAnd", precisionMode);
+            case LOGICAL_OR -> FusedAsmSupport.emitVectorLogicalBinaryOpCall(mv, "logicalOr", precisionMode);
+            case LOGICAL_NOT -> FusedAsmSupport.emitVectorLogicalUnaryOpCall(mv, "logicalNot", precisionMode);
+            case WHERE -> FusedAsmSupport.emitVectorWhereCall(mv, precisionMode);
             case MUL_SCALAR -> {
                 double scalar = ((ScalarDoubleAttribute) current.attributes()).value();
                 if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
@@ -87,25 +85,5 @@ public final class FusedVectorExpressionEmitter {
             }
             default -> throw new UnsupportedOperationException("Operation " + opType + " is not supported for fused vector execution.");
         }
-    }
-
-    private static void emitVectorBoolOpCall(MethodVisitor mv, String op, int precisionMode) {
-        mv.visitLdcInsn(precisionMode);
-        mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", op, "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
-    }
-
-    private static void emitVectorBoolBinaryCall(MethodVisitor mv, String op, int precisionMode) {
-        mv.visitLdcInsn(precisionMode);
-        mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", op, "(Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
-    }
-
-    private static void emitVectorBoolUnaryCall(MethodVisitor mv, String op, int precisionMode) {
-        mv.visitLdcInsn(precisionMode);
-        mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", op, "(Ljava/lang/Object;I)Ljava/lang/Object;", false);
-    }
-
-    private static void emitVectorWhereCall(MethodVisitor mv, int precisionMode) {
-        mv.visitLdcInsn(precisionMode);
-        mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", "where", "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;I)Ljava/lang/Object;", false);
     }
 }

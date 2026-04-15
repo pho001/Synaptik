@@ -77,6 +77,8 @@ public final class FusedVectorMethodEmitter {
         if (plan.outputNode().outputType() == tensor.DataType.BOOL) {
             FusedAsmSupport.emitVectorWidthConstant(mv, context.vectorWidth());
             FusedAsmSupport.emitStoreBoolVectorToArrayCall(mv, context.precisionMode());
+        } else if (context.precisionMode() == FusedDTypeOps.MODE_F32 || context.precisionMode() == FusedDTypeOps.MODE_F64) {
+            FusedAsmSupport.emitDirectStoreVectorToArrayCall(mv, context.precisionMode());
         } else {
             FusedAsmSupport.emitStoreVectorToArrayCall(mv, context.precisionMode());
         }

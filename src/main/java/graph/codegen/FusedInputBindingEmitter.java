@@ -137,8 +137,12 @@ public final class FusedInputBindingEmitter {
                         mv.visitLdcInsn(meta.storageOffset());
                         mv.visitInsn(IADD);
                     }
-                    FusedAsmSupport.emitVectorWidthConstant(mv, vectorWidth);
-                    FusedAsmSupport.emitLoadVectorFromArrayCall(mv, precisionMode);
+                    if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_F64) {
+                        FusedAsmSupport.emitDirectLinearVectorLoad(mv, precisionMode, vectorWidth);
+                    } else {
+                        FusedAsmSupport.emitVectorWidthConstant(mv, vectorWidth);
+                        FusedAsmSupport.emitLoadVectorFromArrayCall(mv, precisionMode);
+                    }
                 } else {
                     mv.visitVarInsn(ALOAD, cursorSlots.get(i));
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));

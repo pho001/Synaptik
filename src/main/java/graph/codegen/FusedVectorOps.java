@@ -387,6 +387,9 @@ public final class FusedVectorOps {
         };
     }
 
+    public static VectorMask<Double> gtF64(DoubleVector a, DoubleVector b) { return a.compare(VectorOperators.GT, b); }
+    public static VectorMask<Float> gtF32(FloatVector a, FloatVector b) { return a.compare(VectorOperators.GT, b); }
+
     public static Object ge(Object a, Object b, int mode) {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.GE, (DoubleVector) b);
@@ -394,6 +397,9 @@ public final class FusedVectorOps {
             default -> throw new IllegalArgumentException("Vector compare GE is supported only for F32/F64.");
         };
     }
+
+    public static VectorMask<Double> geF64(DoubleVector a, DoubleVector b) { return a.compare(VectorOperators.GE, b); }
+    public static VectorMask<Float> geF32(FloatVector a, FloatVector b) { return a.compare(VectorOperators.GE, b); }
 
     public static Object lt(Object a, Object b, int mode) {
         return switch (mode) {
@@ -403,6 +409,9 @@ public final class FusedVectorOps {
         };
     }
 
+    public static VectorMask<Double> ltF64(DoubleVector a, DoubleVector b) { return a.compare(VectorOperators.LT, b); }
+    public static VectorMask<Float> ltF32(FloatVector a, FloatVector b) { return a.compare(VectorOperators.LT, b); }
+
     public static Object le(Object a, Object b, int mode) {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.LE, (DoubleVector) b);
@@ -410,6 +419,9 @@ public final class FusedVectorOps {
             default -> throw new IllegalArgumentException("Vector compare LE is supported only for F32/F64.");
         };
     }
+
+    public static VectorMask<Double> leF64(DoubleVector a, DoubleVector b) { return a.compare(VectorOperators.LE, b); }
+    public static VectorMask<Float> leF32(FloatVector a, FloatVector b) { return a.compare(VectorOperators.LE, b); }
 
     public static Object eq(Object a, Object b, int mode) {
         return switch (mode) {
@@ -419,6 +431,9 @@ public final class FusedVectorOps {
         };
     }
 
+    public static VectorMask<Double> eqF64(DoubleVector a, DoubleVector b) { return a.compare(VectorOperators.EQ, b); }
+    public static VectorMask<Float> eqF32(FloatVector a, FloatVector b) { return a.compare(VectorOperators.EQ, b); }
+
     public static Object ne(Object a, Object b, int mode) {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.NE, (DoubleVector) b);
@@ -426,6 +441,9 @@ public final class FusedVectorOps {
             default -> throw new IllegalArgumentException("Vector compare NE is supported only for F32/F64.");
         };
     }
+
+    public static VectorMask<Double> neF64(DoubleVector a, DoubleVector b) { return a.compare(VectorOperators.NE, b); }
+    public static VectorMask<Float> neF32(FloatVector a, FloatVector b) { return a.compare(VectorOperators.NE, b); }
 
     public static Object logicalAnd(Object a, Object b, int mode) {
         return switch (mode) {
@@ -435,6 +453,9 @@ public final class FusedVectorOps {
         };
     }
 
+    public static VectorMask<Double> logicalAndF64(VectorMask<Double> a, VectorMask<Double> b) { return a.and(b); }
+    public static VectorMask<Float> logicalAndF32(VectorMask<Float> a, VectorMask<Float> b) { return a.and(b); }
+
     public static Object logicalOr(Object a, Object b, int mode) {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((VectorMask<Double>) a).or((VectorMask<Double>) b);
@@ -442,6 +463,9 @@ public final class FusedVectorOps {
             default -> throw new IllegalArgumentException("Vector logicalOr is supported only for F32/F64.");
         };
     }
+
+    public static VectorMask<Double> logicalOrF64(VectorMask<Double> a, VectorMask<Double> b) { return a.or(b); }
+    public static VectorMask<Float> logicalOrF32(VectorMask<Float> a, VectorMask<Float> b) { return a.or(b); }
 
     public static Object logicalNot(Object a, int mode) {
         return switch (mode) {
@@ -451,12 +475,23 @@ public final class FusedVectorOps {
         };
     }
 
+    public static VectorMask<Double> logicalNotF64(VectorMask<Double> a) { return a.not(); }
+    public static VectorMask<Float> logicalNotF32(VectorMask<Float> a) { return a.not(); }
+
     public static Object where(Object condition, Object ifTrue, Object ifFalse, int mode) {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) ifFalse).blend((DoubleVector) ifTrue, (VectorMask<Double>) condition);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) ifFalse).blend((FloatVector) ifTrue, (VectorMask<Float>) condition);
             default -> throw new IllegalArgumentException("Vector where is supported only for F32/F64.");
         };
+    }
+
+    public static DoubleVector whereF64(VectorMask<Double> condition, DoubleVector ifTrue, DoubleVector ifFalse) {
+        return ifFalse.blend(ifTrue, condition);
+    }
+
+    public static FloatVector whereF32(VectorMask<Float> condition, FloatVector ifTrue, FloatVector ifFalse) {
+        return ifFalse.blend(ifTrue, condition);
     }
 
     private static Object mapUnaryD(Object vector, DoubleUnaryOperator fn) {
