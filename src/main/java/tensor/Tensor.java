@@ -283,6 +283,7 @@ public class Tensor {
             throw new UnsupportedOperationException("Cannot write through broadcast view tensor.");
         }
         setByStorageOffset(logicalFlatIndexToStorageOffset(flatindex), value);
+        markStorageModified();
     }
 
     public int[] getStrides() {
@@ -427,6 +428,16 @@ public class Tensor {
 
     public TensorStorage getStorage() {
         return storage;
+    }
+
+    public long storageVersion() {
+        return storage == null ? 0L : storage.version();
+    }
+
+    public void markStorageModified() {
+        if (storage != null) {
+            storage.markModified();
+        }
     }
 
     public float[] getFloat32Data() {

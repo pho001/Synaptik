@@ -1,14 +1,18 @@
 package backend.kernels.cpu;
 
+import backend.kernels.cpu.linalg.PackedLinearWeightCache;
+
 public final class CpuNodeWorkspace {
     private final int[] intWorkspace;
     private final float[] floatWorkspace;
+    private final PackedLinearWeightCache packedLinearWeightCache;
     private volatile boolean floatContinuationValid;
     private volatile int floatContinuationLength;
 
-    private CpuNodeWorkspace(int[] intWorkspace, float[] floatWorkspace) {
+    private CpuNodeWorkspace(int[] intWorkspace, float[] floatWorkspace, PackedLinearWeightCache packedLinearWeightCache) {
         this.intWorkspace = intWorkspace;
         this.floatWorkspace = floatWorkspace;
+        this.packedLinearWeightCache = packedLinearWeightCache;
         this.floatContinuationValid = false;
         this.floatContinuationLength = 0;
     }
@@ -17,14 +21,14 @@ public final class CpuNodeWorkspace {
         if (size < 0) {
             throw new IllegalArgumentException("Workspace size cannot be negative.");
         }
-        return new CpuNodeWorkspace(new int[size], null);
+        return new CpuNodeWorkspace(new int[size], null, null);
     }
 
     public static CpuNodeWorkspace withFloatWorkspace(int size) {
         if (size < 0) {
             throw new IllegalArgumentException("Workspace size cannot be negative.");
         }
-        return new CpuNodeWorkspace(null, new float[size]);
+        return new CpuNodeWorkspace(null, new float[size], null);
     }
 
     public static CpuNodeWorkspace withIntAndFloatWorkspace(int intSize, int floatSize) {
@@ -33,8 +37,20 @@ public final class CpuNodeWorkspace {
         }
         return new CpuNodeWorkspace(
                 intSize == 0 ? null : new int[intSize],
-                floatSize == 0 ? null : new float[floatSize]
+                floatSize == 0 ? null : new float[floatSize],
+                null
         );
+    }
+
+    public static CpuNodeWorkspace withPackedLinearWeights() {
+        return new CpuNodeWorkspace(null, null, new PackedLinearWeightCache());
+    }
+
+    public static CpuNodeWorkspace withFloatWorkspaceAndPackedLinearWeights(int floatSize) {
+        if (floatSize < 0) {
+            throw new IllegalArgumentException("Workspace size cannot be negative.");
+        }
+        return new CpuNodeWorkspace(null, floatSize == 0 ? null : new float[floatSize], new PackedLinearWeightCache());
     }
 
     public int[] requireIntWorkspace() {
@@ -49,6 +65,10 @@ public final class CpuNodeWorkspace {
             throw new IllegalStateException("CPU node workspace does not provide float[] storage.");
         }
         return floatWorkspace;
+    }
+
+    public PackedLinearWeightCache packedLinearWeightCache() {
+        return packedLinearWeightCache;
     }
 
     public void clearFloatContinuation() {

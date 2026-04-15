@@ -6,6 +6,7 @@ import config.optimizer.OptimizerConfig;
 import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
+import graph.execution.PreparedExecution;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -60,6 +61,33 @@ public class LinearExecutionTest {
                 605.5, 6049.5,
                 807.5, 8069.5
         }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void preparedLinearInvalidatesPackedWeightCacheWhenWeightChanges() {
+        Tensor input = new Tensor(new float[]{
+                1, 2,
+                3, 4
+        }, new int[]{2, 2}, null, "input", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                5, 6,
+                7, 8
+        }, new int[]{2, 2}, null, "weight", DataType.FLOAT32);
+
+        Tensor out = input.linear(weight);
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        execution.execute(ExecutionMode.FORWARD);
+        assertArrayEquals(new double[]{19, 22, 43, 50}, out.toDoubleArrayCopy(), 1e-6);
+
+        weight.setFloat32Data(new float[]{
+                1, 0,
+                0, 1
+        });
+
+        execution.execute(ExecutionMode.FORWARD);
+        assertArrayEquals(new double[]{1, 2, 3, 4}, out.toDoubleArrayCopy(), 1e-6);
     }
 
     @Test

@@ -1,7 +1,10 @@
 package tensor;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public class Float32Storage implements TensorStorage {
     private final float[] data;
+    private final AtomicLong version = new AtomicLong();
 
     public Float32Storage(int size) {
         this.data = new float[size];
@@ -19,6 +22,16 @@ public class Float32Storage implements TensorStorage {
     @Override
     public int getSize() {
         return data.length;
+    }
+
+    @Override
+    public long version() {
+        return version.get();
+    }
+
+    @Override
+    public void markModified() {
+        version.incrementAndGet();
     }
 
     public float getFloat32At(int flatIndex) {

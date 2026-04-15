@@ -8,6 +8,8 @@ import jdk.incubator.vector.VectorSpecies;
 import operations.linear;
 import tensor.Tensor;
 
+import java.util.Arrays;
+
 final class LinearExecutor {
     private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
@@ -16,14 +18,18 @@ final class LinearExecutor {
     }
 
     static void forwardF64(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
-        MatMulExecutor.forwardF64(input, weight, out, context);
+        if (!tryPackedLinearF64(input, weight, out, context)) {
+            MatMulExecutor.forwardF64(input, weight, out, context);
+        }
         if (op.hasBias()) {
             addBiasF64(out, bias);
         }
     }
 
     static void forwardF32(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
-        MatMulExecutor.forwardF32(input, weight, out, context);
+        if (!tryPackedLinearF32(input, weight, out, context)) {
+            MatMulExecutor.forwardF32(input, weight, out, context);
+        }
         if (op.hasBias()) {
             addBiasF32(out, bias);
         }
@@ -115,6 +121,42 @@ final class LinearExecutor {
             addBiasInPlace(tmp, bias.getBFloat16Data(), bias.getShapeUnsafe()[0], out.getFlatDataSize());
         }
         context.cpuWorkspace().publishFloatContinuation(out.getFlatDataSize());
+        return true;
+    }
+
+    private static boolean tryPackedLinearF64(Tensor input, Tensor weight, Tensor out, CpuKernelContext context) {
+        if (context == null || context.cpuWorkspace() == null || context.cpuWorkspace().packedLinearWeightCache() == null) {
+            return false;
+        }
+        ResolvedMatMulHints hints = requireHints(context);
+        if (hints.useBlas() || hints.useBatchedBlas()) {
+            return false;
+        }
+        PackedLinearWeightCache.F64PackedWeights packed = context.cpuWorkspace().packedLinearWeightCache().requireF64(weight, hints);
+        if (packed == null) {
+            return false;
+        }
+        double[] outData = out.getFloat64Data();
+        Arrays.fill(outData, 0.0d);
+        MatMulJavaBackend.runPackedF64(input.getFloat64Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
+        return true;
+    }
+
+    private static boolean tryPackedLinearF32(Tensor input, Tensor weight, Tensor out, CpuKernelContext context) {
+        if (context == null || context.cpuWorkspace() == null || context.cpuWorkspace().packedLinearWeightCache() == null) {
+            return false;
+        }
+        ResolvedMatMulHints hints = requireHints(context);
+        if (hints.useBlas() || hints.useBatchedBlas()) {
+            return false;
+        }
+        PackedLinearWeightCache.F32PackedWeights packed = context.cpuWorkspace().packedLinearWeightCache().requireF32(weight, hints);
+        if (packed == null) {
+            return false;
+        }
+        float[] outData = out.getFloat32Data();
+        Arrays.fill(outData, 0.0f);
+        MatMulJavaBackend.runPackedF32(input.getFloat32Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
         return true;
     }
 

@@ -41,6 +41,32 @@ final class MatMulJavaBackend {
         );
     }
 
+    @FunctionalInterface
+    private interface PackedF64BlockKernel {
+        void compute(
+                double[] a, PackedLinearWeightCache.F64PackedWeights packedB, double[] out,
+                int aOffset, int outOffset,
+                int iStart, int iEnd,
+                int jStart, int jEnd,
+                int kStart, int kEnd,
+                int n, int k,
+                int tn, int tk
+        );
+    }
+
+    @FunctionalInterface
+    private interface PackedF32BlockKernel {
+        void compute(
+                float[] a, PackedLinearWeightCache.F32PackedWeights packedB, float[] out,
+                int aOffset, int outOffset,
+                int iStart, int iEnd,
+                int jStart, int jEnd,
+                int kStart, int kEnd,
+                int n, int k,
+                int tn, int tk
+        );
+    }
+
     private MatMulJavaBackend() {}
 
     static void runF64(double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints) {
@@ -52,6 +78,18 @@ final class MatMulJavaBackend {
         runF64Blocks(a, aShape, b, bShape, out, outShape, hints, kernel);
     }
 
+    static void runPackedF64(
+            double[] a, int[] aShape, PackedLinearWeightCache.F64PackedWeights packedB,
+            double[] out, int[] outShape, ResolvedMatMulHints hints
+    ) {
+        PackedF64BlockKernel kernel = switch (hints.microKernel()) {
+            case F64_2X1 -> MatMulJavaBackend::computeBlockPackedF64_2x1;
+            case F64_2X2 -> MatMulJavaBackend::computeBlockPackedF64_2x2;
+            default -> MatMulJavaBackend::computeBlockPackedF64_4x1;
+        };
+        runPackedF64Blocks(a, aShape, packedB, out, outShape, hints, kernel);
+    }
+
     static void runF32(float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape, ResolvedMatMulHints hints) {
         F32BlockKernel kernel = switch (hints.microKernel()) {
             case F32_2X4 -> MatMulJavaBackend::computeBlockF32_2x4;
@@ -60,6 +98,19 @@ final class MatMulJavaBackend {
             default -> MatMulJavaBackend::computeBlockF32_4x2;
         };
         runF32Blocks(a, aShape, b, bShape, out, outShape, hints, kernel);
+    }
+
+    static void runPackedF32(
+            float[] a, int[] aShape, PackedLinearWeightCache.F32PackedWeights packedB,
+            float[] out, int[] outShape, ResolvedMatMulHints hints
+    ) {
+        PackedF32BlockKernel kernel = switch (hints.microKernel()) {
+            case F32_2X4 -> MatMulJavaBackend::computeBlockPackedF32_2x4;
+            case F32_2X8 -> MatMulJavaBackend::computeBlockPackedF32_2x8;
+            case F32_4X4 -> MatMulJavaBackend::computeBlockPackedF32_4x4;
+            default -> MatMulJavaBackend::computeBlockPackedF32_4x2;
+        };
+        runPackedF32Blocks(a, aShape, packedB, out, outShape, hints, kernel);
     }
 
     static void runBF16(short[] a, int[] aShape, short[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints) {
@@ -179,6 +230,41 @@ final class MatMulJavaBackend {
         }
     }
 
+    private static void runPackedF64Blocks(
+            double[] a, int[] aShape, PackedLinearWeightCache.F64PackedWeights packedB, double[] out, int[] outShape,
+            ResolvedMatMulHints hints, PackedF64BlockKernel kernel
+    ) {
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int k = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                kernel.compute(a, packedB, out, aBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tn, tk);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            kernel.compute(a, packedB, out, aBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, k, n, k, tn, tk);
+        }
+    }
+
     private static void runF32Blocks(
             float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape,
             ResolvedMatMulHints hints, F32BlockKernel kernel
@@ -212,6 +298,41 @@ final class MatMulJavaBackend {
         }
         for (int batch = 0; batch < batchCount; batch++) {
             kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, k, n, k, tn, tk);
+        }
+    }
+
+    private static void runPackedF32Blocks(
+            float[] a, int[] aShape, PackedLinearWeightCache.F32PackedWeights packedB, float[] out, int[] outShape,
+            ResolvedMatMulHints hints, PackedF32BlockKernel kernel
+    ) {
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int k = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                kernel.compute(a, packedB, out, aBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tn, tk);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            kernel.compute(a, packedB, out, aBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, k, n, k, tn, tk);
         }
     }
 
@@ -289,6 +410,34 @@ final class MatMulJavaBackend {
         }
     }
 
+    private static void computeBlockPackedF64_2x1(
+            double[] a, PackedLinearWeightCache.F64PackedWeights packedWeights, double[] out,
+            int aOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                double[] packedB = packedWeights.panel(kk, jj);
+                int i = iStart;
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+            }
+        }
+    }
+
     private static void computeBlockF64_4x1(
             double[] a, double[] b, double[] out,
             int aOffset, int bOffset, int outOffset,
@@ -306,6 +455,37 @@ final class MatMulJavaBackend {
                 int panelWidth = jjEnd - jj;
                 int vectorLimit = panelWidth - (panelWidth % width);
                 double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                int i = iStart;
+                for (; i + 3 < iEnd; i += 4) {
+                    computeFourRowsOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockPackedF64_4x1(
+            double[] a, PackedLinearWeightCache.F64PackedWeights packedWeights, double[] out,
+            int aOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                double[] packedB = packedWeights.panel(kk, jj);
                 int i = iStart;
                 for (; i + 3 < iEnd; i += 4) {
                     computeFourRowsOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
@@ -339,6 +519,36 @@ final class MatMulJavaBackend {
                 int vectorLimit = panelWidth - (panelWidth % width);
                 int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
                 double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                int i = iStart;
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsTwoColsF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowTwoColsF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockPackedF64_2x2(
+            double[] a, PackedLinearWeightCache.F64PackedWeights packedWeights, double[] out,
+            int aOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        int vectorBlockWidth = width * 2;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                double[] packedB = packedWeights.panel(kk, jj);
                 int i = iStart;
                 for (; i + 1 < iEnd; i += 2) {
                     computeTwoRowsTwoColsF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
@@ -626,6 +836,36 @@ final class MatMulJavaBackend {
         }
     }
 
+    private static void computeBlockPackedF32_2x4(
+            float[] a, PackedLinearWeightCache.F32PackedWeights packedWeights, float[] out,
+            int aOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 4;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                float[] packedB = packedWeights.panel(kk, jj);
+                int i = iStart;
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
     private static void computeBlockF32_2x8(
             float[] a, float[] b, float[] out,
             int aOffset, int bOffset, int outOffset,
@@ -645,6 +885,36 @@ final class MatMulJavaBackend {
                 int vectorLimit = panelWidth - (panelWidth % width);
                 int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
                 float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                int i = iStart;
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsEightColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowEightColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockPackedF32_2x8(
+            float[] a, PackedLinearWeightCache.F32PackedWeights packedWeights, float[] out,
+            int aOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 8;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                float[] packedB = packedWeights.panel(kk, jj);
                 int i = iStart;
                 for (; i + 1 < iEnd; i += 2) {
                     computeTwoRowsEightColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
@@ -686,6 +956,36 @@ final class MatMulJavaBackend {
         }
     }
 
+    private static void computeBlockPackedF32_4x2(
+            float[] a, PackedLinearWeightCache.F32PackedWeights packedWeights, float[] out,
+            int aOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 2;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                float[] packedB = packedWeights.panel(kk, jj);
+                int i = iStart;
+                for (; i + 3 < iEnd; i += 4) {
+                    computeFourRowsTwoColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowTwoColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
     private static void computeBlockF32_4x4(
             float[] a, float[] b, float[] out,
             int aOffset, int bOffset, int outOffset,
@@ -705,6 +1005,36 @@ final class MatMulJavaBackend {
                 int vectorLimit = panelWidth - (panelWidth % width);
                 int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
                 float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                int i = iStart;
+                for (; i + 3 < iEnd; i += 4) {
+                    computeFourRowsFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockPackedF32_4x4(
+            float[] a, PackedLinearWeightCache.F32PackedWeights packedWeights, float[] out,
+            int aOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 4;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                float[] packedB = packedWeights.panel(kk, jj);
                 int i = iStart;
                 for (; i + 3 < iEnd; i += 4) {
                     computeFourRowsFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);

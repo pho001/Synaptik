@@ -300,9 +300,12 @@ public class CompiledGraph {
         return switch (operation.opType()) {
             case MAX_POOL2D -> CpuNodeWorkspace.withIntWorkspace(tensor.getFlatDataSize());
             case MAX_POOL2D_BACKWARD_INPUT -> resolveSharedMaxPoolWorkspace(tensor, preparedMetadata);
-            case MATMUL, LINEAR -> needsBFloat16BlasWorkspace(tensor, cpuPlan)
+            case MATMUL -> needsBFloat16BlasWorkspace(tensor, cpuPlan)
                     ? CpuNodeWorkspace.withFloatWorkspace(tensor.getFlatDataSize())
                     : null;
+            case LINEAR -> needsBFloat16BlasWorkspace(tensor, cpuPlan)
+                    ? CpuNodeWorkspace.withFloatWorkspaceAndPackedLinearWeights(tensor.getFlatDataSize())
+                    : CpuNodeWorkspace.withPackedLinearWeights();
             case LOG_SOFTMAX -> shouldPublishFloatContinuation(tensor, operation, buildConsumerMap(finalGraph))
                     ? CpuNodeWorkspace.withFloatWorkspace(tensor.getFlatDataSize())
                     : null;

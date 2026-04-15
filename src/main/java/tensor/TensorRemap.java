@@ -121,6 +121,7 @@ public final class TensorRemap {
                         + src.getDataType() + ", dst=" + dst.getDataType());
             }
             applyConverted(src, dst, plan, parallelThreshold);
+            dst.markStorageModified();
             return;
         }
         switch (src.getDataType()) {
@@ -130,6 +131,7 @@ public final class TensorRemap {
             case INT32 -> applyI32(src, dst, plan, parallelThreshold);
             case BOOL -> applyBool(src, dst, plan, parallelThreshold);
         }
+        dst.markStorageModified();
     }
 
     private static void applyConverted(Tensor src, Tensor dst, RemapPlan plan, int parallelThreshold) {
