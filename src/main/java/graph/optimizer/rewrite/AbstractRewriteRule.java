@@ -12,6 +12,7 @@ import java.util.Map;
 abstract class AbstractRewriteRule implements OptimizationRule {
     @Override
     public final List<Tensor> apply(List<Tensor> sortedGraph) {
+        List<Tensor> originalSinks = OptimizerGraphSupport.consumerFreeSinks(sortedGraph);
         List<Tensor> optimized = new ArrayList<>();
         Map<Tensor, Tensor> replacements = new HashMap<>();
 
@@ -29,7 +30,24 @@ abstract class AbstractRewriteRule implements OptimizationRule {
             }
         }
 
-        return rebuildClosure() ? OptimizerGraphSupport.rebuildTopologicalClosure(optimized) : optimized;
+        if (!replacements.isEmpty()) {
+            for (Tensor tensor : sortedGraph) {
+                Tensor resolvedGradient = OptimizerGraphSupport.resolveReplacement(tensor.getGradient(), replacements);
+                if (resolvedGradient != null) {
+                    tensor.setGradient(resolvedGradient);
+                }
+            }
+        }
+
+        if (!rebuildClosure()) {
+            return optimized;
+        }
+        List<Tensor> resolvedRoots = new ArrayList<>(originalSinks.size());
+        for (Tensor sink : originalSinks) {
+            Tensor resolved = OptimizerGraphSupport.resolveReplacement(sink, replacements);
+            resolvedRoots.add(resolved == null ? sink : resolved);
+        }
+        return OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(resolvedRoots);
     }
 
     protected boolean rebuildClosure() {

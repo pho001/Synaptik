@@ -327,7 +327,7 @@ public final class CpuExecutionPlanner {
         }
         return switch (op.opType()) {
             case MATMUL, LINEAR -> resolveMatMulContract(dataType, matMulHints);
-            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS ->
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD ->
                     resolveReductionContract(dataType);
             case FUSED -> defaultContractFor(dataType, CpuExecutionBackend.CPU_FUSED);
             default -> (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE)

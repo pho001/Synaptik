@@ -57,6 +57,8 @@ public final class CpuKernelResolver {
     private static final CpuLogSoftmaxKernel LOG_SOFTMAX = new CpuLogSoftmaxKernel();
     private static final CpuNllLossKernel NLL_LOSS = new CpuNllLossKernel();
     private static final CpuCrossEntropyLossKernel CROSS_ENTROPY_LOSS = new CpuCrossEntropyLossKernel();
+    private static final CpuCrossEntropyLossIndicesKernel CROSS_ENTROPY_LOSS_INDICES = new CpuCrossEntropyLossIndicesKernel();
+    private static final CpuCrossEntropyLossIndicesGradKernel CROSS_ENTROPY_LOSS_INDICES_GRAD = new CpuCrossEntropyLossIndicesGradKernel();
     private static final CpuReduceMinGradKernel REDUCE_MIN_GRAD = new CpuReduceMinGradKernel();
     private static final CpuReduceMaxGradKernel REDUCE_MAX_GRAD = new CpuReduceMaxGradKernel();
     private static final CpuMatMulKernel MATMUL = new CpuMatMulKernel();
@@ -132,6 +134,8 @@ public final class CpuKernelResolver {
             case LOG_SOFTMAX -> LOG_SOFTMAX;
             case NLL_LOSS -> NLL_LOSS;
             case CROSS_ENTROPY_LOSS -> CROSS_ENTROPY_LOSS;
+            case CROSS_ENTROPY_LOSS_INDICES -> CROSS_ENTROPY_LOSS_INDICES;
+            case CROSS_ENTROPY_LOSS_INDICES_GRAD -> CROSS_ENTROPY_LOSS_INDICES_GRAD;
             case REDUCE_MIN_GRAD -> REDUCE_MIN_GRAD;
             case REDUCE_MAX_GRAD -> REDUCE_MAX_GRAD;
             case MATMUL -> MATMUL;

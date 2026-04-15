@@ -10,6 +10,8 @@ import operations.avgPool2dBackwardInput;
 import operations.clampMax;
 import operations.clampMin;
 import operations.crossEntropyLoss;
+import operations.crossEntropyLossIndices;
+import operations.crossEntropyLossIndicesGrad;
 import operations.conv2d;
 import operations.conv2dGemm;
 import operations.conv2dBackwardInput;
@@ -173,6 +175,13 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case RMS_NORM -> new NormSignature(((rmsNorm) op).getNormalizedRank(), Double.doubleToLongBits(((rmsNorm) op).getEpsilon()));
             case NLL_LOSS -> new AxisSignature(((nllLoss) op).getClassDimension());
             case CROSS_ENTROPY_LOSS -> new AxisSignature(((crossEntropyLoss) op).getClassDimension());
+            case CROSS_ENTROPY_LOSS_INDICES -> IntArrayValue.copyOf(new int[]{
+                    ((crossEntropyLossIndices) op).getClassDimension(),
+                    ((crossEntropyLossIndices) op).getReduction().ordinal(),
+                    ((crossEntropyLossIndices) op).hasIgnoreIndex() ? 1 : 0,
+                    ((crossEntropyLossIndices) op).hasIgnoreIndex() ? ((crossEntropyLossIndices) op).getIgnoreIndex() : 0
+            });
+            case CROSS_ENTROPY_LOSS_INDICES_GRAD -> new AxisSignature(((crossEntropyLossIndicesGrad) op).getClassDimension());
             case REDUCE_MIN -> new ReductionSignature(((reduceMin) op).getDimension(), ((reduceMin) op).keepDims());
             case REDUCE_MAX -> new ReductionSignature(((reduceMax) op).getDimension(), ((reduceMax) op).keepDims());
             case MIN_GRAD -> new InputSelectorSignature(((minGrad) op).isForFirstInput());

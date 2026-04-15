@@ -42,6 +42,7 @@ public class RewriteRule implements OptimizationRule {
         if (resolved.linearLowering().enabled()) {
             delegates.add(new LinearLoweringRewrite());
         }
+        delegates.add(new LossLoweringRewrite());
         if (resolved.conv2dLowering().mode() != Conv2dLoweringMode.OFF) {
             delegates.add(new Conv2dLoweringRewrite(resolved.conv2dLowering()));
         }

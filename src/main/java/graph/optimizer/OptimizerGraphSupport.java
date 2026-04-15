@@ -41,7 +41,23 @@ public final class OptimizerGraphSupport {
         if (graph.isEmpty()) {
             return graph;
         }
+        return rebuildTopologicalClosureFromRoots(consumerFreeSinks(graph));
+    }
 
+    public static List<Tensor> rebuildTopologicalClosureFromRoots(List<Tensor> roots) {
+        if (roots == null || roots.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Tensor> visited = new HashSet<>();
+        List<Tensor> rebuilt = new ArrayList<>();
+        for (Tensor root : roots) {
+            dfsPostOrder(root, visited, rebuilt);
+        }
+        return rebuilt;
+    }
+
+    public static List<Tensor> consumerFreeSinks(List<Tensor> graph) {
         Map<Tensor, Integer> consumerCounts = new HashMap<>();
         for (Tensor tensor : graph) {
             if (tensor.getPrevTensors() == null) {
@@ -58,13 +74,7 @@ public final class OptimizerGraphSupport {
                 sinks.add(tensor);
             }
         }
-
-        Set<Tensor> visited = new HashSet<>();
-        List<Tensor> rebuilt = new ArrayList<>();
-        for (Tensor sink : sinks) {
-            dfsPostOrder(sink, visited, rebuilt);
-        }
-        return rebuilt;
+        return sinks;
     }
 
     private static void dfsPostOrder(Tensor node, Set<Tensor> visited, List<Tensor> out) {

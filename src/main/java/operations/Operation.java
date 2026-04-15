@@ -35,6 +35,8 @@ public interface Operation {
         LOG_SOFTMAX(OpArityClass.SPECIAL, false),
         NLL_LOSS(OpArityClass.SPECIAL, false),
         CROSS_ENTROPY_LOSS(OpArityClass.SPECIAL, false),
+        CROSS_ENTROPY_LOSS_INDICES(OpArityClass.SPECIAL, false),
+        CROSS_ENTROPY_LOSS_INDICES_GRAD(OpArityClass.SPECIAL, false),
         REDUCE_MIN_GRAD(OpArityClass.SPECIAL, false),
         REDUCE_MAX_GRAD(OpArityClass.SPECIAL, false),
         GATHER(OpArityClass.SPECIAL, false),

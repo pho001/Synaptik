@@ -2,11 +2,13 @@ import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
+import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class IndexTargetCrossEntropyLossExecutionTest {
 
@@ -33,11 +35,21 @@ public class IndexTargetCrossEntropyLossExecutionTest {
         Tensor targetIndicesB = new Tensor(new int[]{2, 0}, new int[]{2}, null, "targetIndicesB", DataType.INT32);
 
         Tensor direct = logitsB.crossEntropyLossFromIndices(targetIndicesB, 1);
-        CompiledGraph.compile(direct, OptimizerConfig.trainingDefaults())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph compiledGraph = CompiledGraph.compile(direct, OptimizerConfig.trainingDefaults());
+        compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(referenceLoss, direct.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(referenceGrad, logitsB.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertTrue(compiledGraph.getCompiledGraphAsList().stream()
+                .map(Tensor::getOperation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES));
+        assertTrue(compiledGraph.getCompiledGraphAsList().stream()
+                .map(Tensor::getOperation)
+                .filter(op -> op != null)
+                .map(Operation::opType)
+                .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD));
     }
 
     @Test

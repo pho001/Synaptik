@@ -399,7 +399,7 @@ public class CompiledGraph {
             case ADD, SUB, MUL, DIV, MIN, MAX ->
                     isSupportedBinaryContinuationConsumer(consumer, tensor);
             case SUM, MEAN, SOFTMAX, LOG_SOFTMAX -> isSupportedReductionContinuationConsumer(consumer, tensor);
-            case NLL_LOSS, CROSS_ENTROPY_LOSS -> isSupportedDenseLossContinuationConsumer(consumer, tensor);
+            case NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES -> isSupportedDenseLossContinuationConsumer(consumer, tensor);
             case FUSED -> isSupportedFusedContinuationConsumer((FusedOperation) consumer.getOperation(), consumer, tensor);
             default -> false;
         };
