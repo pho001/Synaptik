@@ -600,7 +600,8 @@ final class ScaledDotProductAttentionExecutor {
                 dWeights.getFloat64Data(),
                 dScores.getFloat64Data(),
                 weights.getShapeUnsafe(),
-                spec.scale()
+                spec.scale(),
+                context
         );
 
         runMatMulF64(dScores, spec.key(), queryGrad, context);
@@ -627,7 +628,8 @@ final class ScaledDotProductAttentionExecutor {
                 dWeights.getFloat32Data(),
                 dScores.getFloat32Data(),
                 weights.getShapeUnsafe(),
-                (float) spec.scale()
+                (float) spec.scale(),
+                context
         );
 
         runMatMulF32(dScores, spec.key(), queryGrad, context);
@@ -1516,22 +1518,59 @@ final class ScaledDotProductAttentionExecutor {
             double[] dWeights,
             double[] dScores,
             int[] shape,
-            double scale
+            double scale,
+            CpuKernelContext context
     ) {
         int rowLength = shape[shape.length - 1];
         int rowCount = product(shape) / rowLength;
+        ResolvedAttentionHints hints = context.planner().resolveAttentionHints(
+                rowCount,
+                rowLength,
+                rowLength,
+                new ResolvedCpuComputeContract(
+                        DataType.FLOAT64,
+                        CpuComputeDType.F64,
+                        CpuExecutionBackend.CPU_REDUCTION,
+                        backend.kernels.cpu.CpuAccumulateDType.F64
+                )
+        );
+        if (hints.parallel() && rowCount > 1) {
+            int rowsPerChunk = hints.taskChunkSize();
+            int chunks = (rowCount + rowsPerChunk - 1) / rowsPerChunk;
+            CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
+                int start = chunk * rowsPerChunk;
+                int end = Math.min(start + rowsPerChunk, rowCount);
+                computeSoftmaxGradRowsF64Range(weights, dWeights, dScores, rowLength, scale, start, end, hints.vectorized());
+            });
+            return;
+        }
+        computeSoftmaxGradRowsF64Range(weights, dWeights, dScores, rowLength, scale, 0, rowCount, hints.vectorized());
+    }
+
+    private static void computeSoftmaxGradRowsF64Range(
+            double[] weights,
+            double[] dWeights,
+            double[] dScores,
+            int rowLength,
+            double scale,
+            int rowStart,
+            int rowEnd,
+            boolean vectorized
+    ) {
         int upper = F64.loopBound(rowLength);
         DoubleVector scaleVector = DoubleVector.broadcast(F64, scale);
-        for (int row = 0; row < rowCount; row++) {
+        for (int row = rowStart; row < rowEnd; row++) {
             int base = row * rowLength;
-            double dot = dotF64(weights, base, dWeights, base, rowLength, true);
+            double dot = dotF64(weights, base, dWeights, base, rowLength, vectorized);
             DoubleVector dotVector = DoubleVector.broadcast(F64, dot);
             int i = 0;
-            for (; i < upper; i += F64.length()) {
-                DoubleVector.fromArray(F64, weights, base + i)
-                        .mul(DoubleVector.fromArray(F64, dWeights, base + i).sub(dotVector))
-                        .mul(scaleVector)
-                        .intoArray(dScores, base + i);
+            if (vectorized) {
+                for (; i < upper; i += F64.length()) {
+                    DoubleVector.fromArray(F64, weights, base + i)
+                            .mul(DoubleVector.fromArray(F64, dWeights, base + i).sub(dotVector))
+                            .mul(scaleVector)
+                            .intoArray(dScores, base + i);
+                }
             }
             for (; i < rowLength; i++) {
                 dScores[base + i] = weights[base + i] * (dWeights[base + i] - dot) * scale;
@@ -1544,22 +1583,59 @@ final class ScaledDotProductAttentionExecutor {
             float[] dWeights,
             float[] dScores,
             int[] shape,
-            float scale
+            float scale,
+            CpuKernelContext context
     ) {
         int rowLength = shape[shape.length - 1];
         int rowCount = product(shape) / rowLength;
+        ResolvedAttentionHints hints = context.planner().resolveAttentionHints(
+                rowCount,
+                rowLength,
+                rowLength,
+                new ResolvedCpuComputeContract(
+                        DataType.FLOAT32,
+                        CpuComputeDType.F32,
+                        CpuExecutionBackend.CPU_REDUCTION,
+                        backend.kernels.cpu.CpuAccumulateDType.F64
+                )
+        );
+        if (hints.parallel() && rowCount > 1) {
+            int rowsPerChunk = hints.taskChunkSize();
+            int chunks = (rowCount + rowsPerChunk - 1) / rowsPerChunk;
+            CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
+                int start = chunk * rowsPerChunk;
+                int end = Math.min(start + rowsPerChunk, rowCount);
+                computeSoftmaxGradRowsF32Range(weights, dWeights, dScores, rowLength, scale, start, end, hints.vectorized());
+            });
+            return;
+        }
+        computeSoftmaxGradRowsF32Range(weights, dWeights, dScores, rowLength, scale, 0, rowCount, hints.vectorized());
+    }
+
+    private static void computeSoftmaxGradRowsF32Range(
+            float[] weights,
+            float[] dWeights,
+            float[] dScores,
+            int rowLength,
+            float scale,
+            int rowStart,
+            int rowEnd,
+            boolean vectorized
+    ) {
         int upper = F32.loopBound(rowLength);
         FloatVector scaleVector = FloatVector.broadcast(F32, scale);
-        for (int row = 0; row < rowCount; row++) {
+        for (int row = rowStart; row < rowEnd; row++) {
             int base = row * rowLength;
-            float dot = dotF32(weights, base, dWeights, base, rowLength, true);
+            float dot = dotF32(weights, base, dWeights, base, rowLength, vectorized);
             FloatVector dotVector = FloatVector.broadcast(F32, dot);
             int i = 0;
-            for (; i < upper; i += F32.length()) {
-                FloatVector.fromArray(F32, weights, base + i)
-                        .mul(FloatVector.fromArray(F32, dWeights, base + i).sub(dotVector))
-                        .mul(scaleVector)
-                        .intoArray(dScores, base + i);
+            if (vectorized) {
+                for (; i < upper; i += F32.length()) {
+                    FloatVector.fromArray(F32, weights, base + i)
+                            .mul(FloatVector.fromArray(F32, dWeights, base + i).sub(dotVector))
+                            .mul(scaleVector)
+                            .intoArray(dScores, base + i);
+                }
             }
             for (; i < rowLength; i++) {
                 dScores[base + i] = weights[base + i] * (dWeights[base + i] - dot) * scale;
