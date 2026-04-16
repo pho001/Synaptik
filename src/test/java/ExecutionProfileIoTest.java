@@ -102,12 +102,44 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().kernel().cpu().minReductionChunkSize(), actual.runtime().kernel().cpu().minReductionChunkSize());
         assertEquals(expected.runtime().kernel().cpu().commonPoolLowCostMaxWorkPerWorker(), actual.runtime().kernel().cpu().commonPoolLowCostMaxWorkPerWorker());
         assertEquals(expected.runtime().kernel().cpu().attentionMatMulPolicy(), actual.runtime().kernel().cpu().attentionMatMulPolicy());
+        assertEquals(expected.runtime().kernel().cpu().attentionMatMulTileM(), actual.runtime().kernel().cpu().attentionMatMulTileM());
+        assertEquals(expected.runtime().kernel().cpu().attentionMatMulTileN(), actual.runtime().kernel().cpu().attentionMatMulTileN());
+        assertEquals(expected.runtime().kernel().cpu().attentionMatMulTileK(), actual.runtime().kernel().cpu().attentionMatMulTileK());
         assertEquals(expected.runtime().kernel().cpu().matMulMicroKernel(), actual.runtime().kernel().cpu().matMulMicroKernel());
+        assertEquals(expected.runtime().kernel().cpu().attentionMatMulMicroKernel(), actual.runtime().kernel().cpu().attentionMatMulMicroKernel());
         assertEquals(expected.runtime().blas().provider(), actual.runtime().blas().provider());
         assertEquals(expected.runtime().blas().threads(), actual.runtime().blas().threads());
         assertEquals(expected.runtime().approximation().approxMode(), actual.runtime().approximation().approxMode());
         assertEquals(expected.runtime().fused(), actual.runtime().fused());
         assertEquals(expected.workload(), actual.workload());
+    }
+
+    @Test
+    void oldProfilesFallbackAttentionMatmulMicroKernelToGenericMatmulMicroKernel() {
+        ExecutionProfile fallback = defaultProfile();
+        String json = """
+                {
+                  "dataType": "FLOAT32",
+                  "mode": "FORWARD_BACKWARD",
+                  "profileName": "legacy",
+                  "candidateName": "legacy",
+                  "runtime": {
+                    "kernel": {
+                      "cpu": {
+                        "cpuMatMulMicroKernel": "F32_4X2"
+                      }
+                    }
+                  }
+                }
+                """;
+
+        ExecutionProfile actual = ExecutionProfileIO.fromJsonOrDefault(json, fallback);
+
+        assertEquals(CpuMatMulMicroKernel.F32_4X2, actual.runtime().kernel().cpu().matMulMicroKernel());
+        assertEquals(CpuMatMulMicroKernel.F32_4X2, actual.runtime().kernel().cpu().attentionMatMulMicroKernel());
+        assertEquals(actual.runtime().kernel().cpu().matMulTileM(), actual.runtime().kernel().cpu().attentionMatMulTileM());
+        assertEquals(actual.runtime().kernel().cpu().matMulTileN(), actual.runtime().kernel().cpu().attentionMatMulTileN());
+        assertEquals(actual.runtime().kernel().cpu().matMulTileK(), actual.runtime().kernel().cpu().attentionMatMulTileK());
     }
 
     private static ExecutionProfile defaultProfile() {

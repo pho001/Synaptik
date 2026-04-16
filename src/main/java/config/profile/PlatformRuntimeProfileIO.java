@@ -57,8 +57,12 @@ public final class PlatformRuntimeProfileIO {
                 "    \"matMulTileM\": " + profile.matmul().matMulTileM() + ",\n" +
                 "    \"matMulTileN\": " + profile.matmul().matMulTileN() + ",\n" +
                 "    \"matMulTileK\": " + profile.matmul().matMulTileK() + ",\n" +
+                "    \"attentionMatMulTileM\": " + profile.matmul().attentionMatMulTileM() + ",\n" +
+                "    \"attentionMatMulTileN\": " + profile.matmul().attentionMatMulTileN() + ",\n" +
+                "    \"attentionMatMulTileK\": " + profile.matmul().attentionMatMulTileK() + ",\n" +
                 "    \"matMulParallelMinSize\": " + profile.matmul().matMulParallelMinSize() + ",\n" +
-                "    \"matMulMicroKernel\": \"" + profile.matmul().matMulMicroKernel().name() + "\"\n" +
+                "    \"matMulMicroKernel\": \"" + profile.matmul().matMulMicroKernel().name() + "\",\n" +
+                "    \"attentionMatMulMicroKernel\": \"" + profile.matmul().attentionMatMulMicroKernel().name() + "\"\n" +
                 "  },\n" +
                 "  \"fused\": {\n" +
                 "    \"fusedCheapVectorMinSize\": " + profile.fused().fusedCheapVectorMinSize() + ",\n" +
@@ -79,6 +83,8 @@ public final class PlatformRuntimeProfileIO {
                 "  \"reduction\": {\n" +
                 "    \"reductionVectorMinSize\": " + profile.reduction().reductionVectorMinSize() + ",\n" +
                 "    \"reductionParallelMinSize\": " + profile.reduction().reductionParallelMinSize() + ",\n" +
+                "    \"attentionVectorMinSize\": " + profile.reduction().attentionVectorMinSize() + ",\n" +
+                "    \"attentionParallelMinSize\": " + profile.reduction().attentionParallelMinSize() + ",\n" +
                 "    \"sumAccuracyMode\": \"" + profile.reduction().sumAccuracyMode().name() + "\"\n" +
                 "  },\n" +
                 "  \"scheduler\": {\n" +
@@ -118,6 +124,15 @@ public final class PlatformRuntimeProfileIO {
         }
         try {
             PlatformProfileMetadata m = fallback.metadata();
+            CpuMatMulMicroKernel loadedMatMulMicroKernel = findEnum(
+                    json,
+                    "matMulMicroKernel",
+                    fallback.matmul().matMulMicroKernel(),
+                    CpuMatMulMicroKernel.class
+            );
+            int loadedMatMulTileM = findInt(json, "matMulTileM", fallback.matmul().matMulTileM());
+            int loadedMatMulTileN = findInt(json, "matMulTileN", fallback.matmul().matMulTileN());
+            int loadedMatMulTileK = findInt(json, "matMulTileK", fallback.matmul().matMulTileK());
             return new PlatformRuntimeProfile(
                     new PlatformProfileMetadata(
                             findString(json, "platformProfileId", m.platformProfileId()),
@@ -137,11 +152,20 @@ public final class PlatformRuntimeProfileIO {
                             findBoolean(json, "f32RequireMgeK", fallback.matmul().f32RequireMgeK()),
                             findDouble(json, "f32MaxNOverK", fallback.matmul().f32MaxNOverK()),
                             findInt(json, "loopUnrollFactor", fallback.matmul().loopUnrollFactor()),
-                            findInt(json, "matMulTileM", fallback.matmul().matMulTileM()),
-                            findInt(json, "matMulTileN", fallback.matmul().matMulTileN()),
-                            findInt(json, "matMulTileK", fallback.matmul().matMulTileK()),
+                            loadedMatMulTileM,
+                            loadedMatMulTileN,
+                            loadedMatMulTileK,
+                            findInt(json, "attentionMatMulTileM", loadedMatMulTileM),
+                            findInt(json, "attentionMatMulTileN", loadedMatMulTileN),
+                            findInt(json, "attentionMatMulTileK", loadedMatMulTileK),
                             findInt(json, "matMulParallelMinSize", fallback.matmul().matMulParallelMinSize()),
-                            findEnum(json, "matMulMicroKernel", fallback.matmul().matMulMicroKernel(), CpuMatMulMicroKernel.class)
+                            loadedMatMulMicroKernel,
+                            findEnum(
+                                    json,
+                                    "attentionMatMulMicroKernel",
+                                    loadedMatMulMicroKernel,
+                                    CpuMatMulMicroKernel.class
+                            )
                     ),
                     new FusedPlatformProfile(
                             findInt(json, "fusedCheapVectorMinSize", fallback.fused().fusedCheapVectorMinSize()),
@@ -178,6 +202,8 @@ public final class PlatformRuntimeProfileIO {
                     new ReductionPlatformProfile(
                             findInt(json, "reductionVectorMinSize", fallback.reduction().reductionVectorMinSize()),
                             findInt(json, "reductionParallelMinSize", fallback.reduction().reductionParallelMinSize()),
+                            findInt(json, "attentionVectorMinSize", fallback.reduction().attentionVectorMinSize()),
+                            findInt(json, "attentionParallelMinSize", fallback.reduction().attentionParallelMinSize()),
                             findEnum(json, "sumAccuracyMode", fallback.reduction().sumAccuracyMode(), SumAccuracyMode.class)
                     ),
                     new SchedulerPlatformProfile(

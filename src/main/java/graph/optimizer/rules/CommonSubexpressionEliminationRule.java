@@ -24,6 +24,8 @@ import operations.layerNorm;
 import operations.maxPool2d;
 import operations.maxPool2dBackwardInput;
 import operations.scatterAdd;
+import operations.scaledDotProductAttention;
+import operations.scaledDotProductAttentionBackward;
 import operations.takeAlongAxis;
 import operations.takeAlongAxisGrad;
 import operations.maxGrad;
@@ -40,12 +42,14 @@ import operations.reduceMin;
 import operations.reduceMinGrad;
 import operations.reshape;
 import operations.logSoftmax;
+import operations.logSoftmaxGrad;
 import operations.linear;
 import operations.rmsNorm;
 import operations.select;
 import operations.squeeze;
 import operations.sum;
 import operations.softmax;
+import operations.softmaxGrad;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -170,7 +174,9 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case SUM -> new ReductionSignature(((sum) op).getDimension(), ((sum) op).keepDims());
             case MEAN -> new ReductionSignature(((mean) op).getDimension(), ((mean) op).keepDims());
             case SOFTMAX -> new AxisSignature(((softmax) op).getDimension());
+            case SOFTMAX_GRAD -> new AxisSignature(((softmaxGrad) op).getDimension());
             case LOG_SOFTMAX -> new AxisSignature(((logSoftmax) op).getDimension());
+            case LOG_SOFTMAX_GRAD -> new AxisSignature(((logSoftmaxGrad) op).getDimension());
             case LAYER_NORM -> new NormSignature(((layerNorm) op).getNormalizedRank(), Double.doubleToLongBits(((layerNorm) op).getEpsilon()));
             case RMS_NORM -> new NormSignature(((rmsNorm) op).getNormalizedRank(), Double.doubleToLongBits(((rmsNorm) op).getEpsilon()));
             case NLL_LOSS -> new AxisSignature(((nllLoss) op).getClassDimension());
@@ -198,6 +204,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case TAKE_ALONG_AXIS -> new AxisSignature(((takeAlongAxis) op).getDimension());
             case TAKE_ALONG_AXIS_GRAD -> new AxisSignature(((takeAlongAxisGrad) op).getDimension());
             case SCATTER_ADD -> new AxisSignature(((scatterAdd) op).getDimension());
+            case SCALED_DOT_PRODUCT_ATTENTION -> new AttentionSignature(Double.doubleToLongBits(((scaledDotProductAttention) op).getScale()), ((scaledDotProductAttention) op).hasMask());
+            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> IntArrayValue.copyOf(new int[]{((scaledDotProductAttentionBackward) op).getOutputKind().ordinal()});
             case LINEAR -> new InputSelectorSignature(((linear) op).hasBias());
             case CONV2D -> conv2dSignature(((conv2d) op).getOptions(), ((conv2d) op).hasBias() ? 1 : 0);
             case CONV2D_GEMM -> conv2dSignature(((conv2dGemm) op).getOptions(), ((conv2dGemm) op).hasBias() ? 2 : 3);
@@ -270,7 +278,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
     private sealed interface SignatureComponent
             permits StructuralSignature, IdentityLeafSignature, ScalarLeafSignature,
             NoParamsSignature, AxisSignature, ReductionSignature, InputSelectorSignature,
-            DoubleValue, IntArrayValue, NormSignature {
+            DoubleValue, IntArrayValue, NormSignature, AttentionSignature {
 
         String sortKey();
     }
@@ -367,6 +375,13 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         @Override
         public String sortKey() {
             return "norm:" + normalizedRank + ":" + epsilonBits;
+        }
+    }
+
+    private record AttentionSignature(long scaleBits, boolean hasMask) implements SignatureComponent {
+        @Override
+        public String sortKey() {
+            return "attention:" + scaleBits + ":" + hasMask;
         }
     }
 }

@@ -37,6 +37,7 @@ public class PlatformCalibrationDefaultsTest {
         assertEquals("test-platform", request.platformId());
         assertFalse(request.steps().isEmpty());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_STRIDED));
@@ -72,8 +73,9 @@ public class PlatformCalibrationDefaultsTest {
                 Path.of("build", "test-platform-profile.json")
         );
 
-        assertEquals(11, request.steps().size());
+        assertEquals(13, request.steps().size());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_STRIDED));
@@ -198,6 +200,29 @@ public class PlatformCalibrationDefaultsTest {
         assertEquals(base.fused().fusedCheapStridedAsmVectorWidth(), width8.runtimeProfile().fused().fusedCheapStridedAsmVectorWidth());
         assertEquals(base.fused().fusedNonCheapContiguousAsmVectorWidth(), width8.runtimeProfile().fused().fusedNonCheapContiguousAsmVectorWidth());
         assertEquals(base.fused().fusedNonCheapStridedAsmVectorWidth(), width8.runtimeProfile().fused().fusedNonCheapStridedAsmVectorWidth());
+    }
+
+    @Test
+    void attentionMatmulStepGeneratesAttentionSpecificTileCandidates() {
+        var step = PlatformCalibrationDefaults.attentionMatmulStep("attention-matmul", TuningPreset.QUICK);
+
+        PlatformRuntimeProfile base = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform-f32",
+                "hw",
+                "TEST",
+                new ExecutionProfile(
+                        "seed-f32",
+                        "seed-f32",
+                        tensor.DataType.FLOAT32,
+                        ExecutionMode.FORWARD_BACKWARD,
+                        config.optimizer.OptimizerConfig.trainingDefaults(),
+                        config.runtime.RuntimeConfig.trainingDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+
+        var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
+        assertTrue(candidates.stream().anyMatch(candidate -> candidate.knobAssignments().containsKey("cpu.attentionMatMulTileM")));
     }
 
     @Test

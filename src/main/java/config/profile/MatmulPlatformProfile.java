@@ -15,11 +15,19 @@ public record MatmulPlatformProfile(
         int matMulTileM,
         int matMulTileN,
         int matMulTileK,
+        int attentionMatMulTileM,
+        int attentionMatMulTileN,
+        int attentionMatMulTileK,
         int matMulParallelMinSize,
-        CpuMatMulMicroKernel matMulMicroKernel
+        CpuMatMulMicroKernel matMulMicroKernel,
+        CpuMatMulMicroKernel attentionMatMulMicroKernel
 ) {
     public MatmulPlatformProfile {
         blasProvider = Objects.requireNonNull(blasProvider, "blasProvider cannot be null");
+        attentionMatMulTileM = attentionMatMulTileM <= 0 ? matMulTileM : attentionMatMulTileM;
+        attentionMatMulTileN = attentionMatMulTileN <= 0 ? matMulTileN : attentionMatMulTileN;
+        attentionMatMulTileK = attentionMatMulTileK <= 0 ? matMulTileK : attentionMatMulTileK;
         matMulMicroKernel = matMulMicroKernel == null ? CpuMatMulMicroKernel.AUTO : matMulMicroKernel;
+        attentionMatMulMicroKernel = attentionMatMulMicroKernel == null ? matMulMicroKernel : attentionMatMulMicroKernel;
     }
 }

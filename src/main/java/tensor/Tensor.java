@@ -25,6 +25,7 @@ public class Tensor {
     private List<Tensor> prevTensors=new ArrayList<>();
     private ComputeBackend forcedBackend = null;
     private double [] intermediates;
+    private Object runtimeCache;
     private Runnable backwardFunction;
     private boolean isBackward = false;
 
@@ -1135,6 +1136,14 @@ public class Tensor {
 
     public void setBackwardFunction(Runnable backwardFunction) {
         this.backwardFunction = backwardFunction;
+    }
+
+    public Object getRuntimeCache() {
+        return runtimeCache;
+    }
+
+    public void setRuntimeCache(Object runtimeCache) {
+        this.runtimeCache = runtimeCache;
     }
 
     private void initEmptyStorage() {

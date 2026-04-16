@@ -2,6 +2,7 @@ package tuning.session;
 
 public enum PlatformCalibrationFamily {
     MATMUL,
+    ATTENTION_MATMUL,
     FUSED_THRESHOLDS,
     FUSED_CHEAP_CONTIGUOUS,
     FUSED_CHEAP_STRIDED,
@@ -10,6 +11,7 @@ public enum PlatformCalibrationFamily {
     FUSED_ARITHMETIC,
     ELEMENTWISE_DISPATCH,
     REDUCTION,
+    ATTENTION_THRESHOLDS,
     SCHEDULER,
     MATERIALIZATION,
     CONV2D,

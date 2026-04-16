@@ -164,6 +164,30 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
+    public static PlatformCalibrationStep attentionMatmulStep(String name, TuningPreset preset) {
+        return new PlatformCalibrationStep(
+                name,
+                PlatformCalibrationFamily.ATTENTION_MATMUL,
+                List.of(
+                        CalibrationWorkloads.maskedAttention(name + "_workload_medium", 4, 8, 64, 32, 32),
+                        CalibrationWorkloads.maskedAttention(name + "_workload_large", 4, 8, 128, 32, 32)
+                ),
+                preset,
+                base -> new PlatformRuntimeProfileGridCandidateSpace(
+                        base,
+                        List.of(
+                                PlatformRuntimeProfileMutators.attentionMatmulMicroKernels(
+                                        supportedMatMulMicroKernels(seedProfileDataType(base))
+                                ),
+                                PlatformRuntimeProfileMutators.attentionMatmulTiles(
+                                        supportedAttentionMatMulTiles(seedProfileDataType(base))
+                                )
+                        )
+                ),
+                PlatformCalibrationScorePolicy.weightedGeometricMeanWithWorstBucketPenalty(0.25d)
+        );
+    }
+
     private static DataType seedProfileDataType(config.profile.PlatformRuntimeProfile base) {
         return base.metadata().dataType();
     }
@@ -191,6 +215,30 @@ public final class PlatformCalibrationDefaults {
                     new PlatformRuntimeProfileMutators.MatmulTiles(16, 64, 32),
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 32),
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64)
+            );
+            case FLOAT32 -> List.of(
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 128),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 256, 128)
+            );
+            default -> List.of(
+                    new PlatformRuntimeProfileMutators.MatmulTiles(
+                            CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M,
+                            CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N,
+                            CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K
+                    )
+            );
+        };
+    }
+
+    private static List<PlatformRuntimeProfileMutators.MatmulTiles> supportedAttentionMatMulTiles(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> List.of(
+                    new PlatformRuntimeProfileMutators.MatmulTiles(16, 64, 32),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 32),
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64)
             );
             case FLOAT32 -> List.of(
@@ -341,6 +389,8 @@ public final class PlatformCalibrationDefaults {
         steps.add(elementwiseDispatchStep(prefix + "-elementwise", preset));
         if (includeReduction) {
             steps.add(reductionStep(prefix + "-reduction", preset));
+            steps.add(attentionStep(prefix + "-attention", preset));
+            steps.add(attentionMatmulStep(prefix + "-attention-matmul", preset));
         }
         if (includeScheduler) {
             steps.add(schedulerStep(prefix + "-scheduler", preset));
@@ -369,6 +419,8 @@ public final class PlatformCalibrationDefaults {
         steps.add(elementwiseDispatchStep(prefix + "-elementwise-train", preset));
         if (includeReduction) {
             steps.add(reductionStep(prefix + "-reduction-train", preset));
+            steps.add(attentionStep(prefix + "-attention-train", preset));
+            steps.add(attentionMatmulStep(prefix + "-attention-matmul-train", preset));
         }
         if (includeScheduler) {
             steps.add(schedulerStep(prefix + "-scheduler-train", preset));
@@ -438,6 +490,28 @@ public final class PlatformCalibrationDefaults {
                         )
                 ),
                 PlatformCalibrationScorePolicy.averageMedianMs()
+        );
+    }
+
+    public static PlatformCalibrationStep attentionStep(String name, TuningPreset preset) {
+        return new PlatformCalibrationStep(
+                name,
+                PlatformCalibrationFamily.ATTENTION_THRESHOLDS,
+                List.of(
+                        CalibrationWorkloads.maskedAttention(name + "_workload_medium", 4, 8, 64, 32, 32),
+                        CalibrationWorkloads.maskedAttention(name + "_workload_large", 4, 8, 128, 32, 32)
+                ),
+                preset,
+                base -> new PlatformRuntimeProfileGridCandidateSpace(
+                        base,
+                        List.of(
+                                PlatformRuntimeProfileMutators.attentionThresholds(
+                                        List.of(512, 2_048, 8_192, 16_384),
+                                        List.of(2_048, 8_192, 16_384, 32_768)
+                                )
+                        )
+                ),
+                PlatformCalibrationScorePolicy.weightedGeometricMeanWithWorstBucketPenalty(0.25d)
         );
     }
 

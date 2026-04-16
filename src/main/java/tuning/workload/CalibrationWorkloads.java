@@ -1,5 +1,9 @@
 package tuning.workload;
 
+import backend.kernels.cpu.CpuDTypeOps;
+import backend.runtime.ExecutionMode;
+import tensor.DataType;
+import tensor.Tensor;
 import tuning.validate.ValidationReference;
 
 public final class CalibrationWorkloads {
@@ -109,6 +113,34 @@ public final class CalibrationWorkloads {
         );
     }
 
+    public static TensorRootWorkloadSpec maskedAttention(String name, int batch, int heads, int tokens, int headDim, int valueDim) {
+        return new TensorRootWorkloadSpec(
+                name,
+                WorkloadKind.GENERIC,
+                environment -> {
+                    DataType dataType = environment.profile().dataType();
+                    ExecutionMode mode = environment.profile().mode();
+                    Tensor q = tensor(queryData(batch, heads, tokens, headDim), new int[]{batch, heads, tokens, headDim}, "q", dataType);
+                    Tensor k = tensor(keyData(batch, heads, tokens, headDim), new int[]{batch, heads, tokens, headDim}, "k", dataType);
+                    Tensor v = tensor(valueData(batch, heads, tokens, valueDim), new int[]{batch, heads, tokens, valueDim}, "v", dataType);
+                    if (mode == ExecutionMode.FORWARD_BACKWARD) {
+                        q.setRequiresGrad(true);
+                        k.setRequiresGrad(true);
+                        v.setRequiresGrad(true);
+                    }
+                    Tensor mask = new Tensor(maskData(batch, heads, tokens), new int[]{batch, heads, tokens, tokens}, null, "mask", DataType.BOOL);
+                    double scale = 1.0d / Math.sqrt(headDim);
+                    Tensor scores = q.matmul(k.permute(0, 1, 3, 2)).mul(scale);
+                    Tensor out = Tensor.where(mask, scores, Tensor.scalar(maskFillValue(dataType), dataType))
+                            .softmax(3)
+                            .matmul(v);
+                    return mode == ExecutionMode.FORWARD ? out : out.sum();
+                },
+                environment -> ValidationReference.none(),
+                environment -> WorkloadMetadata.of(name, WorkloadKind.GENERIC)
+        );
+    }
+
     public static TensorRootWorkloadSpec schedulerCheapParallel(String name, int size) {
         return new TensorRootWorkloadSpec(
                 name,
@@ -156,6 +188,83 @@ public final class CalibrationWorkloads {
         double[] out = new double[size];
         for (int i = 0; i < size; i++) {
             out[i] = Math.sin(i * 0.013 + seed * 0.07) + (random.nextDouble() - 0.5) * 0.1;
+        }
+        return out;
+    }
+
+    private static Tensor tensor(double[] values, int[] shape, String label, DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> new Tensor(values.clone(), shape, null, label, DataType.FLOAT64);
+            case FLOAT32 -> new Tensor(toF32(values), shape, null, label, DataType.FLOAT32);
+            case BFLOAT16 -> new Tensor(toBf16(values), shape, null, label, DataType.BFLOAT16);
+            case INT32, BOOL -> throw new IllegalArgumentException("attention workload requires floating dtype");
+        };
+    }
+
+    private static float[] toF32(double[] src) {
+        float[] out = new float[src.length];
+        for (int i = 0; i < src.length; i++) {
+            out[i] = (float) src[i];
+        }
+        return out;
+    }
+
+    private static short[] toBf16(double[] src) {
+        short[] out = new short[src.length];
+        for (int i = 0; i < src.length; i++) {
+            out[i] = CpuDTypeOps.toBFloat16Bits((float) src[i]);
+        }
+        return out;
+    }
+
+    private static double maskFillValue(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> -1.0e30d;
+            case FLOAT32 -> -1.0e9d;
+            case BFLOAT16 -> -1.0e9d;
+            case INT32, BOOL -> throw new IllegalArgumentException("attention workload requires floating dtype");
+        };
+    }
+
+    private static double[] queryData(int batch, int heads, int tokens, int headDim) {
+        int size = batch * heads * tokens * headDim;
+        double[] out = new double[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = Math.sin(i * 0.013) + Math.cos(i * 0.003) * 0.25 + (i % 7) * 0.03125;
+        }
+        return out;
+    }
+
+    private static double[] keyData(int batch, int heads, int tokens, int headDim) {
+        int size = batch * heads * tokens * headDim;
+        double[] out = new double[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = Math.cos(i * 0.017) + Math.sin(i * 0.005) * 0.2 + (i % 11) * 0.015625;
+        }
+        return out;
+    }
+
+    private static double[] valueData(int batch, int heads, int tokens, int valueDim) {
+        int size = batch * heads * tokens * valueDim;
+        double[] out = new double[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = Math.sin(i * 0.019) * 0.75 + Math.cos(i * 0.007) * 0.5 + ((i / valueDim) % 13) * 0.015625;
+        }
+        return out;
+    }
+
+    private static byte[] maskData(int batch, int heads, int tokens) {
+        int size = batch * heads * tokens * tokens;
+        byte[] out = new byte[size];
+        for (int b = 0; b < batch; b++) {
+            for (int h = 0; h < heads; h++) {
+                for (int q = 0; q < tokens; q++) {
+                    for (int k = 0; k < tokens; k++) {
+                        int index = ((b * heads + h) * tokens + q) * tokens + k;
+                        out[index] = (byte) ((k <= q || ((q + k + h) & 3) != 0) ? 1 : 0);
+                    }
+                }
+            }
         }
         return out;
     }

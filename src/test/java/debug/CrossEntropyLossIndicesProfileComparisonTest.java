@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.LossReduction;
 import tensor.Tensor;
-import tuning.measure.MeasurementPolicy;
 import tuning.report.TextBenchmarkReportRenderer;
 import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkRequest;
@@ -23,16 +22,7 @@ import java.util.List;
 final class CrossEntropyLossIndicesProfileComparisonTest {
     private static final int BATCH = 2048;
     private static final int CLASSES = 256;
-    private static final MeasurementPolicy MEASUREMENT = new MeasurementPolicy(
-            10,
-            30,
-            3,
-            true,
-            true,
-            true,
-            true,
-            false
-    );
+    private static final tuning.measure.MeasurementPolicy MEASUREMENT = DebugMeasurementPolicies.STANDARD;
 
     @Test
     void benchmarkForward() {

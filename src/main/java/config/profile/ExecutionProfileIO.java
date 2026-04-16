@@ -129,21 +129,32 @@ public final class ExecutionProfileIO {
             );
 
             KernelTuningConfig defaultKernel = defaultProfile.runtime().kernel();
+            CpuMatMulMicroKernel loadedMatMulMicroKernel = findEnum(
+                    json,
+                    "cpuMatMulMicroKernel",
+                    defaultKernel.cpu().matMulMicroKernel(),
+                    CpuMatMulMicroKernel.class
+            );
+            int loadedMatMulTileM = findInt(json, "cpuMatMulTileM", defaultKernel.cpu().matMulTileM());
+            int loadedMatMulTileN = findInt(json, "cpuMatMulTileN", defaultKernel.cpu().matMulTileN());
+            int loadedMatMulTileK = findInt(json, "cpuMatMulTileK", defaultKernel.cpu().matMulTileK());
             CpuKernelConfig cpu = new CpuKernelConfig(
                     findInt(json, "cpuLoopUnrollFactor", defaultKernel.cpu().loopUnrollFactor()),
-                    findInt(json, "cpuMatMulTileM", defaultKernel.cpu().matMulTileM()),
-                    findInt(json, "cpuMatMulTileN", defaultKernel.cpu().matMulTileN()),
-                    findInt(json, "cpuMatMulTileK", defaultKernel.cpu().matMulTileK()),
+                    loadedMatMulTileM,
+                    loadedMatMulTileN,
+                    loadedMatMulTileK,
                     findInt(json, "cpuCheapVectorMinSize", defaultKernel.cpu().cheapVectorMinSize()),
                     findInt(json, "cpuTranscendentalVectorMinSize", defaultKernel.cpu().transcendentalVectorMinSize()),
                     findInt(json, "cpuFusedCheapVectorMinSize", defaultKernel.cpu().fusedCheapVectorMinSize()),
                     findInt(json, "cpuFusedTranscendentalVectorMinSize", defaultKernel.cpu().fusedTranscendentalVectorMinSize()),
                     findInt(json, "cpuReductionVectorMinSize", defaultKernel.cpu().reductionVectorMinSize()),
+                    findInt(json, "cpuAttentionVectorMinSize", defaultKernel.cpu().attentionVectorMinSize()),
                     findInt(json, "cpuCheapParallelMinSize", defaultKernel.cpu().cheapParallelMinSize()),
                     findInt(json, "cpuTranscendentalParallelMinSize", defaultKernel.cpu().transcendentalParallelMinSize()),
                     findInt(json, "cpuFusedCheapParallelMinSize", defaultKernel.cpu().fusedCheapParallelMinSize()),
                     findInt(json, "cpuFusedTranscendentalParallelMinSize", defaultKernel.cpu().fusedTranscendentalParallelMinSize()),
                     findInt(json, "cpuReductionParallelMinSize", defaultKernel.cpu().reductionParallelMinSize()),
+                    findInt(json, "cpuAttentionParallelMinSize", defaultKernel.cpu().attentionParallelMinSize()),
                     findInt(json, "cpuContiguousMaterializeThreshold", defaultKernel.cpu().contiguousMaterializeThreshold()),
                     findInt(json, "cpuLowCostTargetChunksPerWorker", defaultKernel.cpu().lowCostTargetChunksPerWorker()),
                     findInt(json, "cpuMediumCostTargetChunksPerWorker", defaultKernel.cpu().mediumCostTargetChunksPerWorker()),
@@ -175,7 +186,16 @@ public final class ExecutionProfileIO {
                     findEnum(json, "cpuSumAccuracyMode", defaultKernel.cpu().sumAccuracyMode(), SumAccuracyMode.class),
                     findInt(json, "cpuMatMulParallelMinSize", defaultKernel.cpu().matMulParallelMinSize()),
                     findEnum(json, "cpuAttentionMatMulPolicy", defaultKernel.cpu().attentionMatMulPolicy(), AttentionMatMulPolicy.class),
-                    findEnum(json, "cpuMatMulMicroKernel", defaultKernel.cpu().matMulMicroKernel(), CpuMatMulMicroKernel.class)
+                    loadedMatMulMicroKernel,
+                    findEnum(
+                            json,
+                            "cpuAttentionMatMulMicroKernel",
+                            loadedMatMulMicroKernel,
+                            CpuMatMulMicroKernel.class
+                    ),
+                    findInt(json, "cpuAttentionMatMulTileM", loadedMatMulTileM),
+                    findInt(json, "cpuAttentionMatMulTileN", loadedMatMulTileN),
+                    findInt(json, "cpuAttentionMatMulTileK", loadedMatMulTileK)
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", defaultKernel.cuda().loopUnrollFactor()),
@@ -309,16 +329,21 @@ public final class ExecutionProfileIO {
                 "        \"cpuMatMulTileM\": " + cpu.matMulTileM() + ",\n" +
                 "        \"cpuMatMulTileN\": " + cpu.matMulTileN() + ",\n" +
                 "        \"cpuMatMulTileK\": " + cpu.matMulTileK() + ",\n" +
+                "        \"cpuAttentionMatMulTileM\": " + cpu.attentionMatMulTileM() + ",\n" +
+                "        \"cpuAttentionMatMulTileN\": " + cpu.attentionMatMulTileN() + ",\n" +
+                "        \"cpuAttentionMatMulTileK\": " + cpu.attentionMatMulTileK() + ",\n" +
                 "        \"cpuCheapVectorMinSize\": " + cpu.cheapVectorMinSize() + ",\n" +
                 "        \"cpuTranscendentalVectorMinSize\": " + cpu.transcendentalVectorMinSize() + ",\n" +
                 "        \"cpuFusedCheapVectorMinSize\": " + cpu.fusedCheapVectorMinSize() + ",\n" +
                 "        \"cpuFusedTranscendentalVectorMinSize\": " + cpu.fusedTranscendentalVectorMinSize() + ",\n" +
                 "        \"cpuReductionVectorMinSize\": " + cpu.reductionVectorMinSize() + ",\n" +
+                "        \"cpuAttentionVectorMinSize\": " + cpu.attentionVectorMinSize() + ",\n" +
                 "        \"cpuCheapParallelMinSize\": " + cpu.cheapParallelMinSize() + ",\n" +
                 "        \"cpuTranscendentalParallelMinSize\": " + cpu.transcendentalParallelMinSize() + ",\n" +
                 "        \"cpuFusedCheapParallelMinSize\": " + cpu.fusedCheapParallelMinSize() + ",\n" +
                 "        \"cpuFusedTranscendentalParallelMinSize\": " + cpu.fusedTranscendentalParallelMinSize() + ",\n" +
                 "        \"cpuReductionParallelMinSize\": " + cpu.reductionParallelMinSize() + ",\n" +
+                "        \"cpuAttentionParallelMinSize\": " + cpu.attentionParallelMinSize() + ",\n" +
                 "        \"cpuMatMulParallelMinSize\": " + cpu.matMulParallelMinSize() + ",\n" +
                 "        \"cpuContiguousMaterializeThreshold\": " + cpu.contiguousMaterializeThreshold() + ",\n" +
                 "        \"cpuLowCostTargetChunksPerWorker\": " + cpu.lowCostTargetChunksPerWorker() + ",\n" +
@@ -334,7 +359,8 @@ public final class ExecutionProfileIO {
                 "        \"cpuFusedNonCheapStridedAsmVectorWidth\": " + cpu.fusedNonCheapStridedAsmVectorWidth() + ",\n" +
                 "        \"cpuSumAccuracyMode\": \"" + cpu.sumAccuracyMode().name() + "\",\n" +
                 "        \"cpuAttentionMatMulPolicy\": \"" + cpu.attentionMatMulPolicy().name() + "\",\n" +
-                "        \"cpuMatMulMicroKernel\": \"" + cpu.matMulMicroKernel().name() + "\"\n" +
+                "        \"cpuMatMulMicroKernel\": \"" + cpu.matMulMicroKernel().name() + "\",\n" +
+                "        \"cpuAttentionMatMulMicroKernel\": \"" + cpu.attentionMatMulMicroKernel().name() + "\"\n" +
                 "      },\n" +
                 "      \"cuda\": {\n" +
                 "        \"cudaLoopUnrollFactor\": " + cuda.loopUnrollFactor() + ",\n" +

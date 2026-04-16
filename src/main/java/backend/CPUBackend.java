@@ -148,7 +148,9 @@ public final class CPUBackend {
 
         ResolvedReductionHints reductionHints =
                 (op != null && switch (op.opType()) {
-                    case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD -> true;
+                    case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
+                            SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD,
+                            NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD -> true;
                     default -> false;
                 })
                         ? planner.resolveReductionHints(estimateReductionLogicalSize(prepared.runtimeInputs(), node), computeContract)
@@ -249,7 +251,8 @@ public final class CPUBackend {
                 case RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE,
                         GATHER, GATHER_GRAD, TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD,
                         SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
-                        SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                        SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
+                        NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
                         MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
                         NOOP -> false;
                 default -> true;
@@ -265,8 +268,12 @@ public final class CPUBackend {
         }
 
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD, NOOP -> false;
-            case LAYER_NORM, RMS_NORM -> true;
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE,
+                    SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
+                    SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
+                    NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                    NOOP -> false;
+            case LAYER_NORM, RMS_NORM, SCALED_DOT_PRODUCT_ATTENTION, SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> true;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
             case MATMUL, LINEAR, CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT,
                     MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D, AVG_POOL2D_BACKWARD_INPUT -> true;
@@ -414,7 +421,10 @@ public final class CPUBackend {
             return false;
         }
         return switch (op.opType()) {
-            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE,
+                    SUM, MEAN, REDUCE_MIN, REDUCE_MAX,
+                    SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD, SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS,
+                    NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD,
                     REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, NOOP -> true;
             default -> false;
         };
@@ -459,8 +469,13 @@ public final class CPUBackend {
             case TAKE_ALONG_AXIS -> resolveTakeAlongAxisContract(inputs);
             case TAKE_ALONG_AXIS_GRAD -> resolveTakeAlongAxisGradContract(inputs);
             case SCATTER_ADD -> resolveScatterAddContract(inputs);
+            case SCALED_DOT_PRODUCT_ATTENTION -> resolveAttentionContract(inputs);
+            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> resolveSameFloatingBinaryContract(inputs, "scaledDotProductAttentionBackward");
+            case SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> resolveSingleFloatingInputContract(inputs, "scaledDotProductAttentionWeights");
             case CROSS_ENTROPY_LOSS_INDICES -> resolveCrossEntropyLossIndicesContract(inputs);
             case CROSS_ENTROPY_LOSS_INDICES_GRAD -> resolveCrossEntropyLossIndicesGradContract(inputs);
+            case SOFTMAX_GRAD -> resolveSameFloatingBinaryContract(inputs, "softmaxGrad");
+            case LOG_SOFTMAX_GRAD -> resolveSameFloatingBinaryContract(inputs, "logSoftmaxGrad");
             case FUSED -> resolveFusedContract(op, inputs);
             default -> {
                 DataType outputType = resolveTargetType(node, inputs);
@@ -624,6 +639,55 @@ public final class CPUBackend {
             throw new IllegalArgumentException("crossEntropyLossFromIndicesGrad requires matching logits and scale dtypes.");
         }
         return new PreparedTypeContract(logitsType, List.of(logitsType, indexType, scaleType));
+    }
+
+    private static PreparedTypeContract resolveAttentionContract(List<Tensor> inputs) {
+        if (inputs == null || (inputs.size() != 3 && inputs.size() != 4)) {
+            throw new IllegalArgumentException("scaledDotProductAttention expects three or four inputs.");
+        }
+        DataType queryType = inputs.get(0).getDataType();
+        DataType keyType = inputs.get(1).getDataType();
+        DataType valueType = inputs.get(2).getDataType();
+        if (queryType == DataType.BOOL || queryType == DataType.INT32
+                || keyType == DataType.BOOL || keyType == DataType.INT32
+                || valueType == DataType.BOOL || valueType == DataType.INT32) {
+            throw new IllegalArgumentException("scaledDotProductAttention requires floating q/k/v inputs.");
+        }
+        DataType promoted = promote(promote(queryType, keyType), valueType);
+        if (inputs.size() == 4) {
+            if (inputs.get(3).getDataType() != DataType.BOOL) {
+                throw new IllegalArgumentException("scaledDotProductAttention mask must have BOOL dtype.");
+            }
+            return new PreparedTypeContract(promoted, List.of(promoted, promoted, promoted, DataType.BOOL));
+        }
+        return new PreparedTypeContract(promoted, List.of(promoted, promoted, promoted));
+    }
+
+    private static PreparedTypeContract resolveSameFloatingBinaryContract(List<Tensor> inputs, String opName) {
+        if (inputs == null || inputs.size() != 2) {
+            throw new IllegalArgumentException(opName + " expects exactly two inputs.");
+        }
+        DataType leftType = inputs.get(0).getDataType();
+        DataType rightType = inputs.get(1).getDataType();
+        if (leftType == DataType.BOOL || leftType == DataType.INT32
+                || rightType == DataType.BOOL || rightType == DataType.INT32) {
+            throw new IllegalArgumentException(opName + " requires floating inputs.");
+        }
+        if (leftType != rightType) {
+            throw new IllegalArgumentException(opName + " requires matching floating dtypes.");
+        }
+        return new PreparedTypeContract(leftType, List.of(leftType, rightType));
+    }
+
+    private static PreparedTypeContract resolveSingleFloatingInputContract(List<Tensor> inputs, String opName) {
+        if (inputs == null || inputs.size() != 1) {
+            throw new IllegalArgumentException(opName + " expects exactly one input.");
+        }
+        DataType inputType = inputs.getFirst().getDataType();
+        if (inputType == DataType.BOOL || inputType == DataType.INT32) {
+            throw new IllegalArgumentException(opName + " requires a floating input.");
+        }
+        return new PreparedTypeContract(inputType, List.of(inputType));
     }
 
     private static PreparedTypeContract resolveTakeAlongAxisContract(List<Tensor> inputs) {

@@ -58,6 +58,9 @@ public final class CandidateFingerprint {
         sb.append("cpu.tileM=").append(cpu.matMulTileM()).append('|');
         sb.append("cpu.tileN=").append(cpu.matMulTileN()).append('|');
         sb.append("cpu.tileK=").append(cpu.matMulTileK()).append('|');
+        sb.append("cpu.attentionTileM=").append(cpu.attentionMatMulTileM()).append('|');
+        sb.append("cpu.attentionTileN=").append(cpu.attentionMatMulTileN()).append('|');
+        sb.append("cpu.attentionTileK=").append(cpu.attentionMatMulTileK()).append('|');
         sb.append("cpu.cheapVectorMin=").append(cpu.cheapVectorMinSize()).append('|');
         sb.append("cpu.transVectorMin=").append(cpu.transcendentalVectorMinSize()).append('|');
         sb.append("cpu.redVectorMin=").append(cpu.reductionVectorMinSize()).append('|');
@@ -80,6 +83,7 @@ public final class CandidateFingerprint {
         sb.append("cpu.sumAccuracy=").append(cpu.sumAccuracyMode()).append('|');
         sb.append("cpu.attnMatMul=").append(cpu.attentionMatMulPolicy()).append('|');
         sb.append("cpu.matMulMicroKernel=").append(cpu.matMulMicroKernel()).append('|');
+        sb.append("cpu.attentionMatMulMicroKernel=").append(cpu.attentionMatMulMicroKernel()).append('|');
         sb.append("approx.mode=").append(runtime.approximation().approxMode()).append('|');
         sb.append("approx.forceExact=").append(runtime.approximation().forceExactTranscendentals()).append('|');
         sb.append("blas.provider=").append(runtime.blas().provider()).append('|');

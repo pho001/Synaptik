@@ -36,6 +36,9 @@ public final class CpuKernelResolver {
     private static final CpuTakeAlongAxisKernel TAKE_ALONG_AXIS = new CpuTakeAlongAxisKernel();
     private static final CpuTakeAlongAxisGradKernel TAKE_ALONG_AXIS_GRAD = new CpuTakeAlongAxisGradKernel();
     private static final CpuScatterAddKernel SCATTER_ADD = new CpuScatterAddKernel();
+    private static final CpuScaledDotProductAttentionKernel SCALED_DOT_PRODUCT_ATTENTION = new CpuScaledDotProductAttentionKernel();
+    private static final CpuScaledDotProductAttentionBackwardKernel SCALED_DOT_PRODUCT_ATTENTION_BACKWARD = new CpuScaledDotProductAttentionBackwardKernel();
+    private static final CpuScaledDotProductAttentionWeightsKernel SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS = new CpuScaledDotProductAttentionWeightsKernel();
     private static final CpuLinearKernel LINEAR = new CpuLinearKernel();
     private static final CpuConv2dKernel CONV2D = new CpuConv2dKernel();
     private static final CpuConv2dGemmKernel CONV2D_GEMM = new CpuConv2dGemmKernel();
@@ -54,7 +57,9 @@ public final class CpuKernelResolver {
     private static final CpuReduceAllKernel REDUCE_ALL = new CpuReduceAllKernel();
     private static final CpuReduceAnyKernel REDUCE_ANY = new CpuReduceAnyKernel();
     private static final CpuSoftmaxKernel SOFTMAX = new CpuSoftmaxKernel();
+    private static final CpuSoftmaxGradKernel SOFTMAX_GRAD = new CpuSoftmaxGradKernel();
     private static final CpuLogSoftmaxKernel LOG_SOFTMAX = new CpuLogSoftmaxKernel();
+    private static final CpuLogSoftmaxGradKernel LOG_SOFTMAX_GRAD = new CpuLogSoftmaxGradKernel();
     private static final CpuNllLossKernel NLL_LOSS = new CpuNllLossKernel();
     private static final CpuCrossEntropyLossKernel CROSS_ENTROPY_LOSS = new CpuCrossEntropyLossKernel();
     private static final CpuCrossEntropyLossIndicesKernel CROSS_ENTROPY_LOSS_INDICES = new CpuCrossEntropyLossIndicesKernel();
@@ -113,6 +118,9 @@ public final class CpuKernelResolver {
             case TAKE_ALONG_AXIS -> TAKE_ALONG_AXIS;
             case TAKE_ALONG_AXIS_GRAD -> TAKE_ALONG_AXIS_GRAD;
             case SCATTER_ADD -> SCATTER_ADD;
+            case SCALED_DOT_PRODUCT_ATTENTION -> SCALED_DOT_PRODUCT_ATTENTION;
+            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> SCALED_DOT_PRODUCT_ATTENTION_BACKWARD;
+            case SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS;
             case LINEAR -> LINEAR;
             case CONV2D -> CONV2D;
             case CONV2D_GEMM -> CONV2D_GEMM;
@@ -131,7 +139,9 @@ public final class CpuKernelResolver {
             case REDUCE_ALL -> REDUCE_ALL;
             case REDUCE_ANY -> REDUCE_ANY;
             case SOFTMAX -> SOFTMAX;
+            case SOFTMAX_GRAD -> SOFTMAX_GRAD;
             case LOG_SOFTMAX -> LOG_SOFTMAX;
+            case LOG_SOFTMAX_GRAD -> LOG_SOFTMAX_GRAD;
             case NLL_LOSS -> NLL_LOSS;
             case CROSS_ENTROPY_LOSS -> CROSS_ENTROPY_LOSS;
             case CROSS_ENTROPY_LOSS_INDICES -> CROSS_ENTROPY_LOSS_INDICES;

@@ -7,6 +7,8 @@ import java.util.Objects;
 public record ReductionPlatformProfile(
         int reductionVectorMinSize,
         int reductionParallelMinSize,
+        int attentionVectorMinSize,
+        int attentionParallelMinSize,
         SumAccuracyMode sumAccuracyMode
 ) {
     public ReductionPlatformProfile {

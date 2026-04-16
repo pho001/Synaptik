@@ -61,8 +61,9 @@ public class LogSoftmaxExecutionTest {
         logits.setRequiresGrad(true);
         Tensor logProbs = logits.logSoftmax(1);
 
-        CompiledGraph.compile(logProbs, OptimizerConfig.trainingDefaults())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph compiledGraph = CompiledGraph.compile(logProbs, OptimizerConfig.trainingDefaults());
+        assertTrue(containsOp(compiledGraph, Operation.OpType.LOG_SOFTMAX_GRAD));
+        compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         double[] softmax = softmaxRow(new double[]{1.0, 2.0, 3.0});
         assertArrayEquals(new double[]{

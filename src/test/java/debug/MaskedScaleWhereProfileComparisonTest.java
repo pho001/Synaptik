@@ -12,7 +12,6 @@ import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tuning.measure.MeasurementPolicy;
 import tuning.report.TextBenchmarkReportRenderer;
 import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkRequest;
@@ -25,16 +24,7 @@ import java.util.List;
 
 final class MaskedScaleWhereProfileComparisonTest {
     private static final int SIZE = 4 * 8 * 64 * 64;
-    private static final MeasurementPolicy COMPARISON_MEASUREMENT = new MeasurementPolicy(
-            10,
-            30,
-            3,
-            true,
-            true,
-            true,
-            true,
-            false
-    );
+    private static final tuning.measure.MeasurementPolicy COMPARISON_MEASUREMENT = DebugMeasurementPolicies.STANDARD;
 
     @Test
     void compareMaskedScaleWhereProfiles() {

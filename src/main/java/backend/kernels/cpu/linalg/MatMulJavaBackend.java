@@ -14,6 +14,8 @@ final class MatMulJavaBackend {
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
     private static final ThreadLocal<double[]> F64_PACKED_B = ThreadLocal.withInitial(() -> new double[0]);
     private static final ThreadLocal<float[]> F32_PACKED_B = ThreadLocal.withInitial(() -> new float[0]);
+    private static final ThreadLocal<double[]> F64_PACKED_A = ThreadLocal.withInitial(() -> new double[0]);
+    private static final ThreadLocal<float[]> F32_PACKED_A = ThreadLocal.withInitial(() -> new float[0]);
 
     @FunctionalInterface
     private interface F64BlockKernel {
@@ -78,6 +80,28 @@ final class MatMulJavaBackend {
         runF64Blocks(a, aShape, b, bShape, out, outShape, hints, kernel);
     }
 
+    static void runF64RightTransposed(
+            double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints
+    ) {
+        F64BlockKernel kernel = switch (hints.microKernel()) {
+            case F64_2X1 -> MatMulJavaBackend::computeBlockF64_2x1_RhsTransposed;
+            case F64_2X2 -> MatMulJavaBackend::computeBlockF64_2x2_RhsTransposed;
+            default -> MatMulJavaBackend::computeBlockF64_4x1_RhsTransposed;
+        };
+        runF64RightTransposedBlocks(a, aShape, b, bShape, out, outShape, hints, kernel);
+    }
+
+    static void runF64LeftTransposed(
+            double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints
+    ) {
+        F64BlockKernel kernel = switch (hints.microKernel()) {
+            case F64_2X1 -> MatMulJavaBackend::computeBlockF64_2x1_LhsTransposed;
+            case F64_2X2 -> MatMulJavaBackend::computeBlockF64_2x2_LhsTransposed;
+            default -> MatMulJavaBackend::computeBlockF64_4x1_LhsTransposed;
+        };
+        runF64LeftTransposedBlocks(a, aShape, b, bShape, out, outShape, hints, kernel);
+    }
+
     static void runPackedF64(
             double[] a, int[] aShape, PackedLinearWeightCache.F64PackedWeights packedB,
             double[] out, int[] outShape, ResolvedMatMulHints hints
@@ -98,6 +122,30 @@ final class MatMulJavaBackend {
             default -> MatMulJavaBackend::computeBlockF32_4x2;
         };
         runF32Blocks(a, aShape, b, bShape, out, outShape, hints, kernel);
+    }
+
+    static void runF32RightTransposed(
+            float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape, ResolvedMatMulHints hints
+    ) {
+        F32BlockKernel kernel = switch (hints.microKernel()) {
+            case F32_2X4 -> MatMulJavaBackend::computeBlockF32_2x4_RhsTransposed;
+            case F32_2X8 -> MatMulJavaBackend::computeBlockF32_2x8_RhsTransposed;
+            case F32_4X4 -> MatMulJavaBackend::computeBlockF32_4x4_RhsTransposed;
+            default -> MatMulJavaBackend::computeBlockF32_4x2_RhsTransposed;
+        };
+        runF32RightTransposedBlocks(a, aShape, b, bShape, out, outShape, hints, kernel);
+    }
+
+    static void runF32LeftTransposed(
+            float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape, ResolvedMatMulHints hints
+    ) {
+        F32BlockKernel kernel = switch (hints.microKernel()) {
+            case F32_2X4 -> MatMulJavaBackend::computeBlockF32_2x4_LhsTransposed;
+            case F32_2X8 -> MatMulJavaBackend::computeBlockF32_2x8_LhsTransposed;
+            case F32_4X4 -> MatMulJavaBackend::computeBlockF32_4x4_LhsTransposed;
+            default -> MatMulJavaBackend::computeBlockF32_4x2_LhsTransposed;
+        };
+        runF32LeftTransposedBlocks(a, aShape, b, bShape, out, outShape, hints, kernel);
     }
 
     static void runPackedF32(
@@ -230,6 +278,79 @@ final class MatMulJavaBackend {
         }
     }
 
+    private static void runF64RightTransposedBlocks(
+            double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape,
+            ResolvedMatMulHints hints, F64BlockKernel kernel
+    ) {
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int k = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tn, tk);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, k, n, k, tn, tk);
+        }
+    }
+
+    private static void runF64LeftTransposedBlocks(
+            double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape,
+            ResolvedMatMulHints hints, F64BlockKernel kernel
+    ) {
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int inner = bShape[bShape.length - 2];
+        int sourceK = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, inner, n, sourceK, tn, tk);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, inner, n, sourceK, tn, tk);
+        }
+    }
+
     private static void runPackedF64Blocks(
             double[] a, int[] aShape, PackedLinearWeightCache.F64PackedWeights packedB, double[] out, int[] outShape,
             ResolvedMatMulHints hints, PackedF64BlockKernel kernel
@@ -266,6 +387,79 @@ final class MatMulJavaBackend {
     }
 
     private static void runF32Blocks(
+            float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape,
+            ResolvedMatMulHints hints, F32BlockKernel kernel
+    ) {
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int k = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tn, tk);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, k, n, k, tn, tk);
+        }
+    }
+
+    private static void runF32LeftTransposedBlocks(
+            float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape,
+            ResolvedMatMulHints hints, F32BlockKernel kernel
+    ) {
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int inner = bShape[bShape.length - 2];
+        int sourceK = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, inner, n, sourceK, tn, tk);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            kernel.compute(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, inner, n, sourceK, tn, tk);
+        }
+    }
+
+    private static void runF32RightTransposedBlocks(
             float[] a, int[] aShape, float[] b, int[] bShape, float[] out, int[] outShape,
             ResolvedMatMulHints hints, F32BlockKernel kernel
     ) {
@@ -366,6 +560,25 @@ final class MatMulJavaBackend {
         return packed;
     }
 
+    private static double[] packedPanelF64LeftTransposed(double[] a, int aOffset, int kStart, int kEnd, int iStart, int iEnd, int sourceK) {
+        int rows = iEnd - iStart;
+        int panelDepth = kEnd - kStart;
+        int required = rows * panelDepth;
+        double[] packed = F64_PACKED_A.get();
+        if (packed.length < required) {
+            packed = new double[required];
+            F64_PACKED_A.set(packed);
+        }
+        for (int row = 0; row < rows; row++) {
+            int srcCol = iStart + row;
+            int dstBase = row * panelDepth;
+            for (int p = kStart; p < kEnd; p++) {
+                packed[dstBase + (p - kStart)] = a[aOffset + p * sourceK + srcCol];
+            }
+        }
+        return packed;
+    }
+
     private static float[] packedPanelF32(float[] b, int bOffset, int kStart, int kEnd, int jStart, int jEnd, int n) {
         int panelWidth = jEnd - jStart;
         int required = (kEnd - kStart) * panelWidth;
@@ -378,6 +591,59 @@ final class MatMulJavaBackend {
         for (int p = kStart; p < kEnd; p++) {
             System.arraycopy(b, bOffset + p * n + jStart, packed, dst, panelWidth);
             dst += panelWidth;
+        }
+        return packed;
+    }
+
+    private static float[] packedPanelF32LeftTransposed(float[] a, int aOffset, int kStart, int kEnd, int iStart, int iEnd, int sourceK) {
+        int rows = iEnd - iStart;
+        int panelDepth = kEnd - kStart;
+        int required = rows * panelDepth;
+        float[] packed = F32_PACKED_A.get();
+        if (packed.length < required) {
+            packed = new float[required];
+            F32_PACKED_A.set(packed);
+        }
+        for (int row = 0; row < rows; row++) {
+            int srcCol = iStart + row;
+            int dstBase = row * panelDepth;
+            for (int p = kStart; p < kEnd; p++) {
+                packed[dstBase + (p - kStart)] = a[aOffset + p * sourceK + srcCol];
+            }
+        }
+        return packed;
+    }
+
+    private static double[] packedPanelF64Transposed(double[] b, int bOffset, int kStart, int kEnd, int jStart, int jEnd, int k) {
+        int panelWidth = jEnd - jStart;
+        int required = (kEnd - kStart) * panelWidth;
+        double[] packed = F64_PACKED_B.get();
+        if (packed.length < required) {
+            packed = new double[required];
+            F64_PACKED_B.set(packed);
+        }
+        int dst = 0;
+        for (int p = kStart; p < kEnd; p++) {
+            for (int j = jStart; j < jEnd; j++) {
+                packed[dst++] = b[bOffset + j * k + p];
+            }
+        }
+        return packed;
+    }
+
+    private static float[] packedPanelF32Transposed(float[] b, int bOffset, int kStart, int kEnd, int jStart, int jEnd, int k) {
+        int panelWidth = jEnd - jStart;
+        int required = (kEnd - kStart) * panelWidth;
+        float[] packed = F32_PACKED_B.get();
+        if (packed.length < required) {
+            packed = new float[required];
+            F32_PACKED_B.set(packed);
+        }
+        int dst = 0;
+        for (int p = kStart; p < kEnd; p++) {
+            for (int j = jStart; j < jEnd; j++) {
+                packed[dst++] = b[bOffset + j * k + p];
+            }
         }
         return packed;
     }
@@ -438,6 +704,73 @@ final class MatMulJavaBackend {
         }
     }
 
+    private static void computeBlockF64_2x1_RhsTransposed(
+            double[] a, double[] b, double[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                double[] packedB = packedPanelF64Transposed(b, bOffset, kk, kkEnd, jj, jjEnd, k);
+                int i = iStart;
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF64_2x1_LhsTransposed(
+            double[] a, double[] b, double[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int sourceK,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            int panelDepth = kkEnd - kk;
+            int i = iStart;
+            for (; i + 1 < iEnd; i += 2) {
+                double[] packedA = packedPanelF64LeftTransposed(a, aOffset, kk, kkEnd, i, i + 2, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeTwoRowsOneColF64(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, vectorLimit);
+                }
+            }
+            for (; i < iEnd; i++) {
+                double[] packedA = packedPanelF64LeftTransposed(a, aOffset, kk, kkEnd, i, i + 1, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeSingleRowOneColF64(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, vectorLimit);
+                }
+            }
+        }
+    }
+
     private static void computeBlockF64_4x1(
             double[] a, double[] b, double[] out,
             int aOffset, int bOffset, int outOffset,
@@ -464,6 +797,87 @@ final class MatMulJavaBackend {
                 }
                 for (; i < iEnd; i++) {
                     computeSingleRowOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF64_4x1_RhsTransposed(
+            double[] a, double[] b, double[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                double[] packedB = packedPanelF64Transposed(b, bOffset, kk, kkEnd, jj, jjEnd, k);
+                int i = iStart;
+                for (; i + 3 < iEnd; i += 4) {
+                    computeFourRowsOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowOneColF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, vectorLimit);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF64_4x1_LhsTransposed(
+            double[] a, double[] b, double[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int sourceK,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            int panelDepth = kkEnd - kk;
+            int i = iStart;
+            for (; i + 3 < iEnd; i += 4) {
+                double[] packedA = packedPanelF64LeftTransposed(a, aOffset, kk, kkEnd, i, i + 4, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeFourRowsOneColF64(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, vectorLimit);
+                }
+            }
+            for (; i + 1 < iEnd; i += 2) {
+                double[] packedA = packedPanelF64LeftTransposed(a, aOffset, kk, kkEnd, i, i + 2, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeTwoRowsOneColF64(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, vectorLimit);
+                }
+            }
+            for (; i < iEnd; i++) {
+                double[] packedA = packedPanelF64LeftTransposed(a, aOffset, kk, kkEnd, i, i + 1, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeSingleRowOneColF64(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, vectorLimit);
                 }
             }
         }
@@ -555,6 +969,78 @@ final class MatMulJavaBackend {
                 }
                 for (; i < iEnd; i++) {
                     computeSingleRowTwoColsF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF64_2x2_RhsTransposed(
+            double[] a, double[] b, double[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        int vectorBlockWidth = width * 2;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                double[] packedB = packedPanelF64Transposed(b, bOffset, kk, kkEnd, jj, jjEnd, k);
+                int i = iStart;
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsTwoColsF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowTwoColsF64(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF64_2x2_LhsTransposed(
+            double[] a, double[] b, double[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int sourceK,
+            int tn, int tk
+    ) {
+        int width = F64.length();
+        int vectorBlockWidth = width * 2;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            int panelDepth = kkEnd - kk;
+            int i = iStart;
+            for (; i + 1 < iEnd; i += 2) {
+                double[] packedA = packedPanelF64LeftTransposed(a, aOffset, kk, kkEnd, i, i + 2, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeTwoRowsTwoColsF64(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+            for (; i < iEnd; i++) {
+                double[] packedA = packedPanelF64LeftTransposed(a, aOffset, kk, kkEnd, i, i + 1, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    double[] packedB = packedPanelF64(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeSingleRowTwoColsF64(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
                 }
             }
         }
@@ -866,6 +1352,78 @@ final class MatMulJavaBackend {
         }
     }
 
+    private static void computeBlockF32_2x4_RhsTransposed(
+            float[] a, float[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 4;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                float[] packedB = packedPanelF32Transposed(b, bOffset, kk, kkEnd, jj, jjEnd, k);
+                int i = iStart;
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF32_2x4_LhsTransposed(
+            float[] a, float[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int sourceK,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 4;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            int panelDepth = kkEnd - kk;
+            int i = iStart;
+            for (; i + 1 < iEnd; i += 2) {
+                float[] packedA = packedPanelF32LeftTransposed(a, aOffset, kk, kkEnd, i, i + 2, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeTwoRowsFourColsF32(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+            for (; i < iEnd; i++) {
+                float[] packedA = packedPanelF32LeftTransposed(a, aOffset, kk, kkEnd, i, i + 1, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeSingleRowFourColsF32(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
     private static void computeBlockF32_2x8(
             float[] a, float[] b, float[] out,
             int aOffset, int bOffset, int outOffset,
@@ -921,6 +1479,78 @@ final class MatMulJavaBackend {
                 }
                 for (; i < iEnd; i++) {
                     computeSingleRowEightColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF32_2x8_RhsTransposed(
+            float[] a, float[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 8;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                float[] packedB = packedPanelF32Transposed(b, bOffset, kk, kkEnd, jj, jjEnd, k);
+                int i = iStart;
+                for (; i + 1 < iEnd; i += 2) {
+                    computeTwoRowsEightColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowEightColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF32_2x8_LhsTransposed(
+            float[] a, float[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int sourceK,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 8;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            int panelDepth = kkEnd - kk;
+            int i = iStart;
+            for (; i + 1 < iEnd; i += 2) {
+                float[] packedA = packedPanelF32LeftTransposed(a, aOffset, kk, kkEnd, i, i + 2, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeTwoRowsEightColsF32(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+            for (; i < iEnd; i++) {
+                float[] packedA = packedPanelF32LeftTransposed(a, aOffset, kk, kkEnd, i, i + 1, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeSingleRowEightColsF32(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
                 }
             }
         }
@@ -986,6 +1616,78 @@ final class MatMulJavaBackend {
         }
     }
 
+    private static void computeBlockF32_4x2_RhsTransposed(
+            float[] a, float[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 2;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                float[] packedB = packedPanelF32Transposed(b, bOffset, kk, kkEnd, jj, jjEnd, k);
+                int i = iStart;
+                for (; i + 3 < iEnd; i += 4) {
+                    computeFourRowsTwoColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowTwoColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF32_4x2_LhsTransposed(
+            float[] a, float[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int sourceK,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 2;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            int panelDepth = kkEnd - kk;
+            int i = iStart;
+            for (; i + 3 < iEnd; i += 4) {
+                float[] packedA = packedPanelF32LeftTransposed(a, aOffset, kk, kkEnd, i, i + 4, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeFourRowsTwoColsF32(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+            for (; i < iEnd; i++) {
+                float[] packedA = packedPanelF32LeftTransposed(a, aOffset, kk, kkEnd, i, i + 1, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeSingleRowTwoColsF32(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
     private static void computeBlockF32_4x4(
             float[] a, float[] b, float[] out,
             int aOffset, int bOffset, int outOffset,
@@ -1041,6 +1743,78 @@ final class MatMulJavaBackend {
                 }
                 for (; i < iEnd; i++) {
                     computeSingleRowFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF32_4x4_RhsTransposed(
+            float[] a, float[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 4;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int panelWidth = jjEnd - jj;
+                int vectorLimit = panelWidth - (panelWidth % width);
+                int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                float[] packedB = packedPanelF32Transposed(b, bOffset, kk, kkEnd, jj, jjEnd, k);
+                int i = iStart;
+                for (; i + 3 < iEnd; i += 4) {
+                    computeFourRowsFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+                for (; i < iEnd; i++) {
+                    computeSingleRowFourColsF32(a, out, packedB, aOffset, outOffset, i, jj, kk, kkEnd, n, k, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF32_4x4_LhsTransposed(
+            float[] a, float[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int sourceK,
+            int tn, int tk
+    ) {
+        int width = F32.length();
+        int vectorBlockWidth = width * 4;
+        for (int kk = kStart; kk < kEnd; kk += tk) {
+            int kkEnd = Math.min(kk + tk, kEnd);
+            int panelDepth = kkEnd - kk;
+            int i = iStart;
+            for (; i + 3 < iEnd; i += 4) {
+                float[] packedA = packedPanelF32LeftTransposed(a, aOffset, kk, kkEnd, i, i + 4, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeFourRowsFourColsF32(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
+                }
+            }
+            for (; i < iEnd; i++) {
+                float[] packedA = packedPanelF32LeftTransposed(a, aOffset, kk, kkEnd, i, i + 1, sourceK);
+                int tileOutOffset = outOffset + i * n;
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int panelWidth = jjEnd - jj;
+                    int vectorLimit = panelWidth - (panelWidth % width);
+                    int blockLimit = panelWidth - (panelWidth % vectorBlockWidth);
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    computeSingleRowFourColsF32(packedA, out, packedB, 0, tileOutOffset, 0, jj, 0, panelDepth, n, panelDepth, panelWidth, blockLimit, vectorLimit, width);
                 }
             }
         }

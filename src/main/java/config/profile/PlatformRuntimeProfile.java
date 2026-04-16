@@ -66,8 +66,12 @@ public record PlatformRuntimeProfile(
                         cpu.matMulTileM(),
                         cpu.matMulTileN(),
                         cpu.matMulTileK(),
+                        cpu.attentionMatMulTileM(),
+                        cpu.attentionMatMulTileN(),
+                        cpu.attentionMatMulTileK(),
                         cpu.matMulParallelMinSize(),
-                        cpu.matMulMicroKernel()
+                        cpu.matMulMicroKernel(),
+                        cpu.attentionMatMulMicroKernel()
                 ),
                 new FusedPlatformProfile(
                         cpu.fusedCheapVectorMinSize(),
@@ -88,6 +92,8 @@ public record PlatformRuntimeProfile(
                 new ReductionPlatformProfile(
                         cpu.reductionVectorMinSize(),
                         cpu.reductionParallelMinSize(),
+                        cpu.attentionVectorMinSize(),
+                        cpu.attentionParallelMinSize(),
                         cpu.sumAccuracyMode()
                 ),
                 new SchedulerPlatformProfile(
@@ -118,11 +124,13 @@ public record PlatformRuntimeProfile(
                 fused.fusedCheapVectorMinSize(),
                 fused.fusedTranscendentalVectorMinSize(),
                 reduction.reductionVectorMinSize(),
+                reduction.attentionVectorMinSize(),
                 elementwiseDispatch.cheapParallelMinSize(),
                 elementwiseDispatch.transcendentalParallelMinSize(),
                 fused.fusedCheapParallelMinSize(),
                 fused.fusedTranscendentalParallelMinSize(),
                 reduction.reductionParallelMinSize(),
+                reduction.attentionParallelMinSize(),
                 materialization.contiguousMaterializeThreshold(),
                 scheduler.lowCostTargetChunksPerWorker(),
                 scheduler.mediumCostTargetChunksPerWorker(),
@@ -138,7 +146,11 @@ public record PlatformRuntimeProfile(
                 reduction.sumAccuracyMode(),
                 matmul.matMulParallelMinSize(),
                 AttentionMatMulPolicy.AUTO,
-                matmul.matMulMicroKernel() == null ? CpuMatMulMicroKernel.AUTO : matmul.matMulMicroKernel()
+                matmul.matMulMicroKernel() == null ? CpuMatMulMicroKernel.AUTO : matmul.matMulMicroKernel(),
+                matmul.attentionMatMulMicroKernel() == null ? matmul.matMulMicroKernel() : matmul.attentionMatMulMicroKernel(),
+                matmul.attentionMatMulTileM(),
+                matmul.attentionMatMulTileN(),
+                matmul.attentionMatMulTileK()
         );
         return new RuntimeConfig(
                 new KernelTuningConfig(

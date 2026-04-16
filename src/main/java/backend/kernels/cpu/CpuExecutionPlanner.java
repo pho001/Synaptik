@@ -30,16 +30,21 @@ public final class CpuExecutionPlanner {
     private final int matMulTileM;
     private final int matMulTileN;
     private final int matMulTileK;
+    private final int attentionMatMulTileM;
+    private final int attentionMatMulTileN;
+    private final int attentionMatMulTileK;
     private final int cheapVectorMinSize;
     private final int transcendentalVectorMinSize;
     private final int fusedCheapVectorMinSize;
     private final int fusedTranscendentalVectorMinSize;
     private final int reductionVectorMinSize;
+    private final int attentionVectorMinSize;
     private final int cheapParallelMinSize;
     private final int transcendentalParallelMinSize;
     private final int fusedCheapParallelMinSize;
     private final int fusedTranscendentalParallelMinSize;
     private final int reductionParallelMinSize;
+    private final int attentionParallelMinSize;
     private final int matMulParallelMinSize;
     private final int contiguousMaterializeThreshold;
     private final int lowCostTargetChunksPerWorker;
@@ -56,6 +61,7 @@ public final class CpuExecutionPlanner {
     private final SumAccuracyMode sumAccuracyMode;
     private final AttentionMatMulPolicy attentionMatMulPolicy;
     private final CpuMatMulMicroKernel matMulMicroKernel;
+    private final CpuMatMulMicroKernel attentionMatMulMicroKernel;
 
     public CpuExecutionPlanner(
             int matMulTileM,
@@ -66,11 +72,13 @@ public final class CpuExecutionPlanner {
             int fusedCheapVectorMinSize,
             int fusedTranscendentalVectorMinSize,
             int reductionVectorMinSize,
+            int attentionVectorMinSize,
             int cheapParallelMinSize,
             int transcendentalParallelMinSize,
             int fusedCheapParallelMinSize,
             int fusedTranscendentalParallelMinSize,
             int reductionParallelMinSize,
+            int attentionParallelMinSize,
             int matMulParallelMinSize,
             int contiguousMaterializeThreshold,
             int lowCostTargetChunksPerWorker,
@@ -86,21 +94,103 @@ public final class CpuExecutionPlanner {
             int fusedNonCheapStridedAsmVectorWidth,
             SumAccuracyMode sumAccuracyMode,
             AttentionMatMulPolicy attentionMatMulPolicy,
-            CpuMatMulMicroKernel matMulMicroKernel
+            CpuMatMulMicroKernel matMulMicroKernel,
+            CpuMatMulMicroKernel attentionMatMulMicroKernel
+    ) {
+        this(
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                cheapVectorMinSize,
+                transcendentalVectorMinSize,
+                fusedCheapVectorMinSize,
+                fusedTranscendentalVectorMinSize,
+                reductionVectorMinSize,
+                attentionVectorMinSize,
+                cheapParallelMinSize,
+                transcendentalParallelMinSize,
+                fusedCheapParallelMinSize,
+                fusedTranscendentalParallelMinSize,
+                reductionParallelMinSize,
+                attentionParallelMinSize,
+                matMulParallelMinSize,
+                contiguousMaterializeThreshold,
+                lowCostTargetChunksPerWorker,
+                mediumCostTargetChunksPerWorker,
+                highCostTargetChunksPerWorker,
+                minScalarChunkSize,
+                minVectorChunkSize,
+                minReductionChunkSize,
+                commonPoolLowCostMaxWorkPerWorker,
+                fusedCheapContiguousAsmVectorWidth,
+                fusedCheapStridedAsmVectorWidth,
+                fusedNonCheapContiguousAsmVectorWidth,
+                fusedNonCheapStridedAsmVectorWidth,
+                sumAccuracyMode,
+                attentionMatMulPolicy,
+                matMulMicroKernel,
+                attentionMatMulMicroKernel,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK
+        );
+    }
+
+    public CpuExecutionPlanner(
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int cheapVectorMinSize,
+            int transcendentalVectorMinSize,
+            int fusedCheapVectorMinSize,
+            int fusedTranscendentalVectorMinSize,
+            int reductionVectorMinSize,
+            int attentionVectorMinSize,
+            int cheapParallelMinSize,
+            int transcendentalParallelMinSize,
+            int fusedCheapParallelMinSize,
+            int fusedTranscendentalParallelMinSize,
+            int reductionParallelMinSize,
+            int attentionParallelMinSize,
+            int matMulParallelMinSize,
+            int contiguousMaterializeThreshold,
+            int lowCostTargetChunksPerWorker,
+            int mediumCostTargetChunksPerWorker,
+            int highCostTargetChunksPerWorker,
+            int minScalarChunkSize,
+            int minVectorChunkSize,
+            int minReductionChunkSize,
+            int commonPoolLowCostMaxWorkPerWorker,
+            int fusedCheapContiguousAsmVectorWidth,
+            int fusedCheapStridedAsmVectorWidth,
+            int fusedNonCheapContiguousAsmVectorWidth,
+            int fusedNonCheapStridedAsmVectorWidth,
+            SumAccuracyMode sumAccuracyMode,
+            AttentionMatMulPolicy attentionMatMulPolicy,
+            CpuMatMulMicroKernel matMulMicroKernel,
+            CpuMatMulMicroKernel attentionMatMulMicroKernel,
+            int attentionMatMulTileM,
+            int attentionMatMulTileN,
+            int attentionMatMulTileK
     ) {
         this.matMulTileM = positiveOrDefault(matMulTileM, DEFAULT_MATMUL_TILE_M);
         this.matMulTileN = positiveOrDefault(matMulTileN, DEFAULT_MATMUL_TILE_N);
         this.matMulTileK = positiveOrDefault(matMulTileK, DEFAULT_MATMUL_TILE_K);
+        this.attentionMatMulTileM = positiveOrDefault(attentionMatMulTileM, this.matMulTileM);
+        this.attentionMatMulTileN = positiveOrDefault(attentionMatMulTileN, this.matMulTileN);
+        this.attentionMatMulTileK = positiveOrDefault(attentionMatMulTileK, this.matMulTileK);
         this.cheapVectorMinSize = Math.max(1, cheapVectorMinSize);
         this.transcendentalVectorMinSize = Math.max(1, transcendentalVectorMinSize);
         this.fusedCheapVectorMinSize = Math.max(1, fusedCheapVectorMinSize);
         this.fusedTranscendentalVectorMinSize = Math.max(1, fusedTranscendentalVectorMinSize);
         this.reductionVectorMinSize = Math.max(1, reductionVectorMinSize);
+        this.attentionVectorMinSize = Math.max(1, attentionVectorMinSize);
         this.cheapParallelMinSize = Math.max(1, cheapParallelMinSize);
         this.transcendentalParallelMinSize = Math.max(1, transcendentalParallelMinSize);
         this.fusedCheapParallelMinSize = Math.max(1, fusedCheapParallelMinSize);
         this.fusedTranscendentalParallelMinSize = Math.max(1, fusedTranscendentalParallelMinSize);
         this.reductionParallelMinSize = Math.max(1, reductionParallelMinSize);
+        this.attentionParallelMinSize = Math.max(1, attentionParallelMinSize);
         this.matMulParallelMinSize = Math.max(1, matMulParallelMinSize);
         this.contiguousMaterializeThreshold = Math.max(0, contiguousMaterializeThreshold);
         this.lowCostTargetChunksPerWorker = Math.max(1, lowCostTargetChunksPerWorker);
@@ -117,6 +207,7 @@ public final class CpuExecutionPlanner {
         this.sumAccuracyMode = Objects.requireNonNullElse(sumAccuracyMode, SumAccuracyMode.FAST);
         this.attentionMatMulPolicy = Objects.requireNonNullElse(attentionMatMulPolicy, AttentionMatMulPolicy.AUTO);
         this.matMulMicroKernel = Objects.requireNonNullElse(matMulMicroKernel, CpuMatMulMicroKernel.AUTO);
+        this.attentionMatMulMicroKernel = Objects.requireNonNullElse(attentionMatMulMicroKernel, this.matMulMicroKernel);
     }
 
     public static CpuExecutionPlanner from(CpuKernelConfig config) {
@@ -130,11 +221,13 @@ public final class CpuExecutionPlanner {
                 config.fusedCheapVectorMinSize(),
                 config.fusedTranscendentalVectorMinSize(),
                 config.reductionVectorMinSize(),
+                config.attentionVectorMinSize(),
                 config.cheapParallelMinSize(),
                 config.transcendentalParallelMinSize(),
                 config.fusedCheapParallelMinSize(),
                 config.fusedTranscendentalParallelMinSize(),
                 config.reductionParallelMinSize(),
+                config.attentionParallelMinSize(),
                 config.matMulParallelMinSize(),
                 config.contiguousMaterializeThreshold(),
                 config.lowCostTargetChunksPerWorker(),
@@ -150,7 +243,11 @@ public final class CpuExecutionPlanner {
                 config.fusedNonCheapStridedAsmVectorWidth(),
                 config.sumAccuracyMode(),
                 config.attentionMatMulPolicy(),
-                config.matMulMicroKernel()
+                config.matMulMicroKernel(),
+                config.attentionMatMulMicroKernel(),
+                config.attentionMatMulTileM(),
+                config.attentionMatMulTileN(),
+                config.attentionMatMulTileK()
         );
     }
 
@@ -313,6 +410,44 @@ public final class CpuExecutionPlanner {
         );
     }
 
+    public ResolvedAttentionHints resolveAttentionHints(
+            int independentTasks,
+            int workPerTask,
+            int vectorSpan,
+            ResolvedCpuComputeContract contract
+    ) {
+        int tasks = Math.max(1, independentTasks);
+        int scalarWorkPerTask = Math.max(1, workPerTask);
+        long totalWorkLong = (long) tasks * scalarWorkPerTask;
+        int totalWork = totalWorkLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalWorkLong;
+        long vectorWorkLong = (long) tasks * Math.max(1, vectorSpan);
+        int vectorWork = vectorWorkLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) vectorWorkLong;
+        int vectorWidth = preferredVectorWidth(contract);
+        boolean vectorAllowed = vectorWidth > 1
+                && vectorSpan >= vectorWidth
+                && vectorWork >= attentionVectorMinSize;
+        boolean parallelAllowed = tasks > 1 && totalWork >= attentionParallelMinSize;
+        CpuExecutionMode mode;
+        if (parallelAllowed) {
+            mode = vectorAllowed ? CpuExecutionMode.PARALLEL_VECTOR : CpuExecutionMode.PARALLEL;
+        } else {
+            mode = vectorAllowed ? CpuExecutionMode.VECTOR : CpuExecutionMode.SCALAR;
+        }
+        int workChunk = computeChunkSize(
+                totalWork,
+                vectorAllowed ? vectorWidth : 1,
+                1,
+                minReductionChunkSize
+        );
+        int taskChunkSize = Math.max(1, workChunk / scalarWorkPerTask);
+        return new ResolvedAttentionHints(
+                mode,
+                Math.min(tasks, taskChunkSize),
+                vectorWidth,
+                plannedWorkers()
+        );
+    }
+
     public ResolvedCpuComputeContract resolveComputeContract(
             Operation op,
             List<Tensor> inputs,
@@ -327,7 +462,9 @@ public final class CpuExecutionPlanner {
         }
         return switch (op.opType()) {
             case MATMUL, LINEAR -> resolveMatMulContract(dataType, matMulHints);
-            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY, SOFTMAX, LOG_SOFTMAX, NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD ->
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_ALL, REDUCE_ANY,
+                    SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX, LOG_SOFTMAX_GRAD,
+                    NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES, CROSS_ENTROPY_LOSS_INDICES_GRAD ->
                     resolveReductionContract(dataType);
             case FUSED -> defaultContractFor(dataType, CpuExecutionBackend.CPU_FUSED);
             default -> (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE)
@@ -405,6 +542,82 @@ public final class CpuExecutionPlanner {
                 plannedWorkers(),
                 work,
                 matMulMicroKernel.resolve(out.getDataType())
+        );
+    }
+
+    public ResolvedMatMulHints resolveJavaMatMulHints(int[] aShape, int[] bShape, int[] outShape, DataType outDataType) {
+        Objects.requireNonNull(aShape, "aShape cannot be null");
+        Objects.requireNonNull(bShape, "bShape cannot be null");
+        Objects.requireNonNull(outShape, "outShape cannot be null");
+        Objects.requireNonNull(outDataType, "outDataType cannot be null");
+        if (aShape.length < 2 || bShape.length < 2 || outShape.length < 2) {
+            throw new IllegalArgumentException("MatMul expects rank >= 2 shapes.");
+        }
+
+        int m = aShape[aShape.length - 2];
+        int k = aShape[aShape.length - 1];
+        int n = bShape[bShape.length - 1];
+        long batchCount = 1L;
+        for (int i = 0; i < outShape.length - 2; i++) {
+            batchCount *= outShape[i];
+        }
+        long work = batchCount * m * n * k;
+        boolean parallel = work >= matMulParallelMinSize && plannedWorkers() > 1;
+        return new ResolvedMatMulHints(
+                false,
+                false,
+                parallel,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                plannedWorkers(),
+                work,
+                matMulMicroKernel.resolve(outDataType)
+        );
+    }
+
+    public ResolvedMatMulHints resolveAttentionMatMulHints(Tensor a, Tensor b, Tensor out, BlasConfig blasConfig) {
+        ResolvedMatMulHints generic = resolveMatMulHints(a, b, out, blasConfig);
+        return withMatMulConfig(
+                generic,
+                attentionMatMulTileM,
+                attentionMatMulTileN,
+                attentionMatMulTileK,
+                attentionMatMulMicroKernel.resolve(out.getDataType())
+        );
+    }
+
+    public ResolvedMatMulHints resolveAttentionJavaMatMulHints(int[] aShape, int[] bShape, int[] outShape, DataType outDataType) {
+        ResolvedMatMulHints generic = resolveJavaMatMulHints(aShape, bShape, outShape, outDataType);
+        return withMatMulConfig(
+                generic,
+                attentionMatMulTileM,
+                attentionMatMulTileN,
+                attentionMatMulTileK,
+                attentionMatMulMicroKernel.resolve(outDataType)
+        );
+    }
+
+    private static ResolvedMatMulHints withMatMulConfig(
+            ResolvedMatMulHints hints,
+            int tileM,
+            int tileN,
+            int tileK,
+            CpuMatMulMicroKernel microKernel
+    ) {
+        if (hints == null) {
+            return null;
+        }
+        return new ResolvedMatMulHints(
+                hints.useBlas(),
+                hints.useBatchedBlas(),
+                hints.parallel(),
+                tileM,
+                tileN,
+                tileK,
+                hints.plannedWorkers(),
+                hints.work(),
+                microKernel
         );
     }
 

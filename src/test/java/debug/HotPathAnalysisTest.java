@@ -14,7 +14,6 @@ import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tuning.measure.MeasurementPolicy;
 import tuning.report.TextBenchmarkReportRenderer;
 import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkRequest;
@@ -28,16 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class HotPathAnalysisTest {
-    private static final MeasurementPolicy ANALYSIS_MEASUREMENT = new MeasurementPolicy(
-            1,
-            3,
-            2,
-            true,
-            true,
-            true,
-            true,
-            true
-    );
+    private static final tuning.measure.MeasurementPolicy ANALYSIS_MEASUREMENT = DebugMeasurementPolicies.STANDARD_WITH_TRACE;
 
     @Test
     void printRepresentativeInferenceHotPaths() {

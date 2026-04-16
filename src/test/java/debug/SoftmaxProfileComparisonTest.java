@@ -8,7 +8,6 @@ import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tuning.measure.MeasurementPolicy;
 import tuning.report.TextBenchmarkReportRenderer;
 import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkRequest;
@@ -24,16 +23,7 @@ final class SoftmaxProfileComparisonTest {
     private static final int HEADS = 8;
     private static final int TOKENS = 64;
     private static final int AXIS = 64;
-    private static final MeasurementPolicy MEASUREMENT = new MeasurementPolicy(
-            10,
-            30,
-            3,
-            true,
-            true,
-            true,
-            true,
-            false
-    );
+    private static final tuning.measure.MeasurementPolicy MEASUREMENT = DebugMeasurementPolicies.STANDARD;
 
     @Test
     void benchmarkTransformerLikeSoftmax() {

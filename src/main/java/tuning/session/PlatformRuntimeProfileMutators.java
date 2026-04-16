@@ -52,8 +52,12 @@ public final class PlatformRuntimeProfileMutators {
                             baseProfile.matmul().matMulTileM(),
                             baseProfile.matmul().matMulTileN(),
                             baseProfile.matmul().matMulTileK(),
+                            baseProfile.matmul().attentionMatMulTileM(),
+                            baseProfile.matmul().attentionMatMulTileN(),
+                            baseProfile.matmul().attentionMatMulTileK(),
                             baseProfile.matmul().matMulParallelMinSize(),
-                            baseProfile.matmul().matMulMicroKernel()
+                            baseProfile.matmul().matMulMicroKernel(),
+                            baseProfile.matmul().attentionMatMulMicroKernel()
                     );
                     out.add(new RuntimeProfileCandidate(
                             "matmulShape=" + matmul.f32RequireMgeK() + "/" + matmul.f32MaxNOverK(),
@@ -96,8 +100,12 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
                         baseProfile.matmul().matMulTileK(),
+                        baseProfile.matmul().attentionMatMulTileM(),
+                        baseProfile.matmul().attentionMatMulTileN(),
+                        baseProfile.matmul().attentionMatMulTileK(),
                         baseProfile.matmul().matMulParallelMinSize(),
-                        baseProfile.matmul().matMulMicroKernel()
+                        baseProfile.matmul().matMulMicroKernel(),
+                        baseProfile.matmul().attentionMatMulMicroKernel()
                 );
                 out.add(new RuntimeProfileCandidate(
                         "blasThreads=" + matmul.blasThreads(),
@@ -136,8 +144,12 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
                         baseProfile.matmul().matMulTileK(),
+                        baseProfile.matmul().attentionMatMulTileM(),
+                        baseProfile.matmul().attentionMatMulTileN(),
+                        baseProfile.matmul().attentionMatMulTileK(),
                         threshold == null ? baseProfile.matmul().matMulParallelMinSize() : threshold,
-                        baseProfile.matmul().matMulMicroKernel()
+                        baseProfile.matmul().matMulMicroKernel(),
+                        baseProfile.matmul().attentionMatMulMicroKernel()
                 );
                 out.add(new RuntimeProfileCandidate(
                         "matmulParallel=" + matmul.matMulParallelMinSize(),
@@ -183,8 +195,12 @@ public final class PlatformRuntimeProfileMutators {
                         resolved.tileM(),
                         resolved.tileN(),
                         resolved.tileK(),
+                        baseProfile.matmul().attentionMatMulTileM(),
+                        baseProfile.matmul().attentionMatMulTileN(),
+                        baseProfile.matmul().attentionMatMulTileK(),
                         baseProfile.matmul().matMulParallelMinSize(),
-                        baseProfile.matmul().matMulMicroKernel()
+                        baseProfile.matmul().matMulMicroKernel(),
+                        baseProfile.matmul().attentionMatMulMicroKernel()
                 );
                 out.add(new RuntimeProfileCandidate(
                         "matmulTiles=" + matmul.matMulTileM() + "x" + matmul.matMulTileN() + "x" + matmul.matMulTileK(),
@@ -285,8 +301,12 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
                         baseProfile.matmul().matMulTileK(),
+                        baseProfile.matmul().attentionMatMulTileM(),
+                        baseProfile.matmul().attentionMatMulTileN(),
+                        baseProfile.matmul().attentionMatMulTileK(),
                         baseProfile.matmul().matMulParallelMinSize(),
-                        resolved
+                        resolved,
+                        baseProfile.matmul().attentionMatMulMicroKernel()
                 );
                 out.add(new RuntimeProfileCandidate(
                         "matmulMicroKernel=" + matmul.matMulMicroKernel().name(),
@@ -301,6 +321,110 @@ public final class PlatformRuntimeProfileMutators {
                                 baseProfile.numerics()
                         ),
                         Map.of("cpu.matMulMicroKernel", matmul.matMulMicroKernel().name())
+                ));
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator attentionMatmulMicroKernels(List<CpuMatMulMicroKernel> kernels) {
+        List<CpuMatMulMicroKernel> safe = kernels == null ? List.of() : List.copyOf(kernels);
+        return (baseProfile, workload) -> {
+            if (safe.isEmpty()) {
+                return List.of(new RuntimeProfileCandidate("attentionMatmulMicroKernel=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (CpuMatMulMicroKernel kernel : safe) {
+                CpuMatMulMicroKernel resolved = kernel == null
+                        ? baseProfile.matmul().attentionMatMulMicroKernel()
+                        : kernel;
+                MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                        baseProfile.matmul().blasProvider(),
+                        baseProfile.matmul().blasMatmulMinWork(),
+                        baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().f32RequireMgeK(),
+                        baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().loopUnrollFactor(),
+                        baseProfile.matmul().matMulTileM(),
+                        baseProfile.matmul().matMulTileN(),
+                        baseProfile.matmul().matMulTileK(),
+                        baseProfile.matmul().attentionMatMulTileM(),
+                        baseProfile.matmul().attentionMatMulTileN(),
+                        baseProfile.matmul().attentionMatMulTileK(),
+                        baseProfile.matmul().matMulParallelMinSize(),
+                        baseProfile.matmul().matMulMicroKernel(),
+                        resolved
+                );
+                out.add(new RuntimeProfileCandidate(
+                        "attentionMatmulMicroKernel=" + matmul.attentionMatMulMicroKernel().name(),
+                        new PlatformRuntimeProfile(
+                                baseProfile.metadata(),
+                                matmul,
+                                baseProfile.fused(),
+                                baseProfile.elementwiseDispatch(),
+                                baseProfile.reduction(),
+                                baseProfile.scheduler(),
+                                baseProfile.materialization(),
+                                baseProfile.numerics()
+                        ),
+                        Map.of("cpu.attentionMatMulMicroKernel", matmul.attentionMatMulMicroKernel().name())
+                ));
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator attentionMatmulTiles(List<MatmulTiles> tiles) {
+        List<MatmulTiles> safe = tiles == null ? List.of() : List.copyOf(tiles);
+        return (baseProfile, workload) -> {
+            if (safe.isEmpty()) {
+                return List.of(new RuntimeProfileCandidate("attentionMatmulTiles=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (MatmulTiles tile : safe) {
+                MatmulTiles resolved = tile == null
+                        ? new MatmulTiles(
+                        baseProfile.matmul().attentionMatMulTileM(),
+                        baseProfile.matmul().attentionMatMulTileN(),
+                        baseProfile.matmul().attentionMatMulTileK()
+                )
+                        : tile;
+                MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                        baseProfile.matmul().blasProvider(),
+                        baseProfile.matmul().blasMatmulMinWork(),
+                        baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().f32RequireMgeK(),
+                        baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().loopUnrollFactor(),
+                        baseProfile.matmul().matMulTileM(),
+                        baseProfile.matmul().matMulTileN(),
+                        baseProfile.matmul().matMulTileK(),
+                        resolved.tileM(),
+                        resolved.tileN(),
+                        resolved.tileK(),
+                        baseProfile.matmul().matMulParallelMinSize(),
+                        baseProfile.matmul().matMulMicroKernel(),
+                        baseProfile.matmul().attentionMatMulMicroKernel()
+                );
+                out.add(new RuntimeProfileCandidate(
+                        "attentionMatmulTiles=" + matmul.attentionMatMulTileM()
+                                + "x" + matmul.attentionMatMulTileN()
+                                + "x" + matmul.attentionMatMulTileK(),
+                        new PlatformRuntimeProfile(
+                                baseProfile.metadata(),
+                                matmul,
+                                baseProfile.fused(),
+                                baseProfile.elementwiseDispatch(),
+                                baseProfile.reduction(),
+                                baseProfile.scheduler(),
+                                baseProfile.materialization(),
+                                baseProfile.numerics()
+                        ),
+                        Map.of(
+                                "cpu.attentionMatMulTileM", String.valueOf(matmul.attentionMatMulTileM()),
+                                "cpu.attentionMatMulTileN", String.valueOf(matmul.attentionMatMulTileN()),
+                                "cpu.attentionMatMulTileK", String.valueOf(matmul.attentionMatMulTileK())
+                        )
                 ));
             }
             return out;
@@ -387,6 +511,8 @@ public final class PlatformRuntimeProfileMutators {
                 ReductionPlatformProfile reduction = new ReductionPlatformProfile(
                         threshold == null ? baseProfile.reduction().reductionVectorMinSize() : threshold,
                         baseProfile.reduction().reductionParallelMinSize(),
+                        baseProfile.reduction().attentionVectorMinSize(),
+                        baseProfile.reduction().attentionParallelMinSize(),
                         baseProfile.reduction().sumAccuracyMode()
                 );
                 out.add(new RuntimeProfileCandidate(
@@ -433,6 +559,8 @@ public final class PlatformRuntimeProfileMutators {
                         ReductionPlatformProfile reduction = new ReductionPlatformProfile(
                                 baseProfile.reduction().reductionVectorMinSize(),
                                 red == null ? baseProfile.reduction().reductionParallelMinSize() : red,
+                                baseProfile.reduction().attentionVectorMinSize(),
+                                baseProfile.reduction().attentionParallelMinSize(),
                                 baseProfile.reduction().sumAccuracyMode()
                         );
                         out.add(new RuntimeProfileCandidate(
@@ -532,6 +660,8 @@ public final class PlatformRuntimeProfileMutators {
                     ReductionPlatformProfile reduction = new ReductionPlatformProfile(
                             vec == null ? baseProfile.reduction().reductionVectorMinSize() : vec,
                             par == null ? baseProfile.reduction().reductionParallelMinSize() : par,
+                            baseProfile.reduction().attentionVectorMinSize(),
+                            baseProfile.reduction().attentionParallelMinSize(),
                             baseProfile.reduction().sumAccuracyMode()
                     );
                     out.add(new RuntimeProfileCandidate(
@@ -549,6 +679,49 @@ public final class PlatformRuntimeProfileMutators {
                             Map.of(
                                     "cpu.reductionVectorMinSize", String.valueOf(reduction.reductionVectorMinSize()),
                                     "cpu.reductionParallelMinSize", String.valueOf(reduction.reductionParallelMinSize())
+                            )
+                    ));
+                }
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator attentionThresholds(
+            List<Integer> vectorThresholds,
+            List<Integer> parallelThresholds
+    ) {
+        List<Integer> safeVec = vectorThresholds == null ? List.of() : List.copyOf(vectorThresholds);
+        List<Integer> safePar = parallelThresholds == null ? List.of() : List.copyOf(parallelThresholds);
+        return (baseProfile, workload) -> {
+            if (!usesGenericRuntimeFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("attentionThresholds=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (Integer vec : safeVec) {
+                for (Integer par : safePar) {
+                    ReductionPlatformProfile reduction = new ReductionPlatformProfile(
+                            baseProfile.reduction().reductionVectorMinSize(),
+                            baseProfile.reduction().reductionParallelMinSize(),
+                            vec == null ? baseProfile.reduction().attentionVectorMinSize() : vec,
+                            par == null ? baseProfile.reduction().attentionParallelMinSize() : par,
+                            baseProfile.reduction().sumAccuracyMode()
+                    );
+                    out.add(new RuntimeProfileCandidate(
+                            "attentionThresholds=" + reduction.attentionVectorMinSize() + "/" + reduction.attentionParallelMinSize(),
+                            new PlatformRuntimeProfile(
+                                    baseProfile.metadata(),
+                                    baseProfile.matmul(),
+                                    baseProfile.fused(),
+                                    baseProfile.elementwiseDispatch(),
+                                    reduction,
+                                    baseProfile.scheduler(),
+                                    baseProfile.materialization(),
+                                    baseProfile.numerics()
+                            ),
+                            Map.of(
+                                    "cpu.attentionVectorMinSize", String.valueOf(reduction.attentionVectorMinSize()),
+                                    "cpu.attentionParallelMinSize", String.valueOf(reduction.attentionParallelMinSize())
                             )
                     ));
                 }
