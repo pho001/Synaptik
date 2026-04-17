@@ -1,38 +1,38 @@
 # Numerics Harness
 
-`numerics` je malý samostatný A/B harness pro porovnání numerického driftu mezi dvěma `ExecutionProfile` variantami. Není to benchmark subsystem a není to autotuner.
+`numerics` is a small standalone A/B harness for comparing numeric drift between two `ExecutionProfile` variants. It is not the benchmark subsystem and it is not the autotuner.
 
-Jeho úkol je prostý:
+Its job is straightforward:
 
-- vezme dvě executable profile varianty
-- spustí je nad stejnými deterministickými vstupy
-- porovná výstupy a vybrané gradienty
-- vrátí lidsky čitelný verdict
+- take two executable profile variants
+- run them on the same deterministic inputs
+- compare outputs and selected gradients
+- return a human-readable verdict
 
 ## Reading Guide
 
-Použij tento modul, pokud chceš:
+Use this module if you want to:
 
-- rychle zkontrolovat, že nová optimizer stage order neporušila numeriku
-- porovnat baseline vs agresivnější rewrite/fusion variantu
-- zkontrolovat drift mezi `FLOAT32` a `FLOAT64` policy variantami
-- ověřit, že approximation policy nezpůsobila nepřijatelný rozptyl
+- quickly check that a new optimizer stage order did not break numerics
+- compare baseline vs a more aggressive rewrite/fusion variant
+- check drift between `FLOAT32` and `FLOAT64` policy variants
+- verify that approximation policy does not cause unacceptable spread
 
-Nepoužívej ho jako:
+Do not use it as:
 
-- performance benchmark
-- náhradu unit testů
-- důkaz úplné numerické správnosti celého frameworku
+- a performance benchmark
+- a replacement for unit tests
+- proof of complete numerical correctness of the whole framework
 
 ## Main Components
 
 - CLI
   - [NumericsCli.java](./NumericsCli.java)
-- harness orchestrace
+- harness orchestration
   - [NumericsHarness.java](./NumericsHarness.java)
-- scénáře / graph recipe
+- scenarios / graph recipes
   - [NumericsGraphFactory.java](./NumericsGraphFactory.java)
-- metriky
+- metrics
   - [NumericsMetrics.java](./NumericsMetrics.java)
 - tolerance policy
   - [NumericsPolicy.java](./NumericsPolicy.java)
@@ -41,18 +41,18 @@ Nepoužívej ho jako:
 
 ## What It Measures
 
-Harness dnes porovnává pět signálů:
+The harness currently compares five signals:
 
 - `out`
-  - forward výstup benchmark-like graphu
+  - forward output of the benchmark-like graph
 - `gradA`
 - `gradB`
 - `gradC`
-  - gradienty tří leaf vstupů benchmark-like graphu
+  - gradients of three leaf inputs in the benchmark-like graph
 - `broadcast`
-  - forward výstup samostatného broadcast-heavy graphu
+  - forward output of a separate broadcast-heavy graph
 
-Pro každý signál počítá:
+For each signal it computes:
 
 - `maxAbs`
 - `avgAbs`
@@ -62,86 +62,86 @@ Pro každý signál počítá:
 - `p95Ulp`
 - `invalidCount`
 
-Pak z nich složí aggregate metriky a na ně aplikuje `NumericsPolicy`.
+It then aggregates them and applies `NumericsPolicy`.
 
 ## What It Actually Runs
 
-`NumericsHarness` nespouští jeden jediný graph. Spouští dva scénáře:
+`NumericsHarness` does not run a single graph. It runs two scenarios:
 
 ### 1. Optimizer-like training graph
 
-V [NumericsGraphFactory.java](./NumericsGraphFactory.java) je složený z:
+In [NumericsGraphFactory.java](./NumericsGraphFactory.java), it is built from:
 
-- opakovaných elementwise bloků nad `A`, `B`, `C`
-- několika `linear(...)` vrstev
-- finální scalar reduction
+- repeated elementwise blocks over `A`, `B`, `C`
+- several `linear(...)` layers
+- a final scalar reduction
 
-Tenhle graph se spouští v režimu:
+This graph runs in:
 
 - `FORWARD_BACKWARD`
 
-a harness z něj sbírá:
+and the harness collects from it:
 
 - forward output
-- gradienty `A`, `B`, `C`
+- gradients of `A`, `B`, and `C`
 
 ### 2. Broadcast-heavy forward graph
 
-Samostatný graph:
+A separate graph:
 
 - `a.add(b).mul(c).add(a).sigmoid()`
 
-nad broadcast-compatible shapes.
+over broadcast-compatible shapes.
 
-Ten se spouští v režimu:
+It runs in:
 
 - `FORWARD`
 
-a slouží k odhalení driftu v broadcast/elementwise path, který by optimizer-like graph sám nemusel zachytit.
+and is meant to expose drift in broadcast/elementwise paths that the optimizer-like graph alone might not catch.
 
 ## Why Two Graphs
 
-Tohle není náhoda.
+This is intentional.
 
-Jeden graph sám typicky nezachytí obě věci:
+One graph alone typically does not capture both:
 
-- numeriku v širším training-style graphu
-- numeriku v broadcast-heavy shape/layout situacích
+- numerics in a broader training-style graph
+- numerics in broadcast-heavy shape/layout situations
 
-Proto harness kombinuje:
+So the harness combines:
 
-- jeden "hlubší" training-like scénář
-- jeden "plošší" broadcast scénář
+- one "deeper" training-like scenario
+- one "flatter" broadcast scenario
 
 ## Determinism And Input Policy
 
-Vstupy jsou deterministické:
+Inputs are deterministic:
 
-- seed je řízený `numerics.seed`
-- input arrays se generují jednou
-- obě candidate profily dostávají stejná data
+- the seed is controlled by `numerics.seed`
+- input arrays are generated once
+- both candidate profiles receive the same data
 
-To je naprosto zásadní. Bez toho by výsledky neříkaly nic o numerickém driftu mezi kandidáty, ale jen o různých datech.
+This is essential. Without that, the results would say nothing about numeric drift between candidates and would instead reflect different inputs.
 
 ## Candidate Model
 
-CLI dnes skládá dva kandidáty přes:
+The CLI currently builds two candidates through:
 
 - dtype
-- jméno varianty
+- variant name
 - stage order
 
-`NumericsHarness.profile(...)` vytváří `ExecutionProfile` takto:
+`NumericsHarness.profile(...)` builds `ExecutionProfile` like this:
 
 - `OptimizerConfig.trainingDefaults().withStageOrder(...)`
 - `RuntimeConfig.trainingDefaults()`
 
-To znamená:
+That means:
 
-- harness dnes primárně porovnává graph-policy varianty
-- runtime policy zůstává fixní
+- the harness primarily compares graph-policy variants today
+- runtime policy remains fixed
 
-Pokud chceš porovnat i runtime policy, musíš si kandidáty složit programově mimo základní CLI.
+If you want to compare runtime policy as well, you need to build candidates programmatically outside the basic CLI.
 
 ## CLI Usage
 
@@ -149,7 +149,7 @@ Main class:
 
 - `numerics.NumericsCli`
 
-Příklad:
+Example:
 
 ```bash
 java --add-modules jdk.incubator.vector \
@@ -171,46 +171,46 @@ java --add-modules jdk.incubator.vector \
 ## Properties
 
 - `numerics.dtype`
-  - `FLOAT32` nebo `FLOAT64`
+  - `FLOAT32` or `FLOAT64`
   - default `FLOAT32`
 - `numerics.stageA`
-  - comma nebo `+` separated stage list
-  - `NONE` znamená prázdný stage order
+  - comma- or `+`-separated stage list
+  - `NONE` means an empty stage order
 - `numerics.stageB`
-  - stejné jako `stageA`
+  - same as `stageA`
 - `numerics.nameA`
-  - label kandidáta A
+  - label of candidate A
 - `numerics.nameB`
-  - label kandidáta B
+  - label of candidate B
 - `numerics.size`
-  - velikost flat training input arrays
+  - size of the flat training input arrays
 - `numerics.graphBlocks`
-  - kolik opakovaných optimizer-like bloků graph obsahuje
+  - how many repeated optimizer-like blocks the graph contains
 - `numerics.broadcastB0`
 - `numerics.broadcastB1`
 - `numerics.broadcastF`
-  - shape parametry broadcast scénáře
+  - shape parameters for the broadcast scenario
 - `numerics.seed`
   - RNG seed
 
 ## Stage Syntax
 
-`NumericsHarness.parseStages(...)` akceptuje:
+`NumericsHarness.parseStages(...)` accepts:
 
 - `NONE`
 - `AR`
 - `AR,CSE`
 - `AR+CSE+FUSE`
 
-To je užitečné hlavně při rychlém A/B:
+This is useful especially for quick A/B checks:
 
-- baseline bez optimalizace vs rewrite-only
+- no optimization vs rewrite-only
 - rewrite-only vs rewrite+CSE
 - inference-like stage order vs training-like stage order
 
 ## Tolerance Policy
 
-Default policy se volí podle dtype:
+Default policy is chosen by dtype:
 
 - `FLOAT64`
   - `absTol = 1e-12`
@@ -221,7 +221,7 @@ Default policy se volí podle dtype:
   - `relTol = 1e-5`
   - `maxUlpTol = 128`
 
-Verdict může být:
+Verdict can be:
 
 - `SAFE`
 - `BORDERLINE`
@@ -230,19 +230,19 @@ Verdict může být:
 ### Meaning Of Verdicts
 
 - `SAFE`
-  - vše se vešlo do abs/rel i ULP tolerance
+  - everything stayed within abs/rel and ULP tolerance
 - `BORDERLINE`
-  - část metrik je mimo hlavní toleranci, ale stále v přijatelném ULP pásmu
-  - nebo naopak ULP drift přesáhl limit při malém absolutním rozdílu
+  - some metrics exceeded the main tolerance but stayed within an acceptable ULP band
+  - or ULP drift exceeded the bound while absolute error remained small
 - `UNSAFE`
-  - invalid hodnoty
-  - nebo výrazné překročení tolerance bez rozumného vysvětlení
+  - invalid values occurred
+  - or tolerance was exceeded significantly without a reasonable explanation
 
-To není matematický důkaz korektnosti. Je to pragmatický guardrail pro rychlou regresní kontrolu.
+This is not a mathematical proof of correctness. It is a pragmatic guardrail for fast regression checks.
 
 ## Example Output
 
-Výstup reportu vypadá zhruba takto:
+Report output looks roughly like this:
 
 ```text
 Numerics Report
@@ -258,73 +258,73 @@ verdict=SAFE (within abs/rel and ulp tolerance)
 
 ## Real Usage Patterns
 
-### 1. Ověření nové optimizer stage kombinace
+### 1. Verifying a new optimizer stage combination
 
-Použij:
+Use:
 
 - `stageA=AR,CSE`
 - `stageB=AR,CSE,FUSE`
 
-Smysl:
+Why:
 
-- rychle zjistíš, jestli nově zapnutá fusion nezhoršila numeriku nad rozumnou mez
+- you can quickly see whether enabling fusion worsened numerics beyond a reasonable bound
 
-### 2. Kontrola rewrite regrese
+### 2. Rewrite regression check
 
-Použij:
+Use:
 
 - `stageA=NONE`
 - `stageB=AR`
 
-Smysl:
+Why:
 
-- validuješ, že rewrite family nepoškodila forward ani gradienty
+- you validate that the rewrite family did not damage forward outputs or gradients
 
 ### 3. Broadcast audit
 
-Zvyš:
+Increase:
 
 - `numerics.broadcastB0`
 - `numerics.broadcastB1`
 - `numerics.broadcastF`
 
-Smysl:
+Why:
 
-- vynutíš vyšší váhu broadcast-heavy scénáře
+- you force more weight onto the broadcast-heavy scenario
 
 ## What The Harness Does Not Guarantee
 
-Nezaručuje:
+It does not guarantee:
 
-- pokrytí všech operation families
-- pokrytí všech dtype/layout corner cases
-- odhalení výkonových regresí
-- odhalení všech long-tail NaN/Inf problémů v hlubokých sítích
+- coverage of all operation families
+- coverage of all dtype/layout corner cases
+- detection of performance regressions
+- detection of all long-tail NaN/Inf problems in deep networks
 
-Je to rychlý smoke/regression harness, ne formální numerics certification layer.
+It is a fast smoke/regression harness, not a formal numerics certification layer.
 
 ## Extending The Harness
 
-Když chceš přidat nový scénář:
+If you want to add a new scenario:
 
-1. přidej deterministický graph recipe do `NumericsGraphFactory`
-2. rozhodni, jaké signály z něj chceš sbírat
-3. rozšiř `OutputSet`
-4. doplň metriky a report
-5. drž scénáře malé a reprodukovatelné
+1. add a deterministic graph recipe to `NumericsGraphFactory`
+2. decide which signals to collect from it
+3. extend `OutputSet`
+4. extend metrics and the report
+5. keep scenarios small and reproducible
 
-Nedělej z toho:
+Do not turn this into:
 
-- benchmark suite
-- workload zoo s dvaceti různými konfiguracemi
-- druhý autotune framework
+- a benchmark suite
+- a workload zoo with twenty configurations
+- a second autotune framework
 
 ## Common Mistakes
 
-- interpretovat `SAFE` jako důkaz absolutní správnosti
-- porovnávat kandidáty s různými vstupy
-- míchat numerics harness s performance benchmarkem
-- přidávat syntetické scénáře bez reálného diagnostického přínosu
+- treating `SAFE` as proof of absolute correctness
+- comparing candidates with different inputs
+- mixing the numerics harness with performance benchmarking
+- adding synthetic scenarios without real diagnostic value
 
 ## Related Modules
 

@@ -1,36 +1,36 @@
 # Tuning Architecture
 
-Tuning vrstva je postavená na jednom tvrdém pravidle:
+The tuning layer is built around one hard rule:
 
-- tuning nesmí vytvořit paralelní execution model vedle runtime
+- tuning must not create a parallel execution model next to runtime
 
-Každý benchmarkovaný nebo autotunovaný kandidát musí být reálně spustitelný jako:
+Every benchmarked or autotuned candidate must be genuinely runnable as:
 
 - `ExecutionProfile`
 - `CompiledGraph`
 - `PreparedExecution`
 
-Tuning tedy nebenchmarkuje abstraktní "knob set". Benchmarkuje a vyhodnocuje skutečně spustitelný profil.
+So tuning does not benchmark an abstract "knob set". It benchmarks and evaluates a truly executable profile.
 
 ## Reading Guide
 
-Tento dokument popisuje:
+This document describes:
 
-- jak se skládá finální executable profil
-- jak se liší benchmark, autotune a platform calibration
-- které vrstvy vlastní runtime knoby a které graph policy
-- jaké calibration families dnes existují
-- jak orchestrace kombinuje workload, measurement, validation, search a persistence
+- how the final executable profile is assembled
+- how benchmark, autotune, and platform calibration differ
+- which layers own runtime knobs and which own graph policy
+- which calibration families exist today
+- how orchestration combines workload, measurement, validation, search, and persistence
 
 ## Core Artifacts
 
-Je potřeba rozlišovat čtyři artefakty:
+You need to distinguish four artifacts:
 
 ### 1. `PlatformRuntimeProfile`
 
 Machine-specific runtime defaults.
 
-Obsahuje runtime rodiny:
+It contains runtime families:
 
 - matmul
 - fused
@@ -40,7 +40,7 @@ Obsahuje runtime rodiny:
 - materialization
 - numerics
 
-Neobsahuje:
+It does not contain:
 
 - optimizer stage order
 - rewrite policy
@@ -50,11 +50,11 @@ Neobsahuje:
 
 Graph-level policy.
 
-Dnes je to prakticky wrapper kolem:
+Today this is effectively a wrapper around:
 
 - `OptimizerConfig`
 
-Tedy:
+So it contains:
 
 - stage order
 - rewrite config
@@ -64,9 +64,9 @@ Tedy:
 
 ### 3. `ExecutionProfile`
 
-Runnnable artifact, který se opravdu měří.
+Runnable artifact that is actually measured.
 
-Vzniká složením:
+It is created by assembling:
 
 - graph policy
 - runtime profile
@@ -76,55 +76,55 @@ Vzniká složením:
 
 ### 4. Persistence / Explain Artifacts
 
-Sem patří:
+This group includes:
 
 - best profile records
 - tuning history
 - platform calibration reports
 - benchmark/autotune reports
 
-Nejsou to přímé execute contracts.
+These are not direct execute contracts.
 
 ## Assembly Boundary
 
-Jediné správné místo, kde se skládá finální runnable profil, je:
+The only correct place where the final runnable profile is assembled is:
 
 - [ExecutionProfileAssembler.java](../config/profile/ExecutionProfileAssembler.java)
 
-Assembler bere:
+The assembler takes:
 
 - `PlatformRuntimeProfile`
 - `GraphExecutionPolicy`
 - dtype
 - execution mode
 
-a vrací:
+and returns:
 
 - `ExecutionProfile`
 
-To je zásadní boundary:
+That is a critical boundary:
 
-- platform calibration mutuje `PlatformRuntimeProfile`
-- graph autotune mutuje nebo vybírá `ExecutionProfile`
-- runtime vždy nakonec dostane `ExecutionProfile`
+- platform calibration mutates `PlatformRuntimeProfile`
+- graph autotune mutates or selects `ExecutionProfile`
+- runtime always ultimately receives `ExecutionProfile`
 
 ## Workflow Split
 
-Tuning balík dnes obsahuje tři oddělené workflow.
+The tuning package currently contains three separate workflows.
 
 ### Benchmark
 
 Role:
 
-- porovnat explicitně dané kandidáty
-- ukázat trace a hotspoty
-- spočítat speedup vůči baseline
+- compare explicitly provided candidates
+- show traces and hotspots
+- compute speedup versus baseline
 
-Nedělá:
+It does not do:
 
 - search
 - candidate refinement
-- mutaci runtime defaults
+- mutation of runtime defaults
 
 Entry:
 
@@ -134,9 +134,9 @@ Entry:
 
 Role:
 
-- vybrat nejlepší `ExecutionProfile` pro konkrétní workload
-- použít search strategii
-- perzistovat best profile a history
+- select the best `ExecutionProfile` for a specific workload
+- use a search strategy
+- persist the best profile and history
 
 Entry:
 
@@ -146,8 +146,8 @@ Entry:
 
 Role:
 
-- naladit platform runtime defaults po family krocích
-- uložit výsledný `PlatformRuntimeProfile`
+- tune platform runtime defaults family by family
+- persist the resulting `PlatformRuntimeProfile`
 
 Entry:
 
@@ -155,7 +155,7 @@ Entry:
 
 ## Session Responsibilities
 
-`session` vrstva je orchestrátor. Kombinuje:
+The `session` layer is the orchestrator. It combines:
 
 - candidate generation
 - validation
@@ -164,7 +164,7 @@ Entry:
 - progress reporting
 - persistence hooks
 
-Neřeší:
+It does not handle:
 
 - kernel execution detail
 - optimizer internals
@@ -174,7 +174,7 @@ Neřeší:
 
 ### `workload`
 
-Definuje:
+Defines:
 
 - `WorkloadSpec`
 - `WorkloadInstance`
@@ -183,7 +183,7 @@ Definuje:
 
 ### `candidate`
 
-Definuje:
+Defines:
 
 - `Candidate`
 - `CandidateSpace`
@@ -192,48 +192,48 @@ Definuje:
 
 ### `measure`
 
-Definuje:
+Defines:
 
 - `MeasurementPolicy`
 - `MeasurementEngine`
 - `MeasurementResult`
 
-Aktuální default measurement engine:
+The current default measurement engine:
 
-- compile graph
-- prepare execution
-- optional traced run
-- warmup
-- steady-state repeats
+- compiles the graph
+- prepares execution
+- optionally performs a traced run
+- runs warmup
+- runs steady-state repeats
 
 ### `validate`
 
-Definuje:
+Defines:
 
 - workload correctness checks
 - baseline/reference validation
 
 ### `search`
 
-Řeší:
+Handles:
 
-- ordering kandidátů
+- candidate ordering
 - refinement
 - tree search
 - history-aware preference/pruning
 
 ### `report`
 
-Řeší:
+Handles:
 
-- text a JSON explain artifacts
+- text and JSON explain artifacts
 - suite summaries
 - candidate summaries
 - calibration/tuning result renderers
 
 ### `store`
 
-Řeší:
+Handles:
 
 - platform profile store
 - best profile store
@@ -243,58 +243,58 @@ Definuje:
 
 ## Benchmark Flow
 
-`BenchmarkSession` dnes reálně dělá:
+`BenchmarkSession` currently does this in practice:
 
-1. pro každý `BenchmarkEntry` instanciuje fresh workload
-2. spustí validation
-3. pokud validation projde, změří kandidáta
-4. vrátí `BenchmarkReport`
+1. instantiate a fresh workload for each `BenchmarkEntry`
+2. run validation
+3. if validation passes, measure the candidate
+4. return `BenchmarkReport`
 
-Tedy:
+So:
 
-- benchmark nepracuje s jedním sdíleným graph instance napříč kandidáty
-- každý kandidát dostává fresh workload instance
+- benchmark does not operate on one shared graph instance across candidates
+- each candidate gets a fresh workload instance
 
-To je správně, protože compiled/prepared runtime může měnit graph strukturu i cache stav.
+That is correct, because compiled/prepared runtime may change graph structure and cache state.
 
 ## Autotune Flow
 
-`DefaultAutotuneSession` dnes dělá:
+`DefaultAutotuneSession` currently does:
 
-1. vytvoří `SearchContext`
-2. nechá search strategii vybrat počáteční batch
-3. kandidáty validuje a měří
-4. pokud strategie podporuje refinement, iteruje dál
-5. seřadí úspěšné kandidáty podle steady-state median
-6. vybere finalisty
-7. perzistuje history a best profile
+1. create `SearchContext`
+2. let the search strategy select the initial batch
+3. validate and measure the candidates
+4. if the strategy supports refinement, continue iterating
+5. sort successful candidates by steady-state median
+6. select finalists
+7. persist history and the best profile
 
-Důležité:
+Important:
 
-- search vybírá kandidáty
-- session je teprve měří
-- "best" znamená dnes nejnižší steady-state median
+- search selects candidates
+- the session is what measures them
+- "best" currently means the lowest steady-state median
 
 ## Platform Calibration Flow
 
-`DefaultPlatformCalibrationSession` jde family po family:
+`DefaultPlatformCalibrationSession` proceeds family by family:
 
-1. vezme seed `PlatformRuntimeProfile`
-2. vytvoří candidate space pro první family krok
-3. z kandidátů složí runnable `ExecutionProfile`
-4. spustí benchmark suite pro zadané calibration workloads
-5. score policy vybere vítěze
-6. vítězný runtime profile se stane seedem další family
-7. po posledním kroku uloží finální `PlatformRuntimeProfile`
+1. take a seed `PlatformRuntimeProfile`
+2. create a candidate space for the first family step
+3. assemble runnable `ExecutionProfile` instances from candidates
+4. run a benchmark suite for the selected calibration workloads
+5. let the score policy choose the winner
+6. use the winning runtime profile as the seed for the next family
+7. after the last step, persist the final `PlatformRuntimeProfile`
 
-To je zásadní rozdíl oproti graph autotune:
+That is the key difference from graph autotune:
 
-- calibration nehledá workload-specific winner
-- calibration hledá reusable platform defaults
+- calibration does not search for a workload-specific winner
+- calibration searches for reusable platform defaults
 
 ## Current Calibration Families
 
-Aktuální enum je:
+The current enum is:
 
 - `MATMUL`
 - `ATTENTION_MATMUL`
@@ -312,49 +312,49 @@ Aktuální enum je:
 - `CONV2D`
 - `NUMERICS`
 
-Ale ne všechny rodiny jsou dnes používané ve standardních presets.
+But not all families are currently used in standard presets.
 
 ### Standard Training/Inference Presets Today
 
-`PlatformCalibrationDefaults.standardTrainingSteps(...)` a `standardInferenceSteps(...)` dnes skládají hlavně:
+`PlatformCalibrationDefaults.standardTrainingSteps(...)` and `standardInferenceSteps(...)` currently compose mainly:
 
 - `MATMUL`
-- fused threshold + ASM width families
+- fused threshold and ASM width families
 - `ELEMENTWISE_DISPATCH`
-- volitelně `REDUCTION`
-- volitelně `ATTENTION_THRESHOLDS`
-- volitelně `ATTENTION_MATMUL`
-- volitelně `SCHEDULER`
-- volitelně `MATERIALIZATION`
-- volitelně `NUMERICS`
+- optionally `REDUCTION`
+- optionally `ATTENTION_THRESHOLDS`
+- optionally `ATTENTION_MATMUL`
+- optionally `SCHEDULER`
+- optionally `MATERIALIZATION`
+- optionally `NUMERICS`
 
-Momentální důležitá realita:
+The important current reality:
 
-- `FUSED_ARITHMETIC` v enumu dnes standardní presets nepoužívají
-- `CONV2D` family zatím není součást standardních preset kroků
+- `FUSED_ARITHMETIC` exists in the enum, but standard presets do not use it today
+- the `CONV2D` family is not yet part of the standard preset steps
 
-Dokumentace musí tohle říkat explicitně, jinak budí dojem, že se kalibruje víc, než se ve skutečnosti kalibruje.
+The documentation needs to say this explicitly, otherwise it gives the impression that more is calibrated than actually is.
 
 ## Family Ownership
 
-Každý runtime knob musí mít jasného vlastníka.
+Every runtime knob needs a clear owner.
 
 ### `MATMUL`
 
-Sem dnes patří například:
+This family currently includes for example:
 
-- BLAS min work
+- BLAS minimum work
 - BLAS threads
 - `f32RequireMgeK`
 - `f32MaxNOverK`
 - `cpu.matMulParallelMinSize`
-- microkernel volba
-- tile volba
-- attention matmul tile/microkernel volba
+- microkernel selection
+- tile selection
+- attention matmul tile/microkernel selection
 
 ### `FUSED_THRESHOLDS`
 
-Sem patří:
+This family includes:
 
 - `cpu.fusedCheapVectorMinSize`
 - `cpu.fusedTranscendentalVectorMinSize`
@@ -363,18 +363,18 @@ Sem patří:
 
 ### Fused ASM Width Families
 
-Sem patří width knoby pro konkrétní dispatch families:
+These families own width knobs for specific dispatch families:
 
 - cheap contiguous
 - cheap strided
 - non-cheap contiguous
 - non-cheap strided
 
-To už dnes nejsou jen "interní experimentální proměnné". Jsou součástí platform calibration surface.
+These are no longer just "internal experimental variables". They are part of the platform calibration surface.
 
 ### `ELEMENTWISE_DISPATCH`
 
-Sem patří non-fused elementwise thresholds:
+This family owns non-fused elementwise thresholds:
 
 - cheap vector
 - transcendental vector
@@ -383,7 +383,7 @@ Sem patří non-fused elementwise thresholds:
 
 ### `REDUCTION`
 
-Sem patří:
+This family owns:
 
 - reduction vector threshold
 - reduction parallel threshold
@@ -393,7 +393,7 @@ Sem patří:
 
 ### `SCHEDULER`
 
-Sem patří:
+This family owns:
 
 - target chunks per worker
 - minimum chunk sizes
@@ -401,74 +401,74 @@ Sem patří:
 
 ### `MATERIALIZATION`
 
-Sem patří:
+This family owns:
 
 - `cpu.contiguousMaterializeThreshold`
 
 ### `NUMERICS`
 
-Sem patří:
+This family owns:
 
 - `approxMode`
 - `forceExactTranscendentals`
 
 ### `GRAPH_POLICY`
 
-Sem patří:
+This group owns:
 
 - optimizer stage order
 - rewrite configs
 - conv2d lowering mode
 
-Tohle ale není `PlatformRuntimeProfile`. To je `GraphExecutionPolicy`.
+But this is not `PlatformRuntimeProfile`. This is `GraphExecutionPolicy`.
 
 ## Search And Calibration Are Different
 
-Tohle je jeden z nejčastějších zdrojů zmatení:
+This is one of the most common sources of confusion:
 
-- calibration candidate space generuje `PlatformRuntimeProfile` mutace
-- autotune candidate space generuje `ExecutionProfile` varianty
+- calibration candidate space generates `PlatformRuntimeProfile` mutations
+- autotune candidate space generates `ExecutionProfile` variants
 
-První je reuse across workloads.
-Druhý je workload-specific search.
+The first is reusable across workloads.
+The second is workload-specific search.
 
 ## Score Policy
 
-Platform calibration používá explicitní score policy per step.
+Platform calibration uses an explicit score policy per step.
 
-Dnes jsou běžné:
+Common choices today:
 
 - `averageMedianMs()`
 - `weightedGeometricMeanWithWorstBucketPenalty(alpha)`
 
-To je důležité třeba pro attention families, kde jedna workload bucket nemá úplně dominovat a přesto se penalizuje slabý worst case.
+This matters especially for attention families, where one workload bucket should not dominate completely, while a weak worst-case bucket should still be penalized.
 
 ## Tracing Boundary
 
-Trace data generuje execution layer.
+Trace data is generated by the execution layer.
 
-Tuning je jen konzumuje přes:
+Tuning only consumes it through:
 
 - compile trace
 - prepare trace
 - run trace
 - step trace metadata
 
-To znamená:
+That means:
 
-- tuning report může říct, že kandidát běžel s `vectorWidth=4`
-- ale tuning to nepočítá sám, jen čte trace z runtime
+- a tuning report can say that a candidate ran with `vectorWidth=4`
+- but tuning does not compute that itself, it only reads the trace from runtime
 
 ## Persistence Boundary
 
-Persistence se také dělí podle workflow:
+Persistence is also split by workflow:
 
-- platform calibration ukládá `PlatformRuntimeProfile`
-- autotune ukládá best `ExecutionProfile`
-- history ukládá candidate-level evidence
-- reporty ukládají explain artifacts
+- platform calibration persists `PlatformRuntimeProfile`
+- autotune persists the best `ExecutionProfile`
+- history persists candidate-level evidence
+- reports persist explain artifacts
 
-Více v:
+More in:
 
 - [PERSISTENCE.md](./PERSISTENCE.md)
 
@@ -485,29 +485,29 @@ ExecutionProfile profile = ExecutionProfileAssembler.assemble(
 );
 ```
 
-To je finální artifact, který jde do benchmarku nebo běhu aplikace.
+This is the final artifact that goes into a benchmark or an application run.
 
 ## Example: Platform Calibration Vs Autotune
 
 Platform calibration:
 
-- vezme training/inference seed
-- mutuje runtime defaults
-- vrátí `PlatformRuntimeProfile`
+- takes a training/inference seed
+- mutates runtime defaults
+- returns `PlatformRuntimeProfile`
 
 Autotune:
 
-- vezme workload
-- vezme seed profile
-- searchuje candidate `ExecutionProfile` varianty
-- vrátí best executable profile pro daný workload
+- takes a workload
+- takes a seed profile
+- searches candidate `ExecutionProfile` variants
+- returns the best executable profile for that workload
 
 ## Common Mistakes
 
-- míchat runtime knoby a optimizer policy do jednoho profilu bez jasné ownership
-- považovat platform calibration winner za graph-specific best profile
-- benchmarkovat kandidáty, které nejsou skutečně spustitelné `ExecutionProfile`
-- ukládat explain artifacts jako execute source of truth
+- mixing runtime knobs and optimizer policy into one profile without clear ownership
+- treating a platform calibration winner as a graph-specific best profile
+- benchmarking candidates that are not truly runnable `ExecutionProfile` instances
+- storing explain artifacts as the execute source of truth
 
 ## Related Docs
 

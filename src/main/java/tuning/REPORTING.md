@@ -1,45 +1,45 @@
 # Tuning Reporting
 
-Reporting vrstva dělá dvě věci:
+The reporting layer does two things:
 
-- převádí výsledky do lidsky čitelné podoby
-- převádí výsledky do strojově čitelných explain artifactů
+- turns results into a human-readable form
+- turns results into machine-readable explain artifacts
 
-Nedělá:
+It does not do:
 
 - execution
 - candidate search
-- persistence rozhodnutí
+- persistence decisions
 
 ## Reading Guide
 
-Použij tento dokument, pokud chceš pochopit:
+Use this document if you want to understand:
 
-- co dnes benchmark/tuning/calibration report opravdu obsahují
-- odkud se berou compile/prepare/run čísla
-- kde se v text reportech objevují hot steps
-- co patří do progress eventů a co do finálních reportů
+- what benchmark/tuning/calibration reports actually contain today
+- where compile/prepare/run numbers come from
+- where hot steps appear in text reports
+- what belongs in progress events and what belongs in final reports
 
 ## Benchmark Reporting
 
-Hlavní typy:
+Main types:
 
 - [BenchmarkCandidateReport.java](./report/BenchmarkCandidateReport.java)
 - [BenchmarkReport.java](./report/BenchmarkReport.java)
 - [BenchmarkSuiteReport.java](./report/BenchmarkSuiteReport.java)
 - [TextBenchmarkReportRenderer.java](./report/TextBenchmarkReportRenderer.java)
 
-Benchmark report dnes odpovídá na:
+Today the benchmark report answers:
 
-- který kandidát vyhrál
-- kolik kandidátů uspělo/neuspělo
-- jaké byly steady-state časy
-- jak si kandidáti stojí vůči baseline
-- jaké byly hot runtime kroky ve traced běhu
+- which candidate won
+- how many candidates succeeded/failed
+- what the steady-state times were
+- how candidates compare to baseline
+- what the hot runtime steps were in the traced run
 
-### Co `TextBenchmarkReportRenderer` dnes opravdu ukazuje
+### What `TextBenchmarkReportRenderer` Actually Shows Today
 
-Souhrnnou tabulku s poli:
+A summary table with fields:
 
 - `name`
 - `status`
@@ -50,38 +50,38 @@ Souhrnnou tabulku s poli:
 - `p90Ms`
 - `vsBaseline`
 
-A potom pro každého kandidáta detail:
+And then, for each candidate, a detail section:
 
 - validation status
 - optimizer stage order
-- compile/prepare/traced run čas
+- compile/prepare/traced run time
 - step count
 - `parallelUsed`
 - `vectorUsed`
 - steady-state mean/median/p90
 - `speedupVsBaseline`
 - top hot steps
-- full step dump s trace metadata
+- full step dump with trace metadata
 
-To znamená, že benchmark reporting není jen "jméno a median". Je to užitečný výkonový diagnostický artifact.
+That means benchmark reporting is not just "name and median". It is a useful performance diagnostic artifact.
 
 ## Autotune Reporting
 
-Hlavní typy:
+Main types:
 
 - [TuningResult.java](./session/TuningResult.java)
 - [TuningSummary.java](./report/TuningSummary.java)
 - [TextTuningResultRenderer.java](./report/TextTuningResultRenderer.java)
 
-Autotune reporting odpovídá na:
+Autotune reporting answers:
 
-- který `ExecutionProfile` vyhrál
-- jaká search strategie byla použita
-- kolik kandidátů bylo vybráno/evaluováno
-- kolik jich prošlo validation
-- kolik history entries se zapsalo
+- which `ExecutionProfile` won
+- which search strategy was used
+- how many candidates were selected/evaluated
+- how many passed validation
+- how many history entries were written
 
-### Co dnes ukazuje `TextTuningResultRenderer`
+### What `TextTuningResultRenderer` Shows Today
 
 - `bestProfile`
 - `persisted`
@@ -94,7 +94,7 @@ Autotune reporting odpovídá na:
 - `historyEntriesWritten`
 - `bestMedianMs`
 
-a potom tabulku finalistů:
+and then a finalists table:
 
 - name
 - median
@@ -103,7 +103,7 @@ a potom tabulku finalistů:
 
 ## Platform Calibration Reporting
 
-Hlavní typy:
+Main types:
 
 - [PlatformCalibrationResult.java](./session/PlatformCalibrationResult.java)
 - [PlatformCalibrationStepResult.java](./session/PlatformCalibrationStepResult.java)
@@ -112,15 +112,15 @@ Hlavní typy:
 - [TextPlatformCalibrationResultRenderer.java](./report/TextPlatformCalibrationResultRenderer.java)
 - [JsonPlatformCalibrationResultRenderer.java](./report/JsonPlatformCalibrationResultRenderer.java)
 
-Platform calibration report odpovídá na:
+The platform calibration report answers:
 
-- jaký byl seed runtime profile
-- které family kroky proběhly
-- jaký kandidát v každém kroku vyhrál
-- jaká score metrika byla použita
-- jaký finální runtime profile vznikl
+- what the seed runtime profile was
+- which family steps were run
+- which candidate won in each step
+- which score metric was used
+- which final runtime profile was produced
 
-### Co dnes ukazuje `TextPlatformCalibrationResultRenderer`
+### What `TextPlatformCalibrationResultRenderer` Shows Today
 
 - `platformId`
 - `createdAt`
@@ -132,7 +132,7 @@ Platform calibration report odpovídá na:
 - `seedRuntimeProfile`
 - `finalRuntimeProfile`
 - hardware summary
-- tabulku kroků:
+- a step table:
   - `name`
   - `family`
   - `seedRuntime`
@@ -142,46 +142,46 @@ Platform calibration report odpovídá na:
 
 ## Trace-Derived Reporting
 
-Reporting sám trace negeneruje.
+Reporting does not generate trace data on its own.
 
-Trace přichází z execution vrstvy přes `MeasurementResult.trace()`.
+Trace comes from the execution layer through `MeasurementResult.trace()`.
 
-Typicky obsahuje:
+It typically contains:
 
 - compile trace
 - prepare trace
 - run trace
 - step traces
 
-Benchmark renderer pak z něj umí vytáhnout:
+The benchmark renderer can then extract:
 
 - compile/prepare duration
-- traced cold run duration
+- traced cold-run duration
 - hot steps
-- layout/dispatch/reduction/matmul/fused metadata na každém stepu
+- layout/dispatch/reduction/matmul/fused metadata on each step
 
 ## Why Reporting Is Separate
 
-Reporting nesmí rozhodovat:
+Reporting must not decide:
 
-- jestli je kandidát validní
-- jak se měří
-- co se uloží do persistence
+- whether a candidate is valid
+- how measurement is done
+- what gets persisted
 
-Má jen převést již existující DTO do výstupu.
+It should only convert already-existing DTOs into output.
 
-Tím je zajištěné, že:
+That guarantees:
 
-- text renderer nemění semantics výsledků
-- JSON renderer není execute source of truth
+- the text renderer does not change result semantics
+- the JSON renderer is not the execute source of truth
 
 ## Progress Reporting
 
-Vedle finálních reportů existují i live progress eventy.
+In addition to final reports, there are also live progress events.
 
 ### Autotune progress
 
-Typy:
+Types:
 
 - [AutotuneProgressEvent.java](./session/AutotuneProgressEvent.java)
 - [AutotuneProgressPhase.java](./session/AutotuneProgressPhase.java)
@@ -200,7 +200,7 @@ Current phases:
 
 ### Platform calibration progress
 
-Typy:
+Types:
 
 - [PlatformCalibrationProgressEvent.java](./session/PlatformCalibrationProgressEvent.java)
 - [PlatformCalibrationProgressPhase.java](./session/PlatformCalibrationProgressPhase.java)
@@ -220,67 +220,67 @@ Current phases:
 - `COMPLETED`
 - `FAILED`
 
-Tyto eventy nejsou náhrada finálního reportu. Jsou určeny pro:
+These events are not a replacement for the final report. They are meant for:
 
-- dlouhý běh v terminálu
+- long terminal runs
 - CI log visibility
-- debugging stalls a candidate explosions
+- debugging stalls and candidate explosions
 
 ## JSON Expectations
 
-JSON renderery mají být:
+JSON renderers should be:
 
 - machine-readable explain artifacts
-- vhodné pro diffing nebo archivaci
+- suitable for diffing or archiving
 
-Nemají být:
+They should not be:
 
 - execute source of truth
-- jediný persistence artifact
+- the only persistence artifact
 
-Source of truth zůstává:
+The source of truth remains:
 
-- `PlatformRuntimeProfile` pro platform defaults
-- `ExecutionProfile` pro graph winner
+- `PlatformRuntimeProfile` for platform defaults
+- `ExecutionProfile` for graph winners
 
 ## Example: Benchmark Report Interpretation
 
-Pokud benchmark report ukáže:
+If a benchmark report shows:
 
-- `bestMedianMs` lepší než baseline
-- ale `traceMs` horší
+- `bestMedianMs` better than baseline
+- but `traceMs` worse
 
-může to znamenat:
+it may mean:
 
-- vyšší cold/traced overhead
-- ale lepší steady-state
+- higher cold/traced overhead
+- but better steady-state
 
-Proto se vyplatí sledovat:
+So it is worth tracking:
 
 - compile/prepare/traced run
 - steady-state median
 - hot steps
 
-ne jen jedno číslo.
+not just one number.
 
 ## Example: Calibration Report Interpretation
 
-Pokud v platform calibration reportu uvidíš:
+If in a platform calibration report you see:
 
-- dobré matmul score
-- ale pozdější fused family zhoršení
+- a good matmul score
+- but a later fused family regression
 
-je to očekávané v sekvenčním family flow:
+that is expected in a sequential family flow:
 
-- každý další krok už startuje z předchozího vítěze
-- report zachovává audit trail, který krok co změnil
+- each later step already starts from the previous winner
+- the report preserves the audit trail of what each step changed
 
 ## Common Mistakes
 
-- používat text report jako jediný perzistentní artifact
-- číst speedup bez kontextu validation statusu
-- zaměnit traced cold run za steady-state median
-- ignorovat hot-step dump při výkonové regresi
+- using the text report as the only persistent artifact
+- reading speedup without the context of validation status
+- confusing traced cold run with steady-state median
+- ignoring the hot-step dump during performance regression analysis
 
 ## Related Docs
 

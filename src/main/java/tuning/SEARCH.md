@@ -1,22 +1,22 @@
 # Tuning Search
 
-Search vrstva rozhoduje, které kandidáty stojí za to změřit a v jakém pořadí. Sama nic nespouští.
+The search layer decides which candidates are worth measuring and in what order. It does not execute anything itself.
 
-Její kontrakt je:
+Its contract is:
 
-- dostane `SearchContext`
-- vrátí `SearchResult`
+- it receives `SearchContext`
+- it returns `SearchResult`
 
-Případně může podporovat refinement nad už změřenými kandidáty.
+Optionally it may support refinement over already measured candidates.
 
 ## Reading Guide
 
-Tento dokument vysvětluje:
+This document explains:
 
-- jaký je minimální kontrakt search strategie
-- jak fungují exhaustive a tree strategie
-- jak funguje history-aware ordering
-- jak se volí default strategie podle candidate space
+- what the minimum search-strategy contract is
+- how exhaustive and tree strategies work
+- how history-aware ordering works
+- how the default strategy is selected according to candidate space
 
 ## Core Contracts
 
@@ -30,7 +30,7 @@ interface SearchStrategy {
 }
 ```
 
-Volitelně:
+Optionally:
 
 ```java
 boolean supportsRefinement();
@@ -42,30 +42,30 @@ SearchResult refine(
 );
 ```
 
-To znamená:
+That means:
 
-- search může být jednokolový
-- nebo iterativní
+- search can be single-round
+- or iterative
 
 ### `SearchContext`
 
-Obsahuje:
+Contains:
 
 - `AutotuneRequest`
 - `CandidateSpace`
 
 ### `SearchResult`
 
-Obsahuje:
+Contains:
 
 - `selectedCandidates`
 - `preferredCandidate`
 
-`preferredCandidate` je hint, ne execute contract.
+`preferredCandidate` is a hint, not an execute contract.
 
 ### `SearchPolicy`
 
-Nese budget:
+Carries the budget:
 
 - `maxCandidates`
 - `beamWidth`
@@ -74,251 +74,251 @@ Nese budget:
 
 ## Candidate Spaces
 
-Search nepracuje přímo s raw knobs. Pracuje s candidate spaces.
+Search does not work directly with raw knobs. It works with candidate spaces.
 
-Základní typy:
+Basic types:
 
 - `CandidateSpace`
 - `RefinableCandidateSpace`
 
 `CandidateSpace`:
 
-- umí vygenerovat počáteční kandidáty
+- can generate initial candidates
 
 `RefinableCandidateSpace`:
 
-- umí generovat sousedy kolem již známého kandidáta
+- can generate neighbors around an already known candidate
 
-To je to, co umožňuje tree search bez paralelního execute modelu.
+That is what enables tree search without introducing a parallel execution model.
 
 ## Search Lifecycle In Autotune
 
-`DefaultAutotuneSession` dnes dělá:
+`DefaultAutotuneSession` currently does:
 
-1. `search(context)` pro initial batch
-2. kandidáty validuje a měří
-3. pokud strategie umí refinement:
-   - volá `refine(...)`
-   - znovu validuje a měří nový batch
-4. vybere best finalist podle median
+1. call `search(context)` for the initial batch
+2. validate and measure the candidates
+3. if the strategy supports refinement:
+   - call `refine(...)`
+   - validate and measure the new batch again
+4. choose the best finalist by median
 
-Tedy:
+So:
 
-- search vrstva nikdy nevolá measurement přímo
-- session ji používá jako policy vrstvu nad evaluation loop
+- the search layer never calls measurement directly
+- the session uses it as a policy layer over the evaluation loop
 
 ## Simple Strategies
 
 ### `ExhaustiveSearchStrategy`
 
-Použij, když:
+Use when:
 
-- candidate grid je malý
-- chceš úplné pokrytí
+- the candidate grid is small
+- you want full coverage
 
-Výhody:
+Advantages:
 
-- jednoduchost
-- žádná heuristická chyba
+- simplicity
+- no heuristic error
 
-Nevýhoda:
+Disadvantage:
 
-- neškáluje
+- it does not scale
 
 ### `FirstKSearchStrategy`
 
-Použij, když:
+Use when:
 
-- chceš seed batch
-- potřebuješ budget guard
+- you want a seed batch
+- you need a budget guard
 
-Sama o sobě většinou není finální strategie. Často slouží jako seed pro tree strategie.
+On its own it is usually not the final strategy. It often serves as a seed for tree strategies.
 
 ### `CompositeSearchStrategy`
 
-Použij, když:
+Use when:
 
-- chceš spojit více ordering heuristik
-- chceš deduplikovaný seznam seed kandidátů
+- you want to combine multiple ordering heuristics
+- you want a deduplicated list of seed candidates
 
 ## Tree Strategies
 
-Tree search dává smysl jen pokud candidate space umí refinement nebo sousednost.
+Tree search only makes sense if the candidate space supports refinement or neighborhood relations.
 
 ### `TreeBeamSearchStrategy`
 
-Myšlenka:
+Idea:
 
-1. vyber seed kandidáty
-2. změř je
-3. nech si nejlepší frontier podle `beamWidth`
-4. expanduj jejich neighborhood
-5. opakuj
+1. select seed candidates
+2. measure them
+3. keep the best frontier according to `beamWidth`
+4. expand their neighborhood
+5. repeat
 
-Použij, když:
+Use when:
 
-- chceš rozumný kompromis mezi šířkou a cenou
-- candidate space je refinable
+- you want a reasonable tradeoff between breadth and cost
+- the candidate space is refinable
 
 ### `BestFirstTreeSearchStrategy`
 
-Myšlenka:
+Idea:
 
-- v každém kroku expanduj jen nejperspektivnější frontier node
+- in each step, expand only the most promising frontier node
 
-Použij, když:
+Use when:
 
-- score modelu věříš
-- chceš agresivní focus místo breadth
+- you trust the score model
+- you want aggressive focus instead of breadth
 
 ### `BranchAndBoundSearchStrategy`
 
-Myšlenka:
+Idea:
 
-1. měj current best measured score
-2. pro frontier node spočítej optimistic bound
-3. pokud bound je horší než best, větev zahodíš
-4. expanduješ jen zbývající větve
+1. keep the current best measured score
+2. compute an optimistic bound for each frontier node
+3. if the bound is worse than the best score, drop that branch
+4. expand only the remaining branches
 
-Použij, když:
+Use when:
 
-- workload family má rozumný bound model
-- candidate space je větší
+- the workload family has a reasonable bound model
+- the candidate space is larger
 
 ## Score And Bound Models
 
 ### Score Model
 
-Relevantní třídy:
+Relevant classes:
 
 - [CandidateScoreModel.java](./search/CandidateScoreModel.java)
 - [MedianSteadyStateScoreModel.java](./search/MedianSteadyStateScoreModel.java)
 
-Aktuální default skóre je:
+The current default score is:
 
-- nižší steady-state median = lepší
+- lower steady-state median = better
 
 ### Bound Models
 
-Relevantní třídy:
+Relevant classes:
 
 - [CandidateBoundModel.java](./search/CandidateBoundModel.java)
 - [ZeroBoundModel.java](./search/ZeroBoundModel.java)
 - [ParentScoreBoundModel.java](./search/ParentScoreBoundModel.java)
 - [WorkloadAwareBoundModel.java](./search/WorkloadAwareBoundModel.java)
 
-`WorkloadAwareBoundModel` dnes dispatchuje podle `WorkloadKind`:
+`WorkloadAwareBoundModel` currently dispatches by `WorkloadKind`:
 
 - `CONV2D`
 - `MATMUL`
 - `TRANSFORMER_HOT_PATH`
-- jinak generic fallback
+- otherwise generic fallback
 
-To znamená:
+That means:
 
-- search heuristiky mohou být workload-aware
-- ale pořád vracejí jen ordering/pruning hint, ne execute semantics
+- search heuristics can be workload-aware
+- but they still return only ordering/pruning hints, not execute semantics
 
 ## History-Aware Search
 
-`HistoryAwareSearchStrategy` je wrapper nad jinou strategií.
+`HistoryAwareSearchStrategy` is a wrapper around another strategy.
 
-Dělá:
+It does:
 
-1. načte persisted best profile pro aktuální hardware + workload
-2. pokud sedí fingerprint, posune ho dopředu
-3. načte history entries pro stejný kontext
-4. preferuje historicky dobré kandidáty
-5. může přeskočit historicky invalid kandidáty, pokud je pruning povolený
+1. load the persisted best profile for the current hardware + workload
+2. if the fingerprint matches, move it forward
+3. load history entries for the same context
+4. prefer historically good candidates
+5. optionally skip historically invalid candidates if pruning is enabled
 
-Důležitá realita:
+Important reality:
 
-- neprovádí vlastní scoring
-- jen reorderuje candidate space před delegováním na vnitřní strategii
+- it does not perform its own scoring
+- it only reorders candidate space before delegating to the inner strategy
 
 ## Default Strategy Selection
 
-Výběr default strategie řeší:
+Default strategy selection is handled by:
 
 - [AutotuneDefaultStrategySelector.java](./session/AutotuneDefaultStrategySelector.java)
 
-Aktuální logika:
+Current logic:
 
 - non-refinable space
   - `Exhaustive`
-- refinable space a dost velký candidate count
+- refinable space with sufficiently large candidate count
   - `BranchAndBound`
-- refinable space střední velikosti
+- refinable space of medium size
   - `TreeBeam`
-- pokud je persistence zapnutá
-  - obalí se do `HistoryAwareSearchStrategy`
+- if persistence is enabled
+  - wrap it in `HistoryAwareSearchStrategy`
 
-Tedy:
+So:
 
-- default selection není natvrdo uvnitř strategií
-- je to policy vrstva
+- default selection is not hardcoded inside the strategies
+- it is a policy layer
 
 ## Example: Small Stage-Order Space
 
-Pokud ladíš malý stage-order grid:
+If you are tuning a small stage-order grid:
 
-- candidate space je malý
-- refinement typicky nedává smysl
+- the candidate space is small
+- refinement usually does not make sense
 
-Použij:
+Use:
 
 - `ExhaustiveSearchStrategy`
 
 ## Example: Matmul Runtime Search
 
-Pokud máš větší refinable matmul candidate space:
+If you have a larger refinable matmul candidate space:
 
 - tiles
 - microkernels
 - thresholds
 
-rozumný default je:
+a sensible default is:
 
 - `BranchAndBoundSearchStrategy`
 
-protože:
+because:
 
-- prostor je větší
-- `WorkloadAwareBoundModel` umí matmul hinty
+- the space is larger
+- `WorkloadAwareBoundModel` can provide matmul-specific hints
 
 ## Example: Repeated Tuning On Same Machine
 
-Pokud máš už uložené:
+If you already have persisted:
 
 - best profile
 - history JSONL
 
-obal strategii přes:
+wrap the strategy with:
 
 - `HistoryAwareSearchStrategy`
 
-Smysl:
+Why:
 
-- znovu otestuješ pravděpodobně dobré kandidáty dřív
-- můžeš vynechat historicky invalid varianty
+- you retest likely-good candidates earlier
+- you can skip historically invalid variants
 
 ## Search Does Not Own Persistence
 
-Search může persistence číst jako prior, ale nevlastní její lifecycle.
+Search may read persistence as a prior, but it does not own its lifecycle.
 
-Persistence lifecycle řeší session/store vrstvy.
+Persistence lifecycle is handled by the session/store layers.
 
-To je důležité, protože:
+That matters because:
 
-- historie je pomocná evidence
-- search ji nesmí proměnit v execute source of truth
+- history is auxiliary evidence
+- search must not turn it into the execute source of truth
 
 ## Common Mistakes
 
-- chtít po search strategii, aby sama měřila kandidáty
-- používat branch-and-bound bez rozumného bound modelu
-- zapomenout na candidate deduplikaci přes fingerprint
-- považovat history-aware reordering za důkaz, že uložený winner je stále správný
+- expecting a search strategy to measure candidates itself
+- using branch-and-bound without a reasonable bound model
+- forgetting candidate deduplication through fingerprint
+- treating history-aware reordering as proof that the stored winner is still correct
 
 ## Related Docs
 

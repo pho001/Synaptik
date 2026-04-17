@@ -1,0 +1,27 @@
+Platform Calibration Result
+platformId=mac_os_x-aarch64-oracle_corporation-16c
+createdAt=2026-04-12T10:45:09.452295+02:00
+persisted=true
+outputProfilePath=build/platform-calibration/bf16/profiles/platform/mac_os_x-aarch64-oracle_corporation-16c/bf16-forward-backward.json
+profileName=platform-seed-bf16-training
+dataType=BFLOAT16
+mode=FORWARD_BACKWARD
+seedRuntimeProfile=mac_os_x-aarch64-oracle_corporation-16c
+finalRuntimeProfile=mac_os_x-aarch64-oracle_corporation-16c
+
+Hardware
+os=mac_os_x
+arch=aarch64
+vm=openjdk_64-bit_server_vm
+vendor=oracle_corporation
+cores=16
+
+Steps
+name                   family             seedRuntime        selectedExec       score        metric            
+calib-matmul-train     MATMUL             mac_os_x-aarch64-oracle_corporation-16c base+matmulShape=true/1.5+blasThreads=4+matmulParallel=100000 3.204030     averageMedianMs   
+calib-fused-train      FUSED_ARITHMETIC   mac_os_x-aarch64-oracle_corporation-16c base+fusedDispatch=1024/128/16384/1024 n/a          averageMedianMs   
+calib-elementwise-train ELEMENTWISE_DISPATCH mac_os_x-aarch64-oracle_corporation-16c base+elementwiseDispatch=128/32/16384/16384 4.352112     averageMedianMs   
+calib-reduction-train  REDUCTION          mac_os_x-aarch64-oracle_corporation-16c base+reductionThresholds=512/16384 0.033906     averageMedianMs   
+calib-scheduler-train  SCHEDULER          mac_os_x-aarch64-oracle_corporation-16c base+scheduler=5/3/2 4.489765     averageMedianMs   
+calib-materialization-train MATERIALIZATION    mac_os_x-aarch64-oracle_corporation-16c base+materialization=524288 2.666544     averageMedianMs   
+calib-numerics-train   NUMERICS           mac_os_x-aarch64-oracle_corporation-16c base+numerics=ALWAYS/false 1.851844     averageMedianMs   

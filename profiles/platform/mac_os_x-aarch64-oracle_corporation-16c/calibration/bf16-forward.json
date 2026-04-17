@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "platformProfileId": "mac_os_x-aarch64-oracle_corporation-16c",
+    "hardwareKey": "mac_os_x-aarch64-oracle_corporation-16c",
+    "frameworkVersion": "dev",
+    "plannerSchemaVersion": "1",
+    "persistenceSchemaVersion": "1",
+    "createdAtIso": "2026-04-11T19:55:48.779023+02:00",
+    "calibrationPreset": "UNSPECIFIED",
+    "dataType": "BFLOAT16",
+    "executionMode": "FORWARD"
+  },
+  "matmul": {
+    "blasProvider": "NONE",
+    "blasMatmulMinWork": 2000000,
+    "blasThreads": 0,
+    "f32RequireMgeK": false,
+    "f32MaxNOverK": 2.0,
+    "loopUnrollFactor": 4,
+    "matMulTileM": 32,
+    "matMulTileN": 32,
+    "matMulTileK": 32,
+    "matMulParallelMinSize": 100000
+  },
+  "fused": {
+    "fusedCheapVectorMinSize": 256,
+    "fusedTranscendentalVectorMinSize": 64,
+    "fusedCheapParallelMinSize": 8192,
+    "fusedTranscendentalParallelMinSize": 4096
+  },
+  "elementwiseDispatch": {
+    "cheapVectorMinSize": 2048,
+    "transcendentalVectorMinSize": 512,
+    "cheapParallelMinSize": 16384,
+    "transcendentalParallelMinSize": 4096
+  },
+  "reduction": {
+    "reductionVectorMinSize": 16384,
+    "reductionParallelMinSize": 8192,
+    "sumAccuracyMode": "FAST"
+  },
+  "scheduler": {
+    "lowCostTargetChunksPerWorker": 5,
+    "mediumCostTargetChunksPerWorker": 1,
+    "highCostTargetChunksPerWorker": 2,
+    "minScalarChunkSize": 4096,
+    "minVectorChunkSize": 8192,
+    "minReductionChunkSize": 16384,
+    "commonPoolLowCostMaxWorkPerWorker": 16384
+  },
+  "materialization": {
+    "contiguousMaterializeThreshold": 524288
+  },
+  "numerics": {
+    "approxMode": "ALWAYS",
+    "forceExactTranscendentals": false
+  }
+}

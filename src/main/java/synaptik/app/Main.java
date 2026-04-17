@@ -35,6 +35,7 @@ import tuning.workload.StandardWorkloads;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -230,7 +231,11 @@ public final class Main {
     private static PlatformRuntimeProfile loadCalibrationProfile(DTypeTarget dtype) {
         ExecutionProfile seed = trainingSeedProfile(dtype);
         PlatformCalibrationLayout layout = calibrationLayout(dtype, seed);
-        Path path = resolveExisting(layout.profilePath(), legacyCalibrationLayout(dtype, seed).profilePath());
+        Path path = ensurePreferredArtifact(
+                layout.profilePath(),
+                legacyCalibrationLayout(dtype, seed).profilePath(),
+                "calibration profile"
+        );
         if (!Files.exists(path)) {
             throw new IllegalStateException("Missing calibration profile: " + path + ". Run `calibrate " + dtype.id + "` first.");
         }
@@ -275,6 +280,18 @@ public final class Main {
     }
 
     private static ExecutionProfile loadWinnerProfile(DTypeTarget dtype) {
+        PersistencePolicy preferred = tuningPersistence(dtype);
+        PersistencePolicy legacy = legacyTuningPersistence(dtype);
+        ensurePreferredArtifact(
+                preferred.bestProfilePath(),
+                legacy.bestProfilePath(),
+                "best profile"
+        );
+        ensurePreferredArtifact(
+                preferred.historyPath(),
+                legacy.historyPath(),
+                "tuning history"
+        );
         Path path = resolveExisting(
                 tuningPersistence(dtype).bestProfilePath(),
                 legacyTuningPersistence(dtype).bestProfilePath()
@@ -310,6 +327,26 @@ public final class Main {
             return preferred;
         }
         return fallback;
+    }
+
+    private static Path ensurePreferredArtifact(Path preferred, Path legacy, String label) {
+        if (preferred == null || Files.exists(preferred)) {
+            return preferred;
+        }
+        if (legacy == null || !Files.exists(legacy)) {
+            return preferred;
+        }
+        try {
+            Files.createDirectories(preferred.getParent());
+            Files.copy(legacy, preferred, StandardCopyOption.REPLACE_EXISTING);
+            System.out.println("migratedLegacyArtifact=" + label + " -> " + preferred);
+            return preferred;
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Failed to migrate legacy " + label + " from " + legacy + " to " + preferred,
+                    e
+            );
+        }
     }
 
     private static tuning.workload.WorkloadSpec abcWorkload(DTypeTarget dtype) {

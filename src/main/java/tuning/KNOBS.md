@@ -1,32 +1,30 @@
 # Tuning Knobs
 
-Tento dokument popisuje skutečný tuning surface, ne hypotetický budoucí seznam.
+This document describes the real tuning surface, not a hypothetical future list.
 
-Je potřeba rozlišovat dvě velké skupiny:
+You need to distinguish two large groups:
 
 - platform runtime knobs
-  - ukládají se do `PlatformRuntimeProfile`
-  - ladí se v platform calibration
+  - they are stored in `PlatformRuntimeProfile`
+  - they are tuned in platform calibration
 - graph policy knobs
-  - žijí v `ExecutionProfile.optimizer()`
-  - typicky se searchují v graph autotune
+  - they live in `ExecutionProfile.optimizer()`
+  - they are typically searched in graph autotune
 
 ## Reading Guide
 
-Pokud řešíš:
+Use this document if you want to understand:
 
-- co se dnes opravdu kalibruje per hardware
-- co je workload-specific candidate mutace
-- které knoby jsou už veřejné a které jen rezervované
-- jaké candidate ranges dnes používají standardní calibration presets
-
-pak jsi správně tady.
+- what is actually calibrated per hardware today
+- what is workload-specific candidate mutation
+- which knobs are already public and which are only reserved
+- which candidate ranges are currently used by standard calibration presets
 
 ## Runtime Vs Graph Policy
 
 ### Platform Runtime Knobs
 
-Patří sem:
+These include:
 
 - CPU thresholds
 - tiles
@@ -35,27 +33,27 @@ Patří sem:
 - materialization thresholds
 - numerics policy
 
-Tyto knoby se mají sdílet napříč workloady na daném stroji.
+These knobs are meant to be shared across workloads on a given machine.
 
 ### Graph Policy Knobs
 
-Patří sem:
+These include:
 
 - `optimizer.stageOrder`
 - `optimizer.rewrite.*`
 - `optimizer.fuse.*`
 - `optimizer.memory.*`
 
-Tyto knoby jsou workload-sensitive. Nejsou součástí `PlatformRuntimeProfile`.
+These knobs are workload-sensitive. They are not part of `PlatformRuntimeProfile`.
 
 ## Public Runtime Families
 
 ### `MATMUL`
 
-Sem dnes patří:
+This family currently includes:
 
 - `runtime.blas.provider`
-  - prakticky dnes `NONE` nebo `OPENBLAS_FFM`
+  - in practice today mainly `NONE` or `OPENBLAS_FFM`
 - `runtime.blas.matmulMinWork`
 - `runtime.blas.threads`
 - `runtime.blas.f32RequireMgeK`
@@ -70,7 +68,7 @@ Sem dnes patří:
 - `cpu.attentionMatMulTileK`
 - `cpu.attentionMatMulMicroKernel`
 
-Knob, který je v runtime profilu uložený, ale dnešní standardní calibration presets ho nesweepují:
+A knob that is stored in the runtime profile, but not swept by today's standard calibration presets:
 
 - `cpu.loopUnrollFactor`
 
@@ -81,23 +79,23 @@ Knob, který je v runtime profilu uložený, ale dnešní standardní calibratio
 - `cpu.fusedCheapParallelMinSize`
 - `cpu.fusedTranscendentalParallelMinSize`
 
-Tohle řídí scheduler decision pro fused node, ne volbu backendu.
+These control scheduler decisions for fused nodes, not backend selection.
 
 ### Fused ASM Width Knobs
 
-Dnes jsou reálně součást tuning surface:
+These are now genuinely part of the tuning surface:
 
 - `cpu.fusedCheapContiguousAsmVectorWidth`
 - `cpu.fusedCheapStridedAsmVectorWidth`
 - `cpu.fusedNonCheapContiguousAsmVectorWidth`
 - `cpu.fusedNonCheapStridedAsmVectorWidth`
 
-Tyhle width knoby jsou kalibrované po dispatch family, ne jedním globálním číslem.
+These width knobs are calibrated per dispatch family, not as one global number.
 
-To je důležitá realita:
+That is an important current reality:
 
-- nejsou už jen interní experimentální nastavení
-- standardní platform calibration je umí hledat
+- they are no longer just internal experimental settings
+- standard platform calibration can search them
 
 ### `ELEMENTWISE_DISPATCH`
 
@@ -106,7 +104,7 @@ To je důležitá realita:
 - `cpu.cheapParallelMinSize`
 - `cpu.transcendentalParallelMinSize`
 
-Týká se non-fused elementwise kernel families.
+This applies to non-fused elementwise kernel families.
 
 ### `REDUCTION`
 
@@ -116,7 +114,7 @@ Týká se non-fused elementwise kernel families.
 - `cpu.attentionParallelMinSize`
 - `cpu.sumAccuracyMode`
 
-`attention*` thresholds jsou uloženy v reduction profile family, protože patří do strukturovaných reduction-like kernels, ne do generického fused/elementwise dispatch.
+The `attention*` thresholds are stored in the reduction profile family because they belong to structured reduction-like kernels, not generic fused/elementwise dispatch.
 
 ### `SCHEDULER`
 
@@ -128,24 +126,24 @@ Týká se non-fused elementwise kernel families.
 - `cpu.minReductionChunkSize`
 - `cpu.commonPoolLowCostMaxWorkPerWorker`
 
-Tyhle knoby mají význam až po tom, co už je zvoleno, že se poběží paralelně.
+These knobs only matter after the decision to run in parallel has already been made.
 
 ### `MATERIALIZATION`
 
 - `cpu.contiguousMaterializeThreshold`
 
-Rozhoduje, od jaké velikosti je výhodnější non-contiguous input materiálizovat do contiguous temporary storage.
+This decides from what size it becomes more beneficial to materialize a non-contiguous input into contiguous temporary storage.
 
 ### `NUMERICS`
 
 - `runtime.approximation.approxMode`
 - `runtime.approximation.forceExactTranscendentals`
 
-To jsou veřejné runtime policy knoby, ne jen lokální benchmark hack.
+These are public runtime policy knobs, not just local benchmark hacks.
 
 ## Current Calibration Ranges
 
-Následující rozsahy popisují to, co dnes používají standardní `PlatformCalibrationDefaults`, ne obecně všechny myslitelné hodnoty.
+The following ranges describe what standard `PlatformCalibrationDefaults` currently use, not every conceivable value.
 
 ### Matmul
 
@@ -247,17 +245,17 @@ Následující rozsahy popisují to, co dnes používají standardní `PlatformC
 
 ### Fused ASM Widths
 
-Candidate widths se odvozují podle dtype a dostupné preferred vector species:
+Candidate widths are derived from dtype and the available preferred vector species:
 
-- vždy `1`
-- pokud HW dovolí, pak i `2`
-- pokud HW dovolí, pak i `4`
-- v některých `F32/BF16 cheap contiguous` případech i `8`
+- always `1`
+- if the hardware allows it, then also `2`
+- if the hardware allows it, then also `4`
+- in some `F32/BF16 cheap contiguous` cases also `8`
 
-To znamená:
+That means:
 
-- width space je family-specific
-- není to jedno univerzální číslo pro všechny fused workloads
+- width space is family-specific
+- it is not one universal number for all fused workloads
 
 ### Elementwise Dispatch
 
@@ -322,17 +320,17 @@ To znamená:
 
 ### Scheduler
 
-Scheduler calibration dnes spíš lokálně refineuje okolí seed winner hodnot:
+Scheduler calibration today usually performs only local refinement around the current seed winner values:
 
 - target chunks per worker
-- min chunk sizes
+- minimum chunk sizes
 - common pool threshold
 
-To je záměr. Scheduler knobs bývají silně závislé na tom, co už vyhrálo v ostatních families.
+That is intentional. Scheduler knobs tend to depend strongly on whatever has already won in the other families.
 
 ### Materialization
 
-Candidate set vzniká kolem aktuálního thresholdu a doplňuje explicitní anchor body:
+The candidate set is built around the current threshold and extended with explicit anchor points:
 
 - `262_144`
 - `524_288`
@@ -353,82 +351,82 @@ Candidate set vzniká kolem aktuálního thresholdu a doplňuje explicitní anch
 
 ## Graph Policy Knobs
 
-Tyhle knoby nejsou součást platform runtime profile, ale jsou součást `ExecutionProfile.optimizer()`.
+These knobs are not part of the platform runtime profile, but they are part of `ExecutionProfile.optimizer()`.
 
 ### `optimizer.stageOrder`
 
-Platné stage prvky:
+Valid stage elements:
 
 - `AR`
 - `CSE`
 - `FUSE`
 - `MEM`
 
-Candidate spaces běžně používají:
+Candidate spaces commonly use:
 
-- explicitní seznam stage orders
-- constrained stage order space
-- exhaustive permutation/subset space
+- an explicit list of stage orders
+- a constrained stage-order space
+- an exhaustive permutation/subset space
 
 ### Rewrite Policy
 
-Aktuálně dává smysl ladit hlavně:
+Today the main meaningful knob to tune is:
 
 - `optimizer.rewrite.conv2dLowering.mode`
   - `OFF`
   - `HEURISTIC`
   - `ALWAYS`
 
-Piecewise lowering config také existuje, ale v běžném autotune workflow dnes nebývá hlavní knob surface.
+Piecewise lowering config also exists, but in normal autotune workflow it is not usually the primary knob surface.
 
 ## Knobs That Exist But Are Not Very Useful Today
 
 ### `runtime.fused.primaryBackend`
 
-Technicky existuje ve fused execution policy.
+It technically exists in fused execution policy.
 
-Praktická realita na CPU dnes:
+The practical CPU reality today:
 
-- meaningful backend je `ASM`
+- the meaningful backend is `ASM`
 
-Takže to není zvlášť zajímavý knob pro standardní tuning.
+So this is not an especially interesting knob for standard tuning.
 
 ### `runtime.fused.allowBackendFallback`
 
-Technicky existuje, ale protože CPU fused prepare dnes stojí na ASM backendu, není to hlavní performance lever.
+It technically exists, but because CPU fused prepare currently relies on the ASM backend, it is not a major performance lever.
 
 ### `cpu.loopUnrollFactor`
 
-Je uložený v runtime profilu, ale standardní platform calibration ho dnes nesweepuje.
+It is stored in the runtime profile, but standard platform calibration does not currently sweep it.
 
 ## Example: Runtime Profile Candidate
 
-Platform calibration kandidát může například měnit:
+A platform calibration candidate may change for example:
 
 - `cpu.matMulTileM/N/K`
 - `cpu.matMulMicroKernel`
 - `cpu.matMulParallelMinSize`
 
-ale stále jde o jeden konkrétní `PlatformRuntimeProfile`, ne o oddělený knob map.
+but it is still one concrete `PlatformRuntimeProfile`, not a separate knob map.
 
 ## Example: Graph Candidate
 
-Graph autotune kandidát může změnit:
+A graph autotune candidate may change:
 
 - `optimizer.stageOrder`
 
-nebo pro `CONV2D` workload:
+or for a `CONV2D` workload:
 
 - `optimizer.rewrite.conv2dLowering.mode`
 
-Výsledkem je zase normální `ExecutionProfile`.
+The result is again a normal `ExecutionProfile`.
 
 ## Common Mistakes
 
-- považovat runtime knoby za workload-specific graph policy
-- myslet si, že fused ASM widths nejsou součást veřejného tuning surface
-- chtít kalibrovat `runtime.fused.primaryBackend`, i když na CPU dnes dává smysl jen `ASM`
-- ignorovat, že některé uložené runtime fields se dnes ve standardních presets nesweepují
+- treating runtime knobs as workload-specific graph policy
+- assuming fused ASM widths are not part of the public tuning surface
+- wanting to calibrate `runtime.fused.primaryBackend`, even though only `ASM` makes sense on CPU today
+- ignoring that some stored runtime fields are not currently swept in standard presets
 
 ## Related Docs
 

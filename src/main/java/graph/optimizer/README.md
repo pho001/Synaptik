@@ -1,23 +1,23 @@
 # Optimizer
 
-Optimizer je čistě graph-level vrstva. Transformuje topologicky seřazený graph před runtime prepare fází. Nevykonává kernels a nerozhoduje hot-path dispatch v okamžiku běhu.
+The optimizer is a purely graph-level layer. It transforms a topologically sorted graph before runtime preparation. It does not execute kernels and it does not decide hot-path dispatch at run time.
 
-Jeho kontrakt je jednoduchý:
+Its contract is simple:
 
-- vstup: `List<Tensor>` v topological order
-- výstup: sémanticky ekvivalentní `List<Tensor>` stále v topological order
+- input: `List<Tensor>` in topological order
+- output: a semantically equivalent `List<Tensor>` still in topological order
 
 ## Reading Guide
 
-Tento dokument je pro tebe, pokud řešíš:
+This document is for you if you are dealing with:
 
-- kdy přidat nový operation descriptor a kdy jen rewrite
-- jak dnes vypadá `AR` stage family
-- jaké patterny se lowerují do specializovaných primitiv
-- kde jsou hranice CSE / FUSE / MEM
-- jak neporušit forward/backward correctness
+- when to add a new operation descriptor and when to add only a rewrite
+- what the `AR` stage family looks like today
+- which patterns are lowered into specialized primitives
+- where the boundaries of CSE / FUSE / MEM are
+- how to preserve forward/backward correctness
 
-Související dokumentace:
+Related documentation:
 
 - graph lifecycle: [../README.md](../README.md)
 - operation descriptors: [../../operations/README.md](../../operations/README.md)
@@ -26,7 +26,7 @@ Související dokumentace:
 
 ## Main Components
 
-- orchestrace
+- orchestration
   - [GraphOptimizer.java](../../graph/optimizer/GraphOptimizer.java)
   - [OptimizationRule.java](../../graph/optimizer/OptimizationRule.java)
   - [OptimizerFactory.java](../../graph/optimizer/OptimizerFactory.java)
@@ -45,96 +45,96 @@ Související dokumentace:
 
 ## Stage Model
 
-Veřejný optimizer stage order dnes používá:
+The public optimizer stage order currently uses:
 
 - `AR`
 - `CSE`
 - `FUSE`
 - `MEM`
 
-Mapování na implementace je centralizované v [OptimizerFactory.java](../../graph/optimizer/OptimizerFactory.java).
+Mapping to implementations is centralized in [OptimizerFactory.java](../../graph/optimizer/OptimizerFactory.java).
 
-Výchozí preset reality:
+Default preset reality:
 
 - `OptimizerConfig.noOptimization()`
-  - žádný stage
+  - no stages
 - `OptimizerConfig.trainingDefaults()`
   - `AR -> CSE -> MEM`
 - `OptimizerConfig.inferenceDefaults()`
   - `AR -> CSE -> FUSE -> MEM`
 
-To je důležité:
+This is important:
 
-- training default dnes standardně nezapíná `FUSE`
-- inference default ho zapíná
+- the training default does not enable `FUSE` today
+- the inference default does
 
 ## Core Design Rule
 
-Optimizer nesmí být "druhá runtime vrstva". Co má zůstat runtime rozhodnutí:
+The optimizer must not become a "second runtime layer". What must remain a runtime decision:
 
 - scalar/vector/parallel dispatch
-- BLAS vs Java path u konkrétní prepared matmul recipe
+- BLAS vs Java path for a concrete prepared matmul recipe
 - chunk sizing
 - approximation policy
 
-Co naopak patří do optimizeru:
+What does belong to the optimizer:
 
 - algebraic cleanup
-- lowering do specializovaných graph primitiv
+- lowering into specialized graph primitives
 - structural CSE
 - fusion cluster formation
 - memory planning
 
 ## Rule Contract
 
-Každé pravidlo musí zachovat:
+Every rule must preserve:
 
 - dependency ordering
-- reachability od sinků
+- reachability from sinks
 - forward/backward phase boundaries
-- dtype a shape semantiku
+- dtype and shape semantics
 - gradient correctness
 
-Pravidlo smí:
+A rule may:
 
-- nahradit node jiným node
-- přepsat input edge
-- znovu sestavit topological closure ze zachovaných sinků
+- replace a node with another node
+- rewrite an input edge
+- rebuild topological closure from retained sinks
 
-K tomu slouží hlavně [OptimizerGraphSupport.java](../../graph/optimizer/OptimizerGraphSupport.java).
+The main helper for this is [OptimizerGraphSupport.java](../../graph/optimizer/OptimizerGraphSupport.java).
 
 ## `AR`: Rewrite Family
 
-`AR` není jedna malá algebraic pass. Je to composite rewrite stage.
+`AR` is not a single small algebraic pass. It is a composite rewrite stage.
 
-Dnešní delegate order v [rewrite/RewriteRule.java](../../graph/optimizer/rewrite/RewriteRule.java) je:
+The current delegate order in [rewrite/RewriteRule.java](../../graph/optimizer/rewrite/RewriteRule.java) is:
 
-1. volitelný `PiecewiseLoweringRewrite`
+1. optional `PiecewiseLoweringRewrite`
 2. `AlgebraicRewrite`
 3. `LinearLoweringRewrite`
 4. `LossLoweringRewrite`
 5. `ReductionLoweringRewrite`
 6. `AttentionLoweringRewrite`
 7. `AttentionBackwardLoweringRewrite`
-8. volitelný `Conv2dLoweringRewrite`
+8. optional `Conv2dLoweringRewrite`
 
-Tahle order není náhodná:
+That order is intentional:
 
-- canonicalization/import cleanup běží před ostatními specializacemi
-- algebraic cleanup nejdřív zjednoduší lokální tvar grafu
-- strukturální lowering na specializovaná primitiva běží potom
-- `conv2d` lowering zůstává explicitně policy-controlled
+- canonicalization/import cleanup runs before the other specializations
+- algebraic cleanup simplifies the local graph shape first
+- structural lowering into specialized primitives runs after that
+- `conv2d` lowering remains explicitly policy-controlled
 
 ## `PiecewiseLoweringRewrite`
 
-Tahle pass je dnes schválně opt-in. Slouží hlavně jako repair/canonicalization vrstva pro:
+This pass is intentionally opt-in today. It primarily serves as a repair/canonicalization layer for:
 
-- importované grafy
-- ručně rozpadlé patterny
+- imported graphs
+- manually decomposed patterns
 
-Nepředpokládá se, že interní `Tensor` builders na ni budou spoléhat pro běžný forward graph.
+Internal `Tensor` builders are not expected to rely on it for normal forward graphs.
 
-Aktuálně umí rozpoznat:
+It currently recognizes:
 
 - canonical sigmoid
   - `1 / (1 + exp(-x)) -> sigmoid(x)`
@@ -150,183 +150,183 @@ Config:
 
 Default:
 
-- všechno vypnuté
+- everything disabled
 
-To je důležité i dokumentačně:
+This is important to state explicitly:
 
-- pokud `Tensor.relu()` už vytváří `relu` primitivum, rewrite nic nedělá
-- její role je canonicalize/import cleanup, ne normální forward construction
+- if `Tensor.relu()` already creates a `relu` primitive, the rewrite does nothing
+- its role is canonicalization/import cleanup, not normal forward construction
 
 ## `AlgebraicRewrite`
 
-Sem patří lokální numerické zjednodušení. Je to úmyslně užší vrstva než "jakýkoli sémantický lowering".
+This is where local numeric simplification belongs. It is intentionally narrower than "any semantic lowering".
 
-Typické příklady:
+Typical examples:
 
 - identity elimination
 - scalar canonicalization
-- lokální constant folding, kde je bezpečný
-- přepisy typu `pow(x, 2) -> x * x`
+- local constant folding where safe
+- rewrites such as `pow(x, 2) -> x * x`
 
-Naopak sem dnes nepatří:
+What does not belong here today:
 
 - attention pattern recognition
 - softmax backward lowering
 - cross-entropy lowering
-- view/access rewrite
+- view/access rewrites
 
 ## `LinearLoweringRewrite`
 
-Rozpoznává pattern:
+Recognizes the pattern:
 
 - `matmul(input, weight) + bias`
 
-a nahrazuje ho:
+and replaces it with:
 
 - `LINEAR(input, weight, bias)`
 
-Podmínky jsou čistě shape/semantics based:
+Conditions are purely shape/semantics based:
 
-- `weight` musí odpovídat lineární vrstvě
-- `bias` musí být 1D bias vector
-- výstupní shape musí odpovídat batch prefixu vstupu + `outFeatures`
+- `weight` must match a linear layer
+- `bias` must be a 1D bias vector
+- output shape must match the input batch prefix plus `outFeatures`
 
-Smysl:
+Why this matters:
 
-- backend dostane explicitní structured primitive
-- bias epilog a packed weights mohou žít v jedné family
-- nemusí se znovu hádat pattern až v runtime
+- the backend receives an explicit structured primitive
+- bias epilogue and packed weights can live inside one family
+- runtime no longer has to rediscover the pattern
 
 ## `LossLoweringRewrite`
 
-Tohle je dnes jedna z nejdůležitějších rewrite families, protože nahrazuje reálně používané loss patterny specializovanými primitivy.
+This is one of the most important rewrite families today because it replaces actually used loss patterns with specialized primitives.
 
-Aktuálně loweruje:
+It currently lowers:
 
-- forward cross-entropy-from-indices pattern do `CROSS_ENTROPY_LOSS_INDICES`
-- backward pattern do `CROSS_ENTROPY_LOSS_INDICES_GRAD`
+- forward cross-entropy-from-indices patterns into `CROSS_ENTROPY_LOSS_INDICES`
+- backward patterns into `CROSS_ENTROPY_LOSS_INDICES_GRAD`
 
-Rozpoznávaný forward tvar je zhruba:
+The approximate forward shape it recognizes is:
 
 - `neg(gather(logSoftmax(logits), targetIndices))`
-- případně následovaný `sum()` nebo `mean()`
+- optionally followed by `sum()` or `mean()`
 
-Backward tvar rozpoznává rozpadlý softmax/scatter-based gradient pattern a nahrazuje ho specializovaným grad primitive.
+The backward shape recognizes the decomposed softmax/scatter-based gradient pattern and replaces it with a specialized gradient primitive.
 
-To je přesně správná vrstva pro takový přepis:
+This is exactly the right layer for this:
 
-- je to graph semantics problém
-- ne backend runtime heuristika
-- backend pak může mít výrazně čistší specializovaný kernel family
+- it is a graph semantics problem
+- not a backend runtime heuristic
+- the backend can then expose a much cleaner specialized kernel family
 
 ## `ReductionLoweringRewrite`
 
-Tahle pass loweruje backward patterny pro structured reduction families.
+This pass lowers backward patterns for structured reduction families.
 
-Aktuálně:
+Currently:
 
 - softmax backward pattern -> `SOFTMAX_GRAD`
 - log-softmax backward pattern -> `LOG_SOFTMAX_GRAD`
 
-Rozpoznává se backward graph tvar, ne forward API call.
+What gets recognized is the backward graph shape, not the forward API call.
 
-To je důležité:
+This is important:
 
-- veřejná tensor surface může gradient stále skládat přes tensor ops
-- optimizer ho později může přepsat na specializované primitivum
+- the public tensor surface can still build gradients out of tensor ops
+- the optimizer can later replace them with a specialized primitive
 
-Tím zůstává:
+That preserves:
 
-- veřejné API čisté
-- backend rychlý
+- a clean public API
+- a fast backend
 
 ## `AttentionLoweringRewrite`
 
-Rozpoznává forward scaled dot-product attention pattern:
+Recognizes the forward scaled dot-product attention pattern:
 
 - `scores = q.matmul(k^T)`
-- optional scale přes `mulScalar`
-- optional mask přes `where(mask, scores, fill)`
+- optional scaling through `mulScalar`
+- optional masking through `where(mask, scores, fill)`
 - `softmax(scores)`
 - `softmax(scores).matmul(v)`
 
-Pokud pattern sedí, přepíše ho na:
+If the pattern matches, it rewrites it to:
 
 - `SCALED_DOT_PRODUCT_ATTENTION`
 
-Mask fill scalar je ověřovaný podle dtype. Rewrite není obecné "snaž se uhodnout attention za každou cenu". Je to poměrně úzká a kontrolovaná pattern detekce.
+The mask fill scalar is validated by dtype. The rewrite is not a generic "try to guess attention at any cost" pass. It is a fairly narrow and controlled pattern detector.
 
 ## `AttentionBackwardLoweringRewrite`
 
-Tahle pass se dívá do backward části graphu a nahrazuje rozpadlé backward patterny specializovaným primitive:
+This pass looks into the backward section of the graph and replaces decomposed backward patterns with a specialized primitive:
 
 - `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
 
-Umí rozpoznat gradient paths pro:
+It can recognize gradient paths for:
 
 - query
 - key
 - value
 
-Používá přitom index nad forward attention nodes, aby backward pattern nespárovala špatně.
+It uses an index over forward attention nodes so that it does not pair a backward pattern with the wrong forward primitive.
 
-To je podstatné:
+That is important:
 
-- nejde o lokální rewrite na jednom uzlu
-- je to structured backward lowering opřený o znalost forward primitive
+- this is not a local one-node rewrite
+- it is structured backward lowering built around knowledge of the forward primitive
 
 ## `Conv2dLoweringRewrite`
 
-`conv2d` lowering není vždy zapnutý. Je řízený explicitní policy:
+`conv2d` lowering is not always enabled. It is controlled by explicit policy:
 
 - `OFF`
 - `HEURISTIC`
 - `ALWAYS`
 
-Rewrite převádí:
+The rewrite turns:
 
 - `CONV2D`
 
-na:
+into:
 
 - `CONV2D_GEMM`
 
-pokud to dovolí policy.
+when policy allows it.
 
-Důležitá hranice:
+Important boundary:
 
-- compile-time rewrite rozhodne, jestli graf bude mít direct nebo GEMM lowered conv primitive
-- runtime pak ještě pořád řeší konkrétní backend compute detail uvnitř zvolené family
+- compile-time rewrite decides whether the graph carries direct or GEMM-lowered conv primitives
+- runtime still decides the concrete backend compute details inside the chosen family
 
 ## `CSE`: Common Subexpression Elimination
 
-`CommonSubexpressionEliminationRule` nepoužívá naivní string comparison. Pracuje se structural signatures.
+`CommonSubexpressionEliminationRule` does not use naive string comparison. It works with structural signatures.
 
-Signatura zohledňuje:
+The signature takes into account:
 
 - `Operation.OpType`
-- forward/backward fázi
+- forward/backward phase
 - input signatures
-- explicitní operation parametry
+- explicit operation parameters
 - safety metadata
 
-To je důležité třeba pro:
+This matters for examples such as:
 
 - `sum(axis, keepDims=false)` vs `sum(axis, keepDims=true)`
-- různé `permute(...)`
-- `pow` s různými exponenty
+- different `permute(...)`
+- `pow` with different exponents
 - scalar-parameter ops
 
-`noop` a fused nodes zůstávají záměrně CSE boundaries.
+`noop` and fused nodes intentionally remain CSE boundaries.
 
 ## `FUSE`: Elementwise Fusion
 
-`FuseElementWiseRule` vytváří fused clusters jen tam, kde dává smysl model:
+`FuseElementWiseRule` creates fused clusters only where the model makes sense:
 
-- jedna output-space loop
-- lokální per-element compute
+- one output-space loop
+- local per-element compute
 
-Do fused compute algebra dnes patří:
+The fused compute algebra currently includes:
 
 - unary numeric ops
 - binary numeric ops
@@ -334,7 +334,7 @@ Do fused compute algebra dnes patří:
 - logical ops
 - `where`
 
-Nepatří tam:
+It does not include:
 
 - indexing
 - reductions
@@ -342,27 +342,27 @@ Nepatří tam:
 - structured losses
 - special gradient kernels
 
-View/access ops se nepovažují za compute nodes. Mohou se absorbovat jako external input access metadata.
+View/access ops are not treated as compute nodes. They can instead be absorbed as external input access metadata.
 
 ## `MEM`: Memory Planning
 
-`MemoryOptimizerRule` je compile-time planner, ne runtime allocator.
+`MemoryOptimizerRule` is a compile-time planner, not a runtime allocator.
 
-Jeho role:
+Its job is to:
 
-- analyzovat liveness
-- přiřadit reusable slots
-- snížit peak memory footprint
-- vracet explain/summary data
+- analyze liveness
+- assign reusable slots
+- reduce peak memory footprint
+- return explain/summary data
 
-Policy jde přes:
+Policy flows through:
 
 - [MemoryConfig.java](../../config/optimizer/MemoryConfig.java)
 - [MemoryPlannerPolicy.java](../../graph/optimizer/memory/MemoryPlannerPolicy.java)
 
-Typické knoby:
+Typical knobs:
 
-- oddělené forward/backward pools
+- separate forward/backward pools
 - cross-phase reuse
 - larger-buffer reuse
 - minimum reusable buffer size
@@ -374,12 +374,12 @@ Tensor logits = x.linear(w, b);
 Tensor loss = logits.crossEntropyLossIndices(targets, 1);
 ```
 
-V ideálním runtime graphu po `AR` už můžeš mít:
+In the ideal runtime graph after `AR`, you may already have:
 
 - `LINEAR`
 - `CROSS_ENTROPY_LOSS_INDICES`
 
-místo rozpadlé kombinace:
+instead of the decomposed combination:
 
 - `MATMUL`
 - `ADD`
@@ -390,25 +390,25 @@ místo rozpadlé kombinace:
 
 ## Example: Backward Lowering
 
-Veřejný autograd builder může složit backward přes běžné tensor operace. Po `AR` se ale může přepsat na:
+The public autograd builder may compose backward through regular tensor operations. After `AR`, it may be rewritten into:
 
 - `SOFTMAX_GRAD`
 - `LOG_SOFTMAX_GRAD`
 - `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
 - `CROSS_ENTROPY_LOSS_INDICES_GRAD`
 
-To je klíčový design pattern projektu:
+This is a key design pattern in the project:
 
-- forward/backward formulas se mohou skládat čistě přes `Tensor` operace
-- optimizer je pak může nahradit strukturovanými primitivy
+- forward/backward formulas can be built purely out of `Tensor` operations
+- the optimizer can later replace them with structured primitives
 
 ## Config Surface
 
-Primární veřejný optimizer config je:
+The primary public optimizer config is:
 
 - [OptimizerConfig.java](../../config/optimizer/OptimizerConfig.java)
 
-Obsahuje:
+It contains:
 
 - `stageOrder`
 - `rewrite`
@@ -416,25 +416,25 @@ Obsahuje:
 - `fuse`
 - `memory`
 
-Z toho plyne důležitá zásada:
+An important consequence:
 
-- tuning nesmí vymýšlet druhý skrytý optimizer config model
-- vše, co má být graph policy, musí být vyjádřitelné přes `OptimizerConfig`
+- tuning must not invent a second hidden optimizer config model
+- anything that belongs to graph policy must be expressible through `OptimizerConfig`
 
 ## Adding A New Rewrite
 
-Správný postup:
+Correct process:
 
-1. rozhodni, jestli vůbec má vzniknout nový rewrite
-   - není to jen práce pro nový operation descriptor?
-   - není to spíš runtime/backend knob?
-2. pokud je to rewrite:
-   - umísti ji do `graph.optimizer.rewrite`, pokud patří do `AR` family
-   - nebo do `graph.optimizer.rules`, pokud jde o samostatnou top-level stage
-3. implementuj `OptimizationRule`
-4. používej `OptimizerGraphSupport` pro edge rewrite a closure rebuild
-5. registruj ji v `RewriteRule` nebo `OptimizerFactory`
-6. přidej testy pro:
+1. decide whether a new rewrite should exist at all
+   - is this really not just a new operation descriptor?
+   - is it maybe a runtime/backend knob instead?
+2. if it is a rewrite:
+   - place it under `graph.optimizer.rewrite` if it belongs to the `AR` family
+   - or under `graph.optimizer.rules` if it is a standalone top-level stage
+3. implement `OptimizationRule`
+4. use `OptimizerGraphSupport` for edge rewrites and closure rebuild
+5. register it in `RewriteRule` or `OptimizerFactory`
+6. add tests for:
    - forward correctness
    - backward correctness
    - dtype coverage
@@ -442,20 +442,20 @@ Správný postup:
 
 ## When Not To Add A Rewrite
 
-Rewrite nepřidávej, pokud:
+Do not add a rewrite when:
 
-- veřejný `Tensor` builder má rovnou vytvářet správné primitivum
-- jde jen o backend-specific dispatch rozhodnutí
-- jde o tuning knob, ne graph transformaci
-- pattern je benchmark-only syntetika bez reálného graph významu
+- the public `Tensor` builder should create the correct primitive directly
+- it is only a backend-specific dispatch decision
+- it is a tuning knob rather than a graph transformation
+- the pattern is benchmark-only synthetic shape with no real graph meaning
 
 ## Common Mistakes
 
-- míchat graph policy s runtime policy
-- lowerovat pattern, který má být rovnou canonical primitive ve veřejném API
-- ignorovat backward section a přepsat jen forward tvar
-- dělat rewrite jen podle labelu node místo `Operation.OpType` a parametrů
-- spoléhat na rewrite jako opravu interní nekonzistence builderů
+- mixing graph policy with runtime policy
+- lowering a pattern that should already be a canonical primitive in the public API
+- ignoring the backward section and rewriting only the forward form
+- rewriting based on node label instead of `Operation.OpType` and parameters
+- relying on rewrite as a repair step for internal builder inconsistency
 
 ## Related Modules
 

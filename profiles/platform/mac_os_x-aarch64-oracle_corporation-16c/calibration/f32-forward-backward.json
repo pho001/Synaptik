@@ -1,0 +1,69 @@
+{
+  "metadata": {
+    "platformProfileId": "mac_os_x-aarch64-oracle_corporation-16c",
+    "hardwareKey": "mac_os_x-aarch64-oracle_corporation-16c",
+    "frameworkVersion": "dev",
+    "plannerSchemaVersion": "1",
+    "persistenceSchemaVersion": "1",
+    "createdAtIso": "2026-04-17T05:02:29.738304+02:00",
+    "calibrationPreset": "UNSPECIFIED",
+    "dataType": "FLOAT32",
+    "executionMode": "FORWARD_BACKWARD"
+  },
+  "matmul": {
+    "blasProvider": "NONE",
+    "blasMatmulMinWork": 2000000,
+    "blasThreads": 4,
+    "f32RequireMgeK": false,
+    "f32MaxNOverK": 1.5,
+    "loopUnrollFactor": 1,
+    "matMulTileM": 32,
+    "matMulTileN": 128,
+    "matMulTileK": 64,
+    "attentionMatMulTileM": 64,
+    "attentionMatMulTileN": 128,
+    "attentionMatMulTileK": 64,
+    "matMulParallelMinSize": 500000,
+    "matMulMicroKernel": "F32_2X4",
+    "attentionMatMulMicroKernel": "F32_4X2"
+  },
+  "fused": {
+    "fusedCheapVectorMinSize": 256,
+    "fusedTranscendentalVectorMinSize": 16,
+    "fusedCheapParallelMinSize": 16384,
+    "fusedTranscendentalParallelMinSize": 2048,
+    "fusedCheapContiguousAsmVectorWidth": 4,
+    "fusedCheapStridedAsmVectorWidth": 4,
+    "fusedNonCheapContiguousAsmVectorWidth": 4,
+    "fusedNonCheapStridedAsmVectorWidth": 4
+  },
+  "elementwiseDispatch": {
+    "cheapVectorMinSize": 2048,
+    "transcendentalVectorMinSize": 128,
+    "cheapParallelMinSize": 8192,
+    "transcendentalParallelMinSize": 16384
+  },
+  "reduction": {
+    "reductionVectorMinSize": 2048,
+    "reductionParallelMinSize": 65536,
+    "attentionVectorMinSize": 16384,
+    "attentionParallelMinSize": 16384,
+    "sumAccuracyMode": "FAST"
+  },
+  "scheduler": {
+    "lowCostTargetChunksPerWorker": 3,
+    "mediumCostTargetChunksPerWorker": 1,
+    "highCostTargetChunksPerWorker": 1,
+    "minScalarChunkSize": 4096,
+    "minVectorChunkSize": 8192,
+    "minReductionChunkSize": 16384,
+    "commonPoolLowCostMaxWorkPerWorker": 16384
+  },
+  "materialization": {
+    "contiguousMaterializeThreshold": 262144
+  },
+  "numerics": {
+    "approxMode": "TRAINING_ONLY",
+    "forceExactTranscendentals": false
+  }
+}

@@ -1,73 +1,73 @@
 # Synaptik
 
-Synaptik je Java framework pro tensory, explicitní compiled-graph execution a reverse-mode autodiff. Není postavený jako "eager-only" knihovna ani jako benchmark-first experiment. Základní kontrakt je:
+Synaptik is a Java framework for tensors, explicit compiled-graph execution, and reverse-mode autodiff. It is not built as an "eager-only" library and it is not a benchmark-first experiment. The core contract is:
 
-- veřejné `Tensor` API skládá graf
-- `CompiledGraph` z něj vytvoří explicitní execution artifact
-- optimizer provede čistě graph-level transformace
-- `PreparedExecution` naváže runtime politiku a backend metadata
-- backend spustí konkrétní CPU kernel path
+- the public `Tensor` API builds a graph
+- `CompiledGraph` turns it into an explicit execution artifact
+- the optimizer applies purely graph-level transformations
+- `PreparedExecution` attaches runtime policy and backend metadata
+- the backend runs the concrete CPU kernel path
 
-Projekt dnes cílí primárně na CPU backend. GPU backendy existují jen jako scaffolding.
+Today the project primarily targets the CPU backend. GPU backends currently exist only as scaffolding.
 
 ## Reading Guide
 
-Pokud chceš pochopit projekt rychle:
+If you want to understand the project quickly:
 
-1. začni v [src/main/java/tensor/README.md](src/main/java/tensor/README.md)
-2. pak [src/main/java/operations/README.md](src/main/java/operations/README.md)
-3. potom [src/main/java/graph/README.md](src/main/java/graph/README.md)
-4. nakonec [src/main/java/backend/README.md](src/main/java/backend/README.md) a [src/main/java/tuning/README.md](src/main/java/tuning/README.md)
+1. start with [src/main/java/tensor/README.md](src/main/java/tensor/README.md)
+2. then [src/main/java/operations/README.md](src/main/java/operations/README.md)
+3. then [src/main/java/graph/README.md](src/main/java/graph/README.md)
+4. finally [src/main/java/backend/README.md](src/main/java/backend/README.md) and [src/main/java/tuning/README.md](src/main/java/tuning/README.md)
 
-Pokud řešíš konkrétní problém:
+If you are solving a specific problem:
 
-- veřejné tensor API: [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
-- optimizer a rewrite/fusion pravidla: [src/main/java/graph/optimizer/README.md](src/main/java/graph/optimizer/README.md)
-- tuning workflow, persistence a candidate search: [src/main/java/tuning/README.md](src/main/java/tuning/README.md)
-- numerics drift a A/B porovnání: [src/main/java/numerics/README.md](src/main/java/numerics/README.md)
+- public tensor API: [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
+- optimizer and rewrite/fusion rules: [src/main/java/graph/optimizer/README.md](src/main/java/graph/optimizer/README.md)
+- tuning workflow, persistence, and candidate search: [src/main/java/tuning/README.md](src/main/java/tuning/README.md)
+- numerics drift and A/B comparison: [src/main/java/numerics/README.md](src/main/java/numerics/README.md)
 
 ## Highlights
 
-- explicitní tensor metadata: shape, strides, storage offset, dtype
-- compiled/prepared execution pipeline místo implicitního runtime dispatch chaosu
-- reverse-mode autodiff nad grafem složeným z `Tensor` operací
-- optimizer stage model s rewrite, CSE, fusion a memory planning
-- CPU backend s prepared metadata, dispatch hints a family-specific executory
-- ASM fused backend pro hot elementwise fused subgrafy
-- specializovaná primitiva pro strukturované kernel families
+- explicit tensor metadata: shape, strides, storage offset, dtype
+- compiled/prepared execution pipeline instead of implicit runtime dispatch sprawl
+- reverse-mode autodiff over graphs built from `Tensor` operations
+- optimizer stage model with rewrites, CSE, fusion, and memory planning
+- CPU backend with prepared metadata, dispatch hints, and family-specific executors
+- ASM fused backend for hot elementwise fused subgraphs
+- specialized primitives for structured kernel families
   - `LINEAR`
-  - `SOFTMAX` / `LOG_SOFTMAX` a jejich gradienty
+  - `SOFTMAX` / `LOG_SOFTMAX` and their gradients
   - `SCALED_DOT_PRODUCT_ATTENTION` forward/backward
   - `CROSS_ENTROPY_LOSS_INDICES`
   - `CONV2D_GEMM`
-- tuning stack pro benchmark, autotune a platform calibration
+- tuning stack for benchmark, autotune, and platform calibration
 
 ## Requirements
 
 - JDK 25
-- Gradle 9.4.1 kompatibilní prostředí nebo přibalený Gradle Wrapper
-- macOS, Linux nebo Windows
+- a Gradle 9.4.1 compatible environment, or the bundled Gradle Wrapper
+- macOS, Linux, or Windows
 
-Poznámka k Vector API:
+Vector API note:
 
-- build i runtime používají `jdk.incubator.vector`
-- Gradle wrapper přidává `--add-modules=jdk.incubator.vector` do compile/test/run tasků
+- the build and runtime use `jdk.incubator.vector`
+- the Gradle wrapper adds `--add-modules=jdk.incubator.vector` to compile, test, and run tasks
 
 ## Build And Run
 
-Základní příkazy:
+Basic commands:
 
 - `./gradlew classes`
 - `./gradlew test`
 - `./gradlew run`
 
-Na Windows použij `gradlew.bat`.
+On Windows, use `gradlew.bat`.
 
 ### Main CLI
 
-Hlavní CLI entrypoint je [src/main/java/synaptik/app/Main.java](src/main/java/synaptik/app/Main.java).
+The main CLI entry point is [src/main/java/synaptik/app/Main.java](src/main/java/synaptik/app/Main.java).
 
-Podporované flow:
+Supported flows:
 
 ```bash
 ./gradlew run --args="full f64"
@@ -77,26 +77,26 @@ Podporované flow:
 ./gradlew run --args="benchmark-stage-space f64"
 ```
 
-Význam:
+Meaning:
 
 - `full`
   - convenience flow `calibrate -> autotune -> benchmark-winner`
-  - vhodný pro lokální iteraci
-  - ne pro nejčistší performance čísla
+  - suitable for local iteration
+  - not for the cleanest performance numbers
 - `calibrate`
-  - hledá platform runtime defaults pro zvolený dtype/mode
+  - finds platform runtime defaults for the selected dtype/mode
 - `autotune`
-  - hledá graph-level winner pro workload `abc_sequence_matmul_*`
+  - searches for the graph-level winner for the `abc_sequence_matmul_*` workload
 - `benchmark-winner`
-  - porovnává baseline proti uloženému winner profilu
+  - compares the baseline against the stored winner profile
 - `benchmark-stage-space`
-  - benchmarkuje explicitní stage-order kandidáty
+  - benchmarks explicit stage-order candidates
 
 ### Numerics CLI
 
-Numerics harness běží přes [src/main/java/numerics/NumericsCli.java](src/main/java/numerics/NumericsCli.java).
+The numerics harness runs through [src/main/java/numerics/NumericsCli.java](src/main/java/numerics/NumericsCli.java).
 
-Příklad:
+Example:
 
 ```bash
 java --add-modules jdk.incubator.vector \
@@ -110,7 +110,7 @@ java --add-modules jdk.incubator.vector \
 
 ## Quick Start
 
-### 1. Jednoduchý forward/backward výpočet
+### 1. Simple forward/backward computation
 
 ```java
 import backend.runtime.ExecutionMode;
@@ -141,17 +141,17 @@ System.out.println(java.util.Arrays.toString(a.getGradient().toDoubleArrayCopy()
 System.out.println(java.util.Arrays.toString(b.getGradient().toDoubleArrayCopy()));
 ```
 
-Co se tady reálně stane:
+What actually happens here:
 
-1. `Tensor` API složí DAG z primitiv
-2. `compute(profile)` interně zavolá `CompiledGraph.compile(...)`
-3. optimizer aplikuje stage order z `OptimizerConfig`
-4. `prepare(...)` předpočítá backend metadata a dispatch hints
-5. `PreparedExecution` spustí forward nebo `FORWARD_BACKWARD`
+1. the `Tensor` API builds a DAG from primitives
+2. `compute(profile)` internally calls `CompiledGraph.compile(...)`
+3. the optimizer applies the stage order from `OptimizerConfig`
+4. `prepare(...)` precomputes backend metadata and dispatch hints
+5. `PreparedExecution` runs either forward or `FORWARD_BACKWARD`
 
-### 2. Explicitní compile/prepare reuse
+### 2. Explicit compile/prepare reuse
 
-Tohle je správný pattern, když chceš měřit runtime bez opakovaného compile/prepare overheadu:
+This is the correct pattern when you want to measure runtime without repeatedly paying compile/prepare overhead:
 
 ```java
 import backend.runtime.ExecutionMode;
@@ -169,13 +169,13 @@ prepared.execute(ExecutionMode.FORWARD_BACKWARD);
 prepared.execute(ExecutionMode.FORWARD_BACKWARD);
 ```
 
-Použij to pro:
+Use this for:
 
-- benchmarky steady-state execution
-- tracing hot paths
-- opakované inference/training běhy nad stejným grafem
+- steady-state execution benchmarks
+- hot-path tracing
+- repeated inference/training runs over the same graph
 
-### 3. Broadcasting a select API
+### 3. Broadcasting and select API
 
 ```java
 Tensor scores = query.matmul(key.transpose());
@@ -184,29 +184,29 @@ Tensor probs = masked.softmax(1);
 Tensor out = probs.matmul(value);
 ```
 
-Důležité:
+Important notes:
 
-- `where` vyžaduje `BOOL` condition
-- binary ops i compare ops používají standardní broadcasting
-- autograd redukuje broadcasted gradient zpět do původních shape operandů
+- `where` requires a `BOOL` condition
+- binary ops and compare ops use standard broadcasting
+- autograd reduces broadcasted gradients back to the original operand shapes
 
 ## Project Structure
 
 - [src/main/java/tensor/](src/main/java/tensor/)
-  - veřejná tensor surface, metadata, execution helpers, graph traversal, primitive builders
+  - public tensor surface, metadata, execution helpers, graph traversal, primitive builders
 - [src/main/java/tensor/ops/](src/main/java/tensor/ops/)
-  - tematicky rozdělené public graph builders
+  - thematically organized public graph builders
   - `binary`, `unary`, `compare`, `select`, `layout`, `linalg`, `conv`, `pool`, `reduction`, `loss`, `normalization`
 - [src/main/java/tensor/options/](src/main/java/tensor/options/)
-  - konfigurační helper records/enums pro veřejné higher-level ops
+  - configuration helper records/enums for public higher-level ops
 - [src/main/java/operations/](src/main/java/operations/)
-  - canonical operation descriptors používané v grafu
+  - canonical operation descriptors used in the graph
 - [src/main/java/graph/](src/main/java/graph/)
-  - compile, prepare, run orchestrace
+  - compile, prepare, and run orchestration
 - [src/main/java/graph/optimizer/](src/main/java/graph/optimizer/)
   - rule pipeline, rewrite family, fusion support, memory planning
 - [src/main/java/backend/](src/main/java/backend/)
-  - runtime dispatch a backend-specific execution integration
+  - runtime dispatch and backend-specific execution integration
 - [src/main/java/backend/kernels/cpu/](src/main/java/backend/kernels/cpu/)
   - CPU kernel families
   - `elementwise`, `reduction`, `linalg`, `nn`, `index`, `layout`, `fused`, `grad`
@@ -215,27 +215,27 @@ Důležité:
 - [src/main/java/numerics/](src/main/java/numerics/)
   - numerics A/B harness
 - [src/test/java/](src/test/java/)
-  - execution, regression, rewrite, tuning a benchmark kontrakty
+  - execution, regression, rewrite, tuning, and benchmark contracts
 
 ## Core Architecture
 
 ### Tensor Layer
 
-`Tensor` je veřejný graph node i runtime container. Nese:
+`Tensor` is both the public graph node and the runtime container. It carries:
 
-- `Operation` descriptor
-- seznam input tensorů
+- the `Operation` descriptor
+- the list of input tensors
 - storage/data views
-- `requiresGrad`, `gradient`, backward marker
+- `requiresGrad`, `gradient`, and the backward marker
 - shape/stride metadata
 
-Veřejné API dnes primárně staví graf přes helper vrstvy v `tensor.ops.*`, ne přes ručně psaný kód přímo uvnitř `Tensor.java`.
+Today the public API primarily builds graphs through helper layers in `tensor.ops.*`, not through hand-written logic directly inside `Tensor.java`.
 
 ### Operation Layer
 
-`operations.*` nejsou backend kernels. Jsou to graph-level deskriptory.
+`operations.*` are not backend kernels. They are graph-level descriptors.
 
-Příklady:
+Examples:
 
 - `add`, `mul`, `relu`
 - `linear`
@@ -243,45 +243,45 @@ Příklady:
 - `scaledDotProductAttention`
 - `crossEntropyLossIndices`
 
-Stejný descriptor:
+The same descriptor:
 
-- definuje typ uzlu v grafu
-- je vstupem pro optimizer
-- je klíčem pro backend kernel resolution
+- defines the node type in the graph
+- serves as optimizer input
+- is the key for backend kernel resolution
 
 ### Graph Layer
 
-`CompiledGraph` provádí:
+`CompiledGraph` performs:
 
-1. topological closure nad forward grafem
-2. build backward grafu, pokud existují trainable leaf inputs
-3. optimizer stages podle `OptimizerConfig`
-4. rozdělení na forward/backward section
+1. topological closure over the forward graph
+2. backward graph construction if trainable leaf inputs exist
+3. optimizer stages from `OptimizerConfig`
+4. separation into forward/backward sections
 
-`PreparedExecution` pak provádí:
+`PreparedExecution` then performs:
 
 - runtime-specific prepare
-- build prepared metadata pro každý node
-- vlastní execution loop
-- optional traced run
+- prepared metadata construction for each node
+- the actual execution loop
+- optional traced runs
 
 ### Backend Layer
 
-CPU backend dnes používá prepared metadata místo opakovaného runtime rozhodování nad `Tensor`.
+Today the CPU backend uses prepared metadata instead of repeatedly making runtime decisions directly from `Tensor`.
 
-Prepare fáze řeší zejména:
+The prepare phase resolves in particular:
 
-- compute contract
-- dtype conversion/materialization rozhodnutí
+- the compute contract
+- dtype conversion/materialization decisions
 - dispatch hints
 - reduction hints
 - matmul hints
 - fused executable preparation
-- workspace allocation pro vybrané op families
+- workspace allocation for selected op families
 
 ### Optimizer Layer
 
-Optimizer stage order je explicitní. Dnešní hlavní stage family:
+The optimizer stage order is explicit. The main stage families today are:
 
 - `AR`
   - composite rewrite family
@@ -292,62 +292,62 @@ Optimizer stage order je explicitní. Dnešní hlavní stage family:
 - `MEM`
   - liveness-aware memory planning
 
-Rewrite family dnes zahrnuje víc než jen algebraic cleanup. Obsahuje i lowering do specializovaných primitiv, například:
+The rewrite family today includes more than just algebraic cleanup. It also contains lowering into specialized primitives, for example:
 
 - `matmul + bias -> linear`
 - `softmax` / `logSoftmax` backward pattern lowering
 - attention forward/backward lowering
 - cross-entropy-from-indices lowering
-- volitelný piecewise import canonicalization
-- `conv2d -> conv2dGemm` podle policy
+- optional piecewise import canonicalization
+- `conv2d -> conv2dGemm` according to policy
 
-## Execution Profiles, Calibration And Persistence
+## Execution Profiles, Calibration, And Persistence
 
-Runtime se neřídí jen jedním "optimizer profile" JSONem. Dnešní flow rozlišuje:
+Runtime is not governed by a single "optimizer profile" JSON anymore. The current flow distinguishes between:
 
-- built-in defaults v kódu
-- platform runtime profile
-  - výstup platform calibration
-- graph-specific best profile
-  - výstup autotune nad konkrétním workloadem
-- finální `ExecutionProfile`
-  - assembled runnable artifact
+- built-in defaults in code
+- a platform runtime profile
+  - the output of platform calibration
+- a graph-specific best profile
+  - the output of autotune for a concrete workload
+- the final `ExecutionProfile`
+  - the assembled runnable artifact
 
-Preferovaný layout je:
+The preferred layout is:
 
 - `profiles/platform/<platform-id>/calibration/...`
 - `profiles/platform/<platform-id>/reports/...`
 - `profiles/platform/<platform-id>/tuning/...`
 
-Kompatibilní fallbacky do `build/...` stále existují, ale nejsou preferovaný long-term layout.
+Compatibility fallbacks under `build/...` still exist, but they are not the preferred long-term layout.
 
 ## Real Usage Patterns
 
-### Kdy použít jen `Tensor.compute(profile)`
+### When to use only `Tensor.compute(profile)`
 
-Použij pro:
+Use it for:
 
-- jednoduché integration testy
-- sanity check lokálního grafu
-- malé demo programy
+- simple integration tests
+- sanity checks of a local graph
+- small demo programs
 
-Nepoužívej jako jediný benchmark harness, protože při každém běhu znovu provede compile/prepare.
+Do not use it as your only benchmark harness, because each call recompiles and reprepares the graph.
 
-### Kdy držet `CompiledGraph`
+### When to keep `CompiledGraph`
 
-Použij pro:
+Use it for:
 
-- investigation optimizer výstupu
+- inspecting optimizer output
 - compile trace / prepare trace
-- opakované připravování stejného grafu pod různými runtime configy
+- preparing the same graph repeatedly under different runtime configs
 
-### Kdy držet `PreparedExecution`
+### When to keep `PreparedExecution`
 
-Použij pro:
+Use it for:
 
-- steady-state benchmark
+- steady-state benchmarking
 - hot-path tracing
-- výkonové experimenty nad stejným grafem a stejnou runtime policy
+- performance experiments over the same graph and the same runtime policy
 
 ## Module Docs
 
@@ -362,28 +362,28 @@ Použij pro:
 
 ## Testing
 
-Základní test flow:
+Basic test flow:
 
 - `./gradlew test`
 - `./gradlew classes`
 
-Typické oblasti pokrytí:
+Typical coverage areas:
 
 - execution correctness
 - dtype coverage
-- broadcast kontrakty
+- broadcast contracts
 - rewrite/lowering correctness
 - fused execution
 - tuning/search/report contracts
 
 ## Development Notes
 
-- fused kernels se dnes generují ASM codegenem během prepare fáze
-- CPU je jediný plně implementovaný backend
-- CUDA/OpenCL jsou scaffolding
-- project počítá s JDK 25 a Vector API
-- tuning docs jsou zdroj pravdy pro benchmark/autotune/calibration flow, ne starší benchmark-only utility vrstva
+- fused kernels are currently generated through ASM codegen during the prepare phase
+- CPU is the only fully implemented backend
+- CUDA/OpenCL are scaffolding
+- the project assumes JDK 25 and the Vector API
+- the tuning docs are the source of truth for benchmark/autotune/calibration flow, not older benchmark-only utility layers
 
 ## License
 
-V repozitáři zatím není licenční soubor. Před veřejnou distribucí je potřeba ho doplnit.
+There is currently no license file in the repository. Add one before public distribution.

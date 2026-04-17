@@ -1,0 +1,33 @@
+Platform Calibration Result
+platformId=mac_os_x-aarch64-oracle_corporation-16c
+createdAt=2026-04-17T06:18:17.016590+02:00
+persisted=true
+outputProfilePath=build/platform-calibration/f32/profiles/platform/mac_os_x-aarch64-oracle_corporation-16c/f32-forward-backward.json
+profileName=platform-seed-f32-training
+dataType=FLOAT32
+mode=FORWARD_BACKWARD
+seedRuntimeProfile=mac_os_x-aarch64-oracle_corporation-16c
+finalRuntimeProfile=mac_os_x-aarch64-oracle_corporation-16c
+
+Hardware
+os=mac_os_x
+arch=aarch64
+vm=openjdk_64-bit_server_vm
+vendor=oracle_corporation
+cores=16
+
+Steps
+name                   family             seedRuntime        selectedExec       score        metric            
+calib-matmul-train     MATMUL             mac_os_x-aarch64-oracle_corporation-16c base+matmulMicroKernel=F32_2X4+matmulTiles=32x128x64+matmulShape=false/1.5+blasThreads=4+matmulParallel=500000 0.800496     averageMedianMs   
+calib-fused-train-thresholds FUSED_THRESHOLDS   mac_os_x-aarch64-oracle_corporation-16c base+fusedDispatch=256/16/16384/2048 1.541608     averageMedianMs   
+calib-fused-train-cheap-contig FUSED_CHEAP_CONTIGUOUS mac_os_x-aarch64-oracle_corporation-16c base+fusedAsmVectorWidth[cheap-contiguous]=4 0.565706     averageMedianMs   
+calib-fused-train-cheap-strided FUSED_CHEAP_STRIDED mac_os_x-aarch64-oracle_corporation-16c base+fusedAsmVectorWidth[cheap-strided]=4 3.735103     averageMedianMs   
+calib-fused-train-noncheap-contig FUSED_NON_CHEAP_CONTIGUOUS mac_os_x-aarch64-oracle_corporation-16c base+fusedAsmVectorWidth[noncheap-contiguous]=4 2.735559     averageMedianMs   
+calib-fused-train-noncheap-strided FUSED_NON_CHEAP_STRIDED mac_os_x-aarch64-oracle_corporation-16c base+fusedAsmVectorWidth[noncheap-strided]=4 4.353870     averageMedianMs   
+calib-elementwise-train ELEMENTWISE_DISPATCH mac_os_x-aarch64-oracle_corporation-16c base+elementwiseDispatch=2048/128/8192/16384 2.515153     averageMedianMs   
+calib-reduction-train  REDUCTION          mac_os_x-aarch64-oracle_corporation-16c base+reductionThresholds=2048/65536 0.036103     averageMedianMs   
+calib-attention-train  ATTENTION_THRESHOLDS mac_os_x-aarch64-oracle_corporation-16c base+attentionThresholds=16384/16384 2.506831     weightedGeometricMeanWithWorstBucketPenalty
+calib-attention-matmul-train ATTENTION_MATMUL   mac_os_x-aarch64-oracle_corporation-16c base+attentionMatmulMicroKernel=F32_4X2+attentionMatmulTiles=64x128x64 2.476820     weightedGeometricMeanWithWorstBucketPenalty
+calib-scheduler-train  SCHEDULER          mac_os_x-aarch64-oracle_corporation-16c base+scheduler=3/1/1 2.580593     averageMedianMs   
+calib-materialization-train MATERIALIZATION    mac_os_x-aarch64-oracle_corporation-16c base+materialization=262144 1.964817     averageMedianMs   
+calib-numerics-train   NUMERICS           mac_os_x-aarch64-oracle_corporation-16c base+numerics=TRAINING_ONLY/false 0.940683     averageMedianMs   

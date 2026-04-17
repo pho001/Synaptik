@@ -1,0 +1,69 @@
+{
+  "metadata": {
+    "platformProfileId": "mac_os_x-aarch64-oracle_corporation-16c",
+    "hardwareKey": "mac_os_x-aarch64-oracle_corporation-16c",
+    "frameworkVersion": "dev",
+    "plannerSchemaVersion": "1",
+    "persistenceSchemaVersion": "1",
+    "createdAtIso": "2026-04-11T19:54:46.944051+02:00",
+    "calibrationPreset": "UNSPECIFIED",
+    "dataType": "FLOAT32",
+    "executionMode": "FORWARD"
+  },
+  "matmul": {
+    "blasProvider": "NONE",
+    "blasMatmulMinWork": 2000000,
+    "blasThreads": 0,
+    "f32RequireMgeK": true,
+    "f32MaxNOverK": 2.0,
+    "loopUnrollFactor": 4,
+    "matMulTileM": 32,
+    "matMulTileN": 32,
+    "matMulTileK": 32,
+    "attentionMatMulTileM": 32,
+    "attentionMatMulTileN": 32,
+    "attentionMatMulTileK": 32,
+    "matMulParallelMinSize": 500000,
+    "matMulMicroKernel": "AUTO",
+    "attentionMatMulMicroKernel": "AUTO"
+  },
+  "fused": {
+    "fusedCheapVectorMinSize": 1024,
+    "fusedTranscendentalVectorMinSize": 64,
+    "fusedCheapParallelMinSize": 16384,
+    "fusedTranscendentalParallelMinSize": 2048,
+    "fusedCheapContiguousAsmVectorWidth": 1,
+    "fusedCheapStridedAsmVectorWidth": 1,
+    "fusedNonCheapContiguousAsmVectorWidth": 1,
+    "fusedNonCheapStridedAsmVectorWidth": 4
+  },
+  "elementwiseDispatch": {
+    "cheapVectorMinSize": 512,
+    "transcendentalVectorMinSize": 512,
+    "cheapParallelMinSize": 8192,
+    "transcendentalParallelMinSize": 16384
+  },
+  "reduction": {
+    "reductionVectorMinSize": 512,
+    "reductionParallelMinSize": 8192,
+    "attentionVectorMinSize": 1024,
+    "attentionParallelMinSize": 100000,
+    "sumAccuracyMode": "FAST"
+  },
+  "scheduler": {
+    "lowCostTargetChunksPerWorker": 3,
+    "mediumCostTargetChunksPerWorker": 1,
+    "highCostTargetChunksPerWorker": 2,
+    "minScalarChunkSize": 4096,
+    "minVectorChunkSize": 8192,
+    "minReductionChunkSize": 16384,
+    "commonPoolLowCostMaxWorkPerWorker": 16384
+  },
+  "materialization": {
+    "contiguousMaterializeThreshold": 524288
+  },
+  "numerics": {
+    "approxMode": "ALWAYS",
+    "forceExactTranscendentals": false
+  }
+}

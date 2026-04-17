@@ -2,6 +2,8 @@
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
+.idea/.name
+.idea/workspace.xml
 
 ### Eclipse ###
 .apt_generated
@@ -30,6 +32,7 @@ bin/
 
 ### Gradle ###
 .gradle/
+.gradle-userhome/
 build/
 
 ### Local agent / workspace metadata ###
@@ -42,9 +45,11 @@ build/
 .tmp_*/
 .tools/
 
-# Local runtime optimizer profile
+# Legacy local optimizer profiles
 config/optimizer-profile.json
-
-# Local runtime optimizer profile
-config/optimizer-profile.json
+config/optimizer-profile-f32.json
+config/optimizer-profile-f64.json
+config/optimizer-hw-profiles.tsv
+config/optimizer-hw-profiles-f32.tsv
+config/optimizer-hw-profiles-f64.tsv
 todo/

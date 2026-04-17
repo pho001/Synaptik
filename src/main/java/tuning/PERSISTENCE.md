@@ -1,72 +1,72 @@
 # Tuning Persistence
 
-Persistence v tuning vrstvě neslouží jen k "uložení nějakého JSONu". Musí přesně rozlišovat, co je:
+Persistence in the tuning layer is not just about "saving some JSON". It must precisely distinguish what is:
 
 - execute source of truth
 - tuning prior
 - explain artifact
 
-Pokud se tyhle vrstvy smíchají, začne drift mezi tím, co se benchmarkovalo, co se spouští a co se ukládá jako "vítěz".
+If these layers get mixed, drift starts between what was benchmarked, what gets executed, and what is stored as the "winner".
 
 ## Reading Guide
 
-Tento dokument popisuje:
+This document describes:
 
-- jaké perzistentní artefakty dnes existují
-- kde mají žít
-- jaké mají lifecycle
-- které z nich se používají pro execute a které jen pro explain/search priors
+- which persistent artifacts exist today
+- where they should live
+- what lifecycle they have
+- which of them are used for execution and which are only used for explain/search priors
 
 ## Artifact Types
 
 ### 1. Built-In Defaults
 
-Žijí v kódu.
+They live in code.
 
-Nejsou perzistentní tuning artifact.
+They are not a persistent tuning artifact.
 
 ### 2. `PlatformRuntimeProfile`
 
-Výsledek platform calibration.
+The result of platform calibration.
 
-Je to machine-specific runtime default artifact.
+This is a machine-specific runtime default artifact.
 
-Používá se jako skutečný vstup do `ExecutionProfileAssembler`.
+It is used as the actual input to `ExecutionProfileAssembler`.
 
 ### 3. Best `ExecutionProfile`
 
-Výsledek graph autotune pro konkrétní workload/hardware kontext.
+The result of graph autotune for a specific workload/hardware context.
 
-Je to workload-specific runnable winner.
+This is a workload-specific runnable winner.
 
 ### 4. Tuning History
 
-Append-only evidence o kandidátech:
+Append-only evidence about candidates:
 
 - valid/invalid
 - median/mean
 - score
 - summary
 
-Používá se jako prior pro history-aware search.
+It is used as a prior for history-aware search.
 
 ### 5. Explain Artifacts
 
-Sem patří:
+This group includes:
 
 - text/json benchmark reports
 - text/json autotune reports
 - text/json platform calibration reports
 
-Nepoužívají se jako runtime source of truth.
+They are not used as the runtime source of truth.
 
 ## Preferred Layout Today
 
-Preferovaný layout je platform-versioned storage pod:
+The preferred layout is platform-versioned storage under:
 
 - `profiles/platform/<platform-id>/...`
 
-Konkrétní pattern používaný v [Main.java](../synaptik/app/Main.java):
+The concrete pattern used in [Main.java](../synaptik/app/Main.java):
 
 ### Platform calibration
 
@@ -76,36 +76,36 @@ Konkrétní pattern používaný v [Main.java](../synaptik/app/Main.java):
 
 ### Graph autotune
 
-Pro workload `abc`:
+For workload `abc`:
 
 - `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json`
 - `profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl`
 
 ## Compatibility Fallbacks
 
-Repo stále umí číst starší fallback layouty pod `build/...`:
+The repo can still read older fallback layouts under `build/...`:
 
 - `build/platform-calibration/...`
 - `build/tuning/best-profiles/...`
 - `build/tuning/history/...`
 
-Ale tohle už není preferovaný dlouhodobý layout.
+But this is no longer the preferred long-term layout.
 
-Dokumentace to musí říkat explicitně:
+The documentation needs to say this explicitly:
 
-- `build/...` je compatibility / temporary output space
-- `profiles/platform/...` je preferované místo pro versioned persisted tuning state
+- `build/...` is compatibility / temporary output space
+- `profiles/platform/...` is the preferred place for versioned persisted tuning state
 
 ## Platform Runtime Profile Persistence
 
-Hlavní typy:
+Main types:
 
 - [PlatformRuntimeProfile.java](../config/profile/PlatformRuntimeProfile.java)
 - [PlatformRuntimeProfileIO.java](../config/profile/PlatformRuntimeProfileIO.java)
 - [PlatformRuntimeProfileStore.java](./store/PlatformRuntimeProfileStore.java)
 - [JsonFilePlatformRuntimeProfileStore.java](./store/JsonFilePlatformRuntimeProfileStore.java)
 
-Ukládaný obsah:
+Stored content:
 
 - metadata
 - matmul family
@@ -116,20 +116,20 @@ Ukládaný obsah:
 - materialization family
 - numerics family
 
-Význam:
+Meaning:
 
-- můžeš recalibrovat jen část rodin a zbytek ponechat
-- můžeš stejný runtime profil použít napříč více benchmark/autotune workloady
+- you can recalibrate only part of the families and keep the rest
+- you can reuse the same runtime profile across multiple benchmark/autotune workloads
 
 ## Best Profile Persistence
 
-Hlavní typy:
+Main types:
 
 - [BestProfileRecord.java](./store/BestProfileRecord.java)
 - [BestProfileStore.java](./store/BestProfileStore.java)
 - [JsonFileBestProfileStore.java](./store/JsonFileBestProfileStore.java)
 
-JSON dnes ukládá:
+The JSON currently stores:
 
 - `score`
 - `updatedAt`
@@ -137,25 +137,25 @@ JSON dnes ukládá:
 - `workloadKey`
 - embedded `ExecutionProfile`
 
-To je důležitá realita:
+This is an important reality:
 
-- best profile record není jen holý `ExecutionProfile`
-- obsahuje i identitu kontextu, pro který platí
+- a best profile record is not just a bare `ExecutionProfile`
+- it also contains the identity of the context it applies to
 
 ## Tuning History Persistence
 
-Hlavní typy:
+Main types:
 
 - [TuningHistoryEntry.java](./store/TuningHistoryEntry.java)
 - [TuningHistoryStore.java](./store/TuningHistoryStore.java)
 - [JsonFileTuningHistoryStore.java](./store/JsonFileTuningHistoryStore.java)
 
-Formát:
+Format:
 
 - JSON Lines
-- jeden candidate observation per řádek
+- one candidate observation per line
 
-Dnešní fields:
+Current fields:
 
 - `fingerprint`
 - `candidateName`
@@ -169,11 +169,11 @@ Dnešní fields:
 - `hardwareKey`
 - `workloadKey`
 
-To dává smysl pro:
+This makes sense for:
 
 - history-aware ordering
-- prune invalid candidates
-- zachování audit trailu bez přepisování minulosti
+- pruning invalid candidates
+- preserving an audit trail without rewriting the past
 
 ## Explain Artifact Persistence
 
@@ -182,20 +182,20 @@ Platform calibration report persistence:
 - [PlatformCalibrationSaveHelper.java](./store/PlatformCalibrationSaveHelper.java)
 - [JsonFilePlatformCalibrationResultStore.java](./store/JsonFilePlatformCalibrationResultStore.java)
 
-Platí:
+Rules:
 
-- JSON i text report jsou explain artifacts
-- runtime source of truth je pořád samotný `PlatformRuntimeProfile`
+- both JSON and text reports are explain artifacts
+- the runtime source of truth is still the `PlatformRuntimeProfile` itself
 
 ## Fingerprints
 
 ### Hardware Fingerprint
 
-Typ:
+Type:
 
 - [HardwareFingerprint.java](./store/HardwareFingerprint.java)
 
-Použití:
+Usage:
 
 - platform runtime profile reuse
 - best profile reuse
@@ -203,60 +203,60 @@ Použití:
 
 ### Workload Fingerprint
 
-Typ:
+Type:
 
 - [WorkloadFingerprint.java](./store/WorkloadFingerprint.java)
 
-Použití:
+Usage:
 
-- rozlišení workload-specific best profile a history
+- distinguishing workload-specific best profiles and history
 
-Best profile resolver je schválně přísný:
+The best profile resolver is intentionally strict:
 
-- hardware key musí sedět
-- workload key musí sedět
+- hardware key must match
+- workload key must match
 
-Viz:
+See:
 
 - [FileBestProfileResolver.java](./store/FileBestProfileResolver.java)
 
 ## Invalidation Rules
 
-Perzistentní tuning artifact není věčný.
+A persistent tuning artifact is not eternal.
 
-### Platform Runtime Profile invaliduj, když:
+### Invalidate a platform runtime profile when:
 
-- se změnil hardware fingerprint
-- se změnila semantika runtime knobů
-- se změnil schema formát
-- se změnil framework/runtime behavior tak, že staré winners nedávají smysl
+- the hardware fingerprint changed
+- the semantics of runtime knobs changed
+- the schema format changed
+- framework/runtime behavior changed enough that old winners no longer make sense
 
-### Best Profile invaliduj, když:
+### Invalidate a best profile when:
 
-- nesedí hardware fingerprint
-- nesedí workload fingerprint
-- změnil se schema nebo význam polí v `ExecutionProfile`
+- the hardware fingerprint does not match
+- the workload fingerprint does not match
+- the schema or field meaning in `ExecutionProfile` changed
 
-### History invaliduj nebo ignoruj, když:
+### Invalidate or ignore history when:
 
-- workload/hardware keys nesedí
-- candidate fingerprints už neodpovídají dnešnímu candidate space
+- workload/hardware keys do not match
+- candidate fingerprints no longer correspond to today's candidate space
 
 ## Source Of Truth Rules
 
-### Co je execute source of truth
+### What is execute source of truth
 
 - `PlatformRuntimeProfile`
 - `ExecutionProfile`
 
-### Co není execute source of truth
+### What is not execute source of truth
 
 - tuning history
 - benchmark report
 - calibration report
 - tuning summary text
 
-Tohle pravidlo nesmí dokumentace rozmělňovat.
+The documentation must not blur this rule.
 
 ## Example: Save Platform Calibration
 
@@ -269,11 +269,11 @@ PlatformCalibrationSaveHelper.saveAll(
 );
 ```
 
-Tím se uloží:
+This saves:
 
-- finální runtime profile
-- JSON report
-- text report
+- the final runtime profile
+- the JSON report
+- the text report
 
 ## Example: Save Best Profile
 
@@ -307,18 +307,18 @@ historyStore.append(path, new TuningHistoryEntry(
 
 ## Practical Recommendations
 
-- drž `profiles/platform/...` v repozitářem známém místě
-- `build/...` používej jen jako fallback nebo scratch prostor
-- reporty a source-of-truth profily neukládej do stejného souboru
-- history nech append-only
-- best profile přepisuj jen při skutečném lepším winneru
+- keep `profiles/platform/...` in a repository-known location
+- use `build/...` only as fallback or scratch space
+- do not store reports and source-of-truth profiles in the same file
+- keep history append-only
+- overwrite the best profile only when there is a genuinely better winner
 
 ## Common Mistakes
 
-- ukládat report jako náhradu za profile artifact
-- používat history JSONL jako runtime config
-- ignorovat hardware/workload fingerprint při reloadu
-- míchat platform defaults a graph winner do jednoho souboru bez identity
+- storing a report instead of a profile artifact
+- using history JSONL as runtime config
+- ignoring hardware/workload fingerprints when reloading
+- mixing platform defaults and graph winners into one file without identity
 
 ## Related Docs
 
