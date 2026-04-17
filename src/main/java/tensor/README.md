@@ -44,6 +44,12 @@ In practical terms:
 - `tensor.ops.*` owns validation, primitive creation, and backward wiring
 - `operations.*` owns immutable operation descriptors only
 
+Public construction is also intentionally split:
+
+- ordinary modeling code should prefer `Tensor.scalar(...)`, `Tensor.onesLike(...)`, `Tensor.zerosLike(...)`, and typed leaf constructors
+- low-level primitive-node and explicit-stride constructors remain public because runtime, rewrites, and tests still need them
+- this means not every public `Tensor` constructor is equally "high-level"; some are infrastructure surface by design
+
 ## How To Read This Package
 
 There are three different audiences, and the package should read clearly for all of them:
@@ -248,6 +254,19 @@ Current public operation families are:
 The detailed method-level surface remains documented in:
 
 - [tensor/API.md](../tensor/API.md)
+
+Important layout-surface note:
+
+- there is intentionally no public `view()` method
+- view semantics are expressed through the explicit layout/indexing operations instead
+- `reshape`, `permute`, `transpose`, `expand`, `expandDims`, `squeeze`, and `select` are the public view-like transforms
+- `contiguous()` is the explicit "materialize this into dense storage" operation
+
+That API shape is deliberate:
+
+- it keeps aliasing intent explicit
+- it avoids overloading one generic `view()` name for materially different layout behaviors
+- it makes broadcast aliasing (`expand`) and dense materialization (`contiguous`) visible in the graph surface
 
 ## Primitive-Backed vs Composed Surface
 

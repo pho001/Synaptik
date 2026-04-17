@@ -56,6 +56,10 @@ When adding new tensor semantics:
 ## Contents
 
 - [Conventions](#conventions)
+- [Construction Surface](#construction-surface)
+  - [Recommended construction paths](#recommended-construction-paths)
+  - [Low-level public constructors](#low-level-public-constructors)
+- [Static Facade](#static-facade)
 - [Execution API](#execution-api)
   - [`prepare(ExecutionProfile profile)`](#prepareexecutionprofile-profile)
   - [`compute(ExecutionProfile profile)`](#computeexecutionprofile-profile)
@@ -65,6 +69,7 @@ When adding new tensor semantics:
   - [`onesLike(Tensor other)`](#onesliketensor-other)
   - [`zerosLike(Tensor other)`](#zerosliketensor-other)
 - [Broadcasting Contract](#broadcasting-contract)
+- [View Semantics](#view-semantics)
 - [Contiguous and Materialization Contract](#contiguous-and-materialization-contract)
 - [Layout / Shape Operations](#layout--shape-operations)
   - [`contiguous()`](#contiguous)
@@ -194,6 +199,103 @@ When adding new tensor semantics:
 - `where(condition, x, y)` is differentiable only in the data branches.
 - `all` / `any` are `BOOL`-only reductions and are nondifferentiable.
 
+## Construction Surface
+
+The public `Tensor` surface exposes more constructors than ordinary modeling code usually needs.
+
+That is intentional:
+
+- user-facing code needs ergonomic leaf tensor creation
+- runtime/rewrite/tests sometimes need low-level tensor or primitive-node construction
+- `Tensor` is still the public anchor type, so both layers are visible here
+
+### Recommended construction paths
+
+For ordinary modeling code, prefer these paths:
+
+- `Tensor.scalar(...)`
+- `Tensor.onesLike(...)`
+- `Tensor.zerosLike(...)`
+- array-backed leaf constructors such as:
+  - `new Tensor(double[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
+  - `new Tensor(float[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
+  - `new Tensor(short[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
+  - `new Tensor(byte[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
+  - `new Tensor(int[] data, int[] shape, List<Tensor> previous, String label, DataType dataType)`
+- multidimensional Java-array construction:
+  - `new Tensor(Object multiDimArray, List<Tensor> previous, String label, DataType dataType)`
+
+Practical guidance:
+
+- for leaf inputs, `previous` is usually `null` or an empty list
+- for user data, prefer typed flat-array constructors when shape is already known
+- use `Object multiDimArray` only as a convenience path; it infers shape and flattens nested Java arrays
+
+Example:
+
+```java
+Tensor x = new Tensor(
+        new double[]{1, 2, 3, 4, 5, 6},
+        new int[]{2, 3},
+        null,
+        "x",
+        DataType.FLOAT64
+);
+
+Tensor y = Tensor.scalar(2.0, DataType.FLOAT64);
+```
+
+### Low-level public constructors
+
+The following constructor families are public, but they are primarily infrastructure surface:
+
+- shape-only allocation:
+  - `Tensor(int[] dimensions, List<Tensor> previous, String label, DataType dataType)`
+- primitive-node construction:
+  - `Tensor(int[] shape, List<Tensor> previous, Operation operation, String label, DataType dataType)`
+  - `Tensor(int[] shape, int[] strides, List<Tensor> previous, Operation operation, String label, DataType dataType)`
+  - `Tensor(int[] shape, int[] strides, int storageOffset, List<Tensor> previous, Operation operation, String label, DataType dataType)`
+- typed storage constructors with explicit strides:
+  - `Tensor(double[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
+  - `Tensor(float[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
+  - `Tensor(short[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
+  - `Tensor(byte[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
+  - `Tensor(int[] data, int[] shape, int[] strides, List<Tensor> previous, String label, DataType dataType)`
+
+These constructors are mainly for:
+
+- tests
+- graph/runtime/rewrite infrastructure
+- explicit alias/layout setup
+- primitive-backed node creation
+
+They are valid public API, but they are not the recommended starting point for ordinary graph modeling.
+
+## Static Facade
+
+The graph-building API is intentionally exposed in two equivalent forms:
+
+- instance methods on `Tensor`
+- static methods on [TensorOps.java](../tensor/TensorOps.java)
+
+Examples:
+
+```java
+Tensor z1 = x.add(y);
+Tensor z2 = TensorOps.add(x, y);
+
+Tensor p1 = x.permute(1, 0);
+Tensor p2 = TensorOps.permute(x, new int[]{1, 0});
+```
+
+Practical rule:
+
+- prefer instance methods in ordinary modeling code
+- prefer `TensorOps` when writing generic helpers, static builders, or code that should read like explicit n-ary graph assembly
+
+This reference documents the semantic contract once, using the `Tensor` instance form where possible.
+The corresponding `TensorOps` methods delegate to the same family builders.
+
 ## Broadcasting Contract
 
 The core broadcasting contract used by tensor operations is:
@@ -218,6 +320,58 @@ This contract is used by:
 
 Backward note:
 - if an operand was broadcast in forward execution, its gradient is reduced back to the original operand shape
+
+## View Semantics
+
+There is intentionally no public `view()` method on `Tensor`.
+
+Instead, the public layout/indexing surface exposes a set of operations with explicit semantics:
+
+- `reshape(...)`
+- `permute(...)`
+- `transpose()`
+- `expand(...)`
+- `expandDims(...)`
+- `squeeze(...)`
+- `select(...)`
+
+Why the API is shaped this way:
+
+- the framework wants layout intent to be explicit
+- not every layout transform has the same aliasing rules
+- some transforms are pure metadata rewrites
+- some are broadcast alias views
+- some may require later materialization depending on execution constraints
+
+Current practical contract:
+
+- `permute(...)` creates a stride-reordered alias view
+- `transpose()` is the rank-2 special case of `permute(...)`
+- `expand(...)` creates a zero-stride broadcast alias view
+- `select(...)` creates a storage-offset alias view
+- `expandDims(...)` and `squeeze(...)` rewrite logical shape/strides without copying storage
+- `reshape(...)` preserves element count and is the public reshape operation; for contiguous layouts it aliases the same storage, while non-contiguous cases may require later materialization or remapping in execution paths
+- `contiguous()` is the explicit operation that asks for dense row-major materialization
+
+So if you are looking for a PyTorch-style `view(...)`, the nearest public equivalent is usually:
+
+- `reshape(...)` when you want a different logical shape
+- `permute(...)` / `transpose()` when you want a different axis order
+- `expand(...)` when you want broadcast aliasing
+- `contiguous()` when you want to force dense materialization after a view-like transform
+
+Example:
+
+```java
+Tensor x = new Tensor(new double[]{
+        1, 2, 3,
+        4, 5, 6
+}, new int[]{2, 3}, null, "x", DataType.FLOAT64);
+
+Tensor y = x.reshape(3, 2);      // reshape-style view/transform
+Tensor z = x.permute(1, 0);      // stride-reordered alias view
+Tensor dense = z.contiguous();   // explicit dense materialization
+```
 
 ## Reduction Interoperability
 
