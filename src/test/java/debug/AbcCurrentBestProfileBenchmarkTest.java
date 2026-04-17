@@ -45,7 +45,7 @@ final class AbcCurrentBestProfileBenchmarkTest {
                 .profile();
 
         BenchmarkRequest request = new BenchmarkRequest(
-                StandardWorkloads.abcSequenceMatmul("abc_sequence_matmul_" + dtypeId, 64, 10_000),
+                StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_" + dtypeId),
                 List.of(
                         BenchmarkEntry.baseline("baseline-no-opt", baselineProfile(dataType, dtypeId)),
                         BenchmarkEntry.candidate("best-profile", bestProfile)

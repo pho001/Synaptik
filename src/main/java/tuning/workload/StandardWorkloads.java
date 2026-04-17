@@ -16,6 +16,9 @@ import tensor.options.Pool2dOptions;
 import java.util.List;
 
 public final class StandardWorkloads {
+    private static final int ABC_BLAS_BENCHMARK_BATCH = 256;
+    private static final int ABC_BLAS_BENCHMARK_FEATURES = 2_048;
+
     private StandardWorkloads() {
     }
 
@@ -44,6 +47,10 @@ public final class StandardWorkloads {
 
     public static AbcSequenceMatmulWorkloadSpec abcSequenceMatmul(String name, int batch, int features) {
         return new AbcSequenceMatmulWorkloadSpec(name, batch, features);
+    }
+
+    public static AbcSequenceMatmulWorkloadSpec abcSequenceMatmulBlasBenchmark(String name) {
+        return abcSequenceMatmul(name, ABC_BLAS_BENCHMARK_BATCH, ABC_BLAS_BENCHMARK_FEATURES);
     }
 
     public static MlpClassificationWorkloadSpec mlpClassification(

@@ -357,7 +357,7 @@ public final class Main {
     }
 
     private static tuning.workload.WorkloadSpec abcWorkload(DTypeTarget dtype) {
-        return StandardWorkloads.abcSequenceMatmul("abc_sequence_matmul_" + dtype.id, 64, 10_000);
+        return StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_" + dtype.id);
     }
 
     private static String header(DTypeTarget dtype, String title) {
