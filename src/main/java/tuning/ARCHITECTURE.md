@@ -345,13 +345,14 @@ This family currently includes for example:
 
 - BLAS provider
 - BLAS minimum work
-- BLAS threads
 - `f32RequireMgeK`
 - `f32MaxNOverK`
 - `cpu.matMulParallelMinSize`
 - microkernel selection
 - tile selection
 - attention matmul tile/microkernel selection
+
+`runtime.blas.threads` stays part of the standard matmul candidate surface, but current presets pin it to a single allowed value: provider auto/default (`0`).
 
 ### `FUSED_THRESHOLDS`
 

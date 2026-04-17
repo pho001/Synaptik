@@ -161,7 +161,7 @@ public final class PlatformCalibrationDefaults {
                                         List.of(true, false),
                                         List.of(1.5, 2.0, 3.0, 4.0, 6.0)
                                 ),
-                                PlatformRuntimeProfileMutators.blasThreads(List.of(0, 1, 2, 4)),
+                                PlatformRuntimeProfileMutators.blasThreads(List.of(0)),
                                 PlatformRuntimeProfileMutators.matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000))
                         )
                 ),

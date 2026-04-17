@@ -29,7 +29,7 @@ public final class ProfileMutators {
                         Conv2dLoweringMode.ALWAYS
                 )),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L)),
-                blasThreads(List.of(0, 1, 2, 4)),
+                blasThreads(List.of(0)),
                 fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
         );
     }
@@ -37,7 +37,7 @@ public final class ProfileMutators {
     public static List<ExecutionProfileMutator> matmulWorkloadMutators() {
         return List.of(
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
-                blasThreads(List.of(0, 1, 2, 4)),
+                blasThreads(List.of(0)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
                 fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
         );
@@ -120,7 +120,7 @@ public final class ProfileMutators {
                         AttentionMatMulPolicy.FORCE_ON
                 )),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L)),
-                blasThreads(List.of(0, 1, 2, 4)),
+                blasThreads(List.of(0)),
                 vectorThresholds(
                         List.of(256, 1_024, 4_096),
                         List.of(512, 2_048, 8_192),
@@ -133,7 +133,7 @@ public final class ProfileMutators {
     public static List<ExecutionProfileMutator> mlpWorkloadMutators() {
         return List.of(
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
-                blasThreads(List.of(0, 1, 2, 4)),
+                blasThreads(List.of(0)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
                 fusedExecutionPolicies(List.of(FusedPrimaryBackend.ASM), List.of(true))
         );

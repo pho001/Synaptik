@@ -5,6 +5,7 @@ import config.profile.ExecutionProfile;
 import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;
 import tensor.DataType;
+import tuning.measure.MeasurementPolicy;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -19,6 +20,7 @@ public record PlatformCalibrationRequest(
         PlatformRuntimeProfile seedRuntimeProfile,
         List<PlatformCalibrationStep> steps,
         Path outputProfilePath,
+        MeasurementPolicy measurement,
         PlatformCalibrationProgressListener progressListener
 ) {
     public PlatformCalibrationRequest {
@@ -30,6 +32,31 @@ public record PlatformCalibrationRequest(
         Objects.requireNonNull(seedRuntimeProfile, "seedRuntimeProfile cannot be null");
         steps = steps == null ? List.of() : List.copyOf(steps);
         progressListener = progressListener == null ? PlatformCalibrationProgressListener.noop() : progressListener;
+    }
+
+    public PlatformCalibrationRequest(
+            String platformId,
+            String profileName,
+            DataType dataType,
+            ExecutionMode executionMode,
+            GraphExecutionPolicy graphPolicy,
+            PlatformRuntimeProfile seedRuntimeProfile,
+            List<PlatformCalibrationStep> steps,
+            Path outputProfilePath,
+            PlatformCalibrationProgressListener progressListener
+    ) {
+        this(
+                platformId,
+                profileName,
+                dataType,
+                executionMode,
+                graphPolicy,
+                seedRuntimeProfile,
+                steps,
+                outputProfilePath,
+                null,
+                progressListener
+        );
     }
 
     public static PlatformCalibrationRequest fromSeedExecutionProfile(
@@ -53,6 +80,34 @@ public record PlatformCalibrationRequest(
                 ),
                 steps,
                 outputProfilePath,
+                null,
+                null
+        );
+    }
+
+    public static PlatformCalibrationRequest fromSeedExecutionProfile(
+            String platformId,
+            ExecutionProfile seedProfile,
+            List<PlatformCalibrationStep> steps,
+            Path outputProfilePath,
+            MeasurementPolicy measurement
+    ) {
+        Objects.requireNonNull(seedProfile, "seedProfile cannot be null");
+        return new PlatformCalibrationRequest(
+                platformId,
+                seedProfile.profileName(),
+                seedProfile.dataType(),
+                seedProfile.mode(),
+                GraphExecutionPolicy.fromExecutionProfile(seedProfile),
+                PlatformRuntimeProfile.fromExecutionProfile(
+                        platformId,
+                        platformId,
+                        "UNSPECIFIED",
+                        seedProfile
+                ),
+                steps,
+                outputProfilePath,
+                measurement,
                 null
         );
     }

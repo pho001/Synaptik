@@ -10,6 +10,7 @@ import config.profile.WorkloadProfile;
 import tensor.DataType;
 import tuning.candidate.ProfileGridCandidateSpace;
 import tuning.candidate.ProfileMutators;
+import tuning.measure.MeasurementPolicy;
 import tuning.report.TextBenchmarkReportRenderer;
 import tuning.report.TextPlatformCalibrationResultRenderer;
 import tuning.report.TextTuningResultRenderer;
@@ -40,10 +41,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class Main {
-    private static final String CALIBRATION_WARMUP_PROPERTY = "synaptik.calibration.warmupIters";
-    private static final String CALIBRATION_MEASURE_PROPERTY = "synaptik.calibration.measureIters";
-    private static final String CALIBRATION_REPEATS_PROPERTY = "synaptik.calibration.repeats";
-
     private Main() {
     }
 
@@ -66,25 +63,37 @@ public final class Main {
         }
 
         switch (phase) {
-            case FULL -> runFull(dtype);
-            case CALIBRATE -> runCalibration(dtype);
-            case AUTOTUNE -> runAutotune(dtype);
-            case BENCHMARK_WINNER -> runWinnerBenchmark(dtype);
-            case BENCHMARK_STAGE_SPACE -> runStageSpaceBenchmark(dtype);
+            case FULL -> {
+                requireExactArgCount(args, 2);
+                runFull(dtype);
+            }
+            case CALIBRATE -> runCalibration(dtype, parseCalibrationMeasurement(args));
+            case AUTOTUNE -> {
+                requireExactArgCount(args, 2);
+                runAutotune(dtype);
+            }
+            case BENCHMARK_WINNER -> {
+                requireExactArgCount(args, 2);
+                runWinnerBenchmark(dtype);
+            }
+            case BENCHMARK_STAGE_SPACE -> {
+                requireExactArgCount(args, 2);
+                runStageSpaceBenchmark(dtype);
+            }
         }
     }
 
     private static void runFull(DTypeTarget dtype) {
         System.out.println(header(dtype, "full flow"));
         System.out.println("note=convenience flow for local iteration; for the cleanest performance numbers prefer running phases separately");
-        runCalibration(dtype);
+        runCalibration(dtype, null);
         runAutotune(dtype);
         runWinnerBenchmark(dtype);
     }
 
-    private static void runCalibration(DTypeTarget dtype) {
+    private static void runCalibration(DTypeTarget dtype, MeasurementPolicy measurement) {
         System.out.println(header(dtype, "training calibration"));
-        printCalibrationMeasurementOverride();
+        printCalibrationMeasurement(measurement);
         ExecutionProfile seed = trainingSeedProfile(dtype);
         PlatformCalibrationLayout layout = calibrationLayout(dtype, seed);
         PlatformCalibrationRequest baseRequest = PlatformCalibrationDefaults.balancedTrainingFull(
@@ -101,6 +110,7 @@ public final class Main {
                 baseRequest.seedRuntimeProfile(),
                 baseRequest.steps(),
                 baseRequest.outputProfilePath(),
+                measurement,
                 LoggingPlatformCalibrationProgressListener.defaults()
         );
 
@@ -116,17 +126,14 @@ public final class Main {
         System.out.println("profilePath=" + result.outputProfilePath());
     }
 
-    private static void printCalibrationMeasurementOverride() {
-        String warmup = System.getProperty(CALIBRATION_WARMUP_PROPERTY);
-        String measure = System.getProperty(CALIBRATION_MEASURE_PROPERTY);
-        String repeats = System.getProperty(CALIBRATION_REPEATS_PROPERTY);
-        if (warmup == null && measure == null && repeats == null) {
+    private static void printCalibrationMeasurement(MeasurementPolicy measurement) {
+        if (measurement == null) {
             return;
         }
         System.out.println("measurementOverride="
-                + "warmup=" + (warmup == null ? "default" : warmup)
-                + ", measure=" + (measure == null ? "default" : measure)
-                + ", repeats=" + (repeats == null ? "default" : repeats));
+                + "warmup=" + measurement.warmupIters()
+                + ", measure=" + measurement.measureIters()
+                + ", repeats=" + measurement.repeats());
     }
 
     private static void runAutotune(DTypeTarget dtype) {
@@ -363,7 +370,7 @@ public final class Main {
         System.out.println("""
                 Usage:
                   ./gradlew run --args="full <f64|f32|bf16>"
-                  ./gradlew run --args="calibrate <f64|f32|bf16>"
+                  ./gradlew run --args="calibrate <f64|f32|bf16> [warmup measure repeats]"
                   ./gradlew run --args="autotune <f64|f32|bf16>"
                   ./gradlew run --args="benchmark-winner <f64|f32|bf16>"
                   ./gradlew run --args="benchmark-stage-space <f64|f32|bf16>"
@@ -371,9 +378,46 @@ public final class Main {
                 Notes:
                   - no args defaults to `full f64`
                   - run phases separately to avoid cross-phase JVM warmup bias
+                  - `calibrate` optionally accepts explicit measurement override, e.g. `calibrate f64 30 100 2`
                   - `autotune` expects an existing calibration profile
                   - `benchmark-winner` expects an existing best-profile artifact
                 """);
+    }
+
+    private static void requireExactArgCount(String[] args, int expected) {
+        if (args.length != expected) {
+            printUsage();
+            throw new IllegalArgumentException("Unexpected argument count.");
+        }
+    }
+
+    private static MeasurementPolicy parseCalibrationMeasurement(String[] args) {
+        if (args.length == 2) {
+            return null;
+        }
+        if (args.length != 5) {
+            printUsage();
+            throw new IllegalArgumentException("Calibration measurement override expects exactly 3 integers: warmup measure repeats.");
+        }
+        try {
+            int warmup = Integer.parseInt(args[2]);
+            int measure = Integer.parseInt(args[3]);
+            int repeats = Integer.parseInt(args[4]);
+            MeasurementPolicy base = TuningPreset.BALANCED.benchmarkMeasurement();
+            return new MeasurementPolicy(
+                    warmup,
+                    measure,
+                    repeats,
+                    base.measureCompile(),
+                    base.measurePrepare(),
+                    base.measureColdRun(),
+                    base.measureSteadyState(),
+                    base.captureStepTrace()
+            );
+        } catch (NumberFormatException ex) {
+            printUsage();
+            throw new IllegalArgumentException("Calibration measurement override must be integers.", ex);
+        }
     }
 
     private enum Phase {

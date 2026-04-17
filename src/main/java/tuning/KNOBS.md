@@ -55,7 +55,6 @@ This family currently includes:
 - `runtime.blas.provider`
   - in practice today mainly `NONE` or `OPENBLAS_FFM`
 - `runtime.blas.matmulMinWork`
-- `runtime.blas.threads`
 - `runtime.blas.f32RequireMgeK`
 - `runtime.blas.f32MaxNOverK`
 - `cpu.matMulParallelMinSize`
@@ -150,9 +149,6 @@ The following ranges describe what standard `PlatformCalibrationDefaults` curren
 `blasThreads`
 
 - `0`
-- `1`
-- `2`
-- `4`
 
 `matMulParallelMinSize`
 
