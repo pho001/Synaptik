@@ -25,6 +25,7 @@ import tuning.session.TuningDefaults;
 import tuning.session.TuningPreset;
 import tuning.store.JsonFileBestProfileStore;
 import tuning.store.JsonFileTuningHistoryStore;
+import tuning.store.HardwareFingerprint;
 import tuning.store.PersistencePolicy;
 import tuning.store.PlatformCalibrationLayout;
 import tuning.store.PlatformCalibrationPaths;
@@ -38,6 +39,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class Main {
+    private static final String CALIBRATION_WARMUP_PROPERTY = "synaptik.calibration.warmupIters";
+    private static final String CALIBRATION_MEASURE_PROPERTY = "synaptik.calibration.measureIters";
+    private static final String CALIBRATION_REPEATS_PROPERTY = "synaptik.calibration.repeats";
+
     private Main() {
     }
 
@@ -78,6 +83,7 @@ public final class Main {
 
     private static void runCalibration(DTypeTarget dtype) {
         System.out.println(header(dtype, "training calibration"));
+        printCalibrationMeasurementOverride();
         ExecutionProfile seed = trainingSeedProfile(dtype);
         PlatformCalibrationLayout layout = calibrationLayout(dtype, seed);
         PlatformCalibrationRequest baseRequest = PlatformCalibrationDefaults.balancedTrainingFull(
@@ -107,6 +113,19 @@ public final class Main {
 
         System.out.println(TextPlatformCalibrationResultRenderer.render(result));
         System.out.println("profilePath=" + result.outputProfilePath());
+    }
+
+    private static void printCalibrationMeasurementOverride() {
+        String warmup = System.getProperty(CALIBRATION_WARMUP_PROPERTY);
+        String measure = System.getProperty(CALIBRATION_MEASURE_PROPERTY);
+        String repeats = System.getProperty(CALIBRATION_REPEATS_PROPERTY);
+        if (warmup == null && measure == null && repeats == null) {
+            return;
+        }
+        System.out.println("measurementOverride="
+                + "warmup=" + (warmup == null ? "default" : warmup)
+                + ", measure=" + (measure == null ? "default" : measure)
+                + ", repeats=" + (repeats == null ? "default" : repeats));
     }
 
     private static void runAutotune(DTypeTarget dtype) {
@@ -188,6 +207,20 @@ public final class Main {
     }
 
     private static PlatformCalibrationLayout calibrationLayout(DTypeTarget dtype, ExecutionProfile seed) {
+        HardwareFingerprint hardware = HardwareFingerprint.capture();
+        String platformId = PlatformCalibrationPaths.platformId(hardware);
+        String variant = PlatformCalibrationPaths.variantId(seed);
+        Path root = Path.of("profiles", "platform", platformId);
+        return new PlatformCalibrationLayout(
+                platformId,
+                hardware,
+                root.resolve("calibration").resolve(variant + ".json"),
+                root.resolve("reports").resolve("calibration-" + variant + ".json"),
+                root.resolve("reports").resolve("calibration-" + variant + ".txt")
+        );
+    }
+
+    private static PlatformCalibrationLayout legacyCalibrationLayout(DTypeTarget dtype, ExecutionProfile seed) {
         return PlatformCalibrationPaths.defaultLayout(
                 Path.of("build", "platform-calibration", dtype.id),
                 seed
@@ -197,7 +230,7 @@ public final class Main {
     private static PlatformRuntimeProfile loadCalibrationProfile(DTypeTarget dtype) {
         ExecutionProfile seed = trainingSeedProfile(dtype);
         PlatformCalibrationLayout layout = calibrationLayout(dtype, seed);
-        Path path = layout.profilePath();
+        Path path = resolveExisting(layout.profilePath(), legacyCalibrationLayout(dtype, seed).profilePath());
         if (!Files.exists(path)) {
             throw new IllegalStateException("Missing calibration profile: " + path + ". Run `calibrate " + dtype.id + "` first.");
         }
@@ -242,7 +275,10 @@ public final class Main {
     }
 
     private static ExecutionProfile loadWinnerProfile(DTypeTarget dtype) {
-        Path path = tuningPersistence(dtype).bestProfilePath();
+        Path path = resolveExisting(
+                tuningPersistence(dtype).bestProfilePath(),
+                legacyTuningPersistence(dtype).bestProfilePath()
+        );
         return new JsonFileBestProfileStore()
                 .load(path)
                 .orElseThrow(() -> new IllegalStateException("Missing best profile: " + path + ". Run `autotune " + dtype.id + "` first."))
@@ -250,12 +286,30 @@ public final class Main {
     }
 
     private static PersistencePolicy tuningPersistence(DTypeTarget dtype) {
+        String platformId = PlatformCalibrationPaths.platformId(HardwareFingerprint.capture());
+        Path root = Path.of("profiles", "platform", platformId, "tuning", "abc");
+        return new PersistencePolicy(
+                true,
+                true,
+                root.resolve(dtype.id + "-best-profile.json"),
+                root.resolve(dtype.id + "-history.jsonl")
+        );
+    }
+
+    private static PersistencePolicy legacyTuningPersistence(DTypeTarget dtype) {
         return new PersistencePolicy(
                 true,
                 true,
                 Path.of("build", "tuning", "best-profiles", "abc-" + dtype.id + "-best-profile.json"),
                 Path.of("build", "tuning", "history", "abc-" + dtype.id + "-history.jsonl")
         );
+    }
+
+    private static Path resolveExisting(Path preferred, Path fallback) {
+        if (preferred != null && Files.exists(preferred)) {
+            return preferred;
+        }
+        return fallback;
     }
 
     private static tuning.workload.WorkloadSpec abcWorkload(DTypeTarget dtype) {

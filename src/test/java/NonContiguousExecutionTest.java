@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 public class NonContiguousExecutionTest {
     private static final double EPS = 1e-9;
+    private static final double EPS32 = 1e-6;
 
     @Test
     public void testAddNonContiguousStridedPath() {
@@ -72,6 +73,39 @@ public class NonContiguousExecutionTest {
         Tensor ref = a.contiguous().add(b);
         CompiledGraph.compile(ref, OptimizerConfig.noOptimization()).execute(runtimeConfig, ExecutionMode.FORWARD);
         assertArrayEquals(ref.toDoubleArrayCopy(), c.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    public void testAddBroadcastRowViewFloat32StridedVsMaterializeEquivalence() {
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
+
+        Tensor left = new Tensor(new float[]{1, 2, 3, 4, 5, 6, 7, 8}, new int[]{2, 4}, null, "left", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{10, 20}, new int[]{2, 1}, null, "bias", DataType.FLOAT32);
+
+        Tensor strided = left.add(bias.expand(2, 4));
+        CompiledGraph.compile(strided, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
+
+        Tensor materialized = left.add(bias.expand(2, 4));
+        CompiledGraph.compile(materialized, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
+
+        assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS32);
+    }
+
+    @Test
+    public void testMulScalarExpandedRowViewFloat32StridedVsMaterializeEquivalence() {
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
+
+        Tensor bias = new Tensor(new float[]{3, 7}, new int[]{2, 1}, null, "bias", DataType.FLOAT32);
+
+        Tensor strided = bias.expand(2, 4).mul(0.5);
+        CompiledGraph.compile(strided, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
+
+        Tensor materialized = bias.expand(2, 4).mul(0.5);
+        CompiledGraph.compile(materialized, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
+
+        assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS32);
     }
 
     private static RuntimeConfig runtimeConfig(CpuKernelConfig cpuKernelConfig) {

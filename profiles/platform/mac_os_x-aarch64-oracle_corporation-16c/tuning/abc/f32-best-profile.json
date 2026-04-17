@@ -1,0 +1,124 @@
+{
+  "score": 7.51119263,
+  "updatedAt": "2026-04-17T06:46:01.855622+02:00",
+  "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
+  "workloadKey": "name=abc_sequence_matmul_f32|kind=ABC_SEQUENCE_MATMUL|dtype=FLOAT32|mode=FORWARD_BACKWARD|batch=64|features=10000",
+  "profile": {
+      "profileName": "abc-f32-calibrated",
+      "candidateName": "abc-f32-calibrated+stageOrder=FUSE-CSE-MEM:abc-f32-calibrated",
+      "dataType": "FLOAT32",
+      "mode": "FORWARD_BACKWARD",
+      "optimizer": {
+        "stageOrder": ["FUSE", "CSE", "MEM"],
+        "rewrite": {
+          "algebraicEnabled": true,
+          "linearLoweringEnabled": true,
+          "conv2dLoweringMode": "HEURISTIC",
+          "piecewiseLowering": {
+            "canonicalSigmoid": false,
+            "reluLikeWhere": false,
+            "clampLikeWhere": false
+          }
+        },
+        "cse": {
+          "strictSafety": true
+        },
+        "fuse": {
+          "maxClusterNodes": 64,
+          "scoreThreshold": 0.55,
+          "internalEdgeBonus": 0.3,
+          "externalInputPenalty": 0.2,
+          "sharedExpensivePenalty": 1.0,
+          "nonCheapBonus": 0.35,
+          "preserveSharedExpensiveNodes": true
+        },
+        "memory": {
+          "separateForwardBackwardPools": true,
+          "allowCrossPhaseReuse": false,
+          "allowLargerBufferReuse": false,
+          "minReusableBufferSize": 1
+        }
+      },
+      "runtime": {
+        "approximation": {
+          "approxMode": "TRAINING_ONLY",
+          "forceExactTranscendentals": false
+        },
+        "kernel": {
+          "cpu": {
+            "cpuLoopUnrollFactor": 1,
+            "cpuMatMulTileM": 32,
+            "cpuMatMulTileN": 128,
+            "cpuMatMulTileK": 64,
+            "cpuAttentionMatMulTileM": 64,
+            "cpuAttentionMatMulTileN": 128,
+            "cpuAttentionMatMulTileK": 64,
+            "cpuCheapVectorMinSize": 2048,
+            "cpuTranscendentalVectorMinSize": 128,
+            "cpuFusedCheapVectorMinSize": 256,
+            "cpuFusedTranscendentalVectorMinSize": 16,
+            "cpuReductionVectorMinSize": 2048,
+            "cpuAttentionVectorMinSize": 16384,
+            "cpuCheapParallelMinSize": 8192,
+            "cpuTranscendentalParallelMinSize": 16384,
+            "cpuFusedCheapParallelMinSize": 16384,
+            "cpuFusedTranscendentalParallelMinSize": 2048,
+            "cpuReductionParallelMinSize": 65536,
+            "cpuAttentionParallelMinSize": 16384,
+            "cpuMatMulParallelMinSize": 500000,
+            "cpuContiguousMaterializeThreshold": 262144,
+            "cpuLowCostTargetChunksPerWorker": 3,
+            "cpuMediumCostTargetChunksPerWorker": 1,
+            "cpuHighCostTargetChunksPerWorker": 1,
+            "cpuMinScalarChunkSize": 4096,
+            "cpuMinVectorChunkSize": 8192,
+            "cpuMinReductionChunkSize": 16384,
+            "cpuCommonPoolLowCostMaxWorkPerWorker": 16384,
+            "cpuFusedCheapContiguousAsmVectorWidth": 4,
+            "cpuFusedCheapStridedAsmVectorWidth": 4,
+            "cpuFusedNonCheapContiguousAsmVectorWidth": 4,
+            "cpuFusedNonCheapStridedAsmVectorWidth": 4,
+            "cpuSumAccuracyMode": "FAST",
+            "cpuAttentionMatMulPolicy": "AUTO",
+            "cpuMatMulMicroKernel": "F32_2X4",
+            "cpuAttentionMatMulMicroKernel": "F32_4X2"
+          },
+          "cuda": {
+            "cudaLoopUnrollFactor": 4,
+            "cudaMatMulTileM": 16,
+            "cudaMatMulTileN": 16,
+            "cudaMatMulTileK": 16
+          },
+          "opencl": {
+            "openclLoopUnrollFactor": 1,
+            "openclMatMulTileM": 0,
+            "openclMatMulTileN": 0,
+            "openclMatMulTileK": 0
+          }
+        },
+        "blas": {
+          "provider": "NONE",
+          "matmulMinWork": 2000000,
+          "f32RequireMgeK": false,
+          "f32MaxNOverK": 1.5,
+          "debug": false,
+          "threads": 4
+        },
+        "fused": {
+          "fusedPrimaryBackend": "ASM",
+          "fusedAllowBackendFallback": true
+        },
+        "workload": {
+          "kind": "NONE",
+          "batch": 0,
+          "heads": 0,
+          "seqLen": 0,
+          "headDim": 0,
+          "valueDim": 0,
+          "ffHiddenDim": 0,
+          "causal": false
+        }
+      }
+    }
+    
+}

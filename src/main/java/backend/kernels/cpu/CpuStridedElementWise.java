@@ -1,6 +1,7 @@
 package backend.kernels.cpu;
 
 import jdk.incubator.vector.DoubleVector;
+import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
 import operations.Operation;
 import operations.clampMax;
@@ -14,6 +15,7 @@ import java.util.List;
 
 public final class CpuStridedElementWise {
     private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
 
     private CpuStridedElementWise() {}
 
@@ -190,6 +192,25 @@ public final class CpuStridedElementWise {
                 int bIdx = b != null ? bBaseOffset + i * strideB : -1;
                 out[outIdx] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
             }
+            return;
+        }
+
+        if (rank == 2 && tryForwardRank2F32(
+                op,
+                a,
+                b,
+                aStrides,
+                bStrides,
+                aBaseOffset,
+                bBaseOffset,
+                out,
+                outShape[0],
+                outShape[1],
+                outStrides,
+                outBaseOffset,
+                useFastExpApprox,
+                useFastTanhApprox
+        )) {
             return;
         }
 
@@ -517,6 +538,34 @@ public final class CpuStridedElementWise {
         };
     }
 
+    private static boolean tryForwardRank2F32(
+            Operation op,
+            float[] a,
+            float[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            float[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (out == null || outStrides == null || outStrides.length != 2) {
+            return false;
+        }
+        return switch (op.opType()) {
+            case ADD, SUB, MUL, DIV, MIN, MAX ->
+                    tryForwardRank2BinaryF32(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, rows, cols, outStrides, outBaseOffset);
+            case NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID ->
+                    tryForwardRank2UnaryF32(op, a, aStrides, aBaseOffset, out, rows, cols, outStrides, outBaseOffset, useFastExpApprox, useFastTanhApprox);
+            default -> false;
+        };
+    }
+
     private static boolean tryForwardRank2BinaryF64(
             Operation op,
             double[] a,
@@ -581,6 +630,70 @@ public final class CpuStridedElementWise {
         return true;
     }
 
+    private static boolean tryForwardRank2BinaryF32(
+            Operation op,
+            float[] a,
+            float[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            float[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset
+    ) {
+        if (a == null || b == null || aStrides == null || bStrides == null || aStrides.length != 2 || bStrides.length != 2) {
+            return false;
+        }
+
+        int outRowStride = outStrides[0];
+        int outColStride = outStrides[1];
+        int aRowStride = aStrides[0];
+        int aColStride = aStrides[1];
+        int bRowStride = bStrides[0];
+        int bColStride = bStrides[1];
+
+        if (outColStride == 1 && aColStride == 1 && bColStride == 0) {
+            for (int row = 0; row < rows; row++) {
+                int outRowBase = outBaseOffset + row * outRowStride;
+                int aRowBase = aBaseOffset + row * aRowStride;
+                float right = b[bBaseOffset + row * bRowStride];
+                vectorBinaryBroadcastRightF32(op, a, aRowBase, right, out, outRowBase, cols);
+            }
+            return true;
+        }
+
+        if (outColStride == 1 && aColStride == 0 && bColStride == 1) {
+            for (int row = 0; row < rows; row++) {
+                int outRowBase = outBaseOffset + row * outRowStride;
+                int bRowBase = bBaseOffset + row * bRowStride;
+                float left = a[aBaseOffset + row * aRowStride];
+                vectorBinaryBroadcastLeftF32(op, left, b, bRowBase, out, outRowBase, cols);
+            }
+            return true;
+        }
+
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = switch (op.opType()) {
+                    case ADD -> a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
+                    case SUB -> a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
+                    case MUL -> a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
+                    case DIV -> a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
+                    case MIN -> Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+                    case MAX -> Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+                    default -> throw new UnsupportedOperationException("Unsupported rank-2 F32 binary op: " + op.opType());
+                };
+            }
+        }
+        return true;
+    }
+
     private static boolean tryForwardRank2UnaryF64(
             Operation op,
             double[] a,
@@ -617,6 +730,52 @@ public final class CpuStridedElementWise {
             int aRowBase = aBaseOffset + row * aRowStride;
             for (int col = 0; col < cols; col++) {
                 out[outRowBase + col * outColStride] = evalUnaryF64(
+                        op,
+                        a[aRowBase + col * aColStride],
+                        useFastExpApprox,
+                        useFastTanhApprox
+                );
+            }
+        }
+        return true;
+    }
+
+    private static boolean tryForwardRank2UnaryF32(
+            Operation op,
+            float[] a,
+            int[] aStrides,
+            int aBaseOffset,
+            float[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (a == null || aStrides == null || aStrides.length != 2) {
+            return false;
+        }
+
+        int outRowStride = outStrides[0];
+        int outColStride = outStrides[1];
+        int aRowStride = aStrides[0];
+        int aColStride = aStrides[1];
+
+        if (outColStride == 1 && aColStride == 0) {
+            for (int row = 0; row < rows; row++) {
+                int outRowBase = outBaseOffset + row * outRowStride;
+                float value = evalUnaryF32(op, a[aBaseOffset + row * aRowStride], useFastExpApprox, useFastTanhApprox);
+                fillRowF32(out, outRowBase, cols, value);
+            }
+            return true;
+        }
+
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = evalUnaryF32(
                         op,
                         a[aRowBase + col * aColStride],
                         useFastExpApprox,
@@ -666,6 +825,45 @@ public final class CpuStridedElementWise {
         }
     }
 
+    private static void vectorBinaryBroadcastRightF32(
+            Operation op,
+            float[] left,
+            int leftBase,
+            float right,
+            float[] out,
+            int outBase,
+            int cols
+    ) {
+        int width = F32.length();
+        int upper = cols - (cols % width);
+        int col = 0;
+        FloatVector rightVector = FloatVector.broadcast(F32, right);
+        for (; col < upper; col += width) {
+            FloatVector leftVector = FloatVector.fromArray(F32, left, leftBase + col);
+            FloatVector result = switch (op.opType()) {
+                case ADD -> leftVector.add(rightVector);
+                case SUB -> leftVector.sub(rightVector);
+                case MUL -> leftVector.mul(rightVector);
+                case DIV -> leftVector.div(rightVector);
+                case MIN -> leftVector.min(rightVector);
+                case MAX -> leftVector.max(rightVector);
+                default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F32 binary op: " + op.opType());
+            };
+            result.intoArray(out, outBase + col);
+        }
+        for (; col < cols; col++) {
+            out[outBase + col] = switch (op.opType()) {
+                case ADD -> left[leftBase + col] + right;
+                case SUB -> left[leftBase + col] - right;
+                case MUL -> left[leftBase + col] * right;
+                case DIV -> left[leftBase + col] / right;
+                case MIN -> Math.min(left[leftBase + col], right);
+                case MAX -> Math.max(left[leftBase + col], right);
+                default -> throw new UnsupportedOperationException("Unsupported scalar rank-2 F32 binary op: " + op.opType());
+            };
+        }
+    }
+
     private static void vectorBinaryBroadcastLeftF64(
             Operation op,
             double left,
@@ -705,11 +903,63 @@ public final class CpuStridedElementWise {
         }
     }
 
+    private static void vectorBinaryBroadcastLeftF32(
+            Operation op,
+            float left,
+            float[] right,
+            int rightBase,
+            float[] out,
+            int outBase,
+            int cols
+    ) {
+        int width = F32.length();
+        int upper = cols - (cols % width);
+        int col = 0;
+        FloatVector leftVector = FloatVector.broadcast(F32, left);
+        for (; col < upper; col += width) {
+            FloatVector rightVector = FloatVector.fromArray(F32, right, rightBase + col);
+            FloatVector result = switch (op.opType()) {
+                case ADD -> leftVector.add(rightVector);
+                case SUB -> leftVector.sub(rightVector);
+                case MUL -> leftVector.mul(rightVector);
+                case DIV -> leftVector.div(rightVector);
+                case MIN -> leftVector.min(rightVector);
+                case MAX -> leftVector.max(rightVector);
+                default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F32 binary op: " + op.opType());
+            };
+            result.intoArray(out, outBase + col);
+        }
+        for (; col < cols; col++) {
+            out[outBase + col] = switch (op.opType()) {
+                case ADD -> left + right[rightBase + col];
+                case SUB -> left - right[rightBase + col];
+                case MUL -> left * right[rightBase + col];
+                case DIV -> left / right[rightBase + col];
+                case MIN -> Math.min(left, right[rightBase + col]);
+                case MAX -> Math.max(left, right[rightBase + col]);
+                default -> throw new UnsupportedOperationException("Unsupported scalar rank-2 F32 binary op: " + op.opType());
+            };
+        }
+    }
+
     private static void fillRowF64(double[] out, int outBase, int cols, double value) {
         int width = F64.length();
         int upper = cols - (cols % width);
         int col = 0;
         DoubleVector vector = DoubleVector.broadcast(F64, value);
+        for (; col < upper; col += width) {
+            vector.intoArray(out, outBase + col);
+        }
+        for (; col < cols; col++) {
+            out[outBase + col] = value;
+        }
+    }
+
+    private static void fillRowF32(float[] out, int outBase, int cols, float value) {
+        int width = F32.length();
+        int upper = cols - (cols % width);
+        int col = 0;
+        FloatVector vector = FloatVector.broadcast(F32, value);
         for (; col < upper; col += width) {
             vector.intoArray(out, outBase + col);
         }
@@ -747,6 +997,38 @@ public final class CpuStridedElementWise {
                 yield Math.pow(value, exponent);
             }
             default -> throw new UnsupportedOperationException("Unsupported rank-2 F64 unary op: " + op.opType());
+        };
+    }
+
+    private static float evalUnaryF32(
+            Operation op,
+            float value,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        return switch (op.opType()) {
+            case NEG -> -value;
+            case INV -> 1.0f / value;
+            case LOG -> (float) Math.log(value);
+            case EXP -> useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value);
+            case FAST_EXP -> FastExp.fastExpF32(value);
+            case TANH -> useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value);
+            case FAST_TANH -> FastExp.fastTanhF32(value);
+            case SQRT -> (float) Math.sqrt(value);
+            case ABS -> Math.abs(value);
+            case RELU -> Math.max(0.0f, value);
+            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValueF32(), value);
+            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValueF32(), value);
+            case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-value)));
+            case MUL_SCALAR -> value * ((mulScalar) op).getScalarF32();
+            case POW -> {
+                float exponent = ((pow) op).getExponentF32();
+                if (exponent == 0.0f) yield 1.0f;
+                if (exponent == 1.0f) yield value;
+                if (exponent == 2.0f) yield value * value;
+                yield (float) Math.pow(value, exponent);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported rank-2 F32 unary op: " + op.opType());
         };
     }
 
