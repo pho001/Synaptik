@@ -1,31 +1,60 @@
 # Tuning Workloads
 
-## Contents
-
-- [Purpose](#purpose)
-- [Workload Contracts](#workload-contracts)
-- [How Workloads Interact With Profiles](#how-workloads-interact-with-profiles)
-- [Built-In Workload Families](#built-in-workload-families)
-- [Calibration Workloads](#calibration-workloads)
-- [Materialization Calibration Workloads](#materialization-calibration-workloads)
-- [Validation References](#validation-references)
-- [Catalogs](#catalogs)
-- [Selecting Scenarios](#selecting-scenarios)
-- [Adding Custom Workloads](#adding-custom-workloads)
-
 ## Purpose
 
-`tuning.workload` describes what is being measured or tuned.
+`tuning.workload` defines what is being measured.
 
-It is **not**:
+It is the abstraction boundary shared by:
+
+- benchmark
+- per-graph autotune
+- platform calibration
+
+A workload is **not**:
 
 - a compiled runtime artifact
-- a benchmark script
-- a backend-specific execution plan
+- a backend execution plan
+- a benchmark script with hardcoded measurement logic
 
-It is a graph-construction contract over the public tensor surface.
+A workload is:
 
-## Workload Contracts
+- a reproducible graph-construction contract
+- a validation contract
+- a small piece of metadata describing the scenario being measured
+
+## Reading Guide
+
+This file is easiest to read if you keep three levels separate:
+
+1. `WorkloadSpec`
+   - reusable recipe
+2. `WorkloadInstance`
+   - one fresh instantiated graph and its validation contract
+3. catalogs
+   - named collections such as `StandardWorkloads` and `CalibrationWorkloads`
+
+If those levels get blurred, it becomes very easy to:
+
+- accidentally reuse stale graph state
+- compare different graphs under the same workload name
+- hide synthetic probes inside scenario-level benchmark stories
+
+## Why The Workload Layer Matters
+
+Without a stable workload layer, every workflow would invent its own way to build graphs and validate results.
+That quickly leads to:
+
+- inconsistent graphs between benchmark and autotune
+- accidental state reuse across candidates
+- untraceable measurement differences
+
+The workload layer prevents that by requiring:
+
+- a fresh graph instance per candidate
+- explicit validation target/reference
+- stable scenario metadata
+
+## Core Contracts
 
 ### `WorkloadSpec`
 
@@ -35,62 +64,134 @@ Defines:
 - workload kind
 - how to instantiate a fresh workload instance
 
+Think of `WorkloadSpec` as the recipe, not the baked graph.
+
+It should be stable enough that:
+
+- two different workflows can instantiate the same named workload
+- the workload meaning stays the same even when the candidate profile changes
+
 ### `WorkloadEnvironment`
 
-Provides the execution context used while instantiating the graph.
+Provides the environment in which the graph is built.
 
-Most importantly:
+Most importantly it exposes:
 
 - `environment.profile()`
 
-This is how workload builders read:
+That is how workload builders read:
 
 - dtype
 - execution mode
-- workload profile metadata
+- profile metadata that may influence graph construction
+
+The important rule is:
+
+- workloads read the profile
+- workloads do not need to know which tuning workflow is driving them
 
 ### `WorkloadInstance`
 
-Defines:
+Represents one instantiated runnable scenario and defines:
 
-- benchmark root
+- root tensor to execute
 - validation target
 - validation reference
 - workload metadata
 
-This separation is important:
+One `WorkloadSpec` can produce many fresh `WorkloadInstance`s.
 
-- one spec can instantiate many fresh graphs
-- every benchmark/autotune candidate gets a fresh graph
-- workloads do not reuse mutated graph state between candidates
+That is required because:
 
-## How Workloads Interact With Profiles
+- different candidates must not share mutated graph state
+- backward graphs and gradients are stateful
+- runtime preparation may cache data tied to one candidate/profile
+
+## Fresh-Graph Contract
+
+Every candidate measurement must get a fresh workload instance.
+
+This rule exists because tensor graphs are not immutable value objects in the strict functional sense.
+They can accumulate:
+
+- gradients
+- prepared/runtime state
+- backend-specific caches
+
+Reusing one graph across candidates would poison the measurement.
+
+This is not just a cleanliness rule.
+It directly affects result validity because:
+
+- autograd mutates tensors
+- prepared execution can attach runtime caches
+- some specialized paths keep auxiliary runtime state on tensors
+
+## Interaction With Profiles
 
 Workloads do not know whether they are being used by:
 
 - benchmark
-- graph autotune
-- platform calibration
+- autotune
+- calibration
 
-They just receive:
+They only receive an environment with a profile.
 
-- a profile in the environment
+In practice that means:
 
-Current practical behavior:
+- benchmark passes a concrete candidate profile
+- autotune passes candidate profiles produced by the search space
+- calibration assembles temporary execution profiles from runtime-profile candidates
 
-- benchmark instantiates workloads with concrete candidate `ExecutionProfile`
-- graph autotune also instantiates workloads with concrete candidate `ExecutionProfile`
-- platform calibration generates runtime-profile candidates first, then assembles temporary `ExecutionProfile` values before workload execution
+From the workload’s point of view, the contract stays stable:
 
-That means workload builders always stay on one stable abstraction:
+- “build the graph for this profile”
 
-- “I build a graph for the provided execution profile”
+What workloads may depend on from the profile:
+
+- dtype
+- execution mode
+- explicit workload metadata that genuinely changes graph construction
+
+What workloads should usually **not** depend on directly:
+
+- backend-private implementation details
+- tuning-session internals
+- persistence state
+
+## Public Surface Expectations
+
+Workloads should primarily build graphs through the public tensor surface:
+
+- [tensor/Tensor.java](../tensor/Tensor.java)
+- [tensor/TensorOps.java](../tensor/TensorOps.java)
+- public semantic types from:
+  - [tensor/options](../tensor/options)
+  - [tensor/loss](../tensor/loss)
+
+Examples of public semantic types used by workloads:
+
+- `tensor.options.Conv2dOptions`
+- `tensor.options.Pool2dOptions`
+- `tensor.options.AttentionOptions`
+- `tensor.loss.LossReduction`
+
+This is important because tuning should measure the same modeling surface that normal code uses.
+
+Calibration workloads are allowed to be more synthetic than end-user scenarios, but they should still stay inside the public tensor graph model whenever practical.
 
 ## Built-In Workload Families
 
+The built-in families are not all the same kind of thing.
+They roughly split into:
+
+- isolated kernel-family probes
+- composed scenario workloads
+- application-like end-to-end-ish graphs
+
 ### MatMul
 
-- [MatMulWorkloadSpec.java](./workload/MatMulWorkloadSpec.java)
+- [tuning/workload/MatMulWorkloadSpec.java](./workload/MatMulWorkloadSpec.java)
 
 Parameters:
 
@@ -102,78 +203,85 @@ Parameters:
 Example:
 
 ```java
-tuning.workload.WorkloadSpec spec = tuning.workload.StandardWorkloads.matmul(
+WorkloadSpec spec = StandardWorkloads.matmul(
         "matmul_small",
         1, 64, 64, 64
 );
 ```
 
-Input:
+Typical purpose:
 
-- left matrix
-- right matrix
+- isolate GEMM policy
+- compare microkernels, tiles, BLAS thresholds, and scheduler choices
 
-Output root:
+Typical output:
 
 - scalarized `sum(matmul(left, right))`
 
 Validation target:
 
-- labeled matrix output before scalarization
+- the matrix result before scalarization
 
 ### Conv2d
 
-- [Conv2dWorkloadSpec.java](./workload/Conv2dWorkloadSpec.java)
+- [tuning/workload/Conv2dWorkloadSpec.java](./workload/Conv2dWorkloadSpec.java)
 
-Parameters:
+Parameters include:
 
 - batch
-- in/out channels
+- input/output channels
 - spatial size
 - kernel size
 - `Conv2dOptions`
-- optional bias
+- bias on/off
 
 Example:
 
 ```java
-tuning.workload.WorkloadSpec spec = tuning.workload.StandardWorkloads.conv2d(
+WorkloadSpec spec = StandardWorkloads.conv2d(
         "conv2d_resnet_3x3",
         2, 64, 128, 56, 56, 3, 3,
-        tensor.Conv2dOptions.defaults().withPadding(1, 1),
+        tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
         true
 );
 ```
 
-Output root:
+Typical purpose:
 
-- scalarized convolution result
-
-Validation target:
-
-- convolution tensor before scalarization
+- stress convolution lowering/runtime policy on a realistic CNN-like shape
 
 ### Transformer Hot Path
 
-- [TransformerHotPathWorkloadSpec.java](./workload/TransformerHotPathWorkloadSpec.java)
+- [tuning/workload/TransformerHotPathWorkloadSpec.java](./workload/TransformerHotPathWorkloadSpec.java)
 
-This is a composed graph family, not a micro-op:
+This is intentionally a composed graph family rather than a micro-op.
+It exercises a mix of:
 
-- attention
-- reshape / permute
-- residual
-- normalization
-- feed-forward stack
+- attention-related matmuls
+- layout traffic
+- fused elementwise chains
+- residual paths
+- normalization and feed-forward style subgraphs
 
-It is meant to exercise:
+Use it when you want an end-to-end-ish hot path instead of a single kernel family.
 
-- matmul policy
-- fused/runtime dispatch
-- shape/layout traffic
+It is the right choice when the question is not:
+
+- "is this one kernel faster?"
+
+but rather:
+
+- "what happens on a realistic fused/layout-heavy subgraph?"
+
+### ABC Sequence Matmul
+
+- [tuning/workload/AbcSequenceMatmulWorkloadSpec.java](./workload/AbcSequenceMatmulWorkloadSpec.java)
+
+Useful when you want a sequence of dependent matmuls rather than one isolated GEMM.
 
 ### Normalization
 
-- [NormalizationWorkloadSpec.java](./workload/NormalizationWorkloadSpec.java)
+- [tuning/workload/NormalizationWorkloadSpec.java](./workload/NormalizationWorkloadSpec.java)
 
 Supported kinds:
 
@@ -181,19 +289,13 @@ Supported kinds:
 - `LAYER_NORM`
 - `RMS_NORM`
 
-### MLP Classification
+Purpose:
 
-- [MlpClassificationWorkloadSpec.java](./workload/MlpClassificationWorkloadSpec.java)
-
-This family stresses:
-
-- linear layers
-- loss path
-- BLAS/runtime policy
+- measure reduction-heavy and affine-normalization style graphs
 
 ### Pool2d
 
-- [Pool2dWorkloadSpec.java](./workload/Pool2dWorkloadSpec.java)
+- [tuning/workload/Pool2dWorkloadSpec.java](./workload/Pool2dWorkloadSpec.java)
 
 Supported kinds:
 
@@ -202,145 +304,149 @@ Supported kinds:
 
 ### Indexed Loss
 
-- [LossWorkloadSpec.java](./workload/LossWorkloadSpec.java)
+- [tuning/workload/LossWorkloadSpec.java](./workload/LossWorkloadSpec.java)
 
 Supported kinds:
 
 - `CROSS_ENTROPY_FROM_INDICES`
 - `NLL_FROM_INDICES`
 
-## Calibration Workloads
+Purpose:
 
-Platform calibration uses a separate representative workload catalog:
+- stress gather/index-target loss paths and their backward behavior
 
-- [CalibrationWorkloads.java](./workload/CalibrationWorkloads.java)
+### MLP Classification
 
-These workloads are not meant to be end-user scenarios.
-
-They are representative probes for execution families.
-
-Current examples:
-
-- matmul square
-- matmul tall-skinny
-- attention-like batched matmul
-- fused cheap elementwise chain
-- fused transcendental chain
-- reduction sum
-- scheduler cheap parallel chain
-- materialization strided elementwise chain
-
-Why this split exists:
-
-- graph autotune should optimize one real workload family
-- platform calibration should optimize reusable runtime defaults over representative execution-family probes
-
-## Materialization Calibration Workloads
-
-`MATERIALIZATION` calibration now uses explicit non-contiguous workloads.
-
-Current shape:
-
-- create rank-2 tensors
-- transpose them to obtain non-contiguous logical views
-- run element-wise compute over the transposed views
+- [tuning/workload/MlpClassificationWorkloadSpec.java](./workload/MlpClassificationWorkloadSpec.java)
 
 Purpose:
 
-- force the runtime to choose between:
-  - strided execution
-  - materialize-then-fast-path execution
+- combine linear layers, activations, and indexed loss into a more application-like classification scenario
 
-This is the right signal for tuning:
+## Calibration Workloads
 
-- `cpu.contiguousMaterializeThreshold`
+Platform calibration uses a separate catalog:
 
-## Validation References
+- [tuning/workload/CalibrationWorkloads.java](./workload/CalibrationWorkloads.java)
 
-Workloads may choose different validation contracts:
+These workloads are intentionally more representative probes than end-user benchmarks.
 
-- no validation
-- tensor snapshot
-- baseline profile comparison
-- explicit labeled target
+Examples:
 
-This allows:
+- square matmul
+- tall-skinny matmul
+- attention-like batched matmul
+- fused cheap elementwise chain
+- fused transcendental chain
+- strided elementwise probes
+- reduction sum
+- scheduler cheap-parallel chain
+- materialization probe
+- conv2d representative case
 
-- benchmark root to be scalarized for full execution
-- validation target to remain semantic and stable
+These are probe workloads.
+They are allowed to be synthetic as long as they isolate a real execution family that occurs in real graphs.
 
-That is especially useful for:
+This split exists because calibration and benchmark solve different problems:
 
-- numerically sensitive reductions
-- conv2d direct vs GEMM lowering
-- transformer blocks where the semantic tensor matters more than a final sum
+- benchmark should answer “which candidate is faster on this real workload?”
+- calibration should answer “which runtime defaults are best for this execution family on this machine?”
 
-## Catalogs
+## Synthetic Probes vs Real Workloads
 
-Main entry point:
+Calibration probes are allowed to be synthetic if they isolate a family that truly exists in real graphs.
 
-- [StandardWorkloads.java](./workload/StandardWorkloads.java)
+That is the intended rule:
 
-Calibration catalog:
+- synthetic is fine for calibration
+- synthetic is not fine for pretending a benchmark win exists when the pattern does not appear in real graphs
 
-- [CalibrationWorkloads.java](./workload/CalibrationWorkloads.java)
+Examples of good synthetic probes:
 
-You can also create local catalogs if you want a private scenario set.
+- dense fused cheap chain to calibrate fused thresholds
+- transposed strided elementwise probe to calibrate materialization
+- attention-like batched matmul to calibrate attention matmul tiles
 
-## Selecting Scenarios
+## Validation Contracts
 
-Use:
+Each workload chooses a validation strategy explicitly.
 
-- benchmark
-  - when you want to compare explicit runnable variants
-- graph autotune
-  - when you want to search graph candidates for one concrete workload
-- platform calibration
-  - when you want machine-level runtime defaults without one specific end-user model
+Typical options:
 
-Rule of thumb:
+- no validation for exploratory/probe workloads
+- baseline-profile validation
+- snapshot/reference validation
 
-- if the question is “which graph policy is best for this model block?”:
-  - graph autotune
-- if the question is “which runtime thresholds are good on this machine?”:
-  - platform calibration
+The validation target can differ from the execution root.
 
-## Adding Custom Workloads
+Example:
 
-Extension path:
+- a workload may execute `sum(out)` for stable scalar timing
+- but validate the pre-scalarized tensor output
 
-1. create a `WorkloadSpec`
-2. build a fresh graph from `WorkloadEnvironment`
-3. choose root tensor
-4. choose validation target/reference
-5. attach stable metadata
-6. register it in a catalog if needed
+This is common and intentional.
 
-Minimal example:
+That separation is often the right design for tuning:
+
+- execution root should be timing-stable
+- validation target should be semantically meaningful
+
+## Metadata And Catalogs
+
+Workloads carry metadata so reports can group and label scenarios coherently.
+
+Catalog helpers live in:
+
+- [tuning/workload/WorkloadCatalog.java](./workload/WorkloadCatalog.java)
+- [tuning/workload/StandardWorkloads.java](./workload/StandardWorkloads.java)
+
+The standard catalog gives a reusable named set of scenarios for:
+
+- local benchmark runs
+- autotune defaults
+- regression comparisons
+
+Catalogs should stay honest about what they represent:
+
+- `StandardWorkloads` should read like reusable benchmark/autotune scenarios
+- `CalibrationWorkloads` should read like family probes for platform calibration
+
+## Adding A Custom Workload
+
+When adding a new workload:
+
+1. Decide whether it is:
+   - a real application scenario
+   - a microbenchmark
+   - a calibration probe
+2. Build the graph from the public tensor surface.
+3. Choose a validation target/reference deliberately.
+4. Keep construction deterministic enough for stable comparison.
+5. Register it in a catalog only if it is broadly useful.
+
+Minimal sketch:
 
 ```java
-tuning.workload.WorkloadSpec spec = new tuning.workload.TensorRootWorkloadSpec(
-        "custom_bias_gelu",
-        tuning.workload.WorkloadKind.GENERIC,
+WorkloadSpec spec = new TensorRootWorkloadSpec(
+        "my_workload",
+        WorkloadKind.GENERIC,
         environment -> {
-            tensor.Tensor x = tensor.Tensor.randn(new int[]{32, 128}, environment.profile().dataType(), "x");
-            tensor.Tensor w = tensor.Tensor.randn(new int[]{128, 128}, environment.profile().dataType(), "w");
-            tensor.Tensor b = tensor.Tensor.randn(new int[]{128}, environment.profile().dataType(), "b");
-            tensor.Tensor y = x.matmul(w).add(b).gelu();
-            y.setLabel("custom_bias_gelu_output");
-            return y.sum();
+            Tensor x = ...;
+            Tensor y = ...;
+            return x.add(y).relu().sum();
         },
-        environment -> tuning.validate.ValidationReference.none(),
-        environment -> tuning.workload.WorkloadMetadata.of(
-                "custom_bias_gelu",
-                tuning.workload.WorkloadKind.GENERIC
-        )
+        environment -> ValidationReference.none(),
+        environment -> WorkloadMetadata.of("my_workload", WorkloadKind.GENERIC)
 );
 ```
 
-Design rules:
+## Choosing The Right Workload For The Job
 
-- workloads are graph builders
-- not benchmark scripts
-- not precompiled execution objects
-- validation target may differ from benchmark root
+Use:
+
+- `StandardWorkloads.*` when you want reusable scenario-level comparisons
+- `CalibrationWorkloads.*` when you want family-specific runtime calibration probes
+- a custom `TensorRootWorkloadSpec` when you need a narrowly targeted local experiment
+
+The most important thing is not the class name.
+It is whether the workload is honest about what it measures.

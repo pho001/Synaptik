@@ -1,196 +1,332 @@
-# Optimizer (src/main/java/graph/optimizer)
+# Optimizer
 
-## Contents
+Optimizer je čistě graph-level vrstva. Transformuje topologicky seřazený graph před runtime prepare fází. Nevykonává kernels a nerozhoduje hot-path dispatch v okamžiku běhu.
 
-- [Goal](#goal)
-- [Main Components](#main-components)
-- [Placement in the Execution Flow](#placement-in-the-execution-flow)
-- [Rule Contract](#rule-contract)
-- [Rule Summary](#rule-summary)
-  - [`RewriteRule` Stage Family](#rewriterule-stage-family)
-  - [`CommonSubexpressionEliminationRule`](#commonsubexpressioneliminationrule)
-  - [`FuseElementWiseRule`](#fuseelementwiserule)
-  - [`MemoryOptimizerRule`](#memoryoptimizerrule)
-- [Fused Operations](#fused-operations)
-- [Config and Defaults](#config-and-defaults)
-- [Benchmark / Autotune Integration](#benchmark--autotune-integration)
-- [Adding a New Rule](#adding-a-new-rule)
-- [Build / Runtime Notes](#build--runtime-notes)
+Jeho kontrakt je jednoduchý:
 
-## Goal
+- vstup: `List<Tensor>` v topological order
+- výstup: sémanticky ekvivalentní `List<Tensor>` stále v topological order
 
-The optimizer transforms a compiled tensor graph before runtime preparation.
+## Reading Guide
 
-Main objectives:
+Tento dokument je pro tebe, pokud řešíš:
 
-- reduce redundant work
-- simplify expressions
-- fuse profitable element-wise regions
-- preserve correctness across forward and backward graph sections
+- kdy přidat nový operation descriptor a kdy jen rewrite
+- jak dnes vypadá `AR` stage family
+- jaké patterny se lowerují do specializovaných primitiv
+- kde jsou hranice CSE / FUSE / MEM
+- jak neporušit forward/backward correctness
+
+Související dokumentace:
+
+- graph lifecycle: [../README.md](../README.md)
+- operation descriptors: [../../operations/README.md](../../operations/README.md)
+- backend families: [../../backend/README.md](../../backend/README.md)
+- tuning/autotune: [../../tuning/README.md](../../tuning/README.md)
 
 ## Main Components
 
-- Orchestration:
-  - [src/main/java/graph/optimizer/GraphOptimizer.java](../../graph/optimizer/GraphOptimizer.java)
-  - [src/main/java/graph/optimizer/OptimizationRule.java](../../graph/optimizer/OptimizationRule.java)
-  - [src/main/java/graph/optimizer/OptimizerFactory.java](../../graph/optimizer/OptimizerFactory.java)
-  - [src/main/java/graph/optimizer/OptimizerProfiles.java](../../graph/optimizer/OptimizerProfiles.java)
-  - [src/main/java/graph/optimizer/OptimizerGraphSupport.java](../../graph/optimizer/OptimizerGraphSupport.java)
-- Config objects:
-  - [src/main/java/config/optimizer/OptimizerConfig.java](../../config/optimizer/OptimizerConfig.java)
-  - [src/main/java/config/optimizer/OptimizerStage.java](../../config/optimizer/OptimizerStage.java)
-  - [src/main/java/config/optimizer/CseConfig.java](../../config/optimizer/CseConfig.java)
-  - [src/main/java/config/optimizer/FuseConfig.java](../../config/optimizer/FuseConfig.java)
-- Rules:
-  - [src/main/java/graph/optimizer/rules/AlgebraicRewritingRule.java](../../graph/optimizer/rules/AlgebraicRewritingRule.java)
-  - [src/main/java/graph/optimizer/rules/CommonSubexpressionEliminationRule.java](../../graph/optimizer/rules/CommonSubexpressionEliminationRule.java)
-  - [src/main/java/graph/optimizer/rules/FuseElementWiseRule.java](../../graph/optimizer/rules/FuseElementWiseRule.java)
-  - [src/main/java/graph/optimizer/rules/MemoryOptimizerRule.java](../../graph/optimizer/rules/MemoryOptimizerRule.java)
-- Fusion support:
-  - [src/main/java/graph/optimizer/fusion/FusedCostModel.java](../../graph/optimizer/fusion/FusedCostModel.java)
-  - [src/main/java/graph/optimizer/fusion/FusedExternalInputCollector.java](../../graph/optimizer/fusion/FusedExternalInputCollector.java)
-  - [src/main/java/graph/optimizer/fusion/FusedPrecisionResolver.java](../../graph/optimizer/fusion/FusedPrecisionResolver.java)
-  - [src/main/java/graph/optimizer/fusion/FusedSignatureBuilder.java](../../graph/optimizer/fusion/FusedSignatureBuilder.java)
+- orchestrace
+  - [GraphOptimizer.java](../../graph/optimizer/GraphOptimizer.java)
+  - [OptimizationRule.java](../../graph/optimizer/OptimizationRule.java)
+  - [OptimizerFactory.java](../../graph/optimizer/OptimizerFactory.java)
+- shared graph rewrite support
+  - [OptimizerGraphSupport.java](../../graph/optimizer/OptimizerGraphSupport.java)
+- top-level stages
+  - [rewrite/RewriteRule.java](../../graph/optimizer/rewrite/RewriteRule.java)
+  - [rules/CommonSubexpressionEliminationRule.java](../../graph/optimizer/rules/CommonSubexpressionEliminationRule.java)
+  - [rules/FuseElementWiseRule.java](../../graph/optimizer/rules/FuseElementWiseRule.java)
+  - [rules/MemoryOptimizerRule.java](../../graph/optimizer/rules/MemoryOptimizerRule.java)
+- fusion support
+  - [fusion/FusedCostModel.java](../../graph/optimizer/fusion/FusedCostModel.java)
+  - [fusion/FusedExternalInputCollector.java](../../graph/optimizer/fusion/FusedExternalInputCollector.java)
+  - [fusion/FusedPrecisionResolver.java](../../graph/optimizer/fusion/FusedPrecisionResolver.java)
+  - [fusion/FusedSignatureBuilder.java](../../graph/optimizer/fusion/FusedSignatureBuilder.java)
 
-## Placement in the Execution Flow
+## Stage Model
 
-Preferred flow today is:
+Veřejný optimizer stage order dnes používá:
 
-1. construct tensor expression graph
-2. call `CompiledGraph.compile(root, optimizerConfig)`
-3. `CompiledGraph` builds forward/backward graph structure as needed
-4. optimizer runs over the assembled topologically sorted graph
-5. `CompiledGraph.prepare(runtimeConfig)` converts the optimized graph into runtime steps
+- `AR`
+- `CSE`
+- `FUSE`
+- `MEM`
 
-The optimizer does not own runtime execution.
-It only transforms the graph before preparation.
+Mapování na implementace je centralizované v [OptimizerFactory.java](../../graph/optimizer/OptimizerFactory.java).
 
-Operation-surface strategy is defined in:
+Výchozí preset reality:
 
-- [src/main/java/operations/README.md](../../operations/README.md)
+- `OptimizerConfig.noOptimization()`
+  - žádný stage
+- `OptimizerConfig.trainingDefaults()`
+  - `AR -> CSE -> MEM`
+- `OptimizerConfig.inferenceDefaults()`
+  - `AR -> CSE -> FUSE -> MEM`
 
-In particular, optimizer lowering should respect the difference between:
+To je důležité:
 
-- compositional API surface
-- canonical graph primitives
-- semantic-preserving lowering opportunities
+- training default dnes standardně nezapíná `FUSE`
+- inference default ho zapíná
+
+## Core Design Rule
+
+Optimizer nesmí být "druhá runtime vrstva". Co má zůstat runtime rozhodnutí:
+
+- scalar/vector/parallel dispatch
+- BLAS vs Java path u konkrétní prepared matmul recipe
+- chunk sizing
+- approximation policy
+
+Co naopak patří do optimizeru:
+
+- algebraic cleanup
+- lowering do specializovaných graph primitiv
+- structural CSE
+- fusion cluster formation
+- memory planning
 
 ## Rule Contract
 
-Each rule:
-
-- accepts `List<Tensor>` representing a topologically sorted graph
-- returns a transformed `List<Tensor>`
-
-Rules must preserve:
+Každé pravidlo musí zachovat:
 
 - dependency ordering
-- graph reachability
-- backward-flow correctness
-- phase boundaries between forward and backward sections
-- semantic equivalence when lowering composed forms into specialized primitives
+- reachability od sinků
+- forward/backward phase boundaries
+- dtype a shape semantiku
+- gradient correctness
 
-Shared graph rewrite mechanics such as input replacement and topological-closure rebuild now live in:
+Pravidlo smí:
 
-- [src/main/java/graph/optimizer/OptimizerGraphSupport.java](../../graph/optimizer/OptimizerGraphSupport.java)
+- nahradit node jiným node
+- přepsat input edge
+- znovu sestavit topological closure ze zachovaných sinků
 
-## Rule Summary
+K tomu slouží hlavně [OptimizerGraphSupport.java](../../graph/optimizer/OptimizerGraphSupport.java).
 
-### `RewriteRule` Stage Family
+## `AR`: Rewrite Family
 
-`OptimizerStage.AR` no longer maps to a class in `graph.optimizer.rules`.
-It maps directly to the rewrite family in:
+`AR` není jedna malá algebraic pass. Je to composite rewrite stage.
 
-- [src/main/java/graph/optimizer/rewrite/RewriteRule.java](../../graph/optimizer/rewrite/RewriteRule.java)
+Dnešní delegate order v [rewrite/RewriteRule.java](../../graph/optimizer/rewrite/RewriteRule.java) je:
 
-That class is a composite stage wrapper over explicit rewrite delegates.
+1. volitelný `PiecewiseLoweringRewrite`
+2. `AlgebraicRewrite`
+3. `LinearLoweringRewrite`
+4. `LossLoweringRewrite`
+5. `ReductionLoweringRewrite`
+6. `AttentionLoweringRewrite`
+7. `AttentionBackwardLoweringRewrite`
+8. volitelný `Conv2dLoweringRewrite`
 
-Current delegate order:
+Tahle order není náhodná:
 
-1. `AlgebraicRewrite`
-2. `LinearLoweringRewrite`
-3. `Conv2dLoweringRewrite`
-4. `PiecewiseLoweringRewrite` when explicitly enabled in config
+- canonicalization/import cleanup běží před ostatními specializacemi
+- algebraic cleanup nejdřív zjednoduší lokální tvar grafu
+- strukturální lowering na specializovaná primitiva běží potom
+- `conv2d` lowering zůstává explicitně policy-controlled
 
-This is the intended architectural boundary:
+## `PiecewiseLoweringRewrite`
 
-- `graph.optimizer.rules`
-  - top-level optimizer stages such as CSE / FUSE / MEM
-- `graph.optimizer.rewrite`
-  - the internal rewrite family executed by `OptimizerStage.AR`
+Tahle pass je dnes schválně opt-in. Slouží hlavně jako repair/canonicalization vrstva pro:
 
-Why this split is useful:
+- importované grafy
+- ručně rozpadlé patterny
 
-- AR is one optimizer stage from the outside
-- internally it can still host several rewrite passes with their own semantics
+Nepředpokládá se, že interní `Tensor` builders na ni budou spoléhat pro běžný forward graph.
 
-- local algebraic simplifications
-- dispatches by `Operation.OpType`, not by concrete class names
-- currently targets the numeric unary/binary subset where the rewrites are semantically valid
-- current focus is classic algebraic cleanup such as:
-  - identity elimination
-  - `pow(x, 2) -> x * x`
-  - inverse / negation / scalar canonicalization
-  - local constant folding for scalar forms
-- it does **not** currently lower compare/select surface forms such as:
-  - canonical sigmoid decompositions into `sigmoid`
-  - `where`-based relu/clamp patterns into specialized primitives
+Aktuálně umí rozpoznat:
 
-That boundary is intentional in the current code:
+- canonical sigmoid
+  - `1 / (1 + exp(-x)) -> sigmoid(x)`
+- relu-like `where`
+  - `where(x > 0, x, 0) -> relu(x)`
+- clamp-like `where`
+  - `where(x < t, t, x) -> clampMin(t)`
+  - `where(x > t, t, x) -> clampMax(t)`
 
-- algebraic rewrite stays in the numeric algebra layer
-- piecewise/select lowering remains a separate future rewrite concern if reintroduced
+Config:
 
-### `CommonSubexpressionEliminationRule`
+- [PiecewiseLoweringConfig.java](../../config/optimizer/PiecewiseLoweringConfig.java)
 
-- merges equivalent subexpressions
-- can use stricter or more aggressive safety configuration through `CseConfig`
-- uses structural signatures instead of stringly class-name signatures
-- signatures are built from:
-  - `Operation.OpType`
-  - forward/backward phase
-  - strict-safety metadata (`requiresGrad`, backend, output shape)
-  - structurally resolved input signatures
-  - explicit operation parameters for parametric ops
-- current parameter-aware coverage includes:
-  - `pow`
-  - `mulScalar`
-  - `sum(dim, keepDims)`
-  - `reduceMin(dim, keepDims)`
-  - `reduceMax(dim, keepDims)`
-  - `minGrad` / `maxGrad`
-  - `reduceMinGrad` / `reduceMaxGrad`
-  - layout/shape ops such as `reshape`, `permute`, `expand`, `expandDims`, `squeeze`
-- `noop` and fused nodes remain CSE boundaries and are intentionally not merged
+Default:
 
-This matters because shape/layout transforms and reduction shape policy are not interchangeable computations.
-For example, `sum(axis, false)` and `sum(axis, true)` must not collapse to the same node, and different `permute(...)` layouts must not merge just because they share the same input.
+- všechno vypnuté
 
-### `FuseElementWiseRule`
+To je důležité i dokumentačně:
 
-- groups profitable fused-compute regions into fused clusters
-- respects forward/backward phase boundaries
-- uses explicit fuse policy from `FuseConfig`
-- cooperates with fusion support helpers for:
-  - external input collection
-  - access-chain validation
-  - precision resolution
-  - cluster signature building
-  - cost decisions
+- pokud `Tensor.relu()` už vytváří `relu` primitivum, rewrite nic nedělá
+- její role je canonicalize/import cleanup, ne normální forward construction
 
-Detailed behavior:
+## `AlgebraicRewrite`
 
-1. identify candidate roots that are retained graph nodes
-2. walk backward only through fused-compute-compatible parents
-3. stop at barriers
-4. collect external inputs for the cluster boundary
-5. resolve absorbable view/layout chains into fused access metadata
-6. replace the cluster root with a `FusedOperation` descriptor
-7. rebuild topological closure so dead absorbed nodes disappear from the optimized execution list
+Sem patří lokální numerické zjednodušení. Je to úmyslně užší vrstva než "jakýkoli sémantický lowering".
 
-#### What counts as fused compute
+Typické příklady:
 
-Current fused compute algebra intentionally includes only:
+- identity elimination
+- scalar canonicalization
+- lokální constant folding, kde je bezpečný
+- přepisy typu `pow(x, 2) -> x * x`
+
+Naopak sem dnes nepatří:
+
+- attention pattern recognition
+- softmax backward lowering
+- cross-entropy lowering
+- view/access rewrite
+
+## `LinearLoweringRewrite`
+
+Rozpoznává pattern:
+
+- `matmul(input, weight) + bias`
+
+a nahrazuje ho:
+
+- `LINEAR(input, weight, bias)`
+
+Podmínky jsou čistě shape/semantics based:
+
+- `weight` musí odpovídat lineární vrstvě
+- `bias` musí být 1D bias vector
+- výstupní shape musí odpovídat batch prefixu vstupu + `outFeatures`
+
+Smysl:
+
+- backend dostane explicitní structured primitive
+- bias epilog a packed weights mohou žít v jedné family
+- nemusí se znovu hádat pattern až v runtime
+
+## `LossLoweringRewrite`
+
+Tohle je dnes jedna z nejdůležitějších rewrite families, protože nahrazuje reálně používané loss patterny specializovanými primitivy.
+
+Aktuálně loweruje:
+
+- forward cross-entropy-from-indices pattern do `CROSS_ENTROPY_LOSS_INDICES`
+- backward pattern do `CROSS_ENTROPY_LOSS_INDICES_GRAD`
+
+Rozpoznávaný forward tvar je zhruba:
+
+- `neg(gather(logSoftmax(logits), targetIndices))`
+- případně následovaný `sum()` nebo `mean()`
+
+Backward tvar rozpoznává rozpadlý softmax/scatter-based gradient pattern a nahrazuje ho specializovaným grad primitive.
+
+To je přesně správná vrstva pro takový přepis:
+
+- je to graph semantics problém
+- ne backend runtime heuristika
+- backend pak může mít výrazně čistší specializovaný kernel family
+
+## `ReductionLoweringRewrite`
+
+Tahle pass loweruje backward patterny pro structured reduction families.
+
+Aktuálně:
+
+- softmax backward pattern -> `SOFTMAX_GRAD`
+- log-softmax backward pattern -> `LOG_SOFTMAX_GRAD`
+
+Rozpoznává se backward graph tvar, ne forward API call.
+
+To je důležité:
+
+- veřejná tensor surface může gradient stále skládat přes tensor ops
+- optimizer ho později může přepsat na specializované primitivum
+
+Tím zůstává:
+
+- veřejné API čisté
+- backend rychlý
+
+## `AttentionLoweringRewrite`
+
+Rozpoznává forward scaled dot-product attention pattern:
+
+- `scores = q.matmul(k^T)`
+- optional scale přes `mulScalar`
+- optional mask přes `where(mask, scores, fill)`
+- `softmax(scores)`
+- `softmax(scores).matmul(v)`
+
+Pokud pattern sedí, přepíše ho na:
+
+- `SCALED_DOT_PRODUCT_ATTENTION`
+
+Mask fill scalar je ověřovaný podle dtype. Rewrite není obecné "snaž se uhodnout attention za každou cenu". Je to poměrně úzká a kontrolovaná pattern detekce.
+
+## `AttentionBackwardLoweringRewrite`
+
+Tahle pass se dívá do backward části graphu a nahrazuje rozpadlé backward patterny specializovaným primitive:
+
+- `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
+
+Umí rozpoznat gradient paths pro:
+
+- query
+- key
+- value
+
+Používá přitom index nad forward attention nodes, aby backward pattern nespárovala špatně.
+
+To je podstatné:
+
+- nejde o lokální rewrite na jednom uzlu
+- je to structured backward lowering opřený o znalost forward primitive
+
+## `Conv2dLoweringRewrite`
+
+`conv2d` lowering není vždy zapnutý. Je řízený explicitní policy:
+
+- `OFF`
+- `HEURISTIC`
+- `ALWAYS`
+
+Rewrite převádí:
+
+- `CONV2D`
+
+na:
+
+- `CONV2D_GEMM`
+
+pokud to dovolí policy.
+
+Důležitá hranice:
+
+- compile-time rewrite rozhodne, jestli graf bude mít direct nebo GEMM lowered conv primitive
+- runtime pak ještě pořád řeší konkrétní backend compute detail uvnitř zvolené family
+
+## `CSE`: Common Subexpression Elimination
+
+`CommonSubexpressionEliminationRule` nepoužívá naivní string comparison. Pracuje se structural signatures.
+
+Signatura zohledňuje:
+
+- `Operation.OpType`
+- forward/backward fázi
+- input signatures
+- explicitní operation parametry
+- safety metadata
+
+To je důležité třeba pro:
+
+- `sum(axis, keepDims=false)` vs `sum(axis, keepDims=true)`
+- různé `permute(...)`
+- `pow` s různými exponenty
+- scalar-parameter ops
+
+`noop` a fused nodes zůstávají záměrně CSE boundaries.
+
+## `FUSE`: Elementwise Fusion
+
+`FuseElementWiseRule` vytváří fused clusters jen tam, kde dává smysl model:
+
+- jedna output-space loop
+- lokální per-element compute
+
+Do fused compute algebra dnes patří:
 
 - unary numeric ops
 - binary numeric ops
@@ -198,363 +334,132 @@ Current fused compute algebra intentionally includes only:
 - logical ops
 - `where`
 
-#### What does not count as fused compute
+Nepatří tam:
 
-These are **not** fused compute nodes:
-
-- `select`
-- `reshape`
-- `expand`
-- `permute`
-- `expandDims`
-- `squeeze`
-
-They are treated as:
-
-- absorbable access/layout transforms on external inputs
-
-#### Hard barriers
-
-Current hard barriers include:
-
-- indexing ops
-  - `gather`
-  - `takeAlongAxis`
-  - `scatterAdd`
+- indexing
 - reductions
-- `matmul`
-- losses
-- special grad kernels
+- matmul
+- structured losses
+- special gradient kernels
 
-#### Example: accepted cluster
+View/access ops se nepovažují za compute nodes. Mohou se absorbovat jako external input access metadata.
 
-```java
-Tensor out = Tensor.where(a.greaterThan(b), x, y).relu().mul(x);
-```
+## `MEM`: Memory Planning
 
-Fused interpretation:
+`MemoryOptimizerRule` je compile-time planner, ne runtime allocator.
 
-```java
-// Step 1: bool intermediate
-// cond = a > b
-//
-// Step 2: numeric select
-// v = cond ? x : y
-//
-// Step 3: more numeric compute
-// out = relu(v) * x
-```
+Jeho role:
 
-This is a valid fused compute cluster because:
+- analyzovat liveness
+- přiřadit reusable slots
+- snížit peak memory footprint
+- vracet explain/summary data
 
-- all nodes live over the same logical output space
-- bool values are only intermediates inside the fused compute algebra
-- there is no reduction or indexing barrier
+Policy jde přes:
 
-#### Example: access chain absorbed into fused input metadata
+- [MemoryConfig.java](../../config/optimizer/MemoryConfig.java)
+- [MemoryPlannerPolicy.java](../../graph/optimizer/memory/MemoryPlannerPolicy.java)
 
-```java
-Tensor out = base.select(0, 1).permute(0).relu().exp();
-```
+Typické knoby:
 
-Fusion rule behavior:
+- oddělené forward/backward pools
+- cross-phase reuse
+- larger-buffer reuse
+- minimum reusable buffer size
 
-- `relu` and `exp` are fused compute nodes
-- `select(...)` and `permute(...)` are not fused compute nodes
-- the root fused node receives the backing tensor of `base`
-- access metadata describes how to read the logical input view
-
-#### Example: barrier
+## Example: Forward Lowering
 
 ```java
-Tensor out = base.gather(indices, 1).relu().exp();
+Tensor logits = x.linear(w, b);
+Tensor loss = logits.crossEntropyLossIndices(targets, 1);
 ```
 
-Fusion rule behavior:
+V ideálním runtime graphu po `AR` už můžeš mít:
 
-- `gather(...)` is a barrier
-- only the arithmetic nodes above it may fuse
-- `gather(...)` remains an ordinary graph node
+- `LINEAR`
+- `CROSS_ENTROPY_LOSS_INDICES`
 
-### `MemoryOptimizerRule`
+místo rozpadlé kombinace:
 
-- graph rewrites aimed at better memory behavior and reuse patterns
-- current planner is liveness-aware and slot-assignment-based
-- planner policy is modeled explicitly through `MemoryPlannerPolicy`
-- public compile-time config for the MEM stage is carried by `OptimizerConfig.memory()`
-- `MemoryPlannerPolicy` is the runtime planner-facing projection of that config
-- planner exposes internal liveness/slot metrics through `MemoryPlanSummary`
-- current debug dumps can explain:
-  - summary metrics
-  - slot assignment
-  - role per tensor
-  - storage owner
-  - birth / last-read interval
-  - saved-forward report
-- current summary metrics include:
-  - reusable interval count
-  - slot count
-  - reuse count
-  - reusable fresh allocation count
-  - reuse hit-rate
-  - allocated slot bytes
-  - peak live bytes
-  - peak reusable bytes
-  - peak saved-forward bytes
-  - peak gradient-target bytes
-  - forward/backward peak live bytes
-  - saved-forward hold statistics
+- `MATMUL`
+- `ADD`
+- `LOG_SOFTMAX`
+- `GATHER`
+- `NEG`
+- `MEAN`
 
-#### Memory policy shape
+## Example: Backward Lowering
 
-The compile-time MEM-stage policy is:
+Veřejný autograd builder může složit backward přes běžné tensor operace. Po `AR` se ale může přepsat na:
 
-```java
-public record MemoryConfig(
-        boolean separateForwardBackwardPools,
-        boolean allowCrossPhaseReuse,
-        boolean allowLargerBufferReuse,
-        int minReusableBufferSize
-) {}
-```
+- `SOFTMAX_GRAD`
+- `LOG_SOFTMAX_GRAD`
+- `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
+- `CROSS_ENTROPY_LOSS_INDICES_GRAD`
 
-Meaning of the fields:
+To je klíčový design pattern projektu:
 
-- `separateForwardBackwardPools`
-  - keeps forward-temp and backward-temp reuse pools separate
-  - conservative default because it makes liveness reasoning and explain output cleaner
-- `allowCrossPhaseReuse`
-  - allows one reuse space across forward/backward when pools are not separated
-  - currently a deliberate opt-in knob, not the default policy
-- `allowLargerBufferReuse`
-  - permits reusing a slot with `slot.size >= tensor.size`
-  - improves reuse opportunities at the cost of potentially holding larger buffers
-- `minReusableBufferSize`
-  - excludes tiny temporaries from slot planning
-  - useful when planning overhead or slot churn would outweigh any real gain
+- forward/backward formulas se mohou skládat čistě přes `Tensor` operace
+- optimizer je pak může nahradit strukturovanými primitivy
 
-Important boundary:
+## Config Surface
 
-- this is a **compile-time optimizer policy**
-- it belongs to `OptimizerConfig`
-- it is not a runtime execution knob like BLAS or approximation mode
+Primární veřejný optimizer config je:
 
-#### Example: explicit MEM-stage config
+- [OptimizerConfig.java](../../config/optimizer/OptimizerConfig.java)
 
-```java
-OptimizerConfig config = OptimizerConfig.trainingDefaults()
-        .withMemory(new MemoryConfig(
-                true,   // separateForwardBackwardPools
-                false,  // allowCrossPhaseReuse
-                true,   // allowLargerBufferReuse
-                16      // minReusableBufferSize
-        ));
-```
+Obsahuje:
 
-This means:
-
-- the graph still uses separate forward/backward reuse pools
-- cross-phase reuse stays disabled
-- larger reusable buffers may be reused for smaller temporaries
-- very small temporaries below `16` elements are skipped by slot planning
-
-#### MemoryPlanSummary as benchmark/autotune surface
-
-`MemoryPlanSummary` is not only a debug artifact.
-
-It is intended to be the stable machine-readable planner report for:
-
-- benchmark comparisons
-- future planner autotune
-- policy evaluation without local probe scripts
-
-Today it exposes both:
-
-- human-readable explain output through `MemoryPlan.explain()`
-- machine-readable metrics through `MemoryPlanSummary.toMetricMap()`
-
-Relevant files:
-
-- [src/main/java/graph/optimizer/rules/MemoryOptimizerRule.java](../../graph/optimizer/rules/MemoryOptimizerRule.java)
-- [src/main/java/graph/optimizer/memory/MemoryPlanner.java](../../graph/optimizer/memory/MemoryPlanner.java)
-- [src/main/java/graph/optimizer/memory/MemoryPlan.java](../../graph/optimizer/memory/MemoryPlan.java)
-- [src/main/java/graph/optimizer/memory/MemoryPlanSummary.java](../../graph/optimizer/memory/MemoryPlanSummary.java)
-- [src/main/java/graph/optimizer/memory/MemoryPlannerPolicy.java](../../graph/optimizer/memory/MemoryPlannerPolicy.java)
-- [src/main/java/config/optimizer/MemoryConfig.java](../../config/optimizer/MemoryConfig.java)
-
-## Fused Operations
-
-The fused optimizer path now follows a descriptor + prepared-runtime split.
-
-Current model:
-
-- optimizer replaces a cluster with a `FusedOperation` descriptor node
-- `FusedOperationFactory` builds `FusedExpressionPlan`
-- `FusedAccessResolver` validates absorbable access chains and resolves backing runtime inputs
-- `CompiledGraph.prepare(...)` resolves per-node compute mode first
-- `CompiledGraph.prepare(...)` resolves a fused runtime backend through `FusedExecutionBackendResolver`
-- the selected backend produces one `PreparedFusedExecutable`
-- current backends are:
-  - direct fused backend
-  - ASM fallback backend
-- current direct fused backend coverage:
-  - `FLOAT32`
-  - `FLOAT64`
-  - `BFLOAT16` storage with resolved compute type `F32`
-- `CpuFusedKernel` executes that prepared executable without caring which backend produced it
-
-This means:
-
-- `FusedOperation` is not itself the compiled kernel
-- live `Tensor` graph nodes are not passed directly to generated runtime code
-- generated code consumes:
-  - typed fused node IR
-  - typed external input access metadata
-  - prepared runtime bindings resolved to backing tensors
-
-Important current fused IR pieces:
-
-- [src/main/java/graph/codegen/FusedNodePlan.java](../../graph/codegen/FusedNodePlan.java)
-  - one fused compute node
-  - explicit `opType`
-  - explicit `outputType`
-  - typed node attributes
-- [src/main/java/graph/codegen/FusedExternalInputPlan.java](../../graph/codegen/FusedExternalInputPlan.java)
-  - one external runtime input contract
-  - backing tensor index
-  - access shape/strides
-  - `storageOffset`
-  - access kind
-
-Example:
-
-```java
-Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", DataType.FLOAT64);
-Tensor view = base.select(0, 1);
-Tensor out = view.relu().exp();
-```
-
-The fused descriptor path does **not** treat `select(...)` as a fused compute node.
-Instead it creates:
-
-- one backing runtime input for `base`
-- one external access descriptor carrying:
-  - logical output shape `[3]`
-  - `storageOffset = 3`
-  - effective strides `[1]`
-- two fused compute nodes:
-  - `RELU`
-  - `EXP`
-
-This is the main architectural difference between:
-
-- compute algebra
-- access algebra
-
-## Config and Defaults
-
-Primary compile-time config is:
-
-- `OptimizerConfig`
-
-Default presets:
-
-- `OptimizerConfig.noOptimization()`
-- `OptimizerConfig.trainingDefaults()`
-- `OptimizerConfig.inferenceDefaults()`
-
-`OptimizerFactory` converts these config objects into concrete `GraphOptimizer` instances.
-
-`GraphOptimizer` itself is now just a rule pipeline object:
-
-- it owns an ordered rule list
-- it does not own graph state
-- `OptimizerFactory` is the single standard place that maps `OptimizerStage` to concrete rule instances
-
-For public graph compilation, `OptimizerConfig` is the intended API surface.
-`GraphOptimizer` is a lower-level pipeline object used internally by optimizer/tuning tooling, not the preferred public compile contract.
-
-Current compile-time config families inside `OptimizerConfig` are:
-
+- `stageOrder`
 - `rewrite`
-  - rewrite-family policy
-  - carries:
-    - algebraic rewrite enable/disable
-    - linear lowering enable/disable
-    - `conv2d` lowering policy
-    - piecewise/select lowering policy
 - `cse`
-  - common-subexpression-elimination policy
 - `fuse`
-  - fused compute cluster policy
 - `memory`
-  - MEM-stage planner policy
 
-Example:
+Z toho plyne důležitá zásada:
 
-```java
-OptimizerConfig config = new OptimizerConfig(
-        List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
-        RewriteConfig.defaults(),
-        CseConfig.aggressiveDefaults(),
-        FuseConfig.inferenceDefaults(),
-        MemoryConfig.defaults()
-);
-```
+- tuning nesmí vymýšlet druhý skrytý optimizer config model
+- vše, co má být graph policy, musí být vyjádřitelné přes `OptimizerConfig`
 
-Current rewrite-policy family includes:
+## Adding A New Rewrite
 
-- `AlgebraicRewriteConfig`
-  - `enabled`
-- `LinearLoweringConfig`
-  - `enabled`
-- `Conv2dLoweringConfig`
-  - `OFF`
-  - `ALWAYS`
-  - `HEURISTIC`
-- `PiecewiseLoweringConfig`
-  - `canonicalSigmoid`
-  - `reluLikeWhere`
-  - `clampLikeWhere`
+Správný postup:
 
-Important boundary:
+1. rozhodni, jestli vůbec má vzniknout nový rewrite
+   - není to jen práce pro nový operation descriptor?
+   - není to spíš runtime/backend knob?
+2. pokud je to rewrite:
+   - umísti ji do `graph.optimizer.rewrite`, pokud patří do `AR` family
+   - nebo do `graph.optimizer.rules`, pokud jde o samostatnou top-level stage
+3. implementuj `OptimizationRule`
+4. používej `OptimizerGraphSupport` pro edge rewrite a closure rebuild
+5. registruj ji v `RewriteRule` nebo `OptimizerFactory`
+6. přidej testy pro:
+   - forward correctness
+   - backward correctness
+   - dtype coverage
+   - broadcast/layout invariants
 
-- `conv2d` lowering to `CONV2D_GEMM` is a compile-time rewrite decision
-- Java vs OpenBLAS inside the GEMM path remains a runtime/backend decision
-- those two policies must stay separate
-- piecewise/select lowering is also a compile-time rewrite decision, but it is intentionally opt-in today
+## When Not To Add A Rewrite
 
-## Benchmark / Autotune Integration
+Rewrite nepřidávej, pokud:
 
-Benchmark/autotune orchestration now lives in:
+- veřejný `Tensor` builder má rovnou vytvářet správné primitivum
+- jde jen o backend-specific dispatch rozhodnutí
+- jde o tuning knob, ne graph transformaci
+- pattern je benchmark-only syntetika bez reálného graph významu
 
-- [src/main/java/tuning/README.md](../../tuning/README.md)
+## Common Mistakes
 
-Important architectural boundary:
+- míchat graph policy s runtime policy
+- lowerovat pattern, který má být rovnou canonical primitive ve veřejném API
+- ignorovat backward section a přepsat jen forward tvar
+- dělat rewrite jen podle labelu node místo `Operation.OpType` a parametrů
+- spoléhat na rewrite jako opravu interní nekonzistence builderů
 
-- optimizer owns graph transformation policy
-- `tuning` owns workload generation, measurement, validation, search, reporting, and persistence
-- persisted execution profiles are serialized through:
-  - [src/main/java/config/profile/ExecutionProfileIO.java](../../config/profile/ExecutionProfileIO.java)
+## Related Modules
 
-That means:
-
-- optimizer rules must be configurable through `OptimizerConfig`
-- tuning must not invent a second hidden optimizer configuration model
-
-## Adding a New Rule
-
-1. Add a new rule class under `src/main/java/graph/optimizer/rules/`.
-2. Implement `OptimizationRule`.
-3. Register it in `OptimizerFactory`.
-4. Reuse `OptimizerGraphSupport` if the rule rewrites graph edges or needs topological-closure rebuilding.
-5. Validate:
-   - numerical equivalence
-   - gradient preservation
-   - regressions for broadcasting, dtype handling, and fused boundaries
-
-## Build / Runtime Notes
-
-- Fused codegen uses ASM.
-- CPU vector execution uses `jdk.incubator.vector`.
-- Optimizer output is consumed by `CompiledGraph`, not directly by backend kernels.
+- graph lifecycle: [../README.md](../README.md)
+- operations: [../../operations/README.md](../../operations/README.md)
+- backend: [../../backend/README.md](../../backend/README.md)
+- tuning: [../../tuning/README.md](../../tuning/README.md)

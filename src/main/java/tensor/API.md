@@ -5,11 +5,53 @@ This document describes the current public surface of `tensor.Tensor`.
 Primary class:
 - [src/main/java/tensor/Tensor.java](../tensor/Tensor.java)
 
+Related public semantic types used by this API live in:
+
+- [src/main/java/tensor/options/AttentionOptions.java](../tensor/options/AttentionOptions.java)
+- [src/main/java/tensor/options/Conv2dOptions.java](../tensor/options/Conv2dOptions.java)
+- [src/main/java/tensor/options/Pool2dOptions.java](../tensor/options/Pool2dOptions.java)
+- [src/main/java/tensor/loss/LossReduction.java](../tensor/loss/LossReduction.java)
+
 The focus here is practical API usage:
 - what each public operation does
 - what parameters it accepts
 - what it returns
 - short commented examples
+
+Important scope note:
+
+- the operation sections in this document describe the preferred modeling surface
+- the later metadata/storage/graph-wiring sections also include low-level and runtime-oriented methods that still exist on `Tensor`
+- those low-level methods are real and supported, but they are not the recommended starting point for adding new user-facing tensor operations
+- low-level storage allocation/conversion and graph traversal internals are increasingly being pushed into package-private helpers such as:
+  - [src/main/java/tensor/TensorStorageSupport.java](../tensor/TensorStorageSupport.java)
+  - [src/main/java/tensor/TensorGraphTraversal.java](../tensor/TensorGraphTraversal.java)
+  - [src/main/java/tensor/TensorDebugSupport.java](../tensor/TensorDebugSupport.java)
+  - [src/main/java/tensor/TensorExecutionSupport.java](../tensor/TensorExecutionSupport.java)
+
+Related construction helpers:
+
+- [src/main/java/tensor/TensorDataFactory.java](../tensor/TensorDataFactory.java)
+  - leaf constants and convenience tensor factories
+- [src/main/java/tensor/TensorPrimitiveBuilder.java](../tensor/TensorPrimitiveBuilder.java)
+  - shared primitive, no-grad, and alias/view node construction
+
+## Reading Guide
+
+This reference intentionally mixes two different kinds of public methods:
+
+- modeling surface
+  - the methods you normally use to build graphs
+  - mostly the operation sections below
+- low-level surface
+  - methods used by runtime, graph compilation, rewrites, and tests
+  - mostly the later metadata/storage/graph-wiring sections
+
+When adding new tensor semantics:
+
+- start in `tensor.ops.*`
+- add or update `Operation` only when the surface is truly primitive-backed
+- treat the low-level `Tensor` methods as infrastructure surface, not as the place where new modeling semantics should live
 
 ## Contents
 
@@ -147,6 +189,7 @@ The focus here is practical API usage:
 - Axis indices are zero-based.
 - Shapes are written as arrays such as `[2, 3, 4]`.
 - `BOOL` tensors are logical tensors.
+- `INT32` is the preferred dtype for indexing-style tensors such as gather/scatter targets.
 - Comparison ops and logical bool ops are nondifferentiable.
 - `where(condition, x, y)` is differentiable only in the data branches.
 - `all` / `any` are `BOOL`-only reductions and are nondifferentiable.
@@ -227,7 +270,7 @@ Backward reduction notes:
 - dense contiguous tensors
 - non-contiguous or view-like tensors based on shape/stride metadata
 
-Important current behavior:
+Important behavior:
 
 - `permute(...)` creates a view-like tensor with reordered strides
 - `expand(...)` creates a zero-stride broadcast alias view
@@ -238,7 +281,7 @@ Important current behavior:
   - for contiguous inputs it aliases the same storage as a reshape view
   - for non-contiguous inputs it may materialize a dense reshaped result
 - `contiguous()` is the canonical explicit materialization path
-- current CPU execution keeps offset views as views through layout ops
+- CPU execution keeps offset views as views through layout ops
   - strided element-wise, compare, logical, `where`, reduction, softmax/logSoftmax, dense-target loss, indexing kernels, and min/max reduction-grad kernels can consume them natively
   - when a downstream kernel does not natively support non-zero base offsets, planner-side prepared inputs materialize them first
 
@@ -585,7 +628,7 @@ This is the inverse of `expandDims(...)` when the chosen axis has size `1`.
 It is also a true alias view and only rewrites shape/stride metadata.
 
 Parameters:
-- `axis`: axis that must currently have size `1`
+- `axis`: axis that must have size `1`
 
 Returns:
 - tensor with that dimension removed
@@ -910,11 +953,13 @@ Tensor y = x.linear(w, b);
 
 ## Attention Operations
 
-Attention surfaces are currently composition-based over:
-- batched `matmul`
-- `mulScalar`
-- `where`
-- `softmax`
+Attention is exposed as a dedicated primitive-backed surface.
+
+That matters because it gives the graph/compiler/backend a stable semantic contract for:
+
+- fused attention lowering
+- attention-specific backward handling
+- runtime caching of auxiliary state when needed
 
 ### `scaledDotProductAttention(Tensor key, Tensor value, AttentionOptions options)`
 
@@ -923,7 +968,7 @@ Builds standard scaled dot-product attention without an explicit external mask.
 Parameters:
 - `key`: tensor with shape `[..., keyLen, headDim]`
 - `value`: tensor with shape `[..., keyLen, valueDim]`
-- `options`: attention configuration, currently covering `causal` and optional scale override
+- `options`: attention configuration covering `causal` and optional scale override
 
 Returns:
 - tensor with shape `[..., queryLen, valueDim]`
@@ -967,7 +1012,7 @@ Parameters:
 - `key`: tensor with shape `[..., keyLen, headDim]`
 - `value`: tensor with shape `[..., keyLen, valueDim]`
 - `mask`: `BOOL` tensor broadcastable to the attention score shape `[..., queryLen, keyLen]`
-- `options`: attention configuration, currently covering `causal` and optional scale override
+- `options`: attention configuration covering `causal` and optional scale override
 
 Returns:
 - tensor with shape `[..., queryLen, valueDim]`
@@ -1147,7 +1192,7 @@ Contract:
   - denominator counts only valid in-bounds input elements
 - if `countIncludePad = true`
   - denominator is always `kernelH * kernelW`
-- pooling currently runs through dense prepared inputs
+- pooling runs through dense prepared inputs
   - non-contiguous or offset inputs are materialized before execution
 
 Backward:
@@ -1174,14 +1219,14 @@ Tensor y = input.avgPool2d(Pool2dOptions.square(2));
 
 ## Normalization Operations
 
-Normalization surfaces are currently:
+Normalization surfaces are:
 - stateless
 - composition-based over existing tensor primitives
 - free of hidden running-stat mutations
 
 ### `batchNorm(Tensor gamma, Tensor beta, int channelDimension, double epsilon)`
 
-Applies stateless batch normalization using batch statistics computed from the current input.
+Applies stateless batch normalization using batch statistics computed from the input being normalized.
 
 Parameters:
 - `gamma`: rank-1 scale tensor with shape `[channels]`
@@ -1214,7 +1259,7 @@ Tensor y = x.batchNorm(gamma, beta, 1, 1e-12);
 // [[[-1], [-1]],
 //  [[ 1], [ 1]]]
 //
-// Returns: stateless batch-normalized output using current batch statistics.
+// Returns: stateless batch-normalized output using batch statistics from this input.
 ```
 
 ### `batchNorm(Tensor gamma, Tensor beta, Tensor mean, Tensor variance, int channelDimension, double epsilon)`
@@ -1564,7 +1609,7 @@ Returns:
 
 Behavior:
 - semantically this is single-index read indexing
-- current implementation is a true alias view:
+- implementation is a true alias view:
   - shape/stride metadata is rewritten
   - backing storage is shared
   - selected slice position is represented through `storageOffset`
@@ -1603,7 +1648,7 @@ Returns:
 Behavior:
 - `INT32` is the preferred index dtype
 - numeric floating tensors with integral values are still accepted as a compatibility mode
-- current first version is intentionally narrow and is meant as the minimal indexing primitive for future index-target losses
+- this surface is intentionally narrow and acts as the minimal gather primitive for index-style losses and related indexing contracts
 - backward scatters upstream gradient back into the selected input positions
 
 Example:
@@ -2536,7 +2581,7 @@ Returns:
 Behavior:
 - this is the logits-facing ergonomic surface
 - semantic reference is `logits.logSoftmax(classDimension).nllLoss(targets, classDimension)`
-- runtime now uses the dedicated `CROSS_ENTROPY_LOSS` primitive for the current dense-target mean-reduction contract
+- runtime uses the dedicated `CROSS_ENTROPY_LOSS` primitive for the dense-target mean-reduction contract described here
 
 Example:
 ```java
@@ -2559,7 +2604,7 @@ Returns:
 - scalar-shaped loss tensor
 
 Behavior:
-- current implementation is composition-first:
+- implementation is composition-first:
   - `logProbs.gather(targetIndices, classDimension).neg().mean()`
 - `INT32` is the preferred target-index dtype
 - this is the first index-target loss surface built on top of the new indexing primitive
@@ -2697,7 +2742,7 @@ Returns:
 - scalar-shaped loss tensor
 
 Behavior:
-- current implementation is composition-first:
+- implementation is composition-first:
   - `logits.logSoftmax(classDimension).nllLossFromIndices(targetIndices, classDimension)`
 - this is the logits-facing ergonomic surface for class-id targets
 
@@ -2723,7 +2768,7 @@ Returns:
 - scalar-shaped loss tensor
 
 Behavior:
-- current implementation is composition-first:
+- implementation is composition-first:
   - `logits.logSoftmax(classDimension).nllLossFromIndices(targetIndices, classDimension, ignoreIndex)`
 - ignored samples do not contribute to loss or gradient
 
@@ -2805,13 +2850,13 @@ Behavior:
 
 ### `forwardOutput()`
 
-Creates a forward anchor node used as the execution sink of the current graph.
+Creates a forward anchor node used as the execution sink of the graph rooted at this tensor.
 
 Parameters:
 - none
 
 Returns:
-- tensor that aliases the current tensor as forward output anchor
+- tensor that aliases this tensor as forward output anchor
 
 Example:
 ```java
@@ -2858,116 +2903,147 @@ t.setBackwardFunction(() -> { /* internal backward wiring */ });
 
 ## Metadata and Data Access
 
-### Shape / layout
+This section deliberately separates:
+
+- safe inspection helpers that are fine in ordinary modeling/debug code
+- low-level hooks used mainly by runtime, graph infrastructure, and tests
+
+If you are building a model, you will usually only need the safe inspection helpers.
+If you are implementing execution, layout, or rewrite infrastructure, the rest of this section is the relevant contract.
+
+### Shape / layout inspection
 
 #### `getShape()`
-Returns a defensive copy of the tensor shape.
+Returns a defensive copy of the logical shape.
 
 Example:
 ```java
-// Reads the logical shape of x.
 int[] shape = x.getShape();
-// Returns: a copy of the shape array.
+// Returns: a copy such as [2, 3, 4].
 ```
 
-#### `getShapeUnsafe()`
-Returns the internal shape reference.
-Use only in internal/runtime code.
-
 #### `getStrides()`
-Returns a defensive copy of strides.
-
-#### `getStridesUnsafe()`
-Returns the internal stride reference.
-Use only in internal/runtime code.
+Returns a defensive copy of the logical strides.
 
 #### `getStride(int index)`
 Returns stride for one axis.
 
 #### `getDimensionAt(int index)`
-Returns dimension size at one axis.
+Returns size of one logical axis.
 
 #### `getFlatDataSize()`
-Returns logical element count.
+Returns the logical number of elements.
 
 #### `isContiguous()`
-Returns whether the tensor layout is contiguous.
+Returns whether the tensor layout is dense contiguous.
 
 #### `getFlatIndex(int[] indices)`
-Maps multi-dimensional indices to logical flat index in row-major logical order.
+Maps logical coordinates to logical flat row-major index.
 
 #### `getSpatialIndex(int index)`
-Maps a logical flat index back to logical coordinates.
-
-#### `getStorageOffsetUnsafe()`
-Returns current base storage offset.
-This is primarily an internal/runtime accessor for view handling.
+Maps a logical flat row-major index back to logical coordinates.
 
 #### `computeStrides(int[] shape)`
-Returns dense strides for a requested shape.
+Returns dense row-major strides for an arbitrary shape.
 
 #### `computeStrides()`
-Returns a copy of current strides.
+Returns a defensive copy of the current logical strides.
 
 #### `calculateSize(int[] dimensions)`
-Returns total element count for a shape.
+Legacy helper returning the total element count of a shape.
+Useful mainly in internal code; new code should usually prefer `TensorMetadata.computeStrides(...)` or direct shape-specific logic.
 
-### Data / dtype / storage
+### Low-level layout / storage view access
+
+#### `getShapeUnsafe()`
+Returns the internal shape reference.
+Use this only in runtime, planner, backend, or other low-level infrastructure code.
+
+#### `getStridesUnsafe()`
+Returns the internal stride reference.
+Use this only in low-level code that already owns layout invariants.
+
+#### `getStorageOffsetUnsafe()`
+Returns the base storage offset of this logical tensor view.
+Primarily relevant for offset views such as `select(...)`.
+
+#### `hasStorageOffset()`
+Returns whether the tensor starts at a non-zero base storage offset.
+
+### DType / storage access
 
 #### `getDataType()`
 Returns tensor dtype.
 
 #### `setDataType(DataType dataType)`
-Changes dtype within numeric families.
-`BOOL <-> numeric` implicit conversion is not supported.
+Changes dtype within compatible numeric families by rebuilding storage from the current logical values.
+
+Contract:
+- `BOOL <-> numeric` implicit conversion is not supported
+- `INT32 <-> other dtype` implicit conversion is not supported
 
 #### `getStorage()`
 Returns the backing storage object.
-This is mainly internal/runtime oriented.
+This is mainly a runtime/testing accessor.
 
-#### `hasStorageOffset()`
-Returns whether this tensor starts at a non-zero base storage offset.
-This is mainly an internal/runtime-oriented accessor for offset views.
+#### `storageVersion()`
+Returns the backing storage version counter.
+This is mainly useful for runtime caches and mutation tracking.
+
+#### `markStorageModified()`
+Marks backing storage as modified.
+This is mainly a runtime/layout helper after in-place low-level writes.
 
 #### `getFloat64Data()`
-Returns raw `double[]` storage when dtype is `FLOAT64`, otherwise `null`.
+Returns raw `double[]` backing storage when dtype is `FLOAT64`, otherwise `null`.
 
 #### `getFloat32Data()`
-Returns raw `float[]` storage when dtype is `FLOAT32`, otherwise `null`.
+Returns raw `float[]` backing storage when dtype is `FLOAT32`, otherwise `null`.
 
 #### `getBFloat16Data()`
-Returns raw `short[]` storage when dtype is `BFLOAT16`, otherwise `null`.
+Returns raw `short[]` backing storage when dtype is `BFLOAT16`, otherwise `null`.
+
+#### `getInt32Data()`
+Returns raw `int[]` backing storage when dtype is `INT32`, otherwise `null`.
 
 #### `getBoolData()`
-Returns raw `byte[]` storage when dtype is `BOOL`, otherwise `null`.
+Returns raw `byte[]` backing storage when dtype is `BOOL`, otherwise `null`.
 
 #### `getData()`
-Legacy F64-only raw accessor.
-Supported only for `FLOAT64`.
+Legacy `FLOAT64`-only raw accessor.
+Prefer typed accessors or logical copies in new code.
+
+### Data mutation / logical reads
 
 #### `setData(double[] data)`
-Replaces tensor data for numeric tensors using `double[]` input.
+Replaces tensor contents using numeric `double[]` input.
 
 #### `setData(float[] data)`
-Replaces tensor data using `float[]` input.
+Replaces tensor contents using `float[]` input.
 
 #### `setData(short[] data)`
-Replaces tensor data using `BFLOAT16` raw storage input.
+Replaces tensor contents using raw `BFLOAT16` storage values.
 
 #### `setData(byte[] data)`
-Replaces tensor data using raw `BOOL` storage input.
+Replaces tensor contents using raw `BOOL` storage values.
+
+#### `setData(int[] data)`
+Replaces tensor contents using raw `INT32` storage values.
 
 #### `setFloat32Data(float[] data)`
-F32-only convenience raw setter.
+`FLOAT32`-only convenience setter.
+
+#### `copyDataFrom(Tensor source)`
+Copies typed tensor contents from another tensor of the same shape and dtype.
+This is mainly an internal/runtime-oriented helper.
 
 #### `getByFlatIndex(int index)`
 Reads one logical element as `double`.
 
 Example:
 ```java
-// Reads one logical element from x.
 double v = x.getByFlatIndex(3);
-// Returns: the value at flat logical index 3 as double.
+// Returns: the logical value at flat index 3.
 ```
 
 #### `setDataAt(int flatIndex, double value)`
@@ -2983,7 +3059,7 @@ Returns logical tensor contents as `boolean[]` for `BOOL` tensors.
 #### `scalarAsDouble()`
 Returns scalar value for numeric scalar tensors.
 
-### Labels / grad / graph wiring
+### Labels / autograd / graph plumbing
 
 #### `getLabel()`
 Returns tensor label.
@@ -3001,37 +3077,45 @@ Enables or disables gradient tracking.
 Returns gradient tensor if present.
 
 #### `setGradient(Tensor gradient)`
-Assigns gradient tensor.
+Assigns gradient tensor directly.
+Primarily intended for autograd/runtime plumbing rather than ordinary modeling code.
 
 #### `getPrevTensors()`
 Returns predecessor tensors in the graph.
 
 #### `setPrevTensors(List<Tensor> prevTensors)`
-Replaces predecessor list.
+Replaces predecessor list directly.
+Primarily intended for graph construction infrastructure and tests.
 
 #### `getOperation()`
 Returns operation descriptor for this node.
 
 #### `setOperation(Operation operation)`
-Assigns operation descriptor.
+Assigns operation descriptor directly.
+Primarily intended for graph construction infrastructure and tests.
 
 #### `isBackward()`
-Returns whether this node belongs to backward graph execution.
+Returns whether this node is marked as part of backward-stage graph execution.
 
 #### `setBackward(boolean backward)`
-Marks or unmarks node as backward-stage node.
+Marks or unmarks the node as backward-stage.
 
 #### `topologicalSort()`
 Returns topological order rooted at this tensor.
 
+#### `getRuntimeCache()`
+Returns optional runtime-attached cache object.
+Used mainly by prepared execution or specialized kernels that need auxiliary state.
+
+#### `setRuntimeCache(Object runtimeCache)`
+Installs optional runtime-attached cache object.
+
 #### `markDataViewStale()`
-Internal runtime helper; currently effectively a no-op.
+Internal compatibility hook.
+It is a no-op because non-`FLOAT64` tensors no longer maintain a mirrored `double[]` view.
 
 #### `aliasRuntimeFrom(Tensor source)`
-Internal runtime helper that aliases storage from another tensor.
-
-#### `copyDataFrom(Tensor source)`
-Internal/runtime-oriented typed data copy between tensors of same shape and dtype.
+Internal runtime helper that aliases backing storage from another tensor.
 
 ## Backend Selection
 

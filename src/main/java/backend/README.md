@@ -1,132 +1,110 @@
-# Backend (src/main/java/backend)
+# Backend
 
-## Purpose
+Backend vrstva provádí skutečný výpočet nad připraveným grafem. Neřeší stavbu grafu ani optimizer transformace. Její kontrakt je:
 
-The backend layer executes graph operations on a selected compute target while keeping graph orchestration (`Tensor`, `CompiledGraph`) separate from device-specific kernel code.
+- dostane `Tensor` node
+- dostane prepared metadata z `CompiledGraph.prepare(...)`
+- spustí správný kernel family entrypoint pro zvolený backend
 
-Current backend targets:
+Dnes je plně implementovaný pouze CPU backend.
 
-- `CPU` (implemented)
-- `GPU_CUDA` (scaffolding)
-- `GPU_OPENCL` (scaffolding)
+## Reading Guide
+
+Tento dokument je určený hlavně pro:
+
+- implementaci nového CPU kernelu
+- audit runtime dispatch flow
+- pochopení prepared metadata a compute contractu
+- výkonové ladění backend path
+
+Pokud hledáš:
+
+- jak vzniká graf: [../tensor/README.md](../tensor/README.md)
+- co je operation descriptor: [../operations/README.md](../operations/README.md)
+- jak funguje compile/prepare lifecycle: [../graph/README.md](../graph/README.md)
+- jak se backend knoby kalibrují: [../tuning/README.md](../tuning/README.md)
 
 ## Main Components
 
-- Dispatcher:
-  - [src/main/java/backend/ComputeEngine.java](../backend/ComputeEngine.java)
-  - [src/main/java/backend/ComputeBackend.java](../backend/ComputeBackend.java)
-- Per-device backends:
-  - [src/main/java/backend/CPUBackend.java](../backend/CPUBackend.java)
-  - [src/main/java/backend/CudaBackend.java](../backend/CudaBackend.java)
-  - [src/main/java/backend/OpenClBackend.java](../backend/OpenClBackend.java)
-- Kernel registries:
-  - [src/main/java/backend/registry/CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
-  - [src/main/java/backend/registry/CudaKernelRegistry.java](../backend/registry/CudaKernelRegistry.java)
-  - [src/main/java/backend/registry/OpenClKernelRegistry.java](../backend/registry/OpenClKernelRegistry.java)
-- Kernel interfaces/impls:
-  - [src/main/java/backend/kernels/cpu/](../backend/kernels/cpu)
-  - [src/main/java/backend/kernels/cuda/](../backend/kernels/cuda)
-  - [src/main/java/backend/kernels/opencl/](../backend/kernels/opencl)
+- dispatch facade
+  - [ComputeEngine.java](../backend/ComputeEngine.java)
+  - [ComputeBackend.java](../backend/ComputeBackend.java)
+- concrete backends
+  - [CPUBackend.java](../backend/CPUBackend.java)
+  - [CudaBackend.java](../backend/CudaBackend.java)
+  - [OpenClBackend.java](../backend/OpenClBackend.java)
+- CPU kernel resolver
+  - [CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
+- prepared runtime metadata
+  - [CompiledNodeExecutionMetadata.java](../graph/execution/CompiledNodeExecutionMetadata.java)
+  - [CpuNodeExecutionPlan.java](../backend/kernels/cpu/CpuNodeExecutionPlan.java)
+  - [CpuNodeWorkspace.java](../backend/kernels/cpu/CpuNodeWorkspace.java)
 
-## Execution Flow
+## End-To-End Execution Flow
 
-1. `CompiledGraph.prepare(RuntimeConfig)` builds a runtime-specific `PreparedExecution`.
-2. `PreparedExecution.execute(...)` iterates prepared forward/backward steps.
-3. Each step calls `ComputeEngine.compute(node, metadata, context)`.
-4. `ComputeEngine` routes to `CPUBackend`, `CudaBackend`, or `OpenClBackend`.
-5. Backend uses prebuilt per-node metadata instead of resolving execution hints from `Tensor`.
+Skutečný runtime flow vypadá takto:
 
-Related files:
+1. `CompiledGraph.prepare(runtimeConfig)` vytvoří `PreparedExecution`
+2. pro každý runtime node připraví `CompiledNodeExecutionMetadata`
+3. `PreparedExecution.execute(...)` iteruje prepared forward/backward steps
+4. každý step volá `ComputeEngine.compute(node, metadata, context)`
+5. `ComputeEngine` přepne na konkrétní backend
+6. `CPUBackend.execute(...)` vezme prepared plan a spustí odpovídající `CpuKernel`
 
-- [src/main/java/graph/CompiledGraph.java](../graph/CompiledGraph.java)
-- [src/main/java/tensor/Tensor.java](../tensor/Tensor.java)
+To je důležitý boundary:
 
-## Prepared Runtime Metadata
+- backend nesmí znovu vymýšlet optimizer policy
+- runtime hot path nesmí znovu rozhodovat to, co už šlo spočítat v prepare fázi
 
-`CPUBackend.buildExecutionPlan(...)` precomputes:
+## Prepared CPU Metadata
 
-- target dtype
-- non-contiguous remap preparation (`TensorRemap.RemapPlan`)
-- broadcast stride plan (`ResolvedBroadcastPlan`) for binary broadcast kernels
+`CPUBackend.buildExecutionPlan(...)` připravuje per-node metadata pro CPU path. Typicky obsahují:
+
+- layout plan
+  - prepared/materiálizované inputy
+  - broadcast plan
+  - `where` broadcast plan
+  - informace o strided path
+- compute contract
+  - storage dtype
+  - compute dtype
+  - accumulate dtype
+  - resolved backend kind
 - dispatch hints
+  - scalar/vector/parallel mode
+  - vector width
+  - chunk sizes
+  - worker count
 - reduction hints
+  - reduction mode
+  - vector width
+  - chunking
+  - accuracy mode
 - matmul hints
+  - use BLAS vs Java
+  - tile sizes
+  - parallelism
+  - selected microkernel
+- optional workspace
+  - float continuation
+  - packed linear weights
+  - max-pool argmax buffers
 
-These are stored in `PreparedExecution`, not on `Tensor`.
+Výsledkem není obecná abstraktní "execution descriptor language". Je to konkrétní runtime recipe pro jeden backend node.
 
-## CPU Backend Details
+## CPU Package Structure
 
-`CPUBackend` executes through `CpuKernel` implementations, `CpuKernelContext`, and prepared per-node plans.
+Root `backend.kernels.cpu` schválně obsahuje jen shared contracts a planner vrstvy:
 
-Dispatch modes:
+- planner
+- context
+- dispatch hints
+- dtype helpers
+- workspace
+- prepared plan records
+- thread pool
 
-- `SCALAR`
-- `VECTOR`
-- `PARALLEL`
-- `PARALLEL_VECTOR`
-
-Element-wise mode selection is threshold-based in [src/main/java/backend/kernels/cpu/CpuExecutionPlanner.java](../backend/kernels/cpu/CpuExecutionPlanner.java):
-
-- `vectorMinSize`
-- `parallelMinSize`
-- `contiguousMaterializeThreshold` (non-contiguous input routing threshold)
-
-Reduction (`SUM`) mode selection uses `ResolvedReductionHints`.
-
-Parallel chunking behavior:
-
-- available CPU workers are derived from the runtime environment (`Runtime.getRuntime().availableProcessors()`)
-- chunk sizing is derived during `prepare(...)`
-- the derivation is driven by advanced CPU scheduler policy values stored in `CpuKernelConfig`
-- those values are transparent in execution profiles, but are not part of the default autotune candidate surface
-- runtime execution follows prepared chunk sizes instead of recomputing chunk heuristics per call
-
-Parallel execution uses [src/main/java/backend/kernels/cpu/CpuThreadPool.java](../backend/kernels/cpu/CpuThreadPool.java) with per-parallelism `ForkJoinPool` reuse.
-
-Vector dispatch policy can be controlled per operation group via `CpuKernelConfig`:
-
-- `cheapVectorMinSize`
-- `transcendentalVectorMinSize`
-- `reductionVectorMinSize`
-
-Each policy supports `AUTO | FORCE_ON | FORCE_OFF`.
-
-Non-contiguous input handling is hybrid:
-
-- `size < contiguousMaterializeThreshold`:
-  - use strided fallback path in [src/main/java/backend/kernels/cpu/CpuStridedElementWise.java](../backend/kernels/cpu/CpuStridedElementWise.java)
-- `size >= contiguousMaterializeThreshold`:
-  - materialize non-contiguous input to temporary contiguous tensor and run regular fast kernel path
-
-`CONTIGUOUS` op is excluded from preprocessing and handled directly by `CpuContiguousKernel`.
-
-`SUM` is also excluded from generic preprocessing and handled by its own reduction pipeline:
-
-- [src/main/java/backend/kernels/cpu/CpuSumKernel.java](../backend/kernels/cpu/CpuSumKernel.java)
-- [src/main/java/backend/kernels/cpu/reduction/SumLikeReductionExecutor.java](../backend/kernels/cpu/reduction/SumLikeReductionExecutor.java)
-- [src/main/java/backend/kernels/cpu/reduction/SumLoops.java](../backend/kernels/cpu/reduction/SumLoops.java)
-
-CPU family packages now follow one naming rule:
-
-- `Cpu*Kernel`
-  - graph/runtime entrypoint resolved by `CpuKernelResolver`
-- `*Executor`
-  - family orchestration layer
-  - validates family-specific execution path and dispatches to the concrete low-level implementation
-- `*Loops`
-  - tight low-level loop implementation
-
-This keeps orchestration separate from the actual inner compute loops without adding a new global abstraction hierarchy.
-
-The root package `backend.kernels.cpu` now intentionally keeps only:
-
-- shared contracts
-- prepared execution metadata
-- planner / context / workspace
-- shared dispatch hints
-- shared runtime utilities
-
-Operation entrypoints now live in their family packages:
+Samotné family entrypointy jsou rozdělené tematicky:
 
 - `elementwise/`
 - `reduction/`
@@ -135,412 +113,446 @@ Operation entrypoints now live in their family packages:
 - `index/`
 - `layout/`
 - `fused/`
+- `grad/`
 
-For the pointwise batch, CPU now also uses an explicit split between:
+To odpovídá tomu, jak dnes CPU backend reálně vypadá v kódu.
 
-- local element algebra
-  - for example numeric binary ops such as `ADD/SUB/MUL/DIV/MIN/MAX`
-  - unary ops such as `NEG/ABS/INV/SQRT/EXP/LOG/TANH/SIGMOID/RELU`
-  - scalar-parameter unary ops such as `CLAMP_*`, `MUL_SCALAR`, `POW`
-  - compare ops
-  - logical ops
-  - `WHERE`
-- shared loop execution
-  - scalar loop
-  - vector loop where available
-  - parallel chunk scheduling
-  - broadcast/stride walking
+## CPU Kernel Design Rules
 
-Implementation lives in:
-
-- [src/main/java/backend/kernels/cpu/elementwise/](../backend/kernels/cpu/elementwise)
-
-This means the operation definition is no longer encoded as a hand-written full loop inside each kernel class.
-Instead:
+Aktuální design není "jeden obří kernel class na všechno". Opakující se pattern je:
 
 - `Cpu*Kernel`
-  - selects the family entrypoint
-- elementwise op descriptor
-  - defines the local per-element algebra
-- shared executor
-  - owns loop structure and dispatch policy
+  - tenký runtime entrypoint
+  - implementuje `CpuKernel`
+  - přebírá prepared metadata a zavolá family executor
+- `*Executor`
+  - family orchestrace
+  - validace family-specific invariants
+  - dispatch na konkrétní low-level path
+- `*Loops` nebo `*Backend`
+  - hot inner loops nebo specializovaná compute implementace
 
-For simple reductions, CPU now follows the same direction for shared traversal:
+Ne všechny families mají přesně stejnou trojici názvů, ale princip je stejný:
 
-- `REDUCE_MIN/MAX`
-- `REDUCE_ALL/ANY`
+- runtime entrypoint zůstává tenký
+- orchestrace se drží mimo hot loops
+- low-level compute zůstává lokálně pohromadě
 
-These reductions now share common axis-group traversal logic in:
+## Elementwise Families
 
-- [src/main/java/backend/kernels/cpu/reduction/ReductionTraversal.java](../backend/kernels/cpu/reduction/ReductionTraversal.java)
+Elementwise batch je rozdělený na:
 
-That shared layer owns:
+- `elementwise/binary`
+- `elementwise/unary`
+- `elementwise/compare`
+- `elementwise/logical`
+- `elementwise/where`
 
-- reduction-axis group walking
-- shape/stride to base-offset mapping
-- optional reduction parallel chunk scheduling for supported families
+Uvnitř `binary` a `unary` jsou dtype-specialized leaf implementace:
 
-while the per-op algebra stays in the leaf reduction implementation.
+- `f64`
+- `f32`
+- `bf16`
 
-For sum-like reductions, CPU now shares one family orchestration layer across:
+Architektonicky se dnes odděluje:
+
+- lokální algebra operace
+- shared loop execution
+- broadcasting / stride walking
+- vector vs scalar dispatch
+- parallel chunk scheduling
+
+To znamená:
+
+- `CpuAddKernel` neobsahuje celý runtime orchestration příběh
+- loop struktura je sdílená uvnitř family executorů
+- vlastní per-element algebra je držena v užších leaf implementacích
+
+### Non-Contiguous Routing
+
+CPU používá hybridní strategii:
+
+- malé non-contiguous tensory
+  - běží přes strided path
+  - [CpuStridedElementWise.java](../backend/kernels/cpu/CpuStridedElementWise.java)
+- větší non-contiguous tensory
+  - vstupy se materiálizují do contiguous temporary storage
+  - pak běží běžný fast path
+
+Hraniční knob:
+
+- `cpu.contiguousMaterializeThreshold`
+
+Tahle volba patří do runtime family tuning, ne do optimizer stage policy.
+
+## Reduction Families
+
+CPU reduction path není jedna homogenní větev. Má několik family executorů podle struktury operace.
+
+### Sum-Like
+
+Sdílená family pro:
 
 - `SUM`
 - `MEAN`
 
-Implementation lives in:
+Hlavní části:
 
-- [src/main/java/backend/kernels/cpu/reduction/SumLikeReduction.java](../backend/kernels/cpu/reduction/SumLikeReduction.java)
-- [src/main/java/backend/kernels/cpu/reduction/SumLikeReductionExecutor.java](../backend/kernels/cpu/reduction/SumLikeReductionExecutor.java)
+- [SumLikeReduction.java](../backend/kernels/cpu/reduction/SumLikeReduction.java)
+- [SumLikeReductionExecutor.java](../backend/kernels/cpu/reduction/SumLikeReductionExecutor.java)
+- [SumLoops.java](../backend/kernels/cpu/reduction/SumLoops.java)
 
-The fold engine remains in `SumLoops`, while `SUM` vs `MEAN` differs only in finalization.
+Rozdíl mezi `SUM` a `MEAN` je primárně ve finalizaci, ne v traversal engine.
 
-For softmax-like structured reductions, CPU now also shares one family layer across:
+### Generic Axis Reductions
+
+Sdílený traversal pro:
+
+- `REDUCE_MIN`
+- `REDUCE_MAX`
+- `REDUCE_ALL`
+- `REDUCE_ANY`
+
+Hlavní části:
+
+- [ReductionTraversal.java](../backend/kernels/cpu/reduction/ReductionTraversal.java)
+
+Traversal vrstva řeší:
+
+- mapování output group -> base storage offset
+- reduction-axis walking
+- optional parallel chunking
+
+Per-op algebra pak zůstává v leaf reduction implementation.
+
+### Softmax-Like
+
+Sdílená strukturovaná family pro:
 
 - `SOFTMAX`
 - `LOG_SOFTMAX`
 
-Implementation lives in:
+a jejich gradient families:
 
-- [src/main/java/backend/kernels/cpu/reduction/SoftmaxLikeReduction.java](../backend/kernels/cpu/reduction/SoftmaxLikeReduction.java)
-- [src/main/java/backend/kernels/cpu/reduction/SoftmaxLikeTraversal.java](../backend/kernels/cpu/reduction/SoftmaxLikeTraversal.java)
-- [src/main/java/backend/kernels/cpu/reduction/SoftmaxLikeExecutor.java](../backend/kernels/cpu/reduction/SoftmaxLikeExecutor.java)
+- `SOFTMAX_GRAD`
+- `LOG_SOFTMAX_GRAD`
 
-This shared layer owns:
+Hlavní části:
 
-- group traversal over the softmax axis
-- dtype-specific execution routing
-- BF16 continuation materialization / float-publish handling for `LOG_SOFTMAX`
+- [SoftmaxLikeReduction.java](../backend/kernels/cpu/reduction/SoftmaxLikeReduction.java)
+- [SoftmaxLikeTraversal.java](../backend/kernels/cpu/reduction/SoftmaxLikeTraversal.java)
+- [SoftmaxLikeExecutor.java](../backend/kernels/cpu/reduction/SoftmaxLikeExecutor.java)
 
-while the algebraic difference between `SOFTMAX` and `LOG_SOFTMAX` stays in the reduction descriptor.
+Tohle není skládání přes obecné elementwise kernels. Je to specializovaný structured kernel family se svojí traversal logikou.
 
-For loss reductions, CPU now also shares one structured family layer across:
+### Loss Reductions
+
+Sdílená family pro:
 
 - `NLL_LOSS`
 - `CROSS_ENTROPY_LOSS`
+- `CROSS_ENTROPY_LOSS_INDICES`
+- gradient variants tam, kde dává smysl
 
-Implementation lives in:
+Hlavní části:
 
-- [src/main/java/backend/kernels/cpu/reduction/LossReduction.java](../backend/kernels/cpu/reduction/LossReduction.java)
-- [src/main/java/backend/kernels/cpu/reduction/LossReductionTraversal.java](../backend/kernels/cpu/reduction/LossReductionTraversal.java)
-- [src/main/java/backend/kernels/cpu/reduction/LossReductionExecutor.java](../backend/kernels/cpu/reduction/LossReductionExecutor.java)
+- [LossReduction.java](../backend/kernels/cpu/reduction/LossReduction.java)
+- [LossReductionTraversal.java](../backend/kernels/cpu/reduction/LossReductionTraversal.java)
+- [LossReductionExecutor.java](../backend/kernels/cpu/reduction/LossReductionExecutor.java)
 
-This shared layer owns:
+## Linear Algebra Families
 
-- class-axis group traversal
-- scalar loss aggregation over groups
-- dtype-specific routing
-- BF16 continuation handling
+### MatMul
 
-while the difference between `NLL_LOSS` and `CROSS_ENTROPY_LOSS` stays in the reduction descriptor algebra.
+Matmul path používá tuto vrstvu:
 
-For linear algebra kernels, CPU now separates:
+- [CpuMatMulKernel.java](../backend/kernels/cpu/linalg/CpuMatMulKernel.java)
+- [MatMulExecutor.java](../backend/kernels/cpu/linalg/MatMulExecutor.java)
+- [MatMulJavaBackend.java](../backend/kernels/cpu/linalg/MatMulJavaBackend.java)
+- [MatMulBlasBackend.java](../backend/kernels/cpu/linalg/MatMulBlasBackend.java)
 
-- `CpuMatMulKernel`
-  - thin runtime entrypoint
-- `MatMulExecutor`
-  - execution orchestration
-  - chooses BLAS vs Java backend
-  - handles BF16 continuation publish/materialize policy
-- `MatMulBlasBackend`
-  - OpenBLAS/FFM dispatch
-- `MatMulJavaBackend`
-  - tiled Java compute backend
+`MatMulExecutor` rozhoduje:
 
-Implementation lives in:
+- BLAS vs Java backend
+- BF16 continuation policy
+- batched vs non-batched flow
+- použití workspace
 
-- [src/main/java/backend/kernels/cpu/linalg/CpuMatMulKernel.java](../backend/kernels/cpu/linalg/CpuMatMulKernel.java)
-- [src/main/java/backend/kernels/cpu/linalg/MatMulExecutor.java](../backend/kernels/cpu/linalg/MatMulExecutor.java)
-- [src/main/java/backend/kernels/cpu/linalg/MatMulBlasBackend.java](../backend/kernels/cpu/linalg/MatMulBlasBackend.java)
-- [src/main/java/backend/kernels/cpu/linalg/MatMulJavaBackend.java](../backend/kernels/cpu/linalg/MatMulJavaBackend.java)
+`ResolvedMatMulHints` nese už spočítaný runtime recept:
 
-`LINEAR` now reuses the same matmul executor and adds only the bias epilogue / BF16 continuation policy in:
+- tiles
+- parallelism
+- microkernel
+- BLAS enablement
 
-- [src/main/java/backend/kernels/cpu/linalg/LinearExecutor.java](../backend/kernels/cpu/linalg/LinearExecutor.java)
+### Linear
 
-For neural-network spatial kernels, CPU now follows the same separation:
+`LINEAR` není implementovaný jako úplně samostatný GEMM systém. Reuseuje matmul family a přidává:
 
-- `CpuConv2dKernel` / backward kernels
-  - thin runtime entrypoints
-- `Conv2dExecutor`
-  - family orchestration layer
-- `Conv2dDirectBackend`
-  - direct convolution compute implementation
+- bias epilog
+- packed weight workspace
+- BF16 continuation policy
 
-- `CpuConv2dGemmKernel`
-  - thin runtime entrypoint
-- `Conv2dGemmExecutor`
-  - family orchestration layer
-- `Conv2dGemmBackend`
-  - im2col + GEMM backend implementation
+Relevantní třídy:
 
-- `CpuMaxPool2dKernel`, `CpuAvgPool2dKernel`, backward kernels
-  - thin runtime entrypoints
-- `Pool2dExecutor`
-  - family orchestration layer
-- `Pool2dDirectBackend`
-  - pooling compute implementation
+- [CpuLinearKernel.java](../backend/kernels/cpu/linalg/CpuLinearKernel.java)
+- [LinearExecutor.java](../backend/kernels/cpu/linalg/LinearExecutor.java)
 
-Implementation lives in:
+## NN Spatial Families
 
-- [src/main/java/backend/kernels/cpu/nn/Conv2dExecutor.java](../backend/kernels/cpu/nn/Conv2dExecutor.java)
-- [src/main/java/backend/kernels/cpu/nn/Conv2dDirectBackend.java](../backend/kernels/cpu/nn/Conv2dDirectBackend.java)
-- [src/main/java/backend/kernels/cpu/nn/Conv2dGemmExecutor.java](../backend/kernels/cpu/nn/Conv2dGemmExecutor.java)
-- [src/main/java/backend/kernels/cpu/nn/Conv2dGemmBackend.java](../backend/kernels/cpu/nn/Conv2dGemmBackend.java)
-- [src/main/java/backend/kernels/cpu/nn/Pool2dExecutor.java](../backend/kernels/cpu/nn/Pool2dExecutor.java)
-- [src/main/java/backend/kernels/cpu/nn/Pool2dDirectBackend.java](../backend/kernels/cpu/nn/Pool2dDirectBackend.java)
+### Conv2d
 
-For fused kernels, CPU now separates:
+Existují dvě hlavní forward cesty:
 
-- `CpuFusedKernel`
-  - thin runtime entrypoint
-- `FusedExecutor`
-  - fused dispatch orchestration
-  - scalar/vector/parallel scheduling
-  - profiler integration
-- `PreparedFusedExecutable`
-  - prepared backend implementation contract
-  - implemented today by ASM-generated and direct fused prepared executables
+- direct convolution
+- GEMM lowered convolution
 
-Implementation lives in:
+Hlavní části:
 
-- [src/main/java/backend/kernels/cpu/fused/CpuFusedKernel.java](../backend/kernels/cpu/fused/CpuFusedKernel.java)
-- [src/main/java/backend/kernels/cpu/fused/FusedExecutor.java](../backend/kernels/cpu/fused/FusedExecutor.java)
-- [src/main/java/graph/fused/PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
+- [Conv2dExecutor.java](../backend/kernels/cpu/nn/Conv2dExecutor.java)
+- [Conv2dDirectBackend.java](../backend/kernels/cpu/nn/Conv2dDirectBackend.java)
+- [Conv2dGemmExecutor.java](../backend/kernels/cpu/nn/Conv2dGemmExecutor.java)
+- [Conv2dGemmBackend.java](../backend/kernels/cpu/nn/Conv2dGemmBackend.java)
 
-For indexing kernels, CPU now separates:
+Volba `CONV2D` vs `CONV2D_GEMM` ale není backend runtime decision. To je compile-time rewrite/lowering decision v optimizeru.
 
-- `CpuGatherKernel`, `CpuTakeAlongAxisKernel`, `CpuScatterAddKernel`, gradient variants
-  - thin runtime entrypoints
-- `IndexExecutor`
-  - family orchestration layer
-- `IndexReadWriteBackend`
-  - specialized hot loops for gather / scatter / takeAlongAxis / scatterAdd
+### Pool2d
 
-Implementation lives in:
+Pool family:
 
-- [src/main/java/backend/kernels/cpu/index/IndexExecutor.java](../backend/kernels/cpu/index/IndexExecutor.java)
-- [src/main/java/backend/kernels/cpu/index/IndexReadWriteBackend.java](../backend/kernels/cpu/index/IndexReadWriteBackend.java)
+- [Pool2dExecutor.java](../backend/kernels/cpu/nn/Pool2dExecutor.java)
+- [Pool2dDirectBackend.java](../backend/kernels/cpu/nn/Pool2dDirectBackend.java)
 
-For layout kernels, CPU uses one small family executor:
+Max-pool backward navíc reuseuje prepared int workspace pro argmax indexy.
 
-- alias/view-like ops
-  - `SELECT`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`
-- reshape-like ops
-  - alias when possible, materialize when necessary
+### Attention
+
+Attention dnes není provozovaná jako rozpadlá `matmul + softmax + where` runtime cesta, pokud rewrite najde pattern. Může se přepsat na specializovaná primitiva:
+
+- `SCALED_DOT_PRODUCT_ATTENTION`
+- `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
+- `SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS`
+
+CPU resolver na ně má explicitní kernel entrypointy:
+
+- [CpuScaledDotProductAttentionKernel.java](../backend/kernels/cpu/linalg/CpuScaledDotProductAttentionKernel.java)
+- [CpuScaledDotProductAttentionBackwardKernel.java](../backend/kernels/cpu/linalg/CpuScaledDotProductAttentionBackwardKernel.java)
+- [CpuScaledDotProductAttentionWeightsKernel.java](../backend/kernels/cpu/linalg/CpuScaledDotProductAttentionWeightsKernel.java)
+
+## Index And Layout Families
+
+### Index
+
+Indexing family zahrnuje:
+
+- `GATHER`
+- `GATHER_GRAD`
+- `TAKE_ALONG_AXIS`
+- `TAKE_ALONG_AXIS_GRAD`
+- `SCATTER_ADD`
+
+Hlavní části:
+
+- [IndexExecutor.java](../backend/kernels/cpu/index/IndexExecutor.java)
+- [IndexReadWriteBackend.java](../backend/kernels/cpu/index/IndexReadWriteBackend.java)
+
+Tohle jsou hard barriers pro fused compute. Nejsou to jen "elementwise access variants".
+
+### Layout
+
+Layout family řeší:
+
+- `RESHAPE`
+- `EXPAND`
+- `SELECT`
+- `PERMUTE`
+- `EXPAND_DIMS`
+- `SQUEEZE`
 - `CONTIGUOUS`
-  - explicit materialization through `TensorRemap`
 
-Implementation lives in:
+Hlavní část:
 
-- [src/main/java/backend/kernels/cpu/layout/LayoutExecutor.java](../backend/kernels/cpu/layout/LayoutExecutor.java)
+- [LayoutExecutor.java](../backend/kernels/cpu/layout/LayoutExecutor.java)
 
-The reduction pipeline supports:
+Důležitý kontrakt:
 
-- `sumAll` and `sum(axis)`
-- contiguous fast paths (including vectorized last-dimension reduction)
-- strided non-contiguous fallback
-- threshold-based materialization to contiguous temporary tensors
-- numerical stability mode via `SumAccuracyMode` (`FAST`, `KAHAN`, `NEUMAIER`)
+- některé layout ops jsou alias/view-only
+- `CONTIGUOUS` je explicitní materialization node
+- `RESHAPE` může být alias nebo materialization podle layout reality
 
-## Backend Tuning Configuration
+## Fused Family
 
-CPU kernel dispatch parameters are represented by:
+Fused runtime je dnes postavený takto:
 
-- [src/main/java/config/backend/CpuKernelConfig.java](../config/backend/CpuKernelConfig.java)
-- [src/main/java/config/backend/SumAccuracyMode.java](../config/backend/SumAccuracyMode.java)
+- optimizer vytvoří `FusedOperation` descriptor
+- `CompiledGraph.prepare(...)` z něj vytvoří `PreparedFusedExecutable`
+- `CpuFusedKernel` je tenký entrypoint
+- `FusedExecutor` řeší runtime scheduling
 
-Cross-backend tuning container:
+Relevantní třídy:
 
-- [src/main/java/config/backend/KernelTuningConfig.java](../config/backend/KernelTuningConfig.java)
+- [CpuFusedKernel.java](../backend/kernels/cpu/fused/CpuFusedKernel.java)
+- [FusedExecutor.java](../backend/kernels/cpu/fused/FusedExecutor.java)
+- [PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
+- [FusedExecutionBackendResolver.java](../graph/fused/FusedExecutionBackendResolver.java)
 
-At runtime, CPU backend config is carried explicitly in:
+### Důležitá realita
 
-- [src/main/java/backend/runtime/RuntimeConfig.java](../backend/runtime/RuntimeConfig.java)
-- [src/main/java/backend/runtime/ExecutionContext.java](../backend/runtime/ExecutionContext.java)
+CPU fused backend dnes nepoužívá starý direct fused backend.
 
-Current policy-enabled operations:
+`FusedExecutionBackendResolver` aktuálně:
 
-- `exp` (can route to `fastExp`)
-- `tanh` (can route to `fastTanh`)
+- zkusí ASM fused backend
+- pokud plán nepodporuje, vyhodí chybu
 
-The same policy is honored through explicit runtime context in:
+To znamená:
 
-- standard CPU kernels
-- strided fallback path
-- fused codegen helper operations
+- prepared fused executable je dnes generované ASM path
+- `applyRangeVector(...)` existuje jako kontrakt na interfacu
+- default implementace na interfacu fallbackuje do scalar
+- ale skutečný výkon dnes stojí na tom, co vygeneruje ASM backend
 
-## Experimental BLAS (FFM)
+### Co řídí runtime fused dispatch
 
-CPU matmul can optionally route to OpenBLAS via Java FFM API.
+`FusedExecutor` používá prepared `ResolvedDispatchHints`:
 
-Runtime properties:
+- `SCALAR`
+- `VECTOR`
+- `PARALLEL`
+- `PARALLEL_VECTOR`
 
-- `cg.cpu.blas.provider=NONE|OPENBLAS_FFM` (default `NONE`)
-- `cg.cpu.blas.matmulMinWork=<long>` (default `2000000`)
-- `cg.cpu.blas.debug=true|false` (default `false`)
-- `cg.cpu.blas.f32RequireMgeK=true|false` (default `true`)
-- `cg.cpu.blas.f32MaxNOverK=<double>` (default `3.0`)
-- `cg.cpu.blas.threads=<0|1|2|4|...>` (`0` means auto, profile/runtime controlled)
-- `cg.cpu.blas.threads=<int>` (used when policy is `FIXED`)
-- optional library override:
-  - `-Dopenblas.lib=<absolute-path-to-library>`
-  - or `OPENBLAS_LIB` environment variable
+a podle nich volá:
 
-Notes:
+- `applyRangeScalar(...)`
+- `applyRangeVector(...)`
 
-- current BLAS routing is used only for contiguous matmul tensors and large enough workloads
-- for `FLOAT32`, default heuristic also requires:
-  - `m >= k` (`f32RequireMgeK=true`)
-  - `n/k <= f32MaxNOverK` (`f32MaxNOverK=3.0`)
-  to avoid short-fat / extra-wide regressions
-- fallback to Java kernel is automatic on any lookup/call failure
-- FFM native access warning can be suppressed by running with:
-  - `--enable-native-access=ALL-UNNAMED`
+Hot fused node tedy stále běží jako:
+
+- jeden prepared executable
+- jedna output-space loop structure
+- bez mezimaterializace intermediate tensorů
 
 ## Compute Contract
 
-CPU execution distinguishes between:
+CPU runtime rozlišuje:
 
-- tensor storage dtype
-- resolved compute dtype
-- resolved execution backend
-- resolved accumulate dtype where relevant
+- storage dtype
+- compute dtype
+- accumulate dtype
+- resolved backend kind
 
-This matters most for `BFLOAT16`.
+To je zásadní hlavně pro `BFLOAT16`.
 
-Examples:
+Příklady:
 
-- `FLOAT64` storage -> compute `F64` -> backend `CPU_*`
-- `FLOAT32` storage -> compute `F32` -> backend `CPU_*`
-- `BFLOAT16` storage -> compute `F32` -> backend `CPU_FUSED`
-- `BFLOAT16` storage -> compute `F32` -> backend `CPU_MATMUL_BLAS`
+- `FLOAT64` storage -> compute `FLOAT64`
+- `FLOAT32` storage -> compute `FLOAT32`
+- `BFLOAT16` storage -> compute `FLOAT32`
 
-The resolved compute contract is built during `prepare(...)` and stored in the prepared execution recipe.
-Hot execution then follows the recipe instead of re-deciding the path per step.
+Tenhle kontrakt se řeší v prepare fázi a ukládá se do `ResolvedCpuComputeContract`.
 
-Important consequence for fused execution:
+## BF16 Continuations And Workspace
 
-- `FLOAT64` and `FLOAT32` fused nodes still prepare a generated compiled fused kernel
-- `BFLOAT16` fused nodes use `BFLOAT16` storage but currently compute as `F32` in the direct runtime backend
-- BF16 fused execution runs through the direct Java executor, computing in `float` over `BFLOAT16` storage
-- that direct executor now has a vector fast path for contiguous numeric chains built from basic arithmetic / clamp / abs / sqrt style ops
-- compare/select/logical and transcendental-heavy chains still fall back to scalar BF16 direct execution
+Některé kernels umí držet mezivýsledky ve `float[]` workspace déle než jen do okamžiku public tensor materialization.
 
-For BLAS-backed BF16 nodes:
+To se týká hlavně:
 
-- `MATMUL` still materializes its result into `BFLOAT16` because it is itself the public graph result of that node
-- `LINEAR` keeps BF16 BLAS output in `float[]` through the internal bias-add phase and only then materializes once to `BFLOAT16`
-- `CONV2D_GEMM` already follows the same pattern when scattering GEMM output with bias into the tensor result
+- `MATMUL`
+- `LINEAR`
+- `CONV2D_GEMM`
+- některých reduction/layout kombinací, kde je explicitní float workspace
 
-So current continuation scope is:
+Je potřeba rozlišovat dvě věci:
 
-- inside one compound kernel node: yes
-- across a subsequent graph node: not yet
+- intra-kernel continuation
+  - mezivýsledek zůstává ve workspace uvnitř jedné kernel family
+- cross-node continuation
+  - producer publikuje float continuation pro konkrétního podporovaného consumera
 
-There is now one narrow cross-node exception for BF16 inference:
+Cross-node continuation je záměrně úzká a explicitně plánovaná.
 
-- a `CPU_MATMUL_BLAS` BF16 `MATMUL` or `LINEAR` node may publish its result as float continuation instead of immediately materializing to `BFLOAT16`
-- this is enabled only when:
-  - the graph is inference-only
-  - the producer has exactly one consumer
-  - that consumer is a supported BF16 consumer shape
-- currently supported unary consumers are:
-  - `RELU`
-  - `ABS`
-  - `CLAMP_MIN`
-  - `CLAMP_MAX`
-  - `SQRT`
-  - `EXP`
-  - `FAST_EXP`
-  - `LOG`
-  - `TANH`
-  - `FAST_TANH`
-  - `SIGMOID`
-  - `INV`
-- currently supported binary consumers are:
-  - `ADD`
-  - `SUB`
-  - `MUL`
-  - `DIV`
-  - `MIN`
-  - `MAX`
-  - only in no-broadcast shape-equal contiguous cases
-- currently supported fused consumers are:
-  - numeric-only contiguous BF16 fused chains
-  - no bool/select/compare/logical semantics
-  - all external inputs must use linear access
+## Runtime Dispatch Knobs
 
-This is intentionally narrow:
+CPU planner čte runtime knoby z `CpuKernelConfig` a příbuzných config objektů.
 
-- no branching fan-out
-- no training/backward graphs
-- no broadcast consumers
-- no cross-node continuation for arbitrary tensors
+Typické knob families:
 
-That keeps the storage contract small:
+- elementwise dispatch
+- fused dispatch
+- reduction dispatch
+- scheduler chunking
+- materialization threshold
+- matmul heuristics
+- numerics approximation policy
 
-- graph/runtime still stores tensors as `BFLOAT16`
-- planner decides whether the node should compute as float-backed direct execution or as BLAS-backed BF16 GEMM
-- prepare stores only the executable artifact that the resolved mode actually needs
+Tuning surface je popsaná detailněji v:
 
-## Profile-Driven Runtime Configuration
+- [../tuning/KNOBS.md](../tuning/KNOBS.md)
 
-Optimizer profiles are used as runtime source of tuning knobs:
+## BLAS Path
 
-- training profile path: `config/optimizer-profile.json`
-- hardware-bucket profile path: `config/optimizer-hw-profiles.tsv`
-- autotune training winner: `build/optimizer-autotune/best-profile-training.json`
-- autotune inference winner: `build/optimizer-autotune/best-profile-inference.json`
+CPU matmul může volitelně přepnout na OpenBLAS přes FFM.
 
-[src/main/java/graph/optimizer/OptimizerFactory.java](../graph/optimizer/OptimizerFactory.java):
+Relevantní runtime properties:
 
-- builds compile-time optimizers only
+- `cg.cpu.blas.provider=NONE|OPENBLAS_FFM`
+- `cg.cpu.blas.matmulMinWork=<long>`
+- `cg.cpu.blas.f32RequireMgeK=true|false`
+- `cg.cpu.blas.f32MaxNOverK=<double>`
+- `cg.cpu.blas.threads=<int>`
+- `cg.cpu.blas.debug=true|false`
+- `openblas.lib=<absolute-path>`
 
-Profile chain priority:
+V praxi:
 
-1. HW-bucket profile (`optimizer-hw-profiles.tsv`) for current machine.
-2. Architecture preset (`os.arch`, including ARM/aarch64 and x86_64/amd64).
-3. Persisted best-profile override (`best-profile-*.json`).
-4. Defaults.
+- BLAS se používá jen pro vhodné contiguous workloady
+- heuristika pro `F32` je přísnější než pro `F64`
+- fallback zpět na Java backend je automatický
 
-This means backend dispatch thresholds/chunking are profile-driven, with robust fallbacks before autotune is run.
+## Trace And Debug Metadata
 
-Optimizer-side memory planning now also exposes explain/summary hooks through the `graph.optimizer.memory` package.
-This is currently primarily an optimizer/planner concern rather than a backend runtime API, but it is relevant when investigating memory reuse behavior and peak-memory tradeoffs in prepared execution flows.
+`PreparedExecution.executeTraced(...)` umí vrátit step-level trace. Backend metadata se do něj promítají přes:
 
-Related numerics diagnostics tooling:
+- compute metadata
+- layout metadata
+- dispatch metadata
+- reduction metadata
+- matmul metadata
+- fused metadata
 
-- [src/main/java/numerics/README.md](../numerics/README.md)
+To je důležitý nástroj pro:
 
-## CUDA and OpenCL Status
+- ověření, že benchmark opravdu běžel na očekávané path
+- audit `vectorWidth`, worker count, tiles, BLAS use
+- hledání neočekávaných scalar fallbacků
 
-CUDA and OpenCL backends are intentionally scaffolded.
+## Adding A New CPU Kernel
 
-Current registries map only `NOOP`:
+Doporučený postup:
 
-- [src/main/java/backend/registry/CudaKernelRegistry.java](../backend/registry/CudaKernelRegistry.java)
-- [src/main/java/backend/registry/OpenClKernelRegistry.java](../backend/registry/OpenClKernelRegistry.java)
+1. přidej operation descriptor nebo reuseuj existující `Operation.OpType`
+2. vytvoř `Cpu*Kernel` entrypoint v odpovídající family
+3. pokud jde o širší family, vytvoř nebo reuseuj `*Executor`
+4. drž hot loops v leaf implementation, ne v resolveru
+5. zaregistruj op v [CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
+6. doplň prepare-time hints nebo workspace, pokud je kernel potřebuje
+7. přidej execution a regression testy
+8. pokud vznikl nový runtime knob, propíchni ho do tuning surface a dokumentace
 
-Missing kernels throw `UnsupportedOperationException` at execution time.
+## Adding A New Backend
 
-## Adding a New CPU Operation Kernel
+1. přidej enum value do `ComputeBackend`
+2. implementuj concrete backend class
+3. vytvoř registry/resolver pro nový backend
+4. rozšiř `ComputeEngine.compute(...)`
+5. doplň runtime config a tuning persistence, pokud backend přináší vlastní knoby
+6. neporuš boundary:
+   - graph stále skládá `Operation` deskriptory
+   - backend stále jen exekuuje prepared graph
 
-1. Implement `CpuKernel` in `src/main/java/backend/kernels/cpu/` (forward path and mode dispatch).
-2. Register new op type in `CpuKernelResolver`.
-3. Ensure operation class reports correct `opType`.
-4. Add regression tests and benchmark coverage.
+## Current Limitations
 
-## Adding a New Backend
-
-1. Add new enum value to `ComputeBackend`.
-2. Implement backend class (similar to `CPUBackend`/`CudaBackend`/`OpenClBackend`).
-3. Add kernel interface + registry for that backend.
-4. Extend `ComputeEngine.compute(...)` switch.
-5. Extend tuning config objects and profile I/O if backend has runtime knobs.
-6. Add benchmark candidate support if backend should be autotuned.
-
-## Known Limitations
-
-- CPU is the only fully implemented execution backend.
-- CUDA/OpenCL registries are placeholder-level today.
-- Backend profile loading currently focuses on optimizer-driven entry points.
+- CPU je jediný plně implementovaný backend
+- CUDA/OpenCL jsou scaffold
+- fused execution na CPU je dnes ASM-only prepare path
+- některé performance optimalizace jsou úzce vázané na prepared metadata a nejsou obecný tensor runtime kontrakt

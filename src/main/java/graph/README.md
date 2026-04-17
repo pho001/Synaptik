@@ -1,550 +1,464 @@
-# Graph (src/main/java/graph)
+# Graph
 
-## Contents
+`graph` vrstva převádí tensor expression DAG na explicitní runnable artifact. To je její jediný hlavní úkol. Není to backend a není to veřejná tensor surface.
 
-- [Purpose](#purpose)
-- [Main Components](#main-components)
-- [Compile Pipeline](#compile-pipeline)
-- [Runtime Preparation](#runtime-preparation)
-- [Execution Modes](#execution-modes)
-- [Execution Pipeline](#execution-pipeline)
-- [Fused Codegen Path](#fused-codegen-path)
-- [Backward Graph Notes](#backward-graph-notes)
-- [Canonicalization Notes](#canonicalization-notes)
-- [Related Modules](#related-modules)
+Dnešní kontrakt je:
 
-## Purpose
+- `Tensor` skládá semantický DAG
+- `CompiledGraph` z něj vytvoří optimalizovaný execution graph
+- `PreparedExecution` k němu přidá runtime-specific metadata
+- backend pak spouští prepared node steps
 
-The `graph` package turns a tensor expression DAG into explicit execution artifacts:
+## Reading Guide
 
-- `CompiledGraph`: compile-time artifact
-- `PreparedExecution`: runtime-bound artifact
+Sem jdi, pokud potřebuješ pochopit:
 
-This layer owns:
+- co přesně dělá `compile(...)`
+- co přesně dělá `prepare(...)`
+- kde vzniká hranice forward/backward
+- jak se připravují fused executables
+- jak se hot path trace vrací zpět do benchmarků a debug tooling
 
-- forward/backward graph assembly
-- optimizer application
-- per-node prepared execution metadata
-- fused-kernel preparation
+Související dokumentace:
+
+- tensor/public API: [../tensor/README.md](../tensor/README.md)
+- operation descriptors: [../operations/README.md](../operations/README.md)
+- optimizer pipeline: [../graph/optimizer/README.md](../graph/optimizer/README.md)
+- backend execution: [../backend/README.md](../backend/README.md)
 
 ## Main Components
 
-- Compile artifact:
-  - [src/main/java/graph/CompiledGraph.java](../graph/CompiledGraph.java)
-- Runtime artifact:
-  - [src/main/java/graph/execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
-  - [src/main/java/graph/execution/PreparedNodeExecution.java](../graph/execution/PreparedNodeExecution.java)
-  - [src/main/java/graph/execution/CompiledNodeExecutionMetadata.java](../graph/execution/CompiledNodeExecutionMetadata.java)
-- Fused runtime:
-  - [src/main/java/graph/codegen/FusedExpressionPlan.java](../graph/codegen/FusedExpressionPlan.java)
-  - [src/main/java/graph/codegen/FusedKernelGeneratorRouter.java](../graph/codegen/FusedKernelGeneratorRouter.java)
-  - [src/main/java/graph/codegen/FusedOperationGenerator.java](../graph/codegen/FusedOperationGenerator.java)
-  - [src/main/java/graph/fused/FusedExecutionBackendResolver.java](../graph/fused/FusedExecutionBackendResolver.java)
-  - [src/main/java/graph/fused/PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
-- Optimizer module:
-  - [src/main/java/graph/optimizer/README.md](../graph/optimizer/README.md)
+- compile artifact
+  - [CompiledGraph.java](../graph/CompiledGraph.java)
+- prepared runtime artifact
+  - [PreparedExecution.java](../graph/execution/PreparedExecution.java)
+  - [PreparedNodeExecution.java](../graph/execution/PreparedNodeExecution.java)
+  - [CompiledNodeExecutionMetadata.java](../graph/execution/CompiledNodeExecutionMetadata.java)
+- tracing
+  - [CompileTrace.java](../graph/execution/trace/CompileTrace.java)
+  - [PrepareTrace.java](../graph/execution/trace/PrepareTrace.java)
+  - [RunTrace.java](../graph/execution/trace/RunTrace.java)
+- fused preparation
+  - [FusedExecutionPlan.java](../graph/fused/FusedExecutionPlan.java)
+  - [FusedExecutionBackendResolver.java](../graph/fused/FusedExecutionBackendResolver.java)
+  - [PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
+
+## Lifecycle
+
+Nejdůležitější je držet v hlavě tři rozdílné artefakty:
+
+### 1. `Tensor` graph
+
+Semantický graph složený z veřejných tensor operací.
+
+Obsahuje:
+
+- operation descriptors
+- input dependencies
+- gradient references
+- metadata a runtime data storage
+
+Neobsahuje:
+
+- prepared backend metadata
+- runtime dispatch hints
+- prepared fused executable
+
+### 2. `CompiledGraph`
+
+Compile-time artifact.
+
+Obsahuje:
+
+- final topological node order
+- oddělení forward/backward části
+- optimizer output
+- compile trace
+
+### 3. `PreparedExecution`
+
+Runtime-bound artifact.
+
+Obsahuje:
+
+- ordered prepared forward steps
+- ordered prepared backward steps
+- per-node prepared metadata
+- runtime config, se kterou byl graph připraven
+- prepare trace
+
+`PreparedExecution` je to, co máš držet pro opakované hot execution nad stejným grafem.
 
 ## Compile Pipeline
 
-`CompiledGraph` performs the following high-level steps:
+`CompiledGraph.compile(root, optimizerConfig)` dnes dělá tento flow:
 
-1. create a forward execution anchor via `rootTensor.forwardOutput()`
-2. topologically sort the forward graph
-3. if the graph has differentiable leaf inputs:
-   - seed root gradient
-   - build backward graph nodes
-   - collect backward targets
-   - create a temporary super-root to unify forward and backward sinks
-4. run the configured optimizer over the assembled graph
-5. record the boundary between forward and backward execution sections
+1. vezme `rootTensor.forwardOutput()`
+2. udělá topological sort forward closure
+3. pokud graf nemá trainable leaf inputs:
+   - optimalizuje jen forward graph
+   - uloží boundary na forward output
+4. pokud graf podporuje backward:
+   - seedne root gradient
+   - zavolá `buildBackwardGraph()` od konce forward order
+   - sesbírá backward targets
+   - vytvoří dočasný `noop` super-root pro sjednocení sinků
+   - optimalizuje celý combined graph
+5. uloží index konce forward části
 
-The core public entry points are:
+To znamená, že optimizer běží nad jedním velkým grafem, který může obsahovat forward i backward sekci.
 
-- `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig)`
+## Forward/Backward Boundary
 
-Internal / lower-level tooling may still construct a `GraphOptimizer` and pass it into package-local compile paths, but the supported public compile contract is config-based:
+Boundary není odvozená až za běhu. Je explicitně uložená už v `CompiledGraph`.
 
-- `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig)`
+To má několik důsledků:
 
-## Runtime Preparation
+- optimizer pravidla musí respektovat forward/backward phase boundary
+- tracing může oddělit forward a backward kroky
+- `PreparedExecution` nemusí znovu hádat, co je která sekce
 
-`CompiledGraph.prepare(...)` converts the compiled graph into a runtime-bound `PreparedExecution`.
-
-Preparation builds:
-
-- ordered forward steps
-- ordered backward steps
-- per-node backend metadata
-- pre-resolved CPU execution plans
-- prepared fused runtime executables where the resolved compute mode needs them
-
-For fused nodes this now means:
-
-- prepare resolves a fused execution backend through `FusedExecutionBackendResolver`
-- resolver reads fused backend policy from `RuntimeConfig.fused()`
-- CPU fused execution currently resolves to ASM-generated fused executables
-- prepared metadata stores one unified `PreparedFusedExecutable`, regardless of which backend produced it
-
-Current fused policy knobs are:
-
-- primary backend:
-  - `ASM`
-- whether backend fallback is allowed
-
-Fused backend selection is therefore intentionally simple on CPU:
-
-- unfused kernels use the normal CPU scalar/vector/parallel planners
-- fused kernels use ASM-generated specialized executables
-
-This preparation is runtime-specific because it depends on:
-
-- `RuntimeConfig`
-- backend planner thresholds
-- approximation policy
-- BLAS policy
-
-## Execution Modes
-
-The execution engine now uses engine-oriented names:
-
-- `ExecutionMode.FORWARD`
-- `ExecutionMode.FORWARD_BACKWARD`
-
-Semantics:
-
-- `FORWARD`
-  - execute only prepared forward steps
-- `FORWARD_BACKWARD`
-  - execute prepared forward steps
-  - synchronize output back to the root tensor
-  - seed root gradient
-  - execute prepared backward steps
-
-Backward capability is exposed via:
+Backward existence se dnes pozná přes:
 
 - `CompiledGraph.supportsBackward()`
 - `PreparedExecution.supportsBackward()`
 
-## Execution Pipeline
+## Prepare Pipeline
 
-`PreparedExecution.execute(mode)`:
+`CompiledGraph.prepare(runtimeConfig)` je runtime-specific krok. Není to jen "copy finalGraph do jiného objektu".
 
-1. creates `ExecutionContext`
-2. iterates prepared forward steps in topological order
-3. syncs root tensor data from the optimized result node
-4. if mode is `FORWARD_BACKWARD`, zeroes gradients, seeds the root gradient, and runs backward steps
+Reálně dělá:
 
-Actual kernel dispatch then goes through:
+1. zvolí effective runtime config
+   - explicitní vstup
+   - nebo inference/training defaults podle podpory backward
+2. vytvoří `CpuExecutionPlanner`
+3. projde `finalGraph`
+4. pro každý executable node připraví `CompiledNodeExecutionMetadata`
+5. rozdělí prepared steps na forward/backward
+6. vrátí `PreparedExecution`
 
-- [src/main/java/backend/ComputeEngine.java](../backend/ComputeEngine.java)
+Připravená metadata obsahují podle typu node:
 
-## Fused Codegen Path
+- resolved backend
+- `CpuKernel`
+- `CpuNodeExecutionPlan`
+- `PreparedFusedExecutable`
+- `CpuNodeWorkspace`
 
-The fused path exists to turn a small compute-only subgraph into one prepared runtime kernel.
+## What Prepare Resolves
 
-The key idea is:
+Tohle je klíčové: `prepare(...)` řeší rozhodnutí, která nechceme dělat v hot inner loop.
 
-- keep the graph-level semantic structure
-- but remove unnecessary intermediate tensor materialization for hot arithmetic chains
+Typicky:
 
-### What "fused" means here
+- input materialization / prepared inputs
+- broadcast plan
+- `where` broadcast plan
+- compute contract
+- dispatch hints
+- reduction hints
+- matmul hints
+- fused executable generation
+- workspace allocation
+- některé BF16 continuation policies
 
-Given a graph like:
+## Execution Flow
 
-```java
-Tensor out = a.add(b).relu().exp();
-```
+`PreparedExecution.execute(mode)` dělá:
 
-the non-fused execution model is conceptually:
+1. vytvoří `ExecutionContext`
+2. spustí prepared forward steps v topological order
+3. synchronizuje data z optimized forward output do původního root tensoru
+4. pokud je režim `FORWARD_BACKWARD`:
+   - vynuluje gradienty
+   - seedne root gradient jedničkami
+   - spustí prepared backward steps
 
-1. compute `tmp0 = a + b`
-2. materialize/store `tmp0`
-3. compute `tmp1 = relu(tmp0)`
-4. materialize/store `tmp1`
-5. compute `out = exp(tmp1)`
+To je důležité pro korektní benchmark:
 
-The fused execution model instead generates one runtime kernel that computes:
+- compile overhead do steady-state nepatří
+- prepare overhead do steady-state nepatří
+- opakované execution má běžet nad jedním `PreparedExecution`
 
-```java
-// For each logical output element i:
-double v0 = a[i] + b[i];
-double v1 = Math.max(v0, 0.0);
-out[i] = Math.exp(v1);
-```
+## Traced Execution
 
-That is the entire purpose of the fused optimizer/codegen path:
+`PreparedExecution.executeTraced(...)` vrací `RunTrace`.
 
-- one output-space loop
-- no intermediate tensor materialization
-- explicit prepared runtime kernel
+Každý step trace nese:
 
-### Architectural split
+- label node
+- `Operation.OpType`
+- shape
+- dtype
+- backend
+- kernel class
+- step duration
+- structured metadata
 
-The current fused architecture is intentionally split into two layers:
+Structured metadata obsahují například:
 
-1. **graph descriptor layer**
-   - `FusedOperation`
-   - `FusedExpressionPlan`
-   - `FusedNodePlan`
-   - `FusedExternalInputPlan`
-2. **prepared runtime layer**
-   - `FusedExecutionBackendResolver`
-   - `PreparedFusedExecutable`
-   - `vector` backend
-   - `asm` backend
-   - `CpuFusedKernel`
+- compute metadata
+- layout metadata
+- dispatch metadata
+- reduction metadata
+- matmul metadata
+- fused metadata
 
-That split matters because:
+Praktický význam:
 
-- the graph should keep semantic meaning
-- prepared runtime state is runtime-specific and must not leak back into the graph descriptor
+- ověříš, že benchmark opravdu běžel na očekávané path
+- zjistíš `vectorWidth`, worker count, tile sizes, BLAS use
+- najdeš scalar fallbacky nebo neočekávaný strided path
 
-So:
+## Fused Preparation
 
-- `FusedOperation` is only a descriptor
-- the generated runtime executable is created later during `CompiledGraph.prepare(...)`
-- runtime compiled code is stored in prepared metadata, not on the descriptor itself
+Fused execution má dvě odlišné vrstvy:
 
-### End-to-end fused flow
+### Graph descriptor layer
 
-When `FuseElementWiseRule` collapses a cluster:
+- `FusedOperation`
+- `FusedExpressionPlan`
+- `FusedExternalInputPlan`
+- další codegen/fusion pomocné deskriptory
 
-1. the optimizer identifies a fused-compute cluster
-2. `FusedOperationFactory` validates its external input access chains
-3. `FusedOperationFactory` resolves backing runtime inputs and builds `FusedExpressionPlan`
-4. the optimized graph keeps a single `FusedOperation` descriptor node
-5. `CompiledGraph.prepare(...)` resolves a CPU node-level compute mode
-6. `FusedExecutionBackendResolver` selects the execution backend for that fused node
-7. the `vector` backend builds a direct prepared executable, while the `asm` backend goes through `FusedKernelGeneratorRouter`
-8. the resulting `PreparedFusedExecutable` is stored in `CompiledNodeExecutionMetadata`
-9. `CpuFusedKernel` executes that prepared executable without knowing whether it came from direct vector runtime or ASM codegen
+To je stále graph-level reprezentace.
 
-Important note:
+### Prepared runtime layer
 
-- tensor storage dtype and resolved compute contract are now distinct concepts
-- example: a `BFLOAT16` tensor may execute with compute `F32` and backend `CPU_FUSED` or backend `CPU_MATMUL_BLAS`
-- the contract is resolved during prepare and stored in the execution recipe
-- F32/F64/BF16 direct fused execution no longer pays prepare-time ASM compilation cost when the resolver selects the direct fused backend
-- direct fused execution may use vector fast paths for contiguous numeric chains, including arithmetic, clamp, abs, sqrt, exp/log/tanh family, sigmoid and selected `pow` exponents
-- mixed-bool/broadcast-heavy chains still stay on scalar direct fallback
-- ASM now exists as a fused execution backend fallback, not as the only prepared runtime model
+- `FusedExecutionPlan`
+- `PreparedFusedExecutable`
+- `FusedExecutionBackendResolver`
 
-Related BF16 GEMM note:
+Tohle už je runtime-specific executable vrstva.
 
-- compound kernels such as `LINEAR` and `CONV2D_GEMM` may keep intermediate GEMM output in `float[]` workspace through their internal post-processing phase
-- that is an intra-kernel continuation optimization, not yet a cross-node prepared execution contract
+## Current Fused Reality
 
-There is one first prepared-execution continuation contract already active:
+Tady byl historicky největší drift mezi dokumentací a kódem, takže explicitně:
 
-- inference-only BF16 `MATMUL` / `LINEAR` with backend `CPU_MATMUL_BLAS`
-- exactly one supported BF16 consumer
-- producer publishes float continuation into prepared workspace
-- consumer reads that float continuation directly and only then materializes to `BFLOAT16`
+- optimizer může vytvořit fused node
+- `prepare(...)` pro něj spočítá fused execution plan
+- `FusedExecutionBackendResolver` dnes používá ASM fused backend
+- pokud plán ASM backend nepodporuje, prepare skončí chybou
 
-That consumer subset is currently:
+Tedy:
 
-- unary BF16 post-ops
-- binary no-broadcast BF16 ops (`ADD/SUB/MUL/DIV/MIN/MAX`)
-- numeric contiguous BF16 fused consumer chains
+- fused path dnes není direct/vector hybrid backend s fallbackem
+- prepared fused executable je dnes ASM-generated executable
+- runtime scheduling nad ním pořád může být scalar/vector/parallel podle prepared dispatch hints
 
-So the first deferred-materialization path exists, but it is intentionally constrained to a small safe subset instead of being exposed as a general tensor runtime contract.
-
-### Example: simple numeric fusion
-
-Graph:
-
-```java
-Tensor a = new Tensor(new double[]{1, 2, 3}, new int[]{3}, null, "a", DataType.FLOAT64);
-Tensor b = new Tensor(new double[]{10, 20, 30}, new int[]{3}, null, "b", DataType.FLOAT64);
-Tensor out = a.add(b).relu().exp();
-```
-
-Logical fused interpretation:
-
-```java
-// Inputs:
-// a = [1, 2, 3]
-// b = [10, 20, 30]
-//
-// Elementwise:
-// v0 = a + b      = [11, 22, 33]
-// v1 = relu(v0)   = [11, 22, 33]
-// out = exp(v1)
-//
-// Returns:
-// out = [exp(11), exp(22), exp(33)]
-```
-
-No intermediate `Tensor tmp0` or `Tensor tmp1` is needed at runtime.
-
-### Example: fused compare/select flow
-
-Graph:
-
-```java
-Tensor cond = a.greaterThan(b);
-Tensor out = Tensor.where(cond, x, y).mul(x);
-```
-
-Logical fused interpretation:
-
-```java
-// Inputs:
-// a = [1, 5, 3, 8]
-// b = [2, 4, 3, 1]
-// x = [10, 20, 30, 40]
-// y = [100, 200, 300, 400]
-//
-// Step 1: cond = a > b
-// cond = [false, true, false, true]
-//
-// Step 2: select branch
-// where(cond, x, y) = [100, 20, 300, 40]
-//
-// Step 3: multiply by x
-// out = [1000, 400, 9000, 1600]
-```
-
-Here the fused kernel internally carries:
-
-- numeric intermediates
-- bool intermediates
-
-without materializing a separate bool tensor for `cond` inside the runtime kernel body.
-
-### Fused compute scope
-
-The fused compute algebra is intentionally narrow.
-
-Current fused compute nodes:
-
-- unary/binary numeric ops
-- compare ops
-- logical ops
-- `where`
-
-That means the fused compiler is designed for:
-
-- one logical output space
-- one loop nest over that output space
-- local per-element compute
-
-### Access algebra vs compute algebra
-
-This is the most important design rule.
-
-Operations such as:
-
-- `select`
-- `permute`
-- `expand`
-- `reshape`
-- `expandDims`
-- `squeeze`
-
-are **not** fused compute nodes.
-
-They do not compute a new arithmetic value.
-They only change:
-
-- where the value is read from
-- how logical coordinates map into backing storage
-
-So they are absorbed into fused external input access metadata.
-
-### Example: absorbed view chain
-
-Graph:
-
-```java
-Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base", DataType.FLOAT64);
-Tensor view = base.select(0, 1);
-Tensor out = view.relu().exp();
-```
-
-Logical meaning:
-
-```java
-// base as [2, 3]:
-// [[1, 2, 3],
-//  [4, 5, 6]]
-//
-// view = base.select(0, 1)
-// view = [4, 5, 6]
-//
-// out = exp(relu(view))
-```
-
-In the fused runtime path:
-
-- `view` is not passed as a separate runtime tensor input
-- the backing tensor `base` is passed instead
-- the fused external input descriptor carries:
-  - logical output shape
-  - effective strides
-  - storage offset
-  - access kind
-
-So the fused runtime kernel still computes the correct `view` semantics,
-but without treating `select(...)` as a fused compute node.
-
-### Access metadata
-
-The key fused input descriptor is:
-
-- [src/main/java/graph/codegen/FusedExternalInputPlan.java](../graph/codegen/FusedExternalInputPlan.java)
-
-It carries:
-
-- `inputIndex`
-  - which external input this is
-- `dataType`
-  - input dtype (`FLOAT64`, `FLOAT32`, `BFLOAT16`, `BOOL`)
-- `logicalOutputShape`
-  - fused kernel output logical space
-- `logicalOutputDenseStrides`
-  - dense row-major strides for that logical output space
-- `storageOffset`
-  - where the backing view starts in storage
-- `effectiveStrides`
-  - how logical output coordinates map to storage
-- `accessKind`
-  - coarse access topology classification
-
-Current access kinds:
-
-- `DIRECT_CONTIGUOUS`
-- `DIRECT_STRIDED`
-- `OFFSET_CONTIGUOUS`
-- `BROADCAST_STRIDED`
-- `OFFSET_STRIDED`
-
-Those access kinds are used for:
-
-- scheduler signature
-- cost model
-- later autotune-oriented policy decisions
-
-### Fusion barriers
-
-The fused compiler intentionally stops at operations that no longer fit
-the "one output-space loop + local element compute" model.
-
-Current barriers:
-
-- indexing ops:
-  - `gather`
-  - `takeAlongAxis`
-  - `scatterAdd`
-- reductions:
-  - `sum`
-  - `mean`
-  - `reduceMin`
-  - `reduceMax`
-  - `reduceAll`
-  - `reduceAny`
-- special reductions / losses:
-  - `softmax`
-  - `logSoftmax`
-  - `nllLoss`
-  - `crossEntropyLoss`
-- linear algebra:
-  - `matmul`
-- special grad kernels
-
-### Example: barrier behavior
-
-Graph:
-
-```java
-Tensor out = base.gather(indices, 1).relu().exp();
-```
-
-Behavior:
-
-- `gather(...)` remains outside the fused cluster
-- only `relu().exp()` may fuse on top of the gather result
-
-That is intentional.
-`gather` is not treated as a fused access transform or a fused compute node.
-
-### Scalar vs vector fused execution
-
-Prepared fused executables expose two methods:
+`PreparedFusedExecutable` má kontrakt:
 
 - `applyRangeScalar(...)`
 - `applyRangeVector(...)`
 
-Vector execution is used when:
+Default vector implementace na interfacu fallbackuje do scalar. Skutečná vektorizace tedy závisí na konkrétní připravené implementaci.
 
-- dtype and fused node mix support it
-- the planner recommends vector mode
+## Fused Access Model
 
-Scalar execution is used when:
+Fused compiler nerozlišuje jen "jaká operace se počítá", ale i "jak se sahá do vstupních tensorů".
 
-- vector mode is not profitable
-- or the fused cluster contains semantics that currently stay scalar-only
+To je důvod, proč se rozlišuje:
 
-Important current rule:
+- compute algebra
+- access algebra
 
-- scalar path is the correctness baseline
-- vector path is enabled only where the runtime contract is explicit
-- the direct fused backend and the ASM backend both implement the same prepared executable contract
-- unsupported vector cases may fall back either to scalar direct execution or to the ASM backend, depending on resolver support
+### Compute algebra
 
-### Example: vector-friendly fused cluster
+Sem patří fused per-element výpočet:
+
+- unary numeric ops
+- binary numeric ops
+- compare ops
+- logical ops
+- `where`
+
+### Access algebra
+
+Sem patří view/layout transformace na vstupu:
+
+- `SELECT`
+- `PERMUTE`
+- `EXPAND`
+- `RESHAPE`
+- `EXPAND_DIMS`
+- `SQUEEZE`
+
+Ty se neberou jako fused compute nodes. Jsou absorbované do `FusedExternalInputPlan`.
+
+To umožní:
+
+- jednu output-space loop
+- bez mezitensorů
+- ale se správným stride/offset/broadcast mappingem na backing storage
+
+## Example: Fused Arithmetic Chain
 
 ```java
-Tensor out = a.add(b).mul(c).relu();
+Tensor out = a.add(b).relu().exp();
 ```
 
-This is vector-friendly because:
+Nefused runtime model konceptuálně dělá:
 
-- all inputs are numeric
-- all ops are numeric compute nodes
-- there is no bool output
-- there is no indexing/reduction barrier
+1. `tmp0 = a + b`
+2. materialize `tmp0`
+3. `tmp1 = relu(tmp0)`
+4. materialize `tmp1`
+5. `out = exp(tmp1)`
 
-### Example: scalar fallback fused cluster
+Fused runtime model dělá:
 
 ```java
-Tensor out = Tensor.where(a.greaterThan(b), x, y).relu();
+for (int i = 0; i < out.numel(); i++) {
+    double v0 = a[i] + b[i];
+    double v1 = Math.max(v0, 0.0);
+    out[i] = Math.exp(v1);
+}
 ```
 
-This may still fuse,
-but if a specific dtype/path is not fully vectorized,
-the fused runtime can fall back to scalar fused execution while still keeping:
+Smysl fused path je přesně tenhle:
 
-- one fused node
-- one prepared kernel
-- one output-space loop
+- odstranit intermediate materialization
+- zredukovat dispatch overhead
+- držet výpočet v jedné output-space loop
 
-That is still correct and still materially better than leaving the graph fully unfused.
+## Example: Access Chain Absorption
 
-## Backward Graph Notes
+```java
+Tensor base = ...;
+Tensor view = base.select(0, 1).permute(1, 0);
+Tensor out = view.relu().exp();
+```
 
-Backward nodes are built from gradients attached to forward nodes and marked with:
+Co se děje:
 
-- `tensor.setBackward(true)`
+- `relu` a `exp` jsou fused compute nodes
+- `select` a `permute` nejsou fused compute nodes
+- fused node dostane jako external input backing tensor `base`
+- access metadata popíší offset/strides/logical mapping
 
-This marker lets optimizer rules preserve phase boundaries between forward and backward sections.
+To je důležité i architektonicky:
 
-## Canonicalization Notes
+- graph dál nese semantiku view operací
+- runtime fused executable nedostává celý graph
+- dostává jen už rozložený prepared access contract
 
-Algebraic rewriting includes canonical sigmoid recognition in forward-only inference-style graphs:
+## Barriers
 
-- `1 / (1 + exp(-x)) -> sigmoid(x)`
-- also recognizes the `mulScalar(-1)` form
+Fused cluster nemůže spolknout cokoli. Dnes typicky fungují jako bariéra:
 
-For graphs that require gradients, this rewrite is intentionally skipped to preserve the current backward-graph construction semantics.
+- indexing
+  - `GATHER`
+  - `TAKE_ALONG_AXIS`
+  - `SCATTER_ADD`
+- reductions
+  - `SUM`
+  - `MEAN`
+  - `REDUCE_MIN`
+  - `REDUCE_MAX`
+  - `REDUCE_ALL`
+  - `REDUCE_ANY`
+  - `SOFTMAX`
+  - `LOG_SOFTMAX`
+- linear algebra
+  - `MATMUL`
+- losses a special structured kernels
+- special gradient kernels
+
+To je záměr. Tyhle families mají vlastní traversal/kernel logiku a nejsou jen "lokální per-element algebra".
+
+## Relationship To Optimizer Rewrites
+
+Graph vrstva sama nic nepřepisuje. Jen aplikuje optimizer pipeline. Ale je důležité vědět, že po optimizeru už graf může obsahovat specializovaná primitiva místo rozpadlých patternů.
+
+Například:
+
+- `matmul + bias` může být přepsané na `LINEAR`
+- attention pattern může být přepsaný na `SCALED_DOT_PRODUCT_ATTENTION`
+- backward softmax pattern může být přepsaný na `SOFTMAX_GRAD`
+- cross-entropy-from-indices pattern může být přepsaný na `CROSS_ENTROPY_LOSS_INDICES`
+
+Graph vrstva to pak bere jako hotovou compile-time realitu a připravuje metadata pro daný descriptor.
+
+## Workspaces
+
+Některé nodes potřebují extra prepared workspace. `CompiledGraph` je přiděluje už v prepare fázi.
+
+Příklady:
+
+- max-pool argmax buffer
+- BF16 float workspace pro `MATMUL`
+- packed weights workspace pro `LINEAR`
+- float workspace pro vybrané continuation paths
+
+Smysl:
+
+- workspace se nevytváří ad hoc uvnitř každého hot kernel callu
+- prepared metadata přesně říkají, který node workspace má
+
+## Example: Explicit Compile / Prepare Reuse
+
+```java
+Tensor out = logits.logSoftmax(-1).sum();
+
+CompiledGraph graph = CompiledGraph.compile(out, OptimizerConfig.trainingDefaults());
+PreparedExecution prepared = graph.prepare(RuntimeConfig.trainingDefaults());
+
+prepared.execute(ExecutionMode.FORWARD_BACKWARD);
+prepared.execute(ExecutionMode.FORWARD_BACKWARD);
+```
+
+Použij to pro:
+
+- výkonová měření
+- trace collection
+- opakované inference/training běhy
+
+## Example: Trace Audit
+
+Typický výkonový audit vypadá takto:
+
+1. sestav graf přes `Tensor` API
+2. `CompiledGraph.compile(...)`
+3. `PreparedExecution prepared = graph.prepare(...)`
+4. `RunTrace trace = prepared.executeTraced(...)`
+5. analyzuj step metadata
+
+Sleduj hlavně:
+
+- kernel class
+- `compute.backend`
+- dispatch mode
+- `vectorWidth`
+- `plannedWorkers`
+- matmul `useBlas`
+- fused executable class
+
+## Public Entry Points
+
+Veřejně relevantní entrypointy:
+
+- `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig)`
+- `CompiledGraph.prepare(RuntimeConfig runtimeConfig)`
+- `CompiledGraph.execute(...)`
+- `CompiledGraph.executeTraced(...)`
+- `PreparedExecution.execute(...)`
+- `PreparedExecution.executeTraced(...)`
+
+Lower-level `GraphOptimizer` injection stále existuje, ale není to preferovaný public compile contract.
+
+## Common Mistakes
+
+- benchmarkovat `Tensor.compute(profile)` místo reuse `PreparedExecution`
+- považovat `Operation` descriptor za hot executable
+- myslet si, že `prepare(...)` je jen levný wrapper bez runtime rozhodnutí
+- brát fused node jako "hotovou compiled ASM class" už v optimizeru
+- míchat graph policy a runtime policy do jedné vrstvy
 
 ## Related Modules
 
-- Tensor front-end:
-  - [src/main/java/tensor/README.md](../tensor/README.md)
-- Backend execution:
-  - [src/main/java/backend/README.md](../backend/README.md)
-- Optimizer:
-  - [src/main/java/graph/optimizer/README.md](../graph/optimizer/README.md)
-- Numerics tooling:
-  - [src/main/java/numerics/README.md](../numerics/README.md)
+- tensor: [../tensor/README.md](../tensor/README.md)
+- operations: [../operations/README.md](../operations/README.md)
+- optimizer: [../graph/optimizer/README.md](../graph/optimizer/README.md)
+- backend: [../backend/README.md](../backend/README.md)
+- numerics: [../numerics/README.md](../numerics/README.md)

@@ -1,154 +1,148 @@
 # Legacy Benchmark Review
 
-## Contents
+Tento dokument slouží jako historická poznámka: co z původní benchmark/autotune vrstvy mělo smysl zachovat a co už dnes nemá být architektonickým vzorem.
 
-- [Goal of This Review](#goal-of-this-review)
-- [What Still Has Value](#what-still-has-value)
-- [What Is Now Legacy](#what-is-now-legacy)
-- [What Should Not Be Carried Forward](#what-should-not-be-carried-forward)
-- [Recommended Keep / Freeze / Retire Plan](#recommended-keep--freeze--retire-plan)
+Nejde o roadmapu návratu ke starému designu. Spíš o vysvětlení, proč dnešní `tuning` balík vypadá tak, jak vypadá.
 
-## Goal of This Review
+## Historical Problem
 
-This document answers one question:
+Starší benchmark-first přístup typicky trpěl tím, že:
 
-- after building the new `tuning` package, what from the old `benchmark` package is still worth keeping?
+- benchmark měl vlastní kandidátový model
+- runtime měl jiný execute model
+- persistence ukládala něco jiného, než se pak opravdu spouštělo
 
-The answer is intentionally pragmatic.
+Výsledek:
 
-## What Still Has Value
+- složitá údržba
+- drift mezi benchmarkem a runtime
+- obtížná interpretace winners
 
-These parts still carry real value and can continue to live for some time:
+## What Was Worth Keeping
 
-### 1. Existing benchmark entry programs
+I ze starší vrstvy ale mělo smysl zachovat některé věci.
 
-Examples from the removed legacy package included:
+### 1. Practical workload knowledge
 
-- matmul benchmark runners
-- conv2d lowering benchmark runners
-- transformer hot-path benchmark runners
+Například:
 
-Reason:
+- matmul scénáře
+- conv2d scénáře
+- transformer hot-path workloady
 
-- they are useful operational entry points today
-- they still encode practical workload knowledge
+Tohle je cenné, protože workload know-how je drahé a nemá smysl ho ztrácet jen proto, že se mění orchestrace.
 
-### 2. Some scenario/data factory pieces
+### 2. Some data factories and scenario helpers
 
-Examples from the removed legacy package included:
+Pokud dobře vystihují reálné tvary workloadů, mají hodnotu i po přepisu orchestrace.
 
-- scenario tensor factories
-- benchmark graph recipe helpers
+### 3. Some measurement ideas
 
-Reason:
+Například oddělení:
 
-- they already capture some useful graph construction patterns
-- parts of them can be migrated or reused gradually
+- compile
+- prepare
+- traced run
+- steady-state
 
-### 3. Some low-level measurement utilities
+Tohle byl dobrý směr a dnešní tuning ho zachovává.
 
-Examples:
+## What Became Legacy
 
-- timing helpers
-- tier policy helpers
+### 1. Benchmark-Owned Candidate Universe
 
-Reason:
+Starý model typu "benchmark kandidát" oddělený od `ExecutionProfile` už nemá být hlavní cesta.
 
-- utility logic may still be worth extracting or copying if clean enough
-
-## What Is Now Legacy
-
-These areas are now conceptually legacy because the new `tuning` package supersedes them:
-
-### 1. Old autotune orchestration
-
-The removed `benchmark.autotune.*` family was legacy from an architecture perspective.
-
-Reason:
-
-- the new `tuning` package now has:
-  - candidate generation
-  - benchmark sessions
-  - validation
-  - persistence
-  - tree search
-  - history-aware search
-
-### 2. Old benchmark-first candidate model
-
-Examples from the removed legacy package included:
-
-- `OptimizerCandidate`
-- `TuningKnobs`
-- parts of `OptimizerCandidateFactory`
-
-These were useful for bootstrapping.
-But the long-term correct source of truth is now:
+Dnes je zdroj pravdy:
 
 - `ExecutionProfile`
 
-### 3. Old benchmark-owned persistence chain
+### 2. Monolithic Autotune Flow
 
-Examples:
+Jedna obří třída, která:
 
-- old best-profile workflow
-- old unsafe-history workflow
-- old benchmark-specific search support
+- generuje kandidáty
+- měří
+- validuje
+- ukládá
+- rozhoduje strategii
+- renderuje výsledky
 
-These should not grow further as the main system.
+je špatný design.
 
-## What Should Not Be Carried Forward
+Dnešní tuning balík to rozděluje na:
 
-These patterns should be explicitly avoided:
+- `candidate`
+- `measure`
+- `validate`
+- `search`
+- `store`
+- `report`
+- `session`
 
-### 1. Parallel execution model outside `ExecutionProfile`
+### 3. Benchmark-Specific Persistence
 
-We should not keep investing in:
+Persistence vázaná jen na starý benchmark runner nedávala smysl, protože:
 
-- a second benchmark-only knob universe
+- nebyla reuse-friendly
+- míchala source of truth s explain data
 
-### 2. Benchmark-first architecture
+## What Must Not Return
 
-We should not keep:
+Tyto anti-patterny se nemají vracet pod jiným názvem:
 
-- systems where benchmark requirements dictate runtime architecture
+- druhý skrytý execution model vedle `ExecutionProfile`
+- benchmark-only knob universe
+- ukládání reportu jako source of truth
+- syntetické kandidátové modely, které runtime nikdy přímo nespustí
 
-### 3. Large monolithic autotune flow classes
+## What The New Architecture Replaced It With
 
-We should not continue growing:
+Dnešní stav:
 
-- one giant benchmark/autotune framework class with many orthogonal responsibilities
+- benchmark měří explicitní `ExecutionProfile` kandidáty
+- autotune searchuje explicitní `ExecutionProfile` kandidáty
+- platform calibration mutuje explicitní `PlatformRuntimeProfile`
+- persistence rozlišuje:
+  - runtime defaults
+  - best profile
+  - history
+  - explain artifacts
 
-## Recommended Keep / Freeze / Retire Plan
+To je podstatně čistší než benchmark-first architektura.
 
-### Keep for now
+## Keep / Freeze / Retire
 
-- benchmark CLI-style entry classes
-- scenario/data helpers that still provide practical value
-- utility measurement helpers if still used by live workflows
+### Keep
+
+- workload know-how
+- rozumné scenario builders
+- užitečné measurement patterns
 
 ### Freeze
 
-- old autotune orchestration classes
-- old candidate search support
-- old benchmark-owned persistence logic
+- historické compatibility fallbacky
+- staré path layouty v `build/...`
 
-Meaning:
+### Retire
 
-- do not extend them further except for compatibility or bug fixes
+- starý benchmark-first candidate mindset
+- staré dokumentační popisy, které prezentují benchmark jako hlavní architekturu runtime
 
-### Retire gradually
+## Practical Rule For New Work
 
-- old candidate and search models once equivalent `tuning` workflows are in active use
-- old persistence once new stores cover the same operational use-cases
-- old benchmark README sections that present legacy flow as the primary path
+Když dnes přidáváš novou tuning funkcionalitu, polož si otázku:
 
-## Practical Decision
+- jde to vyjádřit jako `ExecutionProfile` nebo `PlatformRuntimeProfile`?
 
-The legacy benchmark package has now been removed.
+Pokud ne, je vysoká šance, že znovu zavádíš starý problém.
 
-Its historical role matters only as context for why:
+## Why This Document Still Exists
 
-- `tuning` owns benchmark/autotune orchestration
-- `ExecutionProfile` remains the single execution source of truth
-- new benchmark surface must not reintroduce a parallel candidate model
+Protože pomáhá vysvětlit:
+
+- proč tuning odděluje platform defaults od workload winnerů
+- proč je `ExecutionProfile` jediný execute source of truth
+- proč reporty a history nejsou runtime artifacts
+
+Tohle nejsou jen preferenční volby. Jsou to obranné mechanismy proti regresi architektury zpátky do benchmark-first guláše.

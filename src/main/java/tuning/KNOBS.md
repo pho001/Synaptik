@@ -1,224 +1,437 @@
 # Tuning Knobs
 
-## Contents
+Tento dokument popisuje skutečný tuning surface, ne hypotetický budoucí seznam.
 
-- [Purpose](#purpose)
-- [Family Split](#family-split)
-- [MATMUL](#matmul)
-- [FUSED](#fused)
-- [ELEMENTWISE_DISPATCH](#elementwise_dispatch)
-- [REDUCTION](#reduction)
-- [SCHEDULER](#scheduler)
-- [MATERIALIZATION](#materialization)
-- [NUMERICS](#numerics)
-- [GRAPH_POLICY](#graph_policy)
-- [Non-Public Knobs](#non-public-knobs)
+Je potřeba rozlišovat dvě velké skupiny:
 
-## Purpose
+- platform runtime knobs
+  - ukládají se do `PlatformRuntimeProfile`
+  - ladí se v platform calibration
+- graph policy knobs
+  - žijí v `ExecutionProfile.optimizer()`
+  - typicky se searchují v graph autotune
 
-This document is the public knob reference for the tuning package.
+## Reading Guide
 
-It explains:
+Pokud řešíš:
 
-- what each knob means
-- which workflow uses it
-- what candidate values are currently recommended
+- co se dnes opravdu kalibruje per hardware
+- co je workload-specific candidate mutace
+- které knoby jsou už veřejné a které jen rezervované
+- jaké candidate ranges dnes používají standardní calibration presets
 
-## Family Split
+pak jsi správně tady.
 
-Families:
+## Runtime Vs Graph Policy
 
-- `MATMUL`
-- `FUSED`
-- `ELEMENTWISE_DISPATCH`
-- `REDUCTION`
-- `SCHEDULER`
-- `MATERIALIZATION`
-- `NUMERICS`
-- `GRAPH_POLICY`
+### Platform Runtime Knobs
 
-## MATMUL
+Patří sem:
 
-- `runtime.blas.matmulMinWork`
-  - role:
-    - platform calibration
-    - benchmark option
-  - values:
-    - `32k, 64k, 128k, 256k, 512k, 1M, 2M, 4M, 8M`
+- CPU thresholds
+- tiles
+- microkernels
+- scheduler policy
+- materialization thresholds
+- numerics policy
 
-- `runtime.blas.threads`
-  - role:
-    - platform calibration
-    - benchmark option
-  - values:
-    - `0, 1, 2, 4, 8`
+Tyto knoby se mají sdílet napříč workloady na daném stroji.
 
-- `runtime.blas.f32RequireMgeK`
-  - role:
-    - platform calibration
-    - benchmark option
-  - values:
-    - `true, false`
+### Graph Policy Knobs
 
-- `runtime.blas.f32MaxNOverK`
-  - role:
-    - platform calibration
-    - benchmark option
-  - values:
-    - `1.5, 2.0, 3.0, 4.0, 6.0, 8.0`
-
-- `cpu.loopUnrollFactor`
-  - values:
-    - `1, 2, 4, 8`
-
-- `cpu.matMulTileM`
-  - values:
-    - calibrated as part of tile tuples
-    - current presets are dtype-specific
-
-- `cpu.matMulTileN`
-  - values:
-    - calibrated as part of tile tuples
-    - current presets are dtype-specific
-
-- `cpu.matMulTileK`
-  - values:
-    - calibrated as part of tile tuples
-    - current presets are dtype-specific
-
-- `cpu.matMulParallelMinSize`
-  - values:
-    - `64k, 128k, 256k, 512k, 1M, 2M, 4M`
-
-## FUSED
-
-- `cpu.fusedCheapVectorMinSize`
-  - values:
-    - `64, 128, 256, 512, 1024, 2048`
-
-- `cpu.fusedTranscendentalVectorMinSize`
-  - values:
-    - `16, 32, 64, 128, 256, 512`
-
-- `cpu.fusedCheapParallelMinSize`
-  - values:
-    - `4k, 8k, 16k, 32k, 64k, 128k`
-
-- `cpu.fusedTranscendentalParallelMinSize`
-  - values:
-    - `1k, 2k, 4k, 8k, 16k, 32k`
-
-## ELEMENTWISE_DISPATCH
-
-- `cpu.cheapVectorMinSize`
-  - values:
-    - `128, 256, 512, 1024, 2048, 4096`
-
-- `cpu.transcendentalVectorMinSize`
-  - values:
-    - `32, 64, 128, 256, 512, 1024`
-
-- `cpu.cheapParallelMinSize`
-  - values:
-    - `8k, 16k, 32k, 64k, 128k, 256k`
-
-- `cpu.transcendentalParallelMinSize`
-  - values:
-    - `2k, 4k, 8k, 16k, 32k, 64k`
-
-## REDUCTION
-
-- `cpu.reductionVectorMinSize`
-  - values:
-    - `128, 256, 512, 1024, 2048, 4096`
-
-- `cpu.reductionParallelMinSize`
-  - values:
-    - `8k, 16k, 32k, 64k, 128k, 256k`
-
-- `cpu.sumAccuracyMode`
-  - values:
-    - `FAST, KAHAN, NEUMAIER`
-
-## SCHEDULER
-
-These are refinement knobs over already selected parallel execution paths.
-
-- `cpu.lowCostTargetChunksPerWorker`
-  - values:
-    - local refinement around current winner
-
-- `cpu.mediumCostTargetChunksPerWorker`
-  - values:
-    - local refinement around current winner
-
-- `cpu.highCostTargetChunksPerWorker`
-  - values:
-    - local refinement around current winner
-
-- `cpu.minScalarChunkSize`
-  - values:
-    - local refinement around current winner
-
-- `cpu.minVectorChunkSize`
-  - values:
-    - local refinement around current winner
-
-- `cpu.minReductionChunkSize`
-  - values:
-    - local refinement around current winner
-
-- `cpu.commonPoolLowCostMaxWorkPerWorker`
-  - values:
-    - local refinement around current winner
-
-## MATERIALIZATION
-
-- `cpu.contiguousMaterializeThreshold`
-  - role:
-    - platform calibration
-    - benchmark option
-  - meaning:
-    - threshold from which non-contiguous tensors should be materialized before fast execution
-  - values:
-    - local refinement around current winner
-    - typical practical range:
-      - `4k` up to `1M+`
-
-## NUMERICS
-
-- `runtime.approximation.approxMode`
-  - values:
-    - `OFF, TRAINING_ONLY, ALWAYS`
-
-- `runtime.approximation.forceExactTranscendentals`
-  - values:
-    - `true, false`
-
-- `cpu.sumAccuracyMode`
-  - values:
-    - `FAST, KAHAN, NEUMAIER`
-
-These are public tuning and benchmark knobs, but they are not mandatory in every default platform-calibration preset.
-
-## GRAPH_POLICY
+Patří sem:
 
 - `optimizer.stageOrder`
-  - values:
-    - valid subsets and permutations of:
-      - `AR`
-      - `CSE`
-      - `FUSE`
-      - `MEM`
+- `optimizer.rewrite.*`
+- `optimizer.fuse.*`
+- `optimizer.memory.*`
+
+Tyto knoby jsou workload-sensitive. Nejsou součástí `PlatformRuntimeProfile`.
+
+## Public Runtime Families
+
+### `MATMUL`
+
+Sem dnes patří:
+
+- `runtime.blas.provider`
+  - prakticky dnes `NONE` nebo `OPENBLAS_FFM`
+- `runtime.blas.matmulMinWork`
+- `runtime.blas.threads`
+- `runtime.blas.f32RequireMgeK`
+- `runtime.blas.f32MaxNOverK`
+- `cpu.matMulParallelMinSize`
+- `cpu.matMulTileM`
+- `cpu.matMulTileN`
+- `cpu.matMulTileK`
+- `cpu.matMulMicroKernel`
+- `cpu.attentionMatMulTileM`
+- `cpu.attentionMatMulTileN`
+- `cpu.attentionMatMulTileK`
+- `cpu.attentionMatMulMicroKernel`
+
+Knob, který je v runtime profilu uložený, ale dnešní standardní calibration presets ho nesweepují:
+
+- `cpu.loopUnrollFactor`
+
+### `FUSED_THRESHOLDS`
+
+- `cpu.fusedCheapVectorMinSize`
+- `cpu.fusedTranscendentalVectorMinSize`
+- `cpu.fusedCheapParallelMinSize`
+- `cpu.fusedTranscendentalParallelMinSize`
+
+Tohle řídí scheduler decision pro fused node, ne volbu backendu.
+
+### Fused ASM Width Knobs
+
+Dnes jsou reálně součást tuning surface:
+
+- `cpu.fusedCheapContiguousAsmVectorWidth`
+- `cpu.fusedCheapStridedAsmVectorWidth`
+- `cpu.fusedNonCheapContiguousAsmVectorWidth`
+- `cpu.fusedNonCheapStridedAsmVectorWidth`
+
+Tyhle width knoby jsou kalibrované po dispatch family, ne jedním globálním číslem.
+
+To je důležitá realita:
+
+- nejsou už jen interní experimentální nastavení
+- standardní platform calibration je umí hledat
+
+### `ELEMENTWISE_DISPATCH`
+
+- `cpu.cheapVectorMinSize`
+- `cpu.transcendentalVectorMinSize`
+- `cpu.cheapParallelMinSize`
+- `cpu.transcendentalParallelMinSize`
+
+Týká se non-fused elementwise kernel families.
+
+### `REDUCTION`
+
+- `cpu.reductionVectorMinSize`
+- `cpu.reductionParallelMinSize`
+- `cpu.attentionVectorMinSize`
+- `cpu.attentionParallelMinSize`
+- `cpu.sumAccuracyMode`
+
+`attention*` thresholds jsou uloženy v reduction profile family, protože patří do strukturovaných reduction-like kernels, ne do generického fused/elementwise dispatch.
+
+### `SCHEDULER`
+
+- `cpu.lowCostTargetChunksPerWorker`
+- `cpu.mediumCostTargetChunksPerWorker`
+- `cpu.highCostTargetChunksPerWorker`
+- `cpu.minScalarChunkSize`
+- `cpu.minVectorChunkSize`
+- `cpu.minReductionChunkSize`
+- `cpu.commonPoolLowCostMaxWorkPerWorker`
+
+Tyhle knoby mají význam až po tom, co už je zvoleno, že se poběží paralelně.
+
+### `MATERIALIZATION`
+
+- `cpu.contiguousMaterializeThreshold`
+
+Rozhoduje, od jaké velikosti je výhodnější non-contiguous input materiálizovat do contiguous temporary storage.
+
+### `NUMERICS`
+
+- `runtime.approximation.approxMode`
+- `runtime.approximation.forceExactTranscendentals`
+
+To jsou veřejné runtime policy knoby, ne jen lokální benchmark hack.
+
+## Current Calibration Ranges
+
+Následující rozsahy popisují to, co dnes používají standardní `PlatformCalibrationDefaults`, ne obecně všechny myslitelné hodnoty.
+
+### Matmul
+
+`blasThreads`
+
+- `0`
+- `1`
+- `2`
+- `4`
+
+`matMulParallelMinSize`
+
+- `100_000`
+- `500_000`
+- `2_000_000`
+
+`f32ShapeHeuristics`
+
+- `f32RequireMgeK`
+  - `true`
+  - `false`
+- `f32MaxNOverK`
+  - `1.5`
+  - `2.0`
+  - `3.0`
+  - `4.0`
+  - `6.0`
+
+`matMulMicroKernel`
+
+- `FLOAT64`
+  - `F64_2X1`
+  - `F64_4X1`
+  - `F64_2X2`
+- `FLOAT32`
+  - `F32_2X4`
+  - `F32_2X8`
+  - `F32_4X2`
+  - `F32_4X4`
+
+`matMulTiles`
+
+- `FLOAT64`
+  - `16x64x32`
+  - `32x64x32`
+  - `32x64x64`
+  - `32x128x64`
+- `FLOAT32`
+  - `32x64x64`
+  - `32x128x64`
+  - `64x128x64`
+  - `64x128x128`
+  - `64x256x128`
+
+`attentionMatMulTiles`
+
+- `FLOAT64`
+  - `16x64x32`
+  - `32x64x32`
+  - `32x128x64`
+- `FLOAT32`
+  - `32x64x64`
+  - `32x128x64`
+  - `64x128x64`
+  - `64x128x128`
+  - `64x256x128`
+
+### Fused Thresholds
+
+`cheapVector`
+
+- `64`
+- `128`
+- `256`
+- `512`
+- `1024`
+
+`transcendentalVector`
+
+- `16`
+- `32`
+- `64`
+- `128`
+- `256`
+
+`cheapParallel`
+
+- `4096`
+- `8192`
+- `16384`
+- `32768`
+
+`transcendentalParallel`
+
+- `1024`
+- `2048`
+- `4096`
+- `8192`
+
+### Fused ASM Widths
+
+Candidate widths se odvozují podle dtype a dostupné preferred vector species:
+
+- vždy `1`
+- pokud HW dovolí, pak i `2`
+- pokud HW dovolí, pak i `4`
+- v některých `F32/BF16 cheap contiguous` případech i `8`
+
+To znamená:
+
+- width space je family-specific
+- není to jedno univerzální číslo pro všechny fused workloads
+
+### Elementwise Dispatch
+
+`cheapVector`
+
+- `128`
+- `256`
+- `512`
+- `1024`
+- `2048`
+
+`transcendentalVector`
+
+- `32`
+- `64`
+- `128`
+- `256`
+- `512`
+
+`cheapParallel`
+
+- `8192`
+- `16384`
+- `32768`
+- `65536`
+
+`transcendentalParallel`
+
+- `2048`
+- `4096`
+- `8192`
+- `16384`
+
+### Reduction
+
+`reductionVector`
+
+- `512`
+- `2048`
+- `8192`
+- `16384`
+
+`reductionParallel`
+
+- `8192`
+- `16384`
+- `32768`
+- `65536`
+
+`attentionThresholds`
+
+- `attentionVector`
+  - `512`
+  - `2048`
+  - `8192`
+  - `16384`
+- `attentionParallel`
+  - `2048`
+  - `8192`
+  - `16384`
+  - `32768`
+
+### Scheduler
+
+Scheduler calibration dnes spíš lokálně refineuje okolí seed winner hodnot:
+
+- target chunks per worker
+- min chunk sizes
+- common pool threshold
+
+To je záměr. Scheduler knobs bývají silně závislé na tom, co už vyhrálo v ostatních families.
+
+### Materialization
+
+Candidate set vzniká kolem aktuálního thresholdu a doplňuje explicitní anchor body:
+
+- `262_144`
+- `524_288`
+- `1_048_576`
+
+### Numerics
+
+`approxMode`
+
+- `OFF`
+- `TRAINING_ONLY`
+- `ALWAYS`
+
+`forceExactTranscendentals`
+
+- `true`
+- `false`
+
+## Graph Policy Knobs
+
+Tyhle knoby nejsou součást platform runtime profile, ale jsou součást `ExecutionProfile.optimizer()`.
+
+### `optimizer.stageOrder`
+
+Platné stage prvky:
+
+- `AR`
+- `CSE`
+- `FUSE`
+- `MEM`
+
+Candidate spaces běžně používají:
+
+- explicitní seznam stage orders
+- constrained stage order space
+- exhaustive permutation/subset space
+
+### Rewrite Policy
+
+Aktuálně dává smysl ladit hlavně:
 
 - `optimizer.rewrite.conv2dLowering.mode`
-  - values:
-    - `OFF, HEURISTIC, ALWAYS`
+  - `OFF`
+  - `HEURISTIC`
+  - `ALWAYS`
 
-## Non-Public Knobs
+Piecewise lowering config také existuje, ale v běžném autotune workflow dnes nebývá hlavní knob surface.
 
-These may still exist internally, but they are not part of the target public tuning surface:
+## Knobs That Exist But Are Not Very Useful Today
 
-- `runtime.fused.primaryBackend`
-- `runtime.fused.allowBackendFallback`
-- `cpu.fusedAsmVectorWidth`
+### `runtime.fused.primaryBackend`
+
+Technicky existuje ve fused execution policy.
+
+Praktická realita na CPU dnes:
+
+- meaningful backend je `ASM`
+
+Takže to není zvlášť zajímavý knob pro standardní tuning.
+
+### `runtime.fused.allowBackendFallback`
+
+Technicky existuje, ale protože CPU fused prepare dnes stojí na ASM backendu, není to hlavní performance lever.
+
+### `cpu.loopUnrollFactor`
+
+Je uložený v runtime profilu, ale standardní platform calibration ho dnes nesweepuje.
+
+## Example: Runtime Profile Candidate
+
+Platform calibration kandidát může například měnit:
+
+- `cpu.matMulTileM/N/K`
+- `cpu.matMulMicroKernel`
+- `cpu.matMulParallelMinSize`
+
+ale stále jde o jeden konkrétní `PlatformRuntimeProfile`, ne o oddělený knob map.
+
+## Example: Graph Candidate
+
+Graph autotune kandidát může změnit:
+
+- `optimizer.stageOrder`
+
+nebo pro `CONV2D` workload:
+
+- `optimizer.rewrite.conv2dLowering.mode`
+
+Výsledkem je zase normální `ExecutionProfile`.
+
+## Common Mistakes
+
+- považovat runtime knoby za workload-specific graph policy
+- myslet si, že fused ASM widths nejsou součást veřejného tuning surface
+- chtít kalibrovat `runtime.fused.primaryBackend`, i když na CPU dnes dává smysl jen `ASM`
+- ignorovat, že některé uložené runtime fields se dnes ve standardních presets nesweepují
+
+## Related Docs
+
+- architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
+- search: [SEARCH.md](./SEARCH.md)
+- persistence: [PERSISTENCE.md](./PERSISTENCE.md)

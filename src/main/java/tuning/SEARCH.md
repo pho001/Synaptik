@@ -1,36 +1,28 @@
 # Tuning Search
 
-## Contents
+Search vrstva rozhoduje, které kandidáty stojí za to změřit a v jakém pořadí. Sama nic nespouští.
 
-- [Purpose](#purpose)
-- [Search Contracts](#search-contracts)
-- [Candidate Generation and Refinement](#candidate-generation-and-refinement)
-- [Simple Strategies](#simple-strategies)
-- [Tree Strategies](#tree-strategies)
-- [Score and Bound Models](#score-and-bound-models)
-- [History-Aware Search](#history-aware-search)
-- [Default Strategy Selection](#default-strategy-selection)
-- [Choosing a Strategy in Practice](#choosing-a-strategy-in-practice)
-- [Examples](#examples)
+Její kontrakt je:
 
-## Purpose
+- dostane `SearchContext`
+- vrátí `SearchResult`
 
-`tuning.search` decides which candidates are worth evaluating.
+Případně může podporovat refinement nad už změřenými kandidáty.
 
-It does **not**:
+## Reading Guide
 
-- compile graphs
-- execute kernels
-- validate correctness
-- persist results
+Tento dokument vysvětluje:
 
-It only selects candidate order and candidate subsets.
+- jaký je minimální kontrakt search strategie
+- jak fungují exhaustive a tree strategie
+- jak funguje history-aware ordering
+- jak se volí default strategie podle candidate space
 
-## Search Contracts
+## Core Contracts
 
 ### `SearchStrategy`
 
-Core contract:
+Interface:
 
 ```java
 interface SearchStrategy {
@@ -38,337 +30,298 @@ interface SearchStrategy {
 }
 ```
 
-Strategies may additionally support refinement:
+Volitelně:
 
 ```java
 boolean supportsRefinement();
-SearchResult refine(...);
+SearchResult refine(
+        SearchContext context,
+        List<BenchmarkCandidateReport> evaluatedSoFar,
+        int round,
+        Set<String> seenFingerprints
+);
 ```
 
-This lets the autotuner do:
+To znamená:
 
-1. initial selection
-2. measurement
-3. refinement based on measured candidates
+- search může být jednokolový
+- nebo iterativní
+
+### `SearchContext`
+
+Obsahuje:
+
+- `AutotuneRequest`
+- `CandidateSpace`
 
 ### `SearchResult`
 
-Contains:
+Obsahuje:
 
-- selected candidates for this step
-- one preferred candidate, if the strategy has one
+- `selectedCandidates`
+- `preferredCandidate`
+
+`preferredCandidate` je hint, ne execute contract.
 
 ### `SearchPolicy`
 
-Global search budget:
+Nese budget:
 
 - `maxCandidates`
 - `beamWidth`
 - `maxRounds`
 - `allowPruning`
 
-These values constrain strategy behavior but do not define strategy type.
+## Candidate Spaces
 
-## Candidate Generation and Refinement
+Search nepracuje přímo s raw knobs. Pracuje s candidate spaces.
 
-Search depends on:
+Základní typy:
 
 - `CandidateSpace`
-- optionally `RefinableCandidateSpace`
+- `RefinableCandidateSpace`
 
 `CandidateSpace`:
 
-- generates candidates for the initial phase
+- umí vygenerovat počáteční kandidáty
 
 `RefinableCandidateSpace`:
 
-- can additionally generate neighbor candidates around an already known candidate
+- umí generovat sousedy kolem již známého kandidáta
 
-This is what makes tree search possible without introducing a second hidden execution model.
+To je to, co umožňuje tree search bez paralelního execute modelu.
+
+## Search Lifecycle In Autotune
+
+`DefaultAutotuneSession` dnes dělá:
+
+1. `search(context)` pro initial batch
+2. kandidáty validuje a měří
+3. pokud strategie umí refinement:
+   - volá `refine(...)`
+   - znovu validuje a měří nový batch
+4. vybere best finalist podle median
+
+Tedy:
+
+- search vrstva nikdy nevolá measurement přímo
+- session ji používá jako policy vrstvu nad evaluation loop
 
 ## Simple Strategies
 
-### Exhaustive
+### `ExhaustiveSearchStrategy`
 
-- [ExhaustiveSearchStrategy.java](./search/ExhaustiveSearchStrategy.java)
+Použij, když:
 
-Behavior:
+- candidate grid je malý
+- chceš úplné pokrytí
 
-- generate all candidates
-- keep first `maxCandidates`
+Výhody:
 
-Best use:
+- jednoduchost
+- žádná heuristická chyba
 
-- tiny candidate spaces
+Nevýhoda:
 
-### FirstK
+- neškáluje
 
-- [FirstKSearchStrategy.java](./search/FirstKSearchStrategy.java)
+### `FirstKSearchStrategy`
 
-Behavior:
+Použij, když:
 
-- take the first `K`
+- chceš seed batch
+- potřebuješ budget guard
 
-Best use:
+Sama o sobě většinou není finální strategie. Často slouží jako seed pro tree strategie.
 
-- seed strategy
-- budget guard
+### `CompositeSearchStrategy`
 
-### Composite
+Použij, když:
 
-- [CompositeSearchStrategy.java](./search/CompositeSearchStrategy.java)
-
-Behavior:
-
-- run multiple strategies
-- merge outputs
-- deduplicate by candidate name
-
-Best use:
-
-- combine seed heuristics
+- chceš spojit více ordering heuristik
+- chceš deduplikovaný seznam seed kandidátů
 
 ## Tree Strategies
 
-Tree search works because:
+Tree search dává smysl jen pokud candidate space umí refinement nebo sousednost.
 
-- we fingerprint candidates
-- we can generate neighbors through `RefinableCandidateSpace`
-- we keep lineage in a search tree
+### `TreeBeamSearchStrategy`
 
-Relevant classes:
+Myšlenka:
 
-- [SearchTreeNode.java](./search/SearchTreeNode.java)
-- [SearchTreeSnapshot.java](./search/SearchTreeSnapshot.java)
-- [SearchTreeReport.java](./search/SearchTreeReport.java)
+1. vyber seed kandidáty
+2. změř je
+3. nech si nejlepší frontier podle `beamWidth`
+4. expanduj jejich neighborhood
+5. opakuj
 
-### Tree Beam
+Použij, když:
 
-- [TreeBeamSearchStrategy.java](./search/TreeBeamSearchStrategy.java)
+- chceš rozumný kompromis mezi šířkou a cenou
+- candidate space je refinable
 
-Algorithm:
+### `BestFirstTreeSearchStrategy`
 
-1. get seed candidates
-2. store them as root nodes
-3. after measurement, select best `beamWidth` frontier nodes
-4. expand their neighbors
-5. next frontier becomes those neighbors
+Myšlenka:
 
-This is the simplest useful tree strategy.
+- v každém kroku expanduj jen nejperspektivnější frontier node
 
-### Best-First Tree
+Použij, když:
 
-- [BestFirstTreeSearchStrategy.java](./search/BestFirstTreeSearchStrategy.java)
+- score modelu věříš
+- chceš agresivní focus místo breadth
 
-Algorithm:
+### `BranchAndBoundSearchStrategy`
 
-1. measure current frontier
-2. pick the single best frontier node according to a score model
-3. expand only its neighborhood
+Myšlenka:
 
-This is narrower than beam search and works well when:
+1. měj current best measured score
+2. pro frontier node spočítej optimistic bound
+3. pokud bound je horší než best, větev zahodíš
+4. expanduješ jen zbývající větve
 
-- score model is already meaningful
-- candidate space is large
+Použij, když:
 
-### Branch-and-Bound Tree
+- workload family má rozumný bound model
+- candidate space je větší
 
-- [BranchAndBoundSearchStrategy.java](./search/BranchAndBoundSearchStrategy.java)
+## Score And Bound Models
 
-Algorithm:
+### Score Model
 
-1. compute current best measured score
-2. for every frontier node compute an optimistic bound
-3. if bound is worse than current best, prune the branch
-4. expand only remaining branches
-
-This is the first strategy here that can suppress whole subtrees intentionally.
-
-## Score and Bound Models
-
-### Score model
-
-Relevant classes:
+Relevantní třídy:
 
 - [CandidateScoreModel.java](./search/CandidateScoreModel.java)
 - [MedianSteadyStateScoreModel.java](./search/MedianSteadyStateScoreModel.java)
 
-Current default scoring:
+Aktuální default skóre je:
 
-- lower steady-state median time is better
+- nižší steady-state median = lepší
 
-### Bound model
+### Bound Models
 
-Relevant classes:
+Relevantní třídy:
 
 - [CandidateBoundModel.java](./search/CandidateBoundModel.java)
 - [ZeroBoundModel.java](./search/ZeroBoundModel.java)
 - [ParentScoreBoundModel.java](./search/ParentScoreBoundModel.java)
 - [WorkloadAwareBoundModel.java](./search/WorkloadAwareBoundModel.java)
 
-#### Conv2d bound
+`WorkloadAwareBoundModel` dnes dispatchuje podle `WorkloadKind`:
 
-- [Conv2dBoundModel.java](./search/Conv2dBoundModel.java)
+- `CONV2D`
+- `MATMUL`
+- `TRANSFORMER_HOT_PATH`
+- jinak generic fallback
 
-Current heuristic:
+To znamená:
 
-- `HEURISTIC` lowering is treated as more promising
-- `OFF` is treated as less promising
-
-#### MatMul bound
-
-- [MatMulBoundModel.java](./search/MatMulBoundModel.java)
-
-Current heuristic:
-
-- BLAS-enabled candidates are treated as more promising than `NONE`
-
-#### Transformer hot path bound
-
-- [TransformerHotPathBoundModel.java](./search/TransformerHotPathBoundModel.java)
-
-Current heuristic:
-
-- `attentionMatMul=AUTO` or `FORCE_ON` is usually more promising than `FORCE_OFF`
-- BLAS-enabled variants are treated as more promising
-
-These are heuristic bounds, not proofs.
-That is acceptable as long as the bound role stays explicit.
+- search heuristiky mohou být workload-aware
+- ale pořád vracejí jen ordering/pruning hint, ne execute semantics
 
 ## History-Aware Search
 
-- [HistoryAwareSearchStrategy.java](./search/HistoryAwareSearchStrategy.java)
+`HistoryAwareSearchStrategy` je wrapper nad jinou strategií.
 
-Purpose:
+Dělá:
 
-- reuse persisted best-profile and candidate-history knowledge
+1. načte persisted best profile pro aktuální hardware + workload
+2. pokud sedí fingerprint, posune ho dopředu
+3. načte history entries pro stejný kontext
+4. preferuje historicky dobré kandidáty
+5. může přeskočit historicky invalid kandidáty, pokud je pruning povolený
 
-Algorithm:
+Důležitá realita:
 
-1. load persisted best profile for current hardware + workload
-2. move it to the front of candidate ordering if present
-3. load history entries for the same fingerprint context
-4. prefer historically good candidates
-5. optionally prune historically invalid candidates if pruning is enabled
-
-This is the first search layer that learns between runs.
+- neprovádí vlastní scoring
+- jen reorderuje candidate space před delegováním na vnitřní strategii
 
 ## Default Strategy Selection
 
+Výběr default strategie řeší:
+
 - [AutotuneDefaultStrategySelector.java](./session/AutotuneDefaultStrategySelector.java)
 
-Current default logic:
+Aktuální logika:
 
-- non-refinable space -> `Exhaustive`
-- medium refinable space -> `TreeBeam`
-- larger refinable space -> `BranchAndBound` with workload-aware bounds
-- if persistence is enabled -> wrap with `HistoryAwareSearchStrategy`
-
-This is intentionally policy, not hardwired inside `SearchStrategy`.
-
-## Choosing a Strategy in Practice
-
-Use:
-
-- `Exhaustive`
-  - when the candidate grid is small and you want a complete answer
-- `TreeBeam`
-  - when the space is refinable and you want breadth without full explosion
-- `BestFirstTree`
-  - when you already trust your score model and want aggressive focus
-- `BranchAndBound`
-  - when the workload family has useful optimistic bounds
-- `HistoryAware`
-  - when persistence exists and you want cross-run reuse
-
-Typical examples:
-
-- small matmul knob sweep:
+- non-refinable space
   - `Exhaustive`
-- medium conv2d lowering/runtime sweep:
-  - `TreeBeam` or `BranchAndBound`
-- repeated transformer tuning on the same machine:
-  - `HistoryAware(BranchAndBound(...))`
+- refinable space a dost velký candidate count
+  - `BranchAndBound`
+- refinable space střední velikosti
+  - `TreeBeam`
+- pokud je persistence zapnutá
+  - obalí se do `HistoryAwareSearchStrategy`
 
-## Examples
+Tedy:
 
-### Example 1: explicit exhaustive search
+- default selection není natvrdo uvnitř strategií
+- je to policy vrstva
 
-```java
-SearchStrategy strategy = new ExhaustiveSearchStrategy();
-```
+## Example: Small Stage-Order Space
 
-Input:
+Pokud ladíš malý stage-order grid:
 
-- candidate space with `N` profiles
+- candidate space je malý
+- refinement typicky nedává smysl
 
-Output:
+Použij:
 
-- up to `maxCandidates` selected candidates
-- no refinement rounds
+- `ExhaustiveSearchStrategy`
 
-### Example 2: history-aware branch-and-bound
+## Example: Matmul Runtime Search
 
-```java
-SearchStrategy strategy = new HistoryAwareSearchStrategy(
-        new BranchAndBoundSearchStrategy(
-                new MedianSteadyStateScoreModel(),
-                new WorkloadAwareBoundModel()
-        ),
-        resolver,
-        historyStore,
-        bestProfilePath,
-        historyPath
-);
-```
+Pokud máš větší refinable matmul candidate space:
 
-Input:
+- tiles
+- microkernels
+- thresholds
 
-- current workload context
-- candidate history for the same hardware/workload fingerprint
+rozumný default je:
 
-Output:
+- `BranchAndBoundSearchStrategy`
 
-- historically strong candidates move earlier
-- obviously weak branches can be pruned before full evaluation
+protože:
 
-- first `maxCandidates` candidates in generation order
+- prostor je větší
+- `WorkloadAwareBoundModel` umí matmul hinty
 
-### Example 2: tree beam refinement
+## Example: Repeated Tuning On Same Machine
 
-```java
-SearchStrategy strategy = new TreeBeamSearchStrategy(
-        new FirstKSearchStrategy(4),
-        4,
-        8
-);
-```
+Pokud máš už uložené:
 
-Meaning:
+- best profile
+- history JSONL
 
-- seed with first 4 candidates
-- after each round, keep best 4 frontier nodes
-- expand up to 8 neighbors per node
+obal strategii přes:
 
-### Example 3: branch-and-bound for transformer search
+- `HistoryAwareSearchStrategy`
 
-```java
-SearchStrategy strategy = new BranchAndBoundSearchStrategy(
-        new FirstKSearchStrategy(4),
-        new MedianSteadyStateScoreModel(),
-        new WorkloadAwareBoundModel(),
-        4,
-        8
-);
-```
+Smysl:
 
-Input:
+- znovu otestuješ pravděpodobně dobré kandidáty dřív
+- můžeš vynechat historicky invalid varianty
 
-- transformer workload
-- refinable profile grid
+## Search Does Not Own Persistence
 
-Output:
+Search může persistence číst jako prior, ale nevlastní její lifecycle.
 
-- tree exploration biased by:
-  - measured median score
-  - transformer-specific optimistic bound heuristics
+Persistence lifecycle řeší session/store vrstvy.
+
+To je důležité, protože:
+
+- historie je pomocná evidence
+- search ji nesmí proměnit v execute source of truth
+
+## Common Mistakes
+
+- chtít po search strategii, aby sama měřila kandidáty
+- používat branch-and-bound bez rozumného bound modelu
+- zapomenout na candidate deduplikaci přes fingerprint
+- považovat history-aware reordering za důkaz, že uložený winner je stále správný
+
+## Related Docs
+
+- architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
+- persistence: [PERSISTENCE.md](./PERSISTENCE.md)
+- reporting: [REPORTING.md](./REPORTING.md)
