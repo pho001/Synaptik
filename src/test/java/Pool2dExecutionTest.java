@@ -5,7 +5,7 @@ import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.Pool2dOptions;
+import tensor.options.Pool2dOptions;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

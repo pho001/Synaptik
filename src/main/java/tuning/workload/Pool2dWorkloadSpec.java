@@ -2,8 +2,8 @@ package tuning.workload;
 
 import config.profile.ExecutionProfile;
 import tensor.DataType;
-import tensor.Pool2dOptions;
 import tensor.Tensor;
+import tensor.options.Pool2dOptions;
 import tuning.validate.ValidationReference;
 import tuning.validate.ValidationTarget;
 

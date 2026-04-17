@@ -36,6 +36,7 @@ public class RewriteRule implements OptimizationRule {
     private static List<OptimizationRule> createDelegates(RewriteConfig config) {
         RewriteConfig resolved = config == null ? RewriteConfig.defaults() : config;
         java.util.ArrayList<OptimizationRule> delegates = new java.util.ArrayList<>();
+        addImportCanonicalizationDelegates(delegates, resolved);
         if (resolved.algebraic().enabled()) {
             delegates.add(new AlgebraicRewrite());
         }
@@ -49,10 +50,16 @@ public class RewriteRule implements OptimizationRule {
         if (resolved.conv2dLowering().mode() != Conv2dLoweringMode.OFF) {
             delegates.add(new Conv2dLoweringRewrite(resolved.conv2dLowering()));
         }
+        return List.copyOf(delegates);
+    }
+
+    private static void addImportCanonicalizationDelegates(
+            java.util.ArrayList<OptimizationRule> delegates,
+            RewriteConfig resolved
+    ) {
         if (resolved.piecewiseLowering().anyEnabled()) {
             delegates.add(new PiecewiseLoweringRewrite(resolved.piecewiseLowering()));
         }
-        return List.copyOf(delegates);
     }
 
     @Override

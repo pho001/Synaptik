@@ -10,7 +10,7 @@ import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 import operations.crossEntropyLossIndices;
 import tensor.DataType;
-import tensor.LossReduction;
+import tensor.loss.LossReduction;
 import tensor.Tensor;
 import tensor.TensorMetadata;
 

@@ -11,8 +11,8 @@ import operations.mean;
 import operations.scatterAdd;
 import operations.softmax;
 import operations.sum;
-import tensor.LossReduction;
 import tensor.Tensor;
+import tensor.loss.LossReduction;
 
 import java.util.List;
 

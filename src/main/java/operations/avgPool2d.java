@@ -1,6 +1,6 @@
 package operations;
 
-import tensor.Pool2dOptions;
+import tensor.options.Pool2dOptions;
 
 public final class avgPool2d implements Operation {
     private final Pool2dOptions options;

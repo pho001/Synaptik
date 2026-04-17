@@ -4,6 +4,7 @@ import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileAssembler;
 import config.profile.PlatformRuntimeProfile;
 import tuning.measure.MeasurementEngine;
+import tuning.measure.MeasurementPolicy;
 import tuning.measure.MeasurementResult;
 import tuning.report.BenchmarkCandidateReport;
 import tuning.report.BenchmarkReport;
@@ -24,6 +25,10 @@ import java.util.Map;
 import java.util.Objects;
 
 final class DefaultPlatformCalibrationSession implements PlatformCalibrationSession {
+    private static final String WARMUP_OVERRIDE_PROPERTY = "synaptik.calibration.warmupIters";
+    private static final String MEASURE_OVERRIDE_PROPERTY = "synaptik.calibration.measureIters";
+    private static final String REPEATS_OVERRIDE_PROPERTY = "synaptik.calibration.repeats";
+
     private final PlatformCalibrationRequest request;
     private final MeasurementEngine measurementEngine;
     private final ValidationEngine validationEngine;
@@ -276,7 +281,7 @@ final class DefaultPlatformCalibrationSession implements PlatformCalibrationSess
                             leaderScore,
                             "measuring candidate"
                     ));
-                    MeasurementResult measurement = measurementEngine.measure(entry.toCandidate(), workload, step.preset().benchmarkMeasurement());
+                    MeasurementResult measurement = measurementEngine.measure(entry.toCandidate(), workload, calibrationMeasurementPolicy(step));
                     candidateReports.add(BenchmarkCandidateReport.success(entry, validation, measurement));
                     double median = measurement.steadyStateStats().medianMs();
                     if (Double.isFinite(median) && median < leaderScore) {
@@ -356,5 +361,33 @@ final class DefaultPlatformCalibrationSession implements PlatformCalibrationSess
 
     private void emit(PlatformCalibrationProgressEvent event) {
         request.progressListener().onEvent(event);
+    }
+
+    private static MeasurementPolicy calibrationMeasurementPolicy(PlatformCalibrationStep step) {
+        MeasurementPolicy base = step.preset().benchmarkMeasurement();
+        Integer warmupIters = integerProperty(WARMUP_OVERRIDE_PROPERTY);
+        Integer measureIters = integerProperty(MEASURE_OVERRIDE_PROPERTY);
+        Integer repeats = integerProperty(REPEATS_OVERRIDE_PROPERTY);
+        if (warmupIters == null && measureIters == null && repeats == null) {
+            return base;
+        }
+        return new MeasurementPolicy(
+                warmupIters == null ? base.warmupIters() : warmupIters,
+                measureIters == null ? base.measureIters() : measureIters,
+                repeats == null ? base.repeats() : repeats,
+                base.measureCompile(),
+                base.measurePrepare(),
+                base.measureColdRun(),
+                base.measureSteadyState(),
+                base.captureStepTrace()
+        );
+    }
+
+    private static Integer integerProperty(String name) {
+        String raw = System.getProperty(name);
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return Integer.parseInt(raw.trim());
     }
 }

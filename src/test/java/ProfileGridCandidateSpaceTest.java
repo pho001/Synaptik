@@ -38,7 +38,7 @@ public class ProfileGridCandidateSpaceTest {
         var candidates = space.generate(StandardWorkloads.conv2d(
                 "conv",
                 1, 8, 8, 8, 8, 3, 3,
-                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                 true
         ));
 
@@ -96,7 +96,7 @@ public class ProfileGridCandidateSpaceTest {
         );
 
         var mlpCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.mlpWorkloadMutators())
-                .generate(StandardWorkloads.mlpClassification("mlp_test", 8, 16, 24, 12, 4, tensor.LossReduction.MEAN));
+                .generate(StandardWorkloads.mlpClassification("mlp_test", 8, 16, 24, 12, 4, tensor.loss.LossReduction.MEAN));
         var normCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.normalizationWorkloadMutators())
                 .generate(StandardWorkloads.normalization(
                         "norm_test",
@@ -107,7 +107,7 @@ public class ProfileGridCandidateSpaceTest {
                 .generate(StandardWorkloads.indexedLoss(
                         "loss_test",
                         tuning.workload.LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES,
-                        4, 8, tensor.LossReduction.MEAN
+                        4, 8, tensor.loss.LossReduction.MEAN
                 ));
         var genericCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.genericWorkloadMutators())
                 .generate(new tuning.workload.TensorRootWorkloadSpec(

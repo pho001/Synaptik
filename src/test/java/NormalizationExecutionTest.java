@@ -8,6 +8,7 @@ import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class NormalizationExecutionTest {
 
@@ -90,6 +91,49 @@ public class NormalizationExecutionTest {
                 3.0 / Math.sqrt(12.5),
                 4.0 / Math.sqrt(12.5)
         }, out.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void layerNormBackwardSupportsMultipleLeadingAxes() {
+        Tensor input = new Tensor(new double[]{
+                1, 2, 3, 4,
+                5, 6, 7, 8,
+                9, 10, 11, 12,
+                13, 14, 15, 16,
+                17, 18, 19, 20,
+                21, 22, 23, 24
+        }, new int[]{2, 3, 4}, null, "input", DataType.FLOAT64);
+        Tensor gamma = new Tensor(new double[]{1, 1, 1, 1}, new int[]{4}, null, "gamma", DataType.FLOAT64);
+        Tensor beta = new Tensor(new double[]{0, 0, 0, 0}, new int[]{4}, null, "beta", DataType.FLOAT64);
+        gamma.setRequiresGrad(true);
+        beta.setRequiresGrad(true);
+
+        Tensor loss = input.layerNorm(gamma, beta, 1e-12).sum();
+        CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertEquals(4, gamma.getGradient().getFlatDataSize());
+        assertEquals(4, beta.getGradient().getFlatDataSize());
+    }
+
+    @Test
+    void rmsNormBackwardSupportsMultipleLeadingAxes() {
+        Tensor input = new Tensor(new double[]{
+                1, 2, 3, 4,
+                5, 6, 7, 8,
+                9, 10, 11, 12,
+                13, 14, 15, 16,
+                17, 18, 19, 20,
+                21, 22, 23, 24
+        }, new int[]{2, 3, 4}, null, "input", DataType.FLOAT64);
+        Tensor gamma = new Tensor(new double[]{1, 1, 1, 1}, new int[]{4}, null, "gamma", DataType.FLOAT64);
+        gamma.setRequiresGrad(true);
+
+        Tensor loss = input.rmsNorm(gamma, 1e-12).sum();
+        CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertEquals(4, gamma.getGradient().getFlatDataSize());
     }
 
     @Test

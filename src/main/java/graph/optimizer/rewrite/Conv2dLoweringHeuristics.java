@@ -1,7 +1,7 @@
 package graph.optimizer.rewrite;
 
 import operations.conv2d;
-import tensor.Conv2dOptions;
+import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
 final class Conv2dLoweringHeuristics {

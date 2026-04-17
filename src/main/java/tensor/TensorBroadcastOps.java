@@ -6,14 +6,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-final class TensorBroadcastOps {
+public final class TensorBroadcastOps {
     private TensorBroadcastOps() {}
 
-    static BroadcastPlan planBinary(Tensor first, Tensor second) {
+    public static BroadcastPlan planBinary(Tensor first, Tensor second) {
         return BroadcastPlanner.plan(first, second);
     }
 
-    static Tensor sumToShape(Tensor gradOut, int[] targetShape) {
+    public static Tensor sumToShape(Tensor gradOut, int[] targetShape) {
         int[] outShape = gradOut.getShape();
         int[] normalizedTarget = targetShape.length == 0 ? new int[]{1} : targetShape.clone();
         if (Arrays.equals(outShape, normalizedTarget)) {

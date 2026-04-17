@@ -47,7 +47,7 @@ public final class FrameworkEtalon {
                 StandardWorkloads.conv2d(
                         "etalon_conv2d_resnet_3x3",
                         2, 64, 128, 56, 56, 3, 3,
-                        tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                        tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                         true
                 ),
                 StandardWorkloads.normalization(
@@ -59,7 +59,7 @@ public final class FrameworkEtalon {
                         "etalon_max_pool2d_small",
                         tuning.workload.Pool2dWorkloadSpec.PoolKind.MAX,
                         2, 8, 16, 16,
-                        tensor.Pool2dOptions.square(2)
+                        tensor.options.Pool2dOptions.square(2)
                 ),
                 StandardWorkloads.transformerHotPath("etalon_transformer_hot_path")
         );
@@ -72,18 +72,18 @@ public final class FrameworkEtalon {
                 StandardWorkloads.mlpClassification(
                         "etalon_train_mlp_small",
                         16, 32, 48, 24, 6,
-                        tensor.LossReduction.MEAN
+                        tensor.loss.LossReduction.MEAN
                 ),
                 StandardWorkloads.mlpClassification(
                         "etalon_train_mlp_heavy",
                         64, 256, 512, 256, 32,
-                        tensor.LossReduction.MEAN
+                        tensor.loss.LossReduction.MEAN
                 ),
                 StandardWorkloads.indexedLoss(
                         "etalon_train_cross_entropy",
                         tuning.workload.LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES,
                         8, 16,
-                        tensor.LossReduction.MEAN
+                        tensor.loss.LossReduction.MEAN
                 )
         );
     }

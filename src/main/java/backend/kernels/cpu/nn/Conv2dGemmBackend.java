@@ -4,7 +4,7 @@ import backend.kernels.cpu.*;
 
 import backend.blas.OpenBlasFfmBridge;
 import operations.conv2dGemm;
-import tensor.Conv2dOptions;
+import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
 final class Conv2dGemmBackend {

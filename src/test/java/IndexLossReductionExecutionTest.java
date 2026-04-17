@@ -3,7 +3,7 @@ import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.LossReduction;
+import tensor.loss.LossReduction;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

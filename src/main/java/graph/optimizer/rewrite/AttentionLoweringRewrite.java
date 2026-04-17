@@ -5,9 +5,9 @@ import operations.mulScalar;
 import operations.permute;
 import operations.softmax;
 import operations.where;
-import tensor.AttentionOptions;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.options.AttentionOptions;
 
 import java.util.Arrays;
 import java.util.List;

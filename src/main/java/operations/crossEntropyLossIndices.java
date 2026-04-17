@@ -1,6 +1,6 @@
 package operations;
 
-import tensor.LossReduction;
+import tensor.loss.LossReduction;
 
 import java.util.Objects;
 

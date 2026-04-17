@@ -9,7 +9,9 @@ import tuning.session.BenchmarkRequest;
 import tuning.session.BenchmarkSuiteRequest;
 import tuning.session.TuningDefaults;
 import tuning.session.TuningPreset;
-import tensor.Conv2dOptions;
+import tensor.loss.LossReduction;
+import tensor.options.Conv2dOptions;
+import tensor.options.Pool2dOptions;
 
 import java.util.List;
 
@@ -51,7 +53,7 @@ public final class StandardWorkloads {
             int hidden1,
             int hidden2,
             int classes,
-            tensor.LossReduction reduction
+            LossReduction reduction
     ) {
         return new MlpClassificationWorkloadSpec(name, batch, inputFeatures, hidden1, hidden2, classes, reduction);
     }
@@ -75,7 +77,7 @@ public final class StandardWorkloads {
             int channels,
             int height,
             int width,
-            tensor.Pool2dOptions options
+            Pool2dOptions options
     ) {
         return new Pool2dWorkloadSpec(name, kind, batch, channels, height, width, options);
     }
@@ -85,7 +87,7 @@ public final class StandardWorkloads {
             LossWorkloadSpec.LossKind kind,
             int batch,
             int classes,
-            tensor.LossReduction reduction
+            LossReduction reduction
     ) {
         return new LossWorkloadSpec(name, kind, batch, classes, reduction);
     }
@@ -107,16 +109,16 @@ public final class StandardWorkloads {
                 .register(mlpClassification(
                         "mlp_classifier_small",
                         16, 32, 48, 24, 6,
-                        tensor.LossReduction.MEAN
+                        LossReduction.MEAN
                 ))
                 .register(mlpClassification(
                         "mlp_classifier_blas_heavy",
                         64, 256, 512, 256, 32,
-                        tensor.LossReduction.MEAN
+                        LossReduction.MEAN
                 ))
                 .register(normalization("layer_norm_small", NormalizationWorkloadSpec.NormalizationKind.LAYER_NORM, 4, 64, 8, 1, 1e-5))
-                .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, tensor.Pool2dOptions.square(2)))
-                .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, tensor.LossReduction.MEAN))
+                .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, Pool2dOptions.square(2)))
+                .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
                 .register(transformerHotPath("transformer_hot_path"));
     }
 

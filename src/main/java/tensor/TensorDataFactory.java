@@ -4,6 +4,39 @@ public final class TensorDataFactory {
     private TensorDataFactory() {
     }
 
+    public static Tensor scalar(double value, DataType dataType) {
+        if (dataType == DataType.INT32) {
+            long integral = Math.round(value);
+            if (Math.abs(value - integral) > 1e-9) {
+                throw new IllegalArgumentException("INT32 scalar requires an integral value. got=" + value);
+            }
+            return new Tensor(new int[]{(int) integral}, new int[]{1}, null, "scalar_const", DataType.INT32);
+        }
+        return new Tensor(new double[]{value}, new int[]{1}, new int[]{1}, null, "scalar_const", dataType);
+    }
+
+    public static Tensor onesLike(Tensor other) {
+        int size = other.getFlatDataSize();
+        int[] shape = other.getShape().clone();
+        if (other.getDataType() == DataType.INT32) {
+            int[] data = new int[size];
+            java.util.Arrays.fill(data, 1);
+            return new Tensor(data, shape, null, "ones_like", DataType.INT32);
+        }
+        double[] data = new double[size];
+        java.util.Arrays.fill(data, 1.0d);
+        return new Tensor(data, shape, null, "ones_like", other.getDataType());
+    }
+
+    public static Tensor zerosLike(Tensor other) {
+        int size = other.getFlatDataSize();
+        int[] shape = other.getShape().clone();
+        if (other.getDataType() == DataType.INT32) {
+            return new Tensor(new int[size], shape, null, "zeros_like", DataType.INT32);
+        }
+        return new Tensor(new double[size], shape, null, "zeros_like", other.getDataType());
+    }
+
     public static Tensor flatTensor(String label, double[] data, boolean requiresGrad, DataType dataType) {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");

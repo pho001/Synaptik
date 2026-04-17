@@ -2,8 +2,8 @@ package tuning.workload;
 
 import config.profile.ExecutionProfile;
 import tensor.DataType;
-import tensor.LossReduction;
 import tensor.Tensor;
+import tensor.loss.LossReduction;
 import tuning.validate.ValidationReference;
 
 import java.util.LinkedHashMap;

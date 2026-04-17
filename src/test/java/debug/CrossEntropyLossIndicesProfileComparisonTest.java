@@ -7,7 +7,7 @@ import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tensor.LossReduction;
+import tensor.loss.LossReduction;
 import tensor.Tensor;
 import tuning.report.TextBenchmarkReportRenderer;
 import tuning.session.BenchmarkEntry;

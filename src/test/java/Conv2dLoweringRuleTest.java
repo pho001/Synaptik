@@ -7,7 +7,7 @@ import graph.CompiledGraph;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.rewrite.Conv2dLoweringRewrite;
 import org.junit.jupiter.api.Test;
-import tensor.Conv2dOptions;
+import tensor.options.Conv2dOptions;
 import tensor.DataType;
 import tensor.Tensor;
 

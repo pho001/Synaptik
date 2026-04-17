@@ -6,7 +6,7 @@ import operations.avgPool2d;
 import operations.avgPool2dBackwardInput;
 import operations.maxPool2d;
 import operations.maxPool2dBackwardInput;
-import tensor.Pool2dOptions;
+import tensor.options.Pool2dOptions;
 import tensor.Tensor;
 
 final class Pool2dDirectBackend {

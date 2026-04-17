@@ -5,7 +5,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
-import tensor.AttentionOptions;
+import tensor.options.AttentionOptions;
 import tensor.DataType;
 import tensor.Tensor;
 

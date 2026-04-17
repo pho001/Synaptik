@@ -5,7 +5,7 @@ import backend.kernels.cpu.*;
 import operations.conv2d;
 import operations.conv2dBackwardInput;
 import operations.conv2dBackwardWeight;
-import tensor.Conv2dOptions;
+import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
 final class Conv2dDirectBackend {

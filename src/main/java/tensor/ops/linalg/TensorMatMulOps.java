@@ -1,0 +1,34 @@
+package tensor.ops.linalg;
+
+import operations.Operation;
+import tensor.Tensor;
+import tensor.TensorPrimitiveBuilder;
+
+public final class TensorMatMulOps {
+    private TensorMatMulOps() {
+    }
+
+    public static Tensor matmul(Tensor first, Tensor second) {
+        MatMulSpec spec = MatMulSpec.resolve(first, second);
+        Operation op = spec.operation();
+        Tensor out = TensorPrimitiveBuilder.binary(first, second, spec.outShape(), op, "matmul", spec.outputType());
+        out.setBackwardFunction(() -> {
+            Tensor outGrad = out.getGradient();
+            if (outGrad == null) {
+                return;
+            }
+
+            if (first.getRequiresGrad()) {
+                Tensor gradRaw = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(second));
+                Tensor gradForFirst = LinalgSupport.sumToShape(gradRaw, first.getShapeUnsafe());
+                LinalgSupport.accumulateGradient(first, gradForFirst);
+            }
+            if (second.getRequiresGrad()) {
+                Tensor gradRaw = LinalgSupport.transposeLastTwoAxes(first).matmul(outGrad);
+                Tensor gradForSecond = LinalgSupport.sumToShape(gradRaw, second.getShapeUnsafe());
+                LinalgSupport.accumulateGradient(second, gradForSecond);
+            }
+        });
+        return out;
+    }
+}

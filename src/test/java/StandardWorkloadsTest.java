@@ -70,7 +70,7 @@ public class StandardWorkloadsTest {
         var conv = StandardWorkloads.conv2d(
                         "conv_small_test",
                         1, 4, 4, 8, 8, 3, 3,
-                        tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                        tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                         true
                 )
                 .instantiate(new WorkloadEnvironment(profile));
@@ -85,21 +85,21 @@ public class StandardWorkloadsTest {
         var mlp = StandardWorkloads.mlpClassification(
                         "mlp_test",
                         8, 16, 24, 12, 4,
-                        tensor.LossReduction.MEAN
+                        tensor.loss.LossReduction.MEAN
                 )
                 .instantiate(new WorkloadEnvironment(profile));
         var pool = StandardWorkloads.pool2d(
                         "pool_test",
                         tuning.workload.Pool2dWorkloadSpec.PoolKind.MAX,
                         1, 4, 8, 8,
-                        tensor.Pool2dOptions.square(2)
+                        tensor.options.Pool2dOptions.square(2)
                 )
                 .instantiate(new WorkloadEnvironment(profile));
         var loss = StandardWorkloads.indexedLoss(
                         "loss_test",
                         tuning.workload.LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES,
                         4, 8,
-                        tensor.LossReduction.MEAN
+                        tensor.loss.LossReduction.MEAN
                 )
                 .instantiate(new WorkloadEnvironment(profile));
 

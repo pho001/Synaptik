@@ -47,7 +47,7 @@ public class AutotuneDefaultStrategySelectorTest {
                 tuning.workload.StandardWorkloads.conv2d(
                         "conv",
                         1, 8, 8, 8, 8, 3, 3,
-                        tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                        tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                         true
                 ),
                 space,

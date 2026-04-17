@@ -67,7 +67,7 @@ public class BFloat16BlasDispatchTest {
     void bfloat16Conv2dLoweringBuildsConv2dGemmStep() {
         Tensor input = new Tensor(random(2 * 64 * 32 * 32), new int[]{2, 64, 32, 32}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
-        Tensor out = input.conv2d(weight, tensor.Conv2dOptions.defaults().withPadding(1, 1)).sum();
+        Tensor out = input.conv2d(weight, tensor.options.Conv2dOptions.defaults().withPadding(1, 1)).sum();
 
         OptimizerConfig optimizer = new OptimizerConfig(
                 List.of(OptimizerStage.AR),

@@ -62,7 +62,7 @@ public class SearchStrategiesTest {
         var workload = tuning.workload.StandardWorkloads.conv2d(
                 "conv_search",
                 1, 8, 8, 8, 8, 3, 3,
-                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                 true
         );
         var base = new ExecutionProfile(
@@ -124,7 +124,7 @@ public class SearchStrategiesTest {
         var workload = tuning.workload.StandardWorkloads.conv2d(
                 "conv_tree",
                 1, 8, 8, 8, 8, 3, 3,
-                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                 true
         );
         var base = new ExecutionProfile(
@@ -187,7 +187,7 @@ public class SearchStrategiesTest {
         var workload = tuning.workload.StandardWorkloads.conv2d(
                 "conv_tree_report",
                 1, 8, 8, 8, 8, 3, 3,
-                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                 true
         );
         var base = new ExecutionProfile(
@@ -231,7 +231,7 @@ public class SearchStrategiesTest {
         var workload = tuning.workload.StandardWorkloads.conv2d(
                 "conv_best_first",
                 1, 8, 8, 8, 8, 3, 3,
-                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                 true
         );
         var base = new ExecutionProfile(
@@ -286,7 +286,7 @@ public class SearchStrategiesTest {
         var workload = tuning.workload.StandardWorkloads.conv2d(
                 "conv_bb",
                 1, 8, 8, 8, 8, 3, 3,
-                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                 true
         );
         var base = new ExecutionProfile(
@@ -345,7 +345,7 @@ public class SearchStrategiesTest {
         var workload = tuning.workload.StandardWorkloads.conv2d(
                 "conv_bound",
                 1, 8, 8, 8, 8, 3, 3,
-                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                 true
         );
         var request = new AutotuneRequest(

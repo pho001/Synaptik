@@ -1,6 +1,6 @@
 package operations;
 
-import tensor.Conv2dOptions;
+import tensor.options.Conv2dOptions;
 
 public final class conv2d implements Operation {
     private final Conv2dOptions options;

@@ -178,7 +178,7 @@ public final class CalibrationWorkloads {
         return StandardWorkloads.conv2d(
                 name,
                 2, 64, 128, 56, 56, 3, 3,
-                tensor.Conv2dOptions.defaults().withPadding(1, 1),
+                tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
                 true
         );
     }

@@ -220,7 +220,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         };
     }
 
-    private SignatureComponent conv2dSignature(tensor.Conv2dOptions options, int hasBias) {
+    private SignatureComponent conv2dSignature(tensor.options.Conv2dOptions options, int hasBias) {
         return IntArrayValue.copyOf(new int[]{
                 options.strideH(), options.strideW(),
                 options.padH(), options.padW(),
@@ -232,7 +232,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
 
     private SignatureComponent conv2dBackwardInputSignature(conv2dBackwardInput op) {
         int[] inputShape = op.getInputShape();
-        tensor.Conv2dOptions options = op.getOptions();
+        tensor.options.Conv2dOptions options = op.getOptions();
         return IntArrayValue.copyOf(new int[]{
                 inputShape[0], inputShape[1], inputShape[2], inputShape[3],
                 options.strideH(), options.strideW(),
@@ -244,7 +244,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
 
     private SignatureComponent conv2dBackwardWeightSignature(conv2dBackwardWeight op) {
         int[] weightShape = op.getWeightShape();
-        tensor.Conv2dOptions options = op.getOptions();
+        tensor.options.Conv2dOptions options = op.getOptions();
         return IntArrayValue.copyOf(new int[]{
                 weightShape[0], weightShape[1], weightShape[2], weightShape[3],
                 options.strideH(), options.strideW(),
@@ -254,7 +254,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         });
     }
 
-    private SignatureComponent pool2dSignature(tensor.Pool2dOptions options, int kind) {
+    private SignatureComponent pool2dSignature(tensor.options.Pool2dOptions options, int kind) {
         return IntArrayValue.copyOf(new int[]{
                 options.kernelH(), options.kernelW(),
                 options.strideH(), options.strideW(),
@@ -264,7 +264,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         });
     }
 
-    private SignatureComponent pool2dBackwardInputSignature(tensor.Pool2dOptions options, int[] inputShape, int kind) {
+    private SignatureComponent pool2dBackwardInputSignature(tensor.options.Pool2dOptions options, int[] inputShape, int kind) {
         return IntArrayValue.copyOf(new int[]{
                 inputShape[0], inputShape[1], inputShape[2], inputShape[3],
                 options.kernelH(), options.kernelW(),

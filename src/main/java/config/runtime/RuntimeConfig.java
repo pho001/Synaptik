@@ -76,10 +76,24 @@ public record RuntimeConfig(
         CpuKernelConfig cpuNoVecNoPar = new CpuKernelConfig(
                 1,                  // loopUnrollFactor
                 16, 16, 16,         // matmul tiles, tady v zásadě irelevantní bez BLAS/vector/parallel
-                Integer.MAX_VALUE,  // vectorMinSize => vektor se prakticky nikdy nezapne
-                Integer.MAX_VALUE,  // parallelMinSize => paralelizace se prakticky nikdy nezapne
+                Integer.MAX_VALUE,  // cheapVectorMinSize => vektor se prakticky nikdy nezapne
+                Integer.MAX_VALUE,  // transcendentalVectorMinSize => vektor se prakticky nikdy nezapne
+                Integer.MAX_VALUE,  // reductionVectorMinSize => vektor se prakticky nikdy nezapne
+                Integer.MAX_VALUE,  // cheapParallelMinSize => paralelizace se prakticky nikdy nezapne
+                Integer.MAX_VALUE,  // transcendentalParallelMinSize => paralelizace se prakticky nikdy nezapne
+                Integer.MAX_VALUE,  // reductionParallelMinSize => paralelizace se prakticky nikdy nezapne
                 Integer.MAX_VALUE,  // contiguousMaterializeThreshold
-                SumAccuracyMode.FAST
+                1,                  // lowCostTargetChunksPerWorker
+                1,                  // mediumCostTargetChunksPerWorker
+                1,                  // highCostTargetChunksPerWorker
+                Integer.MAX_VALUE,  // minScalarChunkSize
+                Integer.MAX_VALUE,  // minVectorChunkSize
+                Integer.MAX_VALUE,  // minReductionChunkSize
+                Integer.MAX_VALUE,  // commonPoolLowCostMaxWorkPerWorker
+                1,                  // fusedAsmVectorWidth
+                SumAccuracyMode.FAST,
+                Integer.MAX_VALUE,  // matMulParallelMinSize => matmul paralelizace se prakticky nikdy nezapne
+                config.backend.AttentionMatMulPolicy.AUTO
         );
         RuntimeConfig runtime = new RuntimeConfig(
                 cpuNoVecNoPar,

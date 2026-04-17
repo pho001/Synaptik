@@ -37,6 +37,10 @@ tasks.withType(JavaCompile).configureEach {
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
     jvmArgs runtimeJvmArgs
+    def configuredTestHeap = System.getProperty('synaptik.testMaxHeap')
+    if (configuredTestHeap != null && !configuredTestHeap.isBlank()) {
+        maxHeapSize = configuredTestHeap
+    }
 }
 
 tasks.withType(JavaExec).configureEach {

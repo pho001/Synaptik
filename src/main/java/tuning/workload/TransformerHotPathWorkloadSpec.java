@@ -3,9 +3,9 @@ package tuning.workload;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadKind;
 import config.profile.WorkloadProfile;
-import tensor.AttentionOptions;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.options.AttentionOptions;
 import tuning.validate.ValidationReference;
 import tuning.validate.ValidationTarget;
 

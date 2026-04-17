@@ -72,7 +72,6 @@ public final class CpuStridedElementWise {
         }
 
         int[] outShape = node.getShapeUnsafe();
-        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
         int outBaseOffset = node.getStorageOffsetUnsafe();
         int rank = outShape.length;
@@ -97,7 +96,7 @@ public final class CpuStridedElementWise {
         }
 
         if (rank == 1) {
-            forwardRank1(
+            forwardRank1F64(
                     op,
                     a,
                     b,
@@ -134,12 +133,22 @@ public final class CpuStridedElementWise {
             return;
         }
 
-        for (int i = 0; i < node.getFlatDataSize(); i++) {
-            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-            int aIdx = a != null ? remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset) : -1;
-            int bIdx = b != null ? remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset) : -1;
-            out[outIdx] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
-        }
+        forwardGenericF64(
+                op,
+                a,
+                b,
+                aStrides,
+                bStrides,
+                aBaseOffset,
+                bBaseOffset,
+                out,
+                outShape,
+                outStrides,
+                outBaseOffset,
+                node.getFlatDataSize(),
+                useFastExpApprox,
+                useFastTanhApprox
+        );
     }
 
     private static void forwardF32(
@@ -159,7 +168,6 @@ public final class CpuStridedElementWise {
         }
 
         int[] outShape = node.getShapeUnsafe();
-        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
         int outBaseOffset = node.getStorageOffsetUnsafe();
         int rank = outShape.length;
@@ -184,14 +192,21 @@ public final class CpuStridedElementWise {
         }
 
         if (rank == 1) {
-            int strideA = a != null ? aStrides[0] : 0;
-            int strideB = b != null ? bStrides[0] : 0;
-            for (int i = 0; i < node.getFlatDataSize(); i++) {
-                int outIdx = outBaseOffset + i * outStrides[0];
-                int aIdx = a != null ? aBaseOffset + i * strideA : -1;
-                int bIdx = b != null ? bBaseOffset + i * strideB : -1;
-                out[outIdx] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
-            }
+            forwardRank1F32(
+                    op,
+                    a,
+                    b,
+                    aStrides,
+                    bStrides,
+                    aBaseOffset,
+                    bBaseOffset,
+                    out,
+                    outStrides[0],
+                    outBaseOffset,
+                    node.getFlatDataSize(),
+                    useFastExpApprox,
+                    useFastTanhApprox
+            );
             return;
         }
 
@@ -214,12 +229,22 @@ public final class CpuStridedElementWise {
             return;
         }
 
-        for (int i = 0; i < node.getFlatDataSize(); i++) {
-            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-            int aIdx = a != null ? remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset) : -1;
-            int bIdx = b != null ? remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset) : -1;
-            out[outIdx] = evalF32(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
-        }
+        forwardGenericF32(
+                op,
+                a,
+                b,
+                aStrides,
+                bStrides,
+                aBaseOffset,
+                bBaseOffset,
+                out,
+                outShape,
+                outStrides,
+                outBaseOffset,
+                node.getFlatDataSize(),
+                useFastExpApprox,
+                useFastTanhApprox
+        );
     }
 
     private static void forwardBF16(
@@ -235,7 +260,6 @@ public final class CpuStridedElementWise {
         }
 
         int[] outShape = node.getShapeUnsafe();
-        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
         int outBaseOffset = node.getStorageOffsetUnsafe();
         int rank = outShape.length;
@@ -260,23 +284,40 @@ public final class CpuStridedElementWise {
         }
 
         if (rank == 1) {
-            int strideA = a != null ? aStrides[0] : 0;
-            int strideB = b != null ? bStrides[0] : 0;
-            for (int i = 0; i < node.getFlatDataSize(); i++) {
-                int outIdx = outBaseOffset + i * outStrides[0];
-                int aIdx = a != null ? aBaseOffset + i * strideA : -1;
-                int bIdx = b != null ? bBaseOffset + i * strideB : -1;
-                out[outIdx] = evalF16(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
-            }
+            forwardRank1BF16(
+                    op,
+                    a,
+                    b,
+                    aStrides,
+                    bStrides,
+                    aBaseOffset,
+                    bBaseOffset,
+                    out,
+                    outStrides[0],
+                    outBaseOffset,
+                    node.getFlatDataSize(),
+                    useFastExpApprox,
+                    useFastTanhApprox
+            );
             return;
         }
 
-        for (int i = 0; i < node.getFlatDataSize(); i++) {
-            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-            int aIdx = a != null ? remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset) : -1;
-            int bIdx = b != null ? remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset) : -1;
-            out[outIdx] = evalF16(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
-        }
+        forwardGenericBF16(
+                op,
+                a,
+                b,
+                aStrides,
+                bStrides,
+                aBaseOffset,
+                bBaseOffset,
+                out,
+                outShape,
+                outStrides,
+                outBaseOffset,
+                node.getFlatDataSize(),
+                useFastExpApprox,
+                useFastTanhApprox
+        );
     }
 
     private static void forwardBOOL(Operation op, List<Tensor> inputs, Tensor node) {
@@ -286,7 +327,6 @@ public final class CpuStridedElementWise {
         }
 
         int[] outShape = node.getShapeUnsafe();
-        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
         int outBaseOffset = node.getStorageOffsetUnsafe();
         int rank = outShape.length;
@@ -297,16 +337,18 @@ public final class CpuStridedElementWise {
             int[] aStrides = ta.getStridesUnsafe();
             int aBaseOffset = ta.getStorageOffsetUnsafe();
             if (rank == 1) {
-                for (int i = 0; i < node.getFlatDataSize(); i++) {
-                    out[outBaseOffset + i * outStrides[0]] = evalBoolUnary(op, a[aBaseOffset + i * aStrides[0]]);
-                }
+                forwardRank1BoolUnary(
+                        a,
+                        aStrides[0],
+                        aBaseOffset,
+                        out,
+                        outStrides[0],
+                        outBaseOffset,
+                        node.getFlatDataSize()
+                );
                 return;
             }
-            for (int i = 0; i < node.getFlatDataSize(); i++) {
-                int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-                int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
-                out[outIdx] = evalBoolUnary(op, a[aIdx]);
-            }
+            forwardGenericBoolUnary(op, a, aStrides, aBaseOffset, out, outShape, outStrides, outBaseOffset, node.getFlatDataSize());
             return;
         }
 
@@ -320,18 +362,22 @@ public final class CpuStridedElementWise {
             int aBaseOffset = ta.getStorageOffsetUnsafe();
             int bBaseOffset = tb.getStorageOffsetUnsafe();
             if (rank == 1) {
-                for (int i = 0; i < node.getFlatDataSize(); i++) {
-                    out[outBaseOffset + i * outStrides[0]] =
-                            evalBoolBinary(op, a[aBaseOffset + i * aStrides[0]], b[bBaseOffset + i * bStrides[0]]);
-                }
+                forwardRank1BoolBinary(
+                        op,
+                        a,
+                        b,
+                        aStrides[0],
+                        bStrides[0],
+                        aBaseOffset,
+                        bBaseOffset,
+                        out,
+                        outStrides[0],
+                        outBaseOffset,
+                        node.getFlatDataSize()
+                );
                 return;
             }
-            for (int i = 0; i < node.getFlatDataSize(); i++) {
-                int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-                int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
-                int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
-                out[outIdx] = evalBoolBinary(op, a[aIdx], b[bIdx]);
-            }
+            forwardGenericBoolBinary(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, node.getFlatDataSize());
             return;
         }
 
@@ -344,18 +390,22 @@ public final class CpuStridedElementWise {
                 int aBaseOffset = ta.getStorageOffsetUnsafe();
                 int bBaseOffset = tb.getStorageOffsetUnsafe();
                 if (rank == 1) {
-                    for (int i = 0; i < node.getFlatDataSize(); i++) {
-                        out[outBaseOffset + i * outStrides[0]] =
-                                evalCompare(op, a[aBaseOffset + i * aStrides[0]], b[bBaseOffset + i * bStrides[0]]);
-                    }
+                    forwardRank1CompareF64(
+                            op,
+                            a,
+                            b,
+                            aStrides[0],
+                            bStrides[0],
+                            aBaseOffset,
+                            bBaseOffset,
+                            out,
+                            outStrides[0],
+                            outBaseOffset,
+                            node.getFlatDataSize()
+                    );
                     return;
                 }
-                for (int i = 0; i < node.getFlatDataSize(); i++) {
-                    int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-                    int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
-                    int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
-                    out[outIdx] = evalCompare(op, a[aIdx], b[bIdx]);
-                }
+                forwardGenericCompareF64(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, node.getFlatDataSize());
             }
             case FLOAT32 -> {
                 float[] a = ta.getFloat32Data();
@@ -365,18 +415,22 @@ public final class CpuStridedElementWise {
                 int aBaseOffset = ta.getStorageOffsetUnsafe();
                 int bBaseOffset = tb.getStorageOffsetUnsafe();
                 if (rank == 1) {
-                    for (int i = 0; i < node.getFlatDataSize(); i++) {
-                        out[outBaseOffset + i * outStrides[0]] =
-                                evalCompare(op, a[aBaseOffset + i * aStrides[0]], b[bBaseOffset + i * bStrides[0]]);
-                    }
+                    forwardRank1CompareF32(
+                            op,
+                            a,
+                            b,
+                            aStrides[0],
+                            bStrides[0],
+                            aBaseOffset,
+                            bBaseOffset,
+                            out,
+                            outStrides[0],
+                            outBaseOffset,
+                            node.getFlatDataSize()
+                    );
                     return;
                 }
-                for (int i = 0; i < node.getFlatDataSize(); i++) {
-                    int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-                    int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
-                    int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
-                    out[outIdx] = evalCompare(op, a[aIdx], b[bIdx]);
-                }
+                forwardGenericCompareF32(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, node.getFlatDataSize());
             }
             case BFLOAT16 -> {
                 short[] a = ta.getBFloat16Data();
@@ -386,21 +440,22 @@ public final class CpuStridedElementWise {
                 int aBaseOffset = ta.getStorageOffsetUnsafe();
                 int bBaseOffset = tb.getStorageOffsetUnsafe();
                 if (rank == 1) {
-                    for (int i = 0; i < node.getFlatDataSize(); i++) {
-                        out[outBaseOffset + i * outStrides[0]] = evalCompare(
-                                op,
-                                CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * aStrides[0]]),
-                                CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * bStrides[0]])
-                        );
-                    }
+                    forwardRank1CompareBF16(
+                            op,
+                            a,
+                            b,
+                            aStrides[0],
+                            bStrides[0],
+                            aBaseOffset,
+                            bBaseOffset,
+                            out,
+                            outStrides[0],
+                            outBaseOffset,
+                            node.getFlatDataSize()
+                    );
                     return;
                 }
-                for (int i = 0; i < node.getFlatDataSize(); i++) {
-                    int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-                    int aIdx = remapIndex(i, outDenseStrides, aStrides, rank, aBaseOffset);
-                    int bIdx = remapIndex(i, outDenseStrides, bStrides, rank, bBaseOffset);
-                    out[outIdx] = evalCompare(op, CpuDTypeOps.fromBFloat16Bits(a[aIdx]), CpuDTypeOps.fromBFloat16Bits(b[bIdx]));
-                }
+                forwardGenericCompareBF16(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, outShape, outStrides, outBaseOffset, node.getFlatDataSize());
             }
             case INT32, BOOL -> throw new UnsupportedOperationException("Unsupported BOOL strided input contract for opType=" + op.opType());
         }
@@ -415,7 +470,6 @@ public final class CpuStridedElementWise {
         double[] ifTrue = inputs.get(1).getFloat64Data();
         double[] ifFalse = inputs.get(2).getFloat64Data();
         int[] outShape = node.getShapeUnsafe();
-        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
         int[] condStrides = inputs.get(0).getStridesUnsafe();
         int[] trueStrides = inputs.get(1).getStridesUnsafe();
@@ -426,13 +480,22 @@ public final class CpuStridedElementWise {
         int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
         int rank = outShape.length;
 
-        for (int i = 0; i < node.getFlatDataSize(); i++) {
-            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-            int condIdx = remapIndex(i, outDenseStrides, condStrides, rank, condBaseOffset);
-            int trueIdx = remapIndex(i, outDenseStrides, trueStrides, rank, trueBaseOffset);
-            int falseIdx = remapIndex(i, outDenseStrides, falseStrides, rank, falseBaseOffset);
-            out[outIdx] = cond[condIdx] != 0 ? ifTrue[trueIdx] : ifFalse[falseIdx];
-        }
+        forwardGenericWhereF64(
+                cond,
+                ifTrue,
+                ifFalse,
+                condStrides,
+                trueStrides,
+                falseStrides,
+                condBaseOffset,
+                trueBaseOffset,
+                falseBaseOffset,
+                out,
+                outShape,
+                outStrides,
+                outBaseOffset,
+                node.getFlatDataSize()
+        );
     }
 
     private static void forwardWhereF32(List<Tensor> inputs, Tensor node, float[] out) {
@@ -440,7 +503,6 @@ public final class CpuStridedElementWise {
         float[] ifTrue = inputs.get(1).getFloat32Data();
         float[] ifFalse = inputs.get(2).getFloat32Data();
         int[] outShape = node.getShapeUnsafe();
-        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
         int[] condStrides = inputs.get(0).getStridesUnsafe();
         int[] trueStrides = inputs.get(1).getStridesUnsafe();
@@ -451,13 +513,22 @@ public final class CpuStridedElementWise {
         int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
         int rank = outShape.length;
 
-        for (int i = 0; i < node.getFlatDataSize(); i++) {
-            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-            int condIdx = remapIndex(i, outDenseStrides, condStrides, rank, condBaseOffset);
-            int trueIdx = remapIndex(i, outDenseStrides, trueStrides, rank, trueBaseOffset);
-            int falseIdx = remapIndex(i, outDenseStrides, falseStrides, rank, falseBaseOffset);
-            out[outIdx] = cond[condIdx] != 0 ? ifTrue[trueIdx] : ifFalse[falseIdx];
-        }
+        forwardGenericWhereF32(
+                cond,
+                ifTrue,
+                ifFalse,
+                condStrides,
+                trueStrides,
+                falseStrides,
+                condBaseOffset,
+                trueBaseOffset,
+                falseBaseOffset,
+                out,
+                outShape,
+                outStrides,
+                outBaseOffset,
+                node.getFlatDataSize()
+        );
     }
 
     private static void forwardWhereF16(List<Tensor> inputs, Tensor node, short[] out) {
@@ -465,7 +536,6 @@ public final class CpuStridedElementWise {
         short[] ifTrue = inputs.get(1).getBFloat16Data();
         short[] ifFalse = inputs.get(2).getBFloat16Data();
         int[] outShape = node.getShapeUnsafe();
-        int[] outDenseStrides = tensor.TensorMetadata.computeStrides(outShape);
         int[] outStrides = node.getStridesUnsafe();
         int[] condStrides = inputs.get(0).getStridesUnsafe();
         int[] trueStrides = inputs.get(1).getStridesUnsafe();
@@ -476,16 +546,219 @@ public final class CpuStridedElementWise {
         int falseBaseOffset = inputs.get(2).getStorageOffsetUnsafe();
         int rank = outShape.length;
 
-        for (int i = 0; i < node.getFlatDataSize(); i++) {
-            int outIdx = remapIndex(i, outDenseStrides, outStrides, rank, outBaseOffset);
-            int condIdx = remapIndex(i, outDenseStrides, condStrides, rank, condBaseOffset);
-            int trueIdx = remapIndex(i, outDenseStrides, trueStrides, rank, trueBaseOffset);
-            int falseIdx = remapIndex(i, outDenseStrides, falseStrides, rank, falseBaseOffset);
-            out[outIdx] = cond[condIdx] != 0 ? ifTrue[trueIdx] : ifFalse[falseIdx];
+        forwardGenericWhereF16(
+                cond,
+                ifTrue,
+                ifFalse,
+                condStrides,
+                trueStrides,
+                falseStrides,
+                condBaseOffset,
+                trueBaseOffset,
+                falseBaseOffset,
+                out,
+                outShape,
+                outStrides,
+                outBaseOffset,
+                node.getFlatDataSize()
+        );
+    }
+
+    private static void forwardRank1BoolUnary(
+            byte[] a,
+            int strideA,
+            int aBaseOffset,
+            byte[] out,
+            int outStride,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        for (int i = 0; i < logicalSize; i++) {
+            out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] == 0 ? (byte) 1 : (byte) 0;
         }
     }
 
-    private static void forwardRank1(
+    private static void forwardRank1BoolBinary(
+            Operation op,
+            byte[] a,
+            byte[] b,
+            int strideA,
+            int strideB,
+            int aBaseOffset,
+            int bBaseOffset,
+            byte[] out,
+            int outStride,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        switch (op.opType()) {
+            case LOGICAL_AND -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] =
+                            (a[aBaseOffset + i * strideA] != 0 && b[bBaseOffset + i * strideB] != 0) ? (byte) 1 : (byte) 0;
+                }
+            }
+            case LOGICAL_OR -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] =
+                            (a[aBaseOffset + i * strideA] != 0 || b[bBaseOffset + i * strideB] != 0) ? (byte) 1 : (byte) 0;
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported bool strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardRank1CompareF64(
+            Operation op,
+            double[] a,
+            double[] b,
+            int strideA,
+            int strideB,
+            int aBaseOffset,
+            int bBaseOffset,
+            byte[] out,
+            int outStride,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        switch (op.opType()) {
+            case GT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] > b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case GE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] >= b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case LT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] < b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case LE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] <= b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case EQ -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] == b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case NE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] != b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported compare strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardRank1CompareF32(
+            Operation op,
+            float[] a,
+            float[] b,
+            int strideA,
+            int strideB,
+            int aBaseOffset,
+            int bBaseOffset,
+            byte[] out,
+            int outStride,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        switch (op.opType()) {
+            case GT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] > b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case GE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] >= b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case LT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] < b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case LE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] <= b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case EQ -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] == b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            case NE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] != b[bBaseOffset + i * strideB] ? (byte) 1 : (byte) 0;
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported compare strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardRank1CompareBF16(
+            Operation op,
+            short[] a,
+            short[] b,
+            int strideA,
+            int strideB,
+            int aBaseOffset,
+            int bBaseOffset,
+            byte[] out,
+            int outStride,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        switch (op.opType()) {
+            case GT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA])
+                            > CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]) ? (byte) 1 : (byte) 0;
+                }
+            }
+            case GE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA])
+                            >= CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]) ? (byte) 1 : (byte) 0;
+                }
+            }
+            case LT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA])
+                            < CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]) ? (byte) 1 : (byte) 0;
+                }
+            }
+            case LE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA])
+                            <= CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]) ? (byte) 1 : (byte) 0;
+                }
+            }
+            case EQ -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA])
+                            == CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]) ? (byte) 1 : (byte) 0;
+                }
+            }
+            case NE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA])
+                            != CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]) ? (byte) 1 : (byte) 0;
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported compare strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardRank1F64(
             Operation op,
             double[] a,
             double[] b,
@@ -502,11 +775,1309 @@ public final class CpuStridedElementWise {
     ) {
         int strideA = a != null ? aStrides[0] : 0;
         int strideB = b != null ? bStrides[0] : 0;
+        switch (op.opType()) {
+            case ADD -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] + b[bBaseOffset + i * strideB];
+                }
+            }
+            case SUB -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] - b[bBaseOffset + i * strideB];
+                }
+            }
+            case MUL -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] * b[bBaseOffset + i * strideB];
+                }
+            }
+            case DIV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] / b[bBaseOffset + i * strideB];
+                }
+            }
+            case MIN -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.min(a[aBaseOffset + i * strideA], b[bBaseOffset + i * strideB]);
+                }
+            }
+            case MAX -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.max(a[aBaseOffset + i * strideA], b[bBaseOffset + i * strideB]);
+                }
+            }
+            case NEG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = -a[aBaseOffset + i * strideA];
+                }
+            }
+            case INV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = 1.0 / a[aBaseOffset + i * strideA];
+                }
+            }
+            case LOG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.log(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    double value = a[aBaseOffset + i * strideA];
+                    out[outBaseOffset + i * outStride] = useFastExpApprox ? FastExp.fastExpF64(value) : Math.exp(value);
+                }
+            }
+            case FAST_EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = FastExp.fastExpF64(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    double value = a[aBaseOffset + i * strideA];
+                    out[outBaseOffset + i * outStride] = useFastTanhApprox ? FastExp.fastTanhF64(value) : Math.tanh(value);
+                }
+            }
+            case FAST_TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = FastExp.fastTanhF64(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case SQRT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.sqrt(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case ABS -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.abs(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case RELU -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.max(0.0, a[aBaseOffset + i * strideA]);
+                }
+            }
+            case CLAMP_MIN -> {
+                double minValue = ((clampMin) op).getMinValue();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.max(minValue, a[aBaseOffset + i * strideA]);
+                }
+            }
+            case CLAMP_MAX -> {
+                double maxValue = ((clampMax) op).getMaxValue();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.min(maxValue, a[aBaseOffset + i * strideA]);
+                }
+            }
+            case SIGMOID -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    double value = a[aBaseOffset + i * strideA];
+                    out[outBaseOffset + i * outStride] = 1.0 / (1.0 + Math.exp(-value));
+                }
+            }
+            case MUL_SCALAR -> {
+                double scalar = ((mulScalar) op).getScalar();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] * scalar;
+                }
+            }
+            case POW -> {
+                double exponent = ((pow) op).getExponent();
+                for (int i = 0; i < logicalSize; i++) {
+                    double value = a[aBaseOffset + i * strideA];
+                    out[outBaseOffset + i * outStride] = exponent == 0.0 ? 1.0
+                            : exponent == 1.0 ? value
+                            : exponent == 2.0 ? value * value
+                            : Math.pow(value, exponent);
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardRank1F32(
+            Operation op,
+            float[] a,
+            float[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            float[] out,
+            int outStride,
+            int outBaseOffset,
+            int logicalSize,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        int strideA = a != null ? aStrides[0] : 0;
+        int strideB = b != null ? bStrides[0] : 0;
+        switch (op.opType()) {
+            case ADD -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] + b[bBaseOffset + i * strideB];
+                }
+            }
+            case SUB -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] - b[bBaseOffset + i * strideB];
+                }
+            }
+            case MUL -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] * b[bBaseOffset + i * strideB];
+                }
+            }
+            case DIV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] / b[bBaseOffset + i * strideB];
+                }
+            }
+            case MIN -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.min(a[aBaseOffset + i * strideA], b[bBaseOffset + i * strideB]);
+                }
+            }
+            case MAX -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.max(a[aBaseOffset + i * strideA], b[bBaseOffset + i * strideB]);
+                }
+            }
+            case NEG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = -a[aBaseOffset + i * strideA];
+                }
+            }
+            case INV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = 1.0f / a[aBaseOffset + i * strideA];
+                }
+            }
+            case LOG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = (float) Math.log(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float value = a[aBaseOffset + i * strideA];
+                    out[outBaseOffset + i * outStride] = useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value);
+                }
+            }
+            case FAST_EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = FastExp.fastExpF32(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float value = a[aBaseOffset + i * strideA];
+                    out[outBaseOffset + i * outStride] = useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value);
+                }
+            }
+            case FAST_TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = FastExp.fastTanhF32(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case SQRT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = (float) Math.sqrt(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case ABS -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.abs(a[aBaseOffset + i * strideA]);
+                }
+            }
+            case RELU -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.max(0.0f, a[aBaseOffset + i * strideA]);
+                }
+            }
+            case CLAMP_MIN -> {
+                float minValue = ((clampMin) op).getMinValueF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.max(minValue, a[aBaseOffset + i * strideA]);
+                }
+            }
+            case CLAMP_MAX -> {
+                float maxValue = ((clampMax) op).getMaxValueF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = Math.min(maxValue, a[aBaseOffset + i * strideA]);
+                }
+            }
+            case SIGMOID -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float value = a[aBaseOffset + i * strideA];
+                    out[outBaseOffset + i * outStride] = (float) (1.0 / (1.0 + Math.exp(-value)));
+                }
+            }
+            case MUL_SCALAR -> {
+                float scalar = ((mulScalar) op).getScalarF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[outBaseOffset + i * outStride] = a[aBaseOffset + i * strideA] * scalar;
+                }
+            }
+            case POW -> {
+                float exponent = ((pow) op).getExponentF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float value = a[aBaseOffset + i * strideA];
+                    out[outBaseOffset + i * outStride] = exponent == 0.0f ? 1.0f
+                            : exponent == 1.0f ? value
+                            : exponent == 2.0f ? value * value
+                            : (float) Math.pow(value, exponent);
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardRank1BF16(
+            Operation op,
+            short[] a,
+            short[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            short[] out,
+            int outStride,
+            int outBaseOffset,
+            int logicalSize,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        int strideA = a != null ? aStrides[0] : 0;
+        int strideB = b != null ? bStrides[0] : 0;
+        switch (op.opType()) {
+            case ADD -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(av + bv);
+                }
+            }
+            case SUB -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(av - bv);
+                }
+            }
+            case MUL -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(av * bv);
+                }
+            }
+            case DIV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(av / bv);
+                }
+            }
+            case MIN -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(Math.min(av, bv));
+                }
+            }
+            case MAX -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[bBaseOffset + i * strideB]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(Math.max(av, bv));
+                }
+            }
+            case NEG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(-av);
+                }
+            }
+            case INV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(1.0f / av);
+                }
+            }
+            case LOG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits((float) Math.log(av));
+                }
+            }
+            case EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(
+                            useFastExpApprox ? FastExp.fastExpF32(av) : (float) Math.exp(av)
+                    );
+                }
+            }
+            case FAST_EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(FastExp.fastExpF32(av));
+                }
+            }
+            case TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(
+                            useFastTanhApprox ? FastExp.fastTanhF32(av) : (float) Math.tanh(av)
+                    );
+                }
+            }
+            case FAST_TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(FastExp.fastTanhF32(av));
+                }
+            }
+            case SQRT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits((float) Math.sqrt(av));
+                }
+            }
+            case ABS -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(Math.abs(av));
+                }
+            }
+            case RELU -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(Math.max(0.0f, av));
+                }
+            }
+            case CLAMP_MIN -> {
+                float minValue = ((clampMin) op).getMinValueF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(Math.max(minValue, av));
+                }
+            }
+            case CLAMP_MAX -> {
+                float maxValue = ((clampMax) op).getMaxValueF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(Math.min(maxValue, av));
+                }
+            }
+            case SIGMOID -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits((float) (1.0 / (1.0 + Math.exp(-av))));
+                }
+            }
+            case MUL_SCALAR -> {
+                float scalar = ((mulScalar) op).getScalarF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(av * scalar);
+                }
+            }
+            case POW -> {
+                float exponent = ((pow) op).getExponentF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
+                    float value = exponent == 0.0f ? 1.0f
+                            : exponent == 1.0f ? av
+                            : exponent == 2.0f ? av * av
+                            : (float) Math.pow(av, exponent);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(value);
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardGenericF64(
+            Operation op,
+            double[] a,
+            double[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            double[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, aStrides, bStrides},
+                new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
+        );
+        switch (op.opType()) {
+            case ADD -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] + b[cursor.offset(2)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SUB -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] - b[cursor.offset(2)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MUL -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] * b[cursor.offset(2)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case DIV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] / b[cursor.offset(2)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MIN -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.min(a[cursor.offset(1)], b[cursor.offset(2)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MAX -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.max(a[cursor.offset(1)], b[cursor.offset(2)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case NEG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = -a[cursor.offset(1)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case INV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = 1.0 / a[cursor.offset(1)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LOG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.log(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    double value = a[cursor.offset(1)];
+                    out[cursor.offset(0)] = useFastExpApprox ? FastExp.fastExpF64(value) : Math.exp(value);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case FAST_EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = FastExp.fastExpF64(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    double value = a[cursor.offset(1)];
+                    out[cursor.offset(0)] = useFastTanhApprox ? FastExp.fastTanhF64(value) : Math.tanh(value);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case FAST_TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = FastExp.fastTanhF64(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SQRT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.sqrt(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case ABS -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.abs(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case RELU -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.max(0.0, a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case CLAMP_MIN -> {
+                double minValue = ((clampMin) op).getMinValue();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.max(minValue, a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case CLAMP_MAX -> {
+                double maxValue = ((clampMax) op).getMaxValue();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.min(maxValue, a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SIGMOID -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    double value = a[cursor.offset(1)];
+                    out[cursor.offset(0)] = 1.0 / (1.0 + Math.exp(-value));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MUL_SCALAR -> {
+                double scalar = ((mulScalar) op).getScalar();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] * scalar;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case POW -> {
+                double exponent = ((pow) op).getExponent();
+                for (int i = 0; i < logicalSize; i++) {
+                    double value = a[cursor.offset(1)];
+                    out[cursor.offset(0)] = exponent == 0.0 ? 1.0
+                            : exponent == 1.0 ? value
+                            : exponent == 2.0 ? value * value
+                            : Math.pow(value, exponent);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardGenericF32(
+            Operation op,
+            float[] a,
+            float[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            float[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, aStrides, bStrides},
+                new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
+        );
+        switch (op.opType()) {
+            case ADD -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] + b[cursor.offset(2)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SUB -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] - b[cursor.offset(2)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MUL -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] * b[cursor.offset(2)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case DIV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] / b[cursor.offset(2)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MIN -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.min(a[cursor.offset(1)], b[cursor.offset(2)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MAX -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.max(a[cursor.offset(1)], b[cursor.offset(2)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case NEG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = -a[cursor.offset(1)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case INV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = 1.0f / a[cursor.offset(1)];
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LOG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = (float) Math.log(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float value = a[cursor.offset(1)];
+                    out[cursor.offset(0)] = useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case FAST_EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = FastExp.fastExpF32(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float value = a[cursor.offset(1)];
+                    out[cursor.offset(0)] = useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case FAST_TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = FastExp.fastTanhF32(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SQRT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = (float) Math.sqrt(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case ABS -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.abs(a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case RELU -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.max(0.0f, a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case CLAMP_MIN -> {
+                float minValue = ((clampMin) op).getMinValueF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.max(minValue, a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case CLAMP_MAX -> {
+                float maxValue = ((clampMax) op).getMaxValueF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = Math.min(maxValue, a[cursor.offset(1)]);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SIGMOID -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float value = a[cursor.offset(1)];
+                    out[cursor.offset(0)] = (float) (1.0 / (1.0 + Math.exp(-value)));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MUL_SCALAR -> {
+                float scalar = ((mulScalar) op).getScalarF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] * scalar;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case POW -> {
+                float exponent = ((pow) op).getExponentF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float value = a[cursor.offset(1)];
+                    out[cursor.offset(0)] = exponent == 0.0f ? 1.0f
+                            : exponent == 1.0f ? value
+                            : exponent == 2.0f ? value * value
+                            : (float) Math.pow(value, exponent);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardGenericBF16(
+            Operation op,
+            short[] a,
+            short[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            short[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, aStrides, bStrides},
+                new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
+        );
+        switch (op.opType()) {
+            case ADD -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(av + bv);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SUB -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(av - bv);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MUL -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(av * bv);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case DIV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(av / bv);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MIN -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(Math.min(av, bv));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MAX -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    float bv = CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(Math.max(av, bv));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case NEG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(-av);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case INV -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(1.0f / av);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LOG -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits((float) Math.log(av));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(
+                            useFastExpApprox ? FastExp.fastExpF32(av) : (float) Math.exp(av)
+                    );
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case FAST_EXP -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(FastExp.fastExpF32(av));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(
+                            useFastTanhApprox ? FastExp.fastTanhF32(av) : (float) Math.tanh(av)
+                    );
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case FAST_TANH -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(FastExp.fastTanhF32(av));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SQRT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits((float) Math.sqrt(av));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case ABS -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(Math.abs(av));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case RELU -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(Math.max(0.0f, av));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case CLAMP_MIN -> {
+                float minValue = ((clampMin) op).getMinValueF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(Math.max(minValue, av));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case CLAMP_MAX -> {
+                float maxValue = ((clampMax) op).getMaxValueF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(Math.min(maxValue, av));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case SIGMOID -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits((float) (1.0 / (1.0 + Math.exp(-av))));
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case MUL_SCALAR -> {
+                float scalar = ((mulScalar) op).getScalarF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(av * scalar);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case POW -> {
+                float exponent = ((pow) op).getExponentF32();
+                for (int i = 0; i < logicalSize; i++) {
+                    float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
+                    float value = exponent == 0.0f ? 1.0f
+                            : exponent == 1.0f ? av
+                            : exponent == 2.0f ? av * av
+                            : (float) Math.pow(av, exponent);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(value);
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardGenericCompareF64(
+            Operation op,
+            double[] a,
+            double[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            byte[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, aStrides, bStrides},
+                new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
+        );
+        switch (op.opType()) {
+            case GT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] > b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case GE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] >= b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] < b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] <= b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case EQ -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] == b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case NE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] != b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported compare strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardGenericCompareF32(
+            Operation op,
+            float[] a,
+            float[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            byte[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, aStrides, bStrides},
+                new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
+        );
+        switch (op.opType()) {
+            case GT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] > b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case GE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] >= b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] < b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] <= b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case EQ -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] == b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case NE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = a[cursor.offset(1)] != b[cursor.offset(2)] ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported compare strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardGenericCompareBF16(
+            Operation op,
+            short[] a,
+            short[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            byte[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, aStrides, bStrides},
+                new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
+        );
+        switch (op.opType()) {
+            case GT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)])
+                            > CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]) ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case GE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)])
+                            >= CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]) ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LT -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)])
+                            < CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]) ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)])
+                            <= CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]) ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case EQ -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)])
+                            == CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]) ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case NE -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)])
+                            != CpuDTypeOps.fromBFloat16Bits(b[cursor.offset(2)]) ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported compare strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardGenericBoolUnary(
+            Operation op,
+            byte[] a,
+            int[] aStrides,
+            int aBaseOffset,
+            byte[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, aStrides},
+                new int[]{outBaseOffset, aBaseOffset}
+        );
         for (int i = 0; i < logicalSize; i++) {
-            int outIdx = outBaseOffset + i * outStride;
-            int aIdx = a != null ? aBaseOffset + i * strideA : -1;
-            int bIdx = b != null ? bBaseOffset + i * strideB : -1;
-            out[outIdx] = eval(op, a, b, aIdx, bIdx, useFastExpApprox, useFastTanhApprox);
+            out[cursor.offset(0)] = a[cursor.offset(1)] == 0 ? (byte) 1 : (byte) 0;
+            if (i + 1 < logicalSize) cursor.step();
+        }
+    }
+
+    private static void forwardGenericBoolBinary(
+            Operation op,
+            byte[] a,
+            byte[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            byte[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, aStrides, bStrides},
+                new int[]{outBaseOffset, aBaseOffset, bBaseOffset}
+        );
+        switch (op.opType()) {
+            case LOGICAL_AND -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = (a[cursor.offset(1)] != 0 && b[cursor.offset(2)] != 0) ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            case LOGICAL_OR -> {
+                for (int i = 0; i < logicalSize; i++) {
+                    out[cursor.offset(0)] = (a[cursor.offset(1)] != 0 || b[cursor.offset(2)] != 0) ? (byte) 1 : (byte) 0;
+                    if (i + 1 < logicalSize) cursor.step();
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported bool strided opType=" + op.opType());
+        }
+    }
+
+    private static void forwardGenericWhereF64(
+            byte[] cond,
+            double[] ifTrue,
+            double[] ifFalse,
+            int[] condStrides,
+            int[] trueStrides,
+            int[] falseStrides,
+            int condBaseOffset,
+            int trueBaseOffset,
+            int falseBaseOffset,
+            double[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, condStrides, trueStrides, falseStrides},
+                new int[]{outBaseOffset, condBaseOffset, trueBaseOffset, falseBaseOffset}
+        );
+        for (int i = 0; i < logicalSize; i++) {
+            out[cursor.offset(0)] = cond[cursor.offset(1)] != 0
+                    ? ifTrue[cursor.offset(2)]
+                    : ifFalse[cursor.offset(3)];
+            if (i + 1 < logicalSize) cursor.step();
+        }
+    }
+
+    private static void forwardGenericWhereF32(
+            byte[] cond,
+            float[] ifTrue,
+            float[] ifFalse,
+            int[] condStrides,
+            int[] trueStrides,
+            int[] falseStrides,
+            int condBaseOffset,
+            int trueBaseOffset,
+            int falseBaseOffset,
+            float[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, condStrides, trueStrides, falseStrides},
+                new int[]{outBaseOffset, condBaseOffset, trueBaseOffset, falseBaseOffset}
+        );
+        for (int i = 0; i < logicalSize; i++) {
+            out[cursor.offset(0)] = cond[cursor.offset(1)] != 0
+                    ? ifTrue[cursor.offset(2)]
+                    : ifFalse[cursor.offset(3)];
+            if (i + 1 < logicalSize) cursor.step();
+        }
+    }
+
+    private static void forwardGenericWhereF16(
+            byte[] cond,
+            short[] ifTrue,
+            short[] ifFalse,
+            int[] condStrides,
+            int[] trueStrides,
+            int[] falseStrides,
+            int condBaseOffset,
+            int trueBaseOffset,
+            int falseBaseOffset,
+            short[] out,
+            int[] shape,
+            int[] outStrides,
+            int outBaseOffset,
+            int logicalSize
+    ) {
+        if (logicalSize <= 0) {
+            return;
+        }
+        MultiOffsetCursor cursor = new MultiOffsetCursor(
+                shape,
+                new int[][]{outStrides, condStrides, trueStrides, falseStrides},
+                new int[]{outBaseOffset, condBaseOffset, trueBaseOffset, falseBaseOffset}
+        );
+        for (int i = 0; i < logicalSize; i++) {
+            out[cursor.offset(0)] = cond[cursor.offset(1)] != 0
+                    ? ifTrue[cursor.offset(2)]
+                    : ifFalse[cursor.offset(3)];
+            if (i + 1 < logicalSize) cursor.step();
         }
     }
 
@@ -611,21 +2182,68 @@ public final class CpuStridedElementWise {
             return true;
         }
 
-        for (int row = 0; row < rows; row++) {
-            int outRowBase = outBaseOffset + row * outRowStride;
-            int aRowBase = aBaseOffset + row * aRowStride;
-            int bRowBase = bBaseOffset + row * bRowStride;
-            for (int col = 0; col < cols; col++) {
-                out[outRowBase + col * outColStride] = switch (op.opType()) {
-                    case ADD -> a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
-                    case SUB -> a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
-                    case MUL -> a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
-                    case DIV -> a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
-                    case MIN -> Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
-                    case MAX -> Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
-                    default -> throw new UnsupportedOperationException("Unsupported rank-2 F64 binary op: " + op.opType());
-                };
+        switch (op.opType()) {
+            case ADD -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
+                    }
+                }
             }
+            case SUB -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
+                    }
+                }
+            }
+            case MUL -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
+                    }
+                }
+            }
+            case DIV -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
+                    }
+                }
+            }
+            case MIN -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+                    }
+                }
+            }
+            case MAX -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+                    }
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported rank-2 F64 binary op: " + op.opType());
         }
         return true;
     }
@@ -675,21 +2293,68 @@ public final class CpuStridedElementWise {
             return true;
         }
 
-        for (int row = 0; row < rows; row++) {
-            int outRowBase = outBaseOffset + row * outRowStride;
-            int aRowBase = aBaseOffset + row * aRowStride;
-            int bRowBase = bBaseOffset + row * bRowStride;
-            for (int col = 0; col < cols; col++) {
-                out[outRowBase + col * outColStride] = switch (op.opType()) {
-                    case ADD -> a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
-                    case SUB -> a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
-                    case MUL -> a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
-                    case DIV -> a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
-                    case MIN -> Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
-                    case MAX -> Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
-                    default -> throw new UnsupportedOperationException("Unsupported rank-2 F32 binary op: " + op.opType());
-                };
+        switch (op.opType()) {
+            case ADD -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
+                    }
+                }
             }
+            case SUB -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
+                    }
+                }
+            }
+            case MUL -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
+                    }
+                }
+            }
+            case DIV -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
+                    }
+                }
+            }
+            case MIN -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+                    }
+                }
+            }
+            case MAX -> {
+                for (int row = 0; row < rows; row++) {
+                    int outRowBase = outBaseOffset + row * outRowStride;
+                    int aRowBase = aBaseOffset + row * aRowStride;
+                    int bRowBase = bBaseOffset + row * bRowStride;
+                    for (int col = 0; col < cols; col++) {
+                        out[outRowBase + col * outColStride] = Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+                    }
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported rank-2 F32 binary op: " + op.opType());
         }
         return true;
     }
@@ -716,26 +2381,201 @@ public final class CpuStridedElementWise {
         int aRowStride = aStrides[0];
         int aColStride = aStrides[1];
 
-        if (outColStride == 1 && aColStride == 0) {
-            for (int row = 0; row < rows; row++) {
-                int outRowBase = outBaseOffset + row * outRowStride;
-                double value = evalUnaryF64(op, a[aBaseOffset + row * aRowStride], useFastExpApprox, useFastTanhApprox);
-                fillRowF64(out, outRowBase, cols, value);
+        switch (op.opType()) {
+            case NEG -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, -a[aBaseOffset + row * aRowStride]);
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = -a[aRowBase + col * aColStride];
+                    }
+                }
             }
-            return true;
-        }
-
-        for (int row = 0; row < rows; row++) {
-            int outRowBase = outBaseOffset + row * outRowStride;
-            int aRowBase = aBaseOffset + row * aRowStride;
-            for (int col = 0; col < cols; col++) {
-                out[outRowBase + col * outColStride] = evalUnaryF64(
-                        op,
-                        a[aRowBase + col * aColStride],
-                        useFastExpApprox,
-                        useFastTanhApprox
-                );
+            case INV -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, 1.0 / a[aBaseOffset + row * aRowStride]);
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = 1.0 / a[aRowBase + col * aColStride];
+                    }
+                }
             }
+            case LOG -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, Math.log(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.log(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case EXP -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) {
+                        double value = a[aBaseOffset + row * aRowStride];
+                        fillRowF64(out, outBaseOffset + row * outRowStride, cols, useFastExpApprox ? FastExp.fastExpF64(value) : Math.exp(value));
+                    }
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) {
+                            double value = a[aRowBase + col * aColStride];
+                            out[outRowBase + col * outColStride] = useFastExpApprox ? FastExp.fastExpF64(value) : Math.exp(value);
+                        }
+                    }
+                }
+            }
+            case FAST_EXP -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, FastExp.fastExpF64(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastExp.fastExpF64(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case TANH -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) {
+                        double value = a[aBaseOffset + row * aRowStride];
+                        fillRowF64(out, outBaseOffset + row * outRowStride, cols, useFastTanhApprox ? FastExp.fastTanhF64(value) : Math.tanh(value));
+                    }
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) {
+                            double value = a[aRowBase + col * aColStride];
+                            out[outRowBase + col * outColStride] = useFastTanhApprox ? FastExp.fastTanhF64(value) : Math.tanh(value);
+                        }
+                    }
+                }
+            }
+            case FAST_TANH -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, FastExp.fastTanhF64(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastExp.fastTanhF64(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case SQRT -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, Math.sqrt(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.sqrt(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case ABS -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, Math.abs(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.abs(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case MUL_SCALAR -> {
+                double scalar = ((mulScalar) op).getScalar();
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, a[aBaseOffset + row * aRowStride] * scalar);
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] * scalar;
+                    }
+                }
+            }
+            case RELU -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, Math.max(0.0, a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.max(0.0, a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case CLAMP_MIN -> {
+                double minValue = ((clampMin) op).getMinValue();
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, Math.max(minValue, a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.max(minValue, a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case CLAMP_MAX -> {
+                double maxValue = ((clampMax) op).getMaxValue();
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF64(out, outBaseOffset + row * outRowStride, cols, Math.min(maxValue, a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.min(maxValue, a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case SIGMOID -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) {
+                        double value = a[aBaseOffset + row * aRowStride];
+                        fillRowF64(out, outBaseOffset + row * outRowStride, cols, 1.0 / (1.0 + Math.exp(-value)));
+                    }
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) {
+                            double value = a[aRowBase + col * aColStride];
+                            out[outRowBase + col * outColStride] = 1.0 / (1.0 + Math.exp(-value));
+                        }
+                    }
+                }
+            }
+            case POW -> {
+                double exponent = ((pow) op).getExponent();
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) {
+                        double value = a[aBaseOffset + row * aRowStride];
+                        fillRowF64(out, outBaseOffset + row * outRowStride, cols, exponent == 0.0 ? 1.0 : exponent == 1.0 ? value : exponent == 2.0 ? value * value : Math.pow(value, exponent));
+                    }
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) {
+                            double value = a[aRowBase + col * aColStride];
+                            out[outRowBase + col * outColStride] = exponent == 0.0 ? 1.0 : exponent == 1.0 ? value : exponent == 2.0 ? value * value : Math.pow(value, exponent);
+                        }
+                    }
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported rank-2 F64 unary op: " + op.opType());
         }
         return true;
     }
@@ -762,26 +2602,201 @@ public final class CpuStridedElementWise {
         int aRowStride = aStrides[0];
         int aColStride = aStrides[1];
 
-        if (outColStride == 1 && aColStride == 0) {
-            for (int row = 0; row < rows; row++) {
-                int outRowBase = outBaseOffset + row * outRowStride;
-                float value = evalUnaryF32(op, a[aBaseOffset + row * aRowStride], useFastExpApprox, useFastTanhApprox);
-                fillRowF32(out, outRowBase, cols, value);
+        switch (op.opType()) {
+            case NEG -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, -a[aBaseOffset + row * aRowStride]);
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = -a[aRowBase + col * aColStride];
+                    }
+                }
             }
-            return true;
-        }
-
-        for (int row = 0; row < rows; row++) {
-            int outRowBase = outBaseOffset + row * outRowStride;
-            int aRowBase = aBaseOffset + row * aRowStride;
-            for (int col = 0; col < cols; col++) {
-                out[outRowBase + col * outColStride] = evalUnaryF32(
-                        op,
-                        a[aRowBase + col * aColStride],
-                        useFastExpApprox,
-                        useFastTanhApprox
-                );
+            case INV -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, 1.0f / a[aBaseOffset + row * aRowStride]);
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = 1.0f / a[aRowBase + col * aColStride];
+                    }
+                }
             }
+            case LOG -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, (float) Math.log(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = (float) Math.log(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case EXP -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) {
+                        float value = a[aBaseOffset + row * aRowStride];
+                        fillRowF32(out, outBaseOffset + row * outRowStride, cols, useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value));
+                    }
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) {
+                            float value = a[aRowBase + col * aColStride];
+                            out[outRowBase + col * outColStride] = useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value);
+                        }
+                    }
+                }
+            }
+            case FAST_EXP -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, FastExp.fastExpF32(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastExp.fastExpF32(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case TANH -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) {
+                        float value = a[aBaseOffset + row * aRowStride];
+                        fillRowF32(out, outBaseOffset + row * outRowStride, cols, useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value));
+                    }
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) {
+                            float value = a[aRowBase + col * aColStride];
+                            out[outRowBase + col * outColStride] = useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value);
+                        }
+                    }
+                }
+            }
+            case FAST_TANH -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, FastExp.fastTanhF32(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastExp.fastTanhF32(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case SQRT -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, (float) Math.sqrt(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = (float) Math.sqrt(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case ABS -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, Math.abs(a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.abs(a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case MUL_SCALAR -> {
+                float scalar = ((mulScalar) op).getScalarF32();
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, a[aBaseOffset + row * aRowStride] * scalar);
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] * scalar;
+                    }
+                }
+            }
+            case RELU -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, Math.max(0.0f, a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.max(0.0f, a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case CLAMP_MIN -> {
+                float minValue = ((clampMin) op).getMinValueF32();
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, Math.max(minValue, a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.max(minValue, a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case CLAMP_MAX -> {
+                float maxValue = ((clampMax) op).getMaxValueF32();
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) fillRowF32(out, outBaseOffset + row * outRowStride, cols, Math.min(maxValue, a[aBaseOffset + row * aRowStride]));
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = Math.min(maxValue, a[aRowBase + col * aColStride]);
+                    }
+                }
+            }
+            case SIGMOID -> {
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) {
+                        float value = a[aBaseOffset + row * aRowStride];
+                        fillRowF32(out, outBaseOffset + row * outRowStride, cols, (float) (1.0 / (1.0 + Math.exp(-value))));
+                    }
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) {
+                            float value = a[aRowBase + col * aColStride];
+                            out[outRowBase + col * outColStride] = (float) (1.0 / (1.0 + Math.exp(-value)));
+                        }
+                    }
+                }
+            }
+            case POW -> {
+                float exponent = ((pow) op).getExponentF32();
+                if (outColStride == 1 && aColStride == 0) {
+                    for (int row = 0; row < rows; row++) {
+                        float value = a[aBaseOffset + row * aRowStride];
+                        fillRowF32(out, outBaseOffset + row * outRowStride, cols, exponent == 0.0f ? 1.0f : exponent == 1.0f ? value : exponent == 2.0f ? value * value : (float) Math.pow(value, exponent));
+                    }
+                } else {
+                    for (int row = 0; row < rows; row++) {
+                        int outRowBase = outBaseOffset + row * outRowStride;
+                        int aRowBase = aBaseOffset + row * aRowStride;
+                        for (int col = 0; col < cols; col++) {
+                            float value = a[aRowBase + col * aColStride];
+                            out[outRowBase + col * outColStride] = exponent == 0.0f ? 1.0f : exponent == 1.0f ? value : exponent == 2.0f ? value * value : (float) Math.pow(value, exponent);
+                        }
+                    }
+                }
+            }
+            default -> throw new UnsupportedOperationException("Unsupported rank-2 F32 unary op: " + op.opType());
         }
         return true;
     }
@@ -799,29 +2814,32 @@ public final class CpuStridedElementWise {
         int upper = cols - (cols % width);
         int col = 0;
         DoubleVector rightVector = DoubleVector.broadcast(F64, right);
-        for (; col < upper; col += width) {
-            DoubleVector leftVector = DoubleVector.fromArray(F64, left, leftBase + col);
-            DoubleVector result = switch (op.opType()) {
-                case ADD -> leftVector.add(rightVector);
-                case SUB -> leftVector.sub(rightVector);
-                case MUL -> leftVector.mul(rightVector);
-                case DIV -> leftVector.div(rightVector);
-                case MIN -> leftVector.min(rightVector);
-                case MAX -> leftVector.max(rightVector);
-                default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F64 binary op: " + op.opType());
-            };
-            result.intoArray(out, outBase + col);
-        }
-        for (; col < cols; col++) {
-            out[outBase + col] = switch (op.opType()) {
-                case ADD -> left[leftBase + col] + right;
-                case SUB -> left[leftBase + col] - right;
-                case MUL -> left[leftBase + col] * right;
-                case DIV -> left[leftBase + col] / right;
-                case MIN -> Math.min(left[leftBase + col], right);
-                case MAX -> Math.max(left[leftBase + col], right);
-                default -> throw new UnsupportedOperationException("Unsupported scalar rank-2 F64 binary op: " + op.opType());
-            };
+        switch (op.opType()) {
+            case ADD -> {
+                for (; col < upper; col += width) DoubleVector.fromArray(F64, left, leftBase + col).add(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left[leftBase + col] + right;
+            }
+            case SUB -> {
+                for (; col < upper; col += width) DoubleVector.fromArray(F64, left, leftBase + col).sub(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left[leftBase + col] - right;
+            }
+            case MUL -> {
+                for (; col < upper; col += width) DoubleVector.fromArray(F64, left, leftBase + col).mul(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left[leftBase + col] * right;
+            }
+            case DIV -> {
+                for (; col < upper; col += width) DoubleVector.fromArray(F64, left, leftBase + col).div(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left[leftBase + col] / right;
+            }
+            case MIN -> {
+                for (; col < upper; col += width) DoubleVector.fromArray(F64, left, leftBase + col).min(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = Math.min(left[leftBase + col], right);
+            }
+            case MAX -> {
+                for (; col < upper; col += width) DoubleVector.fromArray(F64, left, leftBase + col).max(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = Math.max(left[leftBase + col], right);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F64 binary op: " + op.opType());
         }
     }
 
@@ -838,29 +2856,32 @@ public final class CpuStridedElementWise {
         int upper = cols - (cols % width);
         int col = 0;
         FloatVector rightVector = FloatVector.broadcast(F32, right);
-        for (; col < upper; col += width) {
-            FloatVector leftVector = FloatVector.fromArray(F32, left, leftBase + col);
-            FloatVector result = switch (op.opType()) {
-                case ADD -> leftVector.add(rightVector);
-                case SUB -> leftVector.sub(rightVector);
-                case MUL -> leftVector.mul(rightVector);
-                case DIV -> leftVector.div(rightVector);
-                case MIN -> leftVector.min(rightVector);
-                case MAX -> leftVector.max(rightVector);
-                default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F32 binary op: " + op.opType());
-            };
-            result.intoArray(out, outBase + col);
-        }
-        for (; col < cols; col++) {
-            out[outBase + col] = switch (op.opType()) {
-                case ADD -> left[leftBase + col] + right;
-                case SUB -> left[leftBase + col] - right;
-                case MUL -> left[leftBase + col] * right;
-                case DIV -> left[leftBase + col] / right;
-                case MIN -> Math.min(left[leftBase + col], right);
-                case MAX -> Math.max(left[leftBase + col], right);
-                default -> throw new UnsupportedOperationException("Unsupported scalar rank-2 F32 binary op: " + op.opType());
-            };
+        switch (op.opType()) {
+            case ADD -> {
+                for (; col < upper; col += width) FloatVector.fromArray(F32, left, leftBase + col).add(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left[leftBase + col] + right;
+            }
+            case SUB -> {
+                for (; col < upper; col += width) FloatVector.fromArray(F32, left, leftBase + col).sub(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left[leftBase + col] - right;
+            }
+            case MUL -> {
+                for (; col < upper; col += width) FloatVector.fromArray(F32, left, leftBase + col).mul(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left[leftBase + col] * right;
+            }
+            case DIV -> {
+                for (; col < upper; col += width) FloatVector.fromArray(F32, left, leftBase + col).div(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left[leftBase + col] / right;
+            }
+            case MIN -> {
+                for (; col < upper; col += width) FloatVector.fromArray(F32, left, leftBase + col).min(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = Math.min(left[leftBase + col], right);
+            }
+            case MAX -> {
+                for (; col < upper; col += width) FloatVector.fromArray(F32, left, leftBase + col).max(rightVector).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = Math.max(left[leftBase + col], right);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F32 binary op: " + op.opType());
         }
     }
 
@@ -877,29 +2898,32 @@ public final class CpuStridedElementWise {
         int upper = cols - (cols % width);
         int col = 0;
         DoubleVector leftVector = DoubleVector.broadcast(F64, left);
-        for (; col < upper; col += width) {
-            DoubleVector rightVector = DoubleVector.fromArray(F64, right, rightBase + col);
-            DoubleVector result = switch (op.opType()) {
-                case ADD -> leftVector.add(rightVector);
-                case SUB -> leftVector.sub(rightVector);
-                case MUL -> leftVector.mul(rightVector);
-                case DIV -> leftVector.div(rightVector);
-                case MIN -> leftVector.min(rightVector);
-                case MAX -> leftVector.max(rightVector);
-                default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F64 binary op: " + op.opType());
-            };
-            result.intoArray(out, outBase + col);
-        }
-        for (; col < cols; col++) {
-            out[outBase + col] = switch (op.opType()) {
-                case ADD -> left + right[rightBase + col];
-                case SUB -> left - right[rightBase + col];
-                case MUL -> left * right[rightBase + col];
-                case DIV -> left / right[rightBase + col];
-                case MIN -> Math.min(left, right[rightBase + col]);
-                case MAX -> Math.max(left, right[rightBase + col]);
-                default -> throw new UnsupportedOperationException("Unsupported scalar rank-2 F64 binary op: " + op.opType());
-            };
+        switch (op.opType()) {
+            case ADD -> {
+                for (; col < upper; col += width) leftVector.add(DoubleVector.fromArray(F64, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left + right[rightBase + col];
+            }
+            case SUB -> {
+                for (; col < upper; col += width) leftVector.sub(DoubleVector.fromArray(F64, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left - right[rightBase + col];
+            }
+            case MUL -> {
+                for (; col < upper; col += width) leftVector.mul(DoubleVector.fromArray(F64, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left * right[rightBase + col];
+            }
+            case DIV -> {
+                for (; col < upper; col += width) leftVector.div(DoubleVector.fromArray(F64, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left / right[rightBase + col];
+            }
+            case MIN -> {
+                for (; col < upper; col += width) leftVector.min(DoubleVector.fromArray(F64, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = Math.min(left, right[rightBase + col]);
+            }
+            case MAX -> {
+                for (; col < upper; col += width) leftVector.max(DoubleVector.fromArray(F64, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = Math.max(left, right[rightBase + col]);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F64 binary op: " + op.opType());
         }
     }
 
@@ -916,29 +2940,32 @@ public final class CpuStridedElementWise {
         int upper = cols - (cols % width);
         int col = 0;
         FloatVector leftVector = FloatVector.broadcast(F32, left);
-        for (; col < upper; col += width) {
-            FloatVector rightVector = FloatVector.fromArray(F32, right, rightBase + col);
-            FloatVector result = switch (op.opType()) {
-                case ADD -> leftVector.add(rightVector);
-                case SUB -> leftVector.sub(rightVector);
-                case MUL -> leftVector.mul(rightVector);
-                case DIV -> leftVector.div(rightVector);
-                case MIN -> leftVector.min(rightVector);
-                case MAX -> leftVector.max(rightVector);
-                default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F32 binary op: " + op.opType());
-            };
-            result.intoArray(out, outBase + col);
-        }
-        for (; col < cols; col++) {
-            out[outBase + col] = switch (op.opType()) {
-                case ADD -> left + right[rightBase + col];
-                case SUB -> left - right[rightBase + col];
-                case MUL -> left * right[rightBase + col];
-                case DIV -> left / right[rightBase + col];
-                case MIN -> Math.min(left, right[rightBase + col]);
-                case MAX -> Math.max(left, right[rightBase + col]);
-                default -> throw new UnsupportedOperationException("Unsupported scalar rank-2 F32 binary op: " + op.opType());
-            };
+        switch (op.opType()) {
+            case ADD -> {
+                for (; col < upper; col += width) leftVector.add(FloatVector.fromArray(F32, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left + right[rightBase + col];
+            }
+            case SUB -> {
+                for (; col < upper; col += width) leftVector.sub(FloatVector.fromArray(F32, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left - right[rightBase + col];
+            }
+            case MUL -> {
+                for (; col < upper; col += width) leftVector.mul(FloatVector.fromArray(F32, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left * right[rightBase + col];
+            }
+            case DIV -> {
+                for (; col < upper; col += width) leftVector.div(FloatVector.fromArray(F32, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = left / right[rightBase + col];
+            }
+            case MIN -> {
+                for (; col < upper; col += width) leftVector.min(FloatVector.fromArray(F32, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = Math.min(left, right[rightBase + col]);
+            }
+            case MAX -> {
+                for (; col < upper; col += width) leftVector.max(FloatVector.fromArray(F32, right, rightBase + col)).intoArray(out, outBase + col);
+                for (; col < cols; col++) out[outBase + col] = Math.max(left, right[rightBase + col]);
+            }
+            default -> throw new UnsupportedOperationException("Unsupported vector rank-2 F32 binary op: " + op.opType());
         }
     }
 
@@ -968,239 +2995,48 @@ public final class CpuStridedElementWise {
         }
     }
 
-    private static double evalUnaryF64(
-            Operation op,
-            double value,
-            boolean useFastExpApprox,
-            boolean useFastTanhApprox
-    ) {
-        return switch (op.opType()) {
-            case NEG -> -value;
-            case INV -> 1.0 / value;
-            case LOG -> Math.log(value);
-            case EXP -> useFastExpApprox ? FastExp.fastExpF64(value) : Math.exp(value);
-            case FAST_EXP -> FastExp.fastExpF64(value);
-            case TANH -> useFastTanhApprox ? FastExp.fastTanhF64(value) : Math.tanh(value);
-            case FAST_TANH -> FastExp.fastTanhF64(value);
-            case SQRT -> Math.sqrt(value);
-            case ABS -> Math.abs(value);
-            case RELU -> Math.max(0.0, value);
-            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValue(), value);
-            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValue(), value);
-            case SIGMOID -> 1.0 / (1.0 + Math.exp(-value));
-            case MUL_SCALAR -> value * ((mulScalar) op).getScalar();
-            case POW -> {
-                double exponent = ((pow) op).getExponent();
-                if (exponent == 0.0) yield 1.0;
-                if (exponent == 1.0) yield value;
-                if (exponent == 2.0) yield value * value;
-                yield Math.pow(value, exponent);
-            }
-            default -> throw new UnsupportedOperationException("Unsupported rank-2 F64 unary op: " + op.opType());
-        };
-    }
+    private static final class MultiOffsetCursor {
+        private final int[] shape;
+        private final int[] coords;
+        private final int[][] strides;
+        private final int[] offsets;
 
-    private static float evalUnaryF32(
-            Operation op,
-            float value,
-            boolean useFastExpApprox,
-            boolean useFastTanhApprox
-    ) {
-        return switch (op.opType()) {
-            case NEG -> -value;
-            case INV -> 1.0f / value;
-            case LOG -> (float) Math.log(value);
-            case EXP -> useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value);
-            case FAST_EXP -> FastExp.fastExpF32(value);
-            case TANH -> useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value);
-            case FAST_TANH -> FastExp.fastTanhF32(value);
-            case SQRT -> (float) Math.sqrt(value);
-            case ABS -> Math.abs(value);
-            case RELU -> Math.max(0.0f, value);
-            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValueF32(), value);
-            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValueF32(), value);
-            case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-value)));
-            case MUL_SCALAR -> value * ((mulScalar) op).getScalarF32();
-            case POW -> {
-                float exponent = ((pow) op).getExponentF32();
-                if (exponent == 0.0f) yield 1.0f;
-                if (exponent == 1.0f) yield value;
-                if (exponent == 2.0f) yield value * value;
-                yield (float) Math.pow(value, exponent);
-            }
-            default -> throw new UnsupportedOperationException("Unsupported rank-2 F32 unary op: " + op.opType());
-        };
-    }
-
-    private static int remapIndex(int flatOut, int[] denseStrides, int[] targetStrides, int rank, int baseOffset) {
-        int idx = flatOut;
-        int targetFlat = baseOffset;
-        for (int d = 0; d < rank; d++) {
-            int coord = idx / denseStrides[d];
-            idx %= denseStrides[d];
-            targetFlat += coord * targetStrides[d];
+        private MultiOffsetCursor(int[] shape, int[][] strides, int[] baseOffsets) {
+            this.shape = shape != null ? shape : new int[0];
+            this.coords = new int[this.shape.length];
+            this.strides = strides;
+            this.offsets = baseOffsets.clone();
         }
-        return targetFlat;
-    }
 
-    private static byte evalCompare(Operation op, double left, double right) {
-        boolean value = switch (op.opType()) {
-            case GT -> left > right;
-            case GE -> left >= right;
-            case LT -> left < right;
-            case LE -> left <= right;
-            case EQ -> left == right;
-            case NE -> left != right;
-            default -> throw new UnsupportedOperationException("Unsupported compare strided opType=" + op.opType());
-        };
-        return value ? (byte) 1 : (byte) 0;
-    }
+        private int offset(int slot) {
+            return offsets[slot];
+        }
 
-    private static byte evalBoolBinary(Operation op, byte left, byte right) {
-        boolean l = left != 0;
-        boolean r = right != 0;
-        boolean value = switch (op.opType()) {
-            case LOGICAL_AND -> l && r;
-            case LOGICAL_OR -> l || r;
-            default -> throw new UnsupportedOperationException("Unsupported bool strided opType=" + op.opType());
-        };
-        return value ? (byte) 1 : (byte) 0;
-    }
+        private void step() {
+            for (int dim = shape.length - 1; dim >= 0; dim--) {
+                int nextCoord = coords[dim] + 1;
+                if (nextCoord < shape[dim]) {
+                    coords[dim] = nextCoord;
+                    for (int slot = 0; slot < offsets.length; slot++) {
+                        int[] slotStrides = strides[slot];
+                        if (slotStrides != null) {
+                            offsets[slot] += slotStrides[dim];
+                        }
+                    }
+                    return;
+                }
 
-    private static byte evalBoolUnary(Operation op, byte value) {
-        boolean v = value != 0;
-        boolean out = switch (op.opType()) {
-            case LOGICAL_NOT -> !v;
-            default -> throw new UnsupportedOperationException("Unsupported bool unary strided opType=" + op.opType());
-        };
-        return out ? (byte) 1 : (byte) 0;
-    }
-
-    private static double eval(
-            Operation op,
-            double[] a,
-            double[] b,
-            int aIdx,
-            int bIdx,
-            boolean useFastExpApprox,
-            boolean useFastTanhApprox
-    ) {
-        return switch (op.opType()) {
-            case ADD -> a[aIdx] + b[bIdx];
-            case SUB -> a[aIdx] - b[bIdx];
-            case MUL -> a[aIdx] * b[bIdx];
-            case DIV -> a[aIdx] / b[bIdx];
-            case MIN -> Math.min(a[aIdx], b[bIdx]);
-            case MAX -> Math.max(a[aIdx], b[bIdx]);
-            case NEG -> -a[aIdx];
-            case INV -> 1.0 / a[aIdx];
-            case LOG -> Math.log(a[aIdx]);
-            case EXP -> useFastExpApprox ? FastExp.fastExpF64(a[aIdx]) : Math.exp(a[aIdx]);
-            case FAST_EXP -> FastExp.fastExpF64(a[aIdx]);
-            case TANH -> useFastTanhApprox ? FastExp.fastTanhF64(a[aIdx]) : Math.tanh(a[aIdx]);
-            case FAST_TANH -> FastExp.fastTanhF64(a[aIdx]);
-            case SQRT -> Math.sqrt(a[aIdx]);
-            case ABS -> Math.abs(a[aIdx]);
-            case RELU -> Math.max(0.0, a[aIdx]);
-            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValue(), a[aIdx]);
-            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValue(), a[aIdx]);
-            case SIGMOID -> 1.0 / (1.0 + Math.exp(-a[aIdx]));
-            case MUL_SCALAR -> a[aIdx] * ((mulScalar) op).getScalar();
-            case POW -> {
-                double exponent = ((pow) op).getExponent();
-                double v = a[aIdx];
-                if (exponent == 0.0) yield 1.0;
-                if (exponent == 1.0) yield v;
-                if (exponent == 2.0) yield v * v;
-                yield Math.pow(v, exponent);
+                int currentCoord = coords[dim];
+                if (currentCoord != 0) {
+                    for (int slot = 0; slot < offsets.length; slot++) {
+                        int[] slotStrides = strides[slot];
+                        if (slotStrides != null) {
+                            offsets[slot] -= currentCoord * slotStrides[dim];
+                        }
+                    }
+                }
+                coords[dim] = 0;
             }
-            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
-        };
-    }
-
-    private static float evalF32(
-            Operation op,
-            float[] a,
-            float[] b,
-            int aIdx,
-            int bIdx,
-            boolean useFastExpApprox,
-            boolean useFastTanhApprox
-    ) {
-        return switch (op.opType()) {
-            case ADD -> a[aIdx] + b[bIdx];
-            case SUB -> a[aIdx] - b[bIdx];
-            case MUL -> a[aIdx] * b[bIdx];
-            case DIV -> a[aIdx] / b[bIdx];
-            case MIN -> Math.min(a[aIdx], b[bIdx]);
-            case MAX -> Math.max(a[aIdx], b[bIdx]);
-            case NEG -> -a[aIdx];
-            case INV -> 1.0f / a[aIdx];
-            case LOG -> (float) Math.log(a[aIdx]);
-            case EXP -> useFastExpApprox ? FastExp.fastExpF32(a[aIdx]) : (float) Math.exp(a[aIdx]);
-            case FAST_EXP -> FastExp.fastExpF32(a[aIdx]);
-            case TANH -> useFastTanhApprox ? FastExp.fastTanhF32(a[aIdx]) : (float) Math.tanh(a[aIdx]);
-            case FAST_TANH -> FastExp.fastTanhF32(a[aIdx]);
-            case SQRT -> (float) Math.sqrt(a[aIdx]);
-            case ABS -> Math.abs(a[aIdx]);
-            case RELU -> Math.max(0.0f, a[aIdx]);
-            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValueF32(), a[aIdx]);
-            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValueF32(), a[aIdx]);
-            case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-a[aIdx])));
-            case MUL_SCALAR -> a[aIdx] * ((mulScalar) op).getScalarF32();
-            case POW -> {
-                float exponent = ((pow) op).getExponentF32();
-                float v = a[aIdx];
-                if (exponent == 0.0f) yield 1.0f;
-                if (exponent == 1.0f) yield v;
-                if (exponent == 2.0f) yield v * v;
-                yield (float) Math.pow(v, exponent);
-            }
-            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
-        };
-    }
-
-    private static short evalF16(
-            Operation op,
-            short[] a,
-            short[] b,
-            int aIdx,
-            int bIdx,
-            boolean useFastExpApprox,
-            boolean useFastTanhApprox
-    ) {
-        float av = a != null ? CpuDTypeOps.fromBFloat16Bits(a[aIdx]) : 0.0f;
-        float bv = b != null ? CpuDTypeOps.fromBFloat16Bits(b[bIdx]) : 0.0f;
-        float value = switch (op.opType()) {
-            case ADD -> av + bv;
-            case SUB -> av - bv;
-            case MUL -> av * bv;
-            case DIV -> av / bv;
-            case MIN -> Math.min(av, bv);
-            case MAX -> Math.max(av, bv);
-            case NEG -> -av;
-            case INV -> 1.0f / av;
-            case LOG -> (float) Math.log(av);
-            case EXP -> useFastExpApprox ? FastExp.fastExpF32(av) : (float) Math.exp(av);
-            case FAST_EXP -> FastExp.fastExpF32(av);
-            case TANH -> useFastTanhApprox ? FastExp.fastTanhF32(av) : (float) Math.tanh(av);
-            case FAST_TANH -> FastExp.fastTanhF32(av);
-            case SQRT -> (float) Math.sqrt(av);
-            case ABS -> Math.abs(av);
-            case RELU -> Math.max(0.0f, av);
-            case CLAMP_MIN -> Math.max(((clampMin) op).getMinValueF32(), av);
-            case CLAMP_MAX -> Math.min(((clampMax) op).getMaxValueF32(), av);
-            case SIGMOID -> (float) (1.0 / (1.0 + Math.exp(-av)));
-            case MUL_SCALAR -> av * ((mulScalar) op).getScalarF32();
-            case POW -> {
-                float exponent = ((pow) op).getExponentF32();
-                if (exponent == 0.0f) yield 1.0f;
-                if (exponent == 1.0f) yield av;
-                if (exponent == 2.0f) yield av * av;
-                yield (float) Math.pow(av, exponent);
-            }
-            default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
-        };
-        return CpuDTypeOps.toBFloat16Bits(value);
+        }
     }
 }

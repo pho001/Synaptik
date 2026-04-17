@@ -1,9 +1,9 @@
 package tensor;
 
-final class TensorDataTypeUtil {
+public final class TensorDataTypeUtil {
     private TensorDataTypeUtil() {}
 
-    static DataType promote(DataType left, DataType right) {
+    public static DataType promote(DataType left, DataType right) {
         if (left == DataType.BOOL || right == DataType.BOOL || left == DataType.INT32 || right == DataType.INT32) {
             throw new IllegalArgumentException("Only floating numeric dtypes are supported by numeric promotion.");
         }
@@ -12,11 +12,11 @@ final class TensorDataTypeUtil {
         return DataType.BFLOAT16;
     }
 
-    static DataType binary(Tensor first, Tensor second) {
+    public static DataType binary(Tensor first, Tensor second) {
         return promote(first.getDataType(), second.getDataType());
     }
 
-    static DataType unary(Tensor input) {
+    public static DataType unary(Tensor input) {
         if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
             throw new IllegalArgumentException("Only floating numeric dtypes are supported by numeric unary dtype resolution.");
         }

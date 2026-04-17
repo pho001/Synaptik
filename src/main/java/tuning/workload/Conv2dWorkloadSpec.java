@@ -1,9 +1,9 @@
 package tuning.workload;
 
 import config.profile.ExecutionProfile;
-import tensor.Conv2dOptions;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.options.Conv2dOptions;
 import tuning.validate.ValidationReference;
 import tuning.validate.ValidationTarget;
 
