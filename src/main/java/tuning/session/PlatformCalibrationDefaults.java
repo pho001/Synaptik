@@ -1,5 +1,6 @@
 package tuning.session;
 
+import backend.blas.BlasProvider;
 import backend.kernels.cpu.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;
@@ -150,6 +151,10 @@ public final class PlatformCalibrationDefaults {
                 base -> new PlatformRuntimeProfileGridCandidateSpace(
                         base,
                         List.of(
+                                PlatformRuntimeProfileMutators.matmulBlasProviders(
+                                        List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
+                                        List.of(1_000_000L, 2_000_000L, 4_000_000L)
+                                ),
                                 PlatformRuntimeProfileMutators.matmulMicroKernels(supportedMatMulMicroKernels(seedProfileDataType(base))),
                                 PlatformRuntimeProfileMutators.matmulTiles(supportedMatMulTiles(seedProfileDataType(base))),
                                 PlatformRuntimeProfileMutators.matmulShapeHeuristics(

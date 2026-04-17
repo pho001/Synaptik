@@ -78,10 +78,10 @@ public final class OpenBlasFfmBridge {
         if (!STATE.available || STATE.sgemm == null) {
             throw new IllegalStateException("OpenBLAS FFM sgemm is unavailable: " + STATE.reason);
         }
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment aSeg = copyToNative(a, arena);
-            MemorySegment bSeg = copyToNative(b, arena);
-            MemorySegment cSeg = copyToNative(c, arena);
+        try {
+            MemorySegment aSeg = heapFloatSegment(a, 0, requiredElements(m, lda));
+            MemorySegment bSeg = heapFloatSegment(b, 0, requiredElements(k, ldb));
+            MemorySegment cSeg = heapFloatSegment(c, 0, requiredElements(m, ldc));
             STATE.sgemm.invokeExact(
                     CBLAS_ROW_MAJOR,
                     CBLAS_NO_TRANS,
@@ -98,7 +98,6 @@ public final class OpenBlasFfmBridge {
                     cSeg,
                     ldc
             );
-            MemorySegment.ofArray(c).copyFrom(cSeg);
         } catch (Throwable t) {
             throw new IllegalStateException("OpenBLAS FFM sgemm call failed", t);
         }
@@ -123,10 +122,10 @@ public final class OpenBlasFfmBridge {
         if (!STATE.available || STATE.sgemm == null) {
             throw new IllegalStateException("OpenBLAS FFM sgemm is unavailable: " + STATE.reason);
         }
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment aSeg = copyToNative(a, aOffset, m * k, arena);
-            MemorySegment bSeg = copyToNative(b, bOffset, k * n, arena);
-            MemorySegment cSeg = copyToNative(c, cOffset, m * n, arena);
+        try {
+            MemorySegment aSeg = heapFloatSegment(a, aOffset, requiredElements(m, lda));
+            MemorySegment bSeg = heapFloatSegment(b, bOffset, requiredElements(k, ldb));
+            MemorySegment cSeg = heapFloatSegment(c, cOffset, requiredElements(m, ldc));
             STATE.sgemm.invokeExact(
                     CBLAS_ROW_MAJOR,
                     CBLAS_NO_TRANS,
@@ -143,7 +142,6 @@ public final class OpenBlasFfmBridge {
                     cSeg,
                     ldc
             );
-            MemorySegment.ofArray(c).asSlice((long) cOffset * JAVA_FLOAT.byteSize(), cSeg.byteSize()).copyFrom(cSeg);
         } catch (Throwable t) {
             throw new IllegalStateException("OpenBLAS FFM sgemm call failed", t);
         }
@@ -165,10 +163,10 @@ public final class OpenBlasFfmBridge {
         if (!STATE.available || STATE.dgemm == null) {
             throw new IllegalStateException("OpenBLAS FFM dgemm is unavailable: " + STATE.reason);
         }
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment aSeg = copyToNative(a, arena);
-            MemorySegment bSeg = copyToNative(b, arena);
-            MemorySegment cSeg = copyToNative(c, arena);
+        try {
+            MemorySegment aSeg = heapDoubleSegment(a, 0, requiredElements(m, lda));
+            MemorySegment bSeg = heapDoubleSegment(b, 0, requiredElements(k, ldb));
+            MemorySegment cSeg = heapDoubleSegment(c, 0, requiredElements(m, ldc));
             STATE.dgemm.invokeExact(
                     CBLAS_ROW_MAJOR,
                     CBLAS_NO_TRANS,
@@ -185,7 +183,6 @@ public final class OpenBlasFfmBridge {
                     cSeg,
                     ldc
             );
-            MemorySegment.ofArray(c).copyFrom(cSeg);
         } catch (Throwable t) {
             throw new IllegalStateException("OpenBLAS FFM dgemm call failed", t);
         }
@@ -210,10 +207,10 @@ public final class OpenBlasFfmBridge {
         if (!STATE.available || STATE.dgemm == null) {
             throw new IllegalStateException("OpenBLAS FFM dgemm is unavailable: " + STATE.reason);
         }
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment aSeg = copyToNative(a, aOffset, m * k, arena);
-            MemorySegment bSeg = copyToNative(b, bOffset, k * n, arena);
-            MemorySegment cSeg = copyToNative(c, cOffset, m * n, arena);
+        try {
+            MemorySegment aSeg = heapDoubleSegment(a, aOffset, requiredElements(m, lda));
+            MemorySegment bSeg = heapDoubleSegment(b, bOffset, requiredElements(k, ldb));
+            MemorySegment cSeg = heapDoubleSegment(c, cOffset, requiredElements(m, ldc));
             STATE.dgemm.invokeExact(
                     CBLAS_ROW_MAJOR,
                     CBLAS_NO_TRANS,
@@ -230,7 +227,6 @@ public final class OpenBlasFfmBridge {
                     cSeg,
                     ldc
             );
-            MemorySegment.ofArray(c).asSlice((long) cOffset * JAVA_DOUBLE.byteSize(), cSeg.byteSize()).copyFrom(cSeg);
         } catch (Throwable t) {
             throw new IllegalStateException("OpenBLAS FFM dgemm call failed", t);
         }
@@ -252,10 +248,10 @@ public final class OpenBlasFfmBridge {
         if (!STATE.available || STATE.sbgemm == null) {
             throw new IllegalStateException("OpenBLAS FFM sbgemm is unavailable: " + STATE.reason);
         }
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment aSeg = copyToNative(a, arena);
-            MemorySegment bSeg = copyToNative(b, arena);
-            MemorySegment cSeg = copyToNative(c, arena);
+        try {
+            MemorySegment aSeg = heapShortSegment(a, 0, requiredElements(m, lda));
+            MemorySegment bSeg = heapShortSegment(b, 0, requiredElements(k, ldb));
+            MemorySegment cSeg = heapFloatSegment(c, 0, requiredElements(m, ldc));
             STATE.sbgemm.invokeExact(
                     CBLAS_ROW_MAJOR,
                     CBLAS_NO_TRANS,
@@ -272,7 +268,6 @@ public final class OpenBlasFfmBridge {
                     cSeg,
                     ldc
             );
-            MemorySegment.ofArray(c).copyFrom(cSeg);
         } catch (Throwable t) {
             throw new IllegalStateException("OpenBLAS FFM sbgemm call failed", t);
         }
@@ -297,10 +292,10 @@ public final class OpenBlasFfmBridge {
         if (!STATE.available || STATE.sbgemm == null) {
             throw new IllegalStateException("OpenBLAS FFM sbgemm is unavailable: " + STATE.reason);
         }
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment aSeg = copyToNative(a, aOffset, m * k, arena);
-            MemorySegment bSeg = copyToNative(b, bOffset, k * n, arena);
-            MemorySegment cSeg = copyToNative(c, cOffset, m * n, arena);
+        try {
+            MemorySegment aSeg = heapShortSegment(a, aOffset, requiredElements(m, lda));
+            MemorySegment bSeg = heapShortSegment(b, bOffset, requiredElements(k, ldb));
+            MemorySegment cSeg = heapFloatSegment(c, cOffset, requiredElements(m, ldc));
             STATE.sbgemm.invokeExact(
                     CBLAS_ROW_MAJOR,
                     CBLAS_NO_TRANS,
@@ -317,58 +312,34 @@ public final class OpenBlasFfmBridge {
                     cSeg,
                     ldc
             );
-            MemorySegment.ofArray(c).asSlice((long) cOffset * JAVA_FLOAT.byteSize(), cSeg.byteSize()).copyFrom(cSeg);
         } catch (Throwable t) {
             throw new IllegalStateException("OpenBLAS FFM sbgemm call failed", t);
         }
     }
 
-    private static MemorySegment copyToNative(float[] src, Arena arena) {
-        MemorySegment heap = MemorySegment.ofArray(src);
-        MemorySegment nativeSeg = arena.allocate(heap.byteSize(), JAVA_FLOAT.byteAlignment());
-        nativeSeg.copyFrom(heap);
-        return nativeSeg;
+    private static int requiredElements(int rows, int leadingDim) {
+        return Math.max(0, rows) * Math.max(0, leadingDim);
     }
 
-    private static MemorySegment copyToNative(float[] src, int offset, int length, Arena arena) {
+    private static MemorySegment heapFloatSegment(float[] src, int offset, int length) {
         MemorySegment heap = MemorySegment.ofArray(src);
         long byteOffset = (long) offset * JAVA_FLOAT.byteSize();
         long byteLength = (long) length * JAVA_FLOAT.byteSize();
-        MemorySegment nativeSeg = arena.allocate(byteLength, JAVA_FLOAT.byteAlignment());
-        nativeSeg.copyFrom(heap.asSlice(byteOffset, byteLength));
-        return nativeSeg;
+        return heap.asSlice(byteOffset, byteLength);
     }
 
-    private static MemorySegment copyToNative(double[] src, Arena arena) {
-        MemorySegment heap = MemorySegment.ofArray(src);
-        MemorySegment nativeSeg = arena.allocate(heap.byteSize(), JAVA_DOUBLE.byteAlignment());
-        nativeSeg.copyFrom(heap);
-        return nativeSeg;
-    }
-
-    private static MemorySegment copyToNative(double[] src, int offset, int length, Arena arena) {
+    private static MemorySegment heapDoubleSegment(double[] src, int offset, int length) {
         MemorySegment heap = MemorySegment.ofArray(src);
         long byteOffset = (long) offset * JAVA_DOUBLE.byteSize();
         long byteLength = (long) length * JAVA_DOUBLE.byteSize();
-        MemorySegment nativeSeg = arena.allocate(byteLength, JAVA_DOUBLE.byteAlignment());
-        nativeSeg.copyFrom(heap.asSlice(byteOffset, byteLength));
-        return nativeSeg;
+        return heap.asSlice(byteOffset, byteLength);
     }
 
-    private static MemorySegment copyToNative(short[] src, Arena arena) {
-        MemorySegment heap = MemorySegment.ofArray(src);
-        MemorySegment nativeSeg = arena.allocate(heap.byteSize(), JAVA_SHORT.byteAlignment());
-        nativeSeg.copyFrom(heap);
-        return nativeSeg;
-    }
-
-    private static MemorySegment copyToNative(short[] src, int offset, int length, Arena arena) {
+    private static MemorySegment heapShortSegment(short[] src, int offset, int length) {
         MemorySegment heap = MemorySegment.ofArray(src);
         long byteOffset = (long) offset * JAVA_SHORT.byteSize();
         long byteLength = (long) length * JAVA_SHORT.byteSize();
-        MemorySegment nativeSeg = arena.allocate(byteLength, JAVA_SHORT.byteAlignment());
-        nativeSeg.copyFrom(heap.asSlice(byteOffset, byteLength));
-        return nativeSeg;
+        return heap.asSlice(byteOffset, byteLength);
     }
 
     private static State init() {

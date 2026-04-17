@@ -1,6 +1,7 @@
 package tuning.session;
 
 import backend.ApproxMode;
+import backend.blas.BlasProvider;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ElementwiseDispatchPlatformProfile;
 import config.profile.FusedPlatformProfile;
@@ -27,6 +28,96 @@ public final class PlatformRuntimeProfileMutators {
     }
 
     private PlatformRuntimeProfileMutators() {
+    }
+
+    public static PlatformRuntimeProfileMutator matmulBlasProviders(
+            List<BlasProvider> providers,
+            List<Long> minWorks
+    ) {
+        List<BlasProvider> safeProviders = providers == null ? List.of() : List.copyOf(providers);
+        List<Long> safeMinWorks = minWorks == null ? List.of() : List.copyOf(minWorks);
+        return (baseProfile, workload) -> {
+            if (!usesMatmulFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("blasProvider=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (BlasProvider provider : safeProviders) {
+                if (provider == null) {
+                    continue;
+                }
+                if (provider == BlasProvider.NONE) {
+                    MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                            BlasProvider.NONE,
+                            baseProfile.matmul().blasMatmulMinWork(),
+                            baseProfile.matmul().blasThreads(),
+                            baseProfile.matmul().f32RequireMgeK(),
+                            baseProfile.matmul().f32MaxNOverK(),
+                            baseProfile.matmul().loopUnrollFactor(),
+                            baseProfile.matmul().matMulTileM(),
+                            baseProfile.matmul().matMulTileN(),
+                            baseProfile.matmul().matMulTileK(),
+                            baseProfile.matmul().attentionMatMulTileM(),
+                            baseProfile.matmul().attentionMatMulTileN(),
+                            baseProfile.matmul().attentionMatMulTileK(),
+                            baseProfile.matmul().matMulParallelMinSize(),
+                            baseProfile.matmul().matMulMicroKernel(),
+                            baseProfile.matmul().attentionMatMulMicroKernel()
+                    );
+                    out.add(new RuntimeProfileCandidate(
+                            "blasProvider=NONE",
+                            new PlatformRuntimeProfile(
+                                    baseProfile.metadata(),
+                                    matmul,
+                                    baseProfile.fused(),
+                                    baseProfile.elementwiseDispatch(),
+                                    baseProfile.reduction(),
+                                    baseProfile.scheduler(),
+                                    baseProfile.materialization(),
+                                    baseProfile.numerics()
+                            ),
+                            Map.of("runtime.blas.provider", matmul.blasProvider().name())
+                    ));
+                    continue;
+                }
+                for (Long minWork : safeMinWorks) {
+                    MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                            provider,
+                            minWork == null ? baseProfile.matmul().blasMatmulMinWork() : minWork,
+                            baseProfile.matmul().blasThreads(),
+                            baseProfile.matmul().f32RequireMgeK(),
+                            baseProfile.matmul().f32MaxNOverK(),
+                            baseProfile.matmul().loopUnrollFactor(),
+                            baseProfile.matmul().matMulTileM(),
+                            baseProfile.matmul().matMulTileN(),
+                            baseProfile.matmul().matMulTileK(),
+                            baseProfile.matmul().attentionMatMulTileM(),
+                            baseProfile.matmul().attentionMatMulTileN(),
+                            baseProfile.matmul().attentionMatMulTileK(),
+                            baseProfile.matmul().matMulParallelMinSize(),
+                            baseProfile.matmul().matMulMicroKernel(),
+                            baseProfile.matmul().attentionMatMulMicroKernel()
+                    );
+                    out.add(new RuntimeProfileCandidate(
+                            "blasProvider=" + matmul.blasProvider().name() + ":minWork=" + matmul.blasMatmulMinWork(),
+                            new PlatformRuntimeProfile(
+                                    baseProfile.metadata(),
+                                    matmul,
+                                    baseProfile.fused(),
+                                    baseProfile.elementwiseDispatch(),
+                                    baseProfile.reduction(),
+                                    baseProfile.scheduler(),
+                                    baseProfile.materialization(),
+                                    baseProfile.numerics()
+                            ),
+                            Map.of(
+                                    "runtime.blas.provider", matmul.blasProvider().name(),
+                                    "runtime.blas.minWork", String.valueOf(matmul.blasMatmulMinWork())
+                            )
+                    ));
+                }
+            }
+            return out;
+        };
     }
 
     public static PlatformRuntimeProfileMutator matmulShapeHeuristics(

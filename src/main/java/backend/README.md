@@ -492,6 +492,7 @@ The tuning surface is described in more detail in:
 ## BLAS Path
 
 CPU matmul can optionally switch to OpenBLAS through FFM.
+The current FFM bridge uses zero-copy heap array segments for contiguous inputs and outputs rather than per-call native scratch copies.
 
 Relevant runtime properties:
 
@@ -505,6 +506,8 @@ Relevant runtime properties:
 
 In practice:
 
+- `cg.cpu.blas.provider` decides whether BLAS is even considered
+- `cg.cpu.blas.matmulMinWork` is a crossover threshold between the Java matmul backend and the BLAS backend, not an enable switch by itself
 - BLAS is used only for suitable contiguous workloads
 - the heuristic for `F32` is stricter than for `F64`
 - fallback back to the Java backend is automatic

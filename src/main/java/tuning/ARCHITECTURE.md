@@ -343,6 +343,7 @@ Every runtime knob needs a clear owner.
 
 This family currently includes for example:
 
+- BLAS provider
 - BLAS minimum work
 - BLAS threads
 - `f32RequireMgeK`

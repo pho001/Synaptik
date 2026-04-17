@@ -168,6 +168,37 @@ public class PlatformCalibrationDefaultsTest {
     }
 
     @Test
+    void matmulStepGeneratesBlasProviderAndMinWorkCandidates() {
+        var step = PlatformCalibrationDefaults.matmulStep("matmul", TuningPreset.QUICK);
+
+        PlatformRuntimeProfile base = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform-f64",
+                "hw",
+                "TEST",
+                new ExecutionProfile(
+                        "seed-f64",
+                        "seed-f64",
+                        tensor.DataType.FLOAT64,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.runtime.RuntimeConfig.inferenceDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+
+        var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
+
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                "NONE".equals(candidate.runtimeProfile().matmul().blasProvider().name())));
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                "OPENBLAS_FFM".equals(candidate.runtimeProfile().matmul().blasProvider().name())
+                        && candidate.runtimeProfile().matmul().blasMatmulMinWork() == 1_000_000L));
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                "OPENBLAS_FFM".equals(candidate.runtimeProfile().matmul().blasProvider().name())
+                        && candidate.runtimeProfile().matmul().blasMatmulMinWork() == 4_000_000L));
+    }
+
+    @Test
     void fusedCheapContiguousCalibrationStepGeneratesFamilySpecificAsmWidthCandidates() {
         var step = PlatformCalibrationDefaults.fusedCheapContiguousStep(
                 "fused-cheap-contig",
