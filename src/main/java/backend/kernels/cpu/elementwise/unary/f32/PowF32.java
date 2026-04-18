@@ -1,6 +1,7 @@
 package backend.kernels.cpu.elementwise.unary.f32;
 
 import backend.kernels.cpu.CpuExecutionMode;
+import backend.kernels.cpu.CpuPowSupport;
 import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.ResolvedDispatchHints;
 import jdk.incubator.vector.FloatVector;
@@ -24,12 +25,7 @@ public final class PowF32 {
 
     private static void scalar(float[] in, float exponent, float[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            if (exponent == 0.0f) out[i] = 1.0f;
-            else if (exponent == 1.0f) out[i] = in[i];
-            else if (exponent == 2.0f) out[i] = in[i] * in[i];
-            else if (exponent == 0.5f) out[i] = (float) Math.sqrt(in[i]);
-            else if (exponent == -1.0f) out[i] = 1.0f / in[i];
-            else out[i] = (float) Math.pow(in[i], exponent);
+            out[i] = CpuPowSupport.applyF32(in[i], exponent);
         }
     }
 

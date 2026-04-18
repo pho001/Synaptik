@@ -228,9 +228,12 @@ public final class Float32FusedExecutor {
             Object[] values,
             int logicalIndex
     ) {
-        Object a = loadVectorRef(plan, node.inputRefs().get(0), accessors, values, logicalIndex);
-        Object b = node.inputRefs().size() > 1
-                ? loadVectorRef(plan, node.inputRefs().get(1), accessors, values, logicalIndex)
+        List<Integer> refs = node.inputRefs();
+        Object a = !refs.isEmpty()
+                ? loadVectorRef(plan, refs.get(0), accessors, values, logicalIndex)
+                : null;
+        Object b = refs.size() > 1
+                ? loadVectorRef(plan, refs.get(1), accessors, values, logicalIndex)
                 : null;
         FusedNodeAttributes attrs = node.attributes();
         return switch (node.opType()) {
@@ -258,6 +261,7 @@ public final class Float32FusedExecutor {
             case TANH, FAST_TANH -> ((FloatVector) a).lanewise(VectorOperators.TANH);
             case SQRT -> ((FloatVector) a).lanewise(VectorOperators.SQRT);
             case ABS -> ((FloatVector) a).abs();
+            case CONST_SCALAR -> FloatVector.broadcast(SPECIES, (float) ((ScalarDoubleAttribute) attrs).value());
             case MUL_SCALAR -> ((FloatVector) a).mul(FloatVector.broadcast(SPECIES, (float) ((ScalarDoubleAttribute) attrs).value()));
             case RELU -> ((FloatVector) a).max(ZERO);
             case CLAMP_MIN -> ((FloatVector) a).max(FloatVector.broadcast(SPECIES, (float) ((ScalarDoubleAttribute) attrs).value()));
@@ -313,6 +317,7 @@ public final class Float32FusedExecutor {
             case POW -> graph.codegen.FusedScalarOps.powF32(in[0], (float) ((ScalarDoubleAttribute) attrs).value());
             case SQRT -> (float) Math.sqrt(in[0]);
             case ABS -> Math.abs(in[0]);
+            case CONST_SCALAR -> (float) ((ScalarDoubleAttribute) attrs).value();
             case MUL_SCALAR -> in[0] * (float) ((ScalarDoubleAttribute) attrs).value();
             case RELU -> Math.max(in[0], 0.0f);
             case CLAMP_MIN -> Math.max(in[0], (float) ((ScalarDoubleAttribute) attrs).value());
@@ -359,7 +364,7 @@ public final class Float32FusedExecutor {
     private static boolean supportsVectorFastPath(Operation.OpType opType) {
         return switch (opType) {
             case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
-                    SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, POW, NOOP,
+                    SQRT, ABS, CONST_SCALAR, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, POW, NOOP,
                     GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> true;
             default -> false;
         };

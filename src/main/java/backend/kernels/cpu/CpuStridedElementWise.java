@@ -886,10 +886,7 @@ public final class CpuStridedElementWise {
                 double exponent = ((pow) op).getExponent();
                 for (int i = 0; i < logicalSize; i++) {
                     double value = a[aBaseOffset + i * strideA];
-                    out[outBaseOffset + i * outStride] = exponent == 0.0 ? 1.0
-                            : exponent == 1.0 ? value
-                            : exponent == 2.0 ? value * value
-                            : Math.pow(value, exponent);
+                    out[outBaseOffset + i * outStride] = CpuPowSupport.applyF64(value, exponent);
                 }
             }
             default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
@@ -1024,10 +1021,7 @@ public final class CpuStridedElementWise {
                 float exponent = ((pow) op).getExponentF32();
                 for (int i = 0; i < logicalSize; i++) {
                     float value = a[aBaseOffset + i * strideA];
-                    out[outBaseOffset + i * outStride] = exponent == 0.0f ? 1.0f
-                            : exponent == 1.0f ? value
-                            : exponent == 2.0f ? value * value
-                            : (float) Math.pow(value, exponent);
+                    out[outBaseOffset + i * outStride] = CpuPowSupport.applyF32(value, exponent);
                 }
             }
             default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
@@ -1189,11 +1183,7 @@ public final class CpuStridedElementWise {
                 float exponent = ((pow) op).getExponentF32();
                 for (int i = 0; i < logicalSize; i++) {
                     float av = CpuDTypeOps.fromBFloat16Bits(a[aBaseOffset + i * strideA]);
-                    float value = exponent == 0.0f ? 1.0f
-                            : exponent == 1.0f ? av
-                            : exponent == 2.0f ? av * av
-                            : (float) Math.pow(av, exponent);
-                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(value);
+                    out[outBaseOffset + i * outStride] = CpuDTypeOps.toBFloat16Bits(CpuPowSupport.applyF32(av, exponent));
                 }
             }
             default -> throw new UnsupportedOperationException("Unsupported strided opType=" + op.opType());
@@ -1355,10 +1345,7 @@ public final class CpuStridedElementWise {
                 double exponent = ((pow) op).getExponent();
                 for (int i = 0; i < logicalSize; i++) {
                     double value = a[cursor.offset(1)];
-                    out[cursor.offset(0)] = exponent == 0.0 ? 1.0
-                            : exponent == 1.0 ? value
-                            : exponent == 2.0 ? value * value
-                            : Math.pow(value, exponent);
+                    out[cursor.offset(0)] = CpuPowSupport.applyF64(value, exponent);
                     if (i + 1 < logicalSize) cursor.step();
                 }
             }
@@ -1521,10 +1508,7 @@ public final class CpuStridedElementWise {
                 float exponent = ((pow) op).getExponentF32();
                 for (int i = 0; i < logicalSize; i++) {
                     float value = a[cursor.offset(1)];
-                    out[cursor.offset(0)] = exponent == 0.0f ? 1.0f
-                            : exponent == 1.0f ? value
-                            : exponent == 2.0f ? value * value
-                            : (float) Math.pow(value, exponent);
+                    out[cursor.offset(0)] = CpuPowSupport.applyF32(value, exponent);
                     if (i + 1 < logicalSize) cursor.step();
                 }
             }
@@ -1714,11 +1698,7 @@ public final class CpuStridedElementWise {
                 float exponent = ((pow) op).getExponentF32();
                 for (int i = 0; i < logicalSize; i++) {
                     float av = CpuDTypeOps.fromBFloat16Bits(a[cursor.offset(1)]);
-                    float value = exponent == 0.0f ? 1.0f
-                            : exponent == 1.0f ? av
-                            : exponent == 2.0f ? av * av
-                            : (float) Math.pow(av, exponent);
-                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(value);
+                    out[cursor.offset(0)] = CpuDTypeOps.toBFloat16Bits(CpuPowSupport.applyF32(av, exponent));
                     if (i + 1 < logicalSize) cursor.step();
                 }
             }
@@ -2562,7 +2542,7 @@ public final class CpuStridedElementWise {
                 if (outColStride == 1 && aColStride == 0) {
                     for (int row = 0; row < rows; row++) {
                         double value = a[aBaseOffset + row * aRowStride];
-                        fillRowF64(out, outBaseOffset + row * outRowStride, cols, exponent == 0.0 ? 1.0 : exponent == 1.0 ? value : exponent == 2.0 ? value * value : Math.pow(value, exponent));
+                        fillRowF64(out, outBaseOffset + row * outRowStride, cols, CpuPowSupport.applyF64(value, exponent));
                     }
                 } else {
                     for (int row = 0; row < rows; row++) {
@@ -2570,7 +2550,7 @@ public final class CpuStridedElementWise {
                         int aRowBase = aBaseOffset + row * aRowStride;
                         for (int col = 0; col < cols; col++) {
                             double value = a[aRowBase + col * aColStride];
-                            out[outRowBase + col * outColStride] = exponent == 0.0 ? 1.0 : exponent == 1.0 ? value : exponent == 2.0 ? value * value : Math.pow(value, exponent);
+                            out[outRowBase + col * outColStride] = CpuPowSupport.applyF64(value, exponent);
                         }
                     }
                 }
@@ -2783,7 +2763,7 @@ public final class CpuStridedElementWise {
                 if (outColStride == 1 && aColStride == 0) {
                     for (int row = 0; row < rows; row++) {
                         float value = a[aBaseOffset + row * aRowStride];
-                        fillRowF32(out, outBaseOffset + row * outRowStride, cols, exponent == 0.0f ? 1.0f : exponent == 1.0f ? value : exponent == 2.0f ? value * value : (float) Math.pow(value, exponent));
+                        fillRowF32(out, outBaseOffset + row * outRowStride, cols, CpuPowSupport.applyF32(value, exponent));
                     }
                 } else {
                     for (int row = 0; row < rows; row++) {
@@ -2791,7 +2771,7 @@ public final class CpuStridedElementWise {
                         int aRowBase = aBaseOffset + row * aRowStride;
                         for (int col = 0; col < cols; col++) {
                             float value = a[aRowBase + col * aColStride];
-                            out[outRowBase + col * outColStride] = exponent == 0.0f ? 1.0f : exponent == 1.0f ? value : exponent == 2.0f ? value * value : (float) Math.pow(value, exponent);
+                            out[outRowBase + col * outColStride] = CpuPowSupport.applyF32(value, exponent);
                         }
                     }
                 }

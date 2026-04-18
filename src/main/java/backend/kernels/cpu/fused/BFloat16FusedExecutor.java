@@ -222,9 +222,12 @@ public final class BFloat16FusedExecutor {
             FloatVector[] values,
             int logicalIndex
     ) {
-        FloatVector a = loadVectorRef(plan, node.inputRefs().get(0), accessors, values, logicalIndex);
-        FloatVector b = node.inputRefs().size() > 1
-                ? loadVectorRef(plan, node.inputRefs().get(1), accessors, values, logicalIndex)
+        List<Integer> refs = node.inputRefs();
+        FloatVector a = !refs.isEmpty()
+                ? loadVectorRef(plan, refs.get(0), accessors, values, logicalIndex)
+                : null;
+        FloatVector b = refs.size() > 1
+                ? loadVectorRef(plan, refs.get(1), accessors, values, logicalIndex)
                 : null;
         FusedNodeAttributes attrs = node.attributes();
         return switch (node.opType()) {
@@ -241,6 +244,7 @@ public final class BFloat16FusedExecutor {
             case TANH, FAST_TANH -> a.lanewise(VectorOperators.TANH);
             case SQRT -> a.lanewise(VectorOperators.SQRT);
             case ABS -> a.abs();
+            case CONST_SCALAR -> FloatVector.broadcast(SPECIES, (float) ((ScalarDoubleAttribute) attrs).value());
             case MUL_SCALAR -> a.mul(FloatVector.broadcast(SPECIES, (float) ((ScalarDoubleAttribute) attrs).value()));
             case RELU -> a.max(ZERO);
             case CLAMP_MIN -> a.max(FloatVector.broadcast(SPECIES, (float) ((ScalarDoubleAttribute) attrs).value()));
@@ -303,6 +307,7 @@ public final class BFloat16FusedExecutor {
             case POW -> graph.codegen.FusedScalarOps.powF32(in[0], (float) ((ScalarDoubleAttribute) attrs).value());
             case SQRT -> (float) Math.sqrt(in[0]);
             case ABS -> Math.abs(in[0]);
+            case CONST_SCALAR -> (float) ((ScalarDoubleAttribute) attrs).value();
             case MUL_SCALAR -> in[0] * (float) ((ScalarDoubleAttribute) attrs).value();
             case RELU -> Math.max(in[0], 0.0f);
             case CLAMP_MIN -> Math.max(in[0], (float) ((ScalarDoubleAttribute) attrs).value());
@@ -341,7 +346,7 @@ public final class BFloat16FusedExecutor {
     private static boolean supportsVectorFastPath(Operation.OpType opType) {
         return switch (opType) {
             case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
-                    SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, POW, NOOP -> true;
+                    SQRT, ABS, CONST_SCALAR, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, POW, NOOP -> true;
             default -> false;
         };
     }

@@ -2,6 +2,7 @@ package backend.kernels.cpu.elementwise.unary.bf16;
 
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuExecutionMode;
+import backend.kernels.cpu.CpuPowSupport;
 import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.ResolvedDispatchHints;
 
@@ -27,13 +28,13 @@ public final class PowBF16 {
     private static void scalar(short[] in, double exponent, short[] out, int start, int end) {
         for (int i = start; i < end; i++) {
             float x = CpuDTypeOps.fromBFloat16Bits(in[i]);
-            out[i] = CpuDTypeOps.toBFloat16Bits((float) Math.pow(x, exponent));
+            out[i] = CpuDTypeOps.toBFloat16Bits(CpuPowSupport.applyF32(x, (float) exponent));
         }
     }
 
     private static void scalar(float[] in, float exponent, short[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            out[i] = CpuDTypeOps.toBFloat16Bits((float) Math.pow(in[i], exponent));
+            out[i] = CpuDTypeOps.toBFloat16Bits(CpuPowSupport.applyF32(in[i], exponent));
         }
     }
 

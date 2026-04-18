@@ -10,6 +10,8 @@ import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -207,6 +209,11 @@ public class FusedExecutionModesTest {
                 .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
         assertTrue(hasFused, "Expected fused node in graph containing where");
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
+    }
+
+    @Test
+    void fusedGraphExecutesCanonicalizedConstantNodes() {
+        assertConstantNodeFusion(DataType.FLOAT64, FusedDTypeOps.MODE_F64, 1e-9);
     }
 
     @Test
@@ -655,6 +662,33 @@ public class FusedExecutionModesTest {
             out[i] = FusedDTypeOps.sigmoid(v6, mode);
         }
         return out;
+    }
+
+    private static void assertConstantNodeFusion(DataType dataType, int mode, double tolerance) {
+        double[] inputValues = buildInput(4096, 0.09);
+        Tensor input = new Tensor(inputValues.clone(), new int[]{inputValues.length}, null, "x", dataType);
+
+        operations.pow powZeroOp = dataType == DataType.FLOAT64 ? new operations.pow(0.0) : new operations.pow(0.0f);
+        operations.mulScalar mulZeroOp = dataType == DataType.FLOAT64 ? new operations.mulScalar(0.0) : new operations.mulScalar(0.0f);
+        Tensor powZero = new Tensor(new int[]{inputValues.length}, List.of(input), powZeroOp, "powZero", dataType);
+        Tensor mulZero = new Tensor(new int[]{inputValues.length}, List.of(input), mulZeroOp, "mulZero", dataType);
+        Tensor out = powZero.add(mulZero).add(input.pow(-1.0));
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
+
+        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
+        assertTrue(hasFused, "Expected fused node in constant-canonicalization graph");
+
+        double[] expected = new double[inputValues.length];
+        for (int i = 0; i < inputValues.length; i++) {
+            double pow0 = FusedDTypeOps.pow(inputValues[i], 0.0d, mode);
+            double mul0 = FusedDTypeOps.mulScalar(inputValues[i], 0.0d, mode);
+            double inv = FusedDTypeOps.pow(inputValues[i], -1.0d, mode);
+            expected[i] = FusedDTypeOps.add(FusedDTypeOps.add(pow0, mul0, mode), inv, mode);
+        }
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), tolerance);
     }
 
     private static RuntimeConfig runtimeConfig(CpuKernelConfig cpuKernelConfig) {

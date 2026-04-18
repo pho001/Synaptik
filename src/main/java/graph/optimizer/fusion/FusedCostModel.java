@@ -174,7 +174,7 @@ public class FusedCostModel {
             return false;
         }
         return switch (opType) {
-            case ADD, SUB, MUL, MIN, MAX, NEG, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, ABS, NOOP -> true;
+            case ADD, SUB, MUL, MIN, MAX, NEG, CONST_SCALAR, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, ABS, NOOP -> true;
             case DIV, INV, SQRT, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, POW -> false;
             case GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> false;
             default -> false;

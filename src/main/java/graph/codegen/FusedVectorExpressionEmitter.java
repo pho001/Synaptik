@@ -55,6 +55,15 @@ public final class FusedVectorExpressionEmitter {
             }
             case SIGMOID -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "sigmoid", precisionMode);
             case NOOP -> FusedAsmSupport.emitVectorUnaryOpCall(mv, "noop", precisionMode);
+            case CONST_SCALAR -> {
+                double constant = ((ScalarDoubleAttribute) current.attributes()).value();
+                if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn((float) constant);
+                } else {
+                    mv.visitLdcInsn(constant);
+                }
+                FusedAsmSupport.emitVectorConstantCall(mv, precisionMode);
+            }
             case GT -> FusedAsmSupport.emitVectorCompareOpCall(mv, "gt", precisionMode);
             case GE -> FusedAsmSupport.emitVectorCompareOpCall(mv, "ge", precisionMode);
             case LT -> FusedAsmSupport.emitVectorCompareOpCall(mv, "lt", precisionMode);

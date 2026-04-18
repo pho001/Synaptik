@@ -2,6 +2,7 @@ package backend.kernels.cpu.elementwise.unary;
 
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
+import backend.kernels.cpu.CpuPowSupport;
 import backend.kernels.cpu.ResolvedDispatchHints;
 import backend.kernels.cpu.elementwise.unary.bf16.PowBF16;
 import backend.kernels.cpu.elementwise.unary.f32.PowF32;
@@ -33,17 +34,17 @@ public final class CpuPowKernel implements CpuKernel, ScalarUnaryElementwiseKern
 
     @Override
     public double applyF64(double value, double parameter) {
-        return Math.pow(value, parameter);
+        return CpuPowSupport.applyF64(value, parameter);
     }
 
     @Override
     public float applyF32(float value, float parameter) {
-        return (float) Math.pow(value, parameter);
+        return CpuPowSupport.applyF32(value, parameter);
     }
 
     @Override
     public float applyBF16(float value, float parameter) {
-        return (float) Math.pow(value, parameter);
+        return CpuPowSupport.applyF32(value, parameter);
     }
 
     @Override

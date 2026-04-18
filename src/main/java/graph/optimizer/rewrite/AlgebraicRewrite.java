@@ -231,6 +231,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
         if (e == 0.0) return Tensor.onesLike(a);
         if (e == 1.0) return a;
+        if (e == -1.0) return a.inv();
         if (!DISABLE_POW2_TO_MUL && e == 2.0) return a.mul(a);
         if (!DISABLE_POW_INV_TO_NEGEXP && isOp(a, Operation.OpType.INV)) return a.getPrevTensors().get(0).pow(-e);
         if (!DISABLE_POW_POW_FLATTEN && isOp(a, Operation.OpType.POW) && a.getOperation() instanceof operations.pow inner) {

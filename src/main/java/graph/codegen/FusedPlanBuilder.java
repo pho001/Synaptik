@@ -65,14 +65,15 @@ public final class FusedPlanBuilder {
             }
 
             refs.put(tensor, outputRef);
+            CanonicalNode canonical = canonicalize(operation, inputRefs);
 
             nodes.add(new FusedNodePlan(
                     i,
-                    operation.opType(),
-                    inputRefs,
+                    canonical.opType(),
+                    canonical.inputRefs(),
                     outputRef,
                     tensor.getDataType(),
-                    extractAttributes(operation)
+                    canonical.attributes()
             ));
         }
 
@@ -85,6 +86,71 @@ public final class FusedPlanBuilder {
                 nodes,
                 inputPlans,
                 outputRef
+        );
+    }
+
+    private static CanonicalNode canonicalize(Operation operation, List<Integer> inputRefs) {
+        if (operation instanceof pow p && inputRefs.size() == 1) {
+            double exponent = p.getExponent();
+            int inputRef = inputRefs.get(0);
+            if (exponent == 0.0d) {
+                return new CanonicalNode(
+                        Operation.OpType.CONST_SCALAR,
+                        List.of(),
+                        new ScalarDoubleAttribute(1.0d)
+                );
+            }
+            if (exponent == 1.0d) {
+                return new CanonicalNode(
+                        Operation.OpType.NOOP,
+                        List.of(inputRef),
+                        NoAttributes.INSTANCE
+                );
+            }
+            if (exponent == -1.0d) {
+                return new CanonicalNode(
+                        Operation.OpType.INV,
+                        List.of(inputRef),
+                        NoAttributes.INSTANCE
+                );
+            }
+            if (exponent == 2.0d) {
+                return new CanonicalNode(
+                        Operation.OpType.MUL,
+                        List.of(inputRef, inputRef),
+                        NoAttributes.INSTANCE
+                );
+            }
+        }
+        if (operation instanceof mulScalar m && inputRefs.size() == 1) {
+            double scalar = m.getScalar();
+            int inputRef = inputRefs.get(0);
+            if (scalar == 0.0d) {
+                return new CanonicalNode(
+                        Operation.OpType.CONST_SCALAR,
+                        List.of(),
+                        new ScalarDoubleAttribute(0.0d)
+                );
+            }
+            if (scalar == 1.0d) {
+                return new CanonicalNode(
+                        Operation.OpType.NOOP,
+                        List.of(inputRef),
+                        NoAttributes.INSTANCE
+                );
+            }
+            if (scalar == -1.0d) {
+                return new CanonicalNode(
+                        Operation.OpType.NEG,
+                        List.of(inputRef),
+                        NoAttributes.INSTANCE
+                );
+            }
+        }
+        return new CanonicalNode(
+                operation.opType(),
+                List.copyOf(inputRefs),
+                extractAttributes(operation)
         );
     }
 
@@ -194,4 +260,9 @@ public final class FusedPlanBuilder {
     }
 
     private record Snapshot(List<Tensor> cluster, Tensor root) {}
+    private record CanonicalNode(
+            Operation.OpType opType,
+            List<Integer> inputRefs,
+            FusedNodeAttributes attributes
+    ) {}
 }

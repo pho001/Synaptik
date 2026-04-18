@@ -134,6 +134,14 @@ public final class FusedScalarExpressionEmitter {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "abs", "(D)D", false);
                 }
                 break;
+            case CONST_SCALAR:
+                double constant = ((ScalarDoubleAttribute) current.attributes()).value();
+                if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {
+                    mv.visitLdcInsn((float) constant);
+                } else {
+                    mv.visitLdcInsn(constant);
+                }
+                break;
             case MUL_SCALAR:
                 double scalar = ((ScalarDoubleAttribute) current.attributes()).value();
                 if (precisionMode == graph.codegen.FusedDTypeOps.MODE_F32) {

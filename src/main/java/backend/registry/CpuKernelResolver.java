@@ -176,6 +176,7 @@ public final class CpuKernelResolver {
             case EXPAND -> EXPAND;
             case SELECT, EXPAND_DIMS, SQUEEZE -> ALIAS_VIEW;
             case PERMUTE -> PERMUTE;
+            case CONST_SCALAR -> throw new IllegalStateException("CONST_SCALAR is an internal fused-plan op and has no standalone CPU kernel");
             case NOOP -> NOOP;
             case FUSED -> FUSED;
             case UNKNOWN -> throw new IllegalStateException("Cannot resolve CPU kernel for UNKNOWN operation type");

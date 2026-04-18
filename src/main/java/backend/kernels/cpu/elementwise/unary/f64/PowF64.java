@@ -1,6 +1,7 @@
 package backend.kernels.cpu.elementwise.unary.f64;
 
 import backend.kernels.cpu.CpuExecutionMode;
+import backend.kernels.cpu.CpuPowSupport;
 import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.ResolvedDispatchHints;
 import jdk.incubator.vector.DoubleVector;
@@ -24,12 +25,7 @@ public final class PowF64 {
 
     private static void scalar(double[] in, double exponent, double[] out, int start, int end) {
         for (int i = start; i < end; i++) {
-            if (exponent == 0.0d) out[i] = 1.0d;
-            else if (exponent == 1.0d) out[i] = in[i];
-            else if (exponent == 2.0d) out[i] = in[i] * in[i];
-            else if (exponent == 0.5d) out[i] = Math.sqrt(in[i]);
-            else if (exponent == -1.0d) out[i] = 1.0d / in[i];
-            else out[i] = Math.pow(in[i], exponent);
+            out[i] = CpuPowSupport.applyF64(in[i], exponent);
         }
     }
 

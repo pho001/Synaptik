@@ -133,6 +133,23 @@ public final class FusedVectorOps {
         };
     }
 
+    public static Object constant(double value, int mode) {
+        return switch (mode) {
+            case FusedDTypeOps.MODE_F64 -> constantF64(value);
+            case FusedDTypeOps.MODE_F32 -> constantF32((float) value);
+            case FusedDTypeOps.MODE_BF16 -> FloatVector.broadcast(FLOAT_SPECIES, (float) FusedDTypeOps.cast(value, mode));
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
+        };
+    }
+
+    public static DoubleVector constantF64(double value) {
+        return DoubleVector.broadcast(DOUBLE_SPECIES, value);
+    }
+
+    public static FloatVector constantF32(float value) {
+        return FloatVector.broadcast(FLOAT_SPECIES, value);
+    }
+
     public static DoubleVector mulScalarF64(DoubleVector a, double scalar) { return a.mul(scalar); }
     public static FloatVector mulScalarF32(FloatVector a, float scalar) { return a.mul(scalar); }
 

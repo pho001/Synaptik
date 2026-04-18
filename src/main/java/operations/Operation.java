@@ -88,6 +88,7 @@ public interface Operation {
         PERMUTE(OpArityClass.LAYOUT, false),
         EXPAND_DIMS(OpArityClass.LAYOUT, false),
         SQUEEZE(OpArityClass.LAYOUT, false),
+        CONST_SCALAR(OpArityClass.SPECIAL, false),
         NOOP(OpArityClass.SPECIAL, false),
         FUSED(OpArityClass.FUSED, false),
         UNKNOWN(OpArityClass.SPECIAL, false);

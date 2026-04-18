@@ -8,6 +8,7 @@ import graph.codegen.FusedExpressionPlan;
 import graph.codegen.FusedExternalInputPlan;
 import graph.codegen.FusedNodeAttributes;
 import graph.codegen.FusedNodePlan;
+import graph.codegen.FusedScalarOps;
 import graph.codegen.ScalarDoubleAttribute;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.VectorMask;
@@ -228,9 +229,12 @@ public final class Float64FusedExecutor {
             Object[] values,
             int logicalIndex
     ) {
-        Object a = loadVectorRef(plan, node.inputRefs().get(0), accessors, values, logicalIndex);
-        Object b = node.inputRefs().size() > 1
-                ? loadVectorRef(plan, node.inputRefs().get(1), accessors, values, logicalIndex)
+        List<Integer> refs = node.inputRefs();
+        Object a = !refs.isEmpty()
+                ? loadVectorRef(plan, refs.get(0), accessors, values, logicalIndex)
+                : null;
+        Object b = refs.size() > 1
+                ? loadVectorRef(plan, refs.get(1), accessors, values, logicalIndex)
                 : null;
         FusedNodeAttributes attrs = node.attributes();
         return switch (node.opType()) {
@@ -257,6 +261,7 @@ public final class Float64FusedExecutor {
             case TANH, FAST_TANH -> ((DoubleVector) a).lanewise(VectorOperators.TANH);
             case SQRT -> ((DoubleVector) a).lanewise(VectorOperators.SQRT);
             case ABS -> ((DoubleVector) a).abs();
+            case CONST_SCALAR -> DoubleVector.broadcast(SPECIES, ((ScalarDoubleAttribute) attrs).value());
             case MUL_SCALAR -> ((DoubleVector) a).mul(DoubleVector.broadcast(SPECIES, ((ScalarDoubleAttribute) attrs).value()));
             case RELU -> ((DoubleVector) a).max(ZERO);
             case CLAMP_MIN -> ((DoubleVector) a).max(DoubleVector.broadcast(SPECIES, ((ScalarDoubleAttribute) attrs).value()));
@@ -307,9 +312,10 @@ public final class Float64FusedExecutor {
             case FAST_EXP -> graph.codegen.FusedScalarOps.fastExpF64(in[0]);
             case TANH -> options.useFastTanhApprox() ? graph.codegen.FusedScalarOps.fastTanhF64(in[0]) : graph.codegen.FusedScalarOps.tanhF64(in[0], false);
             case FAST_TANH -> graph.codegen.FusedScalarOps.fastTanhF64(in[0]);
-            case POW -> Math.pow(in[0], ((ScalarDoubleAttribute) attrs).value());
+            case POW -> FusedScalarOps.powF64(in[0], ((ScalarDoubleAttribute) attrs).value());
             case SQRT -> Math.sqrt(in[0]);
             case ABS -> Math.abs(in[0]);
+            case CONST_SCALAR -> ((ScalarDoubleAttribute) attrs).value();
             case MUL_SCALAR -> in[0] * ((ScalarDoubleAttribute) attrs).value();
             case RELU -> Math.max(in[0], 0.0d);
             case CLAMP_MIN -> Math.max(in[0], ((ScalarDoubleAttribute) attrs).value());
@@ -356,7 +362,7 @@ public final class Float64FusedExecutor {
     private static boolean supportsVectorFastPath(Operation.OpType opType) {
         return switch (opType) {
             case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
-                    SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, POW, NOOP,
+                    SQRT, ABS, CONST_SCALAR, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, POW, NOOP,
                     GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> true;
             default -> false;
         };

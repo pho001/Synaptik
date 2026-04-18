@@ -75,7 +75,24 @@ public final class CpuDTypeOps {
     }
 
     public static double pow(double a, double exponent, int mode) {
-        return cast(Math.pow(cast(a, mode), cast(exponent, mode)), mode);
+        double x = cast(a, mode);
+        double e = cast(exponent, mode);
+        if (e == 0.0d) {
+            return cast(1.0d, mode);
+        }
+        if (e == 1.0d) {
+            return x;
+        }
+        if (e == 2.0d) {
+            return cast(x * x, mode);
+        }
+        if (e == 0.5d) {
+            return cast(Math.sqrt(x), mode);
+        }
+        if (e == -1.0d) {
+            return cast(1.0d / x, mode);
+        }
+        return cast(Math.pow(x, e), mode);
     }
 
     public static double mulScalar(double a, double scalar, int mode) {

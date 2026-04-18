@@ -459,7 +459,7 @@ public class Tensor {
 
 
     public void setPrevTensors(List<Tensor> prevTensors) {
-        this.prevTensors = prevTensors; // Zajištění měnitelné kolekce
+        this.prevTensors = prevTensors == null ? null : new ArrayList<>(prevTensors);
     }
 
     public void setGradient(Tensor t) {

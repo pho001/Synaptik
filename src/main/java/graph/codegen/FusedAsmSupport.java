@@ -396,6 +396,20 @@ final class FusedAsmSupport {
         }
     }
 
+    static void emitVectorConstantCall(MethodVisitor mv, int precisionMode) {
+        if (precisionMode == FusedDTypeOps.MODE_BF16) {
+            mv.visitLdcInsn(precisionMode);
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", "constant", "(DI)Ljava/lang/Object;", false);
+            return;
+        }
+        String vd = vectorTypeDesc(precisionMode);
+        if (precisionMode == FusedDTypeOps.MODE_F32) {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", "constantF32", "(F)" + vd, false);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, "graph/codegen/FusedVectorOps", "constantF64", "(D)" + vd, false);
+        }
+    }
+
     static void emitVectorMulScalarCall(MethodVisitor mv, int precisionMode) {
         if (precisionMode == FusedDTypeOps.MODE_BF16) {
             mv.visitLdcInsn(precisionMode);
