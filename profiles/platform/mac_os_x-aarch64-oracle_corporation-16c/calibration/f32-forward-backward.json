@@ -5,16 +5,16 @@
     "frameworkVersion": "dev",
     "plannerSchemaVersion": "1",
     "persistenceSchemaVersion": "1",
-    "createdAtIso": "2026-04-17T05:02:29.738304+02:00",
+    "createdAtIso": "2026-04-17T21:49:29.267932+02:00",
     "calibrationPreset": "UNSPECIFIED",
     "dataType": "FLOAT32",
     "executionMode": "FORWARD_BACKWARD"
   },
   "matmul": {
-    "blasProvider": "NONE",
-    "blasMatmulMinWork": 2000000,
-    "blasThreads": 4,
-    "f32RequireMgeK": false,
+    "blasProvider": "OPENBLAS_FFM",
+    "blasMatmulMinWork": 4000000,
+    "blasThreads": 0,
+    "f32RequireMgeK": true,
     "f32MaxNOverK": 1.5,
     "loopUnrollFactor": 1,
     "matMulTileM": 32,
@@ -22,32 +22,32 @@
     "matMulTileK": 64,
     "attentionMatMulTileM": 64,
     "attentionMatMulTileN": 128,
-    "attentionMatMulTileK": 64,
+    "attentionMatMulTileK": 128,
     "matMulParallelMinSize": 500000,
-    "matMulMicroKernel": "F32_2X4",
+    "matMulMicroKernel": "F32_4X4",
     "attentionMatMulMicroKernel": "F32_4X2"
   },
   "fused": {
-    "fusedCheapVectorMinSize": 256,
+    "fusedCheapVectorMinSize": 64,
     "fusedTranscendentalVectorMinSize": 16,
     "fusedCheapParallelMinSize": 16384,
-    "fusedTranscendentalParallelMinSize": 2048,
-    "fusedCheapContiguousAsmVectorWidth": 4,
-    "fusedCheapStridedAsmVectorWidth": 4,
+    "fusedTranscendentalParallelMinSize": 4096,
+    "fusedCheapContiguousAsmVectorWidth": 2,
+    "fusedCheapStridedAsmVectorWidth": 1,
     "fusedNonCheapContiguousAsmVectorWidth": 4,
     "fusedNonCheapStridedAsmVectorWidth": 4
   },
   "elementwiseDispatch": {
-    "cheapVectorMinSize": 2048,
-    "transcendentalVectorMinSize": 128,
-    "cheapParallelMinSize": 8192,
-    "transcendentalParallelMinSize": 16384
+    "cheapVectorMinSize": 1024,
+    "transcendentalVectorMinSize": 256,
+    "cheapParallelMinSize": 16384,
+    "transcendentalParallelMinSize": 8192
   },
   "reduction": {
-    "reductionVectorMinSize": 2048,
-    "reductionParallelMinSize": 65536,
-    "attentionVectorMinSize": 16384,
-    "attentionParallelMinSize": 16384,
+    "reductionVectorMinSize": 16384,
+    "reductionParallelMinSize": 16384,
+    "attentionVectorMinSize": 8192,
+    "attentionParallelMinSize": 8192,
     "sumAccuracyMode": "FAST"
   },
   "scheduler": {
@@ -63,7 +63,7 @@
     "contiguousMaterializeThreshold": 262144
   },
   "numerics": {
-    "approxMode": "TRAINING_ONLY",
+    "approxMode": "ALWAYS",
     "forceExactTranscendentals": false
   }
 }

@@ -1,15 +1,15 @@
 {
-  "score": 7.51119263,
-  "updatedAt": "2026-04-17T06:46:01.855622+02:00",
+  "score": 8.24911450,
+  "updatedAt": "2026-04-18T05:42:08.748592+02:00",
   "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
-  "workloadKey": "name=abc_sequence_matmul_f32|kind=ABC_SEQUENCE_MATMUL|dtype=FLOAT32|mode=FORWARD_BACKWARD|batch=64|features=10000",
+  "workloadKey": "name=abc_sequence_matmul_f32|kind=ABC_SEQUENCE_MATMUL|dtype=FLOAT32|mode=FORWARD_BACKWARD|features=2048|batch=256",
   "profile": {
       "profileName": "abc-f32-calibrated",
-      "candidateName": "abc-f32-calibrated+stageOrder=FUSE-CSE-MEM:abc-f32-calibrated",
+      "candidateName": "abc-f32-calibrated+stageOrder=CSE-FUSE-AR-MEM:abc-f32-calibrated",
       "dataType": "FLOAT32",
       "mode": "FORWARD_BACKWARD",
       "optimizer": {
-        "stageOrder": ["FUSE", "CSE", "MEM"],
+        "stageOrder": ["CSE", "FUSE", "AR", "MEM"],
         "rewrite": {
           "algebraicEnabled": true,
           "linearLoweringEnabled": true,
@@ -41,7 +41,7 @@
       },
       "runtime": {
         "approximation": {
-          "approxMode": "TRAINING_ONLY",
+          "approxMode": "ALWAYS",
           "forceExactTranscendentals": false
         },
         "kernel": {
@@ -52,19 +52,19 @@
             "cpuMatMulTileK": 64,
             "cpuAttentionMatMulTileM": 64,
             "cpuAttentionMatMulTileN": 128,
-            "cpuAttentionMatMulTileK": 64,
-            "cpuCheapVectorMinSize": 2048,
-            "cpuTranscendentalVectorMinSize": 128,
-            "cpuFusedCheapVectorMinSize": 256,
+            "cpuAttentionMatMulTileK": 128,
+            "cpuCheapVectorMinSize": 1024,
+            "cpuTranscendentalVectorMinSize": 256,
+            "cpuFusedCheapVectorMinSize": 64,
             "cpuFusedTranscendentalVectorMinSize": 16,
-            "cpuReductionVectorMinSize": 2048,
-            "cpuAttentionVectorMinSize": 16384,
-            "cpuCheapParallelMinSize": 8192,
-            "cpuTranscendentalParallelMinSize": 16384,
+            "cpuReductionVectorMinSize": 16384,
+            "cpuAttentionVectorMinSize": 8192,
+            "cpuCheapParallelMinSize": 16384,
+            "cpuTranscendentalParallelMinSize": 8192,
             "cpuFusedCheapParallelMinSize": 16384,
-            "cpuFusedTranscendentalParallelMinSize": 2048,
-            "cpuReductionParallelMinSize": 65536,
-            "cpuAttentionParallelMinSize": 16384,
+            "cpuFusedTranscendentalParallelMinSize": 4096,
+            "cpuReductionParallelMinSize": 16384,
+            "cpuAttentionParallelMinSize": 8192,
             "cpuMatMulParallelMinSize": 500000,
             "cpuContiguousMaterializeThreshold": 262144,
             "cpuLowCostTargetChunksPerWorker": 3,
@@ -74,13 +74,13 @@
             "cpuMinVectorChunkSize": 8192,
             "cpuMinReductionChunkSize": 16384,
             "cpuCommonPoolLowCostMaxWorkPerWorker": 16384,
-            "cpuFusedCheapContiguousAsmVectorWidth": 4,
-            "cpuFusedCheapStridedAsmVectorWidth": 4,
+            "cpuFusedCheapContiguousAsmVectorWidth": 2,
+            "cpuFusedCheapStridedAsmVectorWidth": 1,
             "cpuFusedNonCheapContiguousAsmVectorWidth": 4,
             "cpuFusedNonCheapStridedAsmVectorWidth": 4,
             "cpuSumAccuracyMode": "FAST",
             "cpuAttentionMatMulPolicy": "AUTO",
-            "cpuMatMulMicroKernel": "F32_2X4",
+            "cpuMatMulMicroKernel": "F32_4X4",
             "cpuAttentionMatMulMicroKernel": "F32_4X2"
           },
           "cuda": {
@@ -97,12 +97,12 @@
           }
         },
         "blas": {
-          "provider": "NONE",
-          "matmulMinWork": 2000000,
-          "f32RequireMgeK": false,
+          "provider": "OPENBLAS_FFM",
+          "matmulMinWork": 4000000,
+          "f32RequireMgeK": true,
           "f32MaxNOverK": 1.5,
           "debug": false,
-          "threads": 4
+          "threads": 0
         },
         "fused": {
           "fusedPrimaryBackend": "ASM",
