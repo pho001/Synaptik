@@ -319,6 +319,7 @@ But not all families are currently used in standard presets.
 `PlatformCalibrationDefaults.standardTrainingSteps(...)` and `standardInferenceSteps(...)` currently compose mainly:
 
 - `MATMUL`
+- `CONV2D`
 - fused threshold and ASM width families
 - `ELEMENTWISE_DISPATCH`
 - optionally `REDUCTION`
@@ -331,7 +332,7 @@ But not all families are currently used in standard presets.
 The important current reality:
 
 - `FUSED_ARITHMETIC` exists in the enum, but standard presets do not use it today
-- the `CONV2D` family is not yet part of the standard preset steps
+- `CONV2D` is part of the standard preset steps, but it currently tunes runtime BLAS crossover behavior on convolution workloads, not graph rewrite policy
 
 The documentation needs to say this explicitly, otherwise it gives the impression that more is calibrated than actually is.
 

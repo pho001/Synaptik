@@ -2,16 +2,34 @@ package backend.kernels.cpu.nn;
 
 import backend.kernels.cpu.*;
 
+import backend.blas.BlasProvider;
 import backend.blas.OpenBlasFfmBridge;
+import graph.execution.trace.ConvTraceMetadata;
 import operations.conv2dGemm;
 import operations.conv2dBackwardInput;
 import operations.conv2dBackwardInputGemm;
 import operations.conv2dBackwardWeight;
 import operations.conv2dBackwardWeightGemm;
+import tensor.DataType;
 import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
 final class Conv2dGemmBackend {
+    private static final String CONV_KIND_GEMM = "GEMM";
+
+    private static final class ConvBlasStats {
+        private int blasCalls;
+        private int javaCalls;
+
+        void recordBlas() {
+            blasCalls++;
+        }
+
+        void recordJava() {
+            javaCalls++;
+        }
+    }
+
     private Conv2dGemmBackend() {
     }
 
@@ -23,11 +41,13 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradWeight.getFloat64Data(),
                 op.getWeightShape(),
-                op.getOptions()
+                op.getOptions(),
+                null,
+                gradWeight
         );
     }
 
-    static void backwardWeightF64(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+    static void backwardWeightF64(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight, CpuKernelContext context) {
         runBackwardWeightF64(
                 input.getFloat64Data(),
                 input.getShapeUnsafe(),
@@ -35,7 +55,9 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradWeight.getFloat64Data(),
                 op.getWeightShape(),
-                op.getOptions()
+                op.getOptions(),
+                context,
+                gradWeight
         );
     }
 
@@ -47,11 +69,13 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradWeight.getFloat32Data(),
                 op.getWeightShape(),
-                op.getOptions()
+                op.getOptions(),
+                null,
+                gradWeight
         );
     }
 
-    static void backwardWeightF32(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+    static void backwardWeightF32(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight, CpuKernelContext context) {
         runBackwardWeightF32(
                 input.getFloat32Data(),
                 input.getShapeUnsafe(),
@@ -59,7 +83,9 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradWeight.getFloat32Data(),
                 op.getWeightShape(),
-                op.getOptions()
+                op.getOptions(),
+                context,
+                gradWeight
         );
     }
 
@@ -71,11 +97,13 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradWeight.getBFloat16Data(),
                 op.getWeightShape(),
-                op.getOptions()
+                op.getOptions(),
+                null,
+                gradWeight
         );
     }
 
-    static void backwardWeightBF16(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+    static void backwardWeightBF16(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight, CpuKernelContext context) {
         runBackwardWeightBF16(
                 input.getBFloat16Data(),
                 input.getShapeUnsafe(),
@@ -83,7 +111,9 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradWeight.getBFloat16Data(),
                 op.getWeightShape(),
-                op.getOptions()
+                op.getOptions(),
+                context,
+                gradWeight
         );
     }
 
@@ -95,11 +125,13 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradInput.getFloat64Data(),
                 op.getInputShape(),
-                op.getOptions()
+                op.getOptions(),
+                null,
+                gradInput
         );
     }
 
-    static void backwardInputF64(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+    static void backwardInputF64(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput, CpuKernelContext context) {
         runBackwardInputF64(
                 weight.getFloat64Data(),
                 weight.getShapeUnsafe(),
@@ -107,7 +139,9 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradInput.getFloat64Data(),
                 op.getInputShape(),
-                op.getOptions()
+                op.getOptions(),
+                context,
+                gradInput
         );
     }
 
@@ -119,11 +153,13 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradInput.getFloat32Data(),
                 op.getInputShape(),
-                op.getOptions()
+                op.getOptions(),
+                null,
+                gradInput
         );
     }
 
-    static void backwardInputF32(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+    static void backwardInputF32(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput, CpuKernelContext context) {
         runBackwardInputF32(
                 weight.getFloat32Data(),
                 weight.getShapeUnsafe(),
@@ -131,7 +167,9 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradInput.getFloat32Data(),
                 op.getInputShape(),
-                op.getOptions()
+                op.getOptions(),
+                context,
+                gradInput
         );
     }
 
@@ -143,11 +181,13 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradInput.getBFloat16Data(),
                 op.getInputShape(),
-                op.getOptions()
+                op.getOptions(),
+                null,
+                gradInput
         );
     }
 
-    static void backwardInputBF16(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+    static void backwardInputBF16(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput, CpuKernelContext context) {
         runBackwardInputBF16(
                 weight.getBFloat16Data(),
                 weight.getShapeUnsafe(),
@@ -155,18 +195,20 @@ final class Conv2dGemmBackend {
                 outGrad.getShapeUnsafe(),
                 gradInput.getBFloat16Data(),
                 op.getInputShape(),
-                op.getOptions()
+                op.getOptions(),
+                context,
+                gradInput
         );
     }
 
-    static void forwardF64(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
+    static void forwardF64(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
         runF64(input.getFloat64Data(), input.getShapeUnsafe(), weight.getFloat64Data(), weight.getShapeUnsafe(),
-                bias == null ? null : bias.getFloat64Data(), out.getFloat64Data(), out.getShapeUnsafe(), op.getOptions());
+                bias == null ? null : bias.getFloat64Data(), out.getFloat64Data(), out.getShapeUnsafe(), op.getOptions(), context, out);
     }
 
-    static void forwardF32(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
+    static void forwardF32(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
         runF32(input.getFloat32Data(), input.getShapeUnsafe(), weight.getFloat32Data(), weight.getShapeUnsafe(),
-                bias == null ? null : bias.getFloat32Data(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions());
+                bias == null ? null : bias.getFloat32Data(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions(), context, out);
     }
 
     static void forwardBF16(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
@@ -174,7 +216,9 @@ final class Conv2dGemmBackend {
                 bias == null ? null : bias.getBFloat16Data(), out.getBFloat16Data(),
                 out.getShapeUnsafe(),
                 context == null || context.cpuWorkspace() == null ? null : context.cpuWorkspace().requireFloatWorkspace(),
-                op.getOptions());
+                op.getOptions(),
+                context,
+                out);
     }
 
     private static void runF64(
@@ -182,7 +226,9 @@ final class Conv2dGemmBackend {
             double[] weight, int[] weightShape,
             double[] bias,
             double[] out, int[] outShape,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         int batch = inputShape[0];
         int outChannels = weightShape[0];
@@ -196,6 +242,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.FLOAT64, outSpatial, outChannelsPerGroup, kSize, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         double[] packedWeight = new double[kSize * outChannelsPerGroup];
         double[] im2col = new double[outSpatial * kSize];
@@ -205,12 +253,16 @@ final class Conv2dGemmBackend {
             for (int g = 0; g < options.groups(); g++) {
                 packWeightF64(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
                 fillIm2colF64(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
-                if (!tryBlasF64(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize)) {
+                if (!(useBlas && tryBlasF64(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize))) {
                     runJavaGemmF64(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
                 scatterOutputF64(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
             }
         }
+        publishGemmTrace(node, context, outSpatial, outChannelsPerGroup, kSize, stats);
     }
 
     private static void runF32(
@@ -218,7 +270,9 @@ final class Conv2dGemmBackend {
             float[] weight, int[] weightShape,
             float[] bias,
             float[] out, int[] outShape,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         int batch = inputShape[0];
         int outChannels = weightShape[0];
@@ -230,6 +284,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.FLOAT32, outSpatial, outChannelsPerGroup, kSize, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         float[] packedWeight = new float[kSize * outChannelsPerGroup];
         float[] im2col = new float[outSpatial * kSize];
@@ -239,12 +295,16 @@ final class Conv2dGemmBackend {
             for (int g = 0; g < options.groups(); g++) {
                 packWeightF32(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
                 fillIm2colF32(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
-                if (!tryBlasF32(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize)) {
+                if (!(useBlas && tryBlasF32(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize))) {
                     runJavaGemmF32(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
                 scatterOutputF32(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
             }
         }
+        publishGemmTrace(node, context, outSpatial, outChannelsPerGroup, kSize, stats);
     }
 
     private static void runBF16(
@@ -253,7 +313,9 @@ final class Conv2dGemmBackend {
             short[] bias,
             short[] out, int[] outShape,
             float[] workspace,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         int batch = inputShape[0];
         int outChannels = weightShape[0];
@@ -265,6 +327,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.BFLOAT16, outSpatial, outChannelsPerGroup, kSize, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         short[] packedWeight = new short[kSize * outChannelsPerGroup];
         short[] im2col = new short[outSpatial * kSize];
@@ -276,7 +340,7 @@ final class Conv2dGemmBackend {
             for (int g = 0; g < options.groups(); g++) {
                 packWeightBF16(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
                 fillIm2colBF16(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
-                if (!tryBlasBF16(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize)) {
+                if (!(useBlas && tryBlasBF16(im2col, packedWeight, gemmOut, outSpatial, outChannelsPerGroup, kSize))) {
                     float[] packedWeightF32 = new float[packedWeight.length];
                     float[] im2colF32 = new float[im2col.length];
                     for (int i = 0; i < packedWeight.length; i++) {
@@ -286,10 +350,14 @@ final class Conv2dGemmBackend {
                         im2colF32[i] = CpuDTypeOps.fromBFloat16Bits(im2col[i]);
                     }
                     runJavaGemmF32(im2colF32, packedWeightF32, gemmOut, outSpatial, outChannelsPerGroup, kSize);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
                 scatterOutputBF16(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
             }
         }
+        publishGemmTrace(node, context, outSpatial, outChannelsPerGroup, kSize, stats);
     }
 
     private static void runBackwardWeightF64(
@@ -299,7 +367,9 @@ final class Conv2dGemmBackend {
             int[] outGradShape,
             double[] gradWeight,
             int[] weightShape,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         java.util.Arrays.fill(gradWeight, 0.0d);
         int batch = inputShape[0];
@@ -312,6 +382,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.FLOAT64, kSize, outChannelsPerGroup, outSpatial, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         double[] im2col = new double[outSpatial * kSize];
         double[] im2colTransposed = new double[kSize * outSpatial];
@@ -324,12 +396,16 @@ final class Conv2dGemmBackend {
                 fillIm2colF64(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
                 transposeRowsToColumnsF64(im2col, im2colTransposed, outSpatial, kSize);
                 fillOutGradRowsF64(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
-                if (!accumulateBlasF64(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial)) {
+                if (!(useBlas && accumulateBlasF64(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial))) {
                     accumulateJavaGemmF64(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
             }
             unpackWeightF64(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
         }
+        publishGemmTrace(node, context, kSize, outChannelsPerGroup, outSpatial, stats);
     }
 
     private static void runBackwardWeightF32(
@@ -339,7 +415,9 @@ final class Conv2dGemmBackend {
             int[] outGradShape,
             float[] gradWeight,
             int[] weightShape,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         java.util.Arrays.fill(gradWeight, 0.0f);
         int batch = inputShape[0];
@@ -352,6 +430,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.FLOAT32, kSize, outChannelsPerGroup, outSpatial, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         float[] im2col = new float[outSpatial * kSize];
         float[] im2colTransposed = new float[kSize * outSpatial];
@@ -364,12 +444,16 @@ final class Conv2dGemmBackend {
                 fillIm2colF32(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
                 transposeRowsToColumnsF32(im2col, im2colTransposed, outSpatial, kSize);
                 fillOutGradRowsF32(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
-                if (!accumulateBlasF32(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial)) {
+                if (!(useBlas && accumulateBlasF32(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial))) {
                     accumulateJavaGemmF32(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
             }
             unpackWeightF32(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
         }
+        publishGemmTrace(node, context, kSize, outChannelsPerGroup, outSpatial, stats);
     }
 
     private static void runBackwardWeightBF16(
@@ -379,7 +463,9 @@ final class Conv2dGemmBackend {
             int[] outGradShape,
             short[] gradWeight,
             int[] weightShape,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         int batch = inputShape[0];
         int outChannels = weightShape[0];
@@ -391,6 +477,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.BFLOAT16, kSize, outChannelsPerGroup, outSpatial, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         short[] im2col = new short[outSpatial * kSize];
         short[] im2colTransposed = new short[kSize * outSpatial];
@@ -403,12 +491,16 @@ final class Conv2dGemmBackend {
                 fillIm2colBF16(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
                 transposeRowsToColumnsBF16(im2col, im2colTransposed, outSpatial, kSize);
                 fillOutGradRowsBF16(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
-                if (!accumulateBlasBF16(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial)) {
+                if (!(useBlas && accumulateBlasBF16(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial))) {
                     accumulateJavaGemmBF16(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
             }
             unpackWeightBF16(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
         }
+        publishGemmTrace(node, context, kSize, outChannelsPerGroup, outSpatial, stats);
     }
 
     private static void runBackwardInputF64(
@@ -418,7 +510,9 @@ final class Conv2dGemmBackend {
             int[] outGradShape,
             double[] gradInput,
             int[] inputShape,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         java.util.Arrays.fill(gradInput, 0.0d);
         int batch = inputShape[0];
@@ -434,6 +528,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.FLOAT64, outSpatial, kSize, outChannelsPerGroup, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         double[] packedWeight = new double[kSize * outChannelsPerGroup];
         double[] packedWeightTransposed = new double[outChannelsPerGroup * kSize];
@@ -445,12 +541,16 @@ final class Conv2dGemmBackend {
                 packWeightF64(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
                 transposeRowsToColumnsF64(packedWeight, packedWeightTransposed, kSize, outChannelsPerGroup);
                 fillOutGradRowsF64(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
-                if (!tryBlasF64(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup)) {
+                if (!(useBlas && tryBlasF64(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup))) {
                     runJavaGemmF64(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
                 accumulateColToGradInputF64(col, gradInput, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options);
             }
         }
+        publishGemmTrace(node, context, outSpatial, kSize, outChannelsPerGroup, stats);
     }
 
     private static void runBackwardInputF32(
@@ -460,7 +560,9 @@ final class Conv2dGemmBackend {
             int[] outGradShape,
             float[] gradInput,
             int[] inputShape,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         java.util.Arrays.fill(gradInput, 0.0f);
         int batch = inputShape[0];
@@ -473,6 +575,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.FLOAT32, outSpatial, kSize, outChannelsPerGroup, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         float[] packedWeight = new float[kSize * outChannelsPerGroup];
         float[] packedWeightTransposed = new float[outChannelsPerGroup * kSize];
@@ -484,12 +588,16 @@ final class Conv2dGemmBackend {
                 packWeightF32(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
                 transposeRowsToColumnsF32(packedWeight, packedWeightTransposed, kSize, outChannelsPerGroup);
                 fillOutGradRowsF32(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
-                if (!tryBlasF32(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup)) {
+                if (!(useBlas && tryBlasF32(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup))) {
                     runJavaGemmF32(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
                 accumulateColToGradInputF32(col, gradInput, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options);
             }
         }
+        publishGemmTrace(node, context, outSpatial, kSize, outChannelsPerGroup, stats);
     }
 
     private static void runBackwardInputBF16(
@@ -499,7 +607,9 @@ final class Conv2dGemmBackend {
             int[] outGradShape,
             short[] gradInput,
             int[] inputShape,
-            Conv2dOptions options
+            Conv2dOptions options,
+            CpuKernelContext context,
+            Tensor node
     ) {
         int batch = inputShape[0];
         int inChannels = inputShape[1];
@@ -514,6 +624,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
+        boolean useBlas = shouldUseBlas(DataType.BFLOAT16, outSpatial, kSize, outChannelsPerGroup, context);
+        ConvBlasStats stats = new ConvBlasStats();
 
         short[] packedWeight = new short[kSize * outChannelsPerGroup];
         short[] packedWeightTransposed = new short[outChannelsPerGroup * kSize];
@@ -526,8 +638,11 @@ final class Conv2dGemmBackend {
                 packWeightBF16(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
                 transposeRowsToColumnsBF16(packedWeight, packedWeightTransposed, kSize, outChannelsPerGroup);
                 fillOutGradRowsBF16(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
-                if (!tryBlasBF16(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup)) {
+                if (!(useBlas && tryBlasBF16(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup))) {
                     accumulateJavaGemmBF16NoAccum(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup);
+                    stats.recordJava();
+                } else {
+                    stats.recordBlas();
                 }
                 accumulateColToGradInputBF16(col, gradInputAccum, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options);
             }
@@ -536,6 +651,50 @@ final class Conv2dGemmBackend {
         for (int i = 0; i < gradInput.length; i++) {
             gradInput[i] = CpuDTypeOps.toBFloat16Bits(gradInputAccum[i]);
         }
+        publishGemmTrace(node, context, outSpatial, kSize, outChannelsPerGroup, stats);
+    }
+
+    private static boolean shouldUseBlas(DataType dataType, int m, int n, int k, CpuKernelContext context) {
+        if (context == null || context.blasConfig() == null) {
+            return false;
+        }
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            return false;
+        }
+        backend.runtime.BlasConfig blasConfig = context.blasConfig();
+        if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
+            return false;
+        }
+        long work = (long) m * n * k;
+        if (work < blasConfig.matMulMinWork()) {
+            return false;
+        }
+        if (dataType == DataType.FLOAT32 || dataType == DataType.BFLOAT16) {
+            if (blasConfig.f32RequireMgeK() && m < k) {
+                return false;
+            }
+            if (((double) n / Math.max(1, k)) > blasConfig.f32MaxNOverK()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void publishGemmTrace(Tensor node, CpuKernelContext context, int m, int n, int k, ConvBlasStats stats) {
+        String provider = context == null || context.blasConfig() == null
+                ? "NONE"
+                : context.blasConfig().provider().name();
+        node.setRuntimeCache(new ConvTraceMetadata(
+                CONV_KIND_GEMM,
+                true,
+                stats != null && stats.blasCalls > 0,
+                provider,
+                m,
+                n,
+                k,
+                stats == null ? 0 : stats.blasCalls,
+                stats == null ? 0 : stats.javaCalls
+        ));
     }
 
     private static void fillIm2colF64(double[] input, int[] inputShape, int batch, int group, int outH, int outW,

@@ -8,12 +8,12 @@ final class Conv2dGemmExecutor {
     private Conv2dGemmExecutor() {
     }
 
-    static void forwardF64(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
-        Conv2dGemmBackend.forwardF64(op, input, weight, bias, out);
+    static void forwardF64(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+        Conv2dGemmBackend.forwardF64(op, input, weight, bias, out, context);
     }
 
-    static void forwardF32(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
-        Conv2dGemmBackend.forwardF32(op, input, weight, bias, out);
+    static void forwardF32(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
+        Conv2dGemmBackend.forwardF32(op, input, weight, bias, out, context);
     }
 
     static void forwardBF16(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {

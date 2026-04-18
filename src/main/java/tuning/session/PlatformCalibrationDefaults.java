@@ -193,6 +193,35 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
+    public static PlatformCalibrationStep conv2dStep(String name, TuningPreset preset) {
+        return new PlatformCalibrationStep(
+                name,
+                PlatformCalibrationFamily.CONV2D,
+                List.of(
+                        CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_28", 2, 64, 128, 28, 28),
+                        CalibrationWorkloads.conv2dResnet3x3(name + "_workload_resnet_28", 2, 64, 128, 28, 28),
+                        CalibrationWorkloads.conv2dResnet3x3(name + "_workload_resnet_56", 2, 64, 128, 56, 56),
+                        CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_56", 2, 128, 256, 56, 56)
+                ),
+                preset,
+                base -> new PlatformRuntimeProfileGridCandidateSpace(
+                        base,
+                        List.of(
+                                PlatformRuntimeProfileMutators.matmulBlasProviders(
+                                        List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
+                                        List.of(50_000L, 100_000L, 250_000L, 1_000_000L, 4_000_000L)
+                                ),
+                                PlatformRuntimeProfileMutators.matmulShapeHeuristics(
+                                        List.of(true, false),
+                                        List.of(1.5, 2.0, 3.0, 4.0, 6.0, 100.0)
+                                ),
+                                PlatformRuntimeProfileMutators.blasThreads(List.of(0))
+                        )
+                ),
+                PlatformCalibrationScorePolicy.weightedGeometricMeanWithWorstBucketPenalty(0.25d)
+        );
+    }
+
     private static DataType seedProfileDataType(config.profile.PlatformRuntimeProfile base) {
         return base.metadata().dataType();
     }
@@ -390,6 +419,7 @@ public final class PlatformCalibrationDefaults {
     ) {
         List<PlatformCalibrationStep> steps = new ArrayList<>();
         steps.add(matmulStep(prefix + "-matmul", preset));
+        steps.add(conv2dStep(prefix + "-conv2d", preset));
         addFusedSteps(steps, prefix + "-fused", preset, dataType);
         steps.add(elementwiseDispatchStep(prefix + "-elementwise", preset));
         if (includeReduction) {
@@ -420,6 +450,7 @@ public final class PlatformCalibrationDefaults {
     ) {
         List<PlatformCalibrationStep> steps = new ArrayList<>();
         steps.add(matmulStep(prefix + "-matmul-train", preset));
+        steps.add(conv2dStep(prefix + "-conv2d-train", preset));
         addFusedSteps(steps, prefix + "-fused-train", preset, dataType);
         steps.add(elementwiseDispatchStep(prefix + "-elementwise-train", preset));
         if (includeReduction) {

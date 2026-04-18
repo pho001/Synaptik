@@ -175,10 +175,37 @@ public final class CalibrationWorkloads {
     }
 
     public static Conv2dWorkloadSpec conv2dResnet3x3(String name) {
+        return conv2dResnet3x3(name, 2, 64, 128, 56, 56);
+    }
+
+    public static Conv2dWorkloadSpec conv2dResnet3x3(
+            String name,
+            int batch,
+            int inChannels,
+            int outChannels,
+            int height,
+            int width
+    ) {
         return StandardWorkloads.conv2d(
                 name,
-                2, 64, 128, 56, 56, 3, 3,
+                batch, inChannels, outChannels, height, width, 3, 3,
                 tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
+                true
+        );
+    }
+
+    public static Conv2dWorkloadSpec conv2dPointwiseProjection(
+            String name,
+            int batch,
+            int inChannels,
+            int outChannels,
+            int height,
+            int width
+    ) {
+        return StandardWorkloads.conv2d(
+                name,
+                batch, inChannels, outChannels, height, width, 1, 1,
+                tensor.options.Conv2dOptions.defaults(),
                 true
         );
     }

@@ -221,6 +221,19 @@ public final class TextBenchmarkReportRenderer {
                         .append(" microKernel=").append(metadata.matMul().microKernel())
                         .append('\n');
             }
+            if (metadata.conv() != null) {
+                sb.append("      conv: ")
+                        .append("executionKind=").append(metadata.conv().executionKind())
+                        .append(" lowered=").append(metadata.conv().lowered())
+                        .append(" blasUsed=").append(metadata.conv().blasUsed())
+                        .append(" blasProvider=").append(metadata.conv().blasProvider())
+                        .append(" m=").append(metadata.conv().m())
+                        .append(" n=").append(metadata.conv().n())
+                        .append(" k=").append(metadata.conv().k())
+                        .append(" blasCalls=").append(metadata.conv().blasCalls())
+                        .append(" javaCalls=").append(metadata.conv().javaCalls())
+                        .append('\n');
+            }
             if (metadata.fused() != null) {
                 sb.append("      fused: ")
                         .append("precisionMode=").append(metadata.fused().precisionMode())

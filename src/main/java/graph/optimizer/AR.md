@@ -728,12 +728,14 @@ Config:
 - [../../config/optimizer/Conv2dLoweringConfig.java](../../config/optimizer/Conv2dLoweringConfig.java)
 - modes: `OFF`, `ALWAYS`, `HEURISTIC`
 
-This pass only rewrites forward `conv2d`. Backward `conv2d` tensors are left unchanged.
+This pass rewrites forward `conv2d` and the dedicated backward convolution primitives when policy allows it.
 
 Rewrite:
 
 ```text
 conv2d(...) -> conv2dGemm(...)
+conv2dBackwardInput(...) -> conv2dBackwardInputGemm(...)
+conv2dBackwardWeight(...) -> conv2dBackwardWeightGemm(...)
 ```
 
 ### Heuristic Mode Details

@@ -211,6 +211,7 @@ public final class JsonBenchmarkReportRenderer {
         sb.append(indent).append("  \"dispatch\": ").append(dispatchJson(metadata.dispatch())).append(",\n");
         sb.append(indent).append("  \"reduction\": ").append(reductionJson(metadata.reduction())).append(",\n");
         sb.append(indent).append("  \"matMul\": ").append(matMulJson(metadata.matMul())).append(",\n");
+        sb.append(indent).append("  \"conv\": ").append(convJson(metadata.conv())).append(",\n");
         sb.append(indent).append("  \"fused\": ").append(fusedJson(metadata.fused())).append('\n');
         sb.append(indent).append("}");
     }
@@ -280,6 +281,23 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"plannedWorkers\": " + matMul.plannedWorkers() + ", "
                 + "\"work\": " + matMul.work() + ", "
                 + "\"microKernel\": \"" + escape(matMul.microKernel()) + "\""
+                + "}";
+    }
+
+    private static String convJson(graph.execution.trace.ConvTraceMetadata conv) {
+        if (conv == null) {
+            return "null";
+        }
+        return "{"
+                + "\"executionKind\": \"" + escape(conv.executionKind()) + "\", "
+                + "\"lowered\": " + conv.lowered() + ", "
+                + "\"blasUsed\": " + conv.blasUsed() + ", "
+                + "\"blasProvider\": \"" + escape(conv.blasProvider()) + "\", "
+                + "\"m\": " + conv.m() + ", "
+                + "\"n\": " + conv.n() + ", "
+                + "\"k\": " + conv.k() + ", "
+                + "\"blasCalls\": " + conv.blasCalls() + ", "
+                + "\"javaCalls\": " + conv.javaCalls()
                 + "}";
     }
 

@@ -10,6 +10,7 @@ public record StepExecutionMetadata(
         DispatchTraceMetadata dispatch,
         ReductionTraceMetadata reduction,
         MatMulTraceMetadata matMul,
+        ConvTraceMetadata conv,
         FusedTraceMetadata fused
 ) {
     public StepExecutionMetadata {
@@ -18,6 +19,6 @@ public record StepExecutionMetadata(
     }
 
     public static StepExecutionMetadata none() {
-        return new StepExecutionMetadata("none", Map.of(), null, null, null, null, null, null);
+        return new StepExecutionMetadata("none", Map.of(), null, null, null, null, null, null, null);
     }
 }

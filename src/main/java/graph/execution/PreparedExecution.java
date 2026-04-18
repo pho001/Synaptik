@@ -11,6 +11,7 @@ import graph.execution.trace.ExecutionStepTrace;
 import graph.execution.trace.FusedTraceMetadata;
 import graph.execution.trace.LayoutTraceMetadata;
 import graph.execution.trace.MatMulTraceMetadata;
+import graph.execution.trace.ConvTraceMetadata;
 import graph.execution.trace.PrepareTrace;
 import graph.execution.trace.ReductionTraceMetadata;
 import graph.execution.trace.RunTrace;
@@ -186,6 +187,7 @@ public final class PreparedExecution {
         DispatchTraceMetadata dispatch = null;
         ReductionTraceMetadata reduction = null;
         MatMulTraceMetadata matMul = null;
+        ConvTraceMetadata conv = null;
         FusedTraceMetadata fusedMeta = null;
 
         if (metadata.cpuPlan() != null) {
@@ -230,6 +232,10 @@ public final class PreparedExecution {
             }
         }
 
+        if (node.getRuntimeCache() instanceof ConvTraceMetadata trace) {
+            conv = trace;
+        }
+
         if (node.getOperation() instanceof operations.FusedOperation fused) {
             String executionBackend = step.metadata().fusedExecutable() == null
                     ? ""
@@ -246,7 +252,7 @@ public final class PreparedExecution {
             );
         }
 
-        return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, fusedMeta);
+        return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
     }
 
     private void syncRootData(ExecutionMode mode) {

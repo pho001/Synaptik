@@ -83,6 +83,70 @@ public class BFloat16BlasDispatchTest {
         assertTrue(trace.steps().stream().anyMatch(step -> "CONV2D_GEMM".equals(step.opType())));
     }
 
+    @Test
+    void bfloat16Conv2dTraceReportsBlasUsageWhenEnabled() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+
+        Tensor input = new Tensor(random(2 * 64 * 32 * 32), new int[]{2, 64, 32, 32}, null, "input", DataType.BFLOAT16);
+        Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
+        Tensor out = input.conv2d(weight, tensor.options.Conv2dOptions.defaults().withPadding(1, 1)).sum();
+
+        OptimizerConfig optimizer = new OptimizerConfig(
+                List.of(OptimizerStage.AR),
+                new RewriteConfig(new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS)),
+                config.optimizer.CseConfig.strictDefaults(),
+                config.optimizer.FuseConfig.inferenceDefaults(),
+                config.optimizer.MemoryConfig.defaults()
+        );
+
+        var trace = CompiledGraph.compile(out, optimizer)
+                .executeTraced(blasRuntime(1L), ExecutionMode.FORWARD);
+
+        ExecutionStepTrace conv = trace.steps().stream()
+                .filter(step -> "CONV2D_GEMM".equals(step.opType()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(conv);
+        assertNotNull(conv.metadata().conv());
+        assertTrue("GEMM".equals(conv.metadata().conv().executionKind()));
+        assertTrue(conv.metadata().conv().blasUsed());
+        assertTrue("OPENBLAS_FFM".equals(conv.metadata().conv().blasProvider()));
+    }
+
+    @Test
+    void bfloat16Conv2dTraceReportsJavaFallbackWhenBlasDisabled() {
+        Tensor input = new Tensor(random(2 * 64 * 32 * 32), new int[]{2, 64, 32, 32}, null, "input", DataType.BFLOAT16);
+        Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
+        Tensor out = input.conv2d(weight, tensor.options.Conv2dOptions.defaults().withPadding(1, 1)).sum();
+
+        OptimizerConfig optimizer = new OptimizerConfig(
+                List.of(OptimizerStage.AR),
+                new RewriteConfig(new Conv2dLoweringConfig(Conv2dLoweringMode.ALWAYS)),
+                config.optimizer.CseConfig.strictDefaults(),
+                config.optimizer.FuseConfig.inferenceDefaults(),
+                config.optimizer.MemoryConfig.defaults()
+        );
+
+        RuntimeConfig runtime = new RuntimeConfig(
+                KernelTuningConfig.defaultsInference(),
+                config.runtime.ApproximationConfig.defaults(),
+                BlasConfig.disabled()
+        );
+
+        var trace = CompiledGraph.compile(out, optimizer)
+                .executeTraced(runtime, ExecutionMode.FORWARD);
+
+        ExecutionStepTrace conv = trace.steps().stream()
+                .filter(step -> "CONV2D_GEMM".equals(step.opType()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(conv);
+        assertNotNull(conv.metadata().conv());
+        assertTrue("GEMM".equals(conv.metadata().conv().executionKind()));
+        assertTrue(!conv.metadata().conv().blasUsed());
+        assertTrue("NONE".equals(conv.metadata().conv().blasProvider()));
+    }
+
     private static RuntimeConfig blasRuntime(long minWork) {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),

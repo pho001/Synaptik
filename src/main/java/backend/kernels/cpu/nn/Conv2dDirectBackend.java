@@ -2,6 +2,7 @@ package backend.kernels.cpu.nn;
 
 import backend.kernels.cpu.*;
 
+import graph.execution.trace.ConvTraceMetadata;
 import operations.conv2d;
 import operations.conv2dBackwardInput;
 import operations.conv2dBackwardWeight;
@@ -15,46 +16,69 @@ final class Conv2dDirectBackend {
     static void forwardF64(conv2d op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
         runForwardF64(input.getFloat64Data(), weight.getFloat64Data(), bias == null ? null : bias.getFloat64Data(),
                 input.getShapeUnsafe(), weight.getShapeUnsafe(), out.getFloat64Data(), out.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(out);
     }
 
     static void forwardF32(conv2d op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
         runForwardF32(input.getFloat32Data(), weight.getFloat32Data(), bias == null ? null : bias.getFloat32Data(),
                 input.getShapeUnsafe(), weight.getShapeUnsafe(), out.getFloat32Data(), out.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(out);
     }
 
     static void forwardBF16(conv2d op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
         runForwardF16(input.getBFloat16Data(), weight.getBFloat16Data(), bias == null ? null : bias.getBFloat16Data(),
                 input.getShapeUnsafe(), weight.getShapeUnsafe(), out.getBFloat16Data(), out.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(out);
     }
 
     static void backwardInputF64(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
         runBackwardInputF64(weight.getFloat64Data(), outGrad.getFloat64Data(), gradInput.getFloat64Data(),
                 op.getInputShape(), weight.getShapeUnsafe(), outGrad.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(gradInput);
     }
 
     static void backwardInputF32(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
         runBackwardInputF32(weight.getFloat32Data(), outGrad.getFloat32Data(), gradInput.getFloat32Data(),
                 op.getInputShape(), weight.getShapeUnsafe(), outGrad.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(gradInput);
     }
 
     static void backwardInputF16(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
         runBackwardInputF16(weight.getBFloat16Data(), outGrad.getBFloat16Data(), gradInput.getBFloat16Data(),
                 op.getInputShape(), weight.getShapeUnsafe(), outGrad.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(gradInput);
     }
 
     static void backwardWeightF64(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
         runBackwardWeightF64(input.getFloat64Data(), outGrad.getFloat64Data(), gradWeight.getFloat64Data(),
                 input.getShapeUnsafe(), op.getWeightShape(), outGrad.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(gradWeight);
     }
 
     static void backwardWeightF32(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
         runBackwardWeightF32(input.getFloat32Data(), outGrad.getFloat32Data(), gradWeight.getFloat32Data(),
                 input.getShapeUnsafe(), op.getWeightShape(), outGrad.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(gradWeight);
     }
 
     static void backwardWeightF16(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
         runBackwardWeightF16(input.getBFloat16Data(), outGrad.getBFloat16Data(), gradWeight.getBFloat16Data(),
                 input.getShapeUnsafe(), op.getWeightShape(), outGrad.getShapeUnsafe(), op.getOptions());
+        publishDirectTrace(gradWeight);
+    }
+
+    private static void publishDirectTrace(Tensor node) {
+        node.setRuntimeCache(new ConvTraceMetadata(
+                "DIRECT",
+                false,
+                false,
+                "NONE",
+                0,
+                0,
+                0,
+                0,
+                1
+        ));
     }
 
     private static void runForwardF64(
