@@ -335,31 +335,19 @@ public final class CpuExecutionPlanner {
                 || specializationKind == FusedAsmSpecializationKind.F32_MASKED_SCALE_WHERE_INVERTED;
     }
 
-    private boolean shouldForceSerialScalarDispatch(FusedOperation fused) {
+    boolean shouldForceSerialScalarDispatch(FusedOperation fused) {
         return shouldForceScalarFusedAsm(fused);
     }
 
     public ResolvedDispatchHints resolveDispatchHints(Operation op, Tensor node, ResolvedCpuComputeContract contract) {
         if (op == null || node == null
-                || (op.opType().category() != Operation.OpArityClass.ELEMENT_WISE && op.opType() != Operation.OpType.FUSED)) {
+                || op.opType().category() != Operation.OpArityClass.ELEMENT_WISE) {
             return new ResolvedDispatchHints(0, CpuExecutionMode.SCALAR, 1, 1, 1, 1, false);
         }
 
         int totalLength = Math.max(0, node.getFlatDataSize());
-        boolean fused = op.opType() == Operation.OpType.FUSED;
         CpuKernelCostClass costClass = resolveDispatchCostClass(op);
-        if (fused && shouldForceSerialScalarDispatch((FusedOperation) op)) {
-            return new ResolvedDispatchHints(
-                    totalLength,
-                    CpuExecutionMode.SCALAR,
-                    computeChunkSize(totalLength, 1, resolveTargetChunksPerWorker(costClass), minScalarChunkSize),
-                    computeChunkSize(totalLength, 1, resolveTargetChunksPerWorker(costClass), minVectorChunkSize),
-                    1,
-                    1,
-                    false
-            );
-        }
-        int vectorWidth = fused ? resolvedFusedAsmVectorWidth(contract, (FusedOperation) op) : preferredVectorWidth(contract);
+        int vectorWidth = preferredVectorWidth(contract);
         boolean vectorAllowed = vectorWidth > 1 && totalLength >= effectiveVectorMinSize(op);
 
         CpuExecutionMode mode;
@@ -372,8 +360,8 @@ public final class CpuExecutionPlanner {
         return new ResolvedDispatchHints(
                 totalLength,
                 mode,
-                computeChunkSize(totalLength, 1, resolveTargetChunksPerWorker(costClass), minScalarChunkSize),
-                computeChunkSize(totalLength, vectorWidth, resolveTargetChunksPerWorker(costClass), minVectorChunkSize),
+                computeChunkSize(totalLength, 1, targetChunksPerWorker(costClass), minScalarChunkSize),
+                computeChunkSize(totalLength, vectorWidth, targetChunksPerWorker(costClass), minVectorChunkSize),
                 vectorWidth,
                 plannedWorkers(),
                 (mode == CpuExecutionMode.PARALLEL || mode == CpuExecutionMode.PARALLEL_VECTOR)
@@ -751,6 +739,18 @@ public final class CpuExecutionPlanner {
         return effectiveVectorMinSize(operation);
     }
 
+    int elementwiseVectorMinSize(Operation operation) {
+        return effectiveVectorMinSize(operation);
+    }
+
+    int elementwiseParallelMinSize(Operation operation) {
+        return effectiveParallelMinSize(operation);
+    }
+
+    int fusedParallelMinSize(FusedOperation operation) {
+        return effectiveParallelMinSize(operation);
+    }
+
     private int effectiveParallelMinSize(Operation op) {
         int base = Math.max(1, resolveBaseParallelMinSize(op));
         if (op == null) {
@@ -774,6 +774,10 @@ public final class CpuExecutionPlanner {
             case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW -> transcendentalParallelMinSize;
             default -> cheapParallelMinSize;
         };
+    }
+
+    CpuKernelCostClass dispatchCostClass(Operation op) {
+        return resolveDispatchCostClass(op);
     }
 
     private CpuKernelCostClass resolveDispatchCostClass(Operation op) {
@@ -854,12 +858,24 @@ public final class CpuExecutionPlanner {
         });
     }
 
-    private int resolveTargetChunksPerWorker(CpuKernelCostClass costClass) {
+    int targetChunksPerWorker(CpuKernelCostClass costClass) {
         return switch (costClass) {
             case LOW -> lowCostTargetChunksPerWorker;
             case MEDIUM -> mediumCostTargetChunksPerWorker;
             case HIGH -> highCostTargetChunksPerWorker;
         };
+    }
+
+    boolean shouldUseCommonPoolFor(CpuKernelCostClass costClass, int totalLength) {
+        return shouldUseCommonPool(costClass, totalLength);
+    }
+
+    int minScalarChunkSize() {
+        return minScalarChunkSize;
+    }
+
+    int minVectorChunkSize() {
+        return minVectorChunkSize;
     }
 
     private boolean shouldUseCommonPool(CpuKernelCostClass costClass, int totalLength) {

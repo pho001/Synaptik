@@ -6,6 +6,11 @@ import backend.kernels.cpu.CpuExecutionPlanner;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.CpuNodeWorkspace;
+import backend.kernels.cpu.ElementwisePrepareDispatchResolver;
+import backend.kernels.cpu.FusedPrepareDispatchResolver;
+import backend.kernels.cpu.PreparedFusedDispatch;
+import backend.kernels.cpu.ResolvedCpuComputeContract;
+import backend.kernels.cpu.ResolvedDispatchHints;
 import backend.registry.CpuKernelResolver;
 import backend.runtime.ExecutionMode;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -266,13 +271,47 @@ public class CompiledGraph {
         if (kernel == null) {
             throw new IllegalStateException("Missing CPU kernel for opType=" + operation.opType());
         }
+        ResolvedDispatchHints dispatchHintsOverride = null;
+        PreparedFusedDispatch preparedFusedDispatch = null;
+        if (operation.opType().category() == Operation.OpArityClass.ELEMENT_WISE) {
+            ResolvedCpuComputeContract elementwiseContract = planner.resolveComputeContract(
+                    operation,
+                    tensor.getPrevTensors(),
+                    tensor,
+                    runtimeConfig.blasConfig(),
+                    null
+            );
+            dispatchHintsOverride = ElementwisePrepareDispatchResolver.resolve(
+                    operation,
+                    tensor,
+                    elementwiseContract,
+                    planner
+            );
+        }
+        if (operation.opType() == Operation.OpType.FUSED) {
+            ResolvedCpuComputeContract fusedContract = planner.resolveComputeContract(
+                    operation,
+                    tensor.getPrevTensors(),
+                    tensor,
+                    runtimeConfig.blasConfig(),
+                    null
+            );
+            preparedFusedDispatch = FusedPrepareDispatchResolver.resolve(
+                    (FusedOperation) operation,
+                    tensor,
+                    fusedContract,
+                    planner
+            );
+            dispatchHintsOverride = preparedFusedDispatch.dispatchHints();
+        }
         CpuNodeExecutionPlan cpuPlan = CPUBackend.buildExecutionPlan(
                 operation,
                 tensor.getPrevTensors(),
                 tensor,
                 planner,
                 runtimeConfig.blasConfig(),
-                shouldPublishFloatContinuation(tensor, operation, consumers)
+                shouldPublishFloatContinuation(tensor, operation, consumers),
+                dispatchHintsOverride
         );
         PreparedFusedExecutable fusedExecutable = null;
         if (operation.opType() == Operation.OpType.FUSED && cpuPlan != null) {
@@ -281,8 +320,8 @@ public class CompiledGraph {
                             (FusedOperation) operation,
                             cpuPlan.computeContract(),
                             tensor.getFlatDataSize(),
-                            planner.fusedDirectVectorMinSize((FusedOperation) operation),
-                            cpuPlan.dispatchHints() == null ? 1 : cpuPlan.dispatchHints().vectorWidth()
+                            preparedFusedDispatch == null ? 1 : preparedFusedDispatch.cpuVectorMinSize(),
+                            preparedFusedDispatch == null ? 1 : preparedFusedDispatch.asmVectorWidth()
                     ),
                     runtimeConfig.fusedExecutionPolicy()
             );

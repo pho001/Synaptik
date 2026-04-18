@@ -98,7 +98,8 @@ public final class CPUBackend {
             Tensor node,
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
-            boolean publishFloatContinuation
+            boolean publishFloatContinuation,
+            ResolvedDispatchHints dispatchHintsOverride
     ) {
         Objects.requireNonNull(node, "node cannot be null");
         Objects.requireNonNull(planner, "planner cannot be null");
@@ -143,7 +144,7 @@ public final class CPUBackend {
 
         ResolvedDispatchHints dispatchHints =
                 (op != null && (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE || op.opType() == Operation.OpType.FUSED))
-                        ? planner.resolveDispatchHints(op, node, computeContract)
+                        ? (dispatchHintsOverride != null ? dispatchHintsOverride : planner.resolveDispatchHints(op, node, computeContract))
                         : null;
 
         ResolvedReductionHints reductionHints =

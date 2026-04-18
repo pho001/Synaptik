@@ -3,6 +3,7 @@ import backend.kernels.cpu.CpuComputeDType;
 import backend.kernels.cpu.CpuExecutionBackend;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuExecutionPlanner;
+import backend.kernels.cpu.FusedPrepareDispatchResolver;
 import backend.kernels.cpu.ResolvedCpuComputeContract;
 import config.backend.CpuKernelConfig;
 import graph.codegen.FusedAccessKind;
@@ -44,11 +45,12 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 )
         );
 
-        var hints = planner.resolveDispatchHints(
+        var hints = FusedPrepareDispatchResolver.resolve(
                 fused,
                 new Tensor(new float[65_536], new int[]{65_536}, null, "out", DataType.FLOAT32),
-                new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
-        );
+                new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE),
+                planner
+        ).dispatchHints();
 
         assertEquals(CpuExecutionMode.PARALLEL, hints.mode());
         assertEquals(4, hints.vectorWidth());
@@ -78,11 +80,12 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 )
         );
 
-        var hints = planner.resolveDispatchHints(
+        var hints = FusedPrepareDispatchResolver.resolve(
                 fused,
                 new Tensor(new float[65_536], new int[]{65_536}, null, "out", DataType.FLOAT32),
-                new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
-        );
+                new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE),
+                planner
+        ).dispatchHints();
 
         assertEquals(CpuExecutionMode.SCALAR, hints.mode());
         assertEquals(1, hints.vectorWidth());
@@ -111,11 +114,12 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 )
         );
 
-        var hints = planner.resolveDispatchHints(
+        var hints = FusedPrepareDispatchResolver.resolve(
                 fused,
                 new Tensor(new float[65_536], new int[]{65_536}, null, "out", DataType.FLOAT32),
-                new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE)
-        );
+                new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_FUSED, CpuAccumulateDType.NONE),
+                planner
+        ).dispatchHints();
 
         assertEquals(CpuExecutionMode.PARALLEL, hints.mode());
         assertEquals(4, hints.vectorWidth());
