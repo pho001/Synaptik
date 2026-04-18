@@ -20,8 +20,10 @@ import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkSession;
 import tuning.session.LoggingPlatformCalibrationProgressListener;
 import tuning.session.PlatformCalibrationDefaults;
+import tuning.session.PlatformCalibrationFamily;
 import tuning.session.PlatformCalibrationRequest;
 import tuning.session.PlatformCalibrationSession;
+import tuning.session.PlatformCalibrationStep;
 import tuning.session.TuningDefaults;
 import tuning.session.TuningPreset;
 import tuning.store.JsonFileBestProfileStore;
@@ -67,7 +69,7 @@ public final class Main {
                 requireExactArgCount(args, 2);
                 runFull(dtype);
             }
-            case CALIBRATE -> runCalibration(dtype, parseCalibrationMeasurement(args));
+            case CALIBRATE -> runCalibration(dtype, parseCalibrationOptions(args));
             case AUTOTUNE -> {
                 requireExactArgCount(args, 2);
                 runAutotune(dtype);
@@ -86,21 +88,24 @@ public final class Main {
     private static void runFull(DTypeTarget dtype) {
         System.out.println(header(dtype, "full flow"));
         System.out.println("note=convenience flow for local iteration; for the cleanest performance numbers prefer running phases separately");
-        runCalibration(dtype, null);
+        runCalibration(dtype, CalibrationCliOptions.defaults());
         runAutotune(dtype);
         runWinnerBenchmark(dtype);
     }
 
-    private static void runCalibration(DTypeTarget dtype, MeasurementPolicy measurement) {
-        System.out.println(header(dtype, "training calibration"));
-        printCalibrationMeasurement(measurement);
+    private static void runCalibration(DTypeTarget dtype, CalibrationCliOptions options) {
+        CalibrationCliOptions effective = options == null ? CalibrationCliOptions.defaults() : options;
+        String title = effective.family() == null
+                ? "training calibration"
+                : "training calibration [" + effective.family().cliName() + "]";
+        System.out.println(header(dtype, title));
+        if (effective.family() != null) {
+            System.out.println("family=" + effective.family().cliName());
+        }
+        printCalibrationMeasurement(effective.measurement());
         ExecutionProfile seed = trainingSeedProfile(dtype);
         PlatformCalibrationLayout layout = calibrationLayout(dtype, seed);
-        PlatformCalibrationRequest baseRequest = PlatformCalibrationDefaults.balancedTrainingFull(
-                layout.platformId(),
-                seed,
-                layout.profilePath()
-        );
+        PlatformCalibrationRequest baseRequest = calibrationRequest(dtype, seed, layout, effective);
         PlatformCalibrationRequest request = new PlatformCalibrationRequest(
                 baseRequest.platformId(),
                 baseRequest.profileName(),
@@ -110,7 +115,7 @@ public final class Main {
                 baseRequest.seedRuntimeProfile(),
                 baseRequest.steps(),
                 baseRequest.outputProfilePath(),
-                measurement,
+                effective.measurement(),
                 LoggingPlatformCalibrationProgressListener.defaults()
         );
 
@@ -124,6 +129,32 @@ public final class Main {
 
         System.out.println(TextPlatformCalibrationResultRenderer.render(result));
         System.out.println("profilePath=" + result.outputProfilePath());
+    }
+
+    private static PlatformCalibrationRequest calibrationRequest(
+            DTypeTarget dtype,
+            ExecutionProfile seed,
+            PlatformCalibrationLayout layout,
+            CalibrationCliOptions options
+    ) {
+        if (options.family() == null) {
+            return PlatformCalibrationDefaults.balancedTrainingFull(
+                    layout.platformId(),
+                    seed,
+                    layout.profilePath()
+            );
+        }
+        PlatformCalibrationStep step = options.family().createStep(
+                "calib-" + options.family().cliName() + "-train",
+                TuningPreset.BALANCED,
+                dtype.dataType
+        );
+        return PlatformCalibrationRequest.fromSeedExecutionProfile(
+                layout.platformId(),
+                seed,
+                List.of(step),
+                layout.profilePath()
+        );
     }
 
     private static void printCalibrationMeasurement(MeasurementPolicy measurement) {
@@ -370,7 +401,7 @@ public final class Main {
         System.out.println("""
                 Usage:
                   ./gradlew run --args="full <f64|f32|bf16>"
-                  ./gradlew run --args="calibrate <f64|f32|bf16> [warmup measure repeats]"
+                  ./gradlew run --args="calibrate <f64|f32|bf16> [family] [warmup measure repeats]"
                   ./gradlew run --args="autotune <f64|f32|bf16>"
                   ./gradlew run --args="benchmark-winner <f64|f32|bf16>"
                   ./gradlew run --args="benchmark-stage-space <f64|f32|bf16>"
@@ -378,10 +409,12 @@ public final class Main {
                 Notes:
                   - no args defaults to `full f64`
                   - run phases separately to avoid cross-phase JVM warmup bias
-                  - `calibrate` optionally accepts explicit measurement override, e.g. `calibrate f64 30 100 2`
+                  - `calibrate` optionally accepts a single family, e.g. `calibrate f64 conv2d`
+                  - `calibrate` optionally accepts explicit measurement override, e.g. `calibrate f64 conv2d 30 100 2`
+                  - supported calibration families: %s
                   - `autotune` expects an existing calibration profile
                   - `benchmark-winner` expects an existing best-profile artifact
-                """);
+                """.formatted(CalibrationFamilyTarget.supportedCliNames()));
     }
 
     private static void requireExactArgCount(String[] args, int expected) {
@@ -391,18 +424,37 @@ public final class Main {
         }
     }
 
-    private static MeasurementPolicy parseCalibrationMeasurement(String[] args) {
-        if (args.length == 2) {
-            return null;
+    static CalibrationCliOptions parseCalibrationOptions(String[] args) {
+        CalibrationFamilyTarget family = null;
+        int measurementStart = 2;
+        if (args.length > 2 && !isInteger(args[2])) {
+            family = CalibrationFamilyTarget.parse(args[2]);
+            if (family == null) {
+                printUsage();
+                throw new IllegalArgumentException(
+                        "Unknown calibration family `" + args[2] + "`. Supported families: " + CalibrationFamilyTarget.supportedCliNames()
+                );
+            }
+            measurementStart = 3;
         }
-        if (args.length != 5) {
+        int remaining = args.length - measurementStart;
+        if (remaining == 0) {
+            return new CalibrationCliOptions(family, null);
+        }
+        if (remaining != 3) {
             printUsage();
-            throw new IllegalArgumentException("Calibration measurement override expects exactly 3 integers: warmup measure repeats.");
+            throw new IllegalArgumentException(
+                    "Calibration measurement override expects exactly 3 integers: warmup measure repeats."
+            );
         }
+        return new CalibrationCliOptions(family, parseCalibrationMeasurement(args, measurementStart));
+    }
+
+    private static MeasurementPolicy parseCalibrationMeasurement(String[] args, int startIndex) {
         try {
-            int warmup = Integer.parseInt(args[2]);
-            int measure = Integer.parseInt(args[3]);
-            int repeats = Integer.parseInt(args[4]);
+            int warmup = Integer.parseInt(args[startIndex]);
+            int measure = Integer.parseInt(args[startIndex + 1]);
+            int repeats = Integer.parseInt(args[startIndex + 2]);
             MeasurementPolicy base = TuningPreset.BALANCED.benchmarkMeasurement();
             return new MeasurementPolicy(
                     warmup,
@@ -418,6 +470,22 @@ public final class Main {
             printUsage();
             throw new IllegalArgumentException("Calibration measurement override must be integers.", ex);
         }
+    }
+
+    private static boolean isInteger(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        int start = value.charAt(0) == '-' ? 1 : 0;
+        if (start == value.length()) {
+            return false;
+        }
+        for (int i = start; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private enum Phase {
@@ -469,6 +537,136 @@ public final class Main {
                 }
             }
             return null;
+        }
+    }
+
+    record CalibrationCliOptions(
+            CalibrationFamilyTarget family,
+            MeasurementPolicy measurement
+    ) {
+        static CalibrationCliOptions defaults() {
+            return new CalibrationCliOptions(null, null);
+        }
+    }
+
+    enum CalibrationFamilyTarget {
+        MATMUL("matmul", PlatformCalibrationFamily.MATMUL) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.matmulStep(name, preset);
+            }
+        },
+        ATTENTION_MATMUL("attention-matmul", PlatformCalibrationFamily.ATTENTION_MATMUL) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.attentionMatmulStep(name, preset);
+            }
+        },
+        CONV2D("conv2d", PlatformCalibrationFamily.CONV2D) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.conv2dStep(name, preset);
+            }
+        },
+        FUSED_THRESHOLDS("fused-thresholds", PlatformCalibrationFamily.FUSED_THRESHOLDS) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.fusedDispatchStep(name, preset);
+            }
+        },
+        FUSED_CHEAP_CONTIGUOUS("fused-cheap-contiguous", PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.fusedCheapContiguousStep(name, preset, dataType);
+            }
+        },
+        FUSED_CHEAP_STRIDED("fused-cheap-strided", PlatformCalibrationFamily.FUSED_CHEAP_STRIDED) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.fusedCheapStridedStep(name, preset, dataType);
+            }
+        },
+        FUSED_NON_CHEAP_CONTIGUOUS("fused-noncheap-contiguous", PlatformCalibrationFamily.FUSED_NON_CHEAP_CONTIGUOUS) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.fusedNonCheapContiguousStep(name, preset, dataType);
+            }
+        },
+        FUSED_NON_CHEAP_STRIDED("fused-noncheap-strided", PlatformCalibrationFamily.FUSED_NON_CHEAP_STRIDED) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.fusedNonCheapStridedStep(name, preset, dataType);
+            }
+        },
+        ELEMENTWISE("elementwise", PlatformCalibrationFamily.ELEMENTWISE_DISPATCH) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.elementwiseDispatchStep(name, preset);
+            }
+        },
+        REDUCTION("reduction", PlatformCalibrationFamily.REDUCTION) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.reductionStep(name, preset);
+            }
+        },
+        ATTENTION_THRESHOLDS("attention-thresholds", PlatformCalibrationFamily.ATTENTION_THRESHOLDS) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.attentionStep(name, preset);
+            }
+        },
+        SCHEDULER("scheduler", PlatformCalibrationFamily.SCHEDULER) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.schedulerStep(name, preset);
+            }
+        },
+        MATERIALIZATION("materialization", PlatformCalibrationFamily.MATERIALIZATION) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.materializationStep(name, preset);
+            }
+        },
+        NUMERICS("numerics", PlatformCalibrationFamily.NUMERICS) {
+            @Override
+            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
+                return PlatformCalibrationDefaults.numericsStep(name, preset);
+            }
+        };
+
+        private final String cliName;
+        private final PlatformCalibrationFamily family;
+
+        CalibrationFamilyTarget(String cliName, PlatformCalibrationFamily family) {
+            this.cliName = cliName;
+            this.family = family;
+        }
+
+        String cliName() {
+            return cliName;
+        }
+
+        PlatformCalibrationFamily family() {
+            return family;
+        }
+
+        abstract PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType);
+
+        static CalibrationFamilyTarget parse(String value) {
+            if (value == null) {
+                return null;
+            }
+            for (CalibrationFamilyTarget target : values()) {
+                if (target.cliName.equalsIgnoreCase(value)) {
+                    return target;
+                }
+            }
+            return null;
+        }
+
+        static String supportedCliNames() {
+            return String.join(", ", java.util.Arrays.stream(values()).map(CalibrationFamilyTarget::cliName).toList());
         }
     }
 }
