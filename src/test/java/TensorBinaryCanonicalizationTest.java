@@ -30,8 +30,8 @@ public class TensorBinaryCanonicalizationTest {
 
         assertNotNull(divByTwo.getOperation());
         assertEquals(operations.Operation.OpType.MUL_SCALAR, divByTwo.getOperation().opType());
-        assertTrue(divByTwo.getOperation() instanceof operations.mulScalar);
-        assertEquals(0.5d, ((operations.mulScalar) divByTwo.getOperation()).getScalar(), 1e-12);
+        assertTrue(divByTwo.getOperation() instanceof operations.elementwise.unary.mulScalar);
+        assertEquals(0.5d, ((operations.elementwise.unary.mulScalar) divByTwo.getOperation()).getScalar(), 1e-12);
     }
 
     @Test

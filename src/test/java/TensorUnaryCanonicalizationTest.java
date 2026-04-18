@@ -72,10 +72,10 @@ public class TensorUnaryCanonicalizationTest {
 
         assertNotNull(nestedClampMin.getOperation());
         assertEquals(operations.Operation.OpType.CLAMP_MIN, nestedClampMin.getOperation().opType());
-        assertEquals(3.0d, ((operations.clampMin) nestedClampMin.getOperation()).getMinValue(), 1e-12);
+        assertEquals(3.0d, ((operations.elementwise.unary.clampMin) nestedClampMin.getOperation()).getMinValue(), 1e-12);
 
         assertNotNull(nestedClampMax.getOperation());
         assertEquals(operations.Operation.OpType.CLAMP_MAX, nestedClampMax.getOperation().opType());
-        assertEquals(4.0d, ((operations.clampMax) nestedClampMax.getOperation()).getMaxValue(), 1e-12);
+        assertEquals(4.0d, ((operations.elementwise.unary.clampMax) nestedClampMax.getOperation()).getMaxValue(), 1e-12);
     }
 }

@@ -1,12 +1,12 @@
 package tensor.ops.compare;
 
 import operations.Operation;
-import operations.equalTo;
-import operations.greaterOrEqual;
-import operations.greaterThan;
-import operations.lessOrEqual;
-import operations.lessThan;
-import operations.notEqualTo;
+import operations.elementwise.compare.equalTo;
+import operations.elementwise.compare.greaterOrEqual;
+import operations.elementwise.compare.greaterThan;
+import operations.elementwise.compare.lessOrEqual;
+import operations.elementwise.compare.lessThan;
+import operations.elementwise.compare.notEqualTo;
 import tensor.BroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;

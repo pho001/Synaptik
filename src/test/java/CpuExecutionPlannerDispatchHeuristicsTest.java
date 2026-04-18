@@ -11,7 +11,7 @@ import graph.codegen.FusedExpressionPlan;
 import graph.codegen.FusedExternalInputPlan;
 import graph.codegen.FusedNodePlan;
 import graph.optimizer.fusion.FusedDispatchFamily;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

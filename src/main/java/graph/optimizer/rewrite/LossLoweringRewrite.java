@@ -1,16 +1,16 @@
 package graph.optimizer.rewrite;
 
 import operations.Operation;
-import operations.crossEntropyLossIndicesGrad;
-import operations.expand;
-import operations.expandDims;
-import operations.crossEntropyLossIndices;
-import operations.gather;
-import operations.logSoftmax;
-import operations.mean;
-import operations.scatterAdd;
-import operations.softmax;
-import operations.sum;
+import operations.loss.crossEntropyLossIndicesGrad;
+import operations.layout.expand;
+import operations.layout.expandDims;
+import operations.loss.crossEntropyLossIndices;
+import operations.index.gather;
+import operations.reduction.logSoftmax;
+import operations.reduction.mean;
+import operations.index.scatterAdd;
+import operations.reduction.softmax;
+import operations.reduction.sum;
 import tensor.Tensor;
 import tensor.loss.LossReduction;
 

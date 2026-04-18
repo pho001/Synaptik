@@ -1,10 +1,10 @@
 package tensor.ops.linalg;
 
 import operations.Operation;
-import operations.scaledDotProductAttention;
-import operations.scaledDotProductAttentionBackward;
-import operations.scaledDotProductAttentionWeights;
-import operations.softmaxGrad;
+import operations.linalg.scaledDotProductAttention;
+import operations.linalg.scaledDotProductAttentionBackward;
+import operations.linalg.scaledDotProductAttentionWeights;
+import operations.reduction.softmaxGrad;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorMetadata;

@@ -1,10 +1,10 @@
 package graph.optimizer.rewrite;
 
 import operations.Operation;
-import operations.mulScalar;
-import operations.permute;
-import operations.softmax;
-import operations.where;
+import operations.elementwise.unary.mulScalar;
+import operations.layout.permute;
+import operations.reduction.softmax;
+import operations.elementwise.where.where;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.options.AttentionOptions;

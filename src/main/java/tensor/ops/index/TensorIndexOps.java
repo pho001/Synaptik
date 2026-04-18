@@ -1,11 +1,11 @@
 package tensor.ops.index;
 
-import operations.gather;
-import operations.gatherGrad;
-import operations.scatterAdd;
-import operations.select;
-import operations.takeAlongAxis;
-import operations.takeAlongAxisGrad;
+import operations.index.gather;
+import operations.index.gatherGrad;
+import operations.index.scatterAdd;
+import operations.layout.select;
+import operations.index.takeAlongAxis;
+import operations.index.takeAlongAxisGrad;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorLayoutTransform;

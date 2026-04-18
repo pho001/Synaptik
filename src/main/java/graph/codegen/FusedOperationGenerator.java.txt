@@ -1,6 +1,6 @@
 package graph.codegen;
 
-import operations.*;
+import operations.Operation;
 
 import utils.*;
 import org.objectweb.asm.*;
@@ -890,16 +890,16 @@ public class FusedOperationGenerator {
                 }
 
                 switch (op) {
-                    case operations.add a -> mv.visitMethodInsn(INVOKEVIRTUAL,
+                    case operations.elementwise.binary.add a -> mv.visitMethodInsn(INVOKEVIRTUAL,
                             "jdk/incubator/vector/DoubleVector", "add",
                             "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
-                    case operations.sub s -> mv.visitMethodInsn(INVOKEVIRTUAL,
+                    case operations.elementwise.binary.sub s -> mv.visitMethodInsn(INVOKEVIRTUAL,
                             "jdk/incubator/vector/DoubleVector", "sub",
                             "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
-                    case operations.mul m -> mv.visitMethodInsn(INVOKEVIRTUAL,
+                    case operations.elementwise.binary.mul m -> mv.visitMethodInsn(INVOKEVIRTUAL,
                             "jdk/incubator/vector/DoubleVector", "mul",
                             "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
-                    case operations.div d -> mv.visitMethodInsn(INVOKEVIRTUAL,
+                    case operations.elementwise.binary.div d -> mv.visitMethodInsn(INVOKEVIRTUAL,
                             "jdk/incubator/vector/DoubleVector", "div",
                             "(Ljdk/incubator/vector/DoubleVector;)Ljdk/incubator/vector/DoubleVector;", false);
                     default -> throw new UnsupportedOperationException();
@@ -1510,13 +1510,13 @@ public class FusedOperationGenerator {
             }
 
             switch (operation) {
-                case operations.add add -> {
+                case operations.elementwise.binary.add add -> {
                     if (node.getOperators().size()!=2){
                         throw new IllegalStateException("Two inputs are required.");
                     }
                     emitGradientAdd(gradient,node);
                 }
-                case operations.mul mul -> {
+                case operations.elementwise.binary.mul mul -> {
                     if (node.getOperators().size()!=2){
                         throw new IllegalStateException("Two inputs are required.");
                     }
@@ -1524,13 +1524,13 @@ public class FusedOperationGenerator {
                     emitGradientMul(gradient,node);
 
                 }
-                case operations.sub sub -> {
+                case operations.elementwise.binary.sub sub -> {
                     if (node.getOperators().size()!=2){
                         throw new IllegalStateException("Two inputs are required.");
                     }
                     emitGradientSub(gradient,node);
                 }
-                case operations.div div -> {
+                case operations.elementwise.binary.div div -> {
                     if (node.getOperators().size()!=2){
                         throw new IllegalStateException("Two inputs are required.");
                     }
@@ -1699,12 +1699,12 @@ public class FusedOperationGenerator {
 
     private static void performOperation(MethodVisitor mv, Operation operation){
         switch (operation) {
-            case operations.add add -> mv.visitInsn(DADD);        // a[i] + b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sum]
-            case operations.mul mul -> mv.visitInsn(DMUL);        // a[i] * b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,mul]
-            case operations.sub sub -> mv.visitInsn(DSUB);        // a[i] - b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sub]
-            case operations.div div -> mv.visitInsn(DDIV);        // a[i] / b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,div]
-            case operations.neg neg -> mv.visitInsn(DNEG);
-            case operations.inv inv -> {
+            case operations.elementwise.binary.add add -> mv.visitInsn(DADD);        // a[i] + b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sum]
+            case operations.elementwise.binary.mul mul -> mv.visitInsn(DMUL);        // a[i] * b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,mul]
+            case operations.elementwise.binary.sub sub -> mv.visitInsn(DSUB);        // a[i] - b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sub]
+            case operations.elementwise.binary.div div -> mv.visitInsn(DDIV);        // a[i] / b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,div]
+            case operations.elementwise.unary.neg neg -> mv.visitInsn(DNEG);
+            case operations.elementwise.unary.inv inv -> {
 
             }
 

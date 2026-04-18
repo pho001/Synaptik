@@ -3,7 +3,7 @@ package backend.kernels.cpu.nn;
 import backend.kernels.cpu.*;
 
 import operations.Operation;
-import operations.maxPool2d;
+import operations.nn.pool.maxPool2d;
 import tensor.Tensor;
 
 import java.util.List;

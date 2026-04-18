@@ -180,14 +180,14 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
     private Tensor simplifyMulScalar(Tensor t) {
         Tensor input = t.getPrevTensors().get(0);
-        if (!(t.getOperation() instanceof operations.mulScalar m)) return t;
+        if (!(t.getOperation() instanceof operations.elementwise.unary.mulScalar m)) return t;
 
         double s = m.getScalar();
         if (s == 0.0) return Tensor.zerosLike(input);
         if (s == 1.0) return input;
         if (s == -1.0) return input.neg();
 
-        if (!DISABLE_MULSCALAR_ASSOC && isOp(input, Operation.OpType.MUL_SCALAR) && input.getOperation() instanceof operations.mulScalar in) {
+        if (!DISABLE_MULSCALAR_ASSOC && isOp(input, Operation.OpType.MUL_SCALAR) && input.getOperation() instanceof operations.elementwise.unary.mulScalar in) {
             return input.getPrevTensors().get(0).mul(in.getScalar() * s);
         }
 
@@ -215,7 +215,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
         if (!DISABLE_DIV_MULSCALAR_BY_CONST
                 && isOp(a, Operation.OpType.MUL_SCALAR)
-                && a.getOperation() instanceof operations.mulScalar ms
+                && a.getOperation() instanceof operations.elementwise.unary.mulScalar ms
                 && ms.getScalar() != 0.0
                 && isConstant(b, ms.getScalar())) {
             return a.getPrevTensors().get(0);
@@ -223,7 +223,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
         if (!DISABLE_DIV_MULSCALAR_BY_CONST
                 && isOp(a, Operation.OpType.MUL_SCALAR)
-                && a.getOperation() instanceof operations.mulScalar ms
+                && a.getOperation() instanceof operations.elementwise.unary.mulScalar ms
                 && isConstant(b)) {
             return a.getPrevTensors().get(0).mul(ms.getScalar() / b.scalarAsDouble());
         }
@@ -237,7 +237,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
     private Tensor simplifyPow(Tensor t) {
         Tensor a = t.getPrevTensors().get(0);
-        if (!(t.getOperation() instanceof operations.pow p)) return t;
+        if (!(t.getOperation() instanceof operations.elementwise.unary.pow p)) return t;
         double e = p.getExponent();
 
         if (e == 0.0) return Tensor.onesLike(a);
@@ -245,7 +245,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
         if (e == -1.0) return a.inv();
         if (!DISABLE_POW2_TO_MUL && e == 2.0) return a.mul(a);
         if (!DISABLE_POW_INV_TO_NEGEXP && isOp(a, Operation.OpType.INV)) return a.getPrevTensors().get(0).pow(-e);
-        if (!DISABLE_POW_POW_FLATTEN && isOp(a, Operation.OpType.POW) && a.getOperation() instanceof operations.pow inner) {
+        if (!DISABLE_POW_POW_FLATTEN && isOp(a, Operation.OpType.POW) && a.getOperation() instanceof operations.elementwise.unary.pow inner) {
             return a.getPrevTensors().get(0).pow(inner.getExponent() * e);
         }
 
@@ -257,7 +257,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
         if (isConstant(a, 0.0)) return a;
         if (isOp(a, Operation.OpType.NEG)) return a.getPrevTensors().get(0);
         if (!DISABLE_NEG_SUB_SWAP && isOp(a, Operation.OpType.SUB)) return a.getPrevTensors().get(1).sub(a.getPrevTensors().get(0));
-        if (!DISABLE_NEG_MULSCALAR_PUSH && isOp(a, Operation.OpType.MUL_SCALAR) && a.getOperation() instanceof operations.mulScalar ms) {
+        if (!DISABLE_NEG_MULSCALAR_PUSH && isOp(a, Operation.OpType.MUL_SCALAR) && a.getOperation() instanceof operations.elementwise.unary.mulScalar ms) {
             return a.getPrevTensors().get(0).mul(-ms.getScalar());
         }
         return t;
@@ -265,7 +265,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
     private Tensor simplifyLog(Tensor t) {
         Tensor a = t.getPrevTensors().get(0);
-        if (!DISABLE_LOG_POW_TO_MULLOG && isOp(a, Operation.OpType.POW) && a.getOperation() instanceof operations.pow p) {
+        if (!DISABLE_LOG_POW_TO_MULLOG && isOp(a, Operation.OpType.POW) && a.getOperation() instanceof operations.elementwise.unary.pow p) {
             return a.getPrevTensors().get(0).log().mul(p.getExponent());
         }
         if (!DISABLE_LOG_INV_TO_NEGLOG && isOp(a, Operation.OpType.INV)) {
@@ -288,7 +288,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
     private Tensor simplifyInv(Tensor t) {
         Tensor a = t.getPrevTensors().get(0);
         if (isOp(a, Operation.OpType.INV)) return a.getPrevTensors().get(0);
-        if (!DISABLE_INV_POW_TO_NEGEXP && isOp(a, Operation.OpType.POW) && a.getOperation() instanceof operations.pow p) {
+        if (!DISABLE_INV_POW_TO_NEGEXP && isOp(a, Operation.OpType.POW) && a.getOperation() instanceof operations.elementwise.unary.pow p) {
             return a.getPrevTensors().get(0).pow(-p.getExponent());
         }
         if (!DISABLE_INV_EXP_TO_EXPNEG && isOp(a, Operation.OpType.EXP)) {
@@ -317,12 +317,12 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
     private Tensor simplifyClampMin(Tensor t) {
         Tensor a = t.getPrevTensors().get(0);
-        if (!(t.getOperation() instanceof operations.clampMin clamp)) return t;
+        if (!(t.getOperation() instanceof operations.elementwise.unary.clampMin clamp)) return t;
 
         if (!DISABLE_CLAMPMIN_IDENTITY && clamp.getMinValue() == Double.NEGATIVE_INFINITY) {
             return a;
         }
-        if (!DISABLE_CLAMPMIN_FLATTEN && isOp(a, Operation.OpType.CLAMP_MIN) && a.getOperation() instanceof operations.clampMin inner) {
+        if (!DISABLE_CLAMPMIN_FLATTEN && isOp(a, Operation.OpType.CLAMP_MIN) && a.getOperation() instanceof operations.elementwise.unary.clampMin inner) {
             return a.getPrevTensors().get(0).clampMin(Math.max(inner.getMinValue(), clamp.getMinValue()));
         }
         return t;
@@ -330,12 +330,12 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
     private Tensor simplifyClampMax(Tensor t) {
         Tensor a = t.getPrevTensors().get(0);
-        if (!(t.getOperation() instanceof operations.clampMax clamp)) return t;
+        if (!(t.getOperation() instanceof operations.elementwise.unary.clampMax clamp)) return t;
 
         if (!DISABLE_CLAMPMAX_IDENTITY && clamp.getMaxValue() == Double.POSITIVE_INFINITY) {
             return a;
         }
-        if (!DISABLE_CLAMPMAX_FLATTEN && isOp(a, Operation.OpType.CLAMP_MAX) && a.getOperation() instanceof operations.clampMax inner) {
+        if (!DISABLE_CLAMPMAX_FLATTEN && isOp(a, Operation.OpType.CLAMP_MAX) && a.getOperation() instanceof operations.elementwise.unary.clampMax inner) {
             return a.getPrevTensors().get(0).clampMax(Math.min(inner.getMaxValue(), clamp.getMaxValue()));
         }
         return t;
@@ -363,7 +363,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
 
     private static Double getMulScalarIfBase(Tensor maybeMulScalar, Tensor base) {
         if (!isOp(maybeMulScalar, Operation.OpType.MUL_SCALAR)) return null;
-        if (!(maybeMulScalar.getOperation() instanceof operations.mulScalar ms)) return null;
+        if (!(maybeMulScalar.getOperation() instanceof operations.elementwise.unary.mulScalar ms)) return null;
         if (maybeMulScalar.getPrevTensors().get(0) != base) return null;
         return ms.getScalar();
     }

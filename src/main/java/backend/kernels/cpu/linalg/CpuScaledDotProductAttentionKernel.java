@@ -3,7 +3,7 @@ package backend.kernels.cpu.linalg;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
 import operations.Operation;
-import operations.scaledDotProductAttention;
+import operations.linalg.scaledDotProductAttention;
 import tensor.Tensor;
 
 import java.util.List;

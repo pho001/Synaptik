@@ -3,7 +3,7 @@ package backend.kernels.cpu.nn;
 import backend.kernels.cpu.*;
 
 import operations.Operation;
-import operations.conv2d;
+import operations.nn.conv.conv2d;
 import tensor.Tensor;
 
 import java.util.List;

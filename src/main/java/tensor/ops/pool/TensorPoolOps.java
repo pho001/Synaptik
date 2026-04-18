@@ -1,7 +1,7 @@
 package tensor.ops.pool;
 
-import operations.avgPool2d;
-import operations.maxPool2d;
+import operations.nn.pool.avgPool2d;
+import operations.nn.pool.maxPool2d;
 import tensor.Tensor;
 import tensor.TensorPrimitiveBuilder;
 import tensor.options.Pool2dOptions;
@@ -35,7 +35,7 @@ public final class TensorPoolOps {
                     outGrad,
                     out,
                     inputShape.clone(),
-                    new operations.maxPool2dBackwardInput(options, inputShape),
+                    new operations.nn.pool.maxPool2dBackwardInput(options, inputShape),
                     "maxPool2dBackwardInput",
                     input.getDataType()
             );
@@ -68,7 +68,7 @@ public final class TensorPoolOps {
             Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
                     outGrad,
                     inputShape.clone(),
-                    new operations.avgPool2dBackwardInput(options, inputShape),
+                    new operations.nn.pool.avgPool2dBackwardInput(options, inputShape),
                     "avgPool2dBackwardInput",
                     input.getDataType()
             );

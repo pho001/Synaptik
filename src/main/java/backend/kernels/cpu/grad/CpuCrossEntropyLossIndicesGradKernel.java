@@ -3,7 +3,7 @@ package backend.kernels.cpu.grad;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
 import operations.Operation;
-import operations.crossEntropyLossIndicesGrad;
+import operations.loss.crossEntropyLossIndicesGrad;
 import tensor.Tensor;
 
 import java.util.List;

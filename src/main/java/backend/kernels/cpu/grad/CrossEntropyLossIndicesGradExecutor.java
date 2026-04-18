@@ -8,7 +8,7 @@ import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
-import operations.crossEntropyLossIndicesGrad;
+import operations.loss.crossEntropyLossIndicesGrad;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorMetadata;

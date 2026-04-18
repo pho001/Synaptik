@@ -4,10 +4,10 @@ import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
 import operations.Operation;
-import operations.clampMax;
-import operations.clampMin;
-import operations.mulScalar;
-import operations.pow;
+import operations.elementwise.unary.clampMax;
+import operations.elementwise.unary.clampMin;
+import operations.elementwise.unary.mulScalar;
+import operations.elementwise.unary.pow;
 import tensor.Tensor;
 import utils.FastExp;
 

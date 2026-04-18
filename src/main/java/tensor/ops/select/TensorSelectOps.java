@@ -1,6 +1,6 @@
 package tensor.ops.select;
 
-import operations.where;
+import operations.elementwise.where.where;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;

@@ -201,6 +201,8 @@ Important notes:
   - configuration helper records/enums for public higher-level ops
 - [src/main/java/operations/](src/main/java/operations/)
   - canonical operation descriptors used in the graph
+  - organized by the same broad families used by `tensor.ops.*` and CPU kernel dispatch
+  - `elementwise/{binary,unary,compare,logical,where}`, `layout`, `index`, `reduction`, `normalization`, `linalg`, `nn/{conv,pool}`, `loss`, `fused`
 - [src/main/java/graph/](src/main/java/graph/)
   - compile, prepare, and run orchestration
 - [src/main/java/graph/optimizer/](src/main/java/graph/optimizer/)
@@ -233,7 +235,7 @@ Today the public API primarily builds graphs through helper layers in `tensor.op
 
 ### Operation Layer
 
-`operations.*` are not backend kernels. They are graph-level descriptors.
+`operations.*` are not backend kernels. They are graph-level descriptors grouped by semantic family.
 
 Examples:
 

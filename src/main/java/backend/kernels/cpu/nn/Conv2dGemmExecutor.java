@@ -1,7 +1,7 @@
 package backend.kernels.cpu.nn;
 
 import backend.kernels.cpu.CpuKernelContext;
-import operations.conv2dGemm;
+import operations.nn.conv.conv2dGemm;
 import tensor.Tensor;
 
 final class Conv2dGemmExecutor {

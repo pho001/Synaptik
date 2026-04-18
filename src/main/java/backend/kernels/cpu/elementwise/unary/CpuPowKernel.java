@@ -8,7 +8,7 @@ import backend.kernels.cpu.elementwise.unary.bf16.PowBF16;
 import backend.kernels.cpu.elementwise.unary.f32.PowF32;
 import backend.kernels.cpu.elementwise.unary.f64.PowF64;
 import operations.Operation;
-import operations.pow;
+import operations.elementwise.unary.pow;
 import tensor.Tensor;
 
 import java.util.List;

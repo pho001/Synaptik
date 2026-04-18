@@ -3,8 +3,8 @@ package backend.kernels.cpu.reduction;
 import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.CpuKernelContext;
-import operations.reduceAll;
-import operations.reduceAny;
+import operations.reduction.reduceAll;
+import operations.reduction.reduceAny;
 import tensor.Tensor;
 
 public final class BoolReduceExecutor {

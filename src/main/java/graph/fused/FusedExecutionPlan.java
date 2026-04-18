@@ -1,7 +1,7 @@
 package graph.fused;
 
 import backend.kernels.cpu.ResolvedCpuComputeContract;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 
 import java.util.Objects;
 

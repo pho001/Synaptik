@@ -3,7 +3,7 @@ package backend.kernels.cpu.linalg;
 import backend.kernels.cpu.*;
 
 import operations.Operation;
-import operations.linear;
+import operations.linalg.linear;
 import tensor.Tensor;
 
 import java.util.List;

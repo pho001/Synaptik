@@ -1,6 +1,6 @@
 package tensor.ops.normalization;
 
-import operations.rmsNorm;
+import operations.normalization.rmsNorm;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;
@@ -88,7 +88,7 @@ public final class TensorNormalizationOps {
                 gamma,
                 beta,
                 input.getShape().clone(),
-                new operations.layerNorm(normalizedRank, epsilon),
+                new operations.normalization.layerNorm(normalizedRank, epsilon),
                 "layerNorm",
                 outputType
         );

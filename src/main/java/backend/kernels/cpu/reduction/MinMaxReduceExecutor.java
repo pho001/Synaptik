@@ -3,8 +3,8 @@ package backend.kernels.cpu.reduction;
 import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.CpuKernelContext;
-import operations.reduceMax;
-import operations.reduceMin;
+import operations.reduction.reduceMax;
+import operations.reduction.reduceMin;
 import tensor.Tensor;
 
 public final class MinMaxReduceExecutor {

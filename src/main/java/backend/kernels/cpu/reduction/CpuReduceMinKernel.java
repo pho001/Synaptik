@@ -4,7 +4,7 @@ import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.MinMaxReduceExecutor;
 import operations.Operation;
-import operations.reduceMin;
+import operations.reduction.reduceMin;
 import tensor.Tensor;
 
 import java.util.List;

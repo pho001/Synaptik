@@ -3,7 +3,7 @@ import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import operations.Operation;
-import operations.scaledDotProductAttentionWeights;
+import operations.linalg.scaledDotProductAttentionWeights;
 import org.junit.jupiter.api.Test;
 import tensor.options.AttentionOptions;
 import tensor.DataType;

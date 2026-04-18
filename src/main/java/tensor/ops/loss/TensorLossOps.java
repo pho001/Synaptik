@@ -1,8 +1,8 @@
 package tensor.ops.loss;
 
-import operations.crossEntropyLoss;
-import operations.crossEntropyLossIndices;
-import operations.nllLoss;
+import operations.loss.crossEntropyLoss;
+import operations.loss.crossEntropyLossIndices;
+import operations.loss.nllLoss;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;

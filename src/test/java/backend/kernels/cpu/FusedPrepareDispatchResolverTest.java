@@ -10,7 +10,7 @@ import graph.codegen.FusedNodePlan;
 import graph.codegen.NoAttributes;
 import graph.optimizer.fusion.FusedDispatchFamily;
 import jdk.incubator.vector.FloatVector;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

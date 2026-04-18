@@ -2,7 +2,7 @@ import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import graph.CompiledGraph;
 import operations.Operation;
-import operations.pow;
+import operations.elementwise.unary.pow;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

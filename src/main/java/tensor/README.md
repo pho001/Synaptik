@@ -42,7 +42,8 @@ In practical terms:
 - `Tensor` instance methods are the ergonomic entry point for most code
 - `TensorOps` is the static facade over the same family builders
 - `tensor.ops.*` owns validation, primitive creation, and backward wiring
-- `operations.*` owns immutable operation descriptors only
+- `operations/**` owns immutable operation descriptors only
+- those descriptors are grouped by the same broad families used in `tensor.ops.*` and backend dispatch
 
 Public construction is also intentionally split:
 
@@ -215,7 +216,7 @@ New code should avoid putting these concerns directly into `Tensor`:
 Those belong respectively in:
 
 - `tensor.ops.*`
-- `operations.*`
+- `operations/**`
 - `graph/*`
 - `backend/*`
 

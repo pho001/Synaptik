@@ -16,7 +16,7 @@ import backend.runtime.ExecutionContext;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.codegen.FusedExternalInputPlan;
 import operations.Operation;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import tensor.BroadcastPlan;
 import tensor.BroadcastPlanner;
 import tensor.DataType;

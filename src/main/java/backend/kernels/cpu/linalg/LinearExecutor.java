@@ -5,7 +5,7 @@ import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
 
-import operations.linear;
+import operations.linalg.linear;
 import tensor.Tensor;
 
 import java.util.Arrays;

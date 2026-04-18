@@ -1,7 +1,7 @@
 package graph.codegen;
 
-import operations.mulScalar;
-import operations.pow;
+import operations.elementwise.unary.mulScalar;
+import operations.elementwise.unary.pow;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

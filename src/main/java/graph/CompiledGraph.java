@@ -22,7 +22,7 @@ import graph.fused.FusedExecutionPlan;
 import graph.fused.PreparedFusedExecutable;
 import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -118,7 +118,7 @@ public class CompiledGraph {
         List<Tensor> targetsToSave = new ArrayList<>();
         targetsToSave.add(forwardOutput);
         targetsToSave.addAll(backwardTargets);
-        Tensor superRoot = new Tensor(new int[]{1}, targetsToSave, new operations.noop(), "System_Super_Root");
+        Tensor superRoot = new Tensor(new int[]{1}, targetsToSave, new operations.layout.noop(), "System_Super_Root");
 
         finalGraph.addAll(superRoot.topologicalSort());
         finalGraph.remove(superRoot);

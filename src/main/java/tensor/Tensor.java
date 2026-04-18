@@ -5,7 +5,7 @@ import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.execution.PreparedExecution;
 import operations.Operation;
-import operations.noop;
+import operations.layout.noop;
 import tensor.factory.TensorArrayData;
 import tensor.loss.LossReduction;
 import tensor.options.AttentionOptions;

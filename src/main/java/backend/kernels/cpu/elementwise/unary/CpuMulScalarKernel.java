@@ -9,7 +9,7 @@ import backend.kernels.cpu.elementwise.unary.f64.MulScalarF64;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import operations.Operation;
-import operations.mulScalar;
+import operations.elementwise.unary.mulScalar;
 import tensor.Tensor;
 
 import java.util.List;

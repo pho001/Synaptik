@@ -1,12 +1,12 @@
 package tensor.ops.layout;
 
 import operations.Operation;
-import operations.contiguous;
-import operations.expand;
-import operations.expandDims;
-import operations.permute;
-import operations.reshape;
-import operations.squeeze;
+import operations.layout.contiguous;
+import operations.layout.expand;
+import operations.layout.expandDims;
+import operations.layout.permute;
+import operations.layout.reshape;
+import operations.layout.squeeze;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.TensorLayoutTransform;

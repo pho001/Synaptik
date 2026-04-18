@@ -3,7 +3,7 @@ package backend.kernels.cpu.reduction;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
 import operations.Operation;
-import operations.softmaxGrad;
+import operations.reduction.softmaxGrad;
 import tensor.Tensor;
 
 import java.util.List;

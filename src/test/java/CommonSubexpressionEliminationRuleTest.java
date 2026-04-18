@@ -1,7 +1,7 @@
 import config.optimizer.CseConfig;
 import graph.optimizer.rules.CommonSubexpressionEliminationRule;
 import operations.Operation;
-import operations.noop;
+import operations.layout.noop;
 import org.junit.jupiter.api.Test;
 import tensor.Tensor;
 

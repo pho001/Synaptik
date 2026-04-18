@@ -1,8 +1,8 @@
 package tensor.ops.bool;
 
-import operations.logicalAnd;
-import operations.logicalNot;
-import operations.logicalOr;
+import operations.elementwise.logical.logicalAnd;
+import operations.elementwise.logical.logicalNot;
+import operations.elementwise.logical.logicalOr;
 import tensor.BroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;

@@ -3,7 +3,7 @@ package backend.kernels.cpu.index;
 import backend.kernels.cpu.*;
 
 import operations.Operation;
-import operations.gatherGrad;
+import operations.index.gatherGrad;
 import tensor.Tensor;
 
 import java.util.List;

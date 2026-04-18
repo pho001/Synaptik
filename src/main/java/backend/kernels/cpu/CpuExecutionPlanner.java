@@ -14,7 +14,7 @@ import graph.codegen.FusedNodePlan;
 import graph.optimizer.fusion.FusedDispatchFamily;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;

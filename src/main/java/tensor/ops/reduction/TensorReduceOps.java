@@ -1,14 +1,14 @@
 package tensor.ops.reduction;
 
 import operations.Operation;
-import operations.logSoftmax;
-import operations.mean;
-import operations.reduceAll;
-import operations.reduceAny;
-import operations.reduceMax;
-import operations.reduceMin;
-import operations.softmax;
-import operations.sum;
+import operations.reduction.logSoftmax;
+import operations.reduction.mean;
+import operations.reduction.reduceAll;
+import operations.reduction.reduceAny;
+import operations.reduction.reduceMax;
+import operations.reduction.reduceMin;
+import operations.reduction.softmax;
+import operations.reduction.sum;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorLayoutTransform;
@@ -208,7 +208,7 @@ public final class TensorReduceOps {
 
             Tensor reducedForGrad = keepDims ? out : out.expandDims(normalizedDimension);
             Tensor outGradForGrad = keepDims ? outGrad : outGrad.expandDims(normalizedDimension);
-            Operation gradOp = isMax ? new operations.reduceMaxGrad(normalizedDimension) : new operations.reduceMinGrad(normalizedDimension);
+            Operation gradOp = isMax ? new operations.reduction.reduceMaxGrad(normalizedDimension) : new operations.reduction.reduceMinGrad(normalizedDimension);
             Tensor grad = TensorPrimitiveBuilder.ternary(
                     input,
                     reducedForGrad,
@@ -238,7 +238,7 @@ public final class TensorReduceOps {
                 return;
             }
 
-            Operation gradOp = isMax ? new operations.reduceMaxGrad(-1) : new operations.reduceMinGrad(-1);
+            Operation gradOp = isMax ? new operations.reduction.reduceMaxGrad(-1) : new operations.reduction.reduceMinGrad(-1);
             Tensor grad = TensorPrimitiveBuilder.ternary(
                     input,
                     out,

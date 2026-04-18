@@ -5,7 +5,7 @@ import backend.kernels.cpu.CpuKernelContext;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import operations.Operation;
-import operations.clampMax;
+import operations.elementwise.unary.clampMax;
 import tensor.Tensor;
 
 import java.util.List;

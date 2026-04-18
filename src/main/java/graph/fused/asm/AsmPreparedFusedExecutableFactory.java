@@ -7,7 +7,7 @@ import graph.codegen.FusedKernelGeneratorRouter;
 import graph.codegen.FusedKernelCacheKey;
 import graph.fused.FusedExecutionPlan;
 import graph.fused.PreparedFusedExecutable;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import utils.CustomClassLoader;
 
 import java.lang.reflect.Constructor;

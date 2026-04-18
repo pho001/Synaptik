@@ -1,8 +1,8 @@
 package backend.kernels.cpu.nn;
 
-import operations.conv2d;
-import operations.conv2dBackwardInput;
-import operations.conv2dBackwardWeight;
+import operations.nn.conv.conv2d;
+import operations.nn.conv.conv2dBackwardInput;
+import operations.nn.conv.conv2dBackwardWeight;
 import tensor.Tensor;
 
 final class Conv2dExecutor {

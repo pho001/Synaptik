@@ -147,72 +147,222 @@ They are not executable kernels and they are not a second public modeling API.
 - base primitive interface
   - [operations/Operation.java](../operations/Operation.java)
 - fused descriptor support
-  - [operations/FusedOperation.java](../operations/FusedOperation.java)
-  - [operations/FusedOperationFactory.java](../operations/FusedOperationFactory.java)
+  - [operations/fused/FusedOperation.java](../operations/fused/FusedOperation.java)
+  - [operations/fused/FusedOperationFactory.java](../operations/fused/FusedOperationFactory.java)
 
-The package contains descriptors for several broad groups.
+## Package Layout
 
-### Elementwise arithmetic and unary primitives
+The package is no longer flat.
+Descriptors are grouped by the same broad families used in `tensor.ops.*` and CPU backend dispatch.
 
-Examples:
+Current layout:
 
-- `add`, `sub`, `mul`, `div`
-- `neg`, `abs`, `inv`, `sqrt`
-- `log`, `exp`, `fastExp`, `tanh`, `fastTanh`, `sigmoid`
-- `pow`, `mulScalar`
-- `relu`, `clampMin`, `clampMax`
-- `min`, `max`
+```text
+operations/
+  Operation.java
+  fused/
+  elementwise/
+    binary/
+    unary/
+    compare/
+    logical/
+    where/
+  layout/
+  index/
+  reduction/
+  normalization/
+  linalg/
+  nn/
+    conv/
+    pool/
+  loss/
+```
 
-### Compare, bool, and selection primitives
+That split is intentional:
 
-Examples:
+- `tensor.ops.*` builds graphs by semantic families
+- `graph` rewrites and lowerings reason about descriptors by family
+- `backend/kernels/cpu/*` dispatches kernels by family
 
-- `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`
-- `equalTo`, `notEqualTo`
-- `logicalAnd`, `logicalOr`, `logicalNot`
-- `where`
+Keeping `operations` grouped the same way makes descriptor ownership easier to read and avoids one flat directory of unrelated primitives.
 
-### Layout and indexing primitives
+### `elementwise/binary`
 
-Examples:
+File family:
 
-- `contiguous`, `reshape`, `expand`, `permute`, `expandDims`, `squeeze`
-- `select`, `gather`, `gatherGrad`
-- `takeAlongAxis`, `takeAlongAxisGrad`
-- `scatterAdd`
+- [operations/elementwise/binary/add.java](../operations/elementwise/binary/add.java)
+- [operations/elementwise/binary/sub.java](../operations/elementwise/binary/sub.java)
+- [operations/elementwise/binary/mul.java](../operations/elementwise/binary/mul.java)
+- [operations/elementwise/binary/div.java](../operations/elementwise/binary/div.java)
+- [operations/elementwise/binary/min.java](../operations/elementwise/binary/min.java)
+- [operations/elementwise/binary/max.java](../operations/elementwise/binary/max.java)
+- [operations/elementwise/binary/minGrad.java](../operations/elementwise/binary/minGrad.java)
+- [operations/elementwise/binary/maxGrad.java](../operations/elementwise/binary/maxGrad.java)
 
-### Reduction and normalization-adjacent primitives
+These are pure elementwise numeric binary descriptors plus the explicit min/max backward helper descriptors that naturally belong to the same semantic family.
 
-Examples:
-
-- `sum`, `mean`
-- `reduceMin`, `reduceMax`, `reduceAll`, `reduceAny`
-- `reduceMinGrad`, `reduceMaxGrad`
-- `softmax`, `softmaxGrad`
-- `logSoftmax`, `logSoftmaxGrad`
-- `layerNorm`, `rmsNorm`
-
-### Linalg and spatial primitives
-
-Examples:
-
-- `matmul`, `linear`
-- `scaledDotProductAttention`
-- `scaledDotProductAttentionWeights`
-- `scaledDotProductAttentionBackward`
-- `conv2d`, `conv2dGemm`
-- `conv2dBackwardInput`, `conv2dBackwardWeight`
-- `maxPool2d`, `avgPool2d`
-- `maxPool2dBackwardInput`, `avgPool2dBackwardInput`
-
-### Loss primitives
+### `elementwise/unary`
 
 Examples:
 
-- `nllLoss`
-- `crossEntropyLoss`
-- `crossEntropyLossIndices`
-- `crossEntropyLossIndicesGrad`
+- [operations/elementwise/unary/neg.java](../operations/elementwise/unary/neg.java)
+- [operations/elementwise/unary/abs.java](../operations/elementwise/unary/abs.java)
+- [operations/elementwise/unary/inv.java](../operations/elementwise/unary/inv.java)
+- [operations/elementwise/unary/log.java](../operations/elementwise/unary/log.java)
+- [operations/elementwise/unary/exp.java](../operations/elementwise/unary/exp.java)
+- [operations/elementwise/unary/fastExp.java](../operations/elementwise/unary/fastExp.java)
+- [operations/elementwise/unary/tanh.java](../operations/elementwise/unary/tanh.java)
+- [operations/elementwise/unary/fastTanh.java](../operations/elementwise/unary/fastTanh.java)
+- [operations/elementwise/unary/pow.java](../operations/elementwise/unary/pow.java)
+- [operations/elementwise/unary/mulScalar.java](../operations/elementwise/unary/mulScalar.java)
+- [operations/elementwise/unary/relu.java](../operations/elementwise/unary/relu.java)
+- [operations/elementwise/unary/sigmoid.java](../operations/elementwise/unary/sigmoid.java)
+- [operations/elementwise/unary/clampMin.java](../operations/elementwise/unary/clampMin.java)
+- [operations/elementwise/unary/clampMax.java](../operations/elementwise/unary/clampMax.java)
+
+The rule here is simple:
+
+- if the primitive acts elementwise on one input tensor and is not compare/bool-specific, it belongs here
+
+### `elementwise/compare`
+
+Examples:
+
+- [operations/elementwise/compare/greaterThan.java](../operations/elementwise/compare/greaterThan.java)
+- [operations/elementwise/compare/greaterOrEqual.java](../operations/elementwise/compare/greaterOrEqual.java)
+- [operations/elementwise/compare/lessThan.java](../operations/elementwise/compare/lessThan.java)
+- [operations/elementwise/compare/lessOrEqual.java](../operations/elementwise/compare/lessOrEqual.java)
+- [operations/elementwise/compare/equalTo.java](../operations/elementwise/compare/equalTo.java)
+- [operations/elementwise/compare/notEqualTo.java](../operations/elementwise/compare/notEqualTo.java)
+
+These map cleanly to the compare kernel family in the CPU backend.
+
+### `elementwise/logical`
+
+Examples:
+
+- [operations/elementwise/logical/logicalAnd.java](../operations/elementwise/logical/logicalAnd.java)
+- [operations/elementwise/logical/logicalOr.java](../operations/elementwise/logical/logicalOr.java)
+- [operations/elementwise/logical/logicalNot.java](../operations/elementwise/logical/logicalNot.java)
+
+These are separated from numeric compare ops because they operate on boolean semantics, not numeric ordering semantics.
+
+### `elementwise/where`
+
+- [operations/elementwise/where/where.java](../operations/elementwise/where/where.java)
+
+`where` stays in its own tiny family because the runtime has its own broadcast planning and execution path for ternary elementwise selection.
+
+### `layout`
+
+Examples:
+
+- [operations/layout/contiguous.java](../operations/layout/contiguous.java)
+- [operations/layout/reshape.java](../operations/layout/reshape.java)
+- [operations/layout/expand.java](../operations/layout/expand.java)
+- [operations/layout/permute.java](../operations/layout/permute.java)
+- [operations/layout/expandDims.java](../operations/layout/expandDims.java)
+- [operations/layout/squeeze.java](../operations/layout/squeeze.java)
+- [operations/layout/select.java](../operations/layout/select.java)
+- [operations/layout/noop.java](../operations/layout/noop.java)
+
+`select` is intentionally grouped with layout descriptors instead of index descriptors:
+
+- its `OpType` is `SELECT`
+- the CPU backend treats it as an alias-view style layout remap
+- it does not materialize indexed gather output like `gather` or `takeAlongAxis`
+
+### `index`
+
+Examples:
+
+- [operations/index/gather.java](../operations/index/gather.java)
+- [operations/index/gatherGrad.java](../operations/index/gatherGrad.java)
+- [operations/index/takeAlongAxis.java](../operations/index/takeAlongAxis.java)
+- [operations/index/takeAlongAxisGrad.java](../operations/index/takeAlongAxisGrad.java)
+- [operations/index/scatterAdd.java](../operations/index/scatterAdd.java)
+
+These are true indexed read/write primitives with dedicated backend contracts.
+
+### `reduction`
+
+Examples:
+
+- [operations/reduction/sum.java](../operations/reduction/sum.java)
+- [operations/reduction/mean.java](../operations/reduction/mean.java)
+- [operations/reduction/reduceMin.java](../operations/reduction/reduceMin.java)
+- [operations/reduction/reduceMax.java](../operations/reduction/reduceMax.java)
+- [operations/reduction/reduceAll.java](../operations/reduction/reduceAll.java)
+- [operations/reduction/reduceAny.java](../operations/reduction/reduceAny.java)
+- [operations/reduction/reduceMinGrad.java](../operations/reduction/reduceMinGrad.java)
+- [operations/reduction/reduceMaxGrad.java](../operations/reduction/reduceMaxGrad.java)
+- [operations/reduction/softmax.java](../operations/reduction/softmax.java)
+- [operations/reduction/softmaxGrad.java](../operations/reduction/softmaxGrad.java)
+- [operations/reduction/logSoftmax.java](../operations/reduction/logSoftmax.java)
+- [operations/reduction/logSoftmaxGrad.java](../operations/reduction/logSoftmaxGrad.java)
+
+`softmax` and `logSoftmax` stay here because the CPU backend executes them in the reduction family, even though they are semantically normalization-like.
+
+### `normalization`
+
+Examples:
+
+- [operations/normalization/layerNorm.java](../operations/normalization/layerNorm.java)
+- [operations/normalization/rmsNorm.java](../operations/normalization/rmsNorm.java)
+
+This matches the public tensor family split better than hiding everything under a generic `nn` root.
+
+### `linalg`
+
+Examples:
+
+- [operations/linalg/matmul.java](../operations/linalg/matmul.java)
+- [operations/linalg/linear.java](../operations/linalg/linear.java)
+- [operations/linalg/scaledDotProductAttention.java](../operations/linalg/scaledDotProductAttention.java)
+- [operations/linalg/scaledDotProductAttentionWeights.java](../operations/linalg/scaledDotProductAttentionWeights.java)
+- [operations/linalg/scaledDotProductAttentionBackward.java](../operations/linalg/scaledDotProductAttentionBackward.java)
+
+This is the family for matrix-style primitives and attention primitives that are fundamentally linalg workloads.
+
+### `nn/conv`
+
+Examples:
+
+- [operations/nn/conv/conv2d.java](../operations/nn/conv/conv2d.java)
+- [operations/nn/conv/conv2dGemm.java](../operations/nn/conv/conv2dGemm.java)
+- [operations/nn/conv/conv2dBackwardInput.java](../operations/nn/conv/conv2dBackwardInput.java)
+- [operations/nn/conv/conv2dBackwardInputGemm.java](../operations/nn/conv/conv2dBackwardInputGemm.java)
+- [operations/nn/conv/conv2dBackwardWeight.java](../operations/nn/conv/conv2dBackwardWeight.java)
+- [operations/nn/conv/conv2dBackwardWeightGemm.java](../operations/nn/conv/conv2dBackwardWeightGemm.java)
+
+The nested `nn/conv` split mirrors the CPU backend's `nn` family while still keeping the concrete convolution descriptors together.
+
+### `nn/pool`
+
+Examples:
+
+- [operations/nn/pool/maxPool2d.java](../operations/nn/pool/maxPool2d.java)
+- [operations/nn/pool/maxPool2dBackwardInput.java](../operations/nn/pool/maxPool2dBackwardInput.java)
+- [operations/nn/pool/avgPool2d.java](../operations/nn/pool/avgPool2d.java)
+- [operations/nn/pool/avgPool2dBackwardInput.java](../operations/nn/pool/avgPool2dBackwardInput.java)
+
+### `loss`
+
+Examples:
+
+- [operations/loss/nllLoss.java](../operations/loss/nllLoss.java)
+- [operations/loss/crossEntropyLoss.java](../operations/loss/crossEntropyLoss.java)
+- [operations/loss/crossEntropyLossIndices.java](../operations/loss/crossEntropyLossIndices.java)
+- [operations/loss/crossEntropyLossIndicesGrad.java](../operations/loss/crossEntropyLossIndicesGrad.java)
+
+### `fused`
+
+Examples:
+
+- [operations/fused/FusedOperation.java](../operations/fused/FusedOperation.java)
+- [operations/fused/FusedOperationFactory.java](../operations/fused/FusedOperationFactory.java)
+
+These are optimizer/runtime-owned descriptors produced after rewrite or fusion phases.
 
 Not every descriptor is guaranteed to have a one-to-one public `Tensor` instance method.
 Some exist mainly because the optimizer or backend needs a stable primitive contract.
@@ -246,7 +396,7 @@ This means:
 One useful rule:
 
 - if you are deciding tensor semantics, you are probably in `tensor.ops.*`
-- if you are deciding primitive identity and immutable primitive parameters, you are probably in `operations/*`
+- if you are deciding primitive identity and immutable primitive parameters, you are probably in `operations/**`
 
 ## Primitive-Backed vs Composed Surface
 
@@ -347,7 +497,7 @@ Use this checklist.
    - a composed tensor helper
    - a primitive-backed operation
    - an internal optimizer/runtime primitive
-2. If it is primitive-backed, add a small descriptor class in `operations/`.
+2. If it is primitive-backed, add a small descriptor class in the correct `operations/*` family package.
 3. Add the public builder in the correct `tensor.ops.*` family.
 4. Keep backward wiring in the family builder unless there is a strong reason for a dedicated backward primitive.
 5. Add rewrite/backend support only if the new primitive truly needs it.

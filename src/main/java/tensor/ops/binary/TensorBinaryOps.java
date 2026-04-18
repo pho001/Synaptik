@@ -1,12 +1,12 @@
 package tensor.ops.binary;
 
 import operations.Operation;
-import operations.add;
-import operations.div;
-import operations.max;
-import operations.min;
-import operations.mul;
-import operations.sub;
+import operations.elementwise.binary.add;
+import operations.elementwise.binary.div;
+import operations.elementwise.binary.max;
+import operations.elementwise.binary.min;
+import operations.elementwise.binary.mul;
+import operations.elementwise.binary.sub;
 import tensor.BroadcastPlan;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
@@ -172,7 +172,7 @@ public final class TensorBinaryOps {
                         second,
                         outGrad,
                         plan.outShape(),
-                        new operations.minGrad(plan, true),
+                        new operations.elementwise.binary.minGrad(plan, true),
                         "min_grad_a",
                         outGrad.getDataType()
                 );
@@ -184,7 +184,7 @@ public final class TensorBinaryOps {
                         second,
                         outGrad,
                         plan.outShape(),
-                        new operations.minGrad(plan, false),
+                        new operations.elementwise.binary.minGrad(plan, false),
                         "min_grad_b",
                         outGrad.getDataType()
                 );
@@ -210,7 +210,7 @@ public final class TensorBinaryOps {
                         second,
                         outGrad,
                         plan.outShape(),
-                        new operations.maxGrad(plan, true),
+                        new operations.elementwise.binary.maxGrad(plan, true),
                         "max_grad_a",
                         outGrad.getDataType()
                 );
@@ -222,7 +222,7 @@ public final class TensorBinaryOps {
                         second,
                         outGrad,
                         plan.outShape(),
-                        new operations.maxGrad(plan, false),
+                        new operations.elementwise.binary.maxGrad(plan, false),
                         "max_grad_b",
                         outGrad.getDataType()
                 );

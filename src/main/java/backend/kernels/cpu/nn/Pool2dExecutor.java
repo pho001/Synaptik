@@ -1,9 +1,9 @@
 package backend.kernels.cpu.nn;
 
-import operations.avgPool2d;
-import operations.avgPool2dBackwardInput;
-import operations.maxPool2d;
-import operations.maxPool2dBackwardInput;
+import operations.nn.pool.avgPool2d;
+import operations.nn.pool.avgPool2dBackwardInput;
+import operations.nn.pool.maxPool2d;
+import operations.nn.pool.maxPool2dBackwardInput;
 import tensor.Tensor;
 
 final class Pool2dExecutor {

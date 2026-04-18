@@ -6,7 +6,7 @@ public enum ComputeBackend {
     GPU_OPENCL;   // Backend for GPU computations using OpenCL
 
     /**
-     * Optional: You can operations.add methods or properties to the enum if needed.
+     * Optional: You can add methods or properties to the enum if needed.
      * For example, you might want to provide a description or some metadata.
      */
 

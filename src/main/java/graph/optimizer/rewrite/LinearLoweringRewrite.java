@@ -1,8 +1,8 @@
 package graph.optimizer.rewrite;
 
 import operations.Operation;
-import operations.linear;
-import operations.matmul;
+import operations.linalg.linear;
+import operations.linalg.matmul;
 import tensor.DataType;
 import tensor.Tensor;
 

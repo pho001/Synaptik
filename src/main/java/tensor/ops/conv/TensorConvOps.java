@@ -1,6 +1,6 @@
 package tensor.ops.conv;
 
-import operations.conv2d;
+import operations.nn.conv.conv2d;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;
@@ -88,7 +88,7 @@ public final class TensorConvOps {
                         weight,
                         outGrad,
                         inputShape.clone(),
-                        new operations.conv2dBackwardInput(options, inputShape),
+                        new operations.nn.conv.conv2dBackwardInput(options, inputShape),
                         "conv2d_backward_input",
                         gradType
                 );
@@ -99,7 +99,7 @@ public final class TensorConvOps {
                         input,
                         outGrad,
                         weightShape.clone(),
-                        new operations.conv2dBackwardWeight(options, weightShape),
+                        new operations.nn.conv.conv2dBackwardWeight(options, weightShape),
                         "conv2d_backward_weight",
                         gradType
                 );

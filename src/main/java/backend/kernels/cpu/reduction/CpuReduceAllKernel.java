@@ -4,7 +4,7 @@ import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.reduction.BoolReduceExecutor;
 import operations.Operation;
-import operations.reduceAll;
+import operations.reduction.reduceAll;
 import tensor.Tensor;
 
 import java.util.List;

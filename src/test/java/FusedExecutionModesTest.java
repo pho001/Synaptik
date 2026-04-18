@@ -668,8 +668,8 @@ public class FusedExecutionModesTest {
         double[] inputValues = buildInput(4096, 0.09);
         Tensor input = new Tensor(inputValues.clone(), new int[]{inputValues.length}, null, "x", dataType);
 
-        operations.pow powZeroOp = dataType == DataType.FLOAT64 ? new operations.pow(0.0) : new operations.pow(0.0f);
-        operations.mulScalar mulZeroOp = dataType == DataType.FLOAT64 ? new operations.mulScalar(0.0) : new operations.mulScalar(0.0f);
+        operations.elementwise.unary.pow powZeroOp = dataType == DataType.FLOAT64 ? new operations.elementwise.unary.pow(0.0) : new operations.elementwise.unary.pow(0.0f);
+        operations.elementwise.unary.mulScalar mulZeroOp = dataType == DataType.FLOAT64 ? new operations.elementwise.unary.mulScalar(0.0) : new operations.elementwise.unary.mulScalar(0.0f);
         Tensor powZero = new Tensor(new int[]{inputValues.length}, List.of(input), powZeroOp, "powZero", dataType);
         Tensor mulZero = new Tensor(new int[]{inputValues.length}, List.of(input), mulZeroOp, "mulZero", dataType);
         Tensor out = powZero.add(mulZero).add(input.pow(-1.0));

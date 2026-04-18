@@ -1,9 +1,9 @@
 package utils;
 
 import operations.Operation;
-import operations.exp;
-import operations.log;
-import operations.pow;
+import operations.elementwise.unary.exp;
+import operations.elementwise.unary.log;
+import operations.elementwise.unary.pow;
 import org.objectweb.asm.MethodVisitor;
 
 import java.util.ArrayList;
@@ -395,12 +395,12 @@ public class NodeInfo {
             emitOperatorValOnStack(mv,op);
         }
         switch (operation) {
-            case operations.add add -> mv.visitInsn(DADD);        // a[i] + b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sum]
-            case operations.mul mul -> mv.visitInsn(DMUL);        // a[i] * b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,mul]
-            case operations.sub sub -> mv.visitInsn(DSUB);        // a[i] - b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sub]
-            case operations.div div -> mv.visitInsn(DDIV);        // a[i] / b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,div]
-            case operations.log log -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math","log", "(D)D", false);
-            case operations.pow pow -> {
+            case operations.elementwise.binary.add add -> mv.visitInsn(DADD);        // a[i] + b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sum]
+            case operations.elementwise.binary.mul mul -> mv.visitInsn(DMUL);        // a[i] * b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,mul]
+            case operations.elementwise.binary.sub sub -> mv.visitInsn(DSUB);        // a[i] - b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sub]
+            case operations.elementwise.binary.div div -> mv.visitInsn(DDIV);        // a[i] / b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,div]
+            case operations.elementwise.unary.log log -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math","log", "(D)D", false);
+            case operations.elementwise.unary.pow pow -> {
                 if (pow.getExponent()==0){
                     mv.visitInsn(POP);
                     mv.visitInsn(DCONST_1);
@@ -418,7 +418,7 @@ public class NodeInfo {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
                 }
             }
-            case operations.exp exp -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
+            case operations.elementwise.unary.exp exp -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
                 /*
                 case sqrt sqrt -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
                 case sin sin -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "sin", "(D)D", false);
@@ -455,32 +455,32 @@ public class NodeInfo {
             emitOperatorValOnStack(mv,op);
         }
         switch (operation) {
-            case operations.add add -> mv.visitMethodInsn(INVOKEVIRTUAL,
+            case operations.elementwise.binary.add add -> mv.visitMethodInsn(INVOKEVIRTUAL,
                                     "jdk/incubator/vector/FloatVector",   // owner
                                     "add",                                // method name
                                     "(Ljdk/incubator/vector/FloatVector;)"
                                             + "Ljdk/incubator/vector/FloatVector;", // descriptor
                                     false);         // a[i] + b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sum]
-            case operations.mul mul -> mv.visitMethodInsn(INVOKEVIRTUAL,
+            case operations.elementwise.binary.mul mul -> mv.visitMethodInsn(INVOKEVIRTUAL,
                     "jdk/incubator/vector/FloatVector",   // owner
                     "mul",                                // method name
                     "(Ljdk/incubator/vector/FloatVector;)"
                             + "Ljdk/incubator/vector/FloatVector;", // descriptor
                     false);        // a[i] * b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,mul]
-            case operations.sub sub -> mv.visitMethodInsn(INVOKEVIRTUAL,
+            case operations.elementwise.binary.sub sub -> mv.visitMethodInsn(INVOKEVIRTUAL,
                     "jdk/incubator/vector/FloatVector",   // owner
                     "div",                                // method name
                     "(Ljdk/incubator/vector/FloatVector;)"
                             + "Ljdk/incubator/vector/FloatVector;", // descriptor
                     false);        // a[i] - b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,sub]
-            case operations.div div -> mv.visitMethodInsn(INVOKEVIRTUAL,
+            case operations.elementwise.binary.div div -> mv.visitMethodInsn(INVOKEVIRTUAL,
                     "jdk/incubator/vector/FloatVector",   // owner
                     "div",                                // method name
                     "(Ljdk/incubator/vector/FloatVector;)"
                             + "Ljdk/incubator/vector/FloatVector;", // descriptor
                     false);        // a[i] / b[i] (result is double) - Stack: [resultsArray, iCounter+opIndex,div]
-            case operations.log log -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math","log", "(D)D", false);
-            case operations.pow pow -> {
+            case operations.elementwise.unary.log log -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math","log", "(D)D", false);
+            case operations.elementwise.unary.pow pow -> {
                 if (pow.getExponent()==0){
                     mv.visitInsn(POP);
                     mv.visitInsn(DCONST_1);
@@ -498,7 +498,7 @@ public class NodeInfo {
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "pow", "(DD)D", false);
                 }
             }
-            case operations.exp exp -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
+            case operations.elementwise.unary.exp exp -> mv.visitMethodInsn(INVOKESTATIC, "java/lang/Math", "exp", "(D)D", false);
                 /*
                 case sqrt sqrt -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "sqrt", "(D)D", false);
                 case sin sin -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Math", "sin", "(D)D", false);

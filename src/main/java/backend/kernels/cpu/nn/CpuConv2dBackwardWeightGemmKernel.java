@@ -2,7 +2,7 @@ package backend.kernels.cpu.nn;
 
 import backend.kernels.cpu.*;
 import operations.Operation;
-import operations.conv2dBackwardWeightGemm;
+import operations.nn.conv.conv2dBackwardWeightGemm;
 import tensor.Tensor;
 
 import java.util.List;

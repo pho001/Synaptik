@@ -1,6 +1,6 @@
 package tensor.ops.linalg;
 
-import operations.linear;
+import operations.linalg.linear;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;

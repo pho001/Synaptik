@@ -16,7 +16,7 @@ import graph.CompiledGraph;
 import graph.codegen.FusedKernelGeneratorRouter;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.workload.StandardWorkloads;

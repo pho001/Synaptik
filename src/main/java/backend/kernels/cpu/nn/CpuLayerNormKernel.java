@@ -9,7 +9,7 @@ import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
 import operations.Operation;
-import operations.layerNorm;
+import operations.normalization.layerNorm;
 import tensor.Tensor;
 
 import java.util.List;

@@ -3,7 +3,7 @@ package backend.kernels.cpu.index;
 import backend.kernels.cpu.*;
 
 import operations.Operation;
-import operations.scatterAdd;
+import operations.index.scatterAdd;
 import tensor.Tensor;
 
 import java.util.List;

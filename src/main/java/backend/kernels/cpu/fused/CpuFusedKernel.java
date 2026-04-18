@@ -4,7 +4,7 @@ import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.fused.FusedExecutionOptions;
 import graph.fused.PreparedFusedExecutable;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import operations.Operation;
 import tensor.Tensor;
 

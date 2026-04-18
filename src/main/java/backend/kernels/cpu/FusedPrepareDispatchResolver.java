@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import tensor.Tensor;
 
 import java.util.Objects;

@@ -1,11 +1,11 @@
 package graph.optimizer.rewrite;
 
 import operations.Operation;
-import operations.logSoftmax;
-import operations.logSoftmaxGrad;
-import operations.softmax;
-import operations.softmaxGrad;
-import operations.sum;
+import operations.reduction.logSoftmax;
+import operations.reduction.logSoftmaxGrad;
+import operations.reduction.softmax;
+import operations.reduction.softmaxGrad;
+import operations.reduction.sum;
 import tensor.Tensor;
 
 import java.util.List;

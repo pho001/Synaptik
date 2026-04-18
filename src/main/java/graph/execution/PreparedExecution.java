@@ -236,7 +236,7 @@ public final class PreparedExecution {
             conv = trace;
         }
 
-        if (node.getOperation() instanceof operations.FusedOperation fused) {
+        if (node.getOperation() instanceof operations.fused.FusedOperation fused) {
             String executionBackend = step.metadata().fusedExecutable() == null
                     ? ""
                     : step.metadata().fusedExecutable().getClass().getSimpleName();

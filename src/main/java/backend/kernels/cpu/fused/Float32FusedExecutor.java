@@ -13,7 +13,7 @@ import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
-import operations.FusedOperation;
+import operations.fused.FusedOperation;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;

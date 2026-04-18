@@ -4,7 +4,7 @@ import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuKernelCostClass;
 import operations.Operation;
-import operations.scaledDotProductAttentionBackward;
+import operations.linalg.scaledDotProductAttentionBackward;
 import tensor.Tensor;
 
 import java.util.List;

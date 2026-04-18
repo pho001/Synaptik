@@ -113,7 +113,7 @@ public final class PiecewiseLoweringRewrite extends AbstractRewriteRule {
             return tensor.getPrevTensors().get(0);
         }
         if (isOp(tensor, Operation.OpType.MUL_SCALAR)
-                && tensor.getOperation() instanceof operations.mulScalar mulScalar
+                && tensor.getOperation() instanceof operations.elementwise.unary.mulScalar mulScalar
                 && Math.abs(mulScalar.getScalar() + 1.0) < 1e-12) {
             return tensor.getPrevTensors().get(0);
         }

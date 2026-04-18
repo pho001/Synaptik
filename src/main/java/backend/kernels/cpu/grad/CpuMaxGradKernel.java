@@ -3,7 +3,7 @@ package backend.kernels.cpu.grad;
 import backend.kernels.cpu.*;
 
 import operations.Operation;
-import operations.maxGrad;
+import operations.elementwise.binary.maxGrad;
 import tensor.BroadcastPlan;
 import tensor.Tensor;
 

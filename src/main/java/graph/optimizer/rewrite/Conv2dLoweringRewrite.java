@@ -3,12 +3,12 @@ package graph.optimizer.rewrite;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
 import operations.Operation;
-import operations.conv2d;
-import operations.conv2dBackwardInput;
-import operations.conv2dBackwardInputGemm;
-import operations.conv2dBackwardWeight;
-import operations.conv2dBackwardWeightGemm;
-import operations.conv2dGemm;
+import operations.nn.conv.conv2d;
+import operations.nn.conv.conv2dBackwardInput;
+import operations.nn.conv.conv2dBackwardInputGemm;
+import operations.nn.conv.conv2dBackwardWeight;
+import operations.nn.conv.conv2dBackwardWeightGemm;
+import operations.nn.conv.conv2dGemm;
 import tensor.Tensor;
 
 import java.util.List;
