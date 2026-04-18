@@ -4,11 +4,85 @@ import backend.kernels.cpu.*;
 
 import backend.blas.OpenBlasFfmBridge;
 import operations.conv2dGemm;
+import operations.conv2dBackwardInput;
+import operations.conv2dBackwardWeight;
 import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
 final class Conv2dGemmBackend {
     private Conv2dGemmBackend() {
+    }
+
+    static void backwardWeightF64(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+        runBackwardWeightF64(
+                input.getFloat64Data(),
+                input.getShapeUnsafe(),
+                outGrad.getFloat64Data(),
+                outGrad.getShapeUnsafe(),
+                gradWeight.getFloat64Data(),
+                op.getWeightShape(),
+                op.getOptions()
+        );
+    }
+
+    static void backwardWeightF32(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+        runBackwardWeightF32(
+                input.getFloat32Data(),
+                input.getShapeUnsafe(),
+                outGrad.getFloat32Data(),
+                outGrad.getShapeUnsafe(),
+                gradWeight.getFloat32Data(),
+                op.getWeightShape(),
+                op.getOptions()
+        );
+    }
+
+    static void backwardWeightBF16(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+        runBackwardWeightBF16(
+                input.getBFloat16Data(),
+                input.getShapeUnsafe(),
+                outGrad.getBFloat16Data(),
+                outGrad.getShapeUnsafe(),
+                gradWeight.getBFloat16Data(),
+                op.getWeightShape(),
+                op.getOptions()
+        );
+    }
+
+    static void backwardInputF64(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+        runBackwardInputF64(
+                weight.getFloat64Data(),
+                weight.getShapeUnsafe(),
+                outGrad.getFloat64Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getFloat64Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
+    }
+
+    static void backwardInputF32(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+        runBackwardInputF32(
+                weight.getFloat32Data(),
+                weight.getShapeUnsafe(),
+                outGrad.getFloat32Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getFloat32Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
+    }
+
+    static void backwardInputBF16(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+        runBackwardInputBF16(
+                weight.getBFloat16Data(),
+                weight.getShapeUnsafe(),
+                outGrad.getBFloat16Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getBFloat16Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
     }
 
     static void forwardF64(conv2dGemm op, Tensor input, Tensor weight, Tensor bias, Tensor out) {
@@ -141,6 +215,252 @@ final class Conv2dGemmBackend {
                 }
                 scatterOutputBF16(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
             }
+        }
+    }
+
+    private static void runBackwardWeightF64(
+            double[] input,
+            int[] inputShape,
+            double[] outGrad,
+            int[] outGradShape,
+            double[] gradWeight,
+            int[] weightShape,
+            Conv2dOptions options
+    ) {
+        java.util.Arrays.fill(gradWeight, 0.0d);
+        int batch = inputShape[0];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        int outH = outGradShape[2];
+        int outW = outGradShape[3];
+        int outChannelsPerGroup = outChannels / options.groups();
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        int outSpatial = outH * outW;
+
+        double[] im2col = new double[outSpatial * kSize];
+        double[] im2colTransposed = new double[kSize * outSpatial];
+        double[] outGradRows = new double[outSpatial * outChannelsPerGroup];
+        double[] packedGradWeight = new double[kSize * outChannelsPerGroup];
+
+        for (int g = 0; g < options.groups(); g++) {
+            java.util.Arrays.fill(packedGradWeight, 0.0d);
+            for (int b = 0; b < batch; b++) {
+                fillIm2colF64(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
+                transposeRowsToColumnsF64(im2col, im2colTransposed, outSpatial, kSize);
+                fillOutGradRowsF64(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
+                if (!accumulateBlasF64(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial)) {
+                    accumulateJavaGemmF64(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial);
+                }
+            }
+            unpackWeightF64(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
+        }
+    }
+
+    private static void runBackwardWeightF32(
+            float[] input,
+            int[] inputShape,
+            float[] outGrad,
+            int[] outGradShape,
+            float[] gradWeight,
+            int[] weightShape,
+            Conv2dOptions options
+    ) {
+        java.util.Arrays.fill(gradWeight, 0.0f);
+        int batch = inputShape[0];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        int outH = outGradShape[2];
+        int outW = outGradShape[3];
+        int outChannelsPerGroup = outChannels / options.groups();
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        int outSpatial = outH * outW;
+
+        float[] im2col = new float[outSpatial * kSize];
+        float[] im2colTransposed = new float[kSize * outSpatial];
+        float[] outGradRows = new float[outSpatial * outChannelsPerGroup];
+        float[] packedGradWeight = new float[kSize * outChannelsPerGroup];
+
+        for (int g = 0; g < options.groups(); g++) {
+            java.util.Arrays.fill(packedGradWeight, 0.0f);
+            for (int b = 0; b < batch; b++) {
+                fillIm2colF32(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
+                transposeRowsToColumnsF32(im2col, im2colTransposed, outSpatial, kSize);
+                fillOutGradRowsF32(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
+                if (!accumulateBlasF32(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial)) {
+                    accumulateJavaGemmF32(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial);
+                }
+            }
+            unpackWeightF32(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
+        }
+    }
+
+    private static void runBackwardWeightBF16(
+            short[] input,
+            int[] inputShape,
+            short[] outGrad,
+            int[] outGradShape,
+            short[] gradWeight,
+            int[] weightShape,
+            Conv2dOptions options
+    ) {
+        int batch = inputShape[0];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        int outH = outGradShape[2];
+        int outW = outGradShape[3];
+        int outChannelsPerGroup = outChannels / options.groups();
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        int outSpatial = outH * outW;
+
+        short[] im2col = new short[outSpatial * kSize];
+        short[] im2colTransposed = new short[kSize * outSpatial];
+        short[] outGradRows = new short[outSpatial * outChannelsPerGroup];
+        float[] packedGradWeight = new float[kSize * outChannelsPerGroup];
+
+        for (int g = 0; g < options.groups(); g++) {
+            java.util.Arrays.fill(packedGradWeight, 0.0f);
+            for (int b = 0; b < batch; b++) {
+                fillIm2colBF16(input, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options, im2col);
+                transposeRowsToColumnsBF16(im2col, im2colTransposed, outSpatial, kSize);
+                fillOutGradRowsBF16(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
+                if (!accumulateBlasBF16(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial)) {
+                    accumulateJavaGemmBF16(im2colTransposed, outGradRows, packedGradWeight, kSize, outChannelsPerGroup, outSpatial);
+                }
+            }
+            unpackWeightBF16(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
+        }
+    }
+
+    private static void runBackwardInputF64(
+            double[] weight,
+            int[] weightShape,
+            double[] outGrad,
+            int[] outGradShape,
+            double[] gradInput,
+            int[] inputShape,
+            Conv2dOptions options
+    ) {
+        java.util.Arrays.fill(gradInput, 0.0d);
+        int batch = inputShape[0];
+        int inChannels = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        int outH = outGradShape[2];
+        int outW = outGradShape[3];
+        int outChannelsPerGroup = outChannels / options.groups();
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        int outSpatial = outH * outW;
+
+        double[] packedWeight = new double[kSize * outChannelsPerGroup];
+        double[] packedWeightTransposed = new double[outChannelsPerGroup * kSize];
+        double[] outGradRows = new double[outSpatial * outChannelsPerGroup];
+        double[] col = new double[outSpatial * kSize];
+
+        for (int b = 0; b < batch; b++) {
+            for (int g = 0; g < options.groups(); g++) {
+                packWeightF64(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
+                transposeRowsToColumnsF64(packedWeight, packedWeightTransposed, kSize, outChannelsPerGroup);
+                fillOutGradRowsF64(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
+                if (!tryBlasF64(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup)) {
+                    runJavaGemmF64(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup);
+                }
+                accumulateColToGradInputF64(col, gradInput, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options);
+            }
+        }
+    }
+
+    private static void runBackwardInputF32(
+            float[] weight,
+            int[] weightShape,
+            float[] outGrad,
+            int[] outGradShape,
+            float[] gradInput,
+            int[] inputShape,
+            Conv2dOptions options
+    ) {
+        java.util.Arrays.fill(gradInput, 0.0f);
+        int batch = inputShape[0];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        int outH = outGradShape[2];
+        int outW = outGradShape[3];
+        int outChannelsPerGroup = outChannels / options.groups();
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        int outSpatial = outH * outW;
+
+        float[] packedWeight = new float[kSize * outChannelsPerGroup];
+        float[] packedWeightTransposed = new float[outChannelsPerGroup * kSize];
+        float[] outGradRows = new float[outSpatial * outChannelsPerGroup];
+        float[] col = new float[outSpatial * kSize];
+
+        for (int b = 0; b < batch; b++) {
+            for (int g = 0; g < options.groups(); g++) {
+                packWeightF32(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
+                transposeRowsToColumnsF32(packedWeight, packedWeightTransposed, kSize, outChannelsPerGroup);
+                fillOutGradRowsF32(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
+                if (!tryBlasF32(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup)) {
+                    runJavaGemmF32(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup);
+                }
+                accumulateColToGradInputF32(col, gradInput, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options);
+            }
+        }
+    }
+
+    private static void runBackwardInputBF16(
+            short[] weight,
+            int[] weightShape,
+            short[] outGrad,
+            int[] outGradShape,
+            short[] gradInput,
+            int[] inputShape,
+            Conv2dOptions options
+    ) {
+        int batch = inputShape[0];
+        int inChannels = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        int outH = outGradShape[2];
+        int outW = outGradShape[3];
+        int outChannelsPerGroup = outChannels / options.groups();
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        int outSpatial = outH * outW;
+
+        short[] packedWeight = new short[kSize * outChannelsPerGroup];
+        short[] packedWeightTransposed = new short[outChannelsPerGroup * kSize];
+        short[] outGradRows = new short[outSpatial * outChannelsPerGroup];
+        float[] col = new float[outSpatial * kSize];
+        float[] gradInputAccum = new float[batch * inChannels * inH * inW];
+
+        for (int b = 0; b < batch; b++) {
+            for (int g = 0; g < options.groups(); g++) {
+                packWeightBF16(weight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW, packedWeight);
+                transposeRowsToColumnsBF16(packedWeight, packedWeightTransposed, kSize, outChannelsPerGroup);
+                fillOutGradRowsBF16(outGrad, outGradShape, b, g, outH, outW, outChannelsPerGroup, outGradRows);
+                if (!tryBlasBF16(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup)) {
+                    accumulateJavaGemmBF16NoAccum(outGradRows, packedWeightTransposed, col, outSpatial, kSize, outChannelsPerGroup);
+                }
+                accumulateColToGradInputBF16(col, gradInputAccum, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options);
+            }
+        }
+
+        for (int i = 0; i < gradInput.length; i++) {
+            gradInput[i] = CpuDTypeOps.toBFloat16Bits(gradInputAccum[i]);
         }
     }
 
@@ -281,6 +601,398 @@ final class Conv2dGemmBackend {
                     for (int kw = 0; kw < kernelW; kw++) {
                         packed[kIndex * outChannelsPerGroup + ocg] =
                                 weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)];
+                        kIndex++;
+                    }
+                }
+            }
+        }
+    }
+
+    private static void fillOutGradRowsF64(
+            double[] outGrad,
+            int[] outGradShape,
+            int batch,
+            int group,
+            int outH,
+            int outW,
+            int outChannelsPerGroup,
+            double[] out
+    ) {
+        int outChannels = outGradShape[1];
+        int outChannelBase = group * outChannelsPerGroup;
+        int row = 0;
+        for (int oh = 0; oh < outH; oh++) {
+            for (int ow = 0; ow < outW; ow++) {
+                for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
+                    int oc = outChannelBase + ocg;
+                    out[row * outChannelsPerGroup + ocg] = outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)];
+                }
+                row++;
+            }
+        }
+    }
+
+    private static void fillOutGradRowsF32(
+            float[] outGrad,
+            int[] outGradShape,
+            int batch,
+            int group,
+            int outH,
+            int outW,
+            int outChannelsPerGroup,
+            float[] out
+    ) {
+        int outChannels = outGradShape[1];
+        int outChannelBase = group * outChannelsPerGroup;
+        int row = 0;
+        for (int oh = 0; oh < outH; oh++) {
+            for (int ow = 0; ow < outW; ow++) {
+                for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
+                    int oc = outChannelBase + ocg;
+                    out[row * outChannelsPerGroup + ocg] = outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)];
+                }
+                row++;
+            }
+        }
+    }
+
+    private static void fillOutGradRowsBF16(
+            short[] outGrad,
+            int[] outGradShape,
+            int batch,
+            int group,
+            int outH,
+            int outW,
+            int outChannelsPerGroup,
+            short[] out
+    ) {
+        int outChannels = outGradShape[1];
+        int outChannelBase = group * outChannelsPerGroup;
+        int row = 0;
+        for (int oh = 0; oh < outH; oh++) {
+            for (int ow = 0; ow < outW; ow++) {
+                for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
+                    int oc = outChannelBase + ocg;
+                    out[row * outChannelsPerGroup + ocg] = outGrad[indexNCHW(batch, oc, oh, ow, outChannels, outH, outW)];
+                }
+                row++;
+            }
+        }
+    }
+
+    private static void transposeRowsToColumnsF64(double[] src, double[] dst, int rows, int cols) {
+        for (int row = 0; row < rows; row++) {
+            int srcBase = row * cols;
+            for (int col = 0; col < cols; col++) {
+                dst[col * rows + row] = src[srcBase + col];
+            }
+        }
+    }
+
+    private static void transposeRowsToColumnsF32(float[] src, float[] dst, int rows, int cols) {
+        for (int row = 0; row < rows; row++) {
+            int srcBase = row * cols;
+            for (int col = 0; col < cols; col++) {
+                dst[col * rows + row] = src[srcBase + col];
+            }
+        }
+    }
+
+    private static void transposeRowsToColumnsBF16(short[] src, short[] dst, int rows, int cols) {
+        for (int row = 0; row < rows; row++) {
+            int srcBase = row * cols;
+            for (int col = 0; col < cols; col++) {
+                dst[col * rows + row] = src[srcBase + col];
+            }
+        }
+    }
+
+    private static void accumulateColToGradInputF64(
+            double[] col,
+            double[] gradInput,
+            int[] inputShape,
+            int batch,
+            int group,
+            int outH,
+            int outW,
+            int channelsPerGroup,
+            int kernelH,
+            int kernelW,
+            Conv2dOptions options
+    ) {
+        int inChannels = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
+        int inChannelBase = group * channelsPerGroup;
+        int row = 0;
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        for (int oh = 0; oh < outH; oh++) {
+            int inOriginH = oh * options.strideH() - options.padH();
+            for (int ow = 0; ow < outW; ow++) {
+                int inOriginW = ow * options.strideW() - options.padW();
+                int colIndex = 0;
+                int rowBase = row * kSize;
+                for (int icg = 0; icg < channelsPerGroup; icg++) {
+                    int ic = inChannelBase + icg;
+                    for (int kh = 0; kh < kernelH; kh++) {
+                        int ih = inOriginH + kh * options.dilationH();
+                        for (int kw = 0; kw < kernelW; kw++) {
+                            int iw = inOriginW + kw * options.dilationW();
+                            double value = col[rowBase + colIndex++];
+                            if (ih < 0 || ih >= inH || iw < 0 || iw >= inW) {
+                                continue;
+                            }
+                            gradInput[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)] += value;
+                        }
+                    }
+                }
+                row++;
+            }
+        }
+    }
+
+    private static void accumulateColToGradInputF32(
+            float[] col,
+            float[] gradInput,
+            int[] inputShape,
+            int batch,
+            int group,
+            int outH,
+            int outW,
+            int channelsPerGroup,
+            int kernelH,
+            int kernelW,
+            Conv2dOptions options
+    ) {
+        int inChannels = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
+        int inChannelBase = group * channelsPerGroup;
+        int row = 0;
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        for (int oh = 0; oh < outH; oh++) {
+            int inOriginH = oh * options.strideH() - options.padH();
+            for (int ow = 0; ow < outW; ow++) {
+                int inOriginW = ow * options.strideW() - options.padW();
+                int colIndex = 0;
+                int rowBase = row * kSize;
+                for (int icg = 0; icg < channelsPerGroup; icg++) {
+                    int ic = inChannelBase + icg;
+                    for (int kh = 0; kh < kernelH; kh++) {
+                        int ih = inOriginH + kh * options.dilationH();
+                        for (int kw = 0; kw < kernelW; kw++) {
+                            int iw = inOriginW + kw * options.dilationW();
+                            float value = col[rowBase + colIndex++];
+                            if (ih < 0 || ih >= inH || iw < 0 || iw >= inW) {
+                                continue;
+                            }
+                            gradInput[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)] += value;
+                        }
+                    }
+                }
+                row++;
+            }
+        }
+    }
+
+    private static void accumulateColToGradInputBF16(
+            float[] col,
+            float[] gradInput,
+            int[] inputShape,
+            int batch,
+            int group,
+            int outH,
+            int outW,
+            int channelsPerGroup,
+            int kernelH,
+            int kernelW,
+            Conv2dOptions options
+    ) {
+        int inChannels = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
+        int inChannelBase = group * channelsPerGroup;
+        int row = 0;
+        int kSize = channelsPerGroup * kernelH * kernelW;
+        for (int oh = 0; oh < outH; oh++) {
+            int inOriginH = oh * options.strideH() - options.padH();
+            for (int ow = 0; ow < outW; ow++) {
+                int inOriginW = ow * options.strideW() - options.padW();
+                int colIndex = 0;
+                int rowBase = row * kSize;
+                for (int icg = 0; icg < channelsPerGroup; icg++) {
+                    int ic = inChannelBase + icg;
+                    for (int kh = 0; kh < kernelH; kh++) {
+                        int ih = inOriginH + kh * options.dilationH();
+                        for (int kw = 0; kw < kernelW; kw++) {
+                            int iw = inOriginW + kw * options.dilationW();
+                            float value = col[rowBase + colIndex++];
+                            if (ih < 0 || ih >= inH || iw < 0 || iw >= inW) {
+                                continue;
+                            }
+                            gradInput[indexNCHW(batch, ic, ih, iw, inChannels, inH, inW)] += value;
+                        }
+                    }
+                }
+                row++;
+            }
+        }
+    }
+
+    private static boolean accumulateBlasF64(double[] a, double[] b, double[] c, int m, int n, int k) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            return false;
+        }
+        try {
+            OpenBlasFfmBridge.dgemmRowMajorNoTrans(m, n, k, 1.0d, a, k, b, n, 1.0d, c, n);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean accumulateBlasF32(float[] a, float[] b, float[] c, int m, int n, int k) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            return false;
+        }
+        try {
+            OpenBlasFfmBridge.sgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 1.0f, c, n);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean accumulateBlasBF16(short[] a, short[] b, float[] c, int m, int n, int k) {
+        if (!OpenBlasFfmBridge.isAvailable()) {
+            return false;
+        }
+        try {
+            OpenBlasFfmBridge.sbgemmRowMajorNoTrans(m, n, k, 1.0f, a, k, b, n, 1.0f, c, n);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void accumulateJavaGemmF64(double[] a, double[] b, double[] c, int m, int n, int k) {
+        for (int i = 0; i < m; i++) {
+            int aRow = i * k;
+            int cRow = i * n;
+            for (int p = 0; p < k; p++) {
+                double av = a[aRow + p];
+                int bRow = p * n;
+                for (int j = 0; j < n; j++) {
+                    c[cRow + j] += av * b[bRow + j];
+                }
+            }
+        }
+    }
+
+    private static void accumulateJavaGemmF32(float[] a, float[] b, float[] c, int m, int n, int k) {
+        for (int i = 0; i < m; i++) {
+            int aRow = i * k;
+            int cRow = i * n;
+            for (int p = 0; p < k; p++) {
+                float av = a[aRow + p];
+                int bRow = p * n;
+                for (int j = 0; j < n; j++) {
+                    c[cRow + j] += av * b[bRow + j];
+                }
+            }
+        }
+    }
+
+    private static void accumulateJavaGemmBF16(short[] a, short[] b, float[] c, int m, int n, int k) {
+        for (int i = 0; i < m; i++) {
+            int aRow = i * k;
+            int cRow = i * n;
+            for (int p = 0; p < k; p++) {
+                float av = CpuDTypeOps.fromBFloat16Bits(a[aRow + p]);
+                int bRow = p * n;
+                for (int j = 0; j < n; j++) {
+                    c[cRow + j] += av * CpuDTypeOps.fromBFloat16Bits(b[bRow + j]);
+                }
+            }
+        }
+    }
+
+    private static void accumulateJavaGemmBF16NoAccum(short[] a, short[] b, float[] c, int m, int n, int k) {
+        java.util.Arrays.fill(c, 0.0f);
+        accumulateJavaGemmBF16(a, b, c, m, n, k);
+    }
+
+    private static void unpackWeightF64(
+            double[] packed,
+            double[] weight,
+            int[] weightShape,
+            int group,
+            int outChannelsPerGroup,
+            int channelsPerGroup,
+            int kernelH,
+            int kernelW
+    ) {
+        int outChannelBase = group * outChannelsPerGroup;
+        for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
+            int oc = outChannelBase + ocg;
+            int kIndex = 0;
+            for (int icg = 0; icg < channelsPerGroup; icg++) {
+                for (int kh = 0; kh < kernelH; kh++) {
+                    for (int kw = 0; kw < kernelW; kw++) {
+                        weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)] =
+                                packed[kIndex * outChannelsPerGroup + ocg];
+                        kIndex++;
+                    }
+                }
+            }
+        }
+    }
+
+    private static void unpackWeightF32(
+            float[] packed,
+            float[] weight,
+            int[] weightShape,
+            int group,
+            int outChannelsPerGroup,
+            int channelsPerGroup,
+            int kernelH,
+            int kernelW
+    ) {
+        int outChannelBase = group * outChannelsPerGroup;
+        for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
+            int oc = outChannelBase + ocg;
+            int kIndex = 0;
+            for (int icg = 0; icg < channelsPerGroup; icg++) {
+                for (int kh = 0; kh < kernelH; kh++) {
+                    for (int kw = 0; kw < kernelW; kw++) {
+                        weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)] =
+                                packed[kIndex * outChannelsPerGroup + ocg];
+                        kIndex++;
+                    }
+                }
+            }
+        }
+    }
+
+    private static void unpackWeightBF16(
+            float[] packed,
+            short[] weight,
+            int[] weightShape,
+            int group,
+            int outChannelsPerGroup,
+            int channelsPerGroup,
+            int kernelH,
+            int kernelW
+    ) {
+        int outChannelBase = group * outChannelsPerGroup;
+        for (int ocg = 0; ocg < outChannelsPerGroup; ocg++) {
+            int oc = outChannelBase + ocg;
+            int kIndex = 0;
+            for (int icg = 0; icg < channelsPerGroup; icg++) {
+                for (int kh = 0; kh < kernelH; kh++) {
+                    for (int kw = 0; kw < kernelW; kw++) {
+                        weight[indexOIHW(oc, icg, kh, kw, channelsPerGroup, kernelH, kernelW)] =
+                                CpuDTypeOps.toBFloat16Bits(packed[kIndex * outChannelsPerGroup + ocg]);
                         kIndex++;
                     }
                 }
