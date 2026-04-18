@@ -18,6 +18,13 @@ public final class TensorBinaryOps {
     }
 
     public static Tensor add(Tensor first, Tensor second) {
+        if (isScalarConstant(first, 0.0d)) {
+            return second;
+        }
+        if (isScalarConstant(second, 0.0d)) {
+            return first;
+        }
+
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new add(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "+",
@@ -38,6 +45,13 @@ public final class TensorBinaryOps {
     }
 
     public static Tensor sub(Tensor first, Tensor second) {
+        if (isScalarConstant(second, 0.0d)) {
+            return first;
+        }
+        if (isScalarConstant(first, 0.0d)) {
+            return second.neg();
+        }
+
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new sub(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "-",
@@ -58,6 +72,25 @@ public final class TensorBinaryOps {
     }
 
     public static Tensor mul(Tensor first, Tensor second) {
+        if (isScalarConstant(first, 0.0d)) {
+            return second.mul(0.0d);
+        }
+        if (isScalarConstant(second, 0.0d)) {
+            return first.mul(0.0d);
+        }
+        if (isScalarConstant(first, 1.0d)) {
+            return second;
+        }
+        if (isScalarConstant(second, 1.0d)) {
+            return first;
+        }
+        if (isScalarConstant(first, -1.0d)) {
+            return second.neg();
+        }
+        if (isScalarConstant(second, -1.0d)) {
+            return first.neg();
+        }
+
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new mul(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "*",
@@ -78,6 +111,19 @@ public final class TensorBinaryOps {
     }
 
     public static Tensor div(Tensor first, Tensor second) {
+        if (isScalarConstant(first, 1.0d)) {
+            return second.inv();
+        }
+        if (isScalarConstant(second, 1.0d)) {
+            return first;
+        }
+        if (isScalarConstant(second, -1.0d)) {
+            return first.neg();
+        }
+        if (isNonZeroScalarConstant(second)) {
+            return first.mul(1.0d / second.scalarAsDouble());
+        }
+
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new div(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "/",
@@ -96,6 +142,18 @@ public final class TensorBinaryOps {
             }
         });
         return out;
+    }
+
+    private static boolean isScalarConstant(Tensor tensor, double expected) {
+        return tensor.getOperation() == null
+                && tensor.getFlatDataSize() == 1
+                && Math.abs(tensor.scalarAsDouble() - expected) < 1e-12;
+    }
+
+    private static boolean isNonZeroScalarConstant(Tensor tensor) {
+        return tensor.getOperation() == null
+                && tensor.getFlatDataSize() == 1
+                && Double.compare(tensor.scalarAsDouble(), 0.0d) != 0;
     }
 
     public static Tensor min(Tensor first, Tensor second) {

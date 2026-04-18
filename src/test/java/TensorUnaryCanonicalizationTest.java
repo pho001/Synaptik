@@ -47,4 +47,35 @@ public class TensorUnaryCanonicalizationTest {
         assertNotNull(mulNeg1.getOperation());
         assertEquals(operations.Operation.OpType.NEG, mulNeg1.getOperation().opType());
     }
+
+    @Test
+    void invCanonicalizesDoubleInverseAtTensorSurface() {
+        Tensor input = new Tensor(new double[]{2.0, 4.0}, new int[]{2}, null, "x", DataType.FLOAT64);
+
+        Tensor inv = input.inv();
+        Tensor invInv = inv.inv();
+
+        assertSame(input, invInv);
+    }
+
+    @Test
+    void clampCanonicalizesIdentityAndNestedThresholdsAtTensorSurface() {
+        Tensor input = new Tensor(new double[]{2.0, 4.0}, new int[]{2}, null, "x", DataType.FLOAT64);
+
+        Tensor clampMinIdentity = input.clampMin(Double.NEGATIVE_INFINITY);
+        Tensor clampMaxIdentity = input.clampMax(Double.POSITIVE_INFINITY);
+        Tensor nestedClampMin = input.clampMin(1.0).clampMin(3.0);
+        Tensor nestedClampMax = input.clampMax(6.0).clampMax(4.0);
+
+        assertSame(input, clampMinIdentity);
+        assertSame(input, clampMaxIdentity);
+
+        assertNotNull(nestedClampMin.getOperation());
+        assertEquals(operations.Operation.OpType.CLAMP_MIN, nestedClampMin.getOperation().opType());
+        assertEquals(3.0d, ((operations.clampMin) nestedClampMin.getOperation()).getMinValue(), 1e-12);
+
+        assertNotNull(nestedClampMax.getOperation());
+        assertEquals(operations.Operation.OpType.CLAMP_MAX, nestedClampMax.getOperation().opType());
+        assertEquals(4.0d, ((operations.clampMax) nestedClampMax.getOperation()).getMaxValue(), 1e-12);
+    }
 }

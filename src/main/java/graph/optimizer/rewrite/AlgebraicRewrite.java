@@ -27,6 +27,8 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableDivMulScalarByConst", "false"));
     private static final boolean DISABLE_DIV_INV_TO_MUL =
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableDivInvToMul", "false"));
+    private static final boolean DISABLE_DIV_ONE_TO_INV =
+            Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableDivOneToInv", "false"));
     private static final boolean DISABLE_MULSCALAR_ASSOC =
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableMulScalarAssoc", "false"));
     private static final boolean DISABLE_MULSCALAR_NEG_PUSH =
@@ -65,6 +67,14 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableInvExpToExpNeg", "false"));
     private static final boolean DISABLE_INV_NEG_PUSH =
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableInvNegPush", "false"));
+    private static final boolean DISABLE_CLAMPMIN_IDENTITY =
+            Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableClampMinIdentity", "false"));
+    private static final boolean DISABLE_CLAMPMIN_FLATTEN =
+            Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableClampMinFlatten", "false"));
+    private static final boolean DISABLE_CLAMPMAX_IDENTITY =
+            Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableClampMaxIdentity", "false"));
+    private static final boolean DISABLE_CLAMPMAX_FLATTEN =
+            Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableClampMaxFlatten", "false"));
 
     @Override
     protected boolean rebuildClosure() {
@@ -197,6 +207,7 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
         Tensor b = t.getPrevTensors().get(1);
 
         if (isConstant(a, 0.0)) return Tensor.zerosLike(t);
+        if (!DISABLE_DIV_ONE_TO_INV && isConstant(a, 1.0)) return b.inv();
         if (isConstant(b, 1.0)) return a;
         if (isConstant(b, -1.0)) return a.neg();
 
@@ -305,10 +316,28 @@ public class AlgebraicRewrite extends AbstractRewriteRule {
     }
 
     private Tensor simplifyClampMin(Tensor t) {
+        Tensor a = t.getPrevTensors().get(0);
+        if (!(t.getOperation() instanceof operations.clampMin clamp)) return t;
+
+        if (!DISABLE_CLAMPMIN_IDENTITY && clamp.getMinValue() == Double.NEGATIVE_INFINITY) {
+            return a;
+        }
+        if (!DISABLE_CLAMPMIN_FLATTEN && isOp(a, Operation.OpType.CLAMP_MIN) && a.getOperation() instanceof operations.clampMin inner) {
+            return a.getPrevTensors().get(0).clampMin(Math.max(inner.getMinValue(), clamp.getMinValue()));
+        }
         return t;
     }
 
     private Tensor simplifyClampMax(Tensor t) {
+        Tensor a = t.getPrevTensors().get(0);
+        if (!(t.getOperation() instanceof operations.clampMax clamp)) return t;
+
+        if (!DISABLE_CLAMPMAX_IDENTITY && clamp.getMaxValue() == Double.POSITIVE_INFINITY) {
+            return a;
+        }
+        if (!DISABLE_CLAMPMAX_FLATTEN && isOp(a, Operation.OpType.CLAMP_MAX) && a.getOperation() instanceof operations.clampMax inner) {
+            return a.getPrevTensors().get(0).clampMax(Math.min(inner.getMaxValue(), clamp.getMaxValue()));
+        }
         return t;
     }
 

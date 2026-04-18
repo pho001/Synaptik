@@ -1,15 +1,15 @@
 {
-  "score": 8.24911450,
-  "updatedAt": "2026-04-18T05:42:08.748592+02:00",
-  "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
+  "score": 7.58070834,
+  "updatedAt": "2026-04-18T09:30:07.681428+02:00",
+  "hardwareKey": "os=mac_os_x|arch=aarch64|vm=java_hotspot(tm)_64-bit_server_vm|vendor=oracle_corporation|cores=16",
   "workloadKey": "name=abc_sequence_matmul_f32|kind=ABC_SEQUENCE_MATMUL|dtype=FLOAT32|mode=FORWARD_BACKWARD|features=2048|batch=256",
   "profile": {
       "profileName": "abc-f32-calibrated",
-      "candidateName": "abc-f32-calibrated+stageOrder=CSE-FUSE-AR-MEM:abc-f32-calibrated",
+      "candidateName": "abc-f32-calibrated+stageOrder=FUSE-AR-MEM:abc-f32-calibrated",
       "dataType": "FLOAT32",
       "mode": "FORWARD_BACKWARD",
       "optimizer": {
-        "stageOrder": ["CSE", "FUSE", "AR", "MEM"],
+        "stageOrder": ["FUSE", "AR", "MEM"],
         "rewrite": {
           "algebraicEnabled": true,
           "linearLoweringEnabled": true,

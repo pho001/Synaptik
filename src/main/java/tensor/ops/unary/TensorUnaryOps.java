@@ -168,6 +168,10 @@ public final class TensorUnaryOps {
     }
 
     public static Tensor inv(Tensor input) {
+        if (input.getOperation() != null && input.getOperation().opType() == Operation.OpType.INV) {
+            return input.getPrevTensors().get(0);
+        }
+
         Operation op = new inv();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "inv", TensorDataTypeUtil.unary(input));
 
@@ -262,6 +266,12 @@ public final class TensorUnaryOps {
 
     public static Tensor clampMin(Tensor input, double minValue) {
         UnarySupport.requireNumeric(input, "clampMin");
+        if (minValue == Double.NEGATIVE_INFINITY) {
+            return input;
+        }
+        if (input.getOperation() instanceof clampMin inner) {
+            return input.getPrevTensors().get(0).clampMin(Math.max(inner.getMinValue(), minValue));
+        }
         boolean isF32 = input.getDataType() == DataType.FLOAT32;
         Operation op = isF32 ? new clampMin((float) minValue) : new clampMin(minValue);
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "clampMin", TensorDataTypeUtil.unary(input));
@@ -280,6 +290,12 @@ public final class TensorUnaryOps {
 
     public static Tensor clampMax(Tensor input, double maxValue) {
         UnarySupport.requireNumeric(input, "clampMax");
+        if (maxValue == Double.POSITIVE_INFINITY) {
+            return input;
+        }
+        if (input.getOperation() instanceof clampMax inner) {
+            return input.getPrevTensors().get(0).clampMax(Math.min(inner.getMaxValue(), maxValue));
+        }
         boolean isF32 = input.getDataType() == DataType.FLOAT32;
         Operation op = isF32 ? new clampMax((float) maxValue) : new clampMax(maxValue);
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "clampMax", TensorDataTypeUtil.unary(input));
