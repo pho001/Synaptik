@@ -16,6 +16,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class Conv2dLoweringRuleTest {
     @Test
@@ -128,5 +129,27 @@ public class Conv2dLoweringRuleTest {
                 .filter(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_GEMM)
                 .count();
         assertEquals(1, gemmCount);
+    }
+
+    @Test
+    void lowersBackwardConv2dPrimitivesToExplicitGemmVariants() {
+        Tensor input = new Tensor(new double[2 * 64 * 16 * 16], new int[]{2, 64, 16, 16}, null, "input", DataType.FLOAT64);
+        Tensor weight = new Tensor(new double[64 * 64 * 3 * 3], new int[]{64, 64, 3, 3}, null, "weight", DataType.FLOAT64);
+        input.setRequiresGrad(true);
+        weight.setRequiresGrad(true);
+
+        Tensor loss = input.conv2d(weight, Conv2dOptions.defaults().withPadding(1, 1)).sum();
+        CompiledGraph compiled = CompiledGraph.compile(
+                loss,
+                OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.AR))
+        );
+
+        boolean hasBackwardInputGemm = compiled.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM);
+        boolean hasBackwardWeightGemm = compiled.getCompiledGraphAsList().stream()
+                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM);
+
+        assertTrue(hasBackwardInputGemm);
+        assertTrue(hasBackwardWeightGemm);
     }
 }

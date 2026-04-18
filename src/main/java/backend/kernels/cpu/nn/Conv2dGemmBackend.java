@@ -5,7 +5,9 @@ import backend.kernels.cpu.*;
 import backend.blas.OpenBlasFfmBridge;
 import operations.conv2dGemm;
 import operations.conv2dBackwardInput;
+import operations.conv2dBackwardInputGemm;
 import operations.conv2dBackwardWeight;
+import operations.conv2dBackwardWeightGemm;
 import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
@@ -14,6 +16,18 @@ final class Conv2dGemmBackend {
     }
 
     static void backwardWeightF64(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+        runBackwardWeightF64(
+                input.getFloat64Data(),
+                input.getShapeUnsafe(),
+                outGrad.getFloat64Data(),
+                outGrad.getShapeUnsafe(),
+                gradWeight.getFloat64Data(),
+                op.getWeightShape(),
+                op.getOptions()
+        );
+    }
+
+    static void backwardWeightF64(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight) {
         runBackwardWeightF64(
                 input.getFloat64Data(),
                 input.getShapeUnsafe(),
@@ -37,7 +51,31 @@ final class Conv2dGemmBackend {
         );
     }
 
+    static void backwardWeightF32(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+        runBackwardWeightF32(
+                input.getFloat32Data(),
+                input.getShapeUnsafe(),
+                outGrad.getFloat32Data(),
+                outGrad.getShapeUnsafe(),
+                gradWeight.getFloat32Data(),
+                op.getWeightShape(),
+                op.getOptions()
+        );
+    }
+
     static void backwardWeightBF16(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
+        runBackwardWeightBF16(
+                input.getBFloat16Data(),
+                input.getShapeUnsafe(),
+                outGrad.getBFloat16Data(),
+                outGrad.getShapeUnsafe(),
+                gradWeight.getBFloat16Data(),
+                op.getWeightShape(),
+                op.getOptions()
+        );
+    }
+
+    static void backwardWeightBF16(conv2dBackwardWeightGemm op, Tensor input, Tensor outGrad, Tensor gradWeight) {
         runBackwardWeightBF16(
                 input.getBFloat16Data(),
                 input.getShapeUnsafe(),
@@ -61,6 +99,18 @@ final class Conv2dGemmBackend {
         );
     }
 
+    static void backwardInputF64(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+        runBackwardInputF64(
+                weight.getFloat64Data(),
+                weight.getShapeUnsafe(),
+                outGrad.getFloat64Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getFloat64Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
+    }
+
     static void backwardInputF32(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
         runBackwardInputF32(
                 weight.getFloat32Data(),
@@ -73,7 +123,31 @@ final class Conv2dGemmBackend {
         );
     }
 
+    static void backwardInputF32(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+        runBackwardInputF32(
+                weight.getFloat32Data(),
+                weight.getShapeUnsafe(),
+                outGrad.getFloat32Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getFloat32Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
+    }
+
     static void backwardInputBF16(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
+        runBackwardInputBF16(
+                weight.getBFloat16Data(),
+                weight.getShapeUnsafe(),
+                outGrad.getBFloat16Data(),
+                outGrad.getShapeUnsafe(),
+                gradInput.getBFloat16Data(),
+                op.getInputShape(),
+                op.getOptions()
+        );
+    }
+
+    static void backwardInputBF16(conv2dBackwardInputGemm op, Tensor weight, Tensor outGrad, Tensor gradInput) {
         runBackwardInputBF16(
                 weight.getBFloat16Data(),
                 weight.getShapeUnsafe(),

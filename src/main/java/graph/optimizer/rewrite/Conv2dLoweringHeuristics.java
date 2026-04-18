@@ -1,6 +1,8 @@
 package graph.optimizer.rewrite;
 
 import operations.conv2d;
+import operations.conv2dBackwardInput;
+import operations.conv2dBackwardWeight;
 import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
@@ -21,11 +23,38 @@ final class Conv2dLoweringHeuristics {
         int[] inputShape = input.getShapeUnsafe();
         int[] weightShape = weight.getShapeUnsafe();
         int[] outShape = tensor.getShapeUnsafe();
+        return shouldLower(inputShape, weightShape, outShape, conv.getOptions());
+    }
+
+    static boolean shouldLower(Tensor tensor, conv2dBackwardInput conv) {
+        if (tensor == null || conv == null) {
+            return false;
+        }
+        if (tensor.getPrevTensors() == null || tensor.getPrevTensors().size() < 2) {
+            return false;
+        }
+        Tensor weight = tensor.getPrevTensors().get(0);
+        Tensor outGrad = tensor.getPrevTensors().get(1);
+        return shouldLower(conv.getInputShape(), weight.getShapeUnsafe(), outGrad.getShapeUnsafe(), conv.getOptions());
+    }
+
+    static boolean shouldLower(Tensor tensor, conv2dBackwardWeight conv) {
+        if (tensor == null || conv == null) {
+            return false;
+        }
+        if (tensor.getPrevTensors() == null || tensor.getPrevTensors().size() < 2) {
+            return false;
+        }
+        Tensor input = tensor.getPrevTensors().get(0);
+        Tensor outGrad = tensor.getPrevTensors().get(1);
+        return shouldLower(input.getShapeUnsafe(), conv.getWeightShape(), outGrad.getShapeUnsafe(), conv.getOptions());
+    }
+
+    private static boolean shouldLower(int[] inputShape, int[] weightShape, int[] outShape, Conv2dOptions options) {
         if (inputShape.length != 4 || weightShape.length != 4 || outShape.length != 4) {
             return false;
         }
 
-        Conv2dOptions options = conv.getOptions();
         if (options.groups() != 1) {
             return false;
         }

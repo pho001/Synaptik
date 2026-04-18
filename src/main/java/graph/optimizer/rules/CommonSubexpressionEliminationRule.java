@@ -15,7 +15,9 @@ import operations.crossEntropyLossIndicesGrad;
 import operations.conv2d;
 import operations.conv2dGemm;
 import operations.conv2dBackwardInput;
+import operations.conv2dBackwardInputGemm;
 import operations.conv2dBackwardWeight;
+import operations.conv2dBackwardWeightGemm;
 import operations.expand;
 import operations.expandDims;
 import operations.gather;
@@ -211,6 +213,8 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case CONV2D_GEMM -> conv2dSignature(((conv2dGemm) op).getOptions(), ((conv2dGemm) op).hasBias() ? 2 : 3);
             case CONV2D_BACKWARD_INPUT -> conv2dBackwardInputSignature((conv2dBackwardInput) op);
             case CONV2D_BACKWARD_WEIGHT -> conv2dBackwardWeightSignature((conv2dBackwardWeight) op);
+            case CONV2D_BACKWARD_INPUT_GEMM -> conv2dBackwardInputGemmSignature((conv2dBackwardInputGemm) op);
+            case CONV2D_BACKWARD_WEIGHT_GEMM -> conv2dBackwardWeightGemmSignature((conv2dBackwardWeightGemm) op);
             case MAX_POOL2D -> pool2dSignature(((maxPool2d) op).getOptions(), 1);
             case MAX_POOL2D_BACKWARD_INPUT -> pool2dBackwardInputSignature(((maxPool2dBackwardInput) op).getOptions(), ((maxPool2dBackwardInput) op).getInputShape(), 1);
             case AVG_POOL2D -> pool2dSignature(((avgPool2d) op).getOptions(), 2);
@@ -251,6 +255,32 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                 options.padH(), options.padW(),
                 options.dilationH(), options.dilationW(),
                 options.groups()
+        });
+    }
+
+    private SignatureComponent conv2dBackwardInputGemmSignature(conv2dBackwardInputGemm op) {
+        int[] inputShape = op.getInputShape();
+        tensor.options.Conv2dOptions options = op.getOptions();
+        return IntArrayValue.copyOf(new int[]{
+                inputShape[0], inputShape[1], inputShape[2], inputShape[3],
+                options.strideH(), options.strideW(),
+                options.padH(), options.padW(),
+                options.dilationH(), options.dilationW(),
+                options.groups(),
+                1
+        });
+    }
+
+    private SignatureComponent conv2dBackwardWeightGemmSignature(conv2dBackwardWeightGemm op) {
+        int[] weightShape = op.getWeightShape();
+        tensor.options.Conv2dOptions options = op.getOptions();
+        return IntArrayValue.copyOf(new int[]{
+                weightShape[0], weightShape[1], weightShape[2], weightShape[3],
+                options.strideH(), options.strideW(),
+                options.padH(), options.padW(),
+                options.dilationH(), options.dilationW(),
+                options.groups(),
+                1
         });
     }
 

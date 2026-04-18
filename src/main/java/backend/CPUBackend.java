@@ -276,6 +276,7 @@ public final class CPUBackend {
             case LAYER_NORM, RMS_NORM, SCALED_DOT_PRODUCT_ATTENTION, SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> true;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD -> !input.isContiguous();
             case MATMUL, LINEAR, CONV2D, CONV2D_GEMM, CONV2D_BACKWARD_INPUT, CONV2D_BACKWARD_WEIGHT,
+                    CONV2D_BACKWARD_INPUT_GEMM, CONV2D_BACKWARD_WEIGHT_GEMM,
                     MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT, AVG_POOL2D, AVG_POOL2D_BACKWARD_INPUT -> true;
             case GT, GE, LT, LE, EQ, NE, WHERE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> !input.isContiguous();
             default -> op.opType().category() == Operation.OpArityClass.ELEMENT_WISE

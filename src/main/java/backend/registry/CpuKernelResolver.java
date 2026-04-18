@@ -44,6 +44,8 @@ public final class CpuKernelResolver {
     private static final CpuConv2dGemmKernel CONV2D_GEMM = new CpuConv2dGemmKernel();
     private static final CpuConv2dBackwardInputKernel CONV2D_BACKWARD_INPUT = new CpuConv2dBackwardInputKernel();
     private static final CpuConv2dBackwardWeightKernel CONV2D_BACKWARD_WEIGHT = new CpuConv2dBackwardWeightKernel();
+    private static final CpuConv2dBackwardInputGemmKernel CONV2D_BACKWARD_INPUT_GEMM = new CpuConv2dBackwardInputGemmKernel();
+    private static final CpuConv2dBackwardWeightGemmKernel CONV2D_BACKWARD_WEIGHT_GEMM = new CpuConv2dBackwardWeightGemmKernel();
     private static final CpuMaxPool2dKernel MAX_POOL2D = new CpuMaxPool2dKernel();
     private static final CpuMaxPool2dBackwardInputKernel MAX_POOL2D_BACKWARD_INPUT = new CpuMaxPool2dBackwardInputKernel();
     private static final CpuAvgPool2dKernel AVG_POOL2D = new CpuAvgPool2dKernel();
@@ -126,6 +128,8 @@ public final class CpuKernelResolver {
             case CONV2D_GEMM -> CONV2D_GEMM;
             case CONV2D_BACKWARD_INPUT -> CONV2D_BACKWARD_INPUT;
             case CONV2D_BACKWARD_WEIGHT -> CONV2D_BACKWARD_WEIGHT;
+            case CONV2D_BACKWARD_INPUT_GEMM -> CONV2D_BACKWARD_INPUT_GEMM;
+            case CONV2D_BACKWARD_WEIGHT_GEMM -> CONV2D_BACKWARD_WEIGHT_GEMM;
             case MAX_POOL2D -> MAX_POOL2D;
             case MAX_POOL2D_BACKWARD_INPUT -> MAX_POOL2D_BACKWARD_INPUT;
             case AVG_POOL2D -> AVG_POOL2D;

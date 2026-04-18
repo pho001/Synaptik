@@ -54,6 +54,8 @@ public interface Operation {
         CONV2D_GEMM(OpArityClass.SPECIAL, false),
         CONV2D_BACKWARD_INPUT(OpArityClass.SPECIAL, false),
         CONV2D_BACKWARD_WEIGHT(OpArityClass.SPECIAL, false),
+        CONV2D_BACKWARD_INPUT_GEMM(OpArityClass.SPECIAL, false),
+        CONV2D_BACKWARD_WEIGHT_GEMM(OpArityClass.SPECIAL, false),
         MAX_POOL2D(OpArityClass.SPECIAL, false),
         MAX_POOL2D_BACKWARD_INPUT(OpArityClass.SPECIAL, false),
         AVG_POOL2D(OpArityClass.SPECIAL, false),

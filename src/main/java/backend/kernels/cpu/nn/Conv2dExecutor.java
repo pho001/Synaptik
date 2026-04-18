@@ -22,26 +22,26 @@ final class Conv2dExecutor {
     }
 
     static void backwardInputF64(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
-        Conv2dGemmBackend.backwardInputF64(op, weight, outGrad, gradInput);
+        Conv2dDirectBackend.backwardInputF64(op, weight, outGrad, gradInput);
     }
 
     static void backwardInputF32(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
-        Conv2dGemmBackend.backwardInputF32(op, weight, outGrad, gradInput);
+        Conv2dDirectBackend.backwardInputF32(op, weight, outGrad, gradInput);
     }
 
     static void backwardInputF16(conv2dBackwardInput op, Tensor weight, Tensor outGrad, Tensor gradInput) {
-        Conv2dGemmBackend.backwardInputBF16(op, weight, outGrad, gradInput);
+        Conv2dDirectBackend.backwardInputF16(op, weight, outGrad, gradInput);
     }
 
     static void backwardWeightF64(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
-        Conv2dGemmBackend.backwardWeightF64(op, input, outGrad, gradWeight);
+        Conv2dDirectBackend.backwardWeightF64(op, input, outGrad, gradWeight);
     }
 
     static void backwardWeightF32(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
-        Conv2dGemmBackend.backwardWeightF32(op, input, outGrad, gradWeight);
+        Conv2dDirectBackend.backwardWeightF32(op, input, outGrad, gradWeight);
     }
 
     static void backwardWeightF16(conv2dBackwardWeight op, Tensor input, Tensor outGrad, Tensor gradWeight) {
-        Conv2dGemmBackend.backwardWeightBF16(op, input, outGrad, gradWeight);
+        Conv2dDirectBackend.backwardWeightF16(op, input, outGrad, gradWeight);
     }
 }
