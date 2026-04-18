@@ -198,9 +198,13 @@ public final class PlatformCalibrationDefaults {
                 name,
                 PlatformCalibrationFamily.CONV2D,
                 List.of(
-                        CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_28", 2, 64, 128, 28, 28),
+                        CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_8_low", 4, 128, 64, 8, 8),
+                        CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_8_edge_1m", 4, 128, 128, 8, 8),
+                        CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_8_edge_2m", 4, 128, 256, 8, 8),
+                        CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_16_edge_4m", 1, 128, 128, 16, 16),
+                        CalibrationWorkloads.conv2dResnet3x3(name + "_workload_resnet_8_mid", 8, 64, 64, 8, 8),
+                        CalibrationWorkloads.conv2dResnet3x3(name + "_workload_resnet_8_high", 8, 64, 128, 8, 8),
                         CalibrationWorkloads.conv2dResnet3x3(name + "_workload_resnet_28", 2, 64, 128, 28, 28),
-                        CalibrationWorkloads.conv2dResnet3x3(name + "_workload_resnet_56", 2, 64, 128, 56, 56),
                         CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_56", 2, 128, 256, 56, 56)
                 ),
                 preset,

@@ -22,6 +22,12 @@ public final class CalibrationWorkloads {
                 .register(reductionSum("calib_reduction_sum", 262_144))
                 .register(schedulerCheapParallel("calib_scheduler_cheap", 262_144))
                 .register(materializationStridedElementwise("calib_materialization_strided", 256, 256))
+                .register(conv2dPointwiseProjection("calib_conv2d_pointwise_low", 4, 128, 64, 8, 8))
+                .register(conv2dPointwiseProjection("calib_conv2d_pointwise_edge_1m", 4, 128, 128, 8, 8))
+                .register(conv2dPointwiseProjection("calib_conv2d_pointwise_edge_2m", 4, 128, 256, 8, 8))
+                .register(conv2dPointwiseProjection("calib_conv2d_pointwise_edge_4m", 1, 128, 128, 16, 16))
+                .register(conv2dResnet3x3("calib_conv2d_resnet_8_mid", 8, 64, 64, 8, 8))
+                .register(conv2dResnet3x3("calib_conv2d_resnet_8_high", 8, 64, 128, 8, 8))
                 .register(conv2dResnet3x3("calib_conv2d_resnet_3x3"));
     }
 
