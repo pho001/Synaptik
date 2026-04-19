@@ -173,8 +173,9 @@ final class DefaultAutotuneSession implements AutotuneSession {
                     "validating candidate"
             ));
             try {
-                WorkloadInstance workload = request.workload().instantiate(new WorkloadEnvironment(candidate.profile()));
-                ValidationResult validation = validationEngine.validate(candidate, request.workload(), workload, request.validation());
+                WorkloadEnvironment environment = new WorkloadEnvironment(candidate.profile());
+                WorkloadInstance validationWorkload = request.workload().instantiate(environment);
+                ValidationResult validation = validationEngine.validate(candidate, request.workload(), validationWorkload, request.validation());
                 if (!validation.valid()) {
                     BenchmarkCandidateReport report = BenchmarkCandidateReport.failure(candidate, validation, validation.reason());
                     evaluated.add(report);
@@ -197,7 +198,8 @@ final class DefaultAutotuneSession implements AutotuneSession {
                         fp,
                         "measuring candidate"
                 ));
-                MeasurementResult measurement = measurementEngine.measure(candidate, workload, request.measurement());
+                WorkloadInstance measurementWorkload = request.workload().instantiate(environment);
+                MeasurementResult measurement = measurementEngine.measure(candidate, measurementWorkload, request.measurement());
                 BenchmarkCandidateReport report = BenchmarkCandidateReport.success(candidate, validation, measurement);
                 evaluated.add(report);
                 progress.accept(report);

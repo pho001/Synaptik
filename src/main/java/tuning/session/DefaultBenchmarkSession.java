@@ -35,13 +35,15 @@ final class DefaultBenchmarkSession implements BenchmarkSession {
         List<BenchmarkCandidateReport> reports = new ArrayList<>(entries.size());
         for (BenchmarkEntry entry : entries) {
             try {
-                WorkloadInstance workload = request.workload().instantiate(new WorkloadEnvironment(entry.profile()));
-                ValidationResult validation = validationEngine.validate(entry.toCandidate(), request.workload(), workload, request.validation());
+                WorkloadEnvironment environment = new WorkloadEnvironment(entry.profile());
+                WorkloadInstance validationWorkload = request.workload().instantiate(environment);
+                ValidationResult validation = validationEngine.validate(entry.toCandidate(), request.workload(), validationWorkload, request.validation());
                 if (!validation.valid()) {
                     reports.add(BenchmarkCandidateReport.failure(entry, validation, validation.reason()));
                     continue;
                 }
-                MeasurementResult measurement = measurementEngine.measure(entry.toCandidate(), workload, request.measurement());
+                WorkloadInstance measurementWorkload = request.workload().instantiate(environment);
+                MeasurementResult measurement = measurementEngine.measure(entry.toCandidate(), measurementWorkload, request.measurement());
                 reports.add(BenchmarkCandidateReport.success(entry, validation, measurement));
             } catch (Exception ex) {
                 reports.add(BenchmarkCandidateReport.failure(

@@ -239,8 +239,9 @@ final class DefaultPlatformCalibrationSession implements PlatformCalibrationSess
                         "validating candidate"
                 ));
                 try {
-                    WorkloadInstance workload = workloadSpec.instantiate(new WorkloadEnvironment(entry.profile()));
-                    ValidationResult validation = validationEngine.validate(entry.toCandidate(), workloadSpec, workload, step.preset().benchmarkValidation());
+                    WorkloadEnvironment environment = new WorkloadEnvironment(entry.profile());
+                    WorkloadInstance validationWorkload = workloadSpec.instantiate(environment);
+                    ValidationResult validation = validationEngine.validate(entry.toCandidate(), workloadSpec, validationWorkload, step.preset().benchmarkValidation());
                     if (!validation.valid()) {
                         candidateReports.add(BenchmarkCandidateReport.failure(entry, validation, validation.reason()));
                         emit(new PlatformCalibrationProgressEvent(
@@ -277,7 +278,8 @@ final class DefaultPlatformCalibrationSession implements PlatformCalibrationSess
                             leaderScore,
                             "measuring candidate"
                     ));
-                    MeasurementResult measurement = measurementEngine.measure(entry.toCandidate(), workload, calibrationMeasurementPolicy(request, step));
+                    WorkloadInstance measurementWorkload = workloadSpec.instantiate(environment);
+                    MeasurementResult measurement = measurementEngine.measure(entry.toCandidate(), measurementWorkload, calibrationMeasurementPolicy(request, step));
                     candidateReports.add(BenchmarkCandidateReport.success(entry, validation, measurement));
                     double median = measurement.steadyStateStats().medianMs();
                     if (Double.isFinite(median) && median < leaderScore) {
