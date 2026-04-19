@@ -220,6 +220,54 @@ Those belong respectively in:
 - `graph/*`
 - `backend/*`
 
+## Mutation And Lifecycle Contract
+
+`Tensor` is still mutable because it is both:
+
+- the public modeling surface
+- the semantic publication target for execution results
+
+That does **not** mean every mutation is safe at every lifecycle phase.
+
+### Before `compile()`
+
+Normal modeling-time mutation is expected:
+
+- building new nodes
+- changing leaf data
+- toggling `requiresGrad`
+- constructing alternate graphs
+
+### After `compile()` / `prepare()`
+
+The intended rule is:
+
+- treat the semantic graph as frozen if you want to reuse the compiled/prepared artifact
+
+Why:
+
+- compile/prepare now use immutable compiled-node snapshots for topology
+- but the public API still publishes forward outputs and gradients back into the original semantic tensors
+- there is no automatic invalidation layer if user code edits the semantic graph later
+
+So the public contract is:
+
+- compiled/prepared artifacts are reusable
+- semantic graph mutation after that point is caller-owned behavior, not something the artifact tracks
+
+### Internal / Unsafe Access
+
+The following surfaces are intentionally infrastructure-level and should not be treated as ordinary
+modeling API:
+
+- `TensorInternalAccess`
+- `getShapeUnsafe()`
+- `getStridesUnsafe()`
+- `getStorageOffsetUnsafe()`
+
+They exist for optimizer, backend, runtime, and test plumbing.
+They are not a guarantee of stable public graph-editing semantics.
+
 ## Public API Shape
 
 The public ergonomic surface is intentionally available in two forms:
@@ -430,14 +478,13 @@ That is important for:
 - `getStorageOffsetUnsafe`
 - `storageVersion`
 - `markStorageModified`
-- `setPrevTensors`
-- `setOperation`
-- `setGradient`
-- `setBackward`
 - `copyDataFrom`
 
 These methods are real and supported, but they should not be treated as the preferred high-level modeling API.
 If you are adding a new user-facing operation, start in `tensor.ops.*`, not by expanding this low-level surface.
+
+Structural graph mutation and runtime-only graph plumbing no longer belong to the public `Tensor` surface.
+Those internals now go through [tensor/TensorInternalAccess.java](../tensor/TensorInternalAccess.java), which is intentionally named as internal infrastructure rather than modeling API.
 
 ## How To Add Or Change Tensor Functionality
 

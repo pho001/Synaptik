@@ -45,11 +45,12 @@ If you are looking for:
 The real runtime flow looks like this:
 
 1. `CompiledGraph.prepare(runtimeConfig)` creates `PreparedExecution`
-2. it prepares `CompiledNodeExecutionMetadata` for every runtime node
-3. `PreparedExecution.execute(...)` iterates prepared forward/backward steps
-4. each step calls `ComputeEngine.compute(node, metadata, context)`
-5. `ComputeEngine` switches to the concrete backend
-6. `CPUBackend.execute(...)` takes the prepared plan and invokes the corresponding `CpuKernel`
+2. `PreparedExecutionBuilder` builds a backend-agnostic prepare context and delegates node preparation through `BackendPrepareDispatcher`
+3. backend-specific preparers build `CompiledNodeExecutionMetadata` for every executable runtime node
+4. `PreparedExecution.execute(...)` iterates prepared forward/backward steps
+5. each step calls `ComputeEngine.compute(node, metadata, context)`
+6. `ComputeEngine` switches to the concrete backend
+7. `CPUBackend.execute(...)` takes the prepared plan and invokes the corresponding `CpuKernel`
 
 This is an important boundary:
 

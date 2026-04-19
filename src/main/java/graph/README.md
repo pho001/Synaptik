@@ -141,9 +141,9 @@ It actually does:
 1. chooses the effective runtime config
    - either the explicit input
    - or inference/training defaults depending on backward support
-2. creates `CpuExecutionPlanner`
-3. iterates `finalGraph`
-4. prepares `CompiledNodeExecutionMetadata` for each executable node
+2. delegates to `PreparedExecutionBuilder`
+3. builds backend-agnostic prepare context from compiled nodes
+4. asks backend prepare dispatch to build `CompiledNodeExecutionMetadata` for each executable node
 5. splits prepared steps into forward/backward
 6. returns `PreparedExecution`
 
@@ -176,19 +176,117 @@ Typical examples:
 
 `PreparedExecution.execute(mode)` does the following:
 
-1. creates `ExecutionContext`
+1. creates fresh per-run `ExecutionState` and `ExecutionContext`
 2. runs prepared forward steps in topological order
 3. synchronizes data from the optimized forward output back into the original root tensor
 4. if the mode is `FORWARD_BACKWARD`:
-   - zeros gradients
-   - seeds the root gradient with ones
+   - seeds the root gradient inside runtime state
    - runs prepared backward steps
+   - publishes detached semantic gradients back to leaf tensors
 
 This matters for correct benchmarking:
 
 - compile overhead does not belong in steady-state numbers
 - prepare overhead does not belong in steady-state numbers
 - repeated execution should run over one `PreparedExecution`
+
+## Reuse And Concurrency Contract
+
+This section is intentionally explicit, because a large part of the recent refactor was about making
+these boundaries real instead of implicit.
+
+### `Tensor`
+
+`Tensor` is still the public semantic graph object and the public publication target for:
+
+- root forward output
+- published leaf gradients after backward execution
+
+That means:
+
+- ordinary modeling code may mutate a tensor graph before `compile()`
+- infrastructure code may still use `TensorInternalAccess`
+- but compiled/prepared artifacts do **not** track invalidation if the semantic graph is edited later
+
+Practical rule:
+
+- once you keep a `CompiledGraph` or `PreparedExecution`, treat the semantic graph as frozen unless you
+  intentionally want to diverge it from the artifact
+
+### `CompiledGraph`
+
+`CompiledGraph` is an immutable compile snapshot of graph topology and boundaries.
+
+What is safe:
+
+- calling `prepare(...)` repeatedly on the same `CompiledGraph`
+- keeping multiple prepared executions derived from the same compiled graph
+- reading compile trace and compiled graph exports
+
+What is **not** guaranteed:
+
+- automatic invalidation if user code mutates the original semantic graph later
+
+The important nuance is:
+
+- `prepare(...)` uses compiled-node snapshot topology, not live `Tensor.getPrevTensors()`
+- but published outputs still flow back into the original semantic tensors
+
+### `PreparedExecution`
+
+`PreparedExecution` is immutable prepared metadata plus runtime config.
+Every `execute(...)` call creates a fresh per-run `ExecutionState`.
+
+What is safe:
+
+- repeated sequential `execute(...)` calls on the same prepared artifact
+- creating multiple `PreparedExecution` instances from one `CompiledGraph`
+- creating traced and non-traced runs from the same prepared artifact
+
+What is **not** safe as a public contract:
+
+- concurrent `execute(...)` calls that publish into the same semantic root/leaf tensors
+
+Reason:
+
+- runtime tensors and workspaces are per-run and isolated
+- but the public API still copies the final result back into the shared root tensor
+- backward execution still publishes detached gradients back into the shared semantic leaf tensors
+
+So today the concurrency rule is:
+
+- internal run-state is isolated per execute call
+- public result publication is still shared-object mutation
+- therefore parallel execute over the same semantic graph is not a supported public contract
+
+If a caller needs true parallel runs, it should use distinct semantic graph instances.
+
+### Compile / Prepare / Execute
+
+The intended contract is:
+
+- `compile()` is a pure graph-to-snapshot transition
+- `prepare()` is a pure snapshot-to-prepared-program transition
+- `execute()` is the only phase that publishes results back into semantic tensors
+
+None of these methods are synchronized.
+The code assumes the caller is not mutating the same semantic graph concurrently while compile/prepare/execute are running.
+
+### Debug And Introspection API
+
+Current snapshot-vs-live rules:
+
+- `CompiledGraph.getCompiledGraphAsList()` returns an immutable list view
+- `PreparedExecution.forwardSteps()` and `PreparedExecution.backwardSteps()` return immutable list views
+- `compileTrace()`, `prepareTrace()`, and `RunTrace` are immutable trace artifacts
+- `Tensor.getPrevTensors()` returns an unmodifiable view
+
+The following APIs still expose live/internal handles and should be treated as infrastructure-only:
+
+- `Tensor.getShapeUnsafe()`
+- `Tensor.getStridesUnsafe()`
+- `Tensor.getStorageOffsetUnsafe()`
+- `TensorInternalAccess.*`
 
 ## Traced Execution
 

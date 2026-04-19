@@ -177,14 +177,11 @@ When adding new tensor semantics:
   - [`crossEntropyLossFromIndices(Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction)`](#crossentropylossfromindicestensor-targetindices-int-classdimension-int-ignoreindex-tensor-classweights-lossreduction-reduction)
 - [Execution Anchor / Autodiff Helpers](#execution-anchor--autodiff-helpers)
   - [`forwardOutput()`](#forwardoutput)
-  - [`buildBackwardGraph()`](#buildbackwardgraph)
-  - [`setBackwardFunction(Runnable backwardFunction)`](#setbackwardfunctionrunnable-backwardfunction)
 - [Metadata and Data Access](#metadata-and-data-access)
   - [Shape / layout accessors](#shape--layout)
   - [Data / dtype / storage accessors](#data--dtype--storage)
   - [Labels / grad / graph wiring](#labels--grad--graph-wiring)
 - [Backend Selection](#backend-selection)
-  - [`setBackend(ComputeBackend backend)`](#setbackendcomputebackend-backend)
   - [`resolveBackend()`](#resolvebackend)
 - [Debug Formatting](#debug-formatting)
   - [`toStructString()`](#tostructstring)
@@ -3019,41 +3016,8 @@ Tensor out = y.forwardOutput();
 // Returns: a tensor used as the forward execution anchor.
 ```
 
-### `buildBackwardGraph()`
-
-Runs the stored backward graph builder for this tensor.
-This is internal graph wiring machinery, not a typical user-facing call.
-
-Parameters:
-- none
-
-Returns:
-- nothing
-
-Example:
-```java
-// Executes the internal backward graph builder attached to loss.
-loss.buildBackwardGraph();
-// Returns: nothing; this is internal graph wiring.
-```
-
-### `setBackwardFunction(Runnable backwardFunction)`
-
-Registers the backward graph builder for this tensor.
-This is internal wiring API.
-
-Parameters:
-- `backwardFunction`: callback that builds or accumulates backward graph nodes
-
-Returns:
-- nothing
-
-Example:
-```java
-// Installs the internal backward graph builder for tensor t.
-t.setBackwardFunction(() -> { /* internal backward wiring */ });
-// Returns: nothing; this is internal graph wiring.
-```
+Internal backward wiring is no longer part of the public `Tensor` API surface.
+Runtime/rewrite/autograd infrastructure uses `tensor.TensorInternalAccess` for that plumbing.
 
 ## Metadata and Data Access
 
@@ -3230,29 +3194,14 @@ Enables or disables gradient tracking.
 #### `getGradient()`
 Returns gradient tensor if present.
 
-#### `setGradient(Tensor gradient)`
-Assigns gradient tensor directly.
-Primarily intended for autograd/runtime plumbing rather than ordinary modeling code.
-
 #### `getPrevTensors()`
-Returns predecessor tensors in the graph.
-
-#### `setPrevTensors(List<Tensor> prevTensors)`
-Replaces predecessor list directly.
-Primarily intended for graph construction infrastructure and tests.
+Returns an unmodifiable view of predecessor tensors in the graph.
 
 #### `getOperation()`
 Returns operation descriptor for this node.
 
-#### `setOperation(Operation operation)`
-Assigns operation descriptor directly.
-Primarily intended for graph construction infrastructure and tests.
-
 #### `isBackward()`
 Returns whether this node is marked as part of backward-stage graph execution.
-
-#### `setBackward(boolean backward)`
-Marks or unmarks the node as backward-stage.
 
 #### `topologicalSort()`
 Returns topological order rooted at this tensor.
@@ -3261,14 +3210,10 @@ Returns topological order rooted at this tensor.
 Internal compatibility hook.
 It is a no-op because non-`FLOAT64` tensors no longer maintain a mirrored `double[]` view.
 
-#### `aliasRuntimeFrom(Tensor source)`
-Internal runtime helper that aliases backing storage from another tensor.
+Internal structural graph mutation, backward wiring, and runtime aliasing helpers are no longer public `Tensor` methods.
+They now live behind `tensor.TensorInternalAccess`.
 
 ## Backend Selection
-
-### `setBackend(ComputeBackend backend)`
-
-Forces a backend for this tensor node.
 
 ### `resolveBackend()`
 
