@@ -1,14 +1,11 @@
 package backend.kernels.cpu.linalg;
 
-import backend.kernels.cpu.CpuComputeDType;
 import backend.kernels.cpu.CpuDTypeOps;
-import backend.kernels.cpu.CpuExecutionBackend;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuThreadPool;
-import backend.kernels.cpu.ResolvedAttentionHints;
-import backend.kernels.cpu.ResolvedCpuComputeContract;
-import backend.kernels.cpu.ResolvedMatMulHints;
-import backend.kernels.cpu.ResolvedReductionHints;
+import backend.kernels.cpu.linalg.attention.plan.ResolvedAttentionHints;
+import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.kernels.cpu.linalg.attention.plan.ResolvedScaledDotProductAttentionPlan;
 import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
 import tensor.DataType;
@@ -44,7 +41,8 @@ final class ScaledDotProductAttentionExecutor {
         Tensor mask = inputs.length == 4 ? inputs[3] : null;
         validate(attention, query, key, value, mask, node);
         int[] scoresShape = scoreShape(query.getShapeUnsafe(), key.getShapeUnsafe());
-        ScaledDotProductAttentionRuntimeCache runtimeCache = prepareRuntimeCache(node, scoresShape);
+        ScaledDotProductAttentionRuntimeCache runtimeCache = prepareRuntimeCache(context, node, scoresShape);
+        ResolvedScaledDotProductAttentionPlan plan = requirePlan(context, node);
         executeDirectF64(
                 query.getFloat64Data(),
                 query.getShapeUnsafe(),
@@ -57,7 +55,8 @@ final class ScaledDotProductAttentionExecutor {
                 node.getFloat64Data(),
                 node.getShapeUnsafe(),
                 attention.getScale(),
-                context,
+                plan.forwardDirectHints(),
+                context.useFastExpApprox(),
                 runtimeCache == null ? null : runtimeCache.weights().getFloat64Data()
         );
     }
@@ -69,7 +68,8 @@ final class ScaledDotProductAttentionExecutor {
         Tensor mask = inputs.length == 4 ? inputs[3] : null;
         validate(attention, query, key, value, mask, node);
         int[] scoresShape = scoreShape(query.getShapeUnsafe(), key.getShapeUnsafe());
-        ScaledDotProductAttentionRuntimeCache runtimeCache = prepareRuntimeCache(node, scoresShape);
+        ScaledDotProductAttentionRuntimeCache runtimeCache = prepareRuntimeCache(context, node, scoresShape);
+        ResolvedScaledDotProductAttentionPlan plan = requirePlan(context, node);
         executeDirectF32(
                 query.getFloat32Data(),
                 query.getShapeUnsafe(),
@@ -82,7 +82,8 @@ final class ScaledDotProductAttentionExecutor {
                 node.getFloat32Data(),
                 node.getShapeUnsafe(),
                 (float) attention.getScale(),
-                context,
+                plan.forwardDirectHints(),
+                context.useFastExpApprox(),
                 runtimeCache == null ? null : runtimeCache.weights().getFloat32Data(),
                 null
         );
@@ -102,7 +103,8 @@ final class ScaledDotProductAttentionExecutor {
         int[] keyShape = key.getShapeUnsafe();
         int[] valueShape = value.getShapeUnsafe();
         int[] scoresShape = scoreShape(queryShape, keyShape);
-        ScaledDotProductAttentionRuntimeCache runtimeCache = prepareRuntimeCache(node, scoresShape);
+        ScaledDotProductAttentionRuntimeCache runtimeCache = prepareRuntimeCache(context, node, scoresShape);
+        ResolvedScaledDotProductAttentionPlan plan = requirePlan(context, node);
         float[] outF32 = new float[node.getFlatDataSize()];
         executeDirectF32(
                 queryF32,
@@ -116,7 +118,8 @@ final class ScaledDotProductAttentionExecutor {
                 outF32,
                 node.getShapeUnsafe(),
                 (float) attention.getScale(),
-                context,
+                plan.forwardDirectHints(),
+                context.useFastExpApprox(),
                 null,
                 runtimeCache == null ? null : runtimeCache.weights().getBFloat16Data()
         );
@@ -135,8 +138,8 @@ final class ScaledDotProductAttentionExecutor {
             CpuKernelContext context
     ) {
         AttentionBackwardSpec spec = validateBackward(outputKind, attentionOut, outGrad, node);
-        ScaledDotProductAttentionRuntimeCache runtimeCache = requireRuntimeCache(attentionOut);
-        ensureBackwardGradsF64(spec, attentionOut, outGrad, runtimeCache, context);
+        ScaledDotProductAttentionRuntimeCache runtimeCache = requireRuntimeCache(context, attentionOut);
+        ensureBackwardGradsF64(spec, attentionOut, outGrad, runtimeCache, requirePlan(context, node));
         Tensor cached = switch (outputKind) {
             case QUERY -> runtimeCache.queryGrad();
             case KEY -> runtimeCache.keyGrad();
@@ -153,8 +156,8 @@ final class ScaledDotProductAttentionExecutor {
             CpuKernelContext context
     ) {
         AttentionBackwardSpec spec = validateBackward(outputKind, attentionOut, outGrad, node);
-        ScaledDotProductAttentionRuntimeCache runtimeCache = requireRuntimeCache(attentionOut);
-        ensureBackwardGradsF32(spec, attentionOut, outGrad, runtimeCache, context);
+        ScaledDotProductAttentionRuntimeCache runtimeCache = requireRuntimeCache(context, attentionOut);
+        ensureBackwardGradsF32(spec, attentionOut, outGrad, runtimeCache, requirePlan(context, node));
         Tensor cached = switch (outputKind) {
             case QUERY -> runtimeCache.queryGrad();
             case KEY -> runtimeCache.keyGrad();
@@ -170,7 +173,8 @@ final class ScaledDotProductAttentionExecutor {
             byte[] mask, int[] maskShape,
             float[] out, int[] outShape,
             float scale,
-            CpuKernelContext context,
+            ResolvedAttentionHints hints,
+            boolean fastExp,
             float[] cachedWeightsF32,
             short[] cachedWeightsBF16
     ) {
@@ -184,12 +188,9 @@ final class ScaledDotProductAttentionExecutor {
         int[] valueBatchOffsets = MatMulJavaBackend.computeBatchOffsets(valueShape, outShape);
         int[] maskBatchOffsets = mask == null ? null : MatMulJavaBackend.computeBatchOffsets(maskShape, outShape);
         int totalRows = batchCount * queryLen;
-        ResolvedAttentionHints hints = context.planner().resolveAttentionHints(
-                totalRows,
-                Math.max(1, keyLen * (depth + valueDim)),
-                Math.max(depth, valueDim),
-                new ResolvedCpuComputeContract(DataType.FLOAT32, CpuComputeDType.F32, CpuExecutionBackend.CPU_REDUCTION, backend.kernels.cpu.CpuAccumulateDType.F64)
-        );
+        if (hints == null) {
+            throw new IllegalStateException("Missing prepared forward attention hints.");
+        }
         if (hints.parallel() && totalRows > 1) {
             int rowsPerChunk = hints.taskChunkSize();
             int chunks = (totalRows + rowsPerChunk - 1) / rowsPerChunk;
@@ -201,7 +202,7 @@ final class ScaledDotProductAttentionExecutor {
                     computeAttentionRowF32(
                             query, key, value, mask, out,
                             queryBatchOffsets, keyBatchOffsets, valueBatchOffsets, maskBatchOffsets,
-                            row, queryLen, keyLen, depth, valueDim, scale, hints.vectorized(), context.useFastExpApprox(), rowScores,
+                            row, queryLen, keyLen, depth, valueDim, scale, hints.vectorized(), fastExp, rowScores,
                             cachedWeightsF32, cachedWeightsBF16
                     );
                 }
@@ -213,7 +214,7 @@ final class ScaledDotProductAttentionExecutor {
             computeAttentionRowF32(
                     query, key, value, mask, out,
                     queryBatchOffsets, keyBatchOffsets, valueBatchOffsets, maskBatchOffsets,
-                    row, queryLen, keyLen, depth, valueDim, scale, hints.vectorized(), context.useFastExpApprox(), rowScores,
+                    row, queryLen, keyLen, depth, valueDim, scale, hints.vectorized(), fastExp, rowScores,
                     cachedWeightsF32, cachedWeightsBF16
             );
         }
@@ -226,7 +227,8 @@ final class ScaledDotProductAttentionExecutor {
             byte[] mask, int[] maskShape,
             double[] out, int[] outShape,
             double scale,
-            CpuKernelContext context,
+            ResolvedAttentionHints hints,
+            boolean fastExp,
             double[] cachedWeights
     ) {
         int batchCount = batchCount(outShape);
@@ -239,12 +241,9 @@ final class ScaledDotProductAttentionExecutor {
         int[] valueBatchOffsets = MatMulJavaBackend.computeBatchOffsets(valueShape, outShape);
         int[] maskBatchOffsets = mask == null ? null : MatMulJavaBackend.computeBatchOffsets(maskShape, outShape);
         int totalRows = batchCount * queryLen;
-        ResolvedAttentionHints hints = context.planner().resolveAttentionHints(
-                totalRows,
-                Math.max(1, keyLen * (depth + valueDim)),
-                Math.max(depth, valueDim),
-                new ResolvedCpuComputeContract(DataType.FLOAT64, CpuComputeDType.F64, CpuExecutionBackend.CPU_REDUCTION, backend.kernels.cpu.CpuAccumulateDType.F64)
-        );
+        if (hints == null) {
+            throw new IllegalStateException("Missing prepared forward attention hints.");
+        }
         if (hints.parallel() && totalRows > 1) {
             int rowsPerChunk = hints.taskChunkSize();
             int chunks = (totalRows + rowsPerChunk - 1) / rowsPerChunk;
@@ -256,7 +255,7 @@ final class ScaledDotProductAttentionExecutor {
                     computeAttentionRowF64(
                             query, key, value, mask, out,
                             queryBatchOffsets, keyBatchOffsets, valueBatchOffsets, maskBatchOffsets,
-                            row, queryLen, keyLen, depth, valueDim, scale, hints.vectorized(), context.useFastExpApprox(), rowScores, cachedWeights
+                            row, queryLen, keyLen, depth, valueDim, scale, hints.vectorized(), fastExp, rowScores, cachedWeights
                     );
                 }
             });
@@ -267,7 +266,7 @@ final class ScaledDotProductAttentionExecutor {
             computeAttentionRowF64(
                     query, key, value, mask, out,
                     queryBatchOffsets, keyBatchOffsets, valueBatchOffsets, maskBatchOffsets,
-                    row, queryLen, keyLen, depth, valueDim, scale, hints.vectorized(), context.useFastExpApprox(), rowScores, cachedWeights
+                    row, queryLen, keyLen, depth, valueDim, scale, hints.vectorized(), fastExp, rowScores, cachedWeights
             );
         }
     }
@@ -529,21 +528,24 @@ final class ScaledDotProductAttentionExecutor {
         return resized;
     }
 
-    private static ScaledDotProductAttentionRuntimeCache prepareRuntimeCache(Tensor node, int[] scoresShape) {
+    private static ScaledDotProductAttentionRuntimeCache prepareRuntimeCache(CpuKernelContext context, Tensor node, int[] scoresShape) {
+        if (context == null) {
+            throw new IllegalStateException("attention execution requires CpuKernelContext");
+        }
         if (!node.getRequiresGrad()) {
-            node.setRuntimeCache(null);
+            context.clearRuntimeState(node);
             return null;
         }
-        Object cached = node.getRuntimeCache();
-        if (cached instanceof ScaledDotProductAttentionRuntimeCache runtimeCache
+        ScaledDotProductAttentionRuntimeCache runtimeCache = context.runtimeStateFor(node, ScaledDotProductAttentionRuntimeCache.class);
+        if (runtimeCache != null
                 && Arrays.equals(runtimeCache.weights().getShapeUnsafe(), scoresShape)
                 && runtimeCache.weights().getDataType() == node.getDataType()) {
             runtimeCache.resetForNextExecution();
             return runtimeCache;
         }
         Tensor weights = new Tensor(scoresShape.clone(), List.of(), "attention_weights_cache", node.getDataType());
-        ScaledDotProductAttentionRuntimeCache runtimeCache = new ScaledDotProductAttentionRuntimeCache(weights);
-        node.setRuntimeCache(runtimeCache);
+        runtimeCache = new ScaledDotProductAttentionRuntimeCache(weights);
+        context.putRuntimeState(node, runtimeCache);
         return runtimeCache;
     }
 
@@ -552,7 +554,7 @@ final class ScaledDotProductAttentionExecutor {
             Tensor attentionOut,
             Tensor outGrad,
             ScaledDotProductAttentionRuntimeCache runtimeCache,
-            CpuKernelContext context
+            ResolvedScaledDotProductAttentionPlan plan
     ) {
         if (runtimeCache.hasBackwardGrads()) {
             return;
@@ -560,7 +562,7 @@ final class ScaledDotProductAttentionExecutor {
         Tensor queryGrad = runtimeCache.requireQueryGrad(rawQueryGradShape(attentionOut.getShapeUnsafe(), spec.query().getShapeUnsafe()), DataType.FLOAT64);
         Tensor keyGrad = runtimeCache.requireKeyGrad(rawKeyGradShape(attentionOut.getShapeUnsafe(), spec.key().getShapeUnsafe()), DataType.FLOAT64);
         Tensor valueGrad = runtimeCache.requireValueGrad(rawValueGradShape(attentionOut.getShapeUnsafe(), spec.value().getShapeUnsafe()), DataType.FLOAT64);
-        computeBackwardF64(spec, runtimeCache, outGrad, queryGrad, keyGrad, valueGrad, context);
+        computeBackwardF64(spec, runtimeCache, outGrad, queryGrad, keyGrad, valueGrad, plan);
         runtimeCache.markBackwardGradsReady();
     }
 
@@ -569,7 +571,7 @@ final class ScaledDotProductAttentionExecutor {
             Tensor attentionOut,
             Tensor outGrad,
             ScaledDotProductAttentionRuntimeCache runtimeCache,
-            CpuKernelContext context
+            ResolvedScaledDotProductAttentionPlan plan
     ) {
         if (runtimeCache.hasBackwardGrads()) {
             return;
@@ -577,7 +579,7 @@ final class ScaledDotProductAttentionExecutor {
         Tensor queryGrad = runtimeCache.requireQueryGrad(rawQueryGradShape(attentionOut.getShapeUnsafe(), spec.query().getShapeUnsafe()), DataType.FLOAT32);
         Tensor keyGrad = runtimeCache.requireKeyGrad(rawKeyGradShape(attentionOut.getShapeUnsafe(), spec.key().getShapeUnsafe()), DataType.FLOAT32);
         Tensor valueGrad = runtimeCache.requireValueGrad(rawValueGradShape(attentionOut.getShapeUnsafe(), spec.value().getShapeUnsafe()), DataType.FLOAT32);
-        computeBackwardF32(spec, runtimeCache, outGrad, queryGrad, keyGrad, valueGrad, context);
+        computeBackwardF32(spec, runtimeCache, outGrad, queryGrad, keyGrad, valueGrad, plan);
         runtimeCache.markBackwardGradsReady();
     }
 
@@ -588,11 +590,11 @@ final class ScaledDotProductAttentionExecutor {
             Tensor queryGrad,
             Tensor keyGrad,
             Tensor valueGrad,
-            CpuKernelContext context
+            ResolvedScaledDotProductAttentionPlan plan
     ) {
         Tensor weights = runtimeCache.weights();
         Tensor dWeights = runtimeCache.requireDWeights(weights.getShapeUnsafe(), DataType.FLOAT64);
-        runMatMulRightTransposedF64(outGrad, spec.value(), dWeights, context);
+        runMatMulRightTransposedF64(outGrad, spec.value(), dWeights, requireMatMulHints(plan.backwardDWeightsMatMulHints(), "attention backward dWeights"));
 
         Tensor dScores = runtimeCache.requireDScores(weights.getShapeUnsafe(), DataType.FLOAT64);
         computeSoftmaxGradRowsF64(
@@ -601,12 +603,12 @@ final class ScaledDotProductAttentionExecutor {
                 dScores.getFloat64Data(),
                 weights.getShapeUnsafe(),
                 spec.scale(),
-                context
+                requireAttentionHints(plan.backwardSoftmaxGradHints(), "attention backward softmax")
         );
 
-        runMatMulF64(dScores, spec.key(), queryGrad, context);
-        runMatMulLeftTransposedF64(weights, outGrad, valueGrad, context);
-        runMatMulLeftTransposedF64(dScores, spec.query(), keyGrad, context);
+        runMatMulF64(dScores, spec.key(), queryGrad, requireMatMulHints(plan.backwardQueryGradMatMulHints(), "attention backward queryGrad"));
+        runMatMulLeftTransposedF64(weights, outGrad, valueGrad, requireMatMulHints(plan.backwardValueGradMatMulHints(), "attention backward valueGrad"));
+        runMatMulLeftTransposedF64(dScores, spec.query(), keyGrad, requireMatMulHints(plan.backwardKeyGradMatMulHints(), "attention backward keyGrad"));
     }
 
     private static void computeBackwardF32(
@@ -616,11 +618,11 @@ final class ScaledDotProductAttentionExecutor {
             Tensor queryGrad,
             Tensor keyGrad,
             Tensor valueGrad,
-            CpuKernelContext context
+            ResolvedScaledDotProductAttentionPlan plan
     ) {
         Tensor weights = runtimeCache.weights();
         Tensor dWeights = runtimeCache.requireDWeights(weights.getShapeUnsafe(), DataType.FLOAT32);
-        runMatMulRightTransposedF32(outGrad, spec.value(), dWeights, context);
+        runMatMulRightTransposedF32(outGrad, spec.value(), dWeights, requireMatMulHints(plan.backwardDWeightsMatMulHints(), "attention backward dWeights"));
 
         Tensor dScores = runtimeCache.requireDScores(weights.getShapeUnsafe(), DataType.FLOAT32);
         computeSoftmaxGradRowsF32(
@@ -629,12 +631,12 @@ final class ScaledDotProductAttentionExecutor {
                 dScores.getFloat32Data(),
                 weights.getShapeUnsafe(),
                 (float) spec.scale(),
-                context
+                requireAttentionHints(plan.backwardSoftmaxGradHints(), "attention backward softmax")
         );
 
-        runMatMulF32(dScores, spec.key(), queryGrad, context);
-        runMatMulLeftTransposedF32(weights, outGrad, valueGrad, context);
-        runMatMulLeftTransposedF32(dScores, spec.query(), keyGrad, context);
+        runMatMulF32(dScores, spec.key(), queryGrad, requireMatMulHints(plan.backwardQueryGradMatMulHints(), "attention backward queryGrad"));
+        runMatMulLeftTransposedF32(weights, outGrad, valueGrad, requireMatMulHints(plan.backwardValueGradMatMulHints(), "attention backward valueGrad"));
+        runMatMulLeftTransposedF32(dScores, spec.query(), keyGrad, requireMatMulHints(plan.backwardKeyGradMatMulHints(), "attention backward keyGrad"));
     }
 
     private static void computeBackwardBatchF64(
@@ -1279,92 +1281,6 @@ final class ScaledDotProductAttentionExecutor {
         }
     }
 
-    private static CpuKernelContext localReductionContext(CpuKernelContext parent, Tensor scoresTensor) {
-        ResolvedReductionHints hints = parent.planner().resolveReductionHints(
-                scoresTensor.getFlatDataSize(),
-                new ResolvedCpuComputeContract(
-                        scoresTensor.getDataType(),
-                        scoresTensor.getDataType() == DataType.FLOAT64 ? CpuComputeDType.F64 : CpuComputeDType.F32,
-                        CpuExecutionBackend.CPU_REDUCTION,
-                        backend.kernels.cpu.CpuAccumulateDType.F64
-                )
-        );
-        return new CpuKernelContext(
-                parent.planner(),
-                new backend.kernels.cpu.CpuNodeExecutionPlan(
-                        parent.layoutPlan(),
-                        parent.computeContract(),
-                        false,
-                        null,
-                        hints,
-                        null
-                ),
-                parent.executionContext(),
-                parent.executionMetadata(),
-                List.of()
-        );
-    }
-
-    private static void softmaxAttentionScoresInPlaceF64(Tensor scores, Tensor mask, double scale, CpuKernelContext context) {
-        double[] values = scores.getFloat64Data();
-        byte[] maskData = mask == null ? null : mask.getBoolData();
-        int[] shape = scores.getShapeUnsafe();
-        int axisSize = shape[shape.length - 1];
-        int groups = scores.getFlatDataSize() / axisSize;
-        ResolvedReductionHints hints = reductionHints(scores, context);
-        if (hints.parallel() && groups > 1) {
-            int rowsPerChunk = Math.max(1, hints.chunkSize() / Math.max(1, axisSize));
-            int chunks = (groups + rowsPerChunk - 1) / rowsPerChunk;
-            CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
-                int start = chunk * rowsPerChunk;
-                int end = Math.min(start + rowsPerChunk, groups);
-                for (int group = start; group < end; group++) {
-                    softmaxAttentionRowF64(values, maskData, group * axisSize, axisSize, scale, context.useFastExpApprox());
-                }
-            });
-            return;
-        }
-        for (int group = 0; group < groups; group++) {
-            softmaxAttentionRowF64(values, maskData, group * axisSize, axisSize, scale, context.useFastExpApprox());
-        }
-    }
-
-    private static void softmaxAttentionScoresInPlaceF32(Tensor scores, Tensor mask, float scale, CpuKernelContext context) {
-        float[] values = scores.getFloat32Data();
-        byte[] maskData = mask == null ? null : mask.getBoolData();
-        int[] shape = scores.getShapeUnsafe();
-        int axisSize = shape[shape.length - 1];
-        int groups = scores.getFlatDataSize() / axisSize;
-        ResolvedReductionHints hints = reductionHints(scores, context);
-        if (hints.parallel() && groups > 1) {
-            int rowsPerChunk = Math.max(1, hints.chunkSize() / Math.max(1, axisSize));
-            int chunks = (groups + rowsPerChunk - 1) / rowsPerChunk;
-            CpuThreadPool.runChunks(chunks, hints.plannedWorkers(), chunk -> {
-                int start = chunk * rowsPerChunk;
-                int end = Math.min(start + rowsPerChunk, groups);
-                for (int group = start; group < end; group++) {
-                    softmaxAttentionRowF32(values, maskData, group * axisSize, axisSize, scale, context.useFastExpApprox());
-                }
-            });
-            return;
-        }
-        for (int group = 0; group < groups; group++) {
-            softmaxAttentionRowF32(values, maskData, group * axisSize, axisSize, scale, context.useFastExpApprox());
-        }
-    }
-
-    private static ResolvedReductionHints reductionHints(Tensor scores, CpuKernelContext context) {
-        return context.planner().resolveReductionHints(
-                scores.getFlatDataSize(),
-                new ResolvedCpuComputeContract(
-                        scores.getDataType(),
-                        scores.getDataType() == DataType.FLOAT64 ? CpuComputeDType.F64 : CpuComputeDType.F32,
-                        CpuExecutionBackend.CPU_REDUCTION,
-                        backend.kernels.cpu.CpuAccumulateDType.F64
-                )
-        );
-    }
-
     private static void softmaxAttentionRowF64(double[] values, byte[] mask, int base, int length, double scale, boolean fastExp) {
         double max = Double.NEGATIVE_INFINITY;
         for (int i = 0; i < length; i++) {
@@ -1431,8 +1347,7 @@ final class ScaledDotProductAttentionExecutor {
         }
     }
 
-    private static void runMatMulF64(Tensor a, Tensor b, Tensor out, CpuKernelContext context) {
-        ResolvedMatMulHints hints = context.planner().resolveAttentionMatMulHints(a, b, out, context.blasConfig());
+    private static void runMatMulF64(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
         double[] ad = a.getFloat64Data();
         double[] bd = b.getFloat64Data();
         double[] od = out.getFloat64Data();
@@ -1451,8 +1366,7 @@ final class ScaledDotProductAttentionExecutor {
         MatMulJavaBackend.runF64(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
     }
 
-    private static void runMatMulF32(Tensor a, Tensor b, Tensor out, CpuKernelContext context) {
-        ResolvedMatMulHints hints = context.planner().resolveAttentionMatMulHints(a, b, out, context.blasConfig());
+    private static void runMatMulF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
         float[] ad = a.getFloat32Data();
         float[] bd = b.getFloat32Data();
         float[] od = out.getFloat32Data();
@@ -1471,10 +1385,7 @@ final class ScaledDotProductAttentionExecutor {
         MatMulJavaBackend.runF32(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
     }
 
-    private static void runMatMulRightTransposedF64(Tensor a, Tensor b, Tensor out, CpuKernelContext context) {
-        int[] logicalAShape = a.getShapeUnsafe();
-        int[] logicalBShape = transposedKeyShape(b.getShapeUnsafe());
-        ResolvedMatMulHints hints = context.planner().resolveAttentionJavaMatMulHints(logicalAShape, logicalBShape, out.getShapeUnsafe(), out.getDataType());
+    private static void runMatMulRightTransposedF64(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
         double[] ad = a.getFloat64Data();
         double[] bd = b.getFloat64Data();
         double[] od = out.getFloat64Data();
@@ -1482,10 +1393,7 @@ final class ScaledDotProductAttentionExecutor {
         MatMulJavaBackend.runF64RightTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
-    private static void runMatMulRightTransposedF32(Tensor a, Tensor b, Tensor out, CpuKernelContext context) {
-        int[] logicalAShape = a.getShapeUnsafe();
-        int[] logicalBShape = transposedKeyShape(b.getShapeUnsafe());
-        ResolvedMatMulHints hints = context.planner().resolveAttentionJavaMatMulHints(logicalAShape, logicalBShape, out.getShapeUnsafe(), out.getDataType());
+    private static void runMatMulRightTransposedF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
         float[] ad = a.getFloat32Data();
         float[] bd = b.getFloat32Data();
         float[] od = out.getFloat32Data();
@@ -1493,9 +1401,7 @@ final class ScaledDotProductAttentionExecutor {
         MatMulJavaBackend.runF32RightTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
-    private static void runMatMulLeftTransposedF64(Tensor a, Tensor b, Tensor out, CpuKernelContext context) {
-        int[] logicalAShape = transposedKeyShape(a.getShapeUnsafe());
-        ResolvedMatMulHints hints = context.planner().resolveAttentionJavaMatMulHints(logicalAShape, b.getShapeUnsafe(), out.getShapeUnsafe(), out.getDataType());
+    private static void runMatMulLeftTransposedF64(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
         double[] ad = a.getFloat64Data();
         double[] bd = b.getFloat64Data();
         double[] od = out.getFloat64Data();
@@ -1503,9 +1409,7 @@ final class ScaledDotProductAttentionExecutor {
         MatMulJavaBackend.runF64LeftTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
-    private static void runMatMulLeftTransposedF32(Tensor a, Tensor b, Tensor out, CpuKernelContext context) {
-        int[] logicalAShape = transposedKeyShape(a.getShapeUnsafe());
-        ResolvedMatMulHints hints = context.planner().resolveAttentionJavaMatMulHints(logicalAShape, b.getShapeUnsafe(), out.getShapeUnsafe(), out.getDataType());
+    private static void runMatMulLeftTransposedF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
         float[] ad = a.getFloat32Data();
         float[] bd = b.getFloat32Data();
         float[] od = out.getFloat32Data();
@@ -1519,21 +1423,10 @@ final class ScaledDotProductAttentionExecutor {
             double[] dScores,
             int[] shape,
             double scale,
-            CpuKernelContext context
+            ResolvedAttentionHints hints
     ) {
         int rowLength = shape[shape.length - 1];
         int rowCount = product(shape) / rowLength;
-        ResolvedAttentionHints hints = context.planner().resolveAttentionHints(
-                rowCount,
-                rowLength,
-                rowLength,
-                new ResolvedCpuComputeContract(
-                        DataType.FLOAT64,
-                        CpuComputeDType.F64,
-                        CpuExecutionBackend.CPU_REDUCTION,
-                        backend.kernels.cpu.CpuAccumulateDType.F64
-                )
-        );
         if (hints.parallel() && rowCount > 1) {
             int rowsPerChunk = hints.taskChunkSize();
             int chunks = (rowCount + rowsPerChunk - 1) / rowsPerChunk;
@@ -1584,21 +1477,10 @@ final class ScaledDotProductAttentionExecutor {
             float[] dScores,
             int[] shape,
             float scale,
-            CpuKernelContext context
+            ResolvedAttentionHints hints
     ) {
         int rowLength = shape[shape.length - 1];
         int rowCount = product(shape) / rowLength;
-        ResolvedAttentionHints hints = context.planner().resolveAttentionHints(
-                rowCount,
-                rowLength,
-                rowLength,
-                new ResolvedCpuComputeContract(
-                        DataType.FLOAT32,
-                        CpuComputeDType.F32,
-                        CpuExecutionBackend.CPU_REDUCTION,
-                        backend.kernels.cpu.CpuAccumulateDType.F64
-                )
-        );
         if (hints.parallel() && rowCount > 1) {
             int rowsPerChunk = hints.taskChunkSize();
             int chunks = (rowCount + rowsPerChunk - 1) / rowsPerChunk;
@@ -1862,12 +1744,37 @@ final class ScaledDotProductAttentionExecutor {
         return new AttentionBackwardSpec(attention.getScale(), query, key, value, mask);
     }
 
-    private static ScaledDotProductAttentionRuntimeCache requireRuntimeCache(Tensor attentionOut) {
-        Object cache = attentionOut.getRuntimeCache();
-        if (!(cache instanceof ScaledDotProductAttentionRuntimeCache runtimeCache)) {
+    private static ScaledDotProductAttentionRuntimeCache requireRuntimeCache(CpuKernelContext context, Tensor attentionOut) {
+        if (context == null) {
+            throw new IllegalStateException("attention backward requires CpuKernelContext");
+        }
+        ScaledDotProductAttentionRuntimeCache runtimeCache =
+                context.runtimeStateFor(attentionOut, ScaledDotProductAttentionRuntimeCache.class);
+        if (runtimeCache == null) {
             throw new IllegalStateException("attention backward requires forward runtime cache on attention output");
         }
         return runtimeCache;
+    }
+
+    private static ResolvedScaledDotProductAttentionPlan requirePlan(CpuKernelContext context, Tensor node) {
+        if (context == null || context.attentionPlan() == null) {
+            throw new IllegalStateException("Missing prepared attention plan for node " + node.getLabel());
+        }
+        return context.attentionPlan();
+    }
+
+    private static ResolvedAttentionHints requireAttentionHints(ResolvedAttentionHints hints, String stage) {
+        if (hints == null) {
+            throw new IllegalStateException("Missing prepared attention hints for " + stage + ".");
+        }
+        return hints;
+    }
+
+    private static ResolvedMatMulHints requireMatMulHints(ResolvedMatMulHints hints, String stage) {
+        if (hints == null) {
+            throw new IllegalStateException("Missing prepared matmul hints for " + stage + ".");
+        }
+        return hints;
     }
 
     private record AttentionBackwardSpec(double scale, Tensor query, Tensor key, Tensor value, Tensor mask) {}

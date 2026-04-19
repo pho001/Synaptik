@@ -93,7 +93,7 @@ public final class PreparedExecution {
 
         long runStart = System.nanoTime();
         java.util.ArrayList<ExecutionStepTrace> steps = captureTrace ? new java.util.ArrayList<>() : null;
-        ExecutionContext context = new ExecutionContext(runtimeConfig.toBackendRuntimeConfig(), mode, metadataIndex);
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex);
         executeSteps(forwardSteps, context, captureTrace, steps, 0);
 
         syncRootData(mode);
@@ -118,7 +118,7 @@ public final class PreparedExecution {
             fillGradientOnes(rootTensor.getGradient());
         }
 
-        ExecutionContext context = new ExecutionContext(runtimeConfig.toBackendRuntimeConfig(), ExecutionMode.FORWARD_BACKWARD, metadataIndex);
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, ExecutionMode.FORWARD_BACKWARD, metadataIndex);
         for (PreparedNodeExecution step : backwardSteps) {
             ComputeEngine.compute(step.node(), step.metadata(), context);
         }
@@ -150,12 +150,12 @@ public final class PreparedExecution {
             long t0 = captureTrace ? System.nanoTime() : 0L;
             ComputeEngine.compute(step.node(), step.metadata(), context);
             if (captureTrace) {
-                traces.add(toStepTrace(startIndex + i, step, System.nanoTime() - t0));
+                traces.add(toStepTrace(startIndex + i, step, System.nanoTime() - t0, context));
             }
         }
     }
 
-    private static ExecutionStepTrace toStepTrace(int index, PreparedNodeExecution step, long durationNs) {
+    private static ExecutionStepTrace toStepTrace(int index, PreparedNodeExecution step, long durationNs, ExecutionContext context) {
         Tensor node = step.node();
         var metadata = step.metadata();
         String opType = node.getOperation() == null ? "LEAF" : node.getOperation().opType().name();
@@ -169,11 +169,11 @@ public final class PreparedExecution {
                 metadata.backend().name(),
                 kernel,
                 durationNs,
-                buildStepMetadata(step)
+                buildStepMetadata(step, context)
         );
     }
 
-    private static StepExecutionMetadata buildStepMetadata(PreparedNodeExecution step) {
+    private static StepExecutionMetadata buildStepMetadata(PreparedNodeExecution step, ExecutionContext context) {
         Tensor node = step.node();
         var metadata = step.metadata();
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
@@ -232,7 +232,8 @@ public final class PreparedExecution {
             }
         }
 
-        if (node.getRuntimeCache() instanceof ConvTraceMetadata trace) {
+        ConvTraceMetadata trace = context.convTraceFor(node);
+        if (trace != null) {
             conv = trace;
         }
 

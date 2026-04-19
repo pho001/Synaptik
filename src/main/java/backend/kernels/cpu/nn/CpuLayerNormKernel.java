@@ -112,7 +112,7 @@ public final class CpuLayerNormKernel implements CpuKernel {
 
     private static void runGroups(NormShape shape, CpuKernelContext context, java.util.function.IntConsumer groupBody) {
         long work = (long) shape.groupCount() * shape.normalizedSize();
-        int workers = context.planner().plannedWorkers();
+        int workers = context.plannedWorkers();
         if (shape.groupCount() <= 1 || workers <= 1 || work < PARALLEL_MIN_WORK) {
             for (int group = 0; group < shape.groupCount(); group++) {
                 groupBody.accept(group);
@@ -120,7 +120,7 @@ public final class CpuLayerNormKernel implements CpuKernel {
             return;
         }
 
-        int chunkSize = Math.max(1, context.planner().computeChunkSize(shape.groupCount(), 1, 1, 1));
+        int chunkSize = Math.max(1, context.computeChunkSize(shape.groupCount(), 1, 1, 1));
         int chunks = (shape.groupCount() + chunkSize - 1) / chunkSize;
         CpuThreadPool.runChunks(chunks, workers, chunk -> {
             int start = chunk * chunkSize;

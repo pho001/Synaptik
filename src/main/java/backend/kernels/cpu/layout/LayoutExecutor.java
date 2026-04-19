@@ -37,6 +37,6 @@ final class LayoutExecutor {
         if (inputs == null || inputs.isEmpty()) {
             return;
         }
-        TensorRemap.apply(inputs.getFirst(), node, context.planner().contiguousMaterializeThreshold());
+        TensorRemap.apply(inputs.getFirst(), node, context.contiguousMaterializeThreshold());
     }
 }

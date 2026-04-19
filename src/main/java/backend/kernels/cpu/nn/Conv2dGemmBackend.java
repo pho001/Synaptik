@@ -1,6 +1,7 @@
 package backend.kernels.cpu.nn;
 
 import backend.kernels.cpu.*;
+import backend.kernels.cpu.nn.conv2d.plan.ResolvedConv2dHints;
 
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasFfmBridge;
@@ -10,7 +11,6 @@ import operations.nn.conv.conv2dBackwardInput;
 import operations.nn.conv.conv2dBackwardInputGemm;
 import operations.nn.conv.conv2dBackwardWeight;
 import operations.nn.conv.conv2dBackwardWeightGemm;
-import tensor.DataType;
 import tensor.options.Conv2dOptions;
 import tensor.Tensor;
 
@@ -242,7 +242,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.FLOAT64, outSpatial, outChannelsPerGroup, kSize, context);
+        ResolvedConv2dHints hints = requireHints(context, node, outSpatial, outChannelsPerGroup, kSize);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         double[] packedWeight = new double[kSize * outChannelsPerGroup];
@@ -262,7 +263,7 @@ final class Conv2dGemmBackend {
                 scatterOutputF64(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
             }
         }
-        publishGemmTrace(node, context, outSpatial, outChannelsPerGroup, kSize, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
     private static void runF32(
@@ -284,7 +285,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.FLOAT32, outSpatial, outChannelsPerGroup, kSize, context);
+        ResolvedConv2dHints hints = requireHints(context, node, outSpatial, outChannelsPerGroup, kSize);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         float[] packedWeight = new float[kSize * outChannelsPerGroup];
@@ -304,7 +306,7 @@ final class Conv2dGemmBackend {
                 scatterOutputF32(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
             }
         }
-        publishGemmTrace(node, context, outSpatial, outChannelsPerGroup, kSize, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
     private static void runBF16(
@@ -327,7 +329,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.BFLOAT16, outSpatial, outChannelsPerGroup, kSize, context);
+        ResolvedConv2dHints hints = requireHints(context, node, outSpatial, outChannelsPerGroup, kSize);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         short[] packedWeight = new short[kSize * outChannelsPerGroup];
@@ -357,7 +360,7 @@ final class Conv2dGemmBackend {
                 scatterOutputBF16(gemmOut, out, bias, b, g, outChannelsPerGroup, outH, outW, outChannels);
             }
         }
-        publishGemmTrace(node, context, outSpatial, outChannelsPerGroup, kSize, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
     private static void runBackwardWeightF64(
@@ -382,7 +385,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.FLOAT64, kSize, outChannelsPerGroup, outSpatial, context);
+        ResolvedConv2dHints hints = requireHints(context, node, kSize, outChannelsPerGroup, outSpatial);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         double[] im2col = new double[outSpatial * kSize];
@@ -405,7 +409,7 @@ final class Conv2dGemmBackend {
             }
             unpackWeightF64(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
         }
-        publishGemmTrace(node, context, kSize, outChannelsPerGroup, outSpatial, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
     private static void runBackwardWeightF32(
@@ -430,7 +434,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.FLOAT32, kSize, outChannelsPerGroup, outSpatial, context);
+        ResolvedConv2dHints hints = requireHints(context, node, kSize, outChannelsPerGroup, outSpatial);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         float[] im2col = new float[outSpatial * kSize];
@@ -453,7 +458,7 @@ final class Conv2dGemmBackend {
             }
             unpackWeightF32(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
         }
-        publishGemmTrace(node, context, kSize, outChannelsPerGroup, outSpatial, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
     private static void runBackwardWeightBF16(
@@ -477,7 +482,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.BFLOAT16, kSize, outChannelsPerGroup, outSpatial, context);
+        ResolvedConv2dHints hints = requireHints(context, node, kSize, outChannelsPerGroup, outSpatial);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         short[] im2col = new short[outSpatial * kSize];
@@ -500,7 +506,7 @@ final class Conv2dGemmBackend {
             }
             unpackWeightBF16(packedGradWeight, gradWeight, weightShape, g, outChannelsPerGroup, channelsPerGroup, kernelH, kernelW);
         }
-        publishGemmTrace(node, context, kSize, outChannelsPerGroup, outSpatial, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
     private static void runBackwardInputF64(
@@ -528,7 +534,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.FLOAT64, outSpatial, kSize, outChannelsPerGroup, context);
+        ResolvedConv2dHints hints = requireHints(context, node, outSpatial, kSize, outChannelsPerGroup);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         double[] packedWeight = new double[kSize * outChannelsPerGroup];
@@ -550,7 +557,7 @@ final class Conv2dGemmBackend {
                 accumulateColToGradInputF64(col, gradInput, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options);
             }
         }
-        publishGemmTrace(node, context, outSpatial, kSize, outChannelsPerGroup, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
     private static void runBackwardInputF32(
@@ -575,7 +582,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.FLOAT32, outSpatial, kSize, outChannelsPerGroup, context);
+        ResolvedConv2dHints hints = requireHints(context, node, outSpatial, kSize, outChannelsPerGroup);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         float[] packedWeight = new float[kSize * outChannelsPerGroup];
@@ -597,7 +605,7 @@ final class Conv2dGemmBackend {
                 accumulateColToGradInputF32(col, gradInput, inputShape, b, g, outH, outW, channelsPerGroup, kernelH, kernelW, options);
             }
         }
-        publishGemmTrace(node, context, outSpatial, kSize, outChannelsPerGroup, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
     private static void runBackwardInputBF16(
@@ -624,7 +632,8 @@ final class Conv2dGemmBackend {
         int outChannelsPerGroup = outChannels / options.groups();
         int kSize = channelsPerGroup * kernelH * kernelW;
         int outSpatial = outH * outW;
-        boolean useBlas = shouldUseBlas(DataType.BFLOAT16, outSpatial, kSize, outChannelsPerGroup, context);
+        ResolvedConv2dHints hints = requireHints(context, node, outSpatial, kSize, outChannelsPerGroup);
+        boolean useBlas = hints.useBlas();
         ConvBlasStats stats = new ConvBlasStats();
 
         short[] packedWeight = new short[kSize * outChannelsPerGroup];
@@ -651,47 +660,40 @@ final class Conv2dGemmBackend {
         for (int i = 0; i < gradInput.length; i++) {
             gradInput[i] = CpuDTypeOps.toBFloat16Bits(gradInputAccum[i]);
         }
-        publishGemmTrace(node, context, outSpatial, kSize, outChannelsPerGroup, stats);
+        publishGemmTrace(node, hints, stats, context);
     }
 
-    private static boolean shouldUseBlas(DataType dataType, int m, int n, int k, CpuKernelContext context) {
-        if (context == null || context.blasConfig() == null) {
-            return false;
+    private static ResolvedConv2dHints requireHints(CpuKernelContext context, Tensor node, int expectedM, int expectedN, int expectedK) {
+        if (context == null || context.conv2dHints() == null) {
+            throw new IllegalStateException("Missing ResolvedConv2dHints for node " + node.getLabel());
         }
-        if (!OpenBlasFfmBridge.isAvailable()) {
-            return false;
+        ResolvedConv2dHints hints = context.conv2dHints();
+        if (hints.m() != expectedM || hints.n() != expectedN || hints.k() != expectedK) {
+            throw new IllegalStateException(
+                    "Prepared conv2d GEMM hints do not match runtime shape for node " + node.getLabel()
+                            + ": expected m/n/k=" + expectedM + "/" + expectedN + "/" + expectedK
+                            + ", prepared=" + hints.m() + "/" + hints.n() + "/" + hints.k()
+            );
         }
-        backend.runtime.BlasConfig blasConfig = context.blasConfig();
-        if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
-            return false;
+        if (hints.useBlas() && hints.provider() == BlasProvider.OPENBLAS_FFM && !OpenBlasFfmBridge.isAvailable()) {
+            throw new IllegalStateException("Prepared conv2d GEMM plan requires OPENBLAS_FFM, but the bridge is not available.");
         }
-        long work = (long) m * n * k;
-        if (work < blasConfig.matMulMinWork()) {
-            return false;
-        }
-        if (dataType == DataType.FLOAT32 || dataType == DataType.BFLOAT16) {
-            if (blasConfig.f32RequireMgeK() && m < k) {
-                return false;
-            }
-            if (((double) n / Math.max(1, k)) > blasConfig.f32MaxNOverK()) {
-                return false;
-            }
-        }
-        return true;
+        return hints;
     }
 
-    private static void publishGemmTrace(Tensor node, CpuKernelContext context, int m, int n, int k, ConvBlasStats stats) {
-        String provider = context == null || context.blasConfig() == null
-                ? "NONE"
-                : context.blasConfig().provider().name();
-        node.setRuntimeCache(new ConvTraceMetadata(
+    private static void publishGemmTrace(Tensor node, ResolvedConv2dHints hints, ConvBlasStats stats, CpuKernelContext context) {
+        if (context == null) {
+            return;
+        }
+        String provider = hints == null ? "NONE" : hints.provider().name();
+        context.publishConvTrace(node, new ConvTraceMetadata(
                 CONV_KIND_GEMM,
                 true,
                 stats != null && stats.blasCalls > 0,
                 provider,
-                m,
-                n,
-                k,
+                hints == null ? 0 : hints.m(),
+                hints == null ? 0 : hints.n(),
+                hints == null ? 0 : hints.k(),
                 stats == null ? 0 : stats.blasCalls,
                 stats == null ? 0 : stats.javaCalls
         ));

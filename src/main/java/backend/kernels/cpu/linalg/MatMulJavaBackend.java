@@ -1,9 +1,9 @@
 package backend.kernels.cpu.linalg;
 
 import backend.kernels.cpu.CpuDTypeOps;
-import backend.kernels.cpu.CpuExecutionPlanner;
 import backend.kernels.cpu.CpuThreadPool;
-import backend.kernels.cpu.ResolvedMatMulHints;
+import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.kernels.cpu.plan.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;

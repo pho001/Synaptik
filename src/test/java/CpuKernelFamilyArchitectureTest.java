@@ -35,26 +35,20 @@ public class CpuKernelFamilyArchitectureTest {
                 "CpuDTypeOps.java",
                 "CpuExecutionBackend.java",
                 "CpuExecutionMode.java",
-                "CpuExecutionPlanner.java",
                 "CpuKernel.java",
                 "CpuKernelContext.java",
                 "CpuKernelCostClass.java",
                 "CpuNodeExecutionPlan.java",
                 "CpuNodeWorkspace.java",
-                "CpuStridedElementWise.java",
                 "CpuThreadPool.java",
-                "ResolvedBroadcastPlan.java",
-                "ResolvedCpuComputeContract.java",
-                "ResolvedDispatchHints.java",
-                "ResolvedMatMulHints.java",
-                "ResolvedReductionHints.java",
-                "ResolvedWhereBroadcastPlan.java"
+                "ResolvedCpuComputeContract.java"
         );
 
         try (Stream<Path> files = Files.list(root)) {
             List<String> unexpected = files
                     .filter(Files::isRegularFile)
                     .map(path -> path.getFileName().toString())
+                    .filter(name -> name.endsWith(".java"))
                     .filter(name -> !allowed.contains(name))
                     .sorted()
                     .toList();
@@ -74,6 +68,30 @@ public class CpuKernelFamilyArchitectureTest {
                     .toList();
             assertTrue(offenders.isEmpty(), () -> "Concrete Cpu*Kernel entrypoints must live in family packages: " + offenders);
         }
+    }
+
+    @Test
+    void familySpecificPlanningAndSupportHelpersLiveOutsideCpuRoot() {
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/plan/CpuExecutionPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/plan/CpuPlanAssembler.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/plan/CpuOperationPlanResolver.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/plan/ResolvedCpuOperationPlans.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/plan/ElementwiseDispatchPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/CpuStridedElementWise.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedBooleanLoops.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedNumericInputs.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedNumericLoops.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedWhereLoops.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedScalarLoops.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedRank2Loops.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedElementWiseSemantics.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedVectorSupport.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/strided/StridedOffsetCursor.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/fused/plan/FusedDispatchPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/fused/plan/PreparedFusedDispatch.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/elementwise/unary/support/CpuPowSupport.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/layout/PreparedInputPlanner.java")));
+        assertTrue(Files.exists(Path.of("src/main/java/backend/kernels/cpu/layout/PreparedInputPolicy.java")));
     }
 
     private static void assertPackage(Operation.OpType opType, String expectedPackage) {

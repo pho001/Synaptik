@@ -1,7 +1,7 @@
 package backend;
 
-import backend.kernels.cpu.ResolvedBroadcastPlan;
-import backend.kernels.cpu.ResolvedWhereBroadcastPlan;
+import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
+import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorRemap;

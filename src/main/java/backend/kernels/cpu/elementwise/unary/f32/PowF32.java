@@ -1,9 +1,9 @@
 package backend.kernels.cpu.elementwise.unary.f32;
 
 import backend.kernels.cpu.CpuExecutionMode;
-import backend.kernels.cpu.CpuPowSupport;
 import backend.kernels.cpu.CpuThreadPool;
-import backend.kernels.cpu.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.unary.support.CpuPowSupport;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;

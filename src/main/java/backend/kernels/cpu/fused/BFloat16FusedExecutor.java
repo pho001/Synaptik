@@ -1,6 +1,7 @@
 package backend.kernels.cpu.fused;
 
 import backend.kernels.cpu.*;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 
 import backend.kernels.cpu.fused.FusedExecutionOptions;
 import graph.codegen.FusedExpressionPlan;

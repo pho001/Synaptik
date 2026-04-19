@@ -1,6 +1,7 @@
 package backend.kernels.cpu.linalg;
 
 import backend.kernels.cpu.*;
+import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;

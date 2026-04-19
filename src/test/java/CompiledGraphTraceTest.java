@@ -27,9 +27,8 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
-    void compiledGraphCanDelegateAutotuneRequest() {
+    void autotuneSessionCanRunWithoutCompiledGraphBackReference() {
         Tensor out = Tensor.scalar(2.0).add(Tensor.scalar(3.0));
-        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
 
         ExecutionProfile profile = new ExecutionProfile(
                 "delegate",
@@ -41,7 +40,7 @@ public class CompiledGraphTraceTest {
                 WorkloadProfile.none()
         );
 
-        tuning.session.TuningResult result = compiled.autotune(new tuning.session.AutotuneRequest(
+        tuning.session.TuningResult result = tuning.session.AutotuneSession.create(new tuning.session.AutotuneRequest(
                 new tuning.workload.TensorRootWorkloadSpec(
                         "delegate_workload",
                         tuning.workload.WorkloadKind.GENERIC,
@@ -58,7 +57,7 @@ public class CompiledGraphTraceTest {
                 tuning.validate.ValidationPolicy.defaults(),
                 new tuning.search.SearchPolicy(4, 1, 1, false),
                 tuning.store.PersistencePolicy.disabled()
-        ));
+        )).run();
 
         assertTrue(result.bestProfile() != null);
     }

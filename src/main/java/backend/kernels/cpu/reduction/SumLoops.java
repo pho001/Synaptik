@@ -3,7 +3,7 @@ package backend.kernels.cpu.reduction;
 import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.ResolvedReductionHints;
+import backend.kernels.cpu.reduction.plan.ResolvedReductionHints;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuThreadPool;
@@ -1111,7 +1111,7 @@ public final class SumLoops {
     }
 
     private static int materializeThreshold(CpuKernelContext context) {
-        return context.planner().contiguousMaterializeThreshold();
+        return context.contiguousMaterializeThreshold();
     }
 
     private static int logicalToOffset(int logicalIndex, int[] shape, int[] strides, int[] denseStrides, int baseOffset) {

@@ -2,7 +2,7 @@ package backend.kernels.cpu.elementwise.binary;
 
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import backend.kernels.cpu.elementwise.binary.bf16.MinBF16;
 import backend.kernels.cpu.elementwise.binary.f32.MinF32;
 import backend.kernels.cpu.elementwise.binary.f64.MinF64;

@@ -4,7 +4,7 @@ import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuKernelCostClass;
 import backend.kernels.cpu.CpuThreadPool;
-import backend.kernels.cpu.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import graph.fused.PreparedFusedExecutable;
 import operations.fused.FusedOperation;
 import tensor.Tensor;

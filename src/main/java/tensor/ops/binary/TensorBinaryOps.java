@@ -146,12 +146,14 @@ public final class TensorBinaryOps {
 
     private static boolean isScalarConstant(Tensor tensor, double expected) {
         return tensor.getOperation() == null
+                && !tensor.getRequiresGrad()
                 && tensor.getFlatDataSize() == 1
                 && Math.abs(tensor.scalarAsDouble() - expected) < 1e-12;
     }
 
     private static boolean isNonZeroScalarConstant(Tensor tensor) {
         return tensor.getOperation() == null
+                && !tensor.getRequiresGrad()
                 && tensor.getFlatDataSize() == 1
                 && Double.compare(tensor.scalarAsDouble(), 0.0d) != 0;
     }

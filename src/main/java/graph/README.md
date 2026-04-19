@@ -89,6 +89,15 @@ It contains:
 
 `PreparedExecution` is the artifact you should keep for repeated hot execution over the same graph.
 
+Just as importantly, `PreparedExecution` is where backend policy becomes concrete:
+
+- layout materialization decisions are already fixed
+- elementwise dispatch hints are already fixed
+- reduction chunking/vectorization hints are already fixed
+- matmul / conv2d / attention backend choices are already fixed
+
+Executors should not "look back up" and re-run planner logic at runtime.
+
 ## Compile Pipeline
 
 `CompiledGraph.compile(root, optimizerConfig)` currently performs this flow:

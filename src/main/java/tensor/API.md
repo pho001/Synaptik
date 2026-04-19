@@ -3257,13 +3257,6 @@ Marks or unmarks the node as backward-stage.
 #### `topologicalSort()`
 Returns topological order rooted at this tensor.
 
-#### `getRuntimeCache()`
-Returns optional runtime-attached cache object.
-Used mainly by prepared execution or specialized kernels that need auxiliary state.
-
-#### `setRuntimeCache(Object runtimeCache)`
-Installs optional runtime-attached cache object.
-
 #### `markDataViewStale()`
 Internal compatibility hook.
 It is a no-op because non-`FLOAT64` tensors no longer maintain a mirrored `double[]` view.

@@ -11,12 +11,14 @@ public record RuntimeConfig(
         KernelTuningConfig kernel,
         ApproximationConfig approximation,
         BlasConfig blas,
+        Conv2dConfig conv2d,
         FusedExecutionPolicy fused
 ) {
     public RuntimeConfig {
         kernel = Objects.requireNonNull(kernel, "kernel cannot be null");
         approximation = approximation == null ? ApproximationConfig.defaults() : approximation;
         blas = blas == null ? BlasConfig.disabled() : blas;
+        conv2d = conv2d == null ? Conv2dConfig.fromBlasConfig(blas) : conv2d;
         fused = fused == null ? FusedExecutionPolicy.defaultsTraining() : fused;
     }
 
@@ -25,7 +27,16 @@ public record RuntimeConfig(
             ApproximationConfig approximation,
             BlasConfig blas
     ) {
-        this(kernel, approximation, blas, FusedExecutionPolicy.defaultsTraining());
+        this(kernel, approximation, blas, Conv2dConfig.fromBlasConfig(blas), FusedExecutionPolicy.defaultsTraining());
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            FusedExecutionPolicy fused
+    ) {
+        this(kernel, approximation, blas, Conv2dConfig.fromBlasConfig(blas), fused);
     }
 
     public RuntimeConfig(
@@ -33,13 +44,23 @@ public record RuntimeConfig(
             ApproximationConfig approximation,
             BlasConfig blas
     ) {
-        this(cpuKernelConfig, approximation, blas, FusedExecutionPolicy.defaultsTraining());
+        this(cpuKernelConfig, approximation, blas, Conv2dConfig.fromBlasConfig(blas), FusedExecutionPolicy.defaultsTraining());
     }
 
     public RuntimeConfig(
             CpuKernelConfig cpuKernelConfig,
             ApproximationConfig approximation,
             BlasConfig blas,
+            FusedExecutionPolicy fused
+    ) {
+        this(cpuKernelConfig, approximation, blas, Conv2dConfig.fromBlasConfig(blas), fused);
+    }
+
+    public RuntimeConfig(
+            CpuKernelConfig cpuKernelConfig,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
             FusedExecutionPolicy fused
     ) {
         this(
@@ -50,6 +71,7 @@ public record RuntimeConfig(
                 ),
                 approximation,
                 blas,
+                conv2d,
                 fused
         );
     }
@@ -59,6 +81,7 @@ public record RuntimeConfig(
                 KernelTuningConfig.defaultsTraining(),
                 ApproximationConfig.defaults(),
                 BlasConfig.disabled(),
+                Conv2dConfig.disabled(),
                 FusedExecutionPolicy.defaultsTraining()
         );
     }
@@ -68,6 +91,7 @@ public record RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
                 ApproximationConfig.defaults(),
                 BlasConfig.disabled(),
+                Conv2dConfig.disabled(),
                 FusedExecutionPolicy.defaultsInference()
         );
     }
@@ -108,35 +132,7 @@ public record RuntimeConfig(
         return runtime;
     }
 
-
-
-
-    public backend.runtime.RuntimeConfig toBackendRuntimeConfig() {
-        return new backend.runtime.RuntimeConfig(
-                kernel.cpu(),
-                approximation.toBackendRuntimeConfig(),
-                blas.toBackendRuntimeConfig(),
-                fused
-        );
-    }
-
     public CpuKernelConfig cpuKernelConfig() {
         return kernel.cpu();
-    }
-
-    public static RuntimeConfig fromBackendRuntimeConfig(backend.runtime.RuntimeConfig config) {
-        if (config == null) {
-            return trainingDefaults();
-        }
-        return new RuntimeConfig(
-                new KernelTuningConfig(
-                        config.cpuKernelConfig(),
-                        KernelTuningConfig.defaultsTraining().cuda(),
-                        KernelTuningConfig.defaultsTraining().opencl()
-                ),
-                ApproximationConfig.fromBackendRuntimeConfig(config.approximationConfig()),
-                BlasConfig.fromBackendRuntimeConfig(config.blasConfig()),
-                config.fusedExecutionPolicy()
-        );
     }
 }

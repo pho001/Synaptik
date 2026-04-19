@@ -21,7 +21,7 @@ public record BlasConfig(
         provider = Objects.requireNonNullElse(provider, BlasProvider.NONE);
         matmulMinWork = matmulMinWork > 0 ? matmulMinWork : DEFAULT_MATMUL_MIN_WORK;
         f32MaxNOverK = f32MaxNOverK > 0.0d ? f32MaxNOverK : DEFAULT_F32_MAX_N_OVER_K;
-        threads = threads <= 0 ? DEFAULT_THREADS : Math.max(1, threads);
+        threads = DEFAULT_THREADS;
     }
 
     public BlasConfig(
@@ -42,24 +42,6 @@ public record BlasConfig(
                 DEFAULT_F32_MAX_N_OVER_K,
                 false,
                 DEFAULT_THREADS
-        );
-    }
-
-    public backend.runtime.BlasConfig toBackendRuntimeConfig() {
-        return new backend.runtime.BlasConfig(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, debug, threads);
-    }
-
-    public static BlasConfig fromBackendRuntimeConfig(backend.runtime.BlasConfig config) {
-        if (config == null) {
-            return disabled();
-        }
-        return new BlasConfig(
-                config.provider(),
-                config.matMulMinWork(),
-                config.f32RequireMgeK(),
-                config.f32MaxNOverK(),
-                config.debug(),
-                config.threads()
         );
     }
 }

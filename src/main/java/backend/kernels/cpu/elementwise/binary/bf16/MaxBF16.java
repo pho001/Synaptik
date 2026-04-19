@@ -3,7 +3,7 @@ package backend.kernels.cpu.elementwise.binary.bf16;
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.CpuThreadPool;
-import backend.kernels.cpu.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 
 public final class MaxBF16 {
     private MaxBF16() {}

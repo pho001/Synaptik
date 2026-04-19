@@ -434,7 +434,6 @@ That is important for:
 - `setOperation`
 - `setGradient`
 - `setBackward`
-- `getRuntimeCache` / `setRuntimeCache`
 - `copyDataFrom`
 
 These methods are real and supported, but they should not be treated as the preferred high-level modeling API.

@@ -1,6 +1,13 @@
 package backend.kernels.cpu;
 
 import backend.CpuLayoutPlan;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
+import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
+import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
+import backend.kernels.cpu.linalg.attention.plan.ResolvedScaledDotProductAttentionPlan;
+import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.kernels.cpu.nn.conv2d.plan.ResolvedConv2dHints;
+import backend.kernels.cpu.reduction.plan.ResolvedReductionHints;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -11,12 +18,18 @@ public record CpuNodeExecutionPlan(
         CpuLayoutPlan layoutPlan,
         ResolvedCpuComputeContract computeContract,
         boolean publishFloatContinuation,
+        int plannedWorkers,
+        int contiguousMaterializeThreshold,
         ResolvedDispatchHints dispatchHints,
         ResolvedReductionHints reductionHints,
-        ResolvedMatMulHints matMulHints
+        ResolvedMatMulHints matMulHints,
+        ResolvedConv2dHints conv2dHints,
+        ResolvedScaledDotProductAttentionPlan attentionPlan
 ) {
     public CpuNodeExecutionPlan {
         Objects.requireNonNull(layoutPlan, "layoutPlan cannot be null");
+        plannedWorkers = Math.max(1, plannedWorkers);
+        contiguousMaterializeThreshold = Math.max(0, contiguousMaterializeThreshold);
         computeContract = computeContract == null
                 ? new ResolvedCpuComputeContract(layoutPlan.targetType(), CpuComputeDType.F64, CpuExecutionBackend.CPU_GENERIC, CpuAccumulateDType.NONE)
                 : computeContract;

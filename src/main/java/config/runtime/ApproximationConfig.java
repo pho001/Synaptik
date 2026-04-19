@@ -16,14 +16,25 @@ public record ApproximationConfig(
         return new ApproximationConfig(ApproxMode.OFF, false);
     }
 
-    public backend.runtime.ApproximationConfig toBackendRuntimeConfig() {
-        return new backend.runtime.ApproximationConfig(approxMode, forceExactTranscendentals);
+    public boolean useFastExp(boolean backwardEnabled) {
+        if (forceExactTranscendentals) {
+            return false;
+        }
+        return switch (approxMode) {
+            case OFF -> false;
+            case ALWAYS -> true;
+            case TRAINING_ONLY -> backwardEnabled;
+        };
     }
 
-    public static ApproximationConfig fromBackendRuntimeConfig(backend.runtime.ApproximationConfig config) {
-        if (config == null) {
-            return defaults();
+    public boolean useFastTanh(boolean backwardEnabled) {
+        if (forceExactTranscendentals) {
+            return false;
         }
-        return new ApproximationConfig(config.approxMode(), config.forceExactTranscendentals());
+        return switch (approxMode) {
+            case OFF -> false;
+            case ALWAYS -> true;
+            case TRAINING_ONLY -> backwardEnabled;
+        };
     }
 }

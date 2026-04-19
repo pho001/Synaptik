@@ -2,8 +2,8 @@ package backend.kernels.cpu.elementwise.unary;
 
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.CpuPowSupport;
-import backend.kernels.cpu.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.unary.support.CpuPowSupport;
 import backend.kernels.cpu.elementwise.unary.bf16.PowBF16;
 import backend.kernels.cpu.elementwise.unary.f32.PowF32;
 import backend.kernels.cpu.elementwise.unary.f64.PowF64;

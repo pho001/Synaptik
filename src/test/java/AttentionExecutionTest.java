@@ -125,7 +125,6 @@ public class AttentionExecutionTest {
         CompiledGraph.compile(weights, OptimizerConfig.noOptimization())
                 .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD);
 
-        assertNotNull(out.getRuntimeCache());
         double e = Math.exp(1.0);
         double denom = e + 1.0;
         assertArrayEquals(new int[]{1, 2, 2}, weights.getShape());

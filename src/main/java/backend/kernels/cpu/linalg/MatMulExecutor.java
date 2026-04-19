@@ -1,7 +1,7 @@
 package backend.kernels.cpu.linalg;
 
 import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.ResolvedMatMulHints;
+import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
 import tensor.Tensor;
 
 import java.util.Arrays;

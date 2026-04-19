@@ -2,7 +2,7 @@ package backend.kernels.cpu.elementwise.unary;
 
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import backend.kernels.cpu.elementwise.unary.bf16.NegBF16;
 import backend.kernels.cpu.elementwise.unary.f32.NegF32;
 import backend.kernels.cpu.elementwise.unary.f64.NegF64;

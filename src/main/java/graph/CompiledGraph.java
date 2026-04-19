@@ -2,15 +2,13 @@ package graph;
 
 import backend.CPUBackend;
 import backend.ComputeBackend;
-import backend.kernels.cpu.CpuExecutionPlanner;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.CpuNodeWorkspace;
-import backend.kernels.cpu.ElementwisePrepareDispatchResolver;
-import backend.kernels.cpu.FusedPrepareDispatchResolver;
-import backend.kernels.cpu.PreparedFusedDispatch;
 import backend.kernels.cpu.ResolvedCpuComputeContract;
-import backend.kernels.cpu.ResolvedDispatchHints;
+import backend.kernels.cpu.fused.plan.PreparedFusedDispatch;
+import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
+import backend.kernels.cpu.plan.CpuExecutionPlanner;
 import backend.registry.CpuKernelResolver;
 import backend.runtime.ExecutionMode;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -85,6 +83,7 @@ public class CompiledGraph {
 
         forwardOutput = rootTensor.forwardOutput();
         forwardGraph.addAll(forwardOutput.topologicalSort());
+        resetAutogradBuildState();
 
         if (!hasTrainableLeafInputs()) {
             finalGraph.addAll(optimizer.optimize(new ArrayList<>(forwardGraph)));
@@ -142,7 +141,6 @@ public class CompiledGraph {
                 : runtimeConfig;
         long t0 = System.nanoTime();
         CpuExecutionPlanner planner = CpuExecutionPlanner.from(effectiveConfig.cpuKernelConfig());
-        backend.runtime.RuntimeConfig backendRuntimeConfig = effectiveConfig.toBackendRuntimeConfig();
 
         List<PreparedNodeExecution> forwardSteps = new ArrayList<>();
         List<PreparedNodeExecution> backwardSteps = new ArrayList<>();
@@ -155,7 +153,7 @@ public class CompiledGraph {
             }
             PreparedNodeExecution step = new PreparedNodeExecution(
                     tensor,
-                    prepareMetadata(tensor, planner, backendRuntimeConfig, preparedMetadata, consumers)
+                    prepareMetadata(tensor, planner, effectiveConfig, preparedMetadata, consumers)
             );
             preparedMetadata.put(tensor, step.metadata());
             if (i <= forwardEndIndex) {
@@ -215,18 +213,6 @@ public class CompiledGraph {
         execution.execute(mode);
     }
 
-    public tuning.report.BenchmarkReport benchmark(tuning.session.BenchmarkRequest request) {
-        return tuning.session.BenchmarkSession.create(request).run();
-    }
-
-    public tuning.report.BenchmarkSuiteReport benchmark(tuning.session.BenchmarkSuiteRequest request) {
-        return tuning.session.BenchmarkSuiteSession.create(request).run();
-    }
-
-    public tuning.session.TuningResult autotune(tuning.session.AutotuneRequest request) {
-        return tuning.session.AutotuneSession.create(request).run();
-    }
-
     public void zeroGrad() {
         for (Tensor tensor : finalGraph) {
             if (tensor.getGradient() == null) {
@@ -257,7 +243,7 @@ public class CompiledGraph {
     private CompiledNodeExecutionMetadata prepareMetadata(
             Tensor tensor,
             CpuExecutionPlanner planner,
-            backend.runtime.RuntimeConfig runtimeConfig,
+            config.runtime.RuntimeConfig runtimeConfig,
             Map<Tensor, CompiledNodeExecutionMetadata> preparedMetadata,
             Map<Tensor, List<Tensor>> consumers
     ) {
@@ -278,30 +264,22 @@ public class CompiledGraph {
                     operation,
                     tensor.getPrevTensors(),
                     tensor,
-                    runtimeConfig.blasConfig(),
+                    runtimeConfig.blas(),
+                    null,
                     null
             );
-            dispatchHintsOverride = ElementwisePrepareDispatchResolver.resolve(
-                    operation,
-                    tensor,
-                    elementwiseContract,
-                    planner
-            );
+            dispatchHintsOverride = planner.resolveDispatchHints(operation, tensor, elementwiseContract);
         }
         if (operation.opType() == Operation.OpType.FUSED) {
             ResolvedCpuComputeContract fusedContract = planner.resolveComputeContract(
                     operation,
                     tensor.getPrevTensors(),
                     tensor,
-                    runtimeConfig.blasConfig(),
+                    runtimeConfig.blas(),
+                    null,
                     null
             );
-            preparedFusedDispatch = FusedPrepareDispatchResolver.resolve(
-                    (FusedOperation) operation,
-                    tensor,
-                    fusedContract,
-                    planner
-            );
+            preparedFusedDispatch = planner.resolveFusedDispatch((FusedOperation) operation, tensor, fusedContract);
             dispatchHintsOverride = preparedFusedDispatch.dispatchHints();
         }
         CpuNodeExecutionPlan cpuPlan = CPUBackend.buildExecutionPlan(
@@ -309,7 +287,8 @@ public class CompiledGraph {
                 tensor.getPrevTensors(),
                 tensor,
                 planner,
-                runtimeConfig.blasConfig(),
+                runtimeConfig.blas(),
+                runtimeConfig.conv2d(),
                 shouldPublishFloatContinuation(tensor, operation, consumers),
                 dispatchHintsOverride
         );
@@ -323,7 +302,7 @@ public class CompiledGraph {
                             preparedFusedDispatch == null ? 1 : preparedFusedDispatch.cpuVectorMinSize(),
                             preparedFusedDispatch == null ? 1 : preparedFusedDispatch.asmVectorWidth()
                     ),
-                    runtimeConfig.fusedExecutionPolicy()
+                    runtimeConfig.fused()
             );
         }
         CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(tensor, operation, cpuPlan, preparedMetadata);
@@ -559,6 +538,14 @@ public class CompiledGraph {
             }
         }
         return false;
+    }
+
+    private void resetAutogradBuildState() {
+        for (Tensor tensor : forwardGraph) {
+            tensor.setGradient(null);
+            tensor.setBackward(false);
+        }
+        rootTensor.setGradient(null);
     }
 
     private List<Tensor> collectBackwardNodes() {

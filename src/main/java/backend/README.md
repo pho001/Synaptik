@@ -85,12 +85,34 @@ This is an important boundary:
   - tile sizes
   - parallelism
   - selected microkernel
+  - BLAS thread policy is not applied by runtime; provider thread management stays external/auto
+- conv2d hints
+  - prepared GEMM `m/n/k/work`
+  - prepared BLAS vs Java selection for lowered conv2d GEMM nodes
+- attention plan
+  - prepared direct-attention vector/parallel hints
+  - prepared softmax-grad reduction hints
+  - prepared matmul hints for backward substeps (`queryGrad`, `dWeights`, `valueGrad`, `keyGrad`)
 - optional workspace
   - float continuation
   - packed linear weights
   - max-pool argmax buffers
 
 The result is not a generic abstract "execution descriptor language". It is a concrete runtime recipe for one backend node.
+
+Two details matter here:
+
+- conv2d lowered GEMM nodes no longer choose `BLAS vs Java` inside `Conv2dGemmBackend`
+- scaled-dot-product-attention no longer asks the planner for runtime policy during execution
+
+Those choices are now fixed in `prepare(...)` and carried through `CpuNodeExecutionPlan`.
+
+Runtime-only auxiliary state is also kept off the semantic `Tensor` node now:
+
+- attention forward/backward caches live in execution-scoped state attached to `ExecutionContext`
+- conv trace metadata is published into the current run context, not stored back into the graph node
+
+That keeps semantic graph construction separate from per-run backend state.
 
 ## CPU Package Structure
 
@@ -138,6 +160,25 @@ Not every family has exactly the same trio of names, but the principle is consis
 - orchestration stays out of hot loops
 - low-level compute stays localized
 
+## Runtime Config Boundary
+
+There is only one runtime policy surface in the core path now:
+
+- `config.runtime.*`
+
+The backend runtime package is intentionally narrower:
+
+- `backend.runtime.ExecutionMode`
+- `backend.runtime.ExecutionContext`
+
+So the layering is:
+
+1. config/profile + config/runtime define runnable policy
+2. `CompiledGraph.prepare(...)` resolves backend-specific prepared metadata from that policy
+3. backend execution consumes only the prepared recipe plus `ExecutionContext`
+
+That keeps executor code from reinterpreting high-level config objects in hot paths.
+
 ## Elementwise Families
 
 The elementwise batch is divided into:
@@ -174,7 +215,7 @@ CPU uses a hybrid strategy:
 
 - small non-contiguous tensors
   - run through the strided path
-  - [CpuStridedElementWise.java](../backend/kernels/cpu/CpuStridedElementWise.java)
+  - [CpuStridedElementWise.java](../backend/kernels/cpu/elementwise/strided/CpuStridedElementWise.java)
 - larger non-contiguous tensors
   - inputs are materialized into contiguous temporary storage
   - then the regular fast path runs
@@ -315,6 +356,8 @@ Main pieces:
 - [Conv2dGemmBackend.java](../backend/kernels/cpu/nn/Conv2dGemmBackend.java)
 
 The choice between `CONV2D` and `CONV2D_GEMM` is not a backend runtime decision. It is a compile-time rewrite/lowering decision in the optimizer.
+
+For already lowered `CONV2D_GEMM` nodes, the backend also does not re-decide `BLAS vs Java` inside the hot kernel. That dispatch is resolved during `prepare(...)` into `ResolvedConv2dHints`, and the runtime path only executes the prepared recipe.
 
 ### Pool2d
 

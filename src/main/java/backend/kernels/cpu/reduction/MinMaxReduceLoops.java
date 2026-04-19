@@ -5,7 +5,7 @@ import backend.kernels.cpu.*;
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuThreadPool;
-import backend.kernels.cpu.ResolvedReductionHints;
+import backend.kernels.cpu.reduction.plan.ResolvedReductionHints;
 import tensor.Tensor;
 import tensor.TensorMetadata;
 
