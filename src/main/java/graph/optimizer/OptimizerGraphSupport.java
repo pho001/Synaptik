@@ -6,6 +6,7 @@ import tensor.TensorInternalAccess;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,7 +43,7 @@ public final class OptimizerGraphSupport {
         if (graph.isEmpty()) {
             return graph;
         }
-        return rebuildTopologicalClosureFromRoots(consumerFreeSinks(graph));
+        return rebuildTopologicalClosureFromRoots(observableRoots(graph));
     }
 
     public static List<Tensor> rebuildTopologicalClosureFromRoots(List<Tensor> roots) {
@@ -76,6 +77,35 @@ public final class OptimizerGraphSupport {
             }
         }
         return sinks;
+    }
+
+    public static List<Tensor> observableRoots(List<Tensor> graph) {
+        if (graph == null || graph.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Tensor> roots = new LinkedHashSet<>(consumerFreeSinks(graph));
+        for (Tensor tensor : graph) {
+            Tensor gradient = tensor.getGradient();
+            if (gradient != null && gradient.getOperation() != null) {
+                roots.add(gradient);
+            }
+        }
+        return List.copyOf(roots);
+    }
+
+    public static List<Tensor> resolveRoots(List<Tensor> roots, Map<Tensor, Tensor> replacements) {
+        if (roots == null || roots.isEmpty()) {
+            return List.of();
+        }
+        if (replacements == null || replacements.isEmpty()) {
+            return List.copyOf(roots);
+        }
+        LinkedHashSet<Tensor> resolvedRoots = new LinkedHashSet<>();
+        for (Tensor root : roots) {
+            Tensor resolved = resolveReplacement(root, replacements);
+            resolvedRoots.add(resolved == null ? root : resolved);
+        }
+        return List.copyOf(resolvedRoots);
     }
 
     private static void dfsPostOrder(Tensor node, Set<Tensor> visited, List<Tensor> out) {

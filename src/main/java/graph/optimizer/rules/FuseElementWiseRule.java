@@ -139,7 +139,9 @@ public class FuseElementWiseRule implements OptimizationRule {
             }
         }
 
-        return OptimizerGraphSupport.rebuildTopologicalClosure(optimizedGraph);
+        return OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(
+                OptimizerGraphSupport.observableRoots(optimizedGraph)
+        );
     }
 
     /**

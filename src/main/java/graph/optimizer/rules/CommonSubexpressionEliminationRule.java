@@ -77,6 +77,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
 
     @Override
     public List<Tensor> apply(List<Tensor> sortedGraph) {
+        List<Tensor> originalRoots = OptimizerGraphSupport.observableRoots(sortedGraph);
         List<Tensor> optimized = new ArrayList<>();
         Map<StructuralSignature, Tensor> seenNodes = new HashMap<>();
         Map<Tensor, Tensor> replacements = new HashMap<>();
@@ -107,7 +108,18 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             optimized.add(t);
         }
 
-        return OptimizerGraphSupport.rebuildTopologicalClosure(optimized);
+        if (!replacements.isEmpty()) {
+            for (Tensor tensor : sortedGraph) {
+                Tensor resolvedGradient = OptimizerGraphSupport.resolveReplacement(tensor.getGradient(), replacements);
+                if (resolvedGradient != null) {
+                    TensorInternalAccess.setGradient(tensor, resolvedGradient);
+                }
+            }
+        }
+
+        return OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(
+                OptimizerGraphSupport.resolveRoots(originalRoots, replacements)
+        );
     }
 
     private StructuralSignature generateSignature(Tensor t, Map<Tensor, SignatureComponent> structuralSignatures) {

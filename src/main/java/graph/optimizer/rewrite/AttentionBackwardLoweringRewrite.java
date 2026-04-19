@@ -25,7 +25,7 @@ import java.util.Set;
 final class AttentionBackwardLoweringRewrite implements OptimizationRule {
     @Override
     public List<Tensor> apply(List<Tensor> sortedGraph) {
-        List<Tensor> originalSinks = OptimizerGraphSupport.consumerFreeSinks(sortedGraph);
+        List<Tensor> originalRoots = OptimizerGraphSupport.observableRoots(sortedGraph);
         Map<AttentionKey, List<Tensor>> attentionIndex = buildAttentionIndex(sortedGraph);
         Set<Tensor> forwardReachable = collectForwardReachable(sortedGraph);
         Map<Tensor, Tensor> replacements = new HashMap<>();
@@ -54,12 +54,9 @@ final class AttentionBackwardLoweringRewrite implements OptimizationRule {
             }
         }
 
-        List<Tensor> resolvedRoots = new ArrayList<>(originalSinks.size());
-        for (Tensor sink : originalSinks) {
-            Tensor resolved = OptimizerGraphSupport.resolveReplacement(sink, replacements);
-            resolvedRoots.add(resolved == null ? sink : resolved);
-        }
-        return OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(resolvedRoots);
+        return OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(
+                OptimizerGraphSupport.resolveRoots(originalRoots, replacements)
+        );
     }
 
     private static Tensor rewriteTensor(
