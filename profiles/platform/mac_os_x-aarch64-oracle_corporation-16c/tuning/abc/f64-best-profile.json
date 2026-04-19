@@ -1,15 +1,15 @@
 {
-  "score": 13.73514667,
-  "updatedAt": "2026-04-18T09:27:56.553275+02:00",
-  "hardwareKey": "os=mac_os_x|arch=aarch64|vm=java_hotspot(tm)_64-bit_server_vm|vendor=oracle_corporation|cores=16",
+  "score": 13.10705584,
+  "updatedAt": "2026-04-19T14:22:26.266626+02:00",
+  "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
   "workloadKey": "name=abc_sequence_matmul_f64|kind=ABC_SEQUENCE_MATMUL|dtype=FLOAT64|mode=FORWARD_BACKWARD|features=2048|batch=256",
   "profile": {
       "profileName": "abc-f64-calibrated",
-      "candidateName": "abc-f64-calibrated+stageOrder=CSE-FUSE-AR-MEM:abc-f64-calibrated",
+      "candidateName": "abc-f64-calibrated+stageOrder=FUSE-CSE-AR:abc-f64-calibrated",
       "dataType": "FLOAT64",
       "mode": "FORWARD_BACKWARD",
       "optimizer": {
-        "stageOrder": ["CSE", "FUSE", "AR", "MEM"],
+        "stageOrder": ["FUSE", "CSE", "AR"],
         "rewrite": {
           "algebraicEnabled": true,
           "linearLoweringEnabled": true,
@@ -103,6 +103,16 @@
           "f32MaxNOverK": 2.0,
           "debug": false,
           "threads": 0
+        },
+        "conv2d": {
+          "conv2dProvider": "OPENBLAS_FFM",
+          "conv2dF64MinWork": 4000000,
+          "conv2dF32MinWork": 4000000,
+          "conv2dF32RequireMgeK": false,
+          "conv2dF32MaxNOverK": 2.0,
+          "conv2dBf16MinWork": 4000000,
+          "conv2dBf16RequireMgeK": false,
+          "conv2dBf16MaxNOverK": 2.0
         },
         "fused": {
           "fusedPrimaryBackend": "ASM",
