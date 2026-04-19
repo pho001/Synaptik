@@ -54,14 +54,29 @@ public final class ExecutionState {
                     node.label(),
                     node.dataType()
             );
+            runtimeTensor.setRequiresGrad(node.semanticTensor().getRequiresGrad());
             if (node.leaf()) {
                 if (node.id() <= forwardBoundaryNodeId) {
-                    TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, node.semanticTensor());
+                    TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, node.sourceTensor());
                 } else {
-                    runtimeTensor.copyDataFrom(node.semanticTensor());
+                    runtimeTensor.copyDataFrom(node.sourceTensor());
                 }
             }
             runtimeTensors.put(node.id(), runtimeTensor);
+        }
+        for (CompiledNode node : compiledNodes) {
+            if (node.inputIds().isEmpty()) {
+                continue;
+            }
+            java.util.ArrayList<Tensor> runtimeInputs = new java.util.ArrayList<>(node.inputIds().size());
+            for (int inputId : node.inputIds()) {
+                Tensor input = runtimeTensors.get(inputId);
+                if (input == null) {
+                    throw new IllegalStateException("Missing runtime input tensor for nodeId=" + node.id() + ", inputId=" + inputId);
+                }
+                runtimeInputs.add(input);
+            }
+            TensorInternalAccess.setPrevTensors(runtimeTensors.get(node.id()), runtimeInputs);
         }
 
         Map<Integer, CpuNodeWorkspace> workspaces = new HashMap<>();
@@ -83,6 +98,7 @@ public final class ExecutionState {
                             template.getLabel(),
                             template.getDataType()
                     );
+                    runtimePrepared.setRequiresGrad(template.getRequiresGrad());
                     preparedInputs.put(new PreparedInputKey(entry.getKey(), preparedInput.inputIndex()), runtimePrepared);
                 }
             }

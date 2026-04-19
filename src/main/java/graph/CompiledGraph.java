@@ -6,6 +6,7 @@ import graph.execution.trace.CompileTrace;
 import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
 import tensor.AutogradCompilationScope;
+import tensor.CompileMode;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
@@ -19,20 +20,31 @@ import java.util.Set;
 
 public class CompiledGraph {
     private final Tensor rootTensor;
+    private final SemanticForwardCanonicalizer forwardCanonicalizer;
     private final GraphOptimizer optimizer;
+    private final CompileMode compileMode;
     private CompileTrace compileTrace = CompileTrace.skipped();
     private final List<Tensor> finalGraph = new ArrayList<>();
     private final List<Tensor> forwardGraph = new ArrayList<>();
     private List<CompiledNode> compiledNodes = List.of();
     private Map<Tensor, CompiledNode> compiledNodeByTensor = Map.of();
     private Map<Tensor, CompiledGradientBinding> compiledGradients = Map.of();
+    private CompiledGradientBinding forwardSeedGradient;
     private CompiledNode compiledForwardOutput;
     private Tensor forwardOutput;
     private int forwardEndIndex = -1;
+    private boolean compiledSupportsBackward;
 
-    public CompiledGraph(Tensor rootTensor, GraphOptimizer forwardOptimizer) {
+    private CompiledGraph(
+            Tensor rootTensor,
+            SemanticForwardCanonicalizer forwardCanonicalizer,
+            GraphOptimizer forwardOptimizer,
+            CompileMode compileMode
+    ) {
         this.rootTensor = rootTensor;
+        this.forwardCanonicalizer = forwardCanonicalizer;
         this.optimizer = forwardOptimizer;
+        this.compileMode = compileMode == null ? CompileMode.AUTO : compileMode;
         long t0 = System.nanoTime();
         compile();
         this.compileTrace = new CompileTrace(
@@ -45,23 +57,36 @@ public class CompiledGraph {
     }
 
     public static CompiledGraph compile(Tensor rootTensor, config.optimizer.OptimizerConfig optimizerConfig) {
+        return compile(rootTensor, optimizerConfig, CompileMode.AUTO);
+    }
+
+    public static CompiledGraph compile(Tensor rootTensor, config.optimizer.OptimizerConfig optimizerConfig, CompileMode compileMode) {
         if (rootTensor == null) {
             throw new IllegalArgumentException("rootTensor cannot be null");
         }
         if (optimizerConfig == null) {
             throw new IllegalArgumentException("optimizerConfig cannot be null");
         }
-        return new CompiledGraph(rootTensor, graph.optimizer.OptimizerFactory.create(optimizerConfig));
+        return new CompiledGraph(
+                rootTensor,
+                graph.optimizer.OptimizerFactory.createSemanticForwardCanonicalizer(optimizerConfig),
+                graph.optimizer.OptimizerFactory.create(optimizerConfig),
+                compileMode
+        );
     }
 
     public static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer) {
+        return compile(rootTensor, optimizer, CompileMode.AUTO);
+    }
+
+    public static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer, CompileMode compileMode) {
         if (rootTensor == null) {
             throw new IllegalArgumentException("rootTensor cannot be null");
         }
         if (optimizer == null) {
             throw new IllegalArgumentException("optimizer cannot be null");
         }
-        return new CompiledGraph(rootTensor, optimizer);
+        return new CompiledGraph(rootTensor, null, optimizer, compileMode);
     }
 
     public void compile() {
@@ -69,21 +94,28 @@ public class CompiledGraph {
         compiledNodeByTensor = Map.of();
         compiledForwardOutput = null;
         compiledGradients = Map.of();
+        forwardSeedGradient = null;
+        compiledSupportsBackward = false;
         finalGraph.clear();
         forwardGraph.clear();
 
-        forwardOutput = rootTensor.forwardOutput();
-        forwardGraph.addAll(forwardOutput.topologicalSort());
+        Tensor semanticForwardOutput = rootTensor.forwardOutput();
+        Map<Tensor, Tensor> sourceTensors = initializeForwardGraph(semanticForwardOutput);
         try (AutogradCompilationScope ignored = AutogradCompilationScope.open()) {
             resetAutogradBuildState();
 
-            if (!hasTrainableLeafInputs()) {
-                finalGraph.addAll(optimizer.optimize(new ArrayList<>(forwardGraph)));
+            boolean trainableLeafInputs = hasTrainableLeafInputs();
+            compiledSupportsBackward = shouldCompileBackward(trainableLeafInputs);
+            if (!compiledSupportsBackward) {
+                List<Tensor> optimizedForward = optimizeWorkingGraph(forwardGraph, sourceTensors);
+                finalGraph.addAll(optimizedForward);
                 forwardEndIndex = finalGraph.indexOf(forwardOutput);
                 if (forwardEndIndex == -1) {
                     throw new IllegalStateException("Forward output node not found in inference finalGraph.");
                 }
-                rebuildCompiledNodeSnapshot();
+                sourceTensors.put(requireForwardRoot(), rootTensor);
+                rebuildCompiledNodeSnapshot(sourceTensors);
+                captureForwardSeedGradient();
                 return;
             }
 
@@ -91,7 +123,8 @@ public class CompiledGraph {
                 throw new UnsupportedOperationException("BOOL/INT32 root tensors do not support backward execution.");
             }
 
-            TensorInternalAccess.setGradient(rootTensor, Tensor.onesLike(rootTensor));
+            Tensor actualForwardRoot = requireForwardRoot();
+            TensorInternalAccess.setGradient(actualForwardRoot, Tensor.onesLike(actualForwardRoot));
             for (int i = forwardGraph.size() - 1; i >= 0; i--) {
                 TensorInternalAccess.buildBackwardGraph(forwardGraph.get(i));
             }
@@ -115,20 +148,30 @@ public class CompiledGraph {
             finalGraph.addAll(superRoot.topologicalSort());
             finalGraph.remove(superRoot);
 
-            List<Tensor> optimized = optimizer.optimize(new ArrayList<>(finalGraph));
+            List<Tensor> optimized = optimizeWorkingGraph(finalGraph, sourceTensors);
             finalGraph.clear();
             finalGraph.addAll(optimized);
             forwardEndIndex = finalGraph.indexOf(forwardOutput);
             if (forwardEndIndex == -1) {
                 throw new IllegalStateException("Forward output node not found in finalGraph.");
             }
-            rebuildCompiledNodeSnapshot();
-            compiledGradients = captureCompiledGradients(finalGraph);
+            sourceTensors.put(requireForwardRoot(), rootTensor);
+            rebuildCompiledNodeSnapshot(sourceTensors);
+            compiledGradients = captureCompiledGradients(finalGraph, sourceTensors);
+            captureForwardSeedGradient();
         }
     }
 
     public boolean supportsBackward() {
-        return hasTrainableLeafInputs();
+        return compiledSupportsBackward;
+    }
+
+    public CompileMode compileMode() {
+        return compileMode;
+    }
+
+    public PreparedExecution prepare() {
+        return prepare((config.runtime.RuntimeConfig) null);
     }
 
     public PreparedExecution prepare(config.runtime.RuntimeConfig runtimeConfig) {
@@ -176,7 +219,7 @@ public class CompiledGraph {
             if (node.backwardNode()) {
                 continue;
             }
-            Tensor gradient = node.semanticTensor().getGradient();
+            Tensor gradient = node.sourceTensor().getGradient();
             if (gradient == null) {
                 continue;
             }
@@ -206,6 +249,10 @@ public class CompiledGraph {
         return compiledGradients;
     }
 
+    CompiledGradientBinding forwardSeedGradient() {
+        return forwardSeedGradient;
+    }
+
     List<CompiledNode> compiledNodesView() {
         return compiledNodes;
     }
@@ -231,6 +278,13 @@ public class CompiledGraph {
         return false;
     }
 
+    private boolean shouldCompileBackward(boolean trainableLeafInputs) {
+        return switch (compileMode) {
+            case INFERENCE_ONLY -> false;
+            case TRAINING, AUTO -> trainableLeafInputs;
+        };
+    }
+
     private void resetAutogradBuildState() {
         for (Tensor tensor : forwardGraph) {
             TensorInternalAccess.clearGradient(tensor);
@@ -239,23 +293,54 @@ public class CompiledGraph {
         TensorInternalAccess.clearGradient(rootTensor);
     }
 
-    private Map<Tensor, CompiledGradientBinding> captureCompiledGradients(List<Tensor> graph) {
+    private Map<Tensor, Tensor> initializeForwardGraph(Tensor semanticForwardOutput) {
+        if (forwardCanonicalizer == null) {
+            forwardOutput = semanticForwardOutput;
+            forwardGraph.addAll(semanticForwardOutput.topologicalSort());
+            return new IdentityHashMap<>();
+        }
+        SemanticForwardCanonicalizer.Result canonicalized = forwardCanonicalizer.canonicalize(
+                semanticForwardOutput.topologicalSort(),
+                semanticForwardOutput,
+                rootTensor
+        );
+        forwardOutput = canonicalized.forwardOutput();
+        forwardGraph.addAll(canonicalized.graph());
+        return new IdentityHashMap<>(canonicalized.sourceTensors());
+    }
+
+    private List<Tensor> optimizeWorkingGraph(List<Tensor> workingGraph, Map<Tensor, Tensor> sourceTensors) {
+        OptimizerGraphSnapshot snapshot = OptimizerGraphSnapshot.capture(workingGraph, forwardOutput);
+        List<Tensor> optimized = optimizer.optimize(new ArrayList<>(snapshot.graph()));
+        IdentityHashMap<Tensor, Tensor> composed = new IdentityHashMap<>();
+        for (Map.Entry<Tensor, Tensor> entry : snapshot.originalBySnapshot().entrySet()) {
+            Tensor original = entry.getValue();
+            composed.put(entry.getKey(), sourceTensors.getOrDefault(original, original));
+        }
+        sourceTensors.clear();
+        sourceTensors.putAll(composed);
+        forwardOutput = snapshot.forwardOutput();
+        return optimized;
+    }
+
+    private Map<Tensor, CompiledGradientBinding> captureCompiledGradients(List<Tensor> graph, Map<Tensor, Tensor> sourceTensors) {
         IdentityHashMap<Tensor, CompiledGradientBinding> out = new IdentityHashMap<>();
         for (Tensor tensor : graph) {
             Tensor gradient = tensor.getGradient();
             if (gradient == null) {
                 continue;
             }
+            Tensor publishedTensor = sourceTensors.getOrDefault(tensor, tensor);
             CompiledNode gradientNode = compiledNodeByTensor.get(gradient);
             if (gradientNode != null) {
-                out.put(tensor, CompiledGradientBinding.node(gradientNode.id()));
+                out.put(publishedTensor, CompiledGradientBinding.node(gradientNode.id()));
                 continue;
             }
             if (gradient.getOperation() == null) {
-                out.put(tensor, CompiledGradientBinding.constant(gradient));
+                out.put(publishedTensor, CompiledGradientBinding.constant(gradient));
                 continue;
             }
-            throw new IllegalStateException("Gradient binding for tensor '" + tensor.getLabel()
+            throw new IllegalStateException("Gradient binding for tensor '" + publishedTensor.getLabel()
                     + "' does not resolve to a compiled node or constant.");
         }
         if (out.isEmpty()) {
@@ -264,8 +349,8 @@ public class CompiledGraph {
         return Map.copyOf(out);
     }
 
-    private void rebuildCompiledNodeSnapshot() {
-        compiledNodes = CompiledNode.snapshot(finalGraph);
+    private void rebuildCompiledNodeSnapshot(Map<Tensor, Tensor> sourceTensors) {
+        compiledNodes = CompiledNode.snapshot(finalGraph, sourceTensors);
         IdentityHashMap<Tensor, CompiledNode> index = new IdentityHashMap<>();
         for (CompiledNode node : compiledNodes) {
             index.put(node.semanticTensor(), node);
@@ -275,6 +360,32 @@ public class CompiledGraph {
         if (compiledForwardOutput == null) {
             throw new IllegalStateException("Forward output compiled node snapshot is missing.");
         }
+    }
+
+    private void captureForwardSeedGradient() {
+        Tensor gradient = requireForwardRoot().getGradient();
+        if (gradient == null) {
+            forwardSeedGradient = null;
+            return;
+        }
+        CompiledNode gradientNode = compiledNodeByTensor.get(gradient);
+        if (gradientNode != null) {
+            forwardSeedGradient = CompiledGradientBinding.node(gradientNode.id());
+            return;
+        }
+        if (gradient.getOperation() == null) {
+            forwardSeedGradient = CompiledGradientBinding.constant(gradient);
+            return;
+        }
+        throw new IllegalStateException("Forward seed gradient does not resolve to a compiled node or constant.");
+    }
+
+    private Tensor requireForwardRoot() {
+        List<Tensor> inputs = forwardOutput == null ? null : forwardOutput.getPrevTensors();
+        if (inputs == null || inputs.size() != 1 || inputs.get(0) == null) {
+            throw new IllegalStateException("System forward output must have exactly one input.");
+        }
+        return inputs.get(0);
     }
 
     private List<Tensor> collectBackwardNodes() {

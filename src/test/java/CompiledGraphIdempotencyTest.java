@@ -7,6 +7,7 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 public class CompiledGraphIdempotencyTest {
     @Test
@@ -45,5 +46,24 @@ public class CompiledGraphIdempotencyTest {
 
         second.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
+    }
+
+    @Test
+    void compileDoesNotMutateOriginalInferenceForwardGraph() {
+        Tensor a = new Tensor(new double[]{1.0}, new int[]{1}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{2.0}, new int[]{1}, null, "b", DataType.FLOAT64);
+        Tensor c = new Tensor(new double[]{3.0}, new int[]{1}, null, "c", DataType.FLOAT64);
+        Tensor add = a.add(b);
+        Tensor out = add.mul(c);
+
+        assertEquals(operations.Operation.OpType.ADD, add.getOperation().opType());
+        assertEquals(operations.Operation.OpType.MUL, out.getOperation().opType());
+        assertSame(add, out.getPrevTensors().getFirst());
+
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+
+        assertEquals(operations.Operation.OpType.ADD, add.getOperation().opType());
+        assertEquals(operations.Operation.OpType.MUL, out.getOperation().opType());
+        assertSame(add, out.getPrevTensors().getFirst());
     }
 }

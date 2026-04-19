@@ -61,7 +61,12 @@ When adding new tensor semantics:
   - [Low-level public constructors](#low-level-public-constructors)
 - [Static Facade](#static-facade)
 - [Execution API](#execution-api)
+  - [`compile()`](#compile)
+  - [`compile(CompileMode compileMode)`](#compilecompilemode-compilemode)
   - [`prepare(ExecutionProfile profile)`](#prepareexecutionprofile-profile)
+  - [`compute()`](#compute)
+  - [`compute(CompileMode compileMode)`](#computecompilemode-compilemode)
+  - [`compute(ComputeOptions options)`](#computecomputeoptions-options)
   - [`compute(ExecutionProfile profile)`](#computeexecutionprofile-profile)
   - [`compute(PreparedExecution execution, ExecutionMode mode)`](#computepreparedexecution-execution-executionmode-mode)
 - [Static Factories](#static-factories)
@@ -453,6 +458,47 @@ Tensor dense = expanded.contiguous();
 
 ## Execution API
 
+### `compile()`
+
+Builds a compiled graph using the convenience default:
+
+- `CompileMode.INFERENCE_ONLY`
+- `OptimizerConfig.inferenceDefaults()`
+
+Returns:
+- `CompiledGraph`
+
+Example:
+```java
+Tensor y = logits.softmax(-1);
+CompiledGraph graph = y.compile();
+PreparedExecution prepared = graph.prepare();
+prepared.execute(ExecutionMode.FORWARD);
+```
+
+### `compile(CompileMode compileMode)`
+
+Builds a compiled graph with an explicit compile intent.
+
+Supported intents:
+- `INFERENCE_ONLY`
+  - always compile forward only
+- `TRAINING`
+  - compile forward + backward when the graph has trainable leaf inputs
+- `AUTO`
+  - preserve historical behavior; compile backward only when trainable leaf inputs exist
+
+Returns:
+- `CompiledGraph`
+
+Example:
+```java
+Tensor loss = logits.logSoftmax(-1).mean();
+CompiledGraph graph = loss.compile(CompileMode.TRAINING);
+PreparedExecution prepared = graph.prepare();
+prepared.execute(ExecutionMode.FORWARD_BACKWARD);
+```
+
 ### `prepare(ExecutionProfile profile)`
 
 Builds a prepared execution for the graph rooted at this tensor.
@@ -466,9 +512,91 @@ Returns:
 Example:
 ```java
 // Builds a prepared execution object for the graph rooted at y.
-ExecutionProfile profile = ExecutionProfile.inferenceDefaults();
+ExecutionProfile profile = new ExecutionProfile(
+        "manual-infer",
+        "manual-infer",
+        y.getDataType(),
+        ExecutionMode.FORWARD,
+        OptimizerConfig.inferenceDefaults(),
+        RuntimeConfig.inferenceDefaults()
+);
 PreparedExecution execution = y.prepare(profile);
 // Returns: a PreparedExecution bound to the selected optimizer/runtime profile.
+```
+
+### `compute()`
+
+Convenience one-shot execution.
+
+Semantics:
+- compile with `CompileMode.INFERENCE_ONLY`
+- use inference optimizer defaults
+- use inference runtime defaults
+- execute `FORWARD`
+
+Returns:
+- the same tensor instance after execution
+
+Example:
+```java
+Tensor y = logits.softmax(-1).compute();
+// Returns: the same tensor instance, now holding computed forward data.
+```
+
+### `compute(CompileMode compileMode)`
+
+Convenience one-shot execution with explicit compile intent.
+
+Semantics:
+- resolves default optimizer/runtime presets from the compile mode
+- executes `FORWARD` for `INFERENCE_ONLY`
+- executes `FORWARD_BACKWARD` for `TRAINING` when the graph has trainable leaves
+- `AUTO` chooses between those two behaviors from the graph
+
+Returns:
+- the same tensor instance after execution
+
+Example:
+```java
+Tensor loss = logits.mean();
+loss.compute(CompileMode.TRAINING);
+```
+
+### `compute(ComputeOptions options)`
+
+Configurable convenience execution.
+
+Supported options today:
+- `compileMode(...)`
+- `autotune(...)`
+- `optimizer(...)`
+- `runtime(...)`
+
+`AutotunePolicy` semantics:
+- `NEVER`
+  - use the resolved optimizer/runtime profile directly
+- `IF_MISSING`
+  - for this tensor graph, dtype, mode, and hardware fingerprint:
+    - reuse a cached generic best-profile from `build/tuning/tensor/...` if present
+    - otherwise run generic stage-order autotune once and persist the winner
+- `FORCE`
+  - rerun generic stage-order autotune and overwrite the cached winner
+
+The generic autotune used here is intentionally lightweight:
+- it autotunes the current tensor root as a generic workload
+- it searches constrained stage-order candidates
+- it persists the winner under `build/tuning/tensor/...`
+
+Returns:
+- the same tensor instance after execution
+
+Example:
+```java
+Tensor loss = logits.mean().compute(
+        new ComputeOptions()
+                .compileMode(CompileMode.TRAINING)
+                .autotune(AutotunePolicy.IF_MISSING)
+);
 ```
 
 ### `compute(ExecutionProfile profile)`
@@ -484,7 +612,14 @@ Returns:
 Example:
 ```java
 // Compiles and executes the graph rooted at loss using the training profile.
-ExecutionProfile profile = ExecutionProfile.trainingDefaults();
+ExecutionProfile profile = new ExecutionProfile(
+        "manual-train",
+        "manual-train",
+        loss.getDataType(),
+        ExecutionMode.FORWARD_BACKWARD,
+        OptimizerConfig.trainingDefaults(),
+        RuntimeConfig.trainingDefaults()
+);
 loss.compute(profile);
 // Returns: nothing; loss and all dependent tensors are executed in place.
 ```

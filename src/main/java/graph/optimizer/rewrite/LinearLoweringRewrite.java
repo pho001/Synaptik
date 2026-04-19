@@ -44,15 +44,7 @@ public class LinearLoweringRewrite extends AbstractRewriteRule {
             return originalAdd;
         }
 
-        Tensor lowered = new Tensor(
-                originalAdd.getShape().clone(),
-                List.of(input, weight, second),
-                new linear(true),
-                "linear",
-                originalAdd.getDataType()
-        );
-        lowered.setRequiresGrad(originalAdd.getRequiresGrad());
-        return lowered;
+        return input.linear(weight, second);
     }
 
     private boolean isBias(Tensor tensor) {

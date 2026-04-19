@@ -45,6 +45,7 @@ public record CpuLayoutPlan(
                     preparedInput.remapPlan(),
                     materializeThreshold
             );
+            executionContext.mirrorRuntimeState(source, runtimePrepared);
             resolvedInputs.set(preparedInput.inputIndex(), runtimePrepared);
         }
         return List.copyOf(resolvedInputs);

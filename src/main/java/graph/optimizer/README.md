@@ -77,8 +77,34 @@ This matters because:
 At the top level, [GraphOptimizer.java](./GraphOptimizer.java) is intentionally simple:
 
 1. take a sorted graph
-2. apply each configured rule in order
-3. require that each rule returns a non-null graph
+2. run the iterative stage prefix to structural fixpoint
+3. run terminal stages once
+4. require that each rule returns a non-null graph
+
+Today the factory splits the configured stage order into:
+
+- iterative stages
+  - currently everything except `MEM`
+- terminal stages
+  - currently `MEM`
+
+That means a typical `AR -> CSE -> FUSE -> MEM` order is executed as:
+
+1. snapshot the compile graph
+2. run `AR -> CSE -> FUSE`
+3. fingerprint the resulting graph structurally
+4. if the graph changed, run `AR -> CSE -> FUSE` again
+5. stop when the graph reaches fixpoint or the configured safety cap is reached
+6. run `MEM` exactly once on the final graph
+
+This is intentional.
+
+- We keep the user-facing mental model of one joint forward/backward graph.
+- We do not rely on repeated semantic `compile()` calls as an implicit optimizer strategy.
+- We make the previously observed "second compile sometimes finds a better graph" opportunity explicit and deterministic inside the optimizer itself.
+
+The compile pipeline now optimizes over a compile-time snapshot rather than mutating the semantic graph in place.
+That keeps optimizer rewrites local to compilation while still allowing autograd graph construction to reason over the whole joint graph before the snapshot is taken.
 
 The interesting mechanics live inside the individual rules and in [OptimizerGraphSupport.java](./OptimizerGraphSupport.java):
 

@@ -3,6 +3,7 @@ package tensor;
 import backend.ComputeBackend;
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
+import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import operations.Operation;
 import operations.layout.noop;
@@ -481,6 +482,26 @@ public class Tensor {
         return TensorExecutionSupport.prepare(this, profile);
     }
 
+    public CompiledGraph compile() {
+        return TensorExecutionSupport.compile(this, CompileMode.INFERENCE_ONLY);
+    }
+
+    public CompiledGraph compile(CompileMode compileMode) {
+        return TensorExecutionSupport.compile(this, compileMode);
+    }
+
+    public Tensor compute() {
+        return TensorExecutionSupport.compute(this);
+    }
+
+    public Tensor compute(CompileMode compileMode) {
+        return TensorExecutionSupport.compute(this, compileMode);
+    }
+
+    public Tensor compute(ComputeOptions options) {
+        return TensorExecutionSupport.compute(this, options);
+    }
+
     public void compute(ExecutionProfile profile) {
         TensorExecutionSupport.compute(this, profile);
     }
@@ -906,6 +927,10 @@ public class Tensor {
 
     void setBackwardFunctionInternal(Runnable backwardFunction) {
         this.backwardFunction = backwardFunction;
+    }
+
+    Runnable backwardFunctionInternal() {
+        return backwardFunction;
     }
 
     double getByStorageOffset(int offset) {

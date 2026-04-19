@@ -440,12 +440,23 @@ The intended execution flow is:
 
 Convenience entry points still exist on `Tensor`:
 
+- `compile()`
+- `compile(CompileMode compileMode)`
 - `prepare(ExecutionProfile profile)`
+- `compute()`
+- `compute(CompileMode compileMode)`
+- `compute(ComputeOptions options)`
 - `compute(ExecutionProfile profile)`
 - `compute(PreparedExecution execution, ExecutionMode mode)`
 
 These are intentionally thin facades.
 They are not a substitute for the actual compile/runtime layers.
+
+The recommended split is now:
+
+- use `compute()` / `compute(CompileMode)` for simple one-shot execution
+- use `compute(ComputeOptions)` when you want convenience plus generic stage-order autotune
+- use `CompiledGraph` + `PreparedExecution` when you need explicit reuse, tracing, or benchmark isolation
 
 ## DType and Storage Model
 

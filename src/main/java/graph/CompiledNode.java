@@ -8,6 +8,7 @@ import tensor.Tensor;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -20,6 +21,7 @@ import java.util.Objects;
 public final class CompiledNode {
     private final int id;
     private final Tensor semanticTensor;
+    private final Tensor sourceTensor;
     private final Operation operation;
     private final ComputeBackend backend;
     private final List<Integer> inputIds;
@@ -38,6 +40,7 @@ public final class CompiledNode {
     private CompiledNode(
             int id,
             Tensor semanticTensor,
+            Tensor sourceTensor,
             Operation operation,
             ComputeBackend backend,
             List<Integer> inputIds,
@@ -55,6 +58,7 @@ public final class CompiledNode {
     ) {
         this.id = id;
         this.semanticTensor = Objects.requireNonNull(semanticTensor, "semanticTensor cannot be null");
+        this.sourceTensor = Objects.requireNonNull(sourceTensor, "sourceTensor cannot be null");
         this.operation = operation;
         this.backend = Objects.requireNonNull(backend, "backend cannot be null");
         this.inputIds = List.copyOf(inputIds == null ? List.of() : inputIds);
@@ -72,9 +76,14 @@ public final class CompiledNode {
     }
 
     public static List<CompiledNode> snapshot(List<Tensor> orderedGraph) {
+        return snapshot(orderedGraph, Map.of());
+    }
+
+    public static List<CompiledNode> snapshot(List<Tensor> orderedGraph, Map<Tensor, Tensor> sourceTensors) {
         if (orderedGraph == null || orderedGraph.isEmpty()) {
             return List.of();
         }
+        sourceTensors = sourceTensors == null ? Map.of() : Map.copyOf(sourceTensors);
         IdentityHashMap<Tensor, Integer> ids = new IdentityHashMap<>();
         for (int i = 0; i < orderedGraph.size(); i++) {
             ids.put(orderedGraph.get(i), i);
@@ -96,6 +105,7 @@ public final class CompiledNode {
             out.add(new CompiledNode(
                     i,
                     tensor,
+                    sourceTensors.getOrDefault(tensor, tensor),
                     tensor.getOperation(),
                     tensor.resolveBackend(),
                     inputIds,
@@ -121,6 +131,10 @@ public final class CompiledNode {
 
     public Tensor semanticTensor() {
         return semanticTensor;
+    }
+
+    public Tensor sourceTensor() {
+        return sourceTensor;
     }
 
     public Operation operation() {

@@ -30,6 +30,10 @@ public final class TensorInternalAccess {
         tensor.setBackwardFunctionInternal(backwardFunction);
     }
 
+    public static Runnable backwardFunction(Tensor tensor) {
+        return tensor.backwardFunctionInternal();
+    }
+
     public static void setOperation(Tensor tensor, Operation operation) {
         tensor.setOperationInternal(operation);
     }

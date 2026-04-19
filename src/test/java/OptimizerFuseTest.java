@@ -64,7 +64,9 @@ public class OptimizerFuseTest {
                 .orElseThrow();
 
         assertEquals(1, fusedNode.getPrevTensors().size());
-        assertSame(base, fusedNode.getPrevTensors().getFirst());
+        Tensor fusedInput = fusedNode.getPrevTensors().getFirst();
+        assertNull(fusedInput.getOperation());
+        assertEquals("base", fusedInput.getLabel());
     }
 
     @Test

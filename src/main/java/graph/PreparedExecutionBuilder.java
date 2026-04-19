@@ -53,6 +53,7 @@ final class PreparedExecutionBuilder {
                 graph.compiledGradientBindings(),
                 graph.getRootTensor(),
                 graph.compiledForwardOutputNode(),
+                graph.forwardSeedGradient(),
                 new PrepareTrace(
                         true,
                         System.nanoTime() - t0,

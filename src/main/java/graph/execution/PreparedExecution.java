@@ -37,6 +37,7 @@ public final class PreparedExecution {
     private final Map<Tensor, CompiledGradientBinding> compiledGradients;
     private final Tensor rootTensor;
     private final CompiledNode forwardOutputNode;
+    private final CompiledGradientBinding forwardSeedGradient;
     private final PrepareTrace prepareTrace;
     private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
 
@@ -49,6 +50,7 @@ public final class PreparedExecution {
             Map<Tensor, CompiledGradientBinding> compiledGradients,
             Tensor rootTensor,
             CompiledNode forwardOutputNode,
+            CompiledGradientBinding forwardSeedGradient,
             PrepareTrace prepareTrace
     ) {
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
@@ -59,6 +61,7 @@ public final class PreparedExecution {
         this.compiledGradients = Map.copyOf(compiledGradients == null ? Map.of() : compiledGradients);
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         this.forwardOutputNode = Objects.requireNonNull(forwardOutputNode, "forwardOutputNode cannot be null");
+        this.forwardSeedGradient = forwardSeedGradient;
         this.prepareTrace = prepareTrace == null ? PrepareTrace.skipped() : prepareTrace;
         this.metadataIndex = buildMetadataIndex(this.forwardSteps, this.backwardSteps);
     }
@@ -262,8 +265,7 @@ public final class PreparedExecution {
     }
 
     private void seedRootGradient(ExecutionState executionState) {
-        CompiledGradientBinding binding = compiledGradients.get(rootTensor);
-        if (!(binding instanceof CompiledGradientBinding.NodeBinding nodeBinding)) {
+        if (!(forwardSeedGradient instanceof CompiledGradientBinding.NodeBinding nodeBinding)) {
             return;
         }
         fillGradientOnes(executionState.runtimeTensorForNodeId(nodeBinding.nodeId()));
@@ -274,7 +276,7 @@ public final class PreparedExecution {
             if (node.backwardNode()) {
                 continue;
             }
-            Tensor tensor = node.semanticTensor();
+            Tensor tensor = node.sourceTensor();
             CompiledGradientBinding binding = compiledGradients.get(tensor);
             if (binding == null) {
                 TensorInternalAccess.setGradient(tensor, null);

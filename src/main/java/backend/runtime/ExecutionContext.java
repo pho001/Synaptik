@@ -124,6 +124,20 @@ public final class ExecutionContext {
         }
     }
 
+    public void mirrorRuntimeState(Tensor source, Tensor target) {
+        Objects.requireNonNull(target, "target cannot be null");
+        if (source == null) {
+            runtimeStateIndex.remove(target);
+            return;
+        }
+        Object state = runtimeStateIndex.get(source);
+        if (state == null) {
+            runtimeStateIndex.remove(target);
+            return;
+        }
+        runtimeStateIndex.put(target, state);
+    }
+
     public ConvTraceMetadata convTraceForNodeId(int nodeId) {
         return convTraceIndex.get(nodeId);
     }

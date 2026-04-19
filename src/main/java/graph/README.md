@@ -546,6 +546,8 @@ Pay special attention to:
 Publicly relevant entry points:
 
 - `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig)`
+- `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig, CompileMode compileMode)`
+- `CompiledGraph.prepare()`
 - `CompiledGraph.prepare(RuntimeConfig runtimeConfig)`
 - `CompiledGraph.execute(...)`
 - `CompiledGraph.executeTraced(...)`
@@ -553,6 +555,15 @@ Publicly relevant entry points:
 - `PreparedExecution.executeTraced(...)`
 
 Lower-level `GraphOptimizer` injection still exists, but it is not the preferred public compile contract.
+
+`CompileMode` matters when the semantic graph has trainable leaves but you explicitly want a forward-only artifact:
+
+- `INFERENCE_ONLY`
+  - never builds backward
+- `TRAINING`
+  - builds backward when trainable leaves exist
+- `AUTO`
+  - preserves the historical "if trainable leaves exist, compile training graph" behavior
 
 ## Common Mistakes
 
