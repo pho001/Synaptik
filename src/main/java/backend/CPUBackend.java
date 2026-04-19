@@ -10,6 +10,7 @@ import backend.kernels.cpu.plan.CpuPlanAssembler;
 import backend.runtime.ExecutionContext;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
+import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import operations.Operation;
 import tensor.DataType;
@@ -20,51 +21,53 @@ import java.util.List;
 
 public final class CPUBackend {
     public void execute(
-            Tensor node,
+            CompiledNode node,
             CompiledNodeExecutionMetadata metadata,
             ExecutionContext executionContext
     ) {
-        Operation op = node.getOperation();
+        Operation op = node.operation();
         if (op == null) {
             return;
         }
+        Tensor runtimeTensor = executionContext.runtimeTensorForNodeId(node.id());
 
         CpuKernel kernel = metadata.cpuKernel();
         if (kernel == null) {
             throw new UnsupportedOperationException(
                     "Missing CPU kernel for opType=" + op.opType() +
-                            " (operation class: " + op.getClass().getName() + ")"
+                    " (operation class: " + op.getClass().getName() + ")"
             );
         }
-        if (metadata.cpuWorkspace() != null) {
-            metadata.cpuWorkspace().clearFloatContinuation();
+        var cpuWorkspace = executionContext.cpuWorkspaceForNodeId(node.id());
+        if (cpuWorkspace != null) {
+            cpuWorkspace.clearFloatContinuation();
         }
 
         CpuNodeExecutionPlan executionPlan = metadata.cpuPlan();
         if (executionPlan == null) {
-            throw new IllegalStateException("Missing CpuNodeExecutionPlan for node " + node.getLabel());
+            throw new IllegalStateException("Missing CpuNodeExecutionPlan for node " + node.label());
         }
 
-        List<Tensor> originalInputs = node.getPrevTensors();
-        List<Tensor> inputs = executionPlan.apply(originalInputs);
-        List<CompiledNodeExecutionMetadata> inputMetadatas = resolveInputMetadatas(originalInputs, inputs, executionContext);
+        List<Tensor> originalInputs = resolveRuntimeInputs(node, executionContext);
+        List<Tensor> inputs = executionPlan.apply(node.id(), originalInputs, executionContext);
+        List<CompiledNodeExecutionMetadata> inputMetadatas = resolveInputMetadatas(node, originalInputs, inputs, executionContext);
         if (executionPlan.stridedPath()) {
-            CpuStridedElementWise.forward(op, inputs, node, new CpuKernelContext(executionPlan, executionContext, metadata, inputMetadatas));
+            CpuStridedElementWise.forward(op, inputs, runtimeTensor, new CpuKernelContext(node.id(), node.inputIds(), executionPlan, executionContext, metadata, inputMetadatas));
             return;
         }
 
-        CpuKernelContext kernelContext = new CpuKernelContext(executionPlan, executionContext, metadata, inputMetadatas);
+        CpuKernelContext kernelContext = new CpuKernelContext(node.id(), node.inputIds(), executionPlan, executionContext, metadata, inputMetadatas);
 
-        switch (node.getDataType()) {
-            case FLOAT64 -> kernel.forwardF64(op, inputs, node, kernelContext);
-            case FLOAT32 -> kernel.forwardF32(op, inputs, node, kernelContext);
-            case BFLOAT16 -> kernel.forwardBF16(op, inputs, node, kernelContext);
-            case INT32 -> kernel.forwardI32(op, inputs, node, kernelContext);
-            case BOOL -> kernel.forwardBOOL(op, inputs, node, kernelContext);
+        switch (node.dataType()) {
+            case FLOAT64 -> kernel.forwardF64(op, inputs, runtimeTensor, kernelContext);
+            case FLOAT32 -> kernel.forwardF32(op, inputs, runtimeTensor, kernelContext);
+            case BFLOAT16 -> kernel.forwardBF16(op, inputs, runtimeTensor, kernelContext);
+            case INT32 -> kernel.forwardI32(op, inputs, runtimeTensor, kernelContext);
+            case BOOL -> kernel.forwardBOOL(op, inputs, runtimeTensor, kernelContext);
         }
 
-        if (node.getDataType() != DataType.FLOAT64) {
-            node.markDataViewStale();
+        if (node.dataType() != DataType.FLOAT64) {
+            runtimeTensor.markDataViewStale();
         }
     }
 
@@ -91,6 +94,7 @@ public final class CPUBackend {
     }
 
     private static List<CompiledNodeExecutionMetadata> resolveInputMetadatas(
+            CompiledNode node,
             List<Tensor> originalInputs,
             List<Tensor> runtimeInputs,
             ExecutionContext executionContext
@@ -102,11 +106,25 @@ public final class CPUBackend {
         for (int i = 0; i < runtimeInputs.size(); i++) {
             Tensor runtime = runtimeInputs.get(i);
             Tensor original = (originalInputs != null && i < originalInputs.size()) ? originalInputs.get(i) : null;
-            if (runtime != original || original == null) {
+            if (runtime != original || original == null || i >= node.inputIds().size()) {
                 out.add(null);
                 continue;
             }
-            out.add(executionContext.metadataFor(original));
+            out.add(executionContext.metadataForNodeId(node.inputIds().get(i)));
+        }
+        return out;
+    }
+
+    private static List<Tensor> resolveRuntimeInputs(
+            CompiledNode node,
+            ExecutionContext executionContext
+    ) {
+        if (node.inputIds().isEmpty()) {
+            return List.of();
+        }
+        List<Tensor> out = new ArrayList<>(node.inputIds().size());
+        for (int inputNodeId : node.inputIds()) {
+            out.add(executionContext.runtimeTensorForNodeId(inputNodeId));
         }
         return out;
     }

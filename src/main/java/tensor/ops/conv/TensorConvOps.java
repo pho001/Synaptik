@@ -4,6 +4,7 @@ import operations.nn.conv.conv2d;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;
+import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 import tensor.options.Conv2dOptions;
 
@@ -77,7 +78,7 @@ public final class TensorConvOps {
                 ? TensorPrimitiveBuilder.nary(new int[]{n, outChannels, outH, outW}, inputs, new conv2d(options, false), "conv2d", outputType)
                 : TensorPrimitiveBuilder.nary(new int[]{n, outChannels, outH, outW}, inputs, new conv2d(options, true), "conv2d", outputType);
         out.setRequiresGrad(input.getRequiresGrad() || weight.getRequiresGrad() || (bias != null && bias.getRequiresGrad()));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;

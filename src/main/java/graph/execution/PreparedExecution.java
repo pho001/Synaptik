@@ -5,6 +5,8 @@ import backend.kernels.cpu.CpuDTypeOps;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
+import graph.CompiledNode;
+import graph.CompiledGradientBinding;
 import graph.execution.trace.ComputeTraceMetadata;
 import graph.execution.trace.DispatchTraceMetadata;
 import graph.execution.trace.ExecutionStepTrace;
@@ -17,6 +19,7 @@ import graph.execution.trace.ReductionTraceMetadata;
 import graph.execution.trace.RunTrace;
 import graph.execution.trace.StepExecutionMetadata;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -30,20 +33,22 @@ public final class PreparedExecution {
     private final boolean supportsBackward;
     private final List<PreparedNodeExecution> forwardSteps;
     private final List<PreparedNodeExecution> backwardSteps;
-    private final List<Tensor> allNodes;
+    private final List<CompiledNode> allNodes;
+    private final Map<Tensor, CompiledGradientBinding> compiledGradients;
     private final Tensor rootTensor;
-    private final Tensor forwardOutput;
+    private final CompiledNode forwardOutputNode;
     private final PrepareTrace prepareTrace;
-    private final Map<Tensor, CompiledNodeExecutionMetadata> metadataIndex;
+    private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
 
     public PreparedExecution(
             RuntimeConfig runtimeConfig,
             boolean supportsBackward,
             List<PreparedNodeExecution> forwardSteps,
             List<PreparedNodeExecution> backwardSteps,
-            List<Tensor> allNodes,
+            List<CompiledNode> allNodes,
+            Map<Tensor, CompiledGradientBinding> compiledGradients,
             Tensor rootTensor,
-            Tensor forwardOutput,
+            CompiledNode forwardOutputNode,
             PrepareTrace prepareTrace
     ) {
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
@@ -51,8 +56,9 @@ public final class PreparedExecution {
         this.forwardSteps = List.copyOf(forwardSteps == null ? List.of() : forwardSteps);
         this.backwardSteps = List.copyOf(backwardSteps == null ? List.of() : backwardSteps);
         this.allNodes = List.copyOf(allNodes == null ? List.of() : allNodes);
+        this.compiledGradients = Map.copyOf(compiledGradients == null ? Map.of() : compiledGradients);
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
-        this.forwardOutput = Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
+        this.forwardOutputNode = Objects.requireNonNull(forwardOutputNode, "forwardOutputNode cannot be null");
         this.prepareTrace = prepareTrace == null ? PrepareTrace.skipped() : prepareTrace;
         this.metadataIndex = buildMetadataIndex(this.forwardSteps, this.backwardSteps);
     }
@@ -93,17 +99,16 @@ public final class PreparedExecution {
 
         long runStart = System.nanoTime();
         java.util.ArrayList<ExecutionStepTrace> steps = captureTrace ? new java.util.ArrayList<>() : null;
-        ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex);
+        ExecutionState executionState = ExecutionState.create(allNodes, metadataIndex, forwardOutputNode.id());
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex, executionState);
         executeSteps(forwardSteps, context, captureTrace, steps, 0);
 
-        syncRootData(mode);
+        syncRootData(mode, executionState);
 
         if (mode == ExecutionMode.FORWARD_BACKWARD) {
-            zeroGrad();
-            if (rootTensor.getGradient() != null) {
-                fillGradientOnes(rootTensor.getGradient());
-            }
+            seedRootGradient(executionState);
             executeSteps(backwardSteps, context, captureTrace, steps, forwardSteps.size());
+            publishCompiledGradients(executionState);
         }
         return new RunTrace(mode, System.nanoTime() - runStart, steps == null ? List.of() : steps);
     }
@@ -113,27 +118,19 @@ public final class PreparedExecution {
             System.out.println("Info: No gradients to compute.");
             return;
         }
-        zeroGrad();
-        if (rootTensor.getGradient() != null) {
-            fillGradientOnes(rootTensor.getGradient());
-        }
-
-        ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, ExecutionMode.FORWARD_BACKWARD, metadataIndex);
-        for (PreparedNodeExecution step : backwardSteps) {
-            ComputeEngine.compute(step.node(), step.metadata(), context);
-        }
+        execute(ExecutionMode.FORWARD_BACKWARD);
     }
 
-    private static Map<Tensor, CompiledNodeExecutionMetadata> buildMetadataIndex(
+    private static Map<Integer, CompiledNodeExecutionMetadata> buildMetadataIndex(
             List<PreparedNodeExecution> forwardSteps,
             List<PreparedNodeExecution> backwardSteps
     ) {
-        Map<Tensor, CompiledNodeExecutionMetadata> out = new HashMap<>();
+        Map<Integer, CompiledNodeExecutionMetadata> out = new HashMap<>();
         for (PreparedNodeExecution step : forwardSteps) {
-            out.put(step.node(), step.metadata());
+            out.put(step.compiledNode().id(), step.metadata());
         }
         for (PreparedNodeExecution step : backwardSteps) {
-            out.put(step.node(), step.metadata());
+            out.put(step.compiledNode().id(), step.metadata());
         }
         return Map.copyOf(out);
     }
@@ -148,7 +145,7 @@ public final class PreparedExecution {
         for (int i = 0; i < steps.size(); i++) {
             PreparedNodeExecution step = steps.get(i);
             long t0 = captureTrace ? System.nanoTime() : 0L;
-            ComputeEngine.compute(step.node(), step.metadata(), context);
+            ComputeEngine.compute(step.compiledNode(), step.metadata(), context);
             if (captureTrace) {
                 traces.add(toStepTrace(startIndex + i, step, System.nanoTime() - t0, context));
             }
@@ -156,31 +153,31 @@ public final class PreparedExecution {
     }
 
     private static ExecutionStepTrace toStepTrace(int index, PreparedNodeExecution step, long durationNs, ExecutionContext context) {
-        Tensor node = step.node();
+        CompiledNode node = step.compiledNode();
+        Tensor semanticNode = step.node();
         var metadata = step.metadata();
-        String opType = node.getOperation() == null ? "LEAF" : node.getOperation().opType().name();
+        String opType = node.operation() == null ? "LEAF" : node.operation().opType().name();
         String kernel = metadata.cpuKernel() == null ? "" : metadata.cpuKernel().getClass().getSimpleName();
         return new ExecutionStepTrace(
                 index,
-                node.getLabel(),
+                node.label(),
                 opType,
-                java.util.Arrays.stream(node.getShapeUnsafe()).boxed().toList(),
-                node.getDataType(),
+                java.util.Arrays.stream(node.shape()).boxed().toList(),
+                node.dataType(),
                 metadata.backend().name(),
                 kernel,
                 durationNs,
-                buildStepMetadata(step, context)
+                buildStepMetadata(node, semanticNode, step, context)
         );
     }
 
-    private static StepExecutionMetadata buildStepMetadata(PreparedNodeExecution step, ExecutionContext context) {
-        Tensor node = step.node();
+    private static StepExecutionMetadata buildStepMetadata(CompiledNode node, Tensor semanticNode, PreparedNodeExecution step, ExecutionContext context) {
         var metadata = step.metadata();
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
         ComputeTraceMetadata compute = null;
         LayoutTraceMetadata layout = new LayoutTraceMetadata(
-                node.getStorageOffsetUnsafe(),
-                node.isContiguous(),
+                node.storageOffset(),
+                node.contiguous(),
                 metadata.cpuPlan() != null && metadata.cpuPlan().stridedPath(),
                 metadata.cpuPlan() == null ? "" : metadata.cpuPlan().targetType().name()
         );
@@ -232,12 +229,12 @@ public final class PreparedExecution {
             }
         }
 
-        ConvTraceMetadata trace = context.convTraceFor(node);
+        ConvTraceMetadata trace = context.convTraceForNodeId(node.id());
         if (trace != null) {
             conv = trace;
         }
 
-        if (node.getOperation() instanceof operations.fused.FusedOperation fused) {
+        if (node.operation() instanceof operations.fused.FusedOperation fused) {
             String executionBackend = step.metadata().fusedExecutable() == null
                     ? ""
                     : step.metadata().fusedExecutable().getClass().getSimpleName();
@@ -256,19 +253,49 @@ public final class PreparedExecution {
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
     }
 
-    private void syncRootData(ExecutionMode mode) {
-        Tensor actualRoot = forwardOutput.getPrevTensors().get(0);
+    private void syncRootData(ExecutionMode mode, ExecutionState executionState) {
+        int actualRootNodeId = forwardOutputNode.inputIds().get(0);
+        Tensor actualRoot = executionState.runtimeTensorForNodeId(actualRootNodeId);
         if (mode == ExecutionMode.FORWARD_BACKWARD || actualRoot != rootTensor) {
             rootTensor.copyDataFrom(actualRoot);
         }
     }
 
-    private void zeroGrad() {
-        for (Tensor tensor : allNodes) {
-            if (tensor.getGradient() != null) {
-                fillGradientZeros(tensor.getGradient());
-            }
+    private void seedRootGradient(ExecutionState executionState) {
+        CompiledGradientBinding binding = compiledGradients.get(rootTensor);
+        if (!(binding instanceof CompiledGradientBinding.NodeBinding nodeBinding)) {
+            return;
         }
+        fillGradientOnes(executionState.runtimeTensorForNodeId(nodeBinding.nodeId()));
+    }
+
+    private void publishCompiledGradients(ExecutionState executionState) {
+        for (CompiledNode node : allNodes) {
+            if (node.backwardNode()) {
+                continue;
+            }
+            Tensor tensor = node.semanticTensor();
+            CompiledGradientBinding binding = compiledGradients.get(tensor);
+            if (binding == null) {
+                TensorInternalAccess.setGradient(tensor, null);
+                continue;
+            }
+            Tensor published;
+            if (binding instanceof CompiledGradientBinding.NodeBinding nodeBinding) {
+                published = detachedCopy(executionState.runtimeTensorForNodeId(nodeBinding.nodeId()));
+            } else if (binding instanceof CompiledGradientBinding.ConstantBinding constantBinding) {
+                published = detachedCopy(constantBinding.template());
+            } else {
+                throw new IllegalStateException("Unsupported gradient binding type: " + binding.getClass().getName());
+            }
+            TensorInternalAccess.setGradient(tensor, published);
+        }
+    }
+
+    private static Tensor detachedCopy(Tensor source) {
+        Tensor copy = new Tensor(source.getShape(), null, source.getLabel(), source.getDataType());
+        copy.copyDataFrom(source);
+        return copy;
     }
 
     private static void fillGradientOnes(Tensor gradient) {
@@ -280,13 +307,4 @@ public final class PreparedExecution {
         }
     }
 
-    private static void fillGradientZeros(Tensor gradient) {
-        switch (gradient.getDataType()) {
-            case FLOAT64 -> Arrays.fill(gradient.getFloat64Data(), 0.0);
-            case FLOAT32 -> Arrays.fill(gradient.getFloat32Data(), 0.0f);
-            case BFLOAT16 -> Arrays.fill(gradient.getBFloat16Data(), (short) 0);
-            case INT32 -> Arrays.fill(gradient.getInt32Data(), 0);
-            case BOOL -> Arrays.fill(gradient.getBoolData(), (byte) 0);
-        }
-    }
 }

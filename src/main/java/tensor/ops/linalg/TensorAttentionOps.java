@@ -7,6 +7,7 @@ import operations.linalg.scaledDotProductAttentionWeights;
 import operations.reduction.softmaxGrad;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.TensorMetadata;
 import tensor.TensorPrimitiveBuilder;
 import tensor.options.AttentionOptions;
@@ -50,7 +51,7 @@ public final class TensorAttentionOps {
         Operation op = new scaledDotProductAttention(spec.scale(), effectiveMask != null);
         Tensor out = TensorPrimitiveBuilder.nary(spec.outShape(), inputs, op, "scaledDotProductAttention", spec.outputType());
         Tensor backwardMask = effectiveMask;
-        out.setBackwardFunction(() -> backwardScaledDotProductAttention(out, query, key, value, backwardMask, spec));
+        TensorInternalAccess.setBackwardFunction(out, () -> backwardScaledDotProductAttention(out, query, key, value, backwardMask, spec));
         return out;
     }
 

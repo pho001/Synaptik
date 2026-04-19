@@ -2,6 +2,7 @@ package backend.runtime;
 
 import config.runtime.RuntimeConfig;
 import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.ExecutionState;
 import graph.execution.trace.ConvTraceMetadata;
 import tensor.Tensor;
 
@@ -14,36 +15,40 @@ public final class ExecutionContext {
     private final ExecutionMode mode;
     private final boolean useFastExpApprox;
     private final boolean useFastTanhApprox;
-    private final Map<Tensor, CompiledNodeExecutionMetadata> metadataIndex;
+    private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
+    private final ExecutionState executionState;
     private final Map<Tensor, Object> runtimeStateIndex;
-    private final Map<Tensor, ConvTraceMetadata> convTraceIndex;
+    private final Map<Integer, ConvTraceMetadata> convTraceIndex;
 
     public ExecutionContext(ExecutionMode mode, boolean useFastExpApprox, boolean useFastTanhApprox) {
-        this(mode, useFastExpApprox, useFastTanhApprox, Map.of());
+        this(mode, useFastExpApprox, useFastTanhApprox, Map.of(), null);
     }
 
     public ExecutionContext(
             ExecutionMode mode,
             boolean useFastExpApprox,
             boolean useFastTanhApprox,
-            Map<Tensor, CompiledNodeExecutionMetadata> metadataIndex
+            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            ExecutionState executionState
     ) {
         this.mode = Objects.requireNonNull(mode, "mode cannot be null");
         this.metadataIndex = Map.copyOf(metadataIndex == null ? Map.of() : metadataIndex);
+        this.executionState = executionState;
         this.runtimeStateIndex = Collections.synchronizedMap(new IdentityHashMap<>());
-        this.convTraceIndex = Collections.synchronizedMap(new IdentityHashMap<>());
+        this.convTraceIndex = Collections.synchronizedMap(new java.util.HashMap<>());
         this.useFastExpApprox = useFastExpApprox;
         this.useFastTanhApprox = useFastTanhApprox;
     }
 
     public static ExecutionContext fromRuntimeConfig(RuntimeConfig runtimeConfig, ExecutionMode mode) {
-        return fromRuntimeConfig(runtimeConfig, mode, Map.of());
+        return fromRuntimeConfig(runtimeConfig, mode, Map.of(), null);
     }
 
     public static ExecutionContext fromRuntimeConfig(
             RuntimeConfig runtimeConfig,
             ExecutionMode mode,
-            Map<Tensor, CompiledNodeExecutionMetadata> metadataIndex
+            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            ExecutionState executionState
     ) {
         Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
         Objects.requireNonNull(mode, "mode cannot be null");
@@ -52,7 +57,8 @@ public final class ExecutionContext {
                 mode,
                 runtimeConfig.approximation().useFastExp(backwardEnabled),
                 runtimeConfig.approximation().useFastTanh(backwardEnabled),
-                metadataIndex
+                metadataIndex,
+                executionState
         );
     }
 
@@ -72,8 +78,29 @@ public final class ExecutionContext {
         return useFastTanhApprox;
     }
 
-    public CompiledNodeExecutionMetadata metadataFor(Tensor tensor) {
-        return metadataIndex.get(tensor);
+    public CompiledNodeExecutionMetadata metadataForNodeId(int nodeId) {
+        return metadataIndex.get(nodeId);
+    }
+
+    public Tensor runtimeTensorForNodeId(int nodeId) {
+        if (executionState == null) {
+            throw new IllegalStateException("ExecutionContext does not carry per-run ExecutionState.");
+        }
+        return executionState.runtimeTensorForNodeId(nodeId);
+    }
+
+    public backend.kernels.cpu.CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
+        if (executionState == null) {
+            return null;
+        }
+        return executionState.cpuWorkspaceForNodeId(nodeId);
+    }
+
+    public Tensor preparedInputTensorFor(int nodeId, int inputIndex) {
+        if (executionState == null) {
+            throw new IllegalStateException("ExecutionContext does not carry per-run ExecutionState.");
+        }
+        return executionState.preparedInputTensorFor(nodeId, inputIndex);
     }
 
     public <T> T runtimeStateFor(Tensor tensor, Class<T> type) {
@@ -97,16 +124,15 @@ public final class ExecutionContext {
         }
     }
 
-    public ConvTraceMetadata convTraceFor(Tensor tensor) {
-        return convTraceIndex.get(tensor);
+    public ConvTraceMetadata convTraceForNodeId(int nodeId) {
+        return convTraceIndex.get(nodeId);
     }
 
-    public void publishConvTrace(Tensor tensor, ConvTraceMetadata trace) {
-        Objects.requireNonNull(tensor, "tensor cannot be null");
+    public void publishConvTrace(int nodeId, ConvTraceMetadata trace) {
         if (trace == null) {
-            convTraceIndex.remove(tensor);
+            convTraceIndex.remove(nodeId);
             return;
         }
-        convTraceIndex.put(tensor, trace);
+        convTraceIndex.put(nodeId, trace);
     }
 }

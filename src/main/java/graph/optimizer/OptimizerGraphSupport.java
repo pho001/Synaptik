@@ -1,6 +1,7 @@
 package graph.optimizer;
 
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,7 +18,7 @@ public final class OptimizerGraphSupport {
         if (tensor.getPrevTensors() == null || replacements.isEmpty()) {
             return;
         }
-        List<Tensor> inputs = tensor.getPrevTensors();
+        List<Tensor> inputs = TensorInternalAccess.prevTensors(tensor);
         for (int i = 0; i < inputs.size(); i++) {
             Tensor resolved = resolveReplacement(inputs.get(i), replacements);
             if (resolved != null) {

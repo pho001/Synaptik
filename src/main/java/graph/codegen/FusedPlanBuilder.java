@@ -7,6 +7,7 @@ import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import tensor.Tensor;
 import tensor.DataType;
+import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -183,7 +184,7 @@ public final class FusedPlanBuilder {
                     original.getLabel(),
                     original.getDataType()
             );
-            clone.setBackward(original.isBackward());
+            TensorInternalAccess.setBackward(clone, original.isBackward());
             clones.put(original, clone);
         }
 
@@ -191,14 +192,14 @@ public final class FusedPlanBuilder {
             Tensor clone = clones.get(original);
             List<Tensor> prev = original.getPrevTensors();
             if (prev == null) {
-                clone.setPrevTensors(null);
+                TensorInternalAccess.setPrevTensors(clone, null);
                 continue;
             }
             List<Tensor> mappedPrev = new ArrayList<>(prev.size());
             for (Tensor parent : prev) {
                 mappedPrev.add(clones.getOrDefault(parent, parent));
             }
-            clone.setPrevTensors(mappedPrev);
+            TensorInternalAccess.setPrevTensors(clone, mappedPrev);
         }
 
         List<Tensor> clusterCopy = new ArrayList<>(cluster.size());

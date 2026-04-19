@@ -2,6 +2,7 @@ package tensor.ops.pool;
 
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.options.Pool2dOptions;
 
 final class PoolSupport {
@@ -60,9 +61,9 @@ final class PoolSupport {
 
     static void accumulateGradient(Tensor input, Tensor gradientDelta) {
         if (input.getGradient() == null) {
-            input.setGradient(gradientDelta);
+            TensorInternalAccess.setGradient(input, gradientDelta);
         } else {
-            input.setGradient(input.getGradient().add(gradientDelta));
+            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
         }
     }
 }

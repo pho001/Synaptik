@@ -113,7 +113,7 @@ public final class TensorPrimitiveBuilder {
     ) {
         Tensor out = new Tensor(outShape, outStrides, storageOffset, List.of(input), op, label, dataType);
         if (backward != null) {
-            out.setBackwardFunction(backward);
+            TensorInternalAccess.setBackwardFunction(out, backward);
         }
         return out;
     }
@@ -132,7 +132,7 @@ public final class TensorPrimitiveBuilder {
             out.setRequiresGrad(false);
         }
         if (backward != null) {
-            out.setBackwardFunction(backward);
+            TensorInternalAccess.setBackwardFunction(out, backward);
         }
         return out;
     }

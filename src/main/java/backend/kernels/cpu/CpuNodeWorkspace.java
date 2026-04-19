@@ -71,6 +71,13 @@ public final class CpuNodeWorkspace {
         return packedLinearWeightCache;
     }
 
+    public CpuNodeWorkspace fork() {
+        int[] ints = intWorkspace == null ? null : new int[intWorkspace.length];
+        float[] floats = floatWorkspace == null ? null : new float[floatWorkspace.length];
+        PackedLinearWeightCache cache = packedLinearWeightCache == null ? null : new PackedLinearWeightCache();
+        return new CpuNodeWorkspace(ints, floats, cache);
+    }
+
     public void clearFloatContinuation() {
         floatContinuationValid = false;
         floatContinuationLength = 0;

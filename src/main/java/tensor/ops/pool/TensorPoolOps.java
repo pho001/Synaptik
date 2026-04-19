@@ -3,6 +3,7 @@ package tensor.ops.pool;
 import operations.nn.pool.avgPool2d;
 import operations.nn.pool.maxPool2d;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 import tensor.options.Pool2dOptions;
 
@@ -26,7 +27,7 @@ public final class TensorPoolOps {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -60,7 +61,7 @@ public final class TensorPoolOps {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;

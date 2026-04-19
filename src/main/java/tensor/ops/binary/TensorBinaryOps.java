@@ -11,6 +11,7 @@ import tensor.BroadcastPlan;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.TensorDataTypeUtil;
+import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 
 public final class TensorBinaryOps {
@@ -29,7 +30,7 @@ public final class TensorBinaryOps {
         Operation op = new add(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "+",
                 TensorDataTypeUtil.binary(first, second), null);
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -56,7 +57,7 @@ public final class TensorBinaryOps {
         Operation op = new sub(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "-",
                 TensorDataTypeUtil.binary(first, second), null);
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -95,7 +96,7 @@ public final class TensorBinaryOps {
         Operation op = new mul(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "*",
                 TensorDataTypeUtil.binary(first, second), null);
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -128,7 +129,7 @@ public final class TensorBinaryOps {
         Operation op = new div(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "/",
                 TensorDataTypeUtil.binary(first, second), null);
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -163,7 +164,7 @@ public final class TensorBinaryOps {
         Operation op = new min(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "min",
                 TensorDataTypeUtil.binary(first, second), null);
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -201,7 +202,7 @@ public final class TensorBinaryOps {
         Operation op = new max(plan);
         Tensor out = TensorPrimitiveBuilder.binary(first, second, plan.outShape(), op, "max",
                 TensorDataTypeUtil.binary(first, second), null);
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;

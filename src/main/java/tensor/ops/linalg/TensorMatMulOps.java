@@ -2,6 +2,7 @@ package tensor.ops.linalg;
 
 import operations.Operation;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 
 public final class TensorMatMulOps {
@@ -12,7 +13,7 @@ public final class TensorMatMulOps {
         MatMulSpec spec = MatMulSpec.resolve(first, second);
         Operation op = spec.operation();
         Tensor out = TensorPrimitiveBuilder.binary(first, second, spec.outShape(), op, "matmul", spec.outputType());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;

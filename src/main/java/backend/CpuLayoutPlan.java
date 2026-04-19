@@ -1,11 +1,13 @@
 package backend;
 
+import backend.runtime.ExecutionContext;
 import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
 import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorRemap;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,22 +27,26 @@ public record CpuLayoutPlan(
         runtimeInputs = List.copyOf(runtimeInputs == null ? List.of() : runtimeInputs);
     }
 
-    public List<Tensor> apply(List<Tensor> originalInputs) {
+    public List<Tensor> apply(int nodeId, List<Tensor> originalInputs, ExecutionContext executionContext) {
+        Objects.requireNonNull(executionContext, "executionContext cannot be null");
+        if (originalInputs == null || originalInputs.isEmpty()) {
+            return List.of();
+        }
         if (preparedInputs.isEmpty()) {
-            return runtimeInputs.isEmpty() ? originalInputs : runtimeInputs;
+            return originalInputs;
         }
-        if (originalInputs == null) {
-            throw new IllegalArgumentException("originalInputs cannot be null when prepared inputs are present");
-        }
+        List<Tensor> resolvedInputs = new ArrayList<>(originalInputs);
         for (CpuPreparedInput preparedInput : preparedInputs) {
             Tensor source = originalInputs.get(preparedInput.inputIndex());
+            Tensor runtimePrepared = executionContext.preparedInputTensorFor(nodeId, preparedInput.inputIndex());
             TensorRemap.applyTrusted(
                     source,
-                    preparedInput.runtimeTensor(),
+                    runtimePrepared,
                     preparedInput.remapPlan(),
                     materializeThreshold
             );
+            resolvedInputs.set(preparedInput.inputIndex(), runtimePrepared);
         }
-        return runtimeInputs;
+        return List.copyOf(resolvedInputs);
     }
 }

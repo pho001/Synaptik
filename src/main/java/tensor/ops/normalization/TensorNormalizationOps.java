@@ -4,6 +4,7 @@ import operations.normalization.rmsNorm;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;
+import tensor.TensorInternalAccess;
 import tensor.TensorLayoutTransform;
 import tensor.TensorPrimitiveBuilder;
 
@@ -92,7 +93,7 @@ public final class TensorNormalizationOps {
                 "layerNorm",
                 outputType
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -152,7 +153,7 @@ public final class TensorNormalizationOps {
                 "rmsNorm",
                 outputType
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;

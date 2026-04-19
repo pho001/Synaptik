@@ -21,16 +21,22 @@ import java.util.Objects;
 
 public final class CpuKernelContext {
     private final CpuNodeExecutionPlan nodePlan;
+    private final int nodeId;
+    private final List<Integer> inputNodeIds;
     private final ExecutionContext executionContext;
     private final CompiledNodeExecutionMetadata executionMetadata;
     private final List<CompiledNodeExecutionMetadata> inputMetadatas;
 
     public CpuKernelContext(
+            int nodeId,
+            List<Integer> inputNodeIds,
             CpuNodeExecutionPlan nodePlan,
             ExecutionContext executionContext,
             CompiledNodeExecutionMetadata executionMetadata,
             List<CompiledNodeExecutionMetadata> inputMetadatas
     ) {
+        this.nodeId = nodeId;
+        this.inputNodeIds = Collections.unmodifiableList(new ArrayList<>(inputNodeIds == null ? List.of() : inputNodeIds));
         this.nodePlan = Objects.requireNonNull(nodePlan, "nodePlan cannot be null");
         this.executionContext = Objects.requireNonNull(executionContext, "executionContext cannot be null");
         this.executionMetadata = Objects.requireNonNull(executionMetadata, "executionMetadata cannot be null");
@@ -107,7 +113,7 @@ public final class CpuKernelContext {
     }
 
     public void publishConvTrace(Tensor tensor, ConvTraceMetadata trace) {
-        executionContext.publishConvTrace(tensor, trace);
+        executionContext.publishConvTrace(nodeId, trace);
     }
 
     public CompiledNodeExecutionMetadata executionMetadata() {
@@ -119,7 +125,7 @@ public final class CpuKernelContext {
     }
 
     public CpuNodeWorkspace cpuWorkspace() {
-        return executionMetadata.cpuWorkspace();
+        return executionContext.cpuWorkspaceForNodeId(nodeId);
     }
 
     public boolean publishFloatContinuation() {
@@ -155,9 +161,11 @@ public final class CpuKernelContext {
             return null;
         }
         CompiledNodeExecutionMetadata metadata = inputMetadatas.get(inputIndex);
-        if (metadata == null || metadata.cpuWorkspace() == null || !metadata.cpuWorkspace().hasFloatContinuation(requiredLength)) {
+        Integer inputNodeId = inputIndex < inputNodeIds.size() ? inputNodeIds.get(inputIndex) : null;
+        CpuNodeWorkspace workspace = inputNodeId == null ? null : executionContext.cpuWorkspaceForNodeId(inputNodeId);
+        if (metadata == null || workspace == null || !workspace.hasFloatContinuation(requiredLength)) {
             return null;
         }
-        return metadata.cpuWorkspace().requireFloatWorkspace();
+        return workspace.requireFloatWorkspace();
     }
 }

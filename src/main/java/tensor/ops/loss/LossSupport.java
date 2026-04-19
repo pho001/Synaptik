@@ -2,6 +2,7 @@ package tensor.ops.loss;
 
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.loss.LossReduction;
 
 import java.util.ArrayList;
@@ -32,9 +33,9 @@ final class LossSupport {
 
     static void accumulateGradient(Tensor input, Tensor gradientDelta) {
         if (input.getGradient() == null) {
-            input.setGradient(gradientDelta);
+            TensorInternalAccess.setGradient(input, gradientDelta);
         } else {
-            input.setGradient(input.getGradient().add(gradientDelta));
+            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
         }
     }
 

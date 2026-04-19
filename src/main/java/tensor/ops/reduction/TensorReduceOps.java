@@ -11,6 +11,7 @@ import operations.reduction.softmax;
 import operations.reduction.sum;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.TensorLayoutTransform;
 import tensor.TensorPrimitiveBuilder;
 
@@ -29,7 +30,7 @@ public final class TensorReduceOps {
         Operation op = new sum(normalizedDimension, keepDims);
         int[] newShape = ReductionSupport.reduceShape(shape, normalizedDimension, keepDims);
         Tensor out = TensorPrimitiveBuilder.unary(input, newShape, op, "sum", input.getDataType());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -43,7 +44,7 @@ public final class TensorReduceOps {
     public static Tensor sumAll(Tensor input) {
         ReductionSupport.requireFloatingInput(input, "sum");
         Tensor out = TensorPrimitiveBuilder.unary(input, new int[]{1}, new sum(-1), "sum", input.getDataType());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -67,7 +68,7 @@ public final class TensorReduceOps {
                 "mean",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -82,7 +83,7 @@ public final class TensorReduceOps {
     public static Tensor meanAll(Tensor input) {
         ReductionSupport.requireFloatingInput(input, "mean");
         Tensor out = TensorPrimitiveBuilder.unary(input, new int[]{1}, new mean(-1), "mean", input.getDataType());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -103,7 +104,7 @@ public final class TensorReduceOps {
                 "softmax",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -126,7 +127,7 @@ public final class TensorReduceOps {
                 "logSoftmax",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -200,7 +201,7 @@ public final class TensorReduceOps {
         Operation op = isMax ? new reduceMax(normalizedDimension, keepDims) : new reduceMin(normalizedDimension, keepDims);
         Tensor out = TensorPrimitiveBuilder.unary(input, newShape, op,
                 isMax ? "max_reduce" : "min_reduce", input.getDataType());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -232,7 +233,7 @@ public final class TensorReduceOps {
                 isMax ? "max_reduce" : "min_reduce",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;

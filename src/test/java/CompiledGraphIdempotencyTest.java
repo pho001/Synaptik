@@ -26,4 +26,24 @@ public class CompiledGraphIdempotencyTest {
         second.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
         assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
     }
+
+    @Test
+    void recompilingAfterTrainingRunIgnoresPreviouslyPublishedSemanticGradients() {
+        Tensor a = new Tensor(new double[]{2.0}, new int[]{1}, null, "a", DataType.FLOAT64);
+        a.setRequiresGrad(true);
+        Tensor loss = a.mul(a);
+
+        CompiledGraph first = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        first.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
+
+        CompiledGraph second = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        int firstNodeCount = first.getCompiledGraphAsList().size();
+        int secondNodeCount = second.getCompiledGraphAsList().size();
+
+        assertEquals(firstNodeCount, secondNodeCount);
+
+        second.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        assertEquals(4.0d, a.getGradient().scalarAsDouble(), 1e-9);
+    }
 }

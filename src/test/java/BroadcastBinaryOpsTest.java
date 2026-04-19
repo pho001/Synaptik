@@ -4,6 +4,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -227,8 +228,8 @@ public class BroadcastBinaryOpsTest {
         assertArrayEquals(new double[]{1, 0, 1, 0, 1, 0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1, 1, 1}, b.getGradient().toDoubleArrayCopy(), 1e-9);
 
-        a.setGradient(null);
-        b.setGradient(null);
+        TensorInternalAccess.clearGradient(a);
+        TensorInternalAccess.clearGradient(b);
 
         Tensor maxOut = a.max(b);
         CompiledGraph.compile(maxOut, OptimizerConfig.noOptimization())
@@ -254,8 +255,8 @@ public class BroadcastBinaryOpsTest {
         assertArrayEquals(new double[]{1, 0, 1, 0, 1, 0}, a.getGradient().toDoubleArrayCopy(), 1e-6);
         assertArrayEquals(new double[]{1, 1, 1}, b.getGradient().toDoubleArrayCopy(), 1e-6);
 
-        a.setGradient(null);
-        b.setGradient(null);
+        TensorInternalAccess.clearGradient(a);
+        TensorInternalAccess.clearGradient(b);
 
         Tensor maxOut = a.max(b);
         CompiledGraph.compile(maxOut, OptimizerConfig.noOptimization())
@@ -286,8 +287,8 @@ public class BroadcastBinaryOpsTest {
         assertArrayEquals(new double[]{1, 0, 1, 0, 1, 0}, a.getGradient().toDoubleArrayCopy(), 1e-2);
         assertArrayEquals(new double[]{1, 1, 1}, b.getGradient().toDoubleArrayCopy(), 1e-2);
 
-        a.setGradient(null);
-        b.setGradient(null);
+        TensorInternalAccess.clearGradient(a);
+        TensorInternalAccess.clearGradient(b);
 
         Tensor maxOut = a.max(b);
         CompiledGraph.compile(maxOut, OptimizerConfig.noOptimization())
@@ -312,8 +313,8 @@ public class BroadcastBinaryOpsTest {
         assertArrayEquals(new double[]{0.5, 0.5, 0.5, 0.5}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{2.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
 
-        a.setGradient(null);
-        b.setGradient(null);
+        TensorInternalAccess.clearGradient(a);
+        TensorInternalAccess.clearGradient(b);
 
         Tensor maxOut = a.max(b);
         CompiledGraph.compile(maxOut, OptimizerConfig.noOptimization())

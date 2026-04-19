@@ -2,6 +2,7 @@ package backend.kernels.cpu.layout;
 
 import backend.kernels.cpu.CpuKernelContext;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.TensorLayoutTransform;
 import tensor.TensorRemap;
 
@@ -15,7 +16,7 @@ final class LayoutExecutor {
         if (inputs == null || inputs.isEmpty()) {
             return;
         }
-        node.aliasRuntimeFrom(inputs.getFirst());
+        TensorInternalAccess.aliasRuntimeFrom(node, inputs.getFirst());
     }
 
     static void reshapeLike(List<Tensor> inputs, Tensor node) {
@@ -27,7 +28,7 @@ final class LayoutExecutor {
             throw new IllegalArgumentException("Layout transform requires same number of elements.");
         }
         if (src.isContiguous()) {
-            node.aliasRuntimeFrom(src);
+            TensorInternalAccess.aliasRuntimeFrom(node, src);
             return;
         }
         TensorLayoutTransform.copyLinearized(src, node);

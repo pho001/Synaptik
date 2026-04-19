@@ -6,6 +6,7 @@ import operations.loss.nllLoss;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;
+import tensor.TensorInternalAccess;
 import tensor.TensorLayoutTransform;
 import tensor.TensorPrimitiveBuilder;
 import tensor.loss.LossReduction;
@@ -43,7 +44,7 @@ public final class TensorLossOps {
                 "nllLoss",
                 outputType
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -87,7 +88,7 @@ public final class TensorLossOps {
                 "crossEntropyLoss",
                 outputType
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -325,7 +326,7 @@ public final class TensorLossOps {
                 outputType
         );
         out.setRequiresGrad(logits.getRequiresGrad());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !logits.getRequiresGrad()) {
                 return;

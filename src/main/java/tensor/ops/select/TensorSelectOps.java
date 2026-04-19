@@ -5,6 +5,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.TensorDataTypeUtil;
+import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 import tensor.WhereBroadcastPlan;
 import tensor.WhereBroadcastPlanner;
@@ -35,7 +36,7 @@ public final class TensorSelectOps {
                 "where",
                 TensorDataTypeUtil.promote(ifTrue.getDataType(), ifFalse.getDataType())
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;

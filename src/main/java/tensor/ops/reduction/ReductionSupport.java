@@ -2,6 +2,7 @@ package tensor.ops.reduction;
 
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 final class ReductionSupport {
     private ReductionSupport() {
@@ -24,9 +25,9 @@ final class ReductionSupport {
 
     static void accumulateGradient(Tensor input, Tensor gradientDelta) {
         if (input.getGradient() == null) {
-            input.setGradient(gradientDelta);
+            TensorInternalAccess.setGradient(input, gradientDelta);
         } else {
-            input.setGradient(input.getGradient().add(gradientDelta));
+            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
         }
     }
 

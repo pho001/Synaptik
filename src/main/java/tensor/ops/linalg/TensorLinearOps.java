@@ -2,6 +2,7 @@ package tensor.ops.linalg;
 
 import operations.Operation;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 
 public final class TensorLinearOps {
@@ -12,7 +13,7 @@ public final class TensorLinearOps {
         LinearSpec spec = LinearSpec.resolve(input, weight, null);
         Operation op = spec.operation();
         Tensor out = TensorPrimitiveBuilder.binary(input, weight, spec.outShape(), op, "linear", spec.outputType());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -34,7 +35,7 @@ public final class TensorLinearOps {
         LinearSpec spec = LinearSpec.resolve(input, weight, bias);
         Operation op = spec.operation();
         Tensor out = TensorPrimitiveBuilder.ternary(input, weight, bias, spec.outShape(), op, "linear", spec.outputType());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;

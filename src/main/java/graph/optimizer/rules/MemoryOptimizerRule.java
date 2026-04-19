@@ -8,6 +8,7 @@ import graph.optimizer.memory.NodeLifetime;
 import graph.optimizer.memory.MemoryPlannerPolicy;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -84,7 +85,7 @@ public class MemoryOptimizerRule implements OptimizationRule {
 
             NodeLifetime lifetime = plan.lifetimeOf(tensor);
             if (lifetime.role() == MemoryRole.VIEW_ALIAS) {
-                tensor.aliasRuntimeFrom(lifetime.storageOwner());
+                TensorInternalAccess.aliasRuntimeFrom(tensor, lifetime.storageOwner());
             } else {
                 Integer slotId = plan.slotIdOf(tensor);
                 if (slotId != null) {
@@ -111,7 +112,7 @@ public class MemoryOptimizerRule implements OptimizationRule {
 
             NodeLifetime lifetime = plan.lifetimeOf(tensor);
             if (lifetime.role() == MemoryRole.VIEW_ALIAS) {
-                tensor.aliasRuntimeFrom(lifetime.storageOwner());
+                TensorInternalAccess.aliasRuntimeFrom(tensor, lifetime.storageOwner());
             } else {
                 Integer slotId = plan.slotIdOf(tensor);
                 if (slotId != null) {

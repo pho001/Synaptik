@@ -9,6 +9,7 @@ import operations.fused.FusedOperation;
 import operations.fused.FusedOperationFactory;
 import operations.Operation;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import java.util.*;
 
 public class FuseElementWiseRule implements OptimizationRule {
@@ -119,10 +120,10 @@ public class FuseElementWiseRule implements OptimizationRule {
 
                     // MAGIE: Zmutujeme aktuální uzel. Všechny reference zvenčí zůstanou zachovány!
                     FusedOperationFactory.Result fused = FusedOperationFactory.create(cluster, t, externalInputs);
-                    t.setOperation(fused.operation());
-                    t.setPrevTensors(fused.runtimeInputs());
+                    TensorInternalAccess.setOperation(t, fused.operation());
+                    TensorInternalAccess.setPrevTensors(t, fused.runtimeInputs());
                     if (containsBackward) {
-                        t.setBackward(true);
+                        TensorInternalAccess.setBackward(t, true);
                     }
                 }
             }

@@ -1,8 +1,8 @@
 package backend;
 
 import backend.runtime.ExecutionContext;
+import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
-import tensor.Tensor;
 
 public final class ComputeEngine {
     private static final CPUBackend CPU_BACKEND = new CPUBackend();
@@ -12,7 +12,7 @@ public final class ComputeEngine {
     private ComputeEngine() {}
 
     public static void compute(
-            Tensor node,
+            CompiledNode node,
             CompiledNodeExecutionMetadata metadata,
             ExecutionContext context
     ) {

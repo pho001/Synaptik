@@ -19,7 +19,7 @@ public class Tensor {
     public static final String SYSTEM_FORWARD_OUTPUT_LABEL = "System_Forward_Output";
     private TensorStorage storage;
     private TensorMetadata metadata;
-    public Tensor gradient;
+    private Tensor gradient;
     private Operation operation;
     private List<Tensor> prevTensors=new ArrayList<>();
     private ComputeBackend forcedBackend = null;
@@ -308,7 +308,7 @@ public class Tensor {
     }
 
     public List<Tensor> getPrevTensors() {
-        return prevTensors;
+        return prevTensors == null ? null : Collections.unmodifiableList(prevTensors);
     }
 
     public int getDimensionAt(int index) {
@@ -316,6 +316,10 @@ public class Tensor {
     }
 
     public Tensor getGradient(){
+        AutogradCompilationScope scope = AutogradCompilationScope.current();
+        if (scope != null) {
+            return scope.gradientOf(this);
+        }
         return gradient;
     }
 
@@ -326,7 +330,7 @@ public class Tensor {
     public boolean isBackward() {
         return isBackward;
     }
-    public void setBackward(boolean backward) {
+    void setBackwardInternal(boolean backward) {
         isBackward = backward;
     }
 
@@ -405,13 +409,6 @@ public class Tensor {
         // no-op: non-F64 tensors no longer maintain a mirrored double[] view
     }
 
-    public void aliasRuntimeFrom(Tensor source) {
-        if (source == null) {
-            throw new IllegalArgumentException("source tensor cannot be null");
-        }
-        this.storage = source.storage;
-    }
-
     public boolean isContiguous() {
         return metadata.isContiguous();
     }
@@ -444,7 +441,7 @@ public class Tensor {
         return TensorDebugSupport.scalarAsDouble(this);
     }
 
-    public void setBackend(ComputeBackend backend) {
+    void setBackendInternal(ComputeBackend backend) {
         this.forcedBackend = backend;
     }
 
@@ -452,17 +449,26 @@ public class Tensor {
         return TensorExecutionSupport.resolveBackend(forcedBackend);
     }
 
-    public void setOperation(Operation operation){
+    void setOperationInternal(Operation operation){
         this.operation=operation;
     }
 
 
-    public void setPrevTensors(List<Tensor> prevTensors) {
+    void setPrevTensorsInternal(List<Tensor> prevTensors) {
         this.prevTensors = prevTensors == null ? null : new ArrayList<>(prevTensors);
     }
 
-    public void setGradient(Tensor t) {
+    void setGradientInternal(Tensor t) {
+        AutogradCompilationScope scope = AutogradCompilationScope.current();
+        if (scope != null) {
+            scope.setGradient(this, t);
+            return;
+        }
         this.gradient=t;
+    }
+
+    List<Tensor> prevTensorsRef() {
+        return prevTensors;
     }
 
 
@@ -892,13 +898,13 @@ public class Tensor {
 
 
     //lambda section
-    public void buildBackwardGraph() {
+    void buildBackwardGraphInternal() {
         if (this.backwardFunction != null) {
             this.backwardFunction.run(); // Spustí se připravená lambda
         }
     }
 
-    public void setBackwardFunction(Runnable backwardFunction) {
+    void setBackwardFunctionInternal(Runnable backwardFunction) {
         this.backwardFunction = backwardFunction;
     }
 
@@ -908,6 +914,13 @@ public class Tensor {
 
     void setByStorageOffset(int offset, double value) {
         TensorStorageSupport.setByStorageOffset(storage, getStorageSize(), offset, value);
+    }
+
+    void aliasRuntimeFromInternal(Tensor source) {
+        if (source == null) {
+            throw new IllegalArgumentException("source tensor cannot be null");
+        }
+        this.storage = source.storage;
     }
 
 

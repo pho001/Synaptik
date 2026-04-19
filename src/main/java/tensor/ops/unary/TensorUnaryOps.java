@@ -19,6 +19,7 @@ import operations.elementwise.unary.tanh;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorDataTypeUtil;
+import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 
 public final class TensorUnaryOps {
@@ -28,7 +29,7 @@ public final class TensorUnaryOps {
     public static Tensor neg(Tensor input) {
         Operation op = new neg();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "neg", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -43,7 +44,7 @@ public final class TensorUnaryOps {
 
         Operation op = new abs();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "abs", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -67,7 +68,7 @@ public final class TensorUnaryOps {
     public static Tensor log(Tensor input) {
         Operation op = new log();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "log", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -80,7 +81,7 @@ public final class TensorUnaryOps {
     public static Tensor exp(Tensor input) {
         Operation op = new exp();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "exp", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -93,7 +94,7 @@ public final class TensorUnaryOps {
     public static Tensor fastExp(Tensor input) {
         Operation op = new fastExp();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "fastExp", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -124,7 +125,7 @@ public final class TensorUnaryOps {
         Operation op = isF32 ? new pow((float) exponent) : new pow(exponent);
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "pow", TensorDataTypeUtil.unary(input));
 
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -156,7 +157,7 @@ public final class TensorUnaryOps {
         Operation op = isF32 ? new mulScalar((float) scalar) : new mulScalar(scalar);
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "* constant", TensorDataTypeUtil.unary(input));
 
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -175,7 +176,7 @@ public final class TensorUnaryOps {
         Operation op = new inv();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "inv", TensorDataTypeUtil.unary(input));
 
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -189,7 +190,7 @@ public final class TensorUnaryOps {
         Operation op = new sqrt();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "sqrt", TensorDataTypeUtil.unary(input));
 
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -202,7 +203,7 @@ public final class TensorUnaryOps {
     public static Tensor sigmoid(Tensor input) {
         Operation op = new sigmoid();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "sigmoid", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -215,7 +216,7 @@ public final class TensorUnaryOps {
     public static Tensor tanh(Tensor input) {
         Operation op = new tanh();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "tanh", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -228,7 +229,7 @@ public final class TensorUnaryOps {
     public static Tensor fastTanh(Tensor input) {
         Operation op = new fastTanh();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "fastTanh", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -243,7 +244,7 @@ public final class TensorUnaryOps {
 
         Operation op = new relu();
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "relu", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -275,7 +276,7 @@ public final class TensorUnaryOps {
         boolean isF32 = input.getDataType() == DataType.FLOAT32;
         Operation op = isF32 ? new clampMin((float) minValue) : new clampMin(minValue);
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "clampMin", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -299,7 +300,7 @@ public final class TensorUnaryOps {
         boolean isF32 = input.getDataType() == DataType.FLOAT32;
         Operation op = isF32 ? new clampMax((float) maxValue) : new clampMax(maxValue);
         Tensor out = TensorPrimitiveBuilder.unary(input, op, "clampMax", TensorDataTypeUtil.unary(input));
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;

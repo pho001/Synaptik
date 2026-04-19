@@ -1,6 +1,7 @@
 package backend.kernels.cpu;
 
 import backend.CpuLayoutPlan;
+import backend.runtime.ExecutionContext;
 import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
 import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
@@ -35,8 +36,8 @@ public record CpuNodeExecutionPlan(
                 : computeContract;
     }
 
-    public List<Tensor> apply(List<Tensor> originalInputs) {
-        return layoutPlan.apply(originalInputs);
+    public List<Tensor> apply(int nodeId, List<Tensor> originalInputs, ExecutionContext executionContext) {
+        return layoutPlan.apply(nodeId, originalInputs, executionContext);
     }
 
     public boolean stridedPath() {

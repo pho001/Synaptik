@@ -13,9 +13,12 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PreparedExecutionBuildTest {
@@ -37,6 +40,47 @@ public class PreparedExecutionBuildTest {
 
         execution.execute(ExecutionMode.FORWARD);
         assertEquals(4, out.toDoubleArrayCopy().length);
+    }
+
+    @Test
+    void repeatedPrepareOnSameCompiledGraphBuildsIndependentPreparedExecutions() {
+        Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{4.0, 5.0, 6.0}, new int[]{3}, null, "b", DataType.FLOAT64);
+        a.setRequiresGrad(true);
+        b.setRequiresGrad(true);
+
+        Tensor out = a.mul(b).add(a);
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+
+        PreparedExecution first = compiled.prepare(RuntimeConfig.trainingDefaults());
+        PreparedExecution second = compiled.prepare(RuntimeConfig.trainingDefaults());
+
+        assertNotSame(first, second);
+        assertNotSame(first.forwardSteps(), second.forwardSteps());
+        assertEquals(first.forwardSteps().size(), second.forwardSteps().size());
+        assertEquals(first.backwardSteps().size(), second.backwardSteps().size());
+
+        first.execute(ExecutionMode.FORWARD_BACKWARD);
+        Tensor firstGradient = a.getGradient();
+        assertNotNull(firstGradient);
+        firstGradient.setDataAt(0, 999.0);
+
+        second.execute(ExecutionMode.FORWARD_BACKWARD);
+        assertArrayEquals(new double[]{5.0, 6.0, 7.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
+        assertArrayEquals(new double[]{1.0, 2.0, 3.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void preparedExecutionStepViewsAreUnmodifiable() {
+        Tensor a = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[]{3.0, 4.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+        Tensor out = a.add(b).relu();
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        assertThrows(UnsupportedOperationException.class, () -> execution.forwardSteps().clear());
+        assertThrows(UnsupportedOperationException.class, () -> execution.backwardSteps().clear());
     }
 
     @Test

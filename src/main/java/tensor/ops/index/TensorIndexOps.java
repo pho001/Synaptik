@@ -8,6 +8,7 @@ import operations.index.takeAlongAxis;
 import operations.index.takeAlongAxisGrad;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tensor.TensorLayoutTransform;
 import tensor.TensorPrimitiveBuilder;
 
@@ -37,7 +38,7 @@ public final class TensorIndexOps {
                 "select",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -71,7 +72,7 @@ public final class TensorIndexOps {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -119,7 +120,7 @@ public final class TensorIndexOps {
                 base.getDataType()
         );
         out.setRequiresGrad(base.getRequiresGrad() || src.getRequiresGrad());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null) {
                 return;
@@ -154,7 +155,7 @@ public final class TensorIndexOps {
                 input.getDataType()
         );
         out.setRequiresGrad(input.getRequiresGrad());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;

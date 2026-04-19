@@ -2,6 +2,7 @@ package tensor.ops.index;
 
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 final class IndexSupport {
     private IndexSupport() {
@@ -76,9 +77,9 @@ final class IndexSupport {
 
     static void accumulateGradient(Tensor input, Tensor gradientDelta) {
         if (input.getGradient() == null) {
-            input.setGradient(gradientDelta);
+            TensorInternalAccess.setGradient(input, gradientDelta);
         } else {
-            input.setGradient(input.getGradient().add(gradientDelta));
+            TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
         }
     }
 

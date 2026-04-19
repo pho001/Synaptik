@@ -3,6 +3,7 @@ package graph.optimizer.rewrite;
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.OptimizerGraphSupport;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,7 +22,7 @@ abstract class AbstractRewriteRule implements OptimizationRule {
             Tensor rewritten = rewriteTensor(tensor);
             if (rewritten != tensor) {
                 if (tensor.isBackward()) {
-                    rewritten.setBackward(true);
+                    TensorInternalAccess.setBackward(rewritten, true);
                 }
                 replacements.put(tensor, rewritten);
                 optimized.add(rewritten);
@@ -34,7 +35,7 @@ abstract class AbstractRewriteRule implements OptimizationRule {
             for (Tensor tensor : sortedGraph) {
                 Tensor resolvedGradient = OptimizerGraphSupport.resolveReplacement(tensor.getGradient(), replacements);
                 if (resolvedGradient != null) {
-                    tensor.setGradient(resolvedGradient);
+                    TensorInternalAccess.setGradient(tensor, resolvedGradient);
                 }
             }
         }

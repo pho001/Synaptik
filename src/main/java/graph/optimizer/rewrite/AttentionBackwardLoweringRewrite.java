@@ -13,6 +13,7 @@ import operations.reduction.softmaxGrad;
 import operations.elementwise.where.where;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,7 +35,7 @@ final class AttentionBackwardLoweringRewrite implements OptimizationRule {
             OptimizerGraphSupport.rewriteInputs(tensor, replacements);
             Tensor rewritten = rewriteTensor(tensor, attentionIndex, forwardReachable);
             if (rewritten != tensor) {
-                rewritten.setBackward(tensor.isBackward());
+                TensorInternalAccess.setBackward(rewritten, tensor.isBackward());
                 replacements.put(tensor, rewritten);
                 optimized.add(rewritten);
             } else {
@@ -49,7 +50,7 @@ final class AttentionBackwardLoweringRewrite implements OptimizationRule {
         for (Tensor tensor : sortedGraph) {
             Tensor resolvedGradient = OptimizerGraphSupport.resolveReplacement(tensor.getGradient(), replacements);
             if (resolvedGradient != null) {
-                tensor.setGradient(resolvedGradient);
+                TensorInternalAccess.setGradient(tensor, resolvedGradient);
             }
         }
 

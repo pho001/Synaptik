@@ -9,6 +9,7 @@ import operations.layout.reshape;
 import operations.layout.squeeze;
 import tensor.Tensor;
 import tensor.TensorBroadcastOps;
+import tensor.TensorInternalAccess;
 import tensor.TensorLayoutTransform;
 import tensor.TensorMetadata;
 import tensor.TensorPrimitiveBuilder;
@@ -38,7 +39,7 @@ public final class TensorLayoutOps {
                         input.getDataType()
                 )
                 : TensorPrimitiveBuilder.unary(input, newShape, op, "reshape", input.getDataType());
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -61,7 +62,7 @@ public final class TensorLayoutOps {
                 "expand",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -93,7 +94,7 @@ public final class TensorLayoutOps {
                 "permute",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -131,7 +132,7 @@ public final class TensorLayoutOps {
                 "expandDims",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;
@@ -168,7 +169,7 @@ public final class TensorLayoutOps {
                 "squeeze",
                 input.getDataType()
         );
-        out.setBackwardFunction(() -> {
+        TensorInternalAccess.setBackwardFunction(out, () -> {
             Tensor outGrad = out.getGradient();
             if (outGrad == null || !input.getRequiresGrad()) {
                 return;

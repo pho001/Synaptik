@@ -53,6 +53,7 @@ import operations.reduction.sum;
 import operations.reduction.softmax;
 import operations.reduction.softmaxGrad;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,7 +96,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
                 Tensor existing = seenNodes.get(signature);
                 if (existing != null) {
                     if (t.isBackward()) {
-                        existing.setBackward(true);
+                        TensorInternalAccess.setBackward(existing, true);
                     }
                     replacements.put(t, existing);
                     continue;

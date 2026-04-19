@@ -2,6 +2,7 @@ package tensor.ops.normalization;
 
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 final class NormalizationSupport {
     private NormalizationSupport() {
@@ -9,10 +10,10 @@ final class NormalizationSupport {
 
     static void accumulateGradient(Tensor input, Tensor gradientDelta) {
         if (input.getGradient() == null) {
-            input.setGradient(gradientDelta);
+            TensorInternalAccess.setGradient(input, gradientDelta);
             return;
         }
-        input.setGradient(input.getGradient().add(gradientDelta));
+        TensorInternalAccess.setGradient(input, input.getGradient().add(gradientDelta));
     }
 
     static void validateMatchingTailParameters(Tensor input, Tensor gamma, Tensor beta, String opName) {
