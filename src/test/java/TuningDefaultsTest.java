@@ -66,7 +66,7 @@ public class TuningDefaultsTest {
 
         var request = TuningDefaults.benchmark(TuningPreset.BALANCED, workload, List.of(candidate));
 
-        assertEquals(2, request.measurement().warmupIters());
+        assertEquals(4, request.measurement().warmupIters());
         assertEquals(8, request.measurement().measureIters());
         assertEquals(ValidationToleranceProfile.BALANCED_DTYPE_AWARE, request.validation().toleranceProfile());
         assertEquals(3e-6, request.validation().absTolerance(tensor.DataType.FLOAT32));

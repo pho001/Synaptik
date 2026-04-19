@@ -23,7 +23,7 @@ public final class TuningDefaults {
     }
 
     public static MeasurementPolicy balancedMeasurement() {
-        return new MeasurementPolicy(2, 8, 3, true, true, true, true, false);
+        return new MeasurementPolicy(4, 8, 3, true, true, true, true, false);
     }
 
     public static MeasurementPolicy thoroughMeasurement() {

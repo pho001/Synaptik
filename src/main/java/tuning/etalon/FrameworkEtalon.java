@@ -11,6 +11,7 @@ import config.profile.WorkloadProfile;
 import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;
+import tuning.measure.MeasurementPolicy;
 import tuning.session.BenchmarkEntry;
 import tuning.session.BenchmarkSuiteRequest;
 import tuning.session.TuningDefaults;
@@ -29,6 +30,16 @@ public final class FrameworkEtalon {
                 preset == null ? TuningPreset.BALANCED : preset,
                 inferenceWorkloads(),
                 inferenceCandidates()
+        );
+    }
+
+    public static BenchmarkSuiteRequest inferenceRegressionSuite() {
+        return new BenchmarkSuiteRequest(
+                inferenceWorkloads(),
+                inferenceCandidates(),
+                regressionMeasurement(),
+                TuningPreset.BALANCED.benchmarkValidation(),
+                TuningPreset.BALANCED.reportPolicy()
         );
     }
 
@@ -177,5 +188,9 @@ public final class FrameworkEtalon {
                         threads
                 )
         );
+    }
+
+    private static MeasurementPolicy regressionMeasurement() {
+        return new MeasurementPolicy(8, 8, 3, true, true, true, true, false);
     }
 }

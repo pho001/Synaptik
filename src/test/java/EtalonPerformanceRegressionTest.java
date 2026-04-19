@@ -4,7 +4,6 @@ import tuning.etalon.FrameworkEtalon;
 import tuning.report.BenchmarkCandidateReport;
 import tuning.report.BenchmarkSuiteReport;
 import tuning.session.BenchmarkSuiteSession;
-import tuning.session.TuningPreset;
 import tuning.store.JsonFileBenchmarkReportStore;
 
 import java.io.IOException;
@@ -26,7 +25,7 @@ public class EtalonPerformanceRegressionTest {
     @Test
     void inferenceEtalonMatchesPerformanceBaseline() throws IOException {
         BenchmarkSuiteReport report = BenchmarkSuiteSession
-                .create(FrameworkEtalon.inferenceSuite(TuningPreset.BALANCED))
+                .create(FrameworkEtalon.inferenceRegressionSuite())
                 .run();
 
         Path out = Path.of("build", "tuning-etalon-regression", "current-inference-suite.json");
