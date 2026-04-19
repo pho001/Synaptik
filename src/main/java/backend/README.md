@@ -1,605 +1,287 @@
-# Backend
+# Backend Package
 
-The backend layer performs the actual computation over a prepared graph. It does not build graphs and it does not own optimizer transformations. Its contract is:
+The `backend` layer performs concrete computation over a prepared graph.
 
-- it receives a `Tensor` node
-- it receives prepared metadata from `CompiledGraph.prepare(...)`
-- it runs the correct kernel family entry point for the selected backend
+It does not build semantic graphs.
+It does not run optimizer stages.
+It does not own autotune or calibration.
 
-Today only the CPU backend is fully implemented.
+Its contract is:
+
+1. receive a prepared node step
+2. receive prepared backend metadata
+3. execute the correct kernel family for the selected backend
+
+Today the CPU backend is the only complete backend.
 
 ## Reading Guide
 
-This document is mainly for:
+Use this package when you need to answer questions such as:
 
-- implementing a new CPU kernel
-- auditing runtime dispatch flow
-- understanding prepared metadata and the compute contract
-- tuning backend performance paths
+- which kernel family executes this primitive?
+- where is backend selection resolved?
+- which work is decided in `prepare(...)` and which work is still done at runtime?
+- how do matmul / conv2d / fused / reduction dispatch hints reach the executor?
 
-If you are looking for:
+Related docs:
 
-- how the graph is built: [../tensor/README.md](../tensor/README.md)
-- what an operation descriptor is: [../operations/README.md](../operations/README.md)
-- how the compile/prepare lifecycle works: [../graph/README.md](../graph/README.md)
-- how backend knobs are calibrated: [../tuning/README.md](../tuning/README.md)
+- tensor/public graph builders: [../tensor/README.md](../tensor/README.md)
+- primitive descriptors: [../operations/README.md](../operations/README.md)
+- compile/prepare lifecycle: [../graph/README.md](../graph/README.md)
+- tuning and runtime knob ownership: [../tuning/README.md](../tuning/README.md)
 
 ## Main Components
 
-- dispatch facade
+- backend dispatch facade:
   - [ComputeEngine.java](../backend/ComputeEngine.java)
   - [ComputeBackend.java](../backend/ComputeBackend.java)
-- concrete backends
+- concrete backends:
   - [CPUBackend.java](../backend/CPUBackend.java)
   - [CudaBackend.java](../backend/CudaBackend.java)
   - [OpenClBackend.java](../backend/OpenClBackend.java)
-- CPU kernel resolver
-  - [CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
-- prepared runtime metadata
-  - [CompiledNodeExecutionMetadata.java](../graph/execution/CompiledNodeExecutionMetadata.java)
-  - [CpuNodeExecutionPlan.java](../backend/kernels/cpu/CpuNodeExecutionPlan.java)
-  - [CpuNodeWorkspace.java](../backend/kernels/cpu/CpuNodeWorkspace.java)
+- backend prepare layer:
+  - [prepare/BackendPrepareDispatcher.java](../backend/prepare/BackendPrepareDispatcher.java)
+  - [prepare/CpuNodePreparer.java](../backend/prepare/CpuNodePreparer.java)
+- CPU kernel resolution:
+  - [registry/CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
+- runtime context:
+  - [runtime/ExecutionContext.java](../backend/runtime/ExecutionContext.java)
 
-## End-To-End Execution Flow
+## Execution Path
 
-The real runtime flow looks like this:
+The normal execution path is:
 
-1. `CompiledGraph.prepare(runtimeConfig)` creates `PreparedExecution`
-2. `PreparedExecutionBuilder` builds a backend-agnostic prepare context and delegates node preparation through `BackendPrepareDispatcher`
-3. backend-specific preparers build `CompiledNodeExecutionMetadata` for every executable runtime node
-4. `PreparedExecution.execute(...)` iterates prepared forward/backward steps
-5. each step calls `ComputeEngine.compute(node, metadata, context)`
-6. `ComputeEngine` switches to the concrete backend
-7. `CPUBackend.execute(...)` takes the prepared plan and invokes the corresponding `CpuKernel`
+1. `PreparedExecution` iterates prepared steps
+2. each step calls `ComputeEngine.compute(compiledNode, metadata, context)`
+3. `ComputeEngine` switches on backend
+4. `CPUBackend.execute(...)` receives:
+   - semantic node
+   - compiled node snapshot
+   - prepared metadata
+   - execution context
+5. the resolved CPU kernel executes the node
 
-This is an important boundary:
+This means the backend consumes prepared metadata rather than rediscovering policy.
 
-- the backend must not reinvent optimizer policy
-- the hot runtime path must not re-decide work that could already be resolved during prepare
+## What Prepare Fixes Before Runtime
 
-## Prepared CPU Metadata
+For the CPU backend, `prepare(...)` already resolves:
 
-`CPUBackend.buildExecutionPlan(...)` prepares per-node metadata for the CPU path. It typically contains:
-
-- layout plan
-  - prepared/materialized inputs
-  - broadcast plan
-  - `where` broadcast plan
-  - strided-path information
-- compute contract
+- target backend kind
+- compute contract:
   - storage dtype
   - compute dtype
   - accumulate dtype
-  - resolved backend kind
+- kernel selection
+- elementwise dispatch hints
+- reduction hints
+- matmul hints
+- conv2d hints
+- fused executable preparation
+- optional node workspace requirements
+
+Runtime execution should therefore be read as:
+
+- execute the recipe
+- not rediscover the recipe
+
+## CPU Package Shape
+
+The root `backend.kernels.cpu` package intentionally keeps shared contracts and planning pieces.
+The concrete execution code is split by family.
+
+Important subareas:
+
+- elementwise:
+  - contiguous and strided loops
+  - unary, binary, compare, logical, and `where`
+- reduction
+- linalg:
+  - matmul
+  - linear
+  - attention
+- nn:
+  - conv2d
+  - pool2d
+- fused
+- plan
+
+That split mirrors the semantic organization used in `tensor.ops.*` and `operations.*`.
+
+## CPU Planning Boundary
+
+The CPU backend uses planning objects so that expensive policy decisions do not happen inside hot loops.
+
+Examples of planned metadata:
+
+- elementwise dispatch mode
+  - scalar / vector / parallel
+- vector width
+- planned worker count
+- chunk sizes
+- reduction accuracy mode
+- matmul tiles and microkernel
+- conv2d GEMM BLAS-vs-Java decision
+- attention direct thresholds and delegated matmul hints
+
+The planner layer is therefore the natural home for runtime threshold interpretation.
+The executor layer should stay small and execution-focused.
+
+## Prepared CPU Metadata
+
+The prepared CPU plan for one node may contain:
+
+- layout plan
+  - broadcast prep
+  - strided-path info
+  - where-broadcast info
+- compute contract
+  - storage/compute/accumulate dtypes
 - dispatch hints
-  - scalar/vector/parallel mode
+  - mode
   - vector width
-  - chunk sizes
-  - worker count
+  - workers
+  - scalar/vector chunk sizes
 - reduction hints
   - reduction mode
+  - workers
+  - chunk size
   - vector width
-  - chunking
   - accuracy mode
 - matmul hints
-  - BLAS vs Java selection
+  - BLAS vs Java
   - tile sizes
-  - parallelism
-  - selected microkernel
-  - BLAS thread policy is not applied by runtime; provider thread management stays external/auto
+  - microkernel
+  - work estimate
+  - planned workers
 - conv2d hints
-  - prepared GEMM `m/n/k/work`
-  - prepared BLAS vs Java selection for lowered conv2d GEMM nodes
-- attention plan
-  - prepared direct-attention vector/parallel hints
-  - prepared softmax-grad reduction hints
-  - prepared matmul hints for backward substeps (`queryGrad`, `dWeights`, `valueGrad`, `keyGrad`)
-- optional workspace
-  - float continuation
-  - packed linear weights
-  - max-pool argmax buffers
+  - lowered GEMM `m/n/k/work`
+  - prepared BLAS-vs-Java selection
+- fused executable
+  - prepared ASM/vector/direct implementation metadata
 
-The result is not a generic abstract "execution descriptor language". It is a concrete runtime recipe for one backend node.
+That object is not a theoretical IR.
+It is a concrete execution recipe for one backend node.
 
-Two details matter here:
+## Runtime Context
 
-- conv2d lowered GEMM nodes no longer choose `BLAS vs Java` inside `Conv2dGemmBackend`
-- scaled-dot-product-attention no longer asks the planner for runtime policy during execution
+`ExecutionContext` is the runtime-scoped holder for:
 
-Those choices are now fixed in `prepare(...)` and carried through `CpuNodeExecutionPlan`.
+- execution mode
+- approximation policy
+- prepared metadata index
+- execution state
+- family-specific runtime caches
 
-Runtime-only auxiliary state is also kept off the semantic `Tensor` node now:
+This is the current architectural rule:
 
-- attention forward/backward caches live in execution-scoped state attached to `ExecutionContext`
-- conv trace metadata is published into the current run context, not stored back into the graph node
+- runtime state belongs to the run context
+- not to the semantic `Tensor`
 
-That keeps semantic graph construction separate from per-run backend state.
+Examples of execution-scoped state:
 
-## CPU Package Structure
+- attention forward/backward auxiliary state
+- conv trace metadata for traced execution
 
-The root `backend.kernels.cpu` package intentionally contains only shared contracts and planner layers:
+## Example: Elementwise Execution
 
-- planner
-- context
-- dispatch hints
-- dtype helpers
-- workspace
-- prepared plan records
-- thread pool
+Suppose the graph contains:
 
-The actual family entry points are split thematically:
+```text
+y = relu(add(x, b))
+```
 
-- `elementwise/`
-- `reduction/`
-- `linalg/`
-- `nn/`
-- `index/`
-- `layout/`
-- `fused/`
-- `grad/`
+and:
 
-That matches how the CPU backend actually looks in the code today.
+- `x` has shape `[2, 2]`
+- `b` has shape `[2]`
 
-## CPU Kernel Design Rules
+After prepare, the CPU plan may already know:
 
-The current design is not "one giant kernel class for everything". The recurring pattern is:
+- this is an elementwise node
+- output dtype is `FLOAT64`
+- inputs are broadcast-compatible
+- the best dispatch mode is vector or scalar
 
-- `Cpu*Kernel`
-  - thin runtime entry point
-  - implements `CpuKernel`
-  - takes prepared metadata and calls the family executor
-- `*Executor`
-  - family orchestration
-  - validation of family-specific invariants
-  - dispatch to the concrete low-level path
-- `*Loops` or `*Backend`
-  - hot inner loops or specialized compute implementation
+At runtime the backend does not ask:
 
-Not every family has exactly the same trio of names, but the principle is consistent:
+- "is this add fusable?"
+- "should we rewrite this into something else?"
 
-- the runtime entry point stays thin
-- orchestration stays out of hot loops
-- low-level compute stays localized
+That work is already done earlier.
+The runtime simply executes the planned loop/kernel path.
 
-## Runtime Config Boundary
+## Matmul and BLAS Routing
 
-There is only one runtime policy surface in the core path now:
+Matmul execution currently supports:
 
-- `config.runtime.*`
+- Java microkernel paths
+- BLAS routing through the configured provider
 
-The backend runtime package is intentionally narrower:
+The important ownership rule is:
 
-- `backend.runtime.ExecutionMode`
-- `backend.runtime.ExecutionContext`
+- the backend planner decides whether BLAS or Java should run for the prepared node
+- the executor performs the chosen path
 
-So the layering is:
+The public BLAS thread knob is intentionally canonicalized to `0` (`auto`) in current config.
+Synaptik does not try to maintain a separate runtime-managed global BLAS thread policy.
 
-1. config/profile + config/runtime define runnable policy
-2. `CompiledGraph.prepare(...)` resolves backend-specific prepared metadata from that policy
-3. backend execution consumes only the prepared recipe plus `ExecutionContext`
+## Conv2d Execution
 
-That keeps executor code from reinterpreting high-level config objects in hot paths.
+The conv2d family currently has two conceptual execution shapes:
 
-## Elementwise Families
+- direct conv kernels
+- lowered GEMM kernels
 
-The elementwise batch is divided into:
+Graph rewrite can lower:
 
-- `elementwise/binary`
-- `elementwise/unary`
-- `elementwise/compare`
-- `elementwise/logical`
-- `elementwise/where`
+- `conv2d` -> `conv2dGemm`
+- `conv2dBackwardInput` -> `conv2dBackwardInputGemm`
+- `conv2dBackwardWeight` -> `conv2dBackwardWeightGemm`
 
-Inside `binary` and `unary`, there are dtype-specialized leaf implementations:
+Then CPU preparation resolves BLAS-vs-Java policy for the lowered GEMM nodes.
 
-- `f64`
-- `f32`
-- `bf16`
+That split is important:
 
-Architecturally, the implementation separates:
+- graph rewrite decides semantic lowering
+- backend preparation decides runtime execution path for the lowered primitive
 
-- local operation algebra
-- shared loop execution
-- broadcasting / stride walking
-- vector vs scalar dispatch
-- parallel chunk scheduling
+## Fused Backend
 
-This means:
+Graph-level fusion produces one `FUSED` node.
+Runtime still needs to choose how that fused node runs.
 
-- `CpuAddKernel` does not contain the whole runtime orchestration story
-- loop structure is shared inside family executors
-- the actual per-element algebra lives in narrower leaf implementations
+Current fused execution ideas include:
 
-### Non-Contiguous Routing
+- dispatch family classification
+- backend resolution for the fused executable
+- ASM/vector/scalar execution preparation
 
-CPU uses a hybrid strategy:
+The backend documentation should be read together with [../graph/optimizer/FUSE.md](../graph/optimizer/FUSE.md):
 
-- small non-contiguous tensors
-  - run through the strided path
-  - [CpuStridedElementWise.java](../backend/kernels/cpu/elementwise/strided/CpuStridedElementWise.java)
-- larger non-contiguous tensors
-  - inputs are materialized into contiguous temporary storage
-  - then the regular fast path runs
+- `FUSE` decides that a cluster should become one primitive
+- backend preparation decides how to execute that primitive
 
-Boundary knob:
+## Trace Metadata
 
-- `cpu.contiguousMaterializeThreshold`
+When execution is traced, the backend can publish rich step metadata such as:
 
-This belongs to runtime family tuning, not optimizer-stage policy.
+- dispatch mode and vector width
+- reduction chunking
+- matmul tiles and microkernel
+- conv2d GEMM path details
+- fused backend information
 
-## Reduction Families
+That metadata is later consumed by benchmark/reporting code in the tuning layer.
 
-The CPU reduction path is not one homogeneous branch. It has several family executors depending on operation structure.
+## Architectural Boundaries
 
-### Sum-Like
+These backend rules are intentional:
 
-Shared family for:
+- executors should not rerun optimizer logic
+- executors should not reinterpret graph semantics
+- runtime caches should not be written back into semantic tensors
+- planner decisions should be made during prepare whenever possible
+- tuning knobs should influence planners/config, not ad hoc executor branches
 
-- `SUM`
-- `MEAN`
-
-Main pieces:
-
-- [SumLikeReduction.java](../backend/kernels/cpu/reduction/SumLikeReduction.java)
-- [SumLikeReductionExecutor.java](../backend/kernels/cpu/reduction/SumLikeReductionExecutor.java)
-- [SumLoops.java](../backend/kernels/cpu/reduction/SumLoops.java)
-
-The difference between `SUM` and `MEAN` is primarily in finalization, not in the traversal engine.
-
-### Generic Axis Reductions
-
-Shared traversal for:
-
-- `REDUCE_MIN`
-- `REDUCE_MAX`
-- `REDUCE_ALL`
-- `REDUCE_ANY`
-
-Main piece:
-
-- [ReductionTraversal.java](../backend/kernels/cpu/reduction/ReductionTraversal.java)
-
-The traversal layer handles:
-
-- output-group to base-storage-offset mapping
-- reduction-axis walking
-- optional parallel chunking
-
-Per-op algebra then stays in the leaf reduction implementation.
-
-### Softmax-Like
-
-Shared structured family for:
-
-- `SOFTMAX`
-- `LOG_SOFTMAX`
-
-and their gradient families:
-
-- `SOFTMAX_GRAD`
-- `LOG_SOFTMAX_GRAD`
-
-Main pieces:
-
-- [SoftmaxLikeReduction.java](../backend/kernels/cpu/reduction/SoftmaxLikeReduction.java)
-- [SoftmaxLikeTraversal.java](../backend/kernels/cpu/reduction/SoftmaxLikeTraversal.java)
-- [SoftmaxLikeExecutor.java](../backend/kernels/cpu/reduction/SoftmaxLikeExecutor.java)
-
-This is not composed through generic elementwise kernels. It is a specialized structured kernel family with its own traversal logic.
-
-### Loss Reductions
-
-Shared family for:
-
-- `NLL_LOSS`
-- `CROSS_ENTROPY_LOSS`
-- `CROSS_ENTROPY_LOSS_INDICES`
-- gradient variants where they make sense
-
-Main pieces:
-
-- [LossReduction.java](../backend/kernels/cpu/reduction/LossReduction.java)
-- [LossReductionTraversal.java](../backend/kernels/cpu/reduction/LossReductionTraversal.java)
-- [LossReductionExecutor.java](../backend/kernels/cpu/reduction/LossReductionExecutor.java)
-
-## Linear Algebra Families
-
-### MatMul
-
-The matmul path uses this stack:
-
-- [CpuMatMulKernel.java](../backend/kernels/cpu/linalg/CpuMatMulKernel.java)
-- [MatMulExecutor.java](../backend/kernels/cpu/linalg/MatMulExecutor.java)
-- [MatMulJavaBackend.java](../backend/kernels/cpu/linalg/MatMulJavaBackend.java)
-- [MatMulBlasBackend.java](../backend/kernels/cpu/linalg/MatMulBlasBackend.java)
-
-`MatMulExecutor` decides:
-
-- BLAS vs Java backend
-- BF16 continuation policy
-- batched vs non-batched flow
-- workspace usage
-
-`ResolvedMatMulHints` already carries the resolved runtime recipe:
-
-- tiles
-- parallelism
-- microkernel
-- BLAS enablement
-
-### Linear
-
-`LINEAR` is not implemented as a completely separate GEMM system. It reuses the matmul family and adds:
-
-- the bias epilogue
-- packed weight workspace
-- BF16 continuation policy
-
-Relevant classes:
-
-- [CpuLinearKernel.java](../backend/kernels/cpu/linalg/CpuLinearKernel.java)
-- [LinearExecutor.java](../backend/kernels/cpu/linalg/LinearExecutor.java)
-
-## NN Spatial Families
-
-### Conv2d
-
-There are two main forward paths:
-
-- direct convolution
-- GEMM-lowered convolution
-
-Main pieces:
-
-- [Conv2dExecutor.java](../backend/kernels/cpu/nn/Conv2dExecutor.java)
-- [Conv2dDirectBackend.java](../backend/kernels/cpu/nn/Conv2dDirectBackend.java)
-- [Conv2dGemmExecutor.java](../backend/kernels/cpu/nn/Conv2dGemmExecutor.java)
-- [Conv2dGemmBackend.java](../backend/kernels/cpu/nn/Conv2dGemmBackend.java)
-
-The choice between `CONV2D` and `CONV2D_GEMM` is not a backend runtime decision. It is a compile-time rewrite/lowering decision in the optimizer.
-
-For already lowered `CONV2D_GEMM` nodes, the backend also does not re-decide `BLAS vs Java` inside the hot kernel. That dispatch is resolved during `prepare(...)` into `ResolvedConv2dHints`, and the runtime path only executes the prepared recipe.
-
-### Pool2d
-
-Pool family:
-
-- [Pool2dExecutor.java](../backend/kernels/cpu/nn/Pool2dExecutor.java)
-- [Pool2dDirectBackend.java](../backend/kernels/cpu/nn/Pool2dDirectBackend.java)
-
-Max-pool backward additionally reuses prepared int workspace for argmax indices.
-
-### Attention
-
-Attention is no longer forced to run as a decomposed `matmul + softmax + where` runtime path if the rewrite finds the pattern. It can be lowered to specialized primitives:
-
-- `SCALED_DOT_PRODUCT_ATTENTION`
-- `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
-- `SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS`
-
-The CPU resolver has explicit kernel entry points for them:
-
-- [CpuScaledDotProductAttentionKernel.java](../backend/kernels/cpu/linalg/CpuScaledDotProductAttentionKernel.java)
-- [CpuScaledDotProductAttentionBackwardKernel.java](../backend/kernels/cpu/linalg/CpuScaledDotProductAttentionBackwardKernel.java)
-- [CpuScaledDotProductAttentionWeightsKernel.java](../backend/kernels/cpu/linalg/CpuScaledDotProductAttentionWeightsKernel.java)
-
-## Index And Layout Families
-
-### Index
-
-The indexing family includes:
-
-- `GATHER`
-- `GATHER_GRAD`
-- `TAKE_ALONG_AXIS`
-- `TAKE_ALONG_AXIS_GRAD`
-- `SCATTER_ADD`
-
-Main pieces:
-
-- [IndexExecutor.java](../backend/kernels/cpu/index/IndexExecutor.java)
-- [IndexReadWriteBackend.java](../backend/kernels/cpu/index/IndexReadWriteBackend.java)
-
-These are hard barriers for fused compute. They are not just "elementwise access variants".
-
-### Layout
-
-The layout family handles:
-
-- `RESHAPE`
-- `EXPAND`
-- `SELECT`
-- `PERMUTE`
-- `EXPAND_DIMS`
-- `SQUEEZE`
-- `CONTIGUOUS`
-
-Main piece:
-
-- [LayoutExecutor.java](../backend/kernels/cpu/layout/LayoutExecutor.java)
-
-Important contract:
-
-- some layout ops are alias/view-only
-- `CONTIGUOUS` is an explicit materialization node
-- `RESHAPE` can be either an alias or a materialization depending on layout reality
-
-## Fused Family
-
-The fused runtime stack today looks like this:
-
-- the optimizer creates a `FusedOperation` descriptor
-- `CompiledGraph.prepare(...)` turns it into a `PreparedFusedExecutable`
-- `CpuFusedKernel` is the thin entry point
-- `FusedExecutor` handles runtime scheduling
-
-Relevant classes:
-
-- [CpuFusedKernel.java](../backend/kernels/cpu/fused/CpuFusedKernel.java)
-- [FusedExecutor.java](../backend/kernels/cpu/fused/FusedExecutor.java)
-- [PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
-- [FusedExecutionBackendResolver.java](../graph/fused/FusedExecutionBackendResolver.java)
-
-### Important Current Reality
-
-The CPU fused backend no longer uses the old direct fused backend.
-
-`FusedExecutionBackendResolver` currently:
-
-- tries the ASM fused backend
-- throws if the plan is not supported
-
-That means:
-
-- the prepared fused executable is now generated through the ASM path
-- `applyRangeVector(...)` still exists as part of the contract
-- the default interface implementation still falls back to scalar
-- but actual performance now depends on what the ASM backend generates
-
-### What Controls Runtime Fused Dispatch
-
-`FusedExecutor` uses prepared `ResolvedDispatchHints`:
-
-- `SCALAR`
-- `VECTOR`
-- `PARALLEL`
-- `PARALLEL_VECTOR`
-
-and calls:
-
-- `applyRangeScalar(...)`
-- `applyRangeVector(...)`
-
-So a hot fused node still runs as:
-
-- one prepared executable
-- one output-space loop structure
-- without materializing intermediate tensors
-
-## Compute Contract
-
-The CPU runtime distinguishes between:
-
-- storage dtype
-- compute dtype
-- accumulate dtype
-- resolved backend kind
-
-This matters most for `BFLOAT16`.
-
-Examples:
-
-- `FLOAT64` storage -> compute `FLOAT64`
-- `FLOAT32` storage -> compute `FLOAT32`
-- `BFLOAT16` storage -> compute `FLOAT32`
-
-This contract is resolved during prepare and stored in `ResolvedCpuComputeContract`.
-
-## BF16 Continuations And Workspace
-
-Some kernels can keep intermediate results in `float[]` workspace longer than just until public tensor materialization.
-
-This mainly applies to:
-
-- `MATMUL`
-- `LINEAR`
-- `CONV2D_GEMM`
-- selected reduction/layout combinations with explicit float workspace
-
-It is important to distinguish two cases:
-
-- intra-kernel continuation
-  - the intermediate stays in workspace inside one kernel family
-- cross-node continuation
-  - a producer publishes float continuation for a specific supported consumer
-
-Cross-node continuation is intentionally narrow and explicitly planned.
-
-## Runtime Dispatch Knobs
-
-The CPU planner reads runtime knobs from `CpuKernelConfig` and related config objects.
-
-Typical knob families:
-
-- elementwise dispatch
-- fused dispatch
-- reduction dispatch
-- scheduler chunking
-- materialization threshold
-- matmul heuristics
-- numerics approximation policy
-
-The tuning surface is described in more detail in:
-
-- [../tuning/KNOBS.md](../tuning/KNOBS.md)
-
-## BLAS Path
-
-CPU matmul can optionally switch to OpenBLAS through FFM.
-The current FFM bridge uses zero-copy heap array segments for contiguous inputs and outputs rather than per-call native scratch copies.
-
-Relevant runtime properties:
-
-- `cg.cpu.blas.provider=NONE|OPENBLAS_FFM`
-- `cg.cpu.blas.matmulMinWork=<long>`
-- `cg.cpu.blas.f32RequireMgeK=true|false`
-- `cg.cpu.blas.f32MaxNOverK=<double>`
-- `cg.cpu.blas.threads=<int>`
-- `cg.cpu.blas.debug=true|false`
-- `openblas.lib=<absolute-path>`
-
-In practice:
-
-- `cg.cpu.blas.provider` decides whether BLAS is even considered
-- `cg.cpu.blas.matmulMinWork` is a crossover threshold between the Java matmul backend and the BLAS backend, not an enable switch by itself
-- BLAS is used only for suitable contiguous workloads
-- the heuristic for `F32` is stricter than for `F64`
-- fallback back to the Java backend is automatic
-
-## Trace And Debug Metadata
-
-`PreparedExecution.executeTraced(...)` can return step-level traces. Backend metadata show up there through:
-
-- compute metadata
-- layout metadata
-- dispatch metadata
-- reduction metadata
-- matmul metadata
-- fused metadata
-
-This is an important tool for:
-
-- verifying that a benchmark really ran on the expected path
-- auditing `vectorWidth`, worker count, tiles, and BLAS use
-- finding unexpected scalar fallbacks
-
-## Adding A New CPU Kernel
-
-Recommended process:
-
-1. add an operation descriptor or reuse an existing `Operation.OpType`
-2. create a `Cpu*Kernel` entry point in the appropriate family
-3. if it is a broader family, create or reuse a `*Executor`
-4. keep hot loops in the leaf implementation, not in the resolver
-5. register the op in [CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
-6. add prepare-time hints or workspace if the kernel needs them
-7. add execution and regression tests
-8. if a new runtime knob is introduced, thread it through the tuning surface and the documentation
-
-## Adding A New Backend
-
-1. add a new enum value to `ComputeBackend`
-2. implement the concrete backend class
-3. create a registry/resolver for the new backend
-4. extend `ComputeEngine.compute(...)`
-5. add runtime config and tuning persistence if the backend introduces new knobs
-6. do not violate the boundary:
-   - the graph still builds `Operation` descriptors
-   - the backend still only executes the prepared graph
-
-## Current Limitations
-
-- CPU is the only fully implemented backend
-- CUDA/OpenCL are scaffolding
-- fused execution on CPU is now an ASM-only prepare path
-- some performance optimizations are tightly bound to prepared metadata and are not a general tensor runtime contract
+If execution code starts deciding graph-shape policy or recomputing compile-time dispatch boundaries, the design is drifting in the wrong direction.

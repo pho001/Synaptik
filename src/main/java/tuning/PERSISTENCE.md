@@ -1,74 +1,73 @@
 # Tuning Persistence
 
-Persistence in the tuning layer is not just about "saving some JSON". It must precisely distinguish what is:
+Persistence in the tuning layer has to distinguish what is:
 
-- execute source of truth
-- tuning prior
-- explain artifact
+- runtime source of truth
+- search/history prior
+- explain/report artifact
 
-If these layers get mixed, drift starts between what was benchmarked, what gets executed, and what is stored as the "winner".
+If those get mixed, the system drifts between:
 
-## Reading Guide
+- what was measured
+- what gets executed later
+- what the repository stores as the "winner"
 
-This document describes:
+## Main Artifact Types
 
-- which persistent artifacts exist today
-- where they should live
-- what lifecycle they have
-- which of them are used for execution and which are only used for explain/search priors
+### 1. Built-in defaults
 
-## Artifact Types
-
-### 1. Built-In Defaults
-
-They live in code.
-
-They are not a persistent tuning artifact.
+These live in code and are not persisted tuning artifacts.
 
 ### 2. `PlatformRuntimeProfile`
 
-The result of platform calibration.
+Produced by platform calibration.
 
-This is a machine-specific runtime default artifact.
-
-It is used as the actual input to `ExecutionProfileAssembler`.
+This is the machine-specific runtime-default artifact used later when assembling executable profiles.
 
 ### 3. Best `ExecutionProfile`
 
-The result of graph autotune for a specific workload/hardware context.
+Produced by workload-specific autotune.
 
-This is a workload-specific runnable winner.
+This is the runnable winner for one workload/hardware context.
 
-### 4. Tuning History
+### 4. Tuning history
 
-Append-only evidence about candidates:
+Append-only candidate evidence:
 
-- valid/invalid
-- median/mean
-- score
-- summary
+- fingerprint
+- validity
+- scores
+- measured timings
 
-It is used as a prior for history-aware search.
+This is useful as a prior for history-aware search and for diagnosis.
 
-### 5. Explain Artifacts
+### 5. Explain artifacts
 
-This group includes:
+Examples:
 
 - text/json benchmark reports
 - text/json autotune reports
-- text/json platform calibration reports
+- text/json calibration reports
 
-They are not used as the runtime source of truth.
+These are for humans and tooling, not for direct execution.
 
 ## Preferred Layout Today
 
-The preferred layout is platform-versioned storage under:
+Preferred versioned layout:
 
-- `profiles/platform/<platform-id>/...`
-
-The concrete pattern used in [Main.java](../synaptik/app/Main.java):
+```text
+profiles/
+  platform/
+    <platform-id>/
+      calibration/
+      reports/
+      tuning/
+        abc/
+```
 
 ### Platform calibration
+
+Typical files:
 
 - `profiles/platform/<platform-id>/calibration/<dtype>-<mode>.json`
 - `profiles/platform/<platform-id>/reports/calibration-<dtype>-<mode>.json`
@@ -81,296 +80,108 @@ For workload `abc`:
 - `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json`
 - `profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl`
 
-## Compatibility Fallbacks
+## Legacy Compatibility Layouts
 
-The repo can still read older fallback layouts under `build/...`:
+The code can still read older fallback paths under `build/...`, such as:
 
 - `build/platform-calibration/...`
 - `build/tuning/best-profiles/...`
 - `build/tuning/history/...`
 
-But this is no longer the preferred long-term layout.
+These are compatibility/migration paths, not the preferred long-term layout.
 
-The documentation needs to say this explicitly:
+## Generic Tensor Convenience Autotune Paths
 
-- `build/...` is compatibility / temporary output space
-- `profiles/platform/...` is the preferred place for versioned persisted tuning state
+There is one additional persistence area used by the `Tensor.compute(ComputeOptions)` convenience API when generic graph autotune is enabled:
 
-## Platform Runtime Profile Persistence
+```text
+build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/...
+```
 
-Main types:
+This is intentionally separate from the main workload-specific versioned tuning tree because it is:
 
-- [PlatformRuntimeProfile.java](../config/profile/PlatformRuntimeProfile.java)
-- [PlatformRuntimeProfileIO.java](../config/profile/PlatformRuntimeProfileIO.java)
-- [PlatformRuntimeProfileStore.java](./store/PlatformRuntimeProfileStore.java)
-- [JsonFilePlatformRuntimeProfileStore.java](./store/JsonFilePlatformRuntimeProfileStore.java)
+- graph-signature oriented
+- convenience API driven
+- generic rather than one named benchmark workload like `abc`
 
-Stored content:
+## Stores And IO Types
 
-- metadata
-- matmul family
-- fused family
-- elementwise dispatch family
-- reduction family
-- scheduler family
-- materialization family
-- numerics family
+Important types:
+
+- platform runtime profile:
+  - [../config/profile/PlatformRuntimeProfileIO.java](../config/profile/PlatformRuntimeProfileIO.java)
+  - [store/PlatformRuntimeProfileStore.java](./store/PlatformRuntimeProfileStore.java)
+  - [store/JsonFilePlatformRuntimeProfileStore.java](./store/JsonFilePlatformRuntimeProfileStore.java)
+- best profile:
+  - [store/BestProfileStore.java](./store/BestProfileStore.java)
+  - [store/JsonFileBestProfileStore.java](./store/JsonFileBestProfileStore.java)
+- history:
+  - [store/TuningHistoryStore.java](./store/TuningHistoryStore.java)
+  - [store/JsonFileTuningHistoryStore.java](./store/JsonFileTuningHistoryStore.java)
+- report stores:
+  - [store/BenchmarkReportStore.java](./store/BenchmarkReportStore.java)
+  - [store/PlatformCalibrationResultStore.java](./store/PlatformCalibrationResultStore.java)
+
+## Practical Meaning Of Each Persisted Artifact
+
+### Calibration profile
 
 Meaning:
 
-- you can recalibrate only part of the families and keep the rest
-- you can reuse the same runtime profile across multiple benchmark/autotune workloads
+- platform runtime defaults
+- reusable across workloads on the same machine
 
-## Best Profile Persistence
+### Best profile
 
-Main types:
+Meaning:
 
-- [BestProfileRecord.java](./store/BestProfileRecord.java)
-- [BestProfileStore.java](./store/BestProfileStore.java)
-- [JsonFileBestProfileStore.java](./store/JsonFileBestProfileStore.java)
+- one concrete workload winner
+- immediately executable
 
-The JSON currently stores:
+### History
 
-- `score`
-- `updatedAt`
-- `hardwareKey`
-- `workloadKey`
-- embedded `ExecutionProfile`
+Meaning:
 
-This is an important reality:
+- search evidence
+- not necessarily safe to execute as the chosen default
 
-- a best profile record is not just a bare `ExecutionProfile`
-- it also contains the identity of the context it applies to
+### Reports
 
-## Tuning History Persistence
+Meaning:
 
-Main types:
+- diagnostic and explain data
+- not execution source of truth
 
-- [TuningHistoryEntry.java](./store/TuningHistoryEntry.java)
-- [TuningHistoryStore.java](./store/TuningHistoryStore.java)
-- [JsonFileTuningHistoryStore.java](./store/JsonFileTuningHistoryStore.java)
+## Worked Example
 
-Format:
+Suppose:
 
-- JSON Lines
-- one candidate observation per line
+- platform id = `macos-aarch64-temurin-25`
+- dtype = `f64`
+- mode = `forward_backward`
 
-Current fields:
-
-- `fingerprint`
-- `candidateName`
-- `valid`
-- `medianMs`
-- `meanMs`
-- `score`
-- `failureReason`
-- `summary`
-- `timestamp`
-- `hardwareKey`
-- `workloadKey`
-
-This makes sense for:
-
-- history-aware ordering
-- pruning invalid candidates
-- preserving an audit trail without rewriting the past
-
-## Explain Artifact Persistence
-
-Platform calibration report persistence:
-
-- [PlatformCalibrationSaveHelper.java](./store/PlatformCalibrationSaveHelper.java)
-- [JsonFilePlatformCalibrationResultStore.java](./store/JsonFilePlatformCalibrationResultStore.java)
-
-Rules:
-
-- both JSON and text reports are explain artifacts
-- the runtime source of truth is still the `PlatformRuntimeProfile` itself
-
-## Fingerprints
-
-### Hardware Fingerprint
-
-Type:
-
-- [HardwareFingerprint.java](./store/HardwareFingerprint.java)
-
-Usage:
-
-- platform runtime profile reuse
-- best profile reuse
-- tuning history filtering
-
-### Workload Fingerprint
-
-Type:
-
-- [WorkloadFingerprint.java](./store/WorkloadFingerprint.java)
-
-Usage:
-
-- distinguishing workload-specific best profiles and history
-
-The best profile resolver is intentionally strict:
-
-- hardware key must match
-- workload key must match
-
-See:
-
-- [FileBestProfileResolver.java](./store/FileBestProfileResolver.java)
-
-## Invalidation Rules
-
-A persistent tuning artifact is not eternal.
-
-### Invalidate a platform runtime profile when:
-
-- the hardware fingerprint changed
-- the semantics of runtime knobs changed
-- the schema format changed
-- framework/runtime behavior changed enough that old winners no longer make sense
-
-### Invalidate a best profile when:
-
-- the hardware fingerprint does not match
-- the workload fingerprint does not match
-- the schema or field meaning in `ExecutionProfile` changed
-
-### Invalidate or ignore history when:
-
-- workload/hardware keys do not match
-- candidate fingerprints no longer correspond to today's candidate space
-
-## Source Of Truth Rules
-
-### What is execute source of truth
-
-- `PlatformRuntimeProfile`
-- `ExecutionProfile`
-
-### What is not execute source of truth
-
-- tuning history
-- benchmark report
-- calibration report
-- tuning summary text
-
-The documentation must not blur this rule.
-
-## Example: Save Platform Calibration
-
-```java
-PlatformCalibrationSaveHelper.saveAll(
-        result,
-        layout.profilePath(),
-        layout.jsonReportPath(),
-        layout.textReportPath()
-);
-```
-
-This saves:
-
-- the final runtime profile
-- the JSON report
-- the text report
-
-## Example: Save Best Profile
-
-```java
-bestProfileStore.save(path, new BestProfileRecord(
-        hardware,
-        workload,
-        bestProfile,
-        score,
-        java.time.OffsetDateTime.now()
-));
-```
-
-## Example: Append History
-
-```java
-historyStore.append(path, new TuningHistoryEntry(
-        fingerprint,
-        candidateName,
-        valid,
-        medianMs,
-        meanMs,
-        score,
-        failureReason,
-        summary,
-        java.time.OffsetDateTime.now(),
-        hardware,
-        workload
-));
-```
-
-## Practical Recommendations
-
-- keep `profiles/platform/...` in a repository-known location
-- use `build/...` only as fallback or scratch space
-- do not store reports and source-of-truth profiles in the same file
-- keep history append-only
-- overwrite the best profile only when there is a genuinely better winner
-
-## Common Mistakes
-
-- storing a report instead of a profile artifact
-- using history JSONL as runtime config
-- ignoring hardware/workload fingerprints when reloading
-- mixing platform defaults and graph winners into one file without identity
-
-## Related Docs
-
-- architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
-- reporting: [REPORTING.md](./REPORTING.md)
-- search: [SEARCH.md](./SEARCH.md)
-
-## Real Repository Layout Example
-
-For the current CLI flow on one machine, artifacts typically end up under:
+Then the preferred calibration profile path is:
 
 ```text
-profiles/platform/<platform-id>/
-  calibration/
-    f64-forward-backward.json
-  reports/
-    calibration-f64-forward-backward.json
-    calibration-f64-forward-backward.txt
-  tuning/
-    abc/
-      f64-best-profile.json
-      f64-history.jsonl
+profiles/platform/macos-aarch64-temurin-25/calibration/f64-forward_backward.json
 ```
 
-The exact `<platform-id>` comes from the captured hardware fingerprint.
+and the `abc` best profile path is:
 
-## Preferred Vs Legacy Paths
+```text
+profiles/platform/macos-aarch64-temurin-25/tuning/abc/f64-best-profile.json
+```
 
-Current behavior is:
+Those two artifacts have different meanings:
 
-- prefer `profiles/platform/...`
-- if a legacy `build/...` artifact exists and the preferred one does not, migrate it forward
+- the first is reusable platform runtime policy
+- the second is a workload-specific executable winner
 
-This keeps old local results usable without making `build/...` the long-term source of truth.
+## Persistence Rules
 
-## Practical Lifecycle Rules
+The intended rules are:
 
-### Recalibrate when:
-
-- hardware changed
-- JDK changed materially
-- runtime-family meaning changed
-- a major backend path was rewritten
-
-### Rerun autotune when:
-
-- graph policy search space changed
-- workload semantics changed
-- stage order meaning changed
-- the calibrated runtime seed changed enough to invalidate the old winner
-
-### Keep reports even when you overwrite winners
-
-Because reports are the audit trail.
-They are not execute source of truth, but they explain why a profile won at the time it was measured.
+- execute from real profiles, not from reports
+- store platform defaults separately from workload winners
+- keep search history append-only
+- keep legacy `build/...` paths readable for migration, but not as the preferred canonical layout

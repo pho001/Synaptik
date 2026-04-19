@@ -18,6 +18,8 @@ The focus here is practical API usage:
 - what it returns
 - short commented examples
 
+Where it helps readability, examples use explicit shapes and values instead of abstract tensors like `A` and `B`.
+
 Important scope note:
 
 - the operation sections in this document describe the preferred modeling surface
@@ -323,6 +325,23 @@ This contract is used by:
 Backward note:
 - if an operand was broadcast in forward execution, its gradient is reduced back to the original operand shape
 
+Worked value example:
+
+```text
+left  = [[1, 2, 3],
+         [4, 5, 6]]      shape [2, 3]
+right = [10, 20, 30]     shape [3]
+```
+
+`left.add(right)` produces:
+
+```text
+[[11, 22, 33],
+ [14, 25, 36]]
+```
+
+because `right` is broadcast across the leading dimension.
+
 ## View Semantics
 
 There is intentionally no public `view()` method on `Tensor`.
@@ -374,6 +393,24 @@ Tensor y = x.reshape(3, 2);      // reshape-style view/transform
 Tensor z = x.permute(1, 0);      // stride-reordered alias view
 Tensor dense = z.contiguous();   // explicit dense materialization
 ```
+
+Concrete values:
+
+```text
+x = [[1, 2, 3],
+     [4, 5, 6]]
+
+x.transpose() = [[1, 4],
+                 [2, 5],
+                 [3, 6]]
+
+x.reshape(3, 2) = [[1, 2],
+                   [3, 4],
+                   [5, 6]]
+```
+
+The identical output shape `[3, 2]` does not mean identical semantics.
+`transpose()` changes axis order, while `reshape(...)` changes logical shape.
 
 ## Reduction Interoperability
 
@@ -577,7 +614,7 @@ Supported options today:
   - use the resolved optimizer/runtime profile directly
 - `IF_MISSING`
   - for this tensor graph, dtype, mode, and hardware fingerprint:
-    - reuse a cached generic best-profile from `build/tuning/tensor/...` if present
+    - reuse a cached generic best-profile from `build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/...` if present
     - otherwise run generic stage-order autotune once and persist the winner
 - `FORCE`
   - rerun generic stage-order autotune and overwrite the cached winner
@@ -585,7 +622,13 @@ Supported options today:
 The generic autotune used here is intentionally lightweight:
 - it autotunes the current tensor root as a generic workload
 - it searches constrained stage-order candidates
-- it persists the winner under `build/tuning/tensor/...`
+- it persists the winner under the `build/tuning/tensor/...` tree together with matching history
+
+In practical terms, a winner path looks like:
+
+```text
+build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/<dtype>-<mode>-best-profile.json
+```
 
 Returns:
 - the same tensor instance after execution
@@ -598,6 +641,13 @@ Tensor loss = logits.mean().compute(
                 .autotune(AutotunePolicy.IF_MISSING)
 );
 ```
+
+This single call may:
+
+1. derive a default training profile
+2. resolve or create a generic autotuned best profile for the current graph
+3. prepare runtime metadata
+4. execute `FORWARD_BACKWARD`
 
 ### `compute(ExecutionProfile profile)`
 

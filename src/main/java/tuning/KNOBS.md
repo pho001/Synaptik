@@ -1,62 +1,27 @@
 # Tuning Knobs
 
-This document describes the real tuning surface, not a hypothetical future list.
+This document describes the current public tuning surface, not a hypothetical wishlist.
 
-You need to distinguish two large groups:
+You should always distinguish two groups:
 
 - platform runtime knobs
-  - they are stored in `PlatformRuntimeProfile`
-  - they are tuned in platform calibration
+  - stored in `PlatformRuntimeProfile`
+  - primarily calibrated per machine
 - graph policy knobs
-  - they live in `ExecutionProfile.optimizer()`
-  - they are typically searched in graph autotune
+  - stored in optimizer configuration / `GraphExecutionPolicy`
+  - primarily searched by graph autotune
 
-## Reading Guide
-
-Use this document if you want to understand:
-
-- what is actually calibrated per hardware today
-- what is workload-specific candidate mutation
-- which knobs are already public and which are only reserved
-- which candidate ranges are currently used by standard calibration presets
-
-## Runtime Vs Graph Policy
-
-### Platform Runtime Knobs
-
-These include:
-
-- CPU thresholds
-- tiles
-- microkernels
-- scheduler policy
-- materialization thresholds
-- numerics policy
-
-These knobs are meant to be shared across workloads on a given machine.
-
-### Graph Policy Knobs
-
-These include:
-
-- `optimizer.stageOrder`
-- `optimizer.rewrite.*`
-- `optimizer.fuse.*`
-- `optimizer.memory.*`
-
-These knobs are workload-sensitive. They are not part of `PlatformRuntimeProfile`.
-
-## Public Runtime Families
+## Runtime Families
 
 ### `MATMUL`
 
-This family currently includes:
+Current public matmul-related runtime knobs include:
 
 - `runtime.blas.provider`
-  - in practice today mainly `NONE` or `OPENBLAS_FFM`
 - `runtime.blas.matmulMinWork`
 - `runtime.blas.f32RequireMgeK`
 - `runtime.blas.f32MaxNOverK`
+- `runtime.blas.threads`
 - `cpu.matMulParallelMinSize`
 - `cpu.matMulTileM`
 - `cpu.matMulTileN`
@@ -66,29 +31,28 @@ This family currently includes:
 - `cpu.attentionMatMulTileN`
 - `cpu.attentionMatMulTileK`
 - `cpu.attentionMatMulMicroKernel`
+- `cpu.attentionMatMulPolicy`
 
-A knob that is stored in the runtime profile, but not swept by today's standard calibration presets:
+Important current behavior:
 
-- `cpu.loopUnrollFactor`
+- `runtime.blas.threads` is canonicalized to `0`
+- `0` means provider-managed auto behavior
+- Synaptik does not maintain a separate global BLAS thread policy at runtime
 
-### `CONV2D_GEMM_DISPATCH_F64`
+### `CONV2D_GEMM_DISPATCH_*`
+
+Current conv2d dispatch knobs:
 
 - `runtime.conv2d.blasProvider`
 - `runtime.conv2d.f64MinWork`
-
-### `CONV2D_GEMM_DISPATCH_F32`
-
-- `runtime.conv2d.blasProvider`
 - `runtime.conv2d.f32MinWork`
 - `runtime.conv2d.f32RequireMgeK`
 - `runtime.conv2d.f32MaxNOverK`
-
-### `CONV2D_GEMM_DISPATCH_BF16`
-
-- `runtime.conv2d.blasProvider`
 - `runtime.conv2d.bf16MinWork`
 - `runtime.conv2d.bf16RequireMgeK`
 - `runtime.conv2d.bf16MaxNOverK`
+
+These affect lowered GEMM conv2d nodes, not the semantic decision to lower conv2d in the optimizer.
 
 ### `FUSED_THRESHOLDS`
 
@@ -97,23 +61,19 @@ A knob that is stored in the runtime profile, but not swept by today's standard 
 - `cpu.fusedCheapParallelMinSize`
 - `cpu.fusedTranscendentalParallelMinSize`
 
-These control scheduler decisions for fused nodes, not backend selection.
+These decide when fused nodes become worth vectorization or parallelization.
 
 ### Fused ASM Width Knobs
 
-These are now genuinely part of the tuning surface:
+Current fused width knobs are family-specific:
 
 - `cpu.fusedCheapContiguousAsmVectorWidth`
 - `cpu.fusedCheapStridedAsmVectorWidth`
 - `cpu.fusedNonCheapContiguousAsmVectorWidth`
 - `cpu.fusedNonCheapStridedAsmVectorWidth`
 
-These width knobs are calibrated per dispatch family, not as one global number.
-
-That is an important current reality:
-
-- they are no longer just internal experimental settings
-- standard platform calibration can search them
+These are real public runtime knobs now.
+They are no longer just internal experiment flags.
 
 ### `ELEMENTWISE_DISPATCH`
 
@@ -122,17 +82,18 @@ That is an important current reality:
 - `cpu.cheapParallelMinSize`
 - `cpu.transcendentalParallelMinSize`
 
-This applies to non-fused elementwise kernel families.
+These affect non-fused elementwise planning.
 
 ### `REDUCTION`
 
 - `cpu.reductionVectorMinSize`
 - `cpu.reductionParallelMinSize`
-- `cpu.attentionVectorMinSize`
-- `cpu.attentionParallelMinSize`
 - `cpu.sumAccuracyMode`
 
-The `attention*` thresholds are stored in the reduction profile family because they belong to structured reduction-like kernels, not generic fused/elementwise dispatch.
+### `ATTENTION_THRESHOLDS`
+
+- `cpu.attentionVectorMinSize`
+- `cpu.attentionParallelMinSize`
 
 ### `SCHEDULER`
 
@@ -144,40 +105,56 @@ The `attention*` thresholds are stored in the reduction profile family because t
 - `cpu.minReductionChunkSize`
 - `cpu.commonPoolLowCostMaxWorkPerWorker`
 
-These knobs only matter after the decision to run in parallel has already been made.
-
 ### `MATERIALIZATION`
 
 - `cpu.contiguousMaterializeThreshold`
-
-This decides from what size it becomes more beneficial to materialize a non-contiguous input into contiguous temporary storage.
 
 ### `NUMERICS`
 
 - `runtime.approximation.approxMode`
 - `runtime.approximation.forceExactTranscendentals`
 
-These are public runtime policy knobs, not just local benchmark hacks.
+## Graph Policy Knobs
 
-## Current Calibration Ranges
+These are graph-side knobs rather than platform-runtime knobs:
 
-The following ranges describe what standard `PlatformCalibrationDefaults` currently use, not every conceivable value.
+- `optimizer.stageOrder`
+- `optimizer.rewrite.*`
+- `optimizer.cse.*`
+- `optimizer.fuse.*`
+- `optimizer.memory.*`
+
+Important examples:
+
+- `optimizer.rewrite.conv2dLowering.mode`
+- piecewise lowering flags
+- CSE strict vs aggressive safety
+- fusion score thresholds and max cluster size
+
+## Current Standard Calibration Ranges
+
+The following are the current standard preset ranges used by `PlatformCalibrationDefaults`, not an exhaustive universe of possible values.
 
 ### Matmul
 
-`blasThreads`
+BLAS provider candidates:
 
-- compatibility-only placeholder
-- canonicalized to `0`
-- runtime does not call BLAS thread setters; the provider keeps its own internal auto policy
+- `NONE`
+- `OPENBLAS_FFM`
 
-`matMulParallelMinSize`
+BLAS min-work candidates:
+
+- `1_000_000`
+- `2_000_000`
+- `4_000_000`
+
+Matmul parallel threshold candidates:
 
 - `100_000`
 - `500_000`
 - `2_000_000`
 
-`f32ShapeHeuristics`
+F32 shape heuristics:
 
 - `f32RequireMgeK`
   - `true`
@@ -189,7 +166,7 @@ The following ranges describe what standard `PlatformCalibrationDefaults` curren
   - `4.0`
   - `6.0`
 
-`matMulMicroKernel`
+Microkernel candidates:
 
 - `FLOAT64`
   - `F64_2X1`
@@ -201,7 +178,7 @@ The following ranges describe what standard `PlatformCalibrationDefaults` curren
   - `F32_4X2`
   - `F32_4X4`
 
-`matMulTiles`
+Tile candidates:
 
 - `FLOAT64`
   - `16x64x32`
@@ -215,7 +192,13 @@ The following ranges describe what standard `PlatformCalibrationDefaults` curren
   - `64x128x128`
   - `64x256x128`
 
-`attentionMatMulTiles`
+### Attention matmul
+
+Microkernel candidates:
+
+- same dtype-specific family as matmul
+
+Tile candidates:
 
 - `FLOAT64`
   - `16x64x32`
@@ -228,309 +211,118 @@ The following ranges describe what standard `PlatformCalibrationDefaults` curren
   - `64x128x128`
   - `64x256x128`
 
-### Fused Thresholds
+### Fused thresholds
 
-`cheapVector`
+Current standard threshold candidates:
 
-- `64`
-- `128`
-- `256`
-- `512`
-- `1024`
+- cheap vector min size:
+  - `64`, `128`, `256`, `512`, `1024`
+- transcendental vector min size:
+  - `16`, `32`, `64`, `128`, `256`
+- cheap parallel min size:
+  - `4096`, `8192`, `16384`, `32768`
+- transcendental parallel min size:
+  - `1024`, `2048`, `4096`, `8192`
 
-`transcendentalVector`
+### Fused ASM widths
 
-- `16`
-- `32`
-- `64`
-- `128`
-- `256`
+Current candidates depend on dtype:
 
-`cheapParallel`
+- `FLOAT64`
+  - `1`
+  - `2`
+  - `4`
+- `FLOAT32`
+  - `1`
+  - `2`
+  - `4`
+  - `8`
+- `BFLOAT16`
+  - `1`
+  - `2`
+  - `4`
+  - `8`
 
-- `4096`
-- `8192`
-- `16384`
-- `32768`
+The family-specific width calibration uses workload families such as:
 
-`transcendentalParallel`
+- cheap contiguous
+- cheap strided
+- non-cheap contiguous
+- non-cheap strided
 
-- `1024`
-- `2048`
-- `4096`
-- `8192`
+### Elementwise dispatch
 
-### Fused ASM Widths
+Current standard candidates:
 
-Candidate widths are derived from dtype and the available preferred vector species:
-
-- always `1`
-- if the hardware allows it, then also `2`
-- if the hardware allows it, then also `4`
-- in some `F32/BF16 cheap contiguous` cases also `8`
-
-That means:
-
-- width space is family-specific
-- it is not one universal number for all fused workloads
-
-### Elementwise Dispatch
-
-`cheapVector`
-
-- `128`
-- `256`
-- `512`
-- `1024`
-- `2048`
-
-`transcendentalVector`
-
-- `32`
-- `64`
-- `128`
-- `256`
-- `512`
-
-`cheapParallel`
-
-- `8192`
-- `16384`
-- `32768`
-- `65536`
-
-`transcendentalParallel`
-
-- `2048`
-- `4096`
-- `8192`
-- `16384`
+- vector thresholds:
+  - `64`, `128`, `256`, `512`, `1024`, `2048`
+- parallel thresholds:
+  - `4096`, `8192`, `16384`, `32768`, `65536`
 
 ### Reduction
 
-`reductionVector`
+Current standard candidates include:
 
-- `512`
-- `2048`
-- `8192`
-- `16384`
-
-`reductionParallel`
-
-- `8192`
-- `16384`
-- `32768`
-- `65536`
-
-`attentionThresholds`
-
-- `attentionVector`
-  - `512`
-  - `2048`
-  - `8192`
-  - `16384`
-- `attentionParallel`
-  - `2048`
-  - `8192`
-  - `16384`
-  - `32768`
+- vector min size:
+  - `64`, `128`, `256`, `512`, `1024`
+- parallel min size:
+  - `4096`, `8192`, `16384`, `32768`, `65536`
+- accuracy:
+  - `FAST`
+  - `KAHAN`
 
 ### Scheduler
 
-Scheduler calibration today usually performs only local refinement around the current seed winner values:
+Current standard candidates include combinations over:
 
-- target chunks per worker
-- minimum chunk sizes
-- common pool threshold
+- chunks-per-worker targets
+- scalar/vector/reduction minimum chunk sizes
+- common-pool low-cost max work per worker
 
-That is intentional. Scheduler knobs tend to depend strongly on whatever has already won in the other families.
+These are designed to tune the planner's chunking decisions rather than semantic graph structure.
 
-### Materialization
+## Worked Examples
 
-The candidate set is built around the current threshold and extended with explicit anchor points:
+### Example 1: matmul BLAS threshold
 
-- `262_144`
-- `524_288`
-- `1_048_576`
+Suppose:
 
-### Numerics
+- candidate A uses `runtime.blas.matmulMinWork = 1_000_000`
+- candidate B uses `runtime.blas.matmulMinWork = 4_000_000`
 
-`approxMode`
+Then:
 
-- `OFF`
-- `TRAINING_ONLY`
-- `ALWAYS`
+- A will route more medium-sized matmuls to BLAS
+- B will keep more of them on the Java microkernel path
 
-`forceExactTranscendentals`
+This is a runtime policy difference, not an optimizer-stage difference.
 
-- `true`
-- `false`
+### Example 2: fused ASM width
 
-## Graph Policy Knobs
+Suppose a fused cheap contiguous workload is calibrated for `FLOAT32`.
 
-These knobs are not part of the platform runtime profile, but they are part of `ExecutionProfile.optimizer()`.
+Candidates might include:
 
-### `optimizer.stageOrder`
+- width `1`
+- width `2`
+- width `4`
+- width `8`
 
-Valid stage elements:
+The winner is persisted into the platform runtime profile and later reused by prepared fused execution.
 
-- `AR`
-- `CSE`
-- `FUSE`
-- `MEM`
+## Knobs That Exist But Need Careful Interpretation
 
-Candidate spaces commonly use:
+### `runtime.blas.threads`
 
-- an explicit list of stage orders
-- a constrained stage-order space
-- an exhaustive permutation/subset space
+This knob exists in the public config/profile surface for compatibility and explicitness, but the effective current behavior is:
 
-### Rewrite Policy
+- store only `0`
+- treat `0` as auto/provider-managed
 
-Today the main meaningful knob to tune is:
+So documentation should not claim that Synaptik actively orchestrates provider thread counts at runtime.
 
-- `optimizer.rewrite.conv2dLowering.mode`
-  - `OFF`
-  - `HEURISTIC`
-  - `ALWAYS`
+### `FUSED_ARITHMETIC`
 
-Piecewise lowering config also exists, but in normal autotune workflow it is not usually the primary knob surface.
+An enum value exists for this family, but standard presets do not currently expose a normal calibration step for it.
 
-## Knobs That Exist But Are Not Very Useful Today
-
-### `runtime.fused.primaryBackend`
-
-It technically exists in fused execution policy.
-
-The practical CPU reality today:
-
-- the meaningful backend is `ASM`
-
-So this is not an especially interesting knob for standard tuning.
-
-### `runtime.fused.allowBackendFallback`
-
-It technically exists, but because CPU fused prepare currently relies on the ASM backend, it is not a major performance lever.
-
-### `cpu.loopUnrollFactor`
-
-It is stored in the runtime profile, but standard platform calibration does not currently sweep it.
-
-## Example: Runtime Profile Candidate
-
-A platform calibration candidate may change for example:
-
-- `cpu.matMulTileM/N/K`
-- `cpu.matMulMicroKernel`
-- `cpu.matMulParallelMinSize`
-
-but it is still one concrete `PlatformRuntimeProfile`, not a separate knob map.
-
-## Example: Graph Candidate
-
-A graph autotune candidate may change:
-
-- `optimizer.stageOrder`
-
-or for a `CONV2D` workload:
-
-- `optimizer.rewrite.conv2dLowering.mode`
-
-The result is again a normal `ExecutionProfile`.
-
-## Common Mistakes
-
-- treating runtime knobs as workload-specific graph policy
-- assuming fused ASM widths are not part of the public tuning surface
-- wanting to calibrate `runtime.fused.primaryBackend`, even though only `ASM` makes sense on CPU today
-- ignoring that some stored runtime fields are not currently swept in standard presets
-
-## Related Docs
-
-- architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
-- search: [SEARCH.md](./SEARCH.md)
-- persistence: [PERSISTENCE.md](./PERSISTENCE.md)
-
-## How To Read A Knob
-
-Every knob should be read through three questions:
-
-1. who owns it?
-2. what decision does it control?
-3. which workflow searches it?
-
-Example:
-
-- `cpu.fusedCheapVectorMinSize`
-  - owner: `FUSED_THRESHOLDS`
-  - decision: when cheap fused kernels become eligible for vector execution
-  - searched by: platform calibration
-
-Example:
-
-- `optimizer.stageOrder`
-  - owner: graph policy
-  - decision: which optimizer stages run, and in which order
-  - searched by: graph autotune, not platform calibration
-
-## Practical Knob Categories
-
-### Threshold knobs
-
-These answer:
-
-- "from what size does this tactic become worthwhile?"
-
-Examples:
-
-- vector thresholds
-- parallel thresholds
-- BLAS minimum work
-- materialization thresholds
-
-### Shape-gate knobs
-
-These answer:
-
-- "for this shape family, should the aggressive path even be considered?"
-
-Examples:
-
-- `runtime.blas.f32RequireMgeK`
-- `runtime.blas.f32MaxNOverK`
-- `runtime.conv2d.f32RequireMgeK`
-- `runtime.conv2d.f32MaxNOverK`
-
-### Structural selection knobs
-
-These choose among several runtime implementations of the same primitive.
-
-Examples:
-
-- matmul microkernel
-- matmul tiles
-- attention matmul tiles
-- approximation mode
-
-## Example: BLAS Crossover
-
-This runtime choice is driven mainly by:
-
-- `runtime.blas.provider`
-- `runtime.blas.matmulMinWork`
-- `runtime.blas.f32RequireMgeK`
-- `runtime.blas.f32MaxNOverK`
-
-Interpretation example:
-
-```text
-provider = OPENBLAS_FFM
-matmulMinWork = 2_000_000
-f32RequireMgeK = true
-f32MaxNOverK = 3.0
-```
-
-Meaning:
-
-- BLAS is only eligible once work reaches `2_000_000`
-- for `FLOAT32`, very wide-but-shallow shapes may still be rejected by the shape gates
+Treat it as reserved surface, not as an actively tuned standard family.

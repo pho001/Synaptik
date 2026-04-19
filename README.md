@@ -1,77 +1,285 @@
 # Synaptik
 
-Synaptik is a Java framework for tensors, explicit compiled-graph execution, and reverse-mode autodiff. It is not built as an "eager-only" library and it is not a benchmark-first experiment. The core contract is:
+Synaptik is a Java tensor framework built around an explicit graph lifecycle:
 
-- the public `Tensor` API builds a graph
-- `CompiledGraph` turns it into an explicit execution artifact
-- the optimizer applies purely graph-level transformations
-- `PreparedExecution` attaches runtime policy and backend metadata
-- the backend runs the concrete CPU kernel path
+1. the public `Tensor` API builds a semantic graph
+2. `CompiledGraph` snapshots and optimizes that graph
+3. `PreparedExecution` attaches runtime policy and backend metadata
+4. the selected backend executes prepared node steps
 
-Today the project primarily targets the CPU backend. GPU backends currently exist only as scaffolding.
+The project is not designed as an eager-only numerical notebook library.
+Its center of gravity is compiled graph execution, reverse-mode autodiff, explicit optimizer stages, and platform/profile-driven CPU execution.
+
+Today the CPU backend is the only fully implemented execution backend.
+CUDA and OpenCL packages exist as scaffolding, not as production-ready runtimes.
+
+## What This Repository Contains
+
+The repository is organized around five main layers.
+
+| Layer | Main package | Responsibility |
+|---|---|---|
+| Public modeling surface | `src/main/java/tensor` | Build tensor graphs, expose ergonomic API |
+| Primitive descriptors | `src/main/java/operations` | Describe what each graph node means |
+| Graph compile/prepare pipeline | `src/main/java/graph` | Canonicalize, optimize, prepare runtime artifacts |
+| Runtime/backend execution | `src/main/java/backend` | Resolve kernels and execute prepared steps |
+| Benchmark/autotune/calibration | `src/main/java/tuning` | Measure, compare, search, and persist execution profiles |
+
+That split is intentional:
+
+- `tensor` decides what graph to build
+- `operations` decides what primitive a node represents
+- `graph` decides how that graph can be rewritten or fused
+- `backend` decides how to execute the prepared node
+- `tuning` decides which executable profile is faster on a real workload
 
 ## Reading Guide
 
-If you want to understand the project quickly:
+If you want the shortest reliable path through the codebase:
 
-1. start with [src/main/java/tensor/README.md](src/main/java/tensor/README.md)
-2. then [src/main/java/operations/README.md](src/main/java/operations/README.md)
-3. then [src/main/java/graph/README.md](src/main/java/graph/README.md)
-4. finally [src/main/java/backend/README.md](src/main/java/backend/README.md) and [src/main/java/tuning/README.md](src/main/java/tuning/README.md)
+1. [src/main/java/tensor/README.md](src/main/java/tensor/README.md)
+2. [src/main/java/operations/README.md](src/main/java/operations/README.md)
+3. [src/main/java/graph/README.md](src/main/java/graph/README.md)
+4. [src/main/java/backend/README.md](src/main/java/backend/README.md)
+5. [src/main/java/tuning/README.md](src/main/java/tuning/README.md)
 
 If you are solving a specific problem:
 
 - public tensor API: [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
-- optimizer and rewrite/fusion rules: [src/main/java/graph/optimizer/README.md](src/main/java/graph/optimizer/README.md)
-- tuning workflow, persistence, and candidate search: [src/main/java/tuning/README.md](src/main/java/tuning/README.md)
-- numerics drift and A/B comparison: [src/main/java/numerics/README.md](src/main/java/numerics/README.md)
+- optimizer stages and concrete rewrite/fusion behavior:
+  - [src/main/java/graph/optimizer/README.md](src/main/java/graph/optimizer/README.md)
+  - [src/main/java/graph/optimizer/AR.md](src/main/java/graph/optimizer/AR.md)
+  - [src/main/java/graph/optimizer/CSE.md](src/main/java/graph/optimizer/CSE.md)
+  - [src/main/java/graph/optimizer/FUSE.md](src/main/java/graph/optimizer/FUSE.md)
+  - [src/main/java/graph/optimizer/MEM.md](src/main/java/graph/optimizer/MEM.md)
+- runtime/tuning/persistence:
+  - [src/main/java/tuning/ARCHITECTURE.md](src/main/java/tuning/ARCHITECTURE.md)
+  - [src/main/java/tuning/KNOBS.md](src/main/java/tuning/KNOBS.md)
+  - [src/main/java/tuning/PERSISTENCE.md](src/main/java/tuning/PERSISTENCE.md)
+  - [src/main/java/tuning/WORKLOADS.md](src/main/java/tuning/WORKLOADS.md)
+- numerics drift harness: [src/main/java/numerics/README.md](src/main/java/numerics/README.md)
 
-## Highlights
+## Current Capabilities
 
-- explicit tensor metadata: shape, strides, storage offset, dtype
-- compiled/prepared execution pipeline instead of implicit runtime dispatch sprawl
-- reverse-mode autodiff over graphs built from `Tensor` operations
-- optimizer stage model with rewrites, CSE, fusion, and memory planning
-- CPU backend with prepared metadata, dispatch hints, and family-specific executors
-- ASM fused backend for hot elementwise fused subgraphs
-- specialized primitives for structured kernel families
-  - `LINEAR`
-  - `SOFTMAX` / `LOG_SOFTMAX` and their gradients
-  - `SCALED_DOT_PRODUCT_ATTENTION` forward/backward
-  - `CROSS_ENTROPY_LOSS_INDICES`
-  - `CONV2D_GEMM`
-- tuning stack for benchmark, autotune, and platform calibration
+The current codebase includes:
+
+- dense tensors with explicit shape, strides, dtype, and storage offset
+- public tensor graph construction with autodiff support
+- compile-time semantic canonicalization
+- graph-level optimization stages:
+  - `AR`
+  - `CSE`
+  - `FUSE`
+  - `MEM`
+- CPU kernel families for:
+  - elementwise
+  - broadcast/where
+  - reductions
+  - layout/view-like remaps
+  - matmul / linear
+  - conv2d / pool2d
+  - softmax / log-softmax
+  - cross-entropy from indices
+  - scaled dot-product attention
+- fused CPU execution with ASM-specialized backends for selected fused families
+- benchmark, autotune, and platform calibration
+- versionable platform/runtime profiles under `profiles/platform/...`
 
 ## Requirements
 
 - JDK 25
-- a Gradle 9.4.1 compatible environment, or the bundled Gradle Wrapper
-- macOS, Linux, or Windows
+- Gradle 9.4.1 compatible environment, or the bundled Gradle wrapper
+- `jdk.incubator.vector` available at compile and runtime
 
-Vector API note:
+The Gradle build already adds the Vector API module for compile, test, and run tasks.
 
-- the build and runtime use `jdk.incubator.vector`
-- the Gradle wrapper adds `--add-modules=jdk.incubator.vector` to compile, test, and run tasks
+## Build And Test
 
-## Build And Run
+Typical local commands:
 
-Basic commands:
+```bash
+./gradlew classes
+./gradlew test
+./gradlew run
+```
 
-- `./gradlew classes`
-- `./gradlew test`
-- `./gradlew run`
+On Windows use `gradlew.bat`.
 
-On Windows, use `gradlew.bat`.
+## The Main Lifecycle
 
-### Main CLI
+The most important concept in Synaptik is that the same root tensor can be observed at multiple lifecycle stages.
+
+### Stage 1: build a semantic graph
+
+```java
+Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, null, "a", DataType.FLOAT64);
+Tensor b = new Tensor(new double[]{10.0, 20.0}, new int[]{2}, null, "b", DataType.FLOAT64);
+Tensor y = a.add(b).relu();
+```
+
+Shapes:
+
+- `a` = `[2, 2]`
+- `b` = `[2]`
+- `a.add(b)` broadcasts `b` across rows and produces `[2, 2]`
+- `relu()` keeps `[2, 2]`
+
+Value example:
+
+- row 0: `[1.0, 2.0] + [10.0, 20.0] = [11.0, 22.0]`
+- row 1: `[3.0, 4.0] + [10.0, 20.0] = [13.0, 24.0]`
+- `relu()` leaves the same values unchanged because they are already non-negative
+
+### Stage 2: compile the graph
+
+```java
+CompiledGraph compiled = y.compile(CompileMode.INFERENCE_ONLY);
+```
+
+Compile does not execute kernels.
+It:
+
+- snapshots the graph
+- canonicalizes forward structure
+- optionally builds backward structure
+- runs optimizer stages
+- produces a stable compile artifact
+
+### Stage 3: prepare runtime execution
+
+```java
+PreparedExecution prepared = y.prepare(
+        new ExecutionProfile(
+                "demo",
+                "demo",
+                DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                OptimizerConfig.inferenceDefaults(),
+                RuntimeConfig.inferenceDefaults()
+        )
+);
+```
+
+Prepare does not rebuild graph semantics.
+It resolves backend/runtime policy into concrete prepared metadata:
+
+- dispatch hints
+- reduction hints
+- matmul hints
+- conv2d hints
+- fused executable preparation
+- per-node backend plans
+
+### Stage 4: execute
+
+```java
+prepared.execute(ExecutionMode.FORWARD);
+double[] out = y.toDoubleArrayCopy();
+```
+
+For the example above, `out` will contain:
+
+```text
+[11.0, 22.0, 13.0, 24.0]
+```
+
+## One-Shot Convenience API
+
+For small scripts and tests you do not need to manually spell out compile and prepare every time.
+
+### Forward-only convenience path
+
+```java
+Tensor probs = logits.softmax(-1).compute();
+```
+
+`compute()` means:
+
+- compile with `CompileMode.INFERENCE_ONLY`
+- use inference optimizer defaults
+- use inference runtime defaults
+- run `FORWARD`
+
+### Explicit training intent
+
+```java
+loss.compute(CompileMode.TRAINING);
+```
+
+If the graph contains trainable leaf tensors, Synaptik will:
+
+- compile a joint forward/backward artifact
+- use training defaults
+- run `FORWARD_BACKWARD`
+
+If the graph has no trainable leaves, the runtime still falls back to a forward-only execution path.
+
+### Configurable convenience path
+
+```java
+loss.compute(
+        new ComputeOptions()
+                .compileMode(CompileMode.TRAINING)
+                .autotune(AutotunePolicy.IF_MISSING)
+);
+```
+
+This convenience flow can reuse or create a generic best profile for the current graph signature.
+
+Current generic tensor autotune behavior:
+
+- it builds a generic tensor workload rooted at the current tensor
+- it searches constrained optimizer stage-order variants
+- it persists winners under `build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/...`
+
+That generic path is different from the main CLI autotune flow described below, which is workload-specific and versioned under `profiles/platform/...`.
+
+## Reverse-Mode Autodiff Example
+
+```java
+Tensor x = new Tensor(new double[]{1.0, -2.0, 3.0}, new int[]{3}, null, "x", DataType.FLOAT64);
+x.setRequiresGrad(true);
+
+Tensor y = x.mul(x).sum();
+y.compute(CompileMode.TRAINING);
+
+double loss = y.toDoubleArrayCopy()[0];
+double[] grad = x.getGradient().toDoubleArrayCopy();
+```
+
+Value intuition:
+
+- `x * x` = `[1.0, 4.0, 9.0]`
+- `sum` = `14.0`
+- gradient of `sum(x^2)` with respect to `x` = `2x`
+- so `grad` = `[2.0, -4.0, 6.0]`
+
+## Compile Modes
+
+The public convenience API currently uses three compile intents:
+
+- `CompileMode.INFERENCE_ONLY`
+  - compile forward only
+  - use inference defaults
+- `CompileMode.TRAINING`
+  - compile backward when the graph actually has trainable leaves
+  - use training defaults
+- `CompileMode.AUTO`
+  - choose between the above based on graph structure
+
+The important subtlety is that `TRAINING` does not force fake gradients for graphs that do not need them.
+If there are no trainable leaf tensors, execution still remains forward-only.
+
+## Main CLI
 
 The main CLI entry point is [src/main/java/synaptik/app/Main.java](src/main/java/synaptik/app/Main.java).
 
-Supported flows:
+Supported commands:
 
 ```bash
 ./gradlew run --args="full f64"
 ./gradlew run --args="calibrate f64"
+./gradlew run --args="calibrate f64 conv2d 30 100 2"
 ./gradlew run --args="autotune f64"
 ./gradlew run --args="benchmark-winner f64"
 ./gradlew run --args="benchmark-stage-space f64"
@@ -81,20 +289,74 @@ Meaning:
 
 - `full`
   - convenience flow `calibrate -> autotune -> benchmark-winner`
-  - suitable for local iteration
-  - not for the cleanest performance numbers
+  - good for local iteration
+  - not ideal for the cleanest measurements because JVM warmup carries across phases
 - `calibrate`
-  - finds platform runtime defaults for the selected dtype/mode
+  - calibrates platform runtime defaults
+  - optionally for a single family
+  - optionally with explicit measurement override `warmup measure repeats`
 - `autotune`
-  - searches for the graph-level winner for the `abc_sequence_matmul_*` workload
+  - runs graph-level autotune for the `abc_sequence_matmul_<dtype>` workload
 - `benchmark-winner`
-  - compares the baseline against the stored winner profile
+  - compares the stored winner against the no-opt baseline
 - `benchmark-stage-space`
-  - benchmarks explicit stage-order candidates
+  - compares explicit stage-order candidates against the baseline
 
-### Numerics CLI
+Supported CLI dtypes:
 
-The numerics harness runs through [src/main/java/numerics/NumericsCli.java](src/main/java/numerics/NumericsCli.java).
+- `f64`
+- `f32`
+- `bf16`
+
+Supported calibration family tokens are resolved from `Main.CalibrationFamilyTarget`.
+Current public family names include:
+
+- `matmul`
+- `attention-matmul`
+- `conv2d`
+- `fused-thresholds`
+- `fused-cheap-contiguous`
+- `fused-cheap-strided`
+- `fused-noncheap-contiguous`
+- `fused-noncheap-strided`
+- `elementwise`
+- `reduction`
+- `attention-thresholds`
+- `scheduler`
+- `materialization`
+- `numerics`
+
+## Persistence Layout
+
+The preferred persisted layout for versioned tuning artifacts is:
+
+```text
+profiles/
+  platform/
+    <platform-id>/
+      calibration/
+      reports/
+      tuning/
+        abc/
+```
+
+Typical files:
+
+- calibration profile:
+  - `profiles/platform/<platform-id>/calibration/<dtype>-forward_backward.json`
+- calibration reports:
+  - `profiles/platform/<platform-id>/reports/calibration-<dtype>-forward_backward.json`
+  - `profiles/platform/<platform-id>/reports/calibration-<dtype>-forward_backward.txt`
+- workload-specific autotune winner:
+  - `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json`
+- workload-specific autotune history:
+  - `profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl`
+
+Legacy `build/...` locations are still readable as migration fallbacks, but they are not the preferred source of truth anymore.
+
+## Numerics Harness
+
+For numerical drift checks use the standalone harness in [src/main/java/numerics/README.md](src/main/java/numerics/README.md).
 
 Example:
 
@@ -108,284 +370,29 @@ java --add-modules jdk.incubator.vector \
   numerics.NumericsCli
 ```
 
-## Quick Start
+That harness is for numerical comparison, not for performance measurement.
 
-### 1. Simple forward/backward computation
+## Where To Start If You Want To Change Performance
 
-```java
-import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.profile.ExecutionProfile;
-import config.runtime.RuntimeConfig;
-import tensor.Tensor;
+Use this rule of thumb:
 
-Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0}, new int[]{3}, null, "a");
-Tensor b = new Tensor(new double[]{4.0, 5.0, 6.0}, new int[]{3}, null, "b");
-a.setRequiresGrad(true);
-b.setRequiresGrad(true);
+- optimizer graph shape or pattern lowering:
+  - start in `graph/optimizer`
+- CPU dispatch thresholds, tiles, microkernels, fused widths:
+  - start in `config`, `backend/kernels/cpu`, and `tuning`
+- new public API surface:
+  - start in `tensor/ops/*`, then add/update `operations/*`
+- runtime execution traces and benchmark reports:
+  - start in `graph/execution/trace` and `tuning/report`
 
-Tensor y = a.add(b).mul(0.5).sum();
+## Current Design Boundaries
 
-ExecutionProfile profile = new ExecutionProfile(
-        "demo",
-        "demo",
-        y.getDataType(),
-        ExecutionMode.FORWARD_BACKWARD,
-        OptimizerConfig.trainingDefaults(),
-        RuntimeConfig.trainingDefaults()
-);
+These constraints are deliberate and repeatedly enforced in the current architecture:
 
-y.compute(profile);
-System.out.println(y.scalarAsDouble());
-System.out.println(java.util.Arrays.toString(a.getGradient().toDoubleArrayCopy()));
-System.out.println(java.util.Arrays.toString(b.getGradient().toDoubleArrayCopy()));
-```
+- executors do not re-run compile-time optimizer logic
+- runtime auxiliary caches do not belong on semantic `Tensor` nodes
+- tuning does not invent a second execution model outside `ExecutionProfile`
+- optimizer stages transform graph structure, not runtime dispatch knobs
+- backend `prepare(...)` resolves runtime policy; execution consumes the prepared recipe
 
-What actually happens here:
-
-1. the `Tensor` API builds a DAG from primitives
-2. `compute(profile)` internally calls `CompiledGraph.compile(...)`
-3. the optimizer applies the stage order from `OptimizerConfig`
-4. `prepare(...)` precomputes backend metadata and dispatch hints
-5. `PreparedExecution` runs either forward or `FORWARD_BACKWARD`
-
-### 2. Explicit compile/prepare reuse
-
-This is the correct pattern when you want to measure runtime without repeatedly paying compile/prepare overhead:
-
-```java
-import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
-import config.runtime.RuntimeConfig;
-import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
-import tensor.Tensor;
-
-Tensor out = input.linear(weight, bias).relu().sum();
-CompiledGraph graph = CompiledGraph.compile(out, OptimizerConfig.trainingDefaults());
-PreparedExecution prepared = graph.prepare(RuntimeConfig.trainingDefaults());
-
-prepared.execute(ExecutionMode.FORWARD_BACKWARD);
-prepared.execute(ExecutionMode.FORWARD_BACKWARD);
-```
-
-Use this for:
-
-- steady-state execution benchmarks
-- hot-path tracing
-- repeated inference/training runs over the same graph
-
-### 3. Broadcasting and select API
-
-```java
-Tensor scores = query.matmul(key.transpose());
-Tensor masked = Tensor.where(mask, scores, Tensor.scalar(-1.0e9, scores.getDataType()));
-Tensor probs = masked.softmax(1);
-Tensor out = probs.matmul(value);
-```
-
-Important notes:
-
-- `where` requires a `BOOL` condition
-- binary ops and compare ops use standard broadcasting
-- autograd reduces broadcasted gradients back to the original operand shapes
-
-## Project Structure
-
-- [src/main/java/tensor/](src/main/java/tensor/)
-  - public tensor surface, metadata, execution helpers, graph traversal, primitive builders
-- [src/main/java/tensor/ops/](src/main/java/tensor/ops/)
-  - thematically organized public graph builders
-  - `binary`, `unary`, `compare`, `select`, `layout`, `linalg`, `conv`, `pool`, `reduction`, `loss`, `normalization`
-- [src/main/java/tensor/options/](src/main/java/tensor/options/)
-  - configuration helper records/enums for public higher-level ops
-- [src/main/java/operations/](src/main/java/operations/)
-  - canonical operation descriptors used in the graph
-  - organized by the same broad families used by `tensor.ops.*` and CPU kernel dispatch
-  - `elementwise/{binary,unary,compare,logical,where}`, `layout`, `index`, `reduction`, `normalization`, `linalg`, `nn/{conv,pool}`, `loss`, `fused`
-- [src/main/java/graph/](src/main/java/graph/)
-  - compile, prepare, and run orchestration
-- [src/main/java/graph/optimizer/](src/main/java/graph/optimizer/)
-  - rule pipeline, rewrite family, fusion support, memory planning
-- [src/main/java/backend/](src/main/java/backend/)
-  - runtime dispatch and backend-specific execution integration
-- [src/main/java/backend/kernels/cpu/](src/main/java/backend/kernels/cpu/)
-  - CPU kernel families
-  - `elementwise`, `reduction`, `linalg`, `nn`, `index`, `layout`, `fused`, `grad`
-- [src/main/java/tuning/](src/main/java/tuning/)
-  - benchmark, autotune, platform calibration, reporting, persistence, search
-- [src/main/java/numerics/](src/main/java/numerics/)
-  - numerics A/B harness
-- [src/test/java/](src/test/java/)
-  - execution, regression, rewrite, tuning, and benchmark contracts
-
-## Core Architecture
-
-### Tensor Layer
-
-`Tensor` is both the public graph node and the runtime container. It carries:
-
-- the `Operation` descriptor
-- the list of input tensors
-- storage/data views
-- `requiresGrad`, `gradient`, and the backward marker
-- shape/stride metadata
-
-Today the public API primarily builds graphs through helper layers in `tensor.ops.*`, not through hand-written logic directly inside `Tensor.java`.
-
-### Operation Layer
-
-`operations.*` are not backend kernels. They are graph-level descriptors grouped by semantic family.
-
-Examples:
-
-- `add`, `mul`, `relu`
-- `linear`
-- `softmax`
-- `scaledDotProductAttention`
-- `crossEntropyLossIndices`
-
-The same descriptor:
-
-- defines the node type in the graph
-- serves as optimizer input
-- is the key for backend kernel resolution
-
-### Graph Layer
-
-`CompiledGraph` performs:
-
-1. topological closure over the forward graph
-2. backward graph construction if trainable leaf inputs exist
-3. optimizer stages from `OptimizerConfig`
-4. separation into forward/backward sections
-
-`PreparedExecution` then performs:
-
-- runtime-specific prepare
-- prepared metadata construction for each node
-- the actual execution loop
-- optional traced runs
-
-### Backend Layer
-
-Today the CPU backend uses prepared metadata instead of repeatedly making runtime decisions directly from `Tensor`.
-
-The prepare phase resolves in particular:
-
-- the compute contract
-- dtype conversion/materialization decisions
-- dispatch hints
-- reduction hints
-- matmul hints
-- fused executable preparation
-- workspace allocation for selected op families
-
-### Optimizer Layer
-
-The optimizer stage order is explicit. The main stage families today are:
-
-- `AR`
-  - composite rewrite family
-- `CSE`
-  - structural common subexpression elimination
-- `FUSE`
-  - elementwise fused cluster formation
-- `MEM`
-  - liveness-aware memory planning
-
-The rewrite family today includes more than just algebraic cleanup. It also contains lowering into specialized primitives, for example:
-
-- `matmul + bias -> linear`
-- `softmax` / `logSoftmax` backward pattern lowering
-- attention forward/backward lowering
-- cross-entropy-from-indices lowering
-- optional piecewise import canonicalization
-- `conv2d -> conv2dGemm` according to policy
-
-## Execution Profiles, Calibration, And Persistence
-
-Runtime is not governed by a single "optimizer profile" JSON anymore. The current flow distinguishes between:
-
-- built-in defaults in code
-- a platform runtime profile
-  - the output of platform calibration
-- a graph-specific best profile
-  - the output of autotune for a concrete workload
-- the final `ExecutionProfile`
-  - the assembled runnable artifact
-
-The preferred layout is:
-
-- `profiles/platform/<platform-id>/calibration/...`
-- `profiles/platform/<platform-id>/reports/...`
-- `profiles/platform/<platform-id>/tuning/...`
-
-Compatibility fallbacks under `build/...` still exist, but they are not the preferred long-term layout.
-
-## Real Usage Patterns
-
-### When to use only `Tensor.compute(profile)`
-
-Use it for:
-
-- simple integration tests
-- sanity checks of a local graph
-- small demo programs
-
-Do not use it as your only benchmark harness, because each call recompiles and reprepares the graph.
-
-### When to keep `CompiledGraph`
-
-Use it for:
-
-- inspecting optimizer output
-- compile trace / prepare trace
-- preparing the same graph repeatedly under different runtime configs
-
-### When to keep `PreparedExecution`
-
-Use it for:
-
-- steady-state benchmarking
-- hot-path tracing
-- performance experiments over the same graph and the same runtime policy
-
-## Module Docs
-
-- tensor: [src/main/java/tensor/README.md](src/main/java/tensor/README.md)
-- tensor API: [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
-- operations: [src/main/java/operations/README.md](src/main/java/operations/README.md)
-- graph: [src/main/java/graph/README.md](src/main/java/graph/README.md)
-- optimizer: [src/main/java/graph/optimizer/README.md](src/main/java/graph/optimizer/README.md)
-- backend: [src/main/java/backend/README.md](src/main/java/backend/README.md)
-- tuning: [src/main/java/tuning/README.md](src/main/java/tuning/README.md)
-- numerics: [src/main/java/numerics/README.md](src/main/java/numerics/README.md)
-
-## Testing
-
-Basic test flow:
-
-- `./gradlew test`
-- `./gradlew classes`
-
-Typical coverage areas:
-
-- execution correctness
-- dtype coverage
-- broadcast contracts
-- rewrite/lowering correctness
-- fused execution
-- tuning/search/report contracts
-
-## Development Notes
-
-- fused kernels are currently generated through ASM codegen during the prepare phase
-- CPU is the only fully implemented backend
-- CUDA/OpenCL are scaffolding
-- the project assumes JDK 25 and the Vector API
-- the tuning docs are the source of truth for benchmark/autotune/calibration flow, not older benchmark-only utility layers
-
-## License
-
-There is currently no license file in the repository. Add one before public distribution.
+If a proposed change violates one of those boundaries, it is probably pushing logic into the wrong layer.

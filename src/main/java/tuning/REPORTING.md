@@ -1,337 +1,137 @@
 # Tuning Reporting
 
-The reporting layer does two things:
+The reporting layer turns measurement and search results into:
 
-- turns results into a human-readable form
-- turns results into machine-readable explain artifacts
+- human-readable explanations
+- machine-readable artifacts
 
-It does not do:
+It does not execute workloads and does not search candidates.
 
-- execution
-- candidate search
-- persistence decisions
+## Reporting Surfaces
 
-## Reading Guide
+### Benchmark reporting
 
-Use this document if you want to understand:
+Important types:
 
-- what benchmark/tuning/calibration reports actually contain today
-- where compile/prepare/run numbers come from
-- where hot steps appear in text reports
-- what belongs in progress events and what belongs in final reports
+- [report/BenchmarkCandidateReport.java](./report/BenchmarkCandidateReport.java)
+- [report/BenchmarkReport.java](./report/BenchmarkReport.java)
+- [report/BenchmarkSuiteReport.java](./report/BenchmarkSuiteReport.java)
+- [report/TextBenchmarkReportRenderer.java](./report/TextBenchmarkReportRenderer.java)
+- [report/JsonBenchmarkReportRenderer.java](./report/JsonBenchmarkReportRenderer.java)
 
-## Benchmark Reporting
-
-Main types:
-
-- [BenchmarkCandidateReport.java](./report/BenchmarkCandidateReport.java)
-- [BenchmarkReport.java](./report/BenchmarkReport.java)
-- [BenchmarkSuiteReport.java](./report/BenchmarkSuiteReport.java)
-- [TextBenchmarkReportRenderer.java](./report/TextBenchmarkReportRenderer.java)
-
-Today the benchmark report answers:
+Benchmark reporting answers:
 
 - which candidate won
-- how many candidates succeeded/failed
-- what the steady-state times were
-- how candidates compare to baseline
-- what the hot runtime steps were in the traced run
+- how fast each candidate was in steady state
+- how compile/prepare/traced execution compared
+- what the hot traced steps were
 
-### What `TextBenchmarkReportRenderer` Actually Shows Today
+Typical text fields today include:
 
-A summary table with fields:
-
-- `name`
-- `status`
-- `compileMs`
-- `prepareMs`
-- `traceMs`
-- `medianMs`
-- `p90Ms`
-- `vsBaseline`
-
-And then, for each candidate, a detail section:
-
+- candidate name
+- status
+- compile time
+- prepare time
+- traced run time
+- steady-state mean / median / p90
+- baseline delta
 - validation status
-- optimizer stage order
-- compile/prepare/traced run time
-- step count
-- `parallelUsed`
-- `vectorUsed`
-- steady-state mean/median/p90
-- `speedupVsBaseline`
 - top hot steps
-- full step dump with trace metadata
+- detailed step metadata
 
-That means benchmark reporting is not just "name and median". It is a useful performance diagnostic artifact.
+### Autotune reporting
 
-## Autotune Reporting
+Important types:
 
-Main types:
-
-- [TuningResult.java](./session/TuningResult.java)
-- [TuningSummary.java](./report/TuningSummary.java)
-- [TextTuningResultRenderer.java](./report/TextTuningResultRenderer.java)
+- [session/TuningResult.java](./session/TuningResult.java)
+- [report/TuningSummary.java](./report/TuningSummary.java)
+- [report/TextTuningResultRenderer.java](./report/TextTuningResultRenderer.java)
+- [report/JsonTuningResultRenderer.java](./report/JsonTuningResultRenderer.java)
 
 Autotune reporting answers:
 
-- which `ExecutionProfile` won
-- which search strategy was used
+- which profile won
 - how many candidates were selected/evaluated
-- how many passed validation
+- how many were valid
+- how many finalists survived
+- whether persistence happened
 - how many history entries were written
 
-### What `TextTuningResultRenderer` Shows Today
+### Platform calibration reporting
 
-- `bestProfile`
-- `persisted`
-- `summary`
-- `strategy`
-- `selected`
-- `evaluated`
-- `valid`
-- `finalists`
-- `historyEntriesWritten`
-- `bestMedianMs`
+Important types:
 
-and then a finalists table:
+- [session/PlatformCalibrationResult.java](./session/PlatformCalibrationResult.java)
+- [session/PlatformCalibrationStepResult.java](./session/PlatformCalibrationStepResult.java)
+- [report/TextPlatformCalibrationResultRenderer.java](./report/TextPlatformCalibrationResultRenderer.java)
+- [report/JsonPlatformCalibrationResultRenderer.java](./report/JsonPlatformCalibrationResultRenderer.java)
 
-- name
-- median
-- mean
-- validation status
+Calibration reporting answers:
 
-## Platform Calibration Reporting
+- which step families ran
+- which candidate won each step
+- what score policy was used
+- what the final runtime profile became
 
-Main types:
+## Where Numbers Come From
 
-- [PlatformCalibrationResult.java](./session/PlatformCalibrationResult.java)
-- [PlatformCalibrationStepResult.java](./session/PlatformCalibrationStepResult.java)
-- [PlatformCalibrationCandidateSummary.java](./session/PlatformCalibrationCandidateSummary.java)
-- [PlatformCalibrationScore.java](./session/PlatformCalibrationScore.java)
-- [TextPlatformCalibrationResultRenderer.java](./report/TextPlatformCalibrationResultRenderer.java)
-- [JsonPlatformCalibrationResultRenderer.java](./report/JsonPlatformCalibrationResultRenderer.java)
+A typical report may contain several kinds of timing:
 
-The platform calibration report answers:
+- compile
+  - compile-time graph work
+- prepare
+  - backend/runtime metadata preparation
+- traced run
+  - one fully traced execution run
+- steady-state
+  - repeated runs used for benchmark/autotune scoring
 
-- what the seed runtime profile was
-- which family steps were run
-- which candidate won in each step
-- which score metric was used
-- which final runtime profile was produced
-
-### What `TextPlatformCalibrationResultRenderer` Shows Today
-
-- `platformId`
-- `createdAt`
-- `persisted`
-- `outputProfilePath`
-- `profileName`
-- `dataType`
-- `mode`
-- `seedRuntimeProfile`
-- `finalRuntimeProfile`
-- hardware summary
-- a step table:
-  - `name`
-  - `family`
-  - `seedRuntime`
-  - `selectedExec`
-  - `score`
-  - `metric`
-
-## Trace-Derived Reporting
-
-Reporting does not generate trace data on its own.
-
-Trace comes from the execution layer through `MeasurementResult.trace()`.
-
-It typically contains:
-
-- compile trace
-- prepare trace
-- run trace
-- step traces
-
-The benchmark renderer can then extract:
-
-- compile/prepare duration
-- traced cold-run duration
-- hot steps
-- layout/dispatch/reduction/matmul/fused metadata on each step
-
-## Why Reporting Is Separate
-
-Reporting must not decide:
-
-- whether a candidate is valid
-- how measurement is done
-- what gets persisted
-
-It should only convert already-existing DTOs into output.
-
-That guarantees:
-
-- the text renderer does not change result semantics
-- the JSON renderer is not the execute source of truth
-
-## Progress Reporting
-
-In addition to final reports, there are also live progress events.
-
-### Autotune progress
-
-Types:
-
-- [AutotuneProgressEvent.java](./session/AutotuneProgressEvent.java)
-- [AutotuneProgressPhase.java](./session/AutotuneProgressPhase.java)
-
-Current phases:
-
-- `STARTED`
-- `SEARCH_BATCH`
-- `CANDIDATE_VALIDATING`
-- `CANDIDATE_INVALID`
-- `CANDIDATE_MEASURING`
-- `CANDIDATE_MEASURED`
-- `CANDIDATE_FAILED`
-- `ROUND_COMPLETED`
-- `COMPLETED`
-
-### Platform calibration progress
-
-Types:
-
-- [PlatformCalibrationProgressEvent.java](./session/PlatformCalibrationProgressEvent.java)
-- [PlatformCalibrationProgressPhase.java](./session/PlatformCalibrationProgressPhase.java)
-
-Current phases:
-
-- `STARTED`
-- `FAMILY_STARTED`
-- `WORKLOAD_STARTED`
-- `CANDIDATE_VALIDATING`
-- `CANDIDATE_INVALID`
-- `CANDIDATE_MEASURING`
-- `CANDIDATE_MEASURED`
-- `CANDIDATE_FAILED`
-- `CANDIDATE_SCORED`
-- `FAMILY_COMPLETED`
-- `COMPLETED`
-- `FAILED`
-
-These events are not a replacement for the final report. They are meant for:
-
-- long terminal runs
-- CI log visibility
-- debugging stalls and candidate explosions
-
-## JSON Expectations
-
-JSON renderers should be:
-
-- machine-readable explain artifacts
-- suitable for diffing or archiving
-
-They should not be:
-
-- execute source of truth
-- the only persistence artifact
-
-The source of truth remains:
-
-- `PlatformRuntimeProfile` for platform defaults
-- `ExecutionProfile` for graph winners
-
-## Example: Benchmark Report Interpretation
-
-If a benchmark report shows:
-
-- `bestMedianMs` better than baseline
-- but `traceMs` worse
-
-it may mean:
-
-- higher cold/traced overhead
-- but better steady-state
-
-So it is worth tracking:
-
-- compile/prepare/traced run
-- steady-state median
-- hot steps
-
-not just one number.
-
-## Example: Calibration Report Interpretation
-
-If in a platform calibration report you see:
-
-- a good matmul score
-- but a later fused family regression
-
-that is expected in a sequential family flow:
-
-- each later step already starts from the previous winner
-- the report preserves the audit trail of what each step changed
-
-## Common Mistakes
-
-- using the text report as the only persistent artifact
-- reading speedup without the context of validation status
-- confusing traced cold run with steady-state median
-- ignoring the hot-step dump during performance regression analysis
-
-## Related Docs
-
-- architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
-- persistence: [PERSISTENCE.md](./PERSISTENCE.md)
-- search: [SEARCH.md](./SEARCH.md)
-
-## Reading Benchmark Reports In Practice
-
-A useful mental model is:
-
-- `compileMs`
-  - graph compilation and optimizer cost
-- `prepareMs`
-  - backend-specific preparation cost
-- `traceMs`
-  - one traced cold run with step metadata
-- `medianMs`
-  - steady-state throughput signal
-
-So a candidate can legitimately:
-
-- lose on `traceMs`
-- but still win on `medianMs`
-
-That usually means:
-
-- cold start got a bit heavier
-- steady-state execution got faster
-
-## Hot-Step Interpretation
-
-When the benchmark report prints hot steps, treat them as:
-
-- the first place to inspect real bottlenecks
-- not a proof that optimizer shape alone is wrong
-
+These should not be conflated.
 For example:
 
-- a hot `FUSED` step suggests looking at fused profitability, family thresholds, or ASM width
-- a hot `MATMUL` step suggests looking at tiles, microkernels, BLAS crossover, or shape gates
-- a hot `CONV2D_GEMM` step suggests looking at conv2d lowering and GEMM crossover policy
+- a candidate with slightly slower compile but much faster steady-state may still be the correct winner
+- traced run is diagnostic and often more expensive than steady-state because it captures detailed step metadata
 
-## Why Reports And Persistence Stay Separate
+## Worked Example
 
-Even a perfect JSON report should not become runtime config.
-Reports are for:
+Suppose benchmark compares:
 
-- explanation
-- audit
-- CI artifacts
-- regression comparison
+- `baseline-no-opt`
+- `best-profile`
 
-Profiles are for execution.
+and steady-state medians are:
+
+- baseline = `10.2 ms`
+- best profile = `7.9 ms`
+
+Then reporting should make all of the following visible:
+
+- winner = `best-profile`
+- speedup vs baseline ≈ `1.29x`
+- absolute delta = `-2.3 ms`
+- whether compile/prepare also changed
+- which traced hot steps dominate the runtime
+
+That last point is important because the report is not just a leaderboard.
+It is also a diagnosis artifact.
+
+## Progress Events vs Final Reports
+
+Progress listeners are for live orchestration visibility.
+Final reports are for post-run evidence and inspection.
+
+That boundary matters because:
+
+- progress events can be partial
+- final reports should be complete enough to understand the result without rerunning the workflow
+
+## Persistence Relationship
+
+Reports are explain artifacts.
+They are not the runtime source of truth.
+
+That means:
+
+- do not execute "from a report"
+- execute from stored `ExecutionProfile` / `PlatformRuntimeProfile`
+- use reports to understand why a winner was chosen

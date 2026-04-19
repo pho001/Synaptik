@@ -1,61 +1,33 @@
-# Optimizer
+# Optimizer Package
 
-The optimizer is the graph-level transformation layer that runs after the graph has already been built and topologically sorted, but before runtime preparation and kernel dispatch.
+The optimizer is the graph-level transformation layer between graph construction and runtime preparation.
 
-Its contract is intentionally narrow:
+Input:
 
-- input: `List<Tensor>` in topological order
-- output: a semantically equivalent `List<Tensor>` still in topological order
+- a topologically ordered compile-time graph snapshot
 
-The optimizer does not execute kernels. It also does not decide runtime dispatch details such as vector width, parallel chunk sizing, BLAS routing, or approximation mode. Those remain runtime concerns.
+Output:
 
-## Reading Guide
+- a semantically equivalent topologically ordered graph snapshot
 
-This package is the right place to look when you need to answer questions such as:
-
-- when to add a new primitive operation vs when to add only a rewrite
-- which graph patterns are currently recognized and lowered
-- what `AR`, `CSE`, `FUSE`, and `MEM` really do today
-- how forward/backward boundaries are preserved
-- how graph-level fusion differs from runtime backend dispatch
-
-Related documentation:
-
-- graph lifecycle: [../README.md](../README.md)
-- operation descriptors: [../../operations/README.md](../../operations/README.md)
-- backend families: [../../backend/README.md](../../backend/README.md)
-- tuning and autotune: [../../tuning/README.md](../../tuning/README.md)
-
-## Main Components
-
-- orchestration
-  - [GraphOptimizer.java](./GraphOptimizer.java)
-  - [OptimizationRule.java](./OptimizationRule.java)
-  - [OptimizerFactory.java](./OptimizerFactory.java)
-  - [OptimizerProfiles.java](./OptimizerProfiles.java)
-- shared graph rewrite support
-  - [OptimizerGraphSupport.java](./OptimizerGraphSupport.java)
-- public stage implementations
-  - [rewrite/RewriteRule.java](./rewrite/RewriteRule.java)
-  - [rules/CommonSubexpressionEliminationRule.java](./rules/CommonSubexpressionEliminationRule.java)
-  - [rules/FuseElementWiseRule.java](./rules/FuseElementWiseRule.java)
-  - [rules/MemoryOptimizerRule.java](./rules/MemoryOptimizerRule.java)
+The optimizer does not execute kernels.
+It also does not decide runtime dispatch knobs such as vector width, worker count, BLAS thresholds, or approximation mode.
 
 ## Public Stage Model
 
-The public optimizer stage order currently uses four stage names:
+The user-facing stage names are currently:
 
 1. `AR`
 2. `CSE`
 3. `FUSE`
 4. `MEM`
 
-`OptimizerFactory` maps them as follows:
+`OptimizerFactory` maps them to:
 
-- `AR` -> [rewrite/RewriteRule.java](./rewrite/RewriteRule.java)
-- `CSE` -> [rules/CommonSubexpressionEliminationRule.java](./rules/CommonSubexpressionEliminationRule.java)
-- `FUSE` -> [rules/FuseElementWiseRule.java](./rules/FuseElementWiseRule.java)
-- `MEM` -> [rules/MemoryOptimizerRule.java](./rules/MemoryOptimizerRule.java)
+- `AR` -> rewrite family
+- `CSE` -> common subexpression elimination
+- `FUSE` -> graph-level elementwise fusion
+- `MEM` -> memory planning and reuse
 
 Default presets:
 
@@ -66,223 +38,173 @@ Default presets:
 - `OptimizerConfig.inferenceDefaults()`
   - `AR -> CSE -> FUSE -> MEM`
 
-This matters because:
+So today:
 
-- training defaults currently do not enable graph fusion
+- training defaults do not enable graph fusion
 - inference defaults do enable graph fusion
-- `CSE` also uses different safety defaults between training and inference
 
-## Rule Execution Model
+## What The Optimizer Owns
 
-At the top level, [GraphOptimizer.java](./GraphOptimizer.java) is intentionally simple:
-
-1. take a sorted graph
-2. run the iterative stage prefix to structural fixpoint
-3. run terminal stages once
-4. require that each rule returns a non-null graph
-
-Today the factory splits the configured stage order into:
-
-- iterative stages
-  - currently everything except `MEM`
-- terminal stages
-  - currently `MEM`
-
-That means a typical `AR -> CSE -> FUSE -> MEM` order is executed as:
-
-1. snapshot the compile graph
-2. run `AR -> CSE -> FUSE`
-3. fingerprint the resulting graph structurally
-4. if the graph changed, run `AR -> CSE -> FUSE` again
-5. stop when the graph reaches fixpoint or the configured safety cap is reached
-6. run `MEM` exactly once on the final graph
-
-This is intentional.
-
-- We keep the user-facing mental model of one joint forward/backward graph.
-- We do not rely on repeated semantic `compile()` calls as an implicit optimizer strategy.
-- We make the previously observed "second compile sometimes finds a better graph" opportunity explicit and deterministic inside the optimizer itself.
-
-The compile pipeline now optimizes over a compile-time snapshot rather than mutating the semantic graph in place.
-That keeps optimizer rewrites local to compilation while still allowing autograd graph construction to reason over the whole joint graph before the snapshot is taken.
-
-The interesting mechanics live inside the individual rules and in [OptimizerGraphSupport.java](./OptimizerGraphSupport.java):
-
-- `rewriteInputs(...)`
-  - rewires already-replaced inputs before the current tensor is processed
-- `resolveReplacement(...)`
-  - follows chained replacements until the final tensor is found
-- `consumerFreeSinks(...)`
-  - finds current sinks in the graph
-- `rebuildTopologicalClosure(...)`
-  - rebuilds a clean execution list after a rule removed or replaced nodes
-
-The abstract rewrite family base class [rewrite/AbstractRewriteRule.java](./rewrite/AbstractRewriteRule.java) uses the same general pattern:
-
-1. remember the original sinks
-2. walk tensors in topological order
-3. rewrite current inputs through the replacement map
-4. optionally replace the current tensor
-5. propagate backward flags and gradient references
-6. rebuild the closure from the resolved sinks
-
-That design is important because optimizer rules are allowed to mutate graph structure, but the final graph still has to remain reachable, topologically valid, and semantically equivalent.
-
-## Stage Documentation
-
-Detailed stage documentation lives in separate files:
-
-- [AR.md](./AR.md)
-  - composite rewrite family: algebraic cleanup, canonicalization, and lowering into structured primitives
-- [CSE.md](./CSE.md)
-  - structural common subexpression elimination
-- [FUSE.md](./FUSE.md)
-  - graph-level elementwise cluster formation and fused op creation
-- [MEM.md](./MEM.md)
-  - memory lifetime analysis, slot assignment, and buffer reuse
-
-## Design Boundary
-
-The optimizer should not become a hidden second runtime. The current design boundary is:
-
-What belongs in the optimizer:
-
-- algebraic cleanup
-- pattern canonicalization
-- lowering from decomposed graphs into structured primitives
-- structural deduplication
-- fusion cluster formation
-- memory planning
-
-What does not belong in the optimizer:
-
-- scalar vs vector dispatch
-- Java vs BLAS selection for a prepared recipe
-- thread count decisions
-- vector width decisions
-- approximation mode selection
-- hot-path runtime tuning
-
-## When To Add A Rewrite
-
-Add a rewrite when all of the following are true:
-
-- the pattern is recognizable structurally in the graph
-- the replacement is semantically cleaner than the decomposed form
-- backend specialization benefits from seeing the structured primitive directly
-- the transformation is not a runtime hardware decision
+The optimizer owns graph structure.
 
 Typical examples:
 
-- `matmul + bias -> linear`
-- decomposed cross-entropy-from-indices -> `crossEntropyLossIndices`
-- decomposed softmax backward -> `softmaxGrad`
-- decomposed attention forward/backward -> attention primitives
+- replace `x + 0` with `x`
+- lower `matmul + bias` into `LINEAR`
+- replace `softmax` gradient patterns with `SOFTMAX_GRAD`
+- fuse a chain like `relu(add(mul(x, y), b))` into one `FUSED` node
+- plan memory reuse after final graph shape is known
 
-## When To Add A New Primitive
+The optimizer does not own:
 
-Add a new operation descriptor when the replacement represents a meaningful semantic unit that backends should be able to target directly.
+- vector widths
+- worker counts
+- matmul tile thresholds
+- BLAS provider thread behavior
+- approximation policy
 
-That is usually the case when at least one of these is true:
+Those belong to runtime config, backend planners, and the tuning layer.
 
-- the backend can provide a materially better specialized implementation
-- the primitive has stable semantics that appear repeatedly in real models
-- keeping the computation decomposed would force runtime rediscovery of the same structure again and again
+## Current Execution Model
 
-## Correctness Requirements
+`GraphOptimizer` now supports an iterative fixpoint prefix followed by terminal stages.
 
-Every optimizer rule must preserve:
+Current factory behavior:
 
-- reachability from the real sinks
-- topological validity
-- dtype semantics
-- shape semantics
-- backward/gradient correctness
-- forward/backward phase boundaries
+- iterative prefix:
+  - everything except `MEM`
+- terminal suffix:
+  - `MEM`
 
-Whenever a rewrite seems attractive but weakens those guarantees, it does not belong here in its current form.
-
-## End-To-End Example
-
-Consider this decomposed forward fragment:
-
-```text
-t1 = matmul(x, w)
-t2 = add(t1, b)
-t3 = add(t2, zeros_like(t2))
-t4 = add(t2, zeros_like(t2))
-t5 = relu(t4)
-t6 = mulScalar(t5, 0.5)
-```
-
-With a typical inference-style order:
+That means a stage order such as:
 
 ```text
 AR -> CSE -> FUSE -> MEM
 ```
 
-the stages conceptually do this:
+is executed as:
 
-1. `AR`
-   - `add(matmul(x, w), b)` becomes `linear(x, w, b)`
-   - trivial `+ zeros_like(...)` noise collapses
-2. `CSE`
-   - repeated structurally identical subexpressions are shared
-3. `FUSE`
-   - the remaining elementwise tail may become one fused node
-4. `MEM`
-   - short-lived temporaries may reuse storage slots
+1. run `AR -> CSE -> FUSE`
+2. fingerprint the graph
+3. if the graph changed, run `AR -> CSE -> FUSE` again
+4. stop at structural fixpoint or the configured round cap
+5. run `MEM` exactly once
 
-That is why stage order matters.
-Each stage is intentionally small, but the overall graph shape changes step by step.
+This is important because the system no longer relies on repeated semantic recompile as an accidental extra optimization strategy.
+The fixpoint behavior is explicit, bounded, and compile-local.
 
-## Typical Debugging Questions
+## Snapshot Boundary
 
-### "Why was this decomposed graph not lowered?"
+Optimization runs on a compile-time graph snapshot rather than directly on the live semantic graph.
 
-Inspect `AR`.
-Common causes:
+That gives the project two benefits at once:
 
-- the pattern is not in the canonical form the matcher expects
-- shape/rank/axis preconditions are not satisfied
-- the relevant rewrite family is disabled
+- the optimizer still sees the whole joint forward/backward graph
+- the semantic graph does not accumulate optimizer-mutated state across repeated compiles
 
-### "Why do I still have duplicated work?"
+This is one of the most important architectural boundaries in the current compiler design.
 
-Inspect `CSE`.
-Common causes:
+## Shared Rewrite Mechanics
 
-- the expressions are only mathematically equivalent, not structurally identical
-- leaf identity intentionally differs
-- strict safety keeps them separate
+Several optimizer rules rely on the same support utilities in [OptimizerGraphSupport.java](./OptimizerGraphSupport.java).
 
-### "Why did this chain not become one fused node?"
+Important helpers:
 
-Inspect `FUSE`.
-Common causes:
+- `rewriteInputs(...)`
+  - rewires already replaced inputs before processing the current node
+- `resolveReplacement(...)`
+  - follows replacement chains to the final node
+- `observableRoots(...)`
+  - finds graph roots that should stay observable
+- `rebuildTopologicalClosureFromRoots(...)`
+  - rebuilds a clean, reachable topological list after a pass changed the graph
 
-- a non-elementwise consumer introduced a boundary
-- there is a cross-phase edge
-- the cluster score did not reach threshold
-- a shared expensive node was intentionally preserved
+Those helpers are what make local rewrites safe in a larger mutable graph snapshot.
 
-### "Why is this still allocating?"
+## Stage Responsibilities At A Glance
 
-Inspect `MEM`.
-Common causes:
+### `AR`
 
-- dtype or graph shape is outside reuse support
-- the tensor is a true output, saved-forward value, or gradient target
-- lifetime overlap prevents slot reuse
+Composite rewrite/lowering stage.
 
-## Practical Inspection Order
+Owns:
 
-When debugging optimizer behavior, the fastest order is usually:
+- algebraic simplification
+- piecewise canonicalization
+- structural lowerings into primitives such as:
+  - `LINEAR`
+  - `SOFTMAX_GRAD`
+  - `LOG_SOFTMAX_GRAD`
+  - `CROSS_ENTROPY_LOSS_INDICES`
+  - `CROSS_ENTROPY_LOSS_INDICES_GRAD`
+  - `SCALED_DOT_PRODUCT_ATTENTION`
+  - `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
+  - optional conv2d GEMM lowerings
 
-1. confirm the stage order on the `ExecutionProfile`
-2. inspect `AR`
-3. inspect `CSE`
-4. inspect `FUSE`
-5. inspect `MEM`
+See [AR.md](./AR.md).
 
-That order matters because memory planning cannot rescue a graph that was never canonicalized, deduplicated, or fused the way you expected.
+### `CSE`
+
+Structural common subexpression elimination.
+
+Owns:
+
+- detect structurally identical tensors
+- keep one representative
+- redirect the others
+
+See [CSE.md](./CSE.md).
+
+### `FUSE`
+
+Graph-level elementwise fusion.
+
+Owns:
+
+- choose safe and worthwhile elementwise clusters
+- replace them with one `FUSED` primitive
+
+See [FUSE.md](./FUSE.md).
+
+### `MEM`
+
+Memory planning and buffer reuse.
+
+Owns:
+
+- view aliasing at runtime
+- temporary slot reuse
+- reusable interval planning
+
+See [MEM.md](./MEM.md).
+
+## Example: Why Fixpoint Matters
+
+Consider this schematic graph:
+
+```text
+z = exp(log(x)).add(0)
+```
+
+One `AR` round can simplify:
+
+- `exp(log(x)) -> x`
+- `x + 0 -> x`
+
+But in more complex graphs, a first rewrite may expose new CSE or fusion opportunities only after the first round completes.
+The fixpoint prefix makes those opportunities deterministic without requiring repeated public `compile()` calls.
+
+## What To Change When
+
+Use this rule of thumb:
+
+- new algebraic identity or pattern lowering:
+  - `AR`
+- duplicate elimination:
+  - `CSE`
+- elementwise cluster profitability:
+  - `FUSE`
+- allocation/reuse policy:
+  - `MEM`
+
+If a change depends on runtime sizes, thresholds, or hardware policy, it probably belongs outside the optimizer.

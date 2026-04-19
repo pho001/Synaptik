@@ -1,20 +1,26 @@
 # AR Stage
 
-`AR` is the composite rewrite stage. Despite the short name, it is not just a small algebraic simplifier. It is the place where the optimizer:
+`AR` is the composite rewrite and lowering stage.
 
-- canonicalizes imported or manually decomposed graphs
-- performs local algebraic cleanup
-- lowers decomposed patterns into structured primitives
+Despite the short name, it is not "just algebraic simplification".
+It is the place where the compiler:
 
-In other words, `AR` is the "graph semantics cleanup and lowering" family.
+- canonicalizes decomposed patterns
+- removes local algebraic noise
+- lowers recognizable graph shapes into specialized primitives
+
+In practice, `AR` is the semantic cleanup stage of the compiler.
 
 ## Entry Points
 
-- stage wrapper: [rewrite/RewriteRule.java](./rewrite/RewriteRule.java)
-- shared base class for most subpasses: [rewrite/AbstractRewriteRule.java](./rewrite/AbstractRewriteRule.java)
-- config root: [../../config/optimizer/RewriteConfig.java](../../config/optimizer/RewriteConfig.java)
+- stage wrapper:
+  - [rewrite/RewriteRule.java](./rewrite/RewriteRule.java)
+- shared rewrite base:
+  - [rewrite/AbstractRewriteRule.java](./rewrite/AbstractRewriteRule.java)
+- configuration root:
+  - [../../config/optimizer/RewriteConfig.java](../../config/optimizer/RewriteConfig.java)
 
-## Execution Order
+## Current Delegate Order
 
 The current delegate order is:
 
@@ -27,50 +33,37 @@ The current delegate order is:
 7. `AttentionBackwardLoweringRewrite`
 8. optional `Conv2dLoweringRewrite`
 
-That order is intentional.
+That order is intentional:
 
-- Piecewise lowering runs first because it canonicalizes decomposed expressions into known unary primitives.
-- Algebraic cleanup runs before larger pattern lowerings so trivial noise is removed early.
-- Structured lowerings such as `linear`, loss, reduction, and attention run after the graph has already been locally simplified.
-- `conv2d` lowering is deliberately policy-controlled and sits at the end of the family.
+- piecewise repair first
+- local algebraic cleanup second
+- structural lowerings after the graph is cleaner
+- conv2d lowering last because it is more policy-sensitive
 
 ## Generic Rewrite Mechanics
 
-Every `AbstractRewriteRule` subpass follows the same skeleton:
+Most subpasses inherit the same shape from `AbstractRewriteRule`:
 
-1. remember the original sink tensors
+1. remember observable roots
 2. walk the graph in topological order
-3. rewrite already-replaced inputs before visiting the current tensor
-4. decide whether the current tensor should be replaced
-5. preserve backward flags
-6. repair gradient references through the replacement map
-7. rebuild the topological closure from the resolved sinks
+3. rewrite already replaced inputs
+4. optionally replace the current tensor
+5. preserve important flags and gradient references
+6. rebuild a clean topological closure
 
-This is why the subpasses can be simple peephole matchers while still keeping the final graph valid.
+This lets each subpass stay a local matcher instead of re-implementing whole-graph repair every time.
 
-## PiecewiseLoweringRewrite
+## Piecewise Lowering
 
-File: [rewrite/PiecewiseLoweringRewrite.java](./rewrite/PiecewiseLoweringRewrite.java)
+File:
 
-Purpose:
+- [rewrite/PiecewiseLoweringRewrite.java](./rewrite/PiecewiseLoweringRewrite.java)
 
-- repair imported graphs
-- canonicalize manually decomposed expressions
-- reduce decomposed piecewise logic back to semantic primitives
+This pass is optional and disabled by default unless its config enables specific branches.
 
-This pass is fully optional. The config lives in [../../config/optimizer/PiecewiseLoweringConfig.java](../../config/optimizer/PiecewiseLoweringConfig.java).
+### Implemented patterns today
 
-Defaults:
-
-- `canonicalSigmoid = false`
-- `reluLikeWhere = false`
-- `clampLikeWhere = false`
-
-So by default this pass is effectively off unless the config explicitly enables at least one branch.
-
-### Implemented Piecewise Patterns
-
-1. Canonical sigmoid
+#### 1. Canonical sigmoid
 
 Pattern:
 
@@ -78,15 +71,28 @@ Pattern:
 inv(add(1, exp(neg(x))))
 ```
 
-Equivalent source forms also allow the negation to appear as `mulScalar(x, -1)`.
+Equivalent negation form also accepted:
 
-Rewrite:
+```text
+inv(add(1, exp(mulScalar(x, -1))))
+```
+
+Lowering:
 
 ```text
 sigmoid(x)
 ```
 
-2. ReLU-like `where`
+Worked value example:
+
+- `x = 2.0`
+- `neg(x) = -2.0`
+- `exp(-2.0) ≈ 0.1353`
+- `1 + exp(-2.0) ≈ 1.1353`
+- `inv(...) ≈ 0.8808`
+- lowered `sigmoid(2.0)` gives the same result
+
+#### 2. ReLU-like `where`
 
 Pattern:
 
@@ -94,767 +100,324 @@ Pattern:
 where(gt(x, 0), x, zeros_like(x))
 ```
 
-Requirements:
-
-- condition must be `x > 0`
-- `ifTrue` must be the same tensor `x`
-- `ifFalse` must be a leaf zero tensor with the same dtype and shape as `x`
-
-Rewrite:
+Lowering:
 
 ```text
 relu(x)
 ```
 
-3. Clamp-min like `where`
+Worked value example:
 
-Pattern:
+- `x = [-2, 3]`
+- condition = `[false, true]`
+- result = `[0, 3]`
+- same as `relu(x)`
 
-```text
-where(lt(x, t), t, x)
-```
+#### 3. Clamp-like `where`
 
-Requirements:
-
-- `t` must be a scalar leaf constant
-- both constants must be dtype-compatible
-
-Rewrite:
+Patterns:
 
 ```text
-clampMin(x, t)
+where(lt(x, t), t, x)   -> clampMin(x, t)
+where(gt(x, t), t, x)   -> clampMax(x, t)
 ```
 
-4. Clamp-max like `where`
+Worked value example:
 
-Pattern:
+- `x = [1, 5, 9]`, `t = 4`
+- `where(lt(x, 4), 4, x) = [4, 5, 9]`
+- lowered `clampMin(x, 4) = [4, 5, 9]`
 
-```text
-where(gt(x, t), t, x)
-```
+## Algebraic Rewrite
 
-Rewrite:
+File:
 
-```text
-clampMax(x, t)
-```
+- [rewrite/AlgebraicRewrite.java](./rewrite/AlgebraicRewrite.java)
 
-### What This Pass Does Not Do
+This pass contains the highest number of local identities.
+It is heavily feature-gated with system properties for targeted experiments, but the defaults enable the normal rule set.
 
-- It does not invent new semantics.
-- It does not repair arbitrary `where` expressions.
-- It does not replace normal forward `relu()` calls, because those should already have been created as `relu` primitives by the `Tensor` API.
+### Add rules
 
-## AlgebraicRewrite
+Currently implemented:
 
-File: [rewrite/AlgebraicRewrite.java](./rewrite/AlgebraicRewrite.java)
-
-Purpose:
-
-- local peephole simplification
-- scalar canonicalization
-- removal of obvious algebraic noise
-
-It only rewrites a narrow set of op families and explicitly skips:
-
-- leaf tensors
-- already fused ops
-
-The handled op types are:
-
-- `ADD`
-- `SUB`
-- `MUL`
-- `MUL_SCALAR`
-- `DIV`
-- `POW`
-- `NEG`
-- `LOG`
-- `EXP`
-- `INV`
-- `SQRT`
-- `WHERE`
-- `CLAMP_MIN`
-- `CLAMP_MAX`
-
-Important current detail:
-
-- `WHERE`, `CLAMP_MIN`, and `CLAMP_MAX` currently have placeholder methods only and perform no rewrite.
-
-### Implemented Algebraic Rewrites
-
-#### `ADD`
-
-Implemented rules:
-
-- `a + 0 -> a`
-- `0 + a -> a`
-- `a + a -> a * 2`
-- `a + (-a) -> zerosLike(a)`
-- `(-a) + a -> zerosLike(a)`
-- `(c * a) + a -> (1 + c) * a`
-- `a + (c * a) -> (1 + c) * a`
+- `x + 0 -> x`
+- `0 + x -> x`
+- `x + x -> x * 2`
+- `x + (-x) -> 0`
 - `(-a) + (-b) -> -(a + b)`
 - `log(a) + log(b) -> log(a * b)`
+- factorization of `x + c*x` style forms through `mulScalar`
 
-Example:
+Worked example:
 
-```text
-add(mulScalar(x, 3.0), x)
-=> mulScalar(x, 4.0)
-```
+- `x = 3`
+- `x + x = 6`
+- rewritten `x * 2 = 6`
 
-#### `SUB`
+### Sub rules
 
-Implemented rules:
+- `x - 0 -> x`
+- `0 - x -> neg(x)`
+- `x - x -> 0`
+- `x - (-y) -> x + y`
+- factorization of `x - c*x` patterns
 
-- `a - 0 -> a`
-- `0 - a -> -a`
-- `a - a -> zerosLike(a)`
-- `a - (-b) -> a + b`
-- `a - (c * a) -> (1 - c) * a`
-- `(c * a) - a -> (c - 1) * a`
+### Mul rules
 
-Example:
-
-```text
-sub(x, neg(y))
-=> add(x, y)
-```
-
-#### `MUL`
-
-Implemented rules:
-
-- `a * 0 -> zerosLike(result)`
-- `0 * a -> zerosLike(result)`
-- `a * 1 -> a`
-- `1 * a -> a`
-- `a * -1 -> -a`
-- `-1 * a -> -a`
-- `inv(a) * a -> onesLike(a)`
-- `a * inv(a) -> onesLike(a)`
+- `x * 0 -> 0`
+- `x * 1 -> x`
+- `x * -1 -> neg(x)`
+- `x * inv(x) -> 1`
 - `(-a) * (-b) -> a * b`
 - `exp(a) * exp(b) -> exp(a + b)`
 
-#### `MUL_SCALAR`
+### `mulScalar` rules
 
-Implemented rules:
+- `x * 0 -> 0`
+- `x * 1 -> x`
+- `x * -1 -> neg(x)`
+- nested scalar fold:
+  - `(x * 3) * 2 -> x * 6`
+- push through negation:
+  - `neg(x) * 4 -> x * -4`
+- constant fold for scalar leaves
 
-- `mulScalar(x, 0) -> zerosLike(x)`
-- `mulScalar(x, 1) -> x`
-- `mulScalar(x, -1) -> neg(x)`
-- `mulScalar(mulScalar(x, c1), c2) -> mulScalar(x, c1 * c2)`
-- `mulScalar(neg(x), c) -> mulScalar(x, -c)`
-- scalar leaf constant folding
+### Div and inv rules
 
-Example:
-
-```text
-mulScalar(mulScalar(x, 0.5), 4.0)
-=> mulScalar(x, 2.0)
-```
-
-#### `DIV`
-
-Implemented rules:
-
-- `0 / a -> zerosLike(result)`
-- `a / 1 -> a`
-- `a / -1 -> -a`
-- `a / inv(b) -> a * b`
-- `mulScalar(a, c) / c -> a`
-- `mulScalar(a, c) / k -> mulScalar(a, c / k)` for scalar constant `k`
-- `a / k -> mulScalar(a, 1 / k)` for scalar constant `k`
-
-#### `POW`
-
-Implemented rules:
-
-- `pow(a, 0) -> onesLike(a)`
-- `pow(a, 1) -> a`
-- `pow(a, 2) -> a * a`
-- `pow(inv(a), e) -> pow(a, -e)`
-- `pow(pow(a, e1), e2) -> pow(a, e1 * e2)`
-
-#### `NEG`
-
-Implemented rules:
-
-- `neg(0) -> 0`
-- `neg(neg(a)) -> a`
-- `neg(a - b) -> b - a`
-- `neg(mulScalar(a, c)) -> mulScalar(a, -c)`
-
-#### `LOG`
-
-Implemented rules:
-
-- `log(pow(a, e)) -> log(a) * e`
-- `log(inv(a)) -> -log(a)`
-- `log(sqrt(a)) -> log(a) * 0.5`
-
-#### `EXP`
-
-Implemented rules:
-
-- `exp(log(a)) -> a`
-
-#### `INV`
-
-Implemented rules:
-
-- `inv(inv(a)) -> a`
-- `inv(pow(a, e)) -> pow(a, -e)`
-- `inv(exp(a)) -> exp(-a)`
-- `inv(neg(a)) -> -inv(a)`
+- `0 / x -> 0`
+- `1 / x -> inv(x)`
+- `x / 1 -> x`
+- `x / -1 -> neg(x)`
+- `x / inv(y) -> x * y`
+- `(x * c) / c -> x`
+- `(x * c) / d -> x * (c / d)`
+- `x / c -> x * (1/c)` for scalar constant `c`
+- `inv(inv(x)) -> x`
+- `inv(pow(x, e)) -> pow(x, -e)`
+- `inv(exp(x)) -> exp(-x)`
+- `inv(neg(x)) -> neg(inv(x))`
 - `inv(sigmoid(x)) -> 1 + exp(-x)`
 
-That last rewrite is intentionally explicit in the current code:
+### Pow / log / exp / sqrt / neg rules
 
-```text
-inv(sigmoid(x))
-=> onesLike(x) + exp(-x)
-```
-
-#### `SQRT`
-
-Implemented rules:
-
+- `pow(x, 0) -> 1`
+- `pow(x, 1) -> x`
+- `pow(x, -1) -> inv(x)`
+- `pow(x, 2) -> x * x`
+- `pow(inv(x), e) -> pow(x, -e)`
+- `pow(pow(x, a), b) -> pow(x, a*b)`
+- `log(pow(x, e)) -> log(x) * e`
+- `log(inv(x)) -> -log(x)`
+- `log(sqrt(x)) -> log(x) * 0.5`
+- `exp(log(x)) -> x`
+- `neg(neg(x)) -> x`
+- `neg(sub(a, b)) -> sub(b, a)`
+- `neg(mulScalar(x, c)) -> mulScalar(x, -c)`
 - `sqrt(0) -> 0`
 - `sqrt(1) -> 1`
 
-### System Properties For AlgebraicRewrite
+### Clamp rules
 
-The pass has a global kill switch:
+- `clampMin(x, -inf) -> x`
+- `clampMax(x, +inf) -> x`
+- `clampMin(clampMin(x, a), b) -> clampMin(x, max(a, b))`
+- `clampMax(clampMax(x, a), b) -> clampMax(x, min(a, b))`
 
-- `cg.optimizer.ar.disableAllTransforms`
+## Linear Lowering
 
-It also has a separate toggle for topological-closure rebuilding:
+File:
 
-- `cg.optimizer.ar.disableRebuildTopologicalClosure`
+- [rewrite/LinearLoweringRewrite.java](./rewrite/LinearLoweringRewrite.java)
 
-And it has individual switches for specific transforms:
-
-- `cg.optimizer.ar.disablePow2ToMul`
-- `cg.optimizer.ar.disableAddSelfToMul2`
-- `cg.optimizer.ar.disableAddNegToZero`
-- `cg.optimizer.ar.disableAddNegNegToNegAdd`
-- `cg.optimizer.ar.disableAddLogLogToLogMul`
-- `cg.optimizer.ar.disableSubNegToAdd`
-- `cg.optimizer.ar.disableDivConstToMulRecip`
-- `cg.optimizer.ar.disableDivMulScalarByConst`
-- `cg.optimizer.ar.disableDivInvToMul`
-- `cg.optimizer.ar.disableMulScalarAssoc`
-- `cg.optimizer.ar.disableMulScalarNegPush`
-- `cg.optimizer.ar.disableMulScalarConstFold`
-- `cg.optimizer.ar.disableAddSubFactorize`
-- `cg.optimizer.ar.disableMulInvToOne`
-- `cg.optimizer.ar.disableMulNegNegToMul`
-- `cg.optimizer.ar.disableMulExpExpToExpAdd`
-- `cg.optimizer.ar.disableNegSubSwap`
-- `cg.optimizer.ar.disableNegMulScalarPush`
-- `cg.optimizer.ar.disablePowPowFlatten`
-- `cg.optimizer.ar.disablePowInvToNegExp`
-- `cg.optimizer.ar.disableLogPowToMulLog`
-- `cg.optimizer.ar.disableLogInvToNegLog`
-- `cg.optimizer.ar.disableLogSqrtToHalfLog`
-- `cg.optimizer.ar.disableExpLogCancel`
-- `cg.optimizer.ar.disableInvSigmoidPattern`
-- `cg.optimizer.ar.disableInvPowToNegExp`
-- `cg.optimizer.ar.disableInvExpToExpNeg`
-- `cg.optimizer.ar.disableInvNegPush`
-
-These flags are useful when benchmarking the impact of a single rewrite family or when investigating a suspicious regression.
-
-## LinearLoweringRewrite
-
-File: [rewrite/LinearLoweringRewrite.java](./rewrite/LinearLoweringRewrite.java)
-
-Purpose:
-
-- replace decomposed affine layers with the explicit `linear` primitive
-
-Recognized pattern:
+Pattern:
 
 ```text
 add(matmul(input, weight), bias)
 ```
 
-The matcher tries both operand orders, so the following also works:
-
-```text
-add(bias, matmul(input, weight))
-```
-
 Requirements:
 
-- first candidate must be `matmul`
-- second candidate must be a 1D numeric bias tensor
-- `input.shape[-1] == weight.shape[0]`
-- `bias.shape[0] == weight.shape[1]`
-- output rank must match input rank
-- output batch prefix must match input batch prefix
+- `weight` rank is exactly 2
+- `bias` rank is exactly 1
+- output shape matches linear semantics
 
-Rewrite:
+Lowering:
 
 ```text
 linear(input, weight, bias)
 ```
 
-This pass is config-gated:
+Worked shape example:
 
-- file: [../../config/optimizer/LinearLoweringConfig.java](../../config/optimizer/LinearLoweringConfig.java)
-- default: enabled
+- `input`: `[4, 16]`
+- `weight`: `[16, 32]`
+- `bias`: `[32]`
+- `matmul(input, weight)` -> `[4, 32]`
+- `add(..., bias)` broadcasts `[32]` over batch -> `[4, 32]`
+- lowered primitive: `linear(input, weight, bias)`
 
-## LossLoweringRewrite
+## Loss Lowering
 
-File: [rewrite/LossLoweringRewrite.java](./rewrite/LossLoweringRewrite.java)
+Files:
 
-Purpose:
+- [rewrite/LossForwardLoweringRewrite.java](./rewrite/LossForwardLoweringRewrite.java)
+- [rewrite/LossBackwardLoweringRewrite.java](./rewrite/LossBackwardLoweringRewrite.java)
 
-- recognize decomposed loss graphs
-- lower them to loss-specific primitives the backend can target directly
+### Forward pattern
 
-### Forward Cross-Entropy From Indices
-
-Recognized per-sample form:
+Current forward lowering recognizes the decomposed negative-log-likelihood shape:
 
 ```text
 neg(gather(logSoftmax(logits), targetIndices))
 ```
 
-The gather axis must match the `logSoftmax` class dimension.
-
-Supported reduced wrappers:
-
-- `sum(..., dimension = -1)` -> reduction `SUM`
-- `mean(..., dimension = -1)` -> reduction `MEAN`
-
-Rewrites:
-
-- no wrapper -> `crossEntropyLossIndices(..., reduction = NONE)`
-- `sum(-1)` wrapper -> `crossEntropyLossIndices(..., reduction = SUM)`
-- `mean(-1)` wrapper -> `crossEntropyLossIndices(..., reduction = MEAN)`
-
-Example:
+and reduced variants:
 
 ```text
-mean(
-  neg(
-    gather(
-      logSoftmax(logits, classDim),
-      targetIndices,
-      classDim
-    )
-  ),
-  -1
-)
-=> crossEntropyLossIndices(logits, targetIndices, classDim, MEAN)
+sum(neg(gather(logSoftmax(logits), targetIndices)))
+mean(neg(gather(logSoftmax(logits), targetIndices)))
 ```
 
-### Backward Cross-Entropy From Indices
-
-This subpass only acts on backward tensors.
-
-Recognized shape:
+Lowering target:
 
 ```text
-sub(
-  mul(softmax(logits), sampleScaleBroadcast),
-  scatterAdd(zeros_like(logits), targetIndices, sampleScale)
-)
+crossEntropyLossFromIndices(logits, targetIndices, classDimension, reduction)
 ```
 
-The matcher accepts either operand ordering in the `SUB`.
+### Backward pattern
 
-Important current requirements:
-
-- `softmax` class dimension must match `scatterAdd` dimension
-- the `sampleScale` broadcast must be represented as:
-  - `expandDims(sampleScale, classDimension)`, or
-  - `expand(expandDims(sampleScale, classDimension), targetShape)`
-- the scatter base must be a leaf tensor labeled exactly `"zeros_like"`
-- the zero base and logits must have the same shape and dtype
-- both branches must use the exact same `sampleScale` tensor object
-
-Rewrite:
+Current backward lowering recognizes the decomposed cross-entropy gradient pattern and lowers it to:
 
 ```text
-crossEntropyLossIndicesGrad(logits, targetIndices, sampleScale)
+crossEntropyLossIndicesGrad(logits, targetIndices, sampleScale, classDimension)
 ```
 
-## ReductionLoweringRewrite
+This reduces the amount of decomposed scatter/add/softmax machinery left in the runtime graph.
 
-File: [rewrite/ReductionLoweringRewrite.java](./rewrite/ReductionLoweringRewrite.java)
+## Reduction Lowering
 
-Purpose:
+File:
 
-- replace decomposed backward formulas of reduction-like operations with dedicated gradient primitives
+- [rewrite/ReductionLoweringRewrite.java](./rewrite/ReductionLoweringRewrite.java)
 
-### Softmax Backward
+Currently implemented:
 
-Recognized pattern:
+- decomposed softmax backward -> `SOFTMAX_GRAD`
+- decomposed log-softmax backward -> `LOG_SOFTMAX_GRAD`
+
+### Softmax grad pattern
+
+The pass recognizes the classic form:
 
 ```text
-mul(
-  softmaxOut,
-  sub(outGrad, sum(mul(outGrad, softmaxOut), dim, keepDims = true))
-)
+softmaxOut * (outGrad - sum(outGrad * softmaxOut, keepDims=true))
 ```
 
-The pass checks:
-
-- one input is a `softmax` output
-- the other input is a `SUB`
-- the inner `sum` uses the same dimension as the `softmax`
-- `keepDims` must be `true`
-- `softmaxOut` and `outGrad` must have the same shape and dtype
-
-Rewrite:
+and lowers it to:
 
 ```text
-softmaxGrad(softmaxOut, outGrad, dim)
+softmaxGrad(softmaxOut, outGrad, dimension)
 ```
 
-### LogSoftmax Backward
+### Log-softmax grad pattern
 
-Recognized pattern:
+The pass recognizes:
 
 ```text
-sub(
-  outGrad,
-  mul(
-    exp(logSoftmaxOut),
-    sum(outGrad, dim, keepDims = true)
-  )
-)
+outGrad - exp(logSoftmaxOut) * sum(outGrad, keepDims=true)
 ```
 
-Checks:
-
-- the `exp` input must be a `logSoftmax` output
-- the summed branch must sum `outGrad` over the same dimension
-- `keepDims` must be `true`
-- `logSoftmaxOut` and `outGrad` must have the same shape and dtype
-
-Rewrite:
+and lowers it to:
 
 ```text
-logSoftmaxGrad(logSoftmaxOut, outGrad, dim)
+logSoftmaxGrad(logSoftmaxOut, outGrad, dimension)
 ```
 
-## AttentionLoweringRewrite
+## Attention Lowering
 
-File: [rewrite/AttentionLoweringRewrite.java](./rewrite/AttentionLoweringRewrite.java)
+Files:
 
-Purpose:
+- [rewrite/AttentionLoweringRewrite.java](./rewrite/AttentionLoweringRewrite.java)
+- [rewrite/AttentionBackwardLoweringRewrite.java](./rewrite/AttentionBackwardLoweringRewrite.java)
 
-- recognize decomposed scaled dot-product attention forward graphs
-- replace them with `scaledDotProductAttention`
+### Forward attention
 
-Recognized forward structure:
+Current forward lowering recognizes:
 
 ```text
 matmul(
-  softmax(scores),
+  softmax(
+    where(mask, mulScalar(matmul(query, permute(key)), scale), fill)
+  ),
   value
 )
 ```
 
-where `scores` is one of:
+and the same shape without `where(mask, ...)` for unmasked attention.
+
+Lowering target:
 
 ```text
-matmul(query, permute(key, ..., last, secondLast))
+scaledDotProductAttention(query, key, value[, mask], options)
 ```
 
-or
+### Backward attention
+
+Current backward lowering recognizes several raw backward subgraphs and lowers them to:
 
 ```text
-mulScalar(
-  matmul(query, permute(key, ..., last, secondLast)),
-  positiveScale
-)
+scaledDotProductAttentionBackward(attentionOut, outGrad, outputKind)
 ```
 
-or masked:
+Currently supported output kinds:
 
-```text
-where(mask, keptScores, fillScalar)
-```
+- `VALUE`
+- `QUERY`
+- `KEY`
 
-where `keptScores` is one of the two forms above.
-
-Requirements:
-
-- the attention weights input must be a `softmax`
-- softmax axis must be the last dimension of the weight tensor
-- key must be represented as a swap of the last two axes through `permute`
-- output shape must match `query.shape[:-1] + [value.shape[-1]]`
-- mask dtype must be `BOOL`
-- mask fill scalar must match the hardcoded dtype-specific sentinel
-
-Current mask fill sentinel values:
-
-- `FLOAT64` -> `-1.0e30`
-- `FLOAT32` -> `-1.0e9`
-- `BFLOAT16` -> `-1.0e30`
-
-Rewrite:
-
-```text
-scaledDotProductAttention(query, key, value, [mask], scale)
-```
-
-## AttentionBackwardLoweringRewrite
-
-File: [rewrite/AttentionBackwardLoweringRewrite.java](./rewrite/AttentionBackwardLoweringRewrite.java)
-
-Purpose:
-
-- recognize decomposed backward graphs around scaled dot-product attention
-- replace raw backward branches with `scaledDotProductAttentionBackward`
-
-This pass does not inherit from `AbstractRewriteRule`. It uses a custom full-graph pass because it needs:
-
-- an index of already-lowered forward attention nodes
-- a notion of which tensors are reachable from the forward output
-- final sink repair after multi-node replacement
-
-### Supported Dtypes
-
-Current lowered backward support is limited to:
+The matcher is dtype-limited to:
 
 - `FLOAT32`
 - `FLOAT64`
 
-`BFLOAT16` is not lowered here today.
+## Conv2d Lowering
 
-### Forward Attention Index
-
-Before matching backward nodes, the pass builds an index of existing forward attention primitives:
-
-- key: `(query, key, canonicalMask, scaleBits)`
-- value: all matching `scaledDotProductAttention` tensors
-
-Mask canonicalization currently strips chains of `expand(...)` so the same logical mask can still be recognized.
-
-### Why Forward Reachability Is Tracked
-
-The pass collects tensors reachable from the special forward output anchor labeled `Tensor.SYSTEM_FORWARD_OUTPUT_LABEL`.
-
-This is used to avoid accidentally treating the actual forward softmax in the forward graph as a backward-only attention-weights candidate.
-
-### Value Gradient Lowering
-
-Recognized raw pattern:
-
-```text
-matmul(permute(attentionWeights), outGrad)
-```
-
-where `attentionWeights` can be resolved back to exactly one matching attention forward node.
-
-Rewrite:
-
-```text
-scaledDotProductAttentionBackward(attentionOut, outGrad, VALUE)
-```
-
-### Query Gradient Lowering
-
-Recognized raw pattern:
-
-```text
-matmul(dScores, keyLikeOperand)
-```
-
-where:
-
-- `dScores` may be optionally scaled by `mulScalar`
-- `dScores` may be optionally masked by `where(mask, softmaxGrad(...), zero)`
-- the inner gradient core must be `softmaxGrad(weights, dWeights)`
-- `dWeights` must match `matmul(outGrad, permute(value))`
-- `keyLikeOperand` must be either the exact attention key tensor or the recognized permuted key form
-- the scale and mask must match the original forward attention node
-
-Rewrite:
-
-```text
-scaledDotProductAttentionBackward(attentionOut, outGrad, QUERY)
-```
-
-### Key Gradient Lowering
-
-Recognized raw pattern:
-
-```text
-permute(
-  matmul(
-    permute(query),
-    dScores
-  )
-)
-```
-
-with the same `dScores` matcher as query backward.
-
-Rewrite:
-
-```text
-scaledDotProductAttentionBackward(attentionOut, outGrad, KEY)
-```
-
-### Important Current Constraints
-
-- if multiple forward attention nodes share the same `(query, key, mask, scale)` signature, the decomposed backward softmax form is not lowered through that path because the forward match would be ambiguous
-- masked backward matching requires the masking branch to be `where(mask, kept, zeroTensor)`
-- the scale must be positive
-- mask fill checking uses the same dtype-specific sentinel values as forward attention lowering
-
-## Conv2dLoweringRewrite
-
-Files:
+File:
 
 - [rewrite/Conv2dLoweringRewrite.java](./rewrite/Conv2dLoweringRewrite.java)
-- [rewrite/Conv2dLoweringHeuristics.java](./rewrite/Conv2dLoweringHeuristics.java)
 
-Purpose:
+This pass is policy-controlled through `Conv2dLoweringConfig`.
 
-- replace generic `conv2d` with `conv2dGemm` when policy allows it
+Modes:
 
-Config:
+- `OFF`
+- `ALWAYS`
+- `HEURISTIC`
 
-- [../../config/optimizer/Conv2dLoweringConfig.java](../../config/optimizer/Conv2dLoweringConfig.java)
-- modes: `OFF`, `ALWAYS`, `HEURISTIC`
+Currently it can lower:
 
-This pass rewrites forward `conv2d` and the dedicated backward convolution primitives when policy allows it.
+- `conv2d` -> `conv2dGemm`
+- `conv2dBackwardInput` -> `conv2dBackwardInputGemm`
+- `conv2dBackwardWeight` -> `conv2dBackwardWeightGemm`
 
-Rewrite:
+The lowering itself is semantic.
+Runtime selection between Java and BLAS for the lowered GEMM primitives still happens later in backend preparation.
 
-```text
-conv2d(...) -> conv2dGemm(...)
-conv2dBackwardInput(...) -> conv2dBackwardInputGemm(...)
-conv2dBackwardWeight(...) -> conv2dBackwardWeightGemm(...)
-```
+## What AR Does Not Do
 
-### Heuristic Mode Details
+`AR` does not:
 
-Current heuristic preconditions:
+- decide vector widths
+- choose BLAS thresholds
+- pick matmul microkernels
+- decide thread counts
+- run memory reuse
 
-- input, weight, and output must all be rank-4 tensors
-- `groups == 1`
-- `dilationH == 1`
-- `dilationW == 1`
+Those are downstream concerns.
 
-Current pointwise lowering heuristic:
+`AR` should be read as:
 
-- kernel `1x1`
-- stride `1x1`
-- padding `0x0`
-- `inChannels >= 128`
-- `outChannels >= 64`
-- `outChannels <= inChannels * 2`
-- `batch * outH * outW >= 256`
-
-Current standard `3x3` lowering heuristic:
-
-- kernel `3x3`
-- stride `1x1`
-- padding `1x1`
-- `inChannels >= 64`
-- `outChannels >= 64`
-- `batch * outH * outW >= 512`
-
-Everything else remains on the regular `conv2d` primitive.
-
-## Summary
-
-`AR` is the semantic cleanup stage. Its current responsibilities are:
-
-- optional canonicalization of decomposed piecewise expressions
-- local algebraic simplification
-- lowering of `matmul + bias` into `linear`
-- lowering of cross-entropy-from-indices forward and backward
-- lowering of softmax and log-softmax backward formulas
-- lowering of decomposed attention forward and selected backward branches
-- optional lowering of `conv2d` into `conv2dGemm`
-
-If a new pattern is semantically recognizable in the graph and should become a stable backend primitive, `AR` is usually the first place to consider.
-
-## Real Before/After Walkthroughs
-
-### Example 1: linear plus softmax backward cleanup
-
-Before:
-
-```text
-z1 = matmul(x, w)
-z2 = add(z1, b)
-z3 = softmax(z2, -1)
-z4 = mul(outGrad, z3)
-z5 = sum(z4, -1, keepDims = true)
-z6 = sub(outGrad, z5)
-z7 = mul(z3, z6)
-```
-
-After `AR`:
-
-```text
-z2 = linear(x, w, b)
-z3 = softmax(z2, -1)
-z7 = softmaxGrad(z3, outGrad, -1)
-```
-
-This is the intended style of improvement:
-
-- keep semantics
-- simplify the graph
-- expose stable backend-friendly primitives
-
-### Example 2: decomposed indexed cross entropy
-
-Before:
-
-```text
-z1 = logSoftmax(logits, classDim)
-z2 = gather(z1, targetIndices, classDim)
-z3 = neg(z2)
-z4 = mean(z3, -1)
-```
-
-After `AR`:
-
-```text
-z4 = crossEntropyLossIndices(logits, targetIndices, classDim, MEAN)
-```
-
-## What AR Intentionally Does Not Do
-
-`AR` should not:
-
-- choose vector width
-- choose parallel chunk sizes
-- choose Java vs BLAS dispatch
-- fuse long elementwise chains as a runtime tactic
-- become a general symbolic theorem prover
-
-That boundary is deliberate.
-If a transformation depends on hardware/runtime economics rather than graph semantics, it belongs later.
-
-## How To Debug A Missing Rewrite
-
-When a rewrite does not trigger, check these in order:
-
-1. the stage order really contains `AR`
-2. the relevant rewrite family is enabled
-3. the pattern matches the implemented operand order and shape preconditions
-4. the graph is already in the canonical form the matcher expects
-5. the node is in the expected phase
-
-In practice, most misses come from small structural differences such as:
-
-- an unexpected broadcast wrapper
-- a different reduction axis or `keepDims`
-- a constant represented differently from what the matcher accepts
-- a graph that is semantically equivalent but not yet canonicalized
+- clean the graph
+- recover or introduce better primitives
+- leave runtime policy to later layers

@@ -1,582 +1,303 @@
-# Graph
+# Graph Package
 
-The `graph` layer turns a tensor expression DAG into an explicit runnable artifact. That is its single main job. It is not a backend and it is not the public tensor surface.
+The `graph` package turns a semantic tensor DAG into explicit executable artifacts.
 
-The current contract is:
+Its job is not to build graphs and not to execute kernels directly.
+Its job is to manage the lifecycle between those two moments:
 
-- `Tensor` builds the semantic DAG
-- `CompiledGraph` turns it into an optimized execution graph
-- `PreparedExecution` attaches runtime-specific metadata
-- the backend then executes prepared node steps
+1. take the semantic graph built by `tensor`
+2. canonicalize and optimize it
+3. snapshot compile-time structure
+4. prepare backend/runtime metadata
+5. expose an executable artifact to the backend
 
-## Reading Guide
+## Mental Model
 
-Go here if you need to understand:
+You should keep three artifacts separate at all times.
 
-- what `compile(...)` actually does
-- what `prepare(...)` actually does
-- where the forward/backward boundary is created
-- how fused executables are prepared
-- how hot-path trace data flow back into benchmarks and debug tooling
+### 1. Semantic graph: `Tensor`
 
-Related documentation:
+Built by the public tensor API.
 
-- tensor/public API: [../tensor/README.md](../tensor/README.md)
-- operation descriptors: [../operations/README.md](../operations/README.md)
-- optimizer pipeline: [../graph/optimizer/README.md](../graph/optimizer/README.md)
-- backend execution: [../backend/README.md](../backend/README.md)
-
-## Main Components
-
-- compile artifact
-  - [CompiledGraph.java](../graph/CompiledGraph.java)
-- prepared runtime artifact
-  - [PreparedExecution.java](../graph/execution/PreparedExecution.java)
-  - [PreparedNodeExecution.java](../graph/execution/PreparedNodeExecution.java)
-  - [CompiledNodeExecutionMetadata.java](../graph/execution/CompiledNodeExecutionMetadata.java)
-- tracing
-  - [CompileTrace.java](../graph/execution/trace/CompileTrace.java)
-  - [PrepareTrace.java](../graph/execution/trace/PrepareTrace.java)
-  - [RunTrace.java](../graph/execution/trace/RunTrace.java)
-- fused preparation
-  - [FusedExecutionPlan.java](../graph/fused/FusedExecutionPlan.java)
-  - [FusedExecutionBackendResolver.java](../graph/fused/FusedExecutionBackendResolver.java)
-  - [PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
-
-## Lifecycle
-
-The most important thing is to keep three different artifacts clearly separated:
-
-### 1. `Tensor` graph
-
-A semantic graph built from public tensor operations.
-
-It contains:
+Contains:
 
 - operation descriptors
-- input dependencies
-- gradient references
-- metadata and runtime data storage
+- input edges
+- dtype/shape/storage metadata
+- backward lambdas
+- published output data and published gradients
 
-It does not contain:
+Does not contain:
 
-- prepared backend metadata
-- runtime dispatch hints
-- a prepared fused executable
+- prepared CPU dispatch hints
+- prepared reduction plans
+- prepared matmul or conv2d plans
+- prepared fused executable objects
 
-### 2. `CompiledGraph`
+### 2. Compile artifact: `CompiledGraph`
 
-A compile-time artifact.
+Built from a semantic graph and an optimizer config.
 
-It contains:
+Contains:
 
-- final topological node order
-- forward/backward section separation
+- compile-time node ordering
+- forward/backward boundary
 - optimizer output
+- compiled-node snapshots
+- gradient binding metadata
 - compile trace
 
-### 3. `PreparedExecution`
+### 3. Runtime-bound artifact: `PreparedExecution`
 
-A runtime-bound artifact.
+Built from a compiled graph and a runtime config.
 
-It contains:
+Contains:
 
-- ordered prepared forward steps
-- ordered prepared backward steps
-- per-node prepared metadata
-- the runtime config with which the graph was prepared
+- ordered forward steps
+- ordered backward steps
+- per-node prepared backend metadata
+- runtime config
 - prepare trace
 
-`PreparedExecution` is the artifact you should keep for repeated hot execution over the same graph.
+`PreparedExecution` is the object you want to reuse in hot loops when graph structure stays the same.
 
-Just as importantly, `PreparedExecution` is where backend policy becomes concrete:
+## Main Classes
 
-- layout materialization decisions are already fixed
-- elementwise dispatch hints are already fixed
-- reduction chunking/vectorization hints are already fixed
-- matmul / conv2d / attention backend choices are already fixed
-
-Executors should not "look back up" and re-run planner logic at runtime.
+- compile artifact:
+  - [CompiledGraph.java](../graph/CompiledGraph.java)
+- compile-time graph snapshot support:
+  - [OptimizerGraphSnapshot.java](../graph/OptimizerGraphSnapshot.java)
+  - [SemanticForwardCanonicalizer.java](../graph/SemanticForwardCanonicalizer.java)
+- prepare pipeline:
+  - [PreparedExecutionBuilder.java](../graph/PreparedExecutionBuilder.java)
+  - [execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
+  - [execution/PreparedNodeExecution.java](../graph/execution/PreparedNodeExecution.java)
+  - [execution/CompiledNodeExecutionMetadata.java](../graph/execution/CompiledNodeExecutionMetadata.java)
+- traces:
+  - [execution/trace/CompileTrace.java](../graph/execution/trace/CompileTrace.java)
+  - [execution/trace/PrepareTrace.java](../graph/execution/trace/PrepareTrace.java)
+  - [execution/trace/RunTrace.java](../graph/execution/trace/RunTrace.java)
+- fused preparation:
+  - [fused/FusedExecutionPlan.java](../graph/fused/FusedExecutionPlan.java)
+  - [fused/FusedExecutionBackendResolver.java](../graph/fused/FusedExecutionBackendResolver.java)
+  - [fused/PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
 
 ## Compile Pipeline
 
-`CompiledGraph.compile(root, optimizerConfig)` currently performs this flow:
+`CompiledGraph.compile(root, optimizerConfig, compileMode)` currently follows this model.
 
-1. takes `rootTensor.forwardOutput()`
-2. performs topological sort of the forward closure
-3. if the graph has no trainable leaf inputs:
-   - optimizes only the forward graph
-   - stores the boundary at the forward output
-4. if the graph supports backward:
-   - seeds the root gradient
-   - calls `buildBackwardGraph()` in reverse forward order
-   - collects backward targets
-   - creates a temporary `noop` super-root to unify sinks
-   - optimizes the whole combined graph
-5. stores the forward-section end index
+### Step 1: choose the semantic forward output
 
-This means the optimizer runs over one larger graph that may contain both forward and backward sections.
+The compile root is normalized through:
 
-## Forward/Backward Boundary
+- `rootTensor.forwardOutput()`
 
-The boundary is not inferred later at runtime. It is stored explicitly inside `CompiledGraph`.
+This matters because the semantic root may be a publication wrapper rather than the true final forward node.
 
-That has several consequences:
+### Step 2: initialize the working forward graph
 
-- optimizer rules must respect forward/backward phase boundaries
-- tracing can separate forward and backward steps
-- `PreparedExecution` does not need to guess which section is which
+If semantic forward canonicalization is enabled through `OptimizerFactory.createSemanticForwardCanonicalizer(...)`, compile starts from a canonicalized forward graph snapshot.
 
-Backward support is visible through:
+This stage can normalize decomposed forward patterns before the main optimizer runs.
 
-- `CompiledGraph.supportsBackward()`
-- `PreparedExecution.supportsBackward()`
+### Step 3: decide whether backward should be compiled
+
+Backward compilation depends on:
+
+- the `CompileMode`
+- whether the forward graph has trainable leaf tensors
+
+Current logic:
+
+- `INFERENCE_ONLY`
+  - never compile backward
+- `TRAINING`
+  - compile backward only if the graph actually has trainable leaves
+- `AUTO`
+  - same practical behavior as `TRAINING`, but chosen from graph structure
+
+### Step 4: build backward if needed
+
+If backward is enabled:
+
+1. the actual forward output gets a seed gradient of ones
+2. forward nodes are walked in reverse order
+3. each node runs its backward builder lambda
+4. backward targets are collected
+5. a temporary `noop` super-root is created to make the joint graph observable as one closure
+
+That means the optimizer sees one combined graph containing:
+
+- forward nodes
+- backward nodes
+- the forward/backward boundary
+
+This is deliberate.
+It lets graph-level stages such as CSE and fusion reason over the full compile-time graph rather than over two disjoint partial views.
+
+### Step 5: optimize a compile-time snapshot
+
+Compile does not mutate the live semantic graph in place and then optimize that mutable structure directly.
+
+Instead it captures an `OptimizerGraphSnapshot`, optimizes the snapshot graph, and then rebuilds compiled-node metadata from the optimized result.
+
+That boundary is important because:
+
+- compile can still reason over one joint forward/backward graph
+- optimizer rewrites stay compile-local
+- repeated compile does not implicitly accumulate more optimizer passes over already rewritten semantic nodes
+
+### Step 6: capture compile-time bindings
+
+After optimization, compile captures:
+
+- compiled node list
+- mapping from semantic/source tensors to compiled nodes
+- gradient bindings
+- forward boundary index
+- optional seed-gradient binding
+
+## Example: Forward-Only Compile
+
+```java
+Tensor x = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{2, 2}, null, "x", DataType.FLOAT64);
+Tensor y = x.relu().sum();
+
+CompiledGraph compiled = CompiledGraph.compile(
+        y,
+        OptimizerConfig.inferenceDefaults(),
+        CompileMode.INFERENCE_ONLY
+);
+```
+
+Result:
+
+- only forward graph is compiled
+- no backward graph is built
+- `compiled.supportsBackward()` is `false`
+
+## Example: Training Compile
+
+```java
+Tensor x = new Tensor(new double[]{1.0, -2.0, 3.0}, new int[]{3}, null, "x", DataType.FLOAT64);
+x.setRequiresGrad(true);
+
+Tensor loss = x.mul(x).sum();
+CompiledGraph compiled = CompiledGraph.compile(
+        loss,
+        OptimizerConfig.trainingDefaults(),
+        CompileMode.TRAINING
+);
+```
+
+Result:
+
+- forward graph is compiled
+- backward graph is built because `x` is a trainable leaf
+- `compiled.supportsBackward()` is `true`
 
 ## Prepare Pipeline
 
-`CompiledGraph.prepare(runtimeConfig)` is a runtime-specific step. It is not just "copy `finalGraph` into another object".
+`CompiledGraph.prepare(runtimeConfig)` converts compile-time structure into executable runtime metadata.
 
-It actually does:
+What prepare resolves today:
 
-1. chooses the effective runtime config
-   - either the explicit input
-   - or inference/training defaults depending on backward support
-2. delegates to `PreparedExecutionBuilder`
-3. builds backend-agnostic prepare context from compiled nodes
-4. asks backend prepare dispatch to build `CompiledNodeExecutionMetadata` for each executable node
-5. splits prepared steps into forward/backward
-6. returns `PreparedExecution`
+- backend choice per node
+- CPU kernel choice
+- elementwise dispatch hints
+- reduction hints
+- matmul hints
+- conv2d GEMM hints
+- attention hints
+- fused executable backend preparation
 
-Prepared metadata contain, depending on node type:
+What prepare does not do:
 
-- the resolved backend
-- `CpuKernel`
-- `CpuNodeExecutionPlan`
-- `PreparedFusedExecutable`
-- `CpuNodeWorkspace`
+- change graph semantics
+- rerun optimizer stages
+- mutate tensor formulas
 
-## What Prepare Resolves
+`PreparedExecutionBuilder` performs backend-agnostic orchestration and delegates backend-specific node preparation through the backend prepare layer.
 
-This is the key point: `prepare(...)` resolves decisions that we do not want to make inside the hot inner loop.
+## Execution Model
 
-Typical examples:
+`PreparedExecution.execute(mode)` performs:
 
-- input materialization / prepared inputs
-- broadcast plan
-- `where` broadcast plan
-- compute contract
+1. create per-run `ExecutionState`
+2. create per-run `ExecutionContext`
+3. run prepared forward steps
+4. publish forward result back to the semantic root tensor
+5. if backward is requested:
+   - seed compiled root gradient
+   - run prepared backward steps
+   - publish detached gradient tensors back to semantic tensors
+
+Two details matter:
+
+- published gradients are detached copies, not direct aliases of internal runtime buffers
+- runtime auxiliary state lives in execution-scoped state, not on the semantic `Tensor`
+
+## Traces
+
+There are three trace layers:
+
+- `CompileTrace`
+  - total compile duration
+  - graph sizes
+  - whether backward support was compiled
+- `PrepareTrace`
+  - total prepare duration and metadata preparation visibility
+- `RunTrace`
+  - execution-mode duration
+  - optional per-step trace list
+
+Per-step trace metadata can include:
+
+- layout information
 - dispatch hints
 - reduction hints
 - matmul hints
-- fused executable generation
-- workspace allocation
-- selected BF16 continuation policies
+- conv2d hints
+- fused execution metadata
 
-## Execution Flow
-
-`PreparedExecution.execute(mode)` does the following:
-
-1. creates fresh per-run `ExecutionState` and `ExecutionContext`
-2. runs prepared forward steps in topological order
-3. synchronizes data from the optimized forward output back into the original root tensor
-4. if the mode is `FORWARD_BACKWARD`:
-   - seeds the root gradient inside runtime state
-   - runs prepared backward steps
-   - publishes detached semantic gradients back to leaf tensors
-
-This matters for correct benchmarking:
-
-- compile overhead does not belong in steady-state numbers
-- prepare overhead does not belong in steady-state numbers
-- repeated execution should run over one `PreparedExecution`
-
-## Reuse And Concurrency Contract
-
-This section is intentionally explicit, because a large part of the recent refactor was about making
-these boundaries real instead of implicit.
-
-### `Tensor`
-
-`Tensor` is still the public semantic graph object and the public publication target for:
-
-- root forward output
-- published leaf gradients after backward execution
-
-That means:
-
-- ordinary modeling code may mutate a tensor graph before `compile()`
-- infrastructure code may still use `TensorInternalAccess`
-- but compiled/prepared artifacts do **not** track invalidation if the semantic graph is edited later
-
-Practical rule:
-
-- once you keep a `CompiledGraph` or `PreparedExecution`, treat the semantic graph as frozen unless you
-  intentionally want to diverge it from the artifact
-
-### `CompiledGraph`
-
-`CompiledGraph` is an immutable compile snapshot of graph topology and boundaries.
-
-What is safe:
-
-- calling `prepare(...)` repeatedly on the same `CompiledGraph`
-- keeping multiple prepared executions derived from the same compiled graph
-- reading compile trace and compiled graph exports
-
-What is **not** guaranteed:
-
-- automatic invalidation if user code mutates the original semantic graph later
-
-The important nuance is:
-
-- `prepare(...)` uses compiled-node snapshot topology, not live `Tensor.getPrevTensors()`
-- but published outputs still flow back into the original semantic tensors
-
-### `PreparedExecution`
-
-`PreparedExecution` is immutable prepared metadata plus runtime config.
-Every `execute(...)` call creates a fresh per-run `ExecutionState`.
-
-What is safe:
-
-- repeated sequential `execute(...)` calls on the same prepared artifact
-- creating multiple `PreparedExecution` instances from one `CompiledGraph`
-- creating traced and non-traced runs from the same prepared artifact
-
-What is **not** safe as a public contract:
-
-- concurrent `execute(...)` calls that publish into the same semantic root/leaf tensors
-
-Reason:
-
-- runtime tensors and workspaces are per-run and isolated
-- but the public API still copies the final result back into the shared root tensor
-- backward execution still publishes detached gradients back into the shared semantic leaf tensors
-
-So today the concurrency rule is:
-
-- internal run-state is isolated per execute call
-- public result publication is still shared-object mutation
-- therefore parallel execute over the same semantic graph is not a supported public contract
-
-If a caller needs true parallel runs, it should use distinct semantic graph instances.
-
-### Compile / Prepare / Execute
-
-The intended contract is:
-
-- `compile()` is a pure graph-to-snapshot transition
-- `prepare()` is a pure snapshot-to-prepared-program transition
-- `execute()` is the only phase that publishes results back into semantic tensors
-
-None of these methods are synchronized.
-The code assumes the caller is not mutating the same semantic graph concurrently while compile/prepare/execute are running.
-
-### Debug And Introspection API
-
-Current snapshot-vs-live rules:
-
-- `CompiledGraph.getCompiledGraphAsList()` returns an immutable list view
-- `PreparedExecution.forwardSteps()` and `PreparedExecution.backwardSteps()` return immutable list views
-- `compileTrace()`, `prepareTrace()`, and `RunTrace` are immutable trace artifacts
-- `Tensor.getPrevTensors()` returns an unmodifiable view
-
-The following APIs still expose live/internal handles and should be treated as infrastructure-only:
-
-- `Tensor.getShapeUnsafe()`
-- `Tensor.getStridesUnsafe()`
-- `Tensor.getStorageOffsetUnsafe()`
-- `TensorInternalAccess.*`
-
-## Traced Execution
-
-`PreparedExecution.executeTraced(...)` returns `RunTrace`.
-
-Each step trace contains:
-
-- node label
-- `Operation.OpType`
-- shape
-- dtype
-- backend
-- kernel class
-- step duration
-- structured metadata
-
-Structured metadata include, for example:
-
-- compute metadata
-- layout metadata
-- dispatch metadata
-- reduction metadata
-- matmul metadata
-- fused metadata
-
-Practical value:
-
-- you can verify that a benchmark really ran on the expected path
-- you can inspect `vectorWidth`, worker count, tile sizes, and BLAS use
-- you can find scalar fallbacks or unexpected strided paths
+That is what powers detailed benchmark and hotspot reports in the tuning layer.
 
 ## Fused Preparation
 
-Fused execution has two distinct layers:
+Graph-level fusion produces a `FUSED` operation node.
+Preparation then resolves how that fused node should run.
 
-### Graph descriptor layer
+That preparation currently involves:
 
-- `FusedOperation`
-- `FusedExpressionPlan`
-- `FusedExternalInputPlan`
-- other codegen/fusion helper descriptors
+- build a `FusedExecutionPlan`
+- classify dispatch family
+- select fused execution backend
+- prepare the corresponding executable object
 
-This is still graph-level representation.
+The important boundary is:
 
-### Prepared runtime layer
+- `FUSE` stage decides that a graph region should become one fused primitive
+- prepare/runtime decide how that fused primitive is executed on the current backend
 
-- `FusedExecutionPlan`
-- `PreparedFusedExecutable`
-- `FusedExecutionBackendResolver`
+## Data Publication Contract
 
-This is already runtime-specific executable state.
+The graph layer still publishes runtime results back into semantic tensors because the public API is built around `Tensor` as the value anchor.
 
-## Current Fused Reality
+Current publication behavior:
 
-This area historically had the most drift between documentation and code, so explicitly:
+- forward output is copied back into the semantic root tensor
+- gradients are copied back into semantic leaf tensors after backward
 
-- the optimizer may create a fused node
-- `prepare(...)` computes a fused execution plan for it
-- `FusedExecutionBackendResolver` currently uses the ASM fused backend
-- if the ASM backend does not support the plan, prepare fails
+This is why compiled/prepared artifacts are reusable, but caller-side semantic graph mutation after compile/prepare is still caller-owned behavior.
 
-So:
+## Important Architectural Boundaries
 
-- the fused path is no longer a direct/vector hybrid backend with fallback
-- the prepared fused executable is currently an ASM-generated executable
-- runtime scheduling above it can still be scalar/vector/parallel according to prepared dispatch hints
+The current design intentionally enforces these rules:
 
-`PreparedFusedExecutable` exposes the contract:
+- compile owns graph semantics and optimizer execution
+- prepare owns runtime policy concretization
+- executors consume prepared metadata instead of re-planning
+- runtime execution state stays execution-scoped
+- semantic tensors remain the publication surface, not the hidden runtime cache layer
 
-- `applyRangeScalar(...)`
-- `applyRangeVector(...)`
-
-The default vector implementation on the interface falls back to scalar. Real vectorization therefore depends on the concrete prepared implementation.
-
-## Fused Access Model
-
-The fused compiler distinguishes not only "which operation is computed" but also "how input tensors are accessed".
-
-This is why it separates:
-
-- compute algebra
-- access algebra
-
-### Compute algebra
-
-This is fused per-element computation:
-
-- unary numeric ops
-- binary numeric ops
-- compare ops
-- logical ops
-- `where`
-
-### Access algebra
-
-This is view/layout transformation on the input:
-
-- `SELECT`
-- `PERMUTE`
-- `EXPAND`
-- `RESHAPE`
-- `EXPAND_DIMS`
-- `SQUEEZE`
-
-These are not treated as fused compute nodes. They are absorbed into `FusedExternalInputPlan`.
-
-That enables:
-
-- one output-space loop
-- no intermediate tensors
-- but still correct stride/offset/broadcast mapping to backing storage
-
-## Example: Fused Arithmetic Chain
-
-```java
-Tensor out = a.add(b).relu().exp();
-```
-
-The non-fused runtime model conceptually does:
-
-1. `tmp0 = a + b`
-2. materialize `tmp0`
-3. `tmp1 = relu(tmp0)`
-4. materialize `tmp1`
-5. `out = exp(tmp1)`
-
-The fused runtime model instead does:
-
-```java
-for (int i = 0; i < out.numel(); i++) {
-    double v0 = a[i] + b[i];
-    double v1 = Math.max(v0, 0.0);
-    out[i] = Math.exp(v1);
-}
-```
-
-That is the whole point of the fused path:
-
-- remove intermediate materialization
-- reduce dispatch overhead
-- keep the computation inside one output-space loop
-
-## Example: Access Chain Absorption
-
-```java
-Tensor base = ...;
-Tensor view = base.select(0, 1).permute(1, 0);
-Tensor out = view.relu().exp();
-```
-
-What happens:
-
-- `relu` and `exp` are fused compute nodes
-- `select` and `permute` are not fused compute nodes
-- the fused node receives the backing tensor `base` as an external input
-- access metadata describe offset/strides/logical mapping
-
-This matters architecturally as well:
-
-- the graph still carries the semantics of the view operations
-- the runtime fused executable does not receive the whole graph
-- it only receives the already resolved prepared access contract
-
-## Barriers
-
-The fused cluster cannot absorb everything. Today the following typically act as barriers:
-
-- indexing
-  - `GATHER`
-  - `TAKE_ALONG_AXIS`
-  - `SCATTER_ADD`
-- reductions
-  - `SUM`
-  - `MEAN`
-  - `REDUCE_MIN`
-  - `REDUCE_MAX`
-  - `REDUCE_ALL`
-  - `REDUCE_ANY`
-  - `SOFTMAX`
-  - `LOG_SOFTMAX`
-- linear algebra
-  - `MATMUL`
-- losses and special structured kernels
-- special gradient kernels
-
-That is intentional. Those families have their own traversal/kernel logic and are not merely local per-element algebra.
-
-## Relationship To Optimizer Rewrites
-
-The graph layer itself does not rewrite anything. It only applies the optimizer pipeline. But it is important to understand that after optimization the graph may already contain specialized primitives instead of decomposed patterns.
-
-For example:
-
-- `matmul + bias` may be rewritten into `LINEAR`
-- an attention pattern may be rewritten into `SCALED_DOT_PRODUCT_ATTENTION`
-- a backward softmax pattern may be rewritten into `SOFTMAX_GRAD`
-- a cross-entropy-from-indices pattern may be rewritten into `CROSS_ENTROPY_LOSS_INDICES`
-
-The graph layer then treats that as the compile-time reality and prepares metadata for the resulting descriptor.
-
-## Workspaces
-
-Some nodes require extra prepared workspace. `CompiledGraph` allocates it during the prepare phase.
-
-Examples:
-
-- max-pool argmax buffer
-- BF16 float workspace for `MATMUL`
-- packed weights workspace for `LINEAR`
-- float workspace for selected continuation paths
-
-Why this matters:
-
-- workspace is not allocated ad hoc inside every hot kernel call
-- prepared metadata explicitly tell you which node has which workspace
-
-## Example: Explicit Compile / Prepare Reuse
-
-```java
-Tensor out = logits.logSoftmax(-1).sum();
-
-CompiledGraph graph = CompiledGraph.compile(out, OptimizerConfig.trainingDefaults());
-PreparedExecution prepared = graph.prepare(RuntimeConfig.trainingDefaults());
-
-prepared.execute(ExecutionMode.FORWARD_BACKWARD);
-prepared.execute(ExecutionMode.FORWARD_BACKWARD);
-```
-
-Use this for:
-
-- performance measurements
-- trace collection
-- repeated inference/training runs
-
-## Example: Trace Audit
-
-A typical performance audit looks like this:
-
-1. build the graph through the `Tensor` API
-2. call `CompiledGraph.compile(...)`
-3. `PreparedExecution prepared = graph.prepare(...)`
-4. `RunTrace trace = prepared.executeTraced(...)`
-5. analyze step metadata
-
-Pay special attention to:
-
-- kernel class
-- `compute.backend`
-- dispatch mode
-- `vectorWidth`
-- `plannedWorkers`
-- matmul `useBlas`
-- fused executable class
-
-## Public Entry Points
-
-Publicly relevant entry points:
-
-- `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig)`
-- `CompiledGraph.compile(Tensor root, OptimizerConfig optimizerConfig, CompileMode compileMode)`
-- `CompiledGraph.prepare()`
-- `CompiledGraph.prepare(RuntimeConfig runtimeConfig)`
-- `CompiledGraph.execute(...)`
-- `CompiledGraph.executeTraced(...)`
-- `PreparedExecution.execute(...)`
-- `PreparedExecution.executeTraced(...)`
-
-Lower-level `GraphOptimizer` injection still exists, but it is not the preferred public compile contract.
-
-`CompileMode` matters when the semantic graph has trainable leaves but you explicitly want a forward-only artifact:
-
-- `INFERENCE_ONLY`
-  - never builds backward
-- `TRAINING`
-  - builds backward when trainable leaves exist
-- `AUTO`
-  - preserves the historical "if trainable leaves exist, compile training graph" behavior
-
-## Common Mistakes
-
-- benchmarking `Tensor.compute(profile)` instead of reusing `PreparedExecution`
-- treating an `Operation` descriptor as if it were the hot executable
-- assuming `prepare(...)` is just a cheap wrapper with no runtime decisions
-- thinking a fused node is already a compiled ASM class inside the optimizer
-- mixing graph policy and runtime policy in the same conceptual layer
-
-## Related Modules
-
-- tensor: [../tensor/README.md](../tensor/README.md)
-- operations: [../operations/README.md](../operations/README.md)
-- optimizer: [../graph/optimizer/README.md](../graph/optimizer/README.md)
-- backend: [../backend/README.md](../backend/README.md)
-- numerics: [../numerics/README.md](../numerics/README.md)
+If a proposed change causes executors to recompute planner decisions or pushes execution caches back onto semantic tensors, it is crossing the wrong boundary.

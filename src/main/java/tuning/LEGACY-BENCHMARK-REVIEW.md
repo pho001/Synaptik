@@ -1,148 +1,88 @@
 # Legacy Benchmark Review
 
-This document serves as a historical note: what was worth keeping from the original benchmark/autotune layer, and what should no longer be treated as an architectural model today.
+This file is a historical note, not a roadmap back to the old design.
 
-It is not a roadmap for returning to the old design. It is mainly an explanation of why the current `tuning` package looks the way it does.
-
-## Historical Problem
-
-The older benchmark-first approach typically suffered from the fact that:
-
-- benchmark had its own candidate model
-- runtime had a different execution model
-- persistence stored something different from what was actually run
-
-The result:
-
-- difficult maintenance
-- drift between benchmark and runtime
-- hard-to-interpret winners
+Its purpose is to preserve what was worth learning from the earlier benchmark/autotune layer while making clear what should not return.
 
 ## What Was Worth Keeping
 
-Even from the old layer, some things were worth preserving.
+### Workload knowledge
 
-### 1. Practical workload knowledge
+This was genuinely valuable:
 
-For example:
-
-- matmul scenarios
+- realistic matmul scenarios
 - conv2d scenarios
-- transformer hot-path workloads
+- transformer/attention hotspot scenarios
 
-This is valuable, because workload know-how is expensive and should not be discarded just because orchestration changes.
+Scenario knowledge survives architectural rewrites because it is expensive to rediscover.
 
-### 2. Some data factories and scenario helpers
+### Useful measurement ideas
 
-If they capture real workload shapes well, they remain valuable even after an orchestration rewrite.
-
-### 3. Some measurement ideas
-
-For example, separating:
+The older layer was right to separate:
 
 - compile
 - prepare
 - traced run
 - steady-state
 
-This was a good direction, and the current tuning layer keeps it.
+The current tuning layer keeps that distinction.
+
+### Some data factories and scenario builders
+
+If a helper captures realistic shapes and graph structure well, it remains valuable even if orchestration changes completely.
 
 ## What Became Legacy
 
-### 1. Benchmark-Owned Candidate Universe
+### Benchmark-owned candidate universe
 
-The old model of a "benchmark candidate" separate from `ExecutionProfile` should no longer be the main path.
+The old pattern where benchmark had its own candidate abstraction separate from executable profiles should not be the main path anymore.
 
-Today the source of truth is:
+Today the correct source of truth is:
 
 - `ExecutionProfile`
 
-### 2. Monolithic Autotune Flow
+### Monolithic orchestration
 
-One huge class that:
+One large class that tries to:
 
-- generates candidates
-- measures
-- validates
-- stores
-- decides strategy
-- renders results
+- generate candidates
+- validate
+- measure
+- search
+- persist
+- report
 
-is a bad design.
+is hard to maintain and hard to reason about.
 
-The current tuning package splits this into:
+The current architecture intentionally splits those concerns.
 
-- `candidate`
-- `measure`
-- `validate`
-- `search`
-- `store`
-- `report`
-- `session`
+### Benchmark-specific persistence
 
-### 3. Benchmark-Specific Persistence
+Persistence tied only to a benchmark runner is the wrong abstraction because:
 
-Persistence tied only to the old benchmark runner did not make sense, because:
-
-- it was not reuse-friendly
-- it mixed source of truth with explain data
+- it is not reusable
+- it mixes explain artifacts with runtime source of truth
 
 ## What Must Not Return
 
-These anti-patterns should not come back under a new name:
+These are still anti-patterns today:
 
-- a second hidden execution model next to `ExecutionProfile`
-- a benchmark-only knob universe
-- storing a report as the source of truth
-- synthetic candidate models that runtime will never run directly
+- a hidden execution model next to `ExecutionProfile`
+- synthetic benchmark-only knob universes
+- reports used as runtime source of truth
+- optimizer/runtime decisions stored only as ad hoc benchmark metadata
 
-## What The New Architecture Replaced It With
+## What Replaced The Old Model
 
-The current state:
+Today:
 
 - benchmark measures explicit `ExecutionProfile` candidates
 - autotune searches explicit `ExecutionProfile` candidates
-- platform calibration mutates explicit `PlatformRuntimeProfile`
+- calibration produces explicit `PlatformRuntimeProfile`
 - persistence distinguishes:
   - runtime defaults
-  - best profile
+  - best profiles
   - history
   - explain artifacts
 
-That is much cleaner than the benchmark-first architecture.
-
-## Keep / Freeze / Retire
-
-### Keep
-
-- workload know-how
-- sensible scenario builders
-- useful measurement patterns
-
-### Freeze
-
-- historical compatibility fallbacks
-- old path layouts under `build/...`
-
-### Retire
-
-- the old benchmark-first candidate mindset
-- old documentation that presents benchmark as the main runtime architecture
-
-## Practical Rule For New Work
-
-When you add new tuning functionality today, ask:
-
-- can this be expressed as `ExecutionProfile` or `PlatformRuntimeProfile`?
-
-If not, there is a high chance that you are reintroducing the old problem.
-
-## Why This Document Still Exists
-
-Because it helps explain:
-
-- why tuning separates platform defaults from workload winners
-- why `ExecutionProfile` is the only execution source of truth
-- why reports and history are not runtime artifacts
-
-These are not just stylistic preferences. They are defensive mechanisms against regressing the architecture back into benchmark-first chaos.
+That is the main architectural improvement over the older benchmark-first design.

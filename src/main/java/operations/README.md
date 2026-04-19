@@ -1,161 +1,82 @@
 # Operations Package
 
-## Purpose
+The `operations` package contains immutable primitive descriptors.
 
-The `operations` package contains the canonical graph primitive descriptors.
+An `Operation` answers one question:
 
-An `Operation` answers the question:
+- what primitive does this tensor node represent?
 
-- “what primitive does this tensor node represent?”
+It does not answer:
 
-It does **not** answer:
+- how the public API should build this node
+- how backward should be wired
+- which CPU loop or kernel should execute it
 
-- “how do we build this node from public API?”
-- “how is the backward graph wired?”
-- “which backend loop executes it?”
+Those belong to:
 
-Those concerns live in other layers:
+- `tensor` / `tensor.ops.*`
+- `graph/*`
+- `backend/*`
 
-- public graph construction: [tensor/](../tensor)
-- family builders: [tensor/ops/](../tensor/ops)
-- graph rewrites and fusion: [graph/](../graph)
-- runtime execution: [backend/](../backend)
+## Core Contract
 
-## Reading Guide
+Base interface:
 
-This package has to stay readable for three different audiences:
+- [Operation.java](../operations/Operation.java)
 
-1. Tensor family implementers
-   - add or update descriptors when a tensor surface is truly primitive-backed
-2. Graph / optimizer implementers
-   - use descriptor shape and immutable parameters for rewrites, fusion, and lowering
-3. Backend / runtime implementers
-   - dispatch execution from descriptor type and descriptor metadata
-
-That distinction matters because a descriptor is intentionally not:
-
-- a public API builder
-- an autograd formula holder
-- a kernel implementation
-- a runtime cache container
-
-## Where `operations` Sits In The Stack
-
-The package stack is:
-
-1. `Tensor` / `TensorOps`
-2. `tensor.ops.*`
-3. `operations.*`
-4. `graph/*` optimizer and compiler
-5. `backend/*` runtime kernels
-
-The important contract is:
-
-- `Tensor` is user-facing
-- `tensor.ops.*` decides how to build the graph
-- `operations.*` describes the primitive node that ended up in the graph
-
-Another way to read the layering:
-
-- `tensor` asks: "what graph do we want to build?"
-- `operations` answers: "what primitive node is this?"
-- `graph` asks: "can this node be rewritten, fused, or lowered?"
-- `backend` asks: "how do we execute this primitive efficiently?"
-
-## What A Descriptor Should Contain
-
-An operation descriptor should usually contain only:
+The key surface is:
 
 - `opType()`
-- immutable descriptor parameters needed to interpret the primitive
-- optional readable expression text for debugging
+- `getExpression()`
+- optional cheap/non-cheap hint through `isCheap()`
 
-Typical descriptor state:
+The descriptor should carry only immutable semantic parameters such as:
 
-- reduction axis and `keepDims`
-- scalar exponent or scalar multiplier
+- exponent for `pow`
+- scalar for `mulScalar`
+- reduction dimension / `keepDims`
 - reshape/permute metadata
-- attention scale and mask-presence flags
-- loss reduction mode or ignore-index metadata
+- attention options
+- loss reduction metadata
 
-An operation descriptor should usually **not** contain:
+It should not carry:
 
-- forward graph-building logic
-- backward lambdas
-- backend dispatch heuristics
-- execution caches
-- generic fallback loop implementations
 - mutable runtime state
+- backward lambdas
+- kernel loops
+- backend dispatch hints
 
-That split is deliberate.
-If a descriptor starts accumulating family logic, the architecture collapses back into one giant mixed layer.
+## `OpType` Taxonomy
 
-## Descriptor Taxonomy
+`Operation.OpType` currently divides primitives by broad category:
 
-The package contains more than one kind of primitive descriptor.
-That is expected, but the distinction should stay explicit.
+- elementwise
+- reduction
+- layout
+- linear algebra
+- special
+- fused
 
-### Canonical forward descriptors
+Some examples:
 
-These represent stable first-class graph semantics that the rest of the stack should be able to reason about directly.
+- elementwise numeric:
+  - `ADD`, `SUB`, `MUL`, `DIV`, `NEG`, `EXP`, `TANH`, `POW`
+- elementwise compare/logical:
+  - `GT`, `LE`, `EQ`, `LOGICAL_AND`
+- reductions:
+  - `SUM`, `MEAN`, `REDUCE_MAX`, `SOFTMAX`, `LOG_SOFTMAX`
+- layout:
+  - `RESHAPE`, `PERMUTE`, `EXPAND`, `SELECT`
+- special:
+  - `LINEAR`, `CROSS_ENTROPY_LOSS_INDICES`, `SCALED_DOT_PRODUCT_ATTENTION`, `CONV2D_GEMM`
+- fused:
+  - `FUSED`
 
-Examples:
-
-- `add`, `mul`, `relu`, `sigmoid`
-- `sum`, `softmax`, `logSoftmax`
-- `matmul`, `linear`
-- `scaledDotProductAttention`
-- `conv2d`, `maxPool2d`, `avgPool2d`
-- `crossEntropyLoss`, `crossEntropyLossIndices`
-
-These are the descriptors most likely to correspond to:
-
-- public tensor surfaces
-- rewrite/lowering anchors
-- backend dispatch families
-
-### Auxiliary backward / helper descriptors
-
-These are still real primitives, but they usually exist because some backward path or hot internal path needs a stable runtime contract.
-
-Examples:
-
-- `gatherGrad`
-- `takeAlongAxisGrad`
-- `reduceMinGrad`, `reduceMaxGrad`
-- `softmaxGrad`
-- `scaledDotProductAttentionWeights`
-- `scaledDotProductAttentionBackward`
-- `conv2dBackwardInput`, `conv2dBackwardWeight`
-
-These are valid descriptors, but they should not be documented as if they were automatically public ergonomic tensor APIs.
-
-### Optimizer / fused descriptors
-
-These exist because the graph compiler needs to represent lowered or fused structure explicitly.
-
-Examples:
-
-- `FusedOperation`
-- descriptors produced only after rewrite or lowering phases
-
-These are still declarative descriptors.
-They are not executable kernels and they are not a second public modeling API.
-
-## Main Components
-
-- base primitive interface
-  - [operations/Operation.java](../operations/Operation.java)
-- fused descriptor support
-  - [operations/fused/FusedOperation.java](../operations/fused/FusedOperation.java)
-  - [operations/fused/FusedOperationFactory.java](../operations/fused/FusedOperationFactory.java)
+The `isFusable()` bit on `OpType` is what the graph `FUSE` stage uses as the primary fusable/non-fusable gate.
 
 ## Package Layout
 
-The package is no longer flat.
-Descriptors are grouped by the same broad families used in `tensor.ops.*` and CPU backend dispatch.
-
-Current layout:
+Descriptors are grouped by semantic family:
 
 ```text
 operations/
@@ -178,363 +99,213 @@ operations/
   loss/
 ```
 
-That split is intentional:
+That mirrors the structure used by:
 
-- `tensor.ops.*` builds graphs by semantic families
-- `graph` rewrites and lowerings reason about descriptors by family
-- `backend/kernels/cpu/*` dispatches kernels by family
+- `tensor.ops.*`
+- CPU backend kernel families
 
-Keeping `operations` grouped the same way makes descriptor ownership easier to read and avoids one flat directory of unrelated primitives.
+## Family Examples
 
-### `elementwise/binary`
-
-File family:
-
-- [operations/elementwise/binary/add.java](../operations/elementwise/binary/add.java)
-- [operations/elementwise/binary/sub.java](../operations/elementwise/binary/sub.java)
-- [operations/elementwise/binary/mul.java](../operations/elementwise/binary/mul.java)
-- [operations/elementwise/binary/div.java](../operations/elementwise/binary/div.java)
-- [operations/elementwise/binary/min.java](../operations/elementwise/binary/min.java)
-- [operations/elementwise/binary/max.java](../operations/elementwise/binary/max.java)
-- [operations/elementwise/binary/minGrad.java](../operations/elementwise/binary/minGrad.java)
-- [operations/elementwise/binary/maxGrad.java](../operations/elementwise/binary/maxGrad.java)
-
-These are pure elementwise numeric binary descriptors plus the explicit min/max backward helper descriptors that naturally belong to the same semantic family.
-
-### `elementwise/unary`
+### Elementwise binary
 
 Examples:
 
-- [operations/elementwise/unary/neg.java](../operations/elementwise/unary/neg.java)
-- [operations/elementwise/unary/abs.java](../operations/elementwise/unary/abs.java)
-- [operations/elementwise/unary/inv.java](../operations/elementwise/unary/inv.java)
-- [operations/elementwise/unary/log.java](../operations/elementwise/unary/log.java)
-- [operations/elementwise/unary/exp.java](../operations/elementwise/unary/exp.java)
-- [operations/elementwise/unary/fastExp.java](../operations/elementwise/unary/fastExp.java)
-- [operations/elementwise/unary/tanh.java](../operations/elementwise/unary/tanh.java)
-- [operations/elementwise/unary/fastTanh.java](../operations/elementwise/unary/fastTanh.java)
-- [operations/elementwise/unary/pow.java](../operations/elementwise/unary/pow.java)
-- [operations/elementwise/unary/mulScalar.java](../operations/elementwise/unary/mulScalar.java)
-- [operations/elementwise/unary/relu.java](../operations/elementwise/unary/relu.java)
-- [operations/elementwise/unary/sigmoid.java](../operations/elementwise/unary/sigmoid.java)
-- [operations/elementwise/unary/clampMin.java](../operations/elementwise/unary/clampMin.java)
-- [operations/elementwise/unary/clampMax.java](../operations/elementwise/unary/clampMax.java)
+- [elementwise/binary/add.java](../operations/elementwise/binary/add.java)
+- [elementwise/binary/sub.java](../operations/elementwise/binary/sub.java)
+- [elementwise/binary/mul.java](../operations/elementwise/binary/mul.java)
+- [elementwise/binary/div.java](../operations/elementwise/binary/div.java)
+- [elementwise/binary/min.java](../operations/elementwise/binary/min.java)
+- [elementwise/binary/max.java](../operations/elementwise/binary/max.java)
 
-The rule here is simple:
+These describe pairwise numeric elementwise semantics.
 
-- if the primitive acts elementwise on one input tensor and is not compare/bool-specific, it belongs here
-
-### `elementwise/compare`
+### Elementwise unary
 
 Examples:
 
-- [operations/elementwise/compare/greaterThan.java](../operations/elementwise/compare/greaterThan.java)
-- [operations/elementwise/compare/greaterOrEqual.java](../operations/elementwise/compare/greaterOrEqual.java)
-- [operations/elementwise/compare/lessThan.java](../operations/elementwise/compare/lessThan.java)
-- [operations/elementwise/compare/lessOrEqual.java](../operations/elementwise/compare/lessOrEqual.java)
-- [operations/elementwise/compare/equalTo.java](../operations/elementwise/compare/equalTo.java)
-- [operations/elementwise/compare/notEqualTo.java](../operations/elementwise/compare/notEqualTo.java)
+- [elementwise/unary/neg.java](../operations/elementwise/unary/neg.java)
+- [elementwise/unary/log.java](../operations/elementwise/unary/log.java)
+- [elementwise/unary/exp.java](../operations/elementwise/unary/exp.java)
+- [elementwise/unary/fastExp.java](../operations/elementwise/unary/fastExp.java)
+- [elementwise/unary/tanh.java](../operations/elementwise/unary/tanh.java)
+- [elementwise/unary/fastTanh.java](../operations/elementwise/unary/fastTanh.java)
+- [elementwise/unary/relu.java](../operations/elementwise/unary/relu.java)
+- [elementwise/unary/sigmoid.java](../operations/elementwise/unary/sigmoid.java)
+- [elementwise/unary/pow.java](../operations/elementwise/unary/pow.java)
+- [elementwise/unary/mulScalar.java](../operations/elementwise/unary/mulScalar.java)
 
-These map cleanly to the compare kernel family in the CPU backend.
+### Compare and logical
 
-### `elementwise/logical`
+Compare:
 
-Examples:
+- `greaterThan`
+- `greaterOrEqual`
+- `lessThan`
+- `lessOrEqual`
+- `equalTo`
+- `notEqualTo`
 
-- [operations/elementwise/logical/logicalAnd.java](../operations/elementwise/logical/logicalAnd.java)
-- [operations/elementwise/logical/logicalOr.java](../operations/elementwise/logical/logicalOr.java)
-- [operations/elementwise/logical/logicalNot.java](../operations/elementwise/logical/logicalNot.java)
+Logical:
 
-These are separated from numeric compare ops because they operate on boolean semantics, not numeric ordering semantics.
+- `logicalAnd`
+- `logicalOr`
+- `logicalNot`
 
-### `elementwise/where`
+These are split because numeric ordering and boolean logic have different semantics and backend handling.
 
-- [operations/elementwise/where/where.java](../operations/elementwise/where/where.java)
+### `where`
 
-`where` stays in its own tiny family because the runtime has its own broadcast planning and execution path for ternary elementwise selection.
+`where` is isolated in its own micro-family because ternary select has:
 
-### `layout`
+- its own broadcast contract
+- its own backend execution path
+- special fusion considerations
 
-Examples:
-
-- [operations/layout/contiguous.java](../operations/layout/contiguous.java)
-- [operations/layout/reshape.java](../operations/layout/reshape.java)
-- [operations/layout/expand.java](../operations/layout/expand.java)
-- [operations/layout/permute.java](../operations/layout/permute.java)
-- [operations/layout/expandDims.java](../operations/layout/expandDims.java)
-- [operations/layout/squeeze.java](../operations/layout/squeeze.java)
-- [operations/layout/select.java](../operations/layout/select.java)
-- [operations/layout/noop.java](../operations/layout/noop.java)
-
-`select` is intentionally grouped with layout descriptors instead of index descriptors:
-
-- its `OpType` is `SELECT`
-- the CPU backend treats it as an alias-view style layout remap
-- it does not materialize indexed gather output like `gather` or `takeAlongAxis`
-
-### `index`
+### Layout
 
 Examples:
 
-- [operations/index/gather.java](../operations/index/gather.java)
-- [operations/index/gatherGrad.java](../operations/index/gatherGrad.java)
-- [operations/index/takeAlongAxis.java](../operations/index/takeAlongAxis.java)
-- [operations/index/takeAlongAxisGrad.java](../operations/index/takeAlongAxisGrad.java)
-- [operations/index/scatterAdd.java](../operations/index/scatterAdd.java)
+- `contiguous`
+- `reshape`
+- `expand`
+- `permute`
+- `expandDims`
+- `squeeze`
+- `select`
+- `noop`
 
-These are true indexed read/write primitives with dedicated backend contracts.
+`select` intentionally lives with layout-like descriptors rather than indexed gather descriptors because it behaves as a view-style remap rather than as a materialized indexed read.
 
-### `reduction`
-
-Examples:
-
-- [operations/reduction/sum.java](../operations/reduction/sum.java)
-- [operations/reduction/mean.java](../operations/reduction/mean.java)
-- [operations/reduction/reduceMin.java](../operations/reduction/reduceMin.java)
-- [operations/reduction/reduceMax.java](../operations/reduction/reduceMax.java)
-- [operations/reduction/reduceAll.java](../operations/reduction/reduceAll.java)
-- [operations/reduction/reduceAny.java](../operations/reduction/reduceAny.java)
-- [operations/reduction/reduceMinGrad.java](../operations/reduction/reduceMinGrad.java)
-- [operations/reduction/reduceMaxGrad.java](../operations/reduction/reduceMaxGrad.java)
-- [operations/reduction/softmax.java](../operations/reduction/softmax.java)
-- [operations/reduction/softmaxGrad.java](../operations/reduction/softmaxGrad.java)
-- [operations/reduction/logSoftmax.java](../operations/reduction/logSoftmax.java)
-- [operations/reduction/logSoftmaxGrad.java](../operations/reduction/logSoftmaxGrad.java)
-
-`softmax` and `logSoftmax` stay here because the CPU backend executes them in the reduction family, even though they are semantically normalization-like.
-
-### `normalization`
+### Index
 
 Examples:
 
-- [operations/normalization/layerNorm.java](../operations/normalization/layerNorm.java)
-- [operations/normalization/rmsNorm.java](../operations/normalization/rmsNorm.java)
+- `gather`
+- `gatherGrad`
+- `takeAlongAxis`
+- `takeAlongAxisGrad`
+- `scatterAdd`
 
-This matches the public tensor family split better than hiding everything under a generic `nn` root.
+These are true indexed access/update primitives.
 
-### `linalg`
-
-Examples:
-
-- [operations/linalg/matmul.java](../operations/linalg/matmul.java)
-- [operations/linalg/linear.java](../operations/linalg/linear.java)
-- [operations/linalg/scaledDotProductAttention.java](../operations/linalg/scaledDotProductAttention.java)
-- [operations/linalg/scaledDotProductAttentionWeights.java](../operations/linalg/scaledDotProductAttentionWeights.java)
-- [operations/linalg/scaledDotProductAttentionBackward.java](../operations/linalg/scaledDotProductAttentionBackward.java)
-
-This is the family for matrix-style primitives and attention primitives that are fundamentally linalg workloads.
-
-### `nn/conv`
+### Reduction
 
 Examples:
 
-- [operations/nn/conv/conv2d.java](../operations/nn/conv/conv2d.java)
-- [operations/nn/conv/conv2dGemm.java](../operations/nn/conv/conv2dGemm.java)
-- [operations/nn/conv/conv2dBackwardInput.java](../operations/nn/conv/conv2dBackwardInput.java)
-- [operations/nn/conv/conv2dBackwardInputGemm.java](../operations/nn/conv/conv2dBackwardInputGemm.java)
-- [operations/nn/conv/conv2dBackwardWeight.java](../operations/nn/conv/conv2dBackwardWeight.java)
-- [operations/nn/conv/conv2dBackwardWeightGemm.java](../operations/nn/conv/conv2dBackwardWeightGemm.java)
+- `sum`
+- `mean`
+- `reduceMin`
+- `reduceMax`
+- `reduceAll`
+- `reduceAny`
+- `softmax`
+- `softmaxGrad`
+- `logSoftmax`
+- `logSoftmaxGrad`
 
-The nested `nn/conv` split mirrors the CPU backend's `nn` family while still keeping the concrete convolution descriptors together.
-
-### `nn/pool`
-
-Examples:
-
-- [operations/nn/pool/maxPool2d.java](../operations/nn/pool/maxPool2d.java)
-- [operations/nn/pool/maxPool2dBackwardInput.java](../operations/nn/pool/maxPool2dBackwardInput.java)
-- [operations/nn/pool/avgPool2d.java](../operations/nn/pool/avgPool2d.java)
-- [operations/nn/pool/avgPool2dBackwardInput.java](../operations/nn/pool/avgPool2dBackwardInput.java)
-
-### `loss`
+### Linalg and structured special primitives
 
 Examples:
 
-- [operations/loss/nllLoss.java](../operations/loss/nllLoss.java)
-- [operations/loss/crossEntropyLoss.java](../operations/loss/crossEntropyLoss.java)
-- [operations/loss/crossEntropyLossIndices.java](../operations/loss/crossEntropyLossIndices.java)
-- [operations/loss/crossEntropyLossIndicesGrad.java](../operations/loss/crossEntropyLossIndicesGrad.java)
-
-### `fused`
-
-Examples:
-
-- [operations/fused/FusedOperation.java](../operations/fused/FusedOperation.java)
-- [operations/fused/FusedOperationFactory.java](../operations/fused/FusedOperationFactory.java)
-
-These are optimizer/runtime-owned descriptors produced after rewrite or fusion phases.
-
-Not every descriptor is guaranteed to have a one-to-one public `Tensor` instance method.
-Some exist mainly because the optimizer or backend needs a stable primitive contract.
-
-The public API source of truth remains:
-
-- [tensor/API.md](../tensor/API.md)
-
-## Relation To `tensor.ops.*`
-
-The family builders under `tensor.ops.*` own:
-
-- user-facing input validation
-- dtype/broadcast/layout checks
-- deciding whether an operation should be primitive-backed or composed
-- attaching backward lambdas
-
-Examples:
-
-- [tensor/ops/unary/TensorUnaryOps.java](../tensor/ops/unary/TensorUnaryOps.java)
-- [tensor/ops/binary/TensorBinaryOps.java](../tensor/ops/binary/TensorBinaryOps.java)
-- [tensor/ops/reduction/TensorReduceOps.java](../tensor/ops/reduction/TensorReduceOps.java)
-- [tensor/ops/linalg/TensorAttentionOps.java](../tensor/ops/linalg/TensorAttentionOps.java)
-- [tensor/ops/loss/TensorLossOps.java](../tensor/ops/loss/TensorLossOps.java)
-
-This means:
-
-- descriptor classes are intentionally small
-- family builders are where the semantic assembly happens
-
-One useful rule:
-
-- if you are deciding tensor semantics, you are probably in `tensor.ops.*`
-- if you are deciding primitive identity and immutable primitive parameters, you are probably in `operations/**`
-
-## Primitive-Backed vs Composed Surface
-
-This distinction matters when deciding whether a new descriptor belongs here.
-
-### Primitive-backed public surface
-
-These are public tensor operations whose graph node is represented directly by a descriptor in this package.
-
-Examples:
-
-- `add`, `sub`, `mul`, `div`
-- `relu`, `sigmoid`, `exp`, `tanh`, `log`
-- `softmax`, `logSoftmax`
-- `matmul`, `linear`
+- `matmul`
+- `linear`
 - `scaledDotProductAttention`
-- `conv2d`, `pool2d`
-- indexed loss primitives
-- `layerNorm`, `rmsNorm`
+- `scaledDotProductAttentionBackward`
+- `scaledDotProductAttentionWeights`
 
-These deserve descriptors because they have real runtime meaning.
+These are important because many optimizer passes lower decomposed subgraphs back into these higher-level primitives.
 
-### Composed public surface
-
-These are public tensor helpers that are expressed using other tensor operations and therefore do **not** need their own canonical descriptor.
-
-Current examples:
-
-- `minimum`
-- `maximum`
-- `clamp`
-- the `batchNorm(...)` composition path
-
-If an operation is naturally expressed as graph algebra and the runtime does not need a first-class primitive, keep it composed.
-
-### Internal optimizer/runtime-only primitives
-
-Some descriptors exist mainly for optimizer or runtime reasons rather than because users should build them directly.
+### Loss
 
 Examples:
 
-- fused descriptors
-- dedicated grad/output auxiliaries such as `softmaxGrad`
-- specialized attention/loss backward helpers
+- `nllLoss`
+- `crossEntropyLoss`
+- `crossEntropyLossIndices`
+- `crossEntropyLossIndicesGrad`
 
-These are still valid primitives, but they are not necessarily part of the ergonomic modeling surface.
+### NN / conv / pool / normalization
 
-## Descriptor Lifecycle
+Examples:
 
-In normal graph construction, a primitive-backed operation flows through these stages:
+- `conv2d`
+- `conv2dGemm`
+- `conv2dBackwardInput`
+- `conv2dBackwardWeight`
+- `maxPool2d`
+- `avgPool2d`
+- `layerNorm`
+- `rmsNorm`
 
-1. `tensor.ops.*` validates inputs and decides to build a primitive-backed node.
-2. The builder instantiates an `Operation` descriptor from this package.
-3. The graph compiler inspects descriptor type and immutable parameters.
-4. Rewrites or fusion may replace that descriptor with another descriptor.
-5. Backend code dispatches execution from the final compiled descriptor shape.
+## Primitive vs Composed Surface
 
-That lifecycle is why descriptors must remain:
+Not every public tensor operation must map 1:1 to a primitive.
 
-- immutable
-- declarative
-- free of builder logic
-- free of runtime-owned mutable state
+Good reasons to introduce or retain a primitive:
 
-## How Descriptors Are Consumed
+- optimizer should recognize it directly
+- backend has a specialized kernel family for it
+- it appears frequently enough that the decomposed form is noisy or slow
 
-Once a tensor node has a descriptor:
+Examples of strong primitive candidates in the current codebase:
 
-- the graph layer uses `opType()` and descriptor state for optimizer reasoning
-- fusion and rewrite logic decide whether the node should be replaced, clustered, or lowered
-- the backend uses the descriptor to dispatch the correct kernel family
-- debug/reporting layers use descriptor text for traceability
+- `LINEAR`
+- `SOFTMAX_GRAD`
+- `LOG_SOFTMAX_GRAD`
+- `CROSS_ENTROPY_LOSS_INDICES`
+- `CROSS_ENTROPY_LOSS_INDICES_GRAD`
+- `SCALED_DOT_PRODUCT_ATTENTION`
+- `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`
 
-This is why descriptors should stay declarative.
-They are shared input for multiple downstream subsystems.
+## Worked Examples
 
-## Fused Operations
+### Example 1: `mulScalar`
 
-`FusedOperation` is the descriptor used when the optimizer groups several primitive ops into one fused node.
+Public tensor call:
 
-Important points:
+```java
+Tensor y = x.mul(2.5);
+```
 
-- fused ops are still descriptors, not executable kernels
-- the fused descriptor records the fused primitive structure
-- backend code chooses how to execute that fused cluster
-- the fused descriptor should expose enough structure for traceability, tuning, and backend selection, but not embed backend implementation logic
+Underlying descriptor:
 
-That keeps the layering intact:
+- `Operation.OpType.MUL_SCALAR`
+- scalar parameter `2.5`
 
-- fusion belongs to the graph compiler
-- execution belongs to the backend
+This lets:
 
-## How To Add A New Operation
+- `AR` reason about scalar identities
+- `FUSE` fuse it as a cheap or non-cheap op according to current policy
+- backend resolve a direct scalar kernel path
 
-Use this checklist.
+### Example 2: lowered linear
 
-1. Decide whether the operation is:
-   - a composed tensor helper
-   - a primitive-backed operation
-   - an internal optimizer/runtime primitive
-2. If it is primitive-backed, add a small descriptor class in the correct `operations/*` family package.
-3. Add the public builder in the correct `tensor.ops.*` family.
-4. Keep backward wiring in the family builder unless there is a strong reason for a dedicated backward primitive.
-5. Add rewrite/backend support only if the new primitive truly needs it.
-6. Update the public docs:
-   - [tensor/README.md](../tensor/README.md)
-   - [tensor/API.md](../tensor/API.md)
-   - this file if the package-level architecture changed
+Original public graph:
 
-## Practical Decision Rules
+```text
+add(matmul(input, weight), bias)
+```
 
-Choose a new descriptor when at least one of these is true:
+After `AR`:
 
-- the operation has a distinct runtime contract
-- the optimizer needs to recognize it as a first-class node
-- the backend has a dedicated kernel or lowering path for it
-- using only composed graph algebra would make the graph artificially noisy or slow
-- the descriptor boundary makes the graph semantically clearer for downstream tooling
+```text
+LINEAR(input, weight, bias)
+```
 
-Do **not** add a descriptor only because:
+The descriptor is now simpler for:
 
-- the API would read nicer
-- the backward formula is long
-- there is already a similar primitive nearby
-- a benchmark would look cleaner with a synthetic node that has no real graph/runtime meaning
+- CSE
+- backend dispatch
+- trace reporting
 
-Those are not sufficient reasons on their own.
+## What Operations Must Not Become
 
-## Common Mistakes
+This package should not grow into:
 
-- putting forward graph-building logic into the descriptor class
-- putting backend-specific loop logic into the descriptor class
-- adding a primitive for what should stay as simple tensor composition
-- documenting a descriptor as if it were automatically a public API method
-- mixing semantic configuration types into support/internal helpers instead of using public packages such as:
-  - [tensor/options](../tensor/options)
-  - [tensor/loss](../tensor/loss)
-- letting one public tensor surface accidentally map to multiple semantically different descriptors without documenting that split
-- introducing optimizer-only helper descriptors and then treating them as canonical public modeling concepts
+- a second public modeling API
+- a runtime cache layer
+- a kernel implementation layer
+- a place for ad hoc benchmark-only abstractions
 
-The package stays clean only if descriptors remain small, declarative, and boring.
+Descriptors are semantic vocabulary.
+Nothing more.

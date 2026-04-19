@@ -2,240 +2,172 @@
 
 `FUSE` is the graph-level elementwise fusion stage.
 
-Its purpose is not to decide the final machine code shape. Its purpose is to:
+Its responsibility is:
 
-- identify elementwise graph regions that are safe and worthwhile to fuse
-- replace those regions with a single fused graph primitive
-- leave the low-level execution strategy to the runtime/backend
+- choose safe and worthwhile elementwise subgraphs
+- replace them with one `FUSED` primitive
+- leave the final machine-level execution strategy to backend preparation and runtime
+
+It is not a code generator by itself.
 
 ## Entry Points
 
-- main rule: [rules/FuseElementWiseRule.java](./rules/FuseElementWiseRule.java)
-- config: [../../config/optimizer/FuseConfig.java](../../config/optimizer/FuseConfig.java)
-- cost model: [fusion/FusedCostModel.java](./fusion/FusedCostModel.java)
-
-Defaults:
-
-- training defaults are conservative
-- inference defaults are more permissive
-
-Current presets:
-
-- training
-  - `maxClusterNodes = 64`
-  - `scoreThreshold = 0.55`
-  - `internalEdgeBonus = 0.30`
-  - `externalInputPenalty = 0.20`
-  - `sharedExpensivePenalty = 1.00`
-  - `nonCheapBonus = 0.35`
-  - `preserveSharedExpensiveNodes = true`
-- inference
-  - `maxClusterNodes = 96`
-  - `scoreThreshold = 0.00`
-  - `internalEdgeBonus = 0.50`
-  - `externalInputPenalty = 0.10`
-  - `sharedExpensivePenalty = 0.50`
-  - `nonCheapBonus = 0.35`
-  - `preserveSharedExpensiveNodes = false`
+- rule:
+  - [rules/FuseElementWiseRule.java](./rules/FuseElementWiseRule.java)
+- config:
+  - [../../config/optimizer/FuseConfig.java](../../config/optimizer/FuseConfig.java)
+- cost model:
+  - [fusion/FusedCostModel.java](./fusion/FusedCostModel.java)
 
 ## What Counts As Fusable
 
-The rule does not hardcode a list of all fusable operations. It delegates that to the operation descriptor:
+The fusion frontier is driven by operation metadata:
 
 ```text
 op.opType().isFusable()
 ```
 
-So the current fusion frontier is defined by the operation type metadata, not by `FuseElementWiseRule` itself.
+So the stage does not maintain its own separate hardcoded list of all allowed ops.
 
-The rule also explicitly refuses to fuse:
+The rule also refuses to fuse:
 
-- null ops
+- nodes with `null` operation
 - nodes already marked as `FUSED`
 
 ## High-Level Algorithm
 
-The pass has four main steps:
+The current implementation follows four steps:
 
 1. build consumer maps
-2. mark materialization points
-3. build candidate clusters backward from those retained roots
-4. replace accepted clusters with fused operations and rebuild the graph
+2. determine materialization points
+3. grow candidate clusters backward from retained roots
+4. score and accept/reject those clusters
 
-## Step 1: Consumer Maps
+## Consumer Maps
 
-The rule builds two different consumer views:
+The pass builds two consumer views:
 
-- `allConsumersMap` / `allConsumerCounts`
-  - across the whole combined graph, including forward and backward
-- `samePhaseConsumersMap`
-  - only consumers that live in the same phase as the producer
+- all-consumer view
+  - used for liveness and materialization logic across the whole combined graph
+- same-phase consumer view
+  - used for local fusion decisions inside one phase
 
-This split matters because fusion is phase-local, but materialization and liveness need to respect the whole graph.
+This matters because a node may look locally fuseable in forward, but still need materialization because backward also consumes it.
 
-## Step 2: Materialization Points
-
-The most important concept in this stage is the materialization point.
+## Materialization Points
 
 A tensor becomes a materialization point if any of the following is true:
 
-- it is already fused
 - it has no operation
 - it is not an elementwise fusion candidate
 - it has no consumers in the whole graph, so it is a sink
 - it has a same-phase consumer that is not elementwise
 - it has a cross-phase consumer
-- it is a shared expensive node and `preserveSharedExpensiveNodes` is enabled
+- it is already fused
+- it is a shared expensive node and config says to preserve such nodes
 
-In code terms, a "shared expensive node" means:
+Shared expensive currently means:
 
-- total consumer count is greater than 1, and
-- the op exists, and
+- total consumer count > 1
+- op exists
 - `op.isCheap() == false`
 
-This is the core recomputation boundary logic.
+Materialization points are the places where the fused cluster growth stops.
 
-### Why This Matters
+## Cluster Construction
 
-If a tensor is not materialized, it may be swallowed into a fused cluster and recomputed inside the fused kernel.
+Fusion starts only from retained elementwise materialization points.
 
-If it is materialized, it remains as an explicit graph node and becomes a boundary for cluster growth.
+For one such root, the rule walks backward and swallows predecessors only if:
 
-## Step 3: Cluster Construction
+- predecessor is not another materialization point
+- predecessor has an operation
+- predecessor is fusable
+- predecessor is not already fused
+- predecessor lives in the same phase
 
-The rule only starts cluster building from retained elementwise materialization points.
+Clusters with size `<= 1` are immediately discarded.
 
-For each such root:
+## External Inputs
 
-1. create a queue starting from the root
-2. walk backward through inputs
-3. swallow predecessors only if all of these hold:
-   - the predecessor is not itself a materialization point
-   - it has an operation
-   - it is fusable
-   - it is not already fused
-   - it is in the same phase as the current node
+After a cluster is built:
 
-This produces a backward-grown cluster rooted at the original retained output tensor.
+- all parent inputs of all cluster nodes are collected
+- cluster-internal nodes are removed from that input set
+- the remaining tensors become runtime inputs of the fused primitive
 
-Clusters of size `<= 1` are discarded immediately.
+So the cluster becomes:
 
-## Step 4: External Inputs
-
-Once a cluster exists, the rule collects all inputs to all cluster nodes and removes the nodes that are internal to the cluster.
-
-The remaining tensors become the fused operation's runtime inputs.
-
-Conceptually:
-
-```text
-cluster nodes      = internal expression DAG
-external inputs    = leaves entering that DAG from the outside
-cluster root       = tensor that survives and becomes the fused op output
-```
+- one fused expression DAG
+- one fused output root
+- a list of external runtime inputs
 
 ## Acceptance Rules
 
-A candidate cluster is accepted only if all of the following hold:
+A cluster is accepted only if:
 
-- cluster size is at least 2
-- cluster size does not exceed `maxClusterNodes`
-- `FusedCostModel.rejectBroadcastHeavySmallAffinePlan(...)` does not reject the preview plan
-- the final score is at least `scoreThreshold`
+- size is at least 2
+- size does not exceed `maxClusterNodes`
+- it is not rejected by the special broadcast-heavy affine heuristic
+- its final fusion score is at least `scoreThreshold`
 
-### Score Formula
+## Current Score Model
 
-The current score model is:
+The score is built from:
+
+- benefit:
+  - more nodes
+  - more internal edges
+  - bonus for non-cheap nodes
+- cost:
+  - more external inputs
+  - shared expensive nodes
+  - access penalty estimated from fused input access kinds
+
+In simplified form:
 
 ```text
-benefit =
-    (nodes - 1)
+score =
+  (nodes - 1)
   + internalEdgeBonus * internalEdges
   + nonCheapBonus * nonCheapNodes
-
-cost =
-    externalInputPenalty * externalInputs.size()
-  + sharedExpensivePenalty * sharedExpensive
-  + estimateFusionAccessPenalty(previewPlan)
-
-score = benefit - cost
+  - externalInputPenalty * externalInputs
+  - sharedExpensivePenalty * sharedExpensive
+  - accessPenalty
 ```
 
-Where:
+## Cheap vs Non-Cheap Dispatch Families
 
-- `internalEdges`
-  - number of parent links that stay inside the cluster
-- `nonCheapNodes`
-  - number of nodes whose op reports `isCheap() == false`
-- `sharedExpensive`
-  - number of non-cheap cluster nodes with more than one consumer in the whole graph
+The cost model classifies fused plans into dispatch families used later by runtime/backends.
 
-## Access Penalty Model
-
-The access penalty comes from [fusion/FusedCostModel.java](./fusion/FusedCostModel.java).
-
-Current per-input access penalties:
-
-- `DIRECT_CONTIGUOUS` -> `0.00`
-- `OFFSET_CONTIGUOUS` -> `0.10`
-- `DIRECT_STRIDED` -> `0.35`
-- `OFFSET_STRIDED` -> `0.55`
-- `BROADCAST_STRIDED` -> `0.75`
-
-This is a graph-level heuristic. It does not try to be a cycle-accurate hardware model.
-
-## Broadcast-Heavy Small-Affine Rejection
-
-The special rejection helper `rejectBroadcastHeavySmallAffinePlan(...)` currently rejects a narrow family of plans that look like small broadcast-heavy normalization-style formulas.
-
-Current rejection conditions:
-
-- the fused plan has at least 2 `BROADCAST_STRIDED` inputs
-- every node is in this limited set:
-  - `ADD`
-  - `SUB`
-  - `MUL`
-  - `DIV`
-  - `SQRT`
-  - `RELU`
-  - `CLAMP_MIN`
-  - `CLAMP_MAX`
-  - `ABS`
-  - `NOOP`
-- at least one node is `DIV` or `SQRT`
-
-This heuristic exists to avoid fusing certain small affine-normalization style expressions that are structurally legal but not profitable in the current backend setup.
-
-## Cheap vs Non-Cheap Families
-
-The cost model also classifies fused plans into dispatch families.
-
-Current dispatch families:
+Current public families:
 
 - `CHEAP_CONTIGUOUS`
 - `CHEAP_STRIDED`
 - `NON_CHEAP_CONTIGUOUS`
 - `NON_CHEAP_STRIDED`
 
-A plan counts as cheap numeric only if:
+A plan is considered cheap only if:
 
-- all external inputs are numeric, not `BOOL`
-- all fused outputs are numeric, not `BOOL`
-- every fused node is in this set:
-  - `ADD`
-  - `SUB`
-  - `MUL`
-  - `MIN`
-  - `MAX`
-  - `NEG`
-  - `MUL_SCALAR`
-  - `RELU`
-  - `CLAMP_MIN`
-  - `CLAMP_MAX`
-  - `ABS`
-  - `NOOP`
+- all external inputs are numeric
+- outputs are numeric
+- all fused ops are from the cheap numeric set
 
-Ops such as these are currently treated as non-cheap:
+Cheap numeric examples today include:
+
+- `ADD`
+- `SUB`
+- `MUL`
+- `MIN`
+- `MAX`
+- `NEG`
+- `MUL_SCALAR`
+- `RELU`
+- `CLAMP_MIN`
+- `CLAMP_MAX`
+- `ABS`
+
+Non-cheap examples include:
 
 - `DIV`
 - `INV`
@@ -247,137 +179,75 @@ Ops such as these are currently treated as non-cheap:
 - `FAST_TANH`
 - `SIGMOID`
 - `POW`
-- comparisons
+- compare ops
 - logical ops
 - `WHERE`
 
-## What Happens On Success
+## Broadcast-Heavy Rejection
 
-If a cluster is accepted:
+The special rejection helper exists because some small affine-style broadcast-heavy expressions are structurally legal to fuse but not profitable in the current backend design.
 
-1. the root tensor is mutated in place
-2. `FusedOperationFactory.create(...)` builds a fused operation and runtime input list
-3. the root tensor keeps its identity, but now points at the fused op
-4. swallowed internal tensors are dropped from the outer execution list
+The rejection currently targets plans that:
 
-That in-place mutation is important. External references to the root tensor do not need to be rewritten to a different object.
+- have at least two `BROADCAST_STRIDED` inputs
+- are composed only from a narrow affine-ish op subset
+- contain at least one `DIV` or `SQRT`
 
-## What The Final Graph Keeps
-
-After fusion, the final retained graph keeps:
-
-- all materialization points
-- fused roots
-- anything from rejected clusters
-
-Then `OptimizerGraphSupport.rebuildTopologicalClosure(...)` reconstructs the final execution list from those retained nodes.
-
-## Examples
-
-### Example 1: simple elementwise chain
-
-```text
-t1 = add(x, y)
-t2 = relu(t1)
-t3 = mulScalar(t2, 0.5)
-```
-
-If all three nodes are same-phase and no boundary condition applies, the rule can fuse them into one fused op rooted at `t3`.
-
-### Example 2: non-elementwise consumer creates a boundary
-
-```text
-t1 = add(x, y)
-t2 = relu(t1)
-t3 = matmul(t2, w)
-```
-
-`t2` has a same-phase non-elementwise consumer (`matmul`), so it becomes a materialization point and the elementwise chain cannot be swallowed across that boundary.
-
-### Example 3: cross-phase boundary
-
-If a forward tensor is consumed by a backward tensor, that forward tensor becomes a materialization point even if the local formula is elementwise.
-
-## Important Limits
-
-- `FUSE` does not decide vector width or parallelism.
-- `FUSE` does not cross forward/backward boundaries.
-- `FUSE` does not fuse arbitrary non-elementwise regions.
-- the current profitability model is heuristic, not hardware-calibrated
-
-## Practical Meaning
-
-Use this stage when you want the runtime to see fewer, larger elementwise expressions without encoding those fused patterns manually in the public API.
-
-If a graph looks like a long chain of fusable elementwise ops, `FUSE` is the stage that decides whether that chain becomes one fused node or stays decomposed.
-
-## Concrete Cluster Walkthrough
+## Worked Example
 
 Consider:
 
 ```text
-t1 = add(x, y)
-t2 = sub(t1, z)
-t3 = relu(t2)
-t4 = mulScalar(t3, 0.5)
-t5 = sum(t4, -1)
+y = relu(add(mul(x, w), b))
 ```
 
-`FUSE` can absorb `t1..t4`, but `t5` is a hard reduction boundary.
-So the result is conceptually:
+with:
+
+- `x` shape `[4, 8]`
+- `w` shape `[4, 8]`
+- `b` shape `[8]`
+
+Possible fused cluster:
 
 ```text
-t4 = fused(add -> sub -> relu -> mulScalar)
-t5 = sum(t4, -1)
+mul(x, w) -> add(..., b) -> relu(...)
 ```
 
-That is the intended behavior.
-Fusion reduces graph fragmentation without erasing higher-level semantic boundaries.
+External inputs:
 
-## Materialization Point Intuition
+- `x`
+- `w`
+- `b`
 
-Think of a materialization point as:
+Cluster output:
 
-- "this value should exist as a real graph boundary"
+- `y`
 
-Typical reasons:
+If the score passes threshold and no materialization boundary blocks growth, this becomes one `FUSED` node.
 
-- a non-elementwise op consumes it
-- another phase consumes it
-- recomputing it inside multiple fused clusters would be wasteful
+## What Happens On Success
 
-Example:
+On success:
 
-```text
-t1 = exp(x)
-t2 = add(t1, y)
-t3 = sub(t1, z)
-```
+1. the original cluster root tensor is kept
+2. its operation is replaced with a fused operation descriptor
+3. its runtime inputs become the cluster external inputs
+4. internal swallowed nodes disappear from the main execution graph
 
-With `preserveSharedExpensiveNodes = true`, `t1` is likely materialized so `exp(x)` is not duplicated inside two separate fused clusters.
+The cluster internals still exist inside the fused operation plan, but they are no longer separate main-graph execution nodes.
 
-## Why Runtime Still Matters After Fusion
+## What FUSE Does Not Decide
 
-Graph fusion does not pick the final machine code shape.
-After a fused node exists, runtime still decides:
+`FUSE` does not decide:
 
-- dispatch family
-- scalar vs vector path
-- parallel vs non-parallel path
-- ASM vector width for the chosen family
+- which ASM vector width to use
+- whether the fused node runs scalar or vector at runtime
+- how many workers to use
+- exact machine code shape
 
-So the split is:
+Those belong to backend preparation and runtime tuning.
 
-- optimizer decides cluster shape
-- runtime decides execution tactic
+So the correct mental model is:
 
-## Debug Checklist
-
-When fusion does not happen, inspect:
-
-1. whether the op types report `isFusable()`
-2. whether a non-elementwise consumer introduced a boundary
-3. whether a cross-phase edge exists
-4. whether the node is shared and non-cheap
-5. whether the preview plan was rejected as broadcast-heavy and unprofitable
-6. whether the final score reached `scoreThreshold`
+- `FUSE` decides graph shape
+- runtime/backend decide execution shape

@@ -1,550 +1,216 @@
 # Tuning Package
 
-## Purpose
+The `tuning` package owns measurement, search, validation, reporting, and persistence for executable profiles.
 
-The `tuning` package owns everything related to measuring, comparing, searching, calibrating, and persisting execution policies.
+Its job is to answer practical questions such as:
 
-Its job is to answer questions such as:
+- which `ExecutionProfile` is faster on this workload?
+- which runtime defaults should be calibrated for this machine?
+- how should candidate profiles be measured fairly?
+- where should winners and runtime defaults be persisted?
 
-- which concrete profile is faster on this workload?
-- which runtime knobs should be calibrated for this machine?
-- how should we compare candidate profiles fairly?
-- how should the chosen result be stored and reused later?
-
-It does **not** define execution semantics.
+It does not define execution semantics.
 
 Execution still happens through the normal runtime stack:
 
-- [tensor/Tensor.java](../tensor/Tensor.java)
-- [graph/CompiledGraph.java](../graph/CompiledGraph.java)
-- [graph/execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
-- [config/profile/ExecutionProfile.java](../config/profile/ExecutionProfile.java)
-
-This is the core rule:
-
-- tuning adapts execution policy
-- tuning never becomes a shadow runtime
-
-## Reading Guide
-
-There are four distinct audiences for this package:
-
-1. benchmark users
-   - want direct profile-vs-profile comparisons
-2. autotune users
-   - want the system to search graph-specific winners
-3. calibration users
-   - want reusable platform runtime defaults
-4. tuning implementers
-   - work on candidate spaces, search, measurement, validation, and persistence
-
-Those audiences overlap, but the package should still read as one coherent pipeline:
-
-- workloads define what is measured
-- candidate spaces define what can change
-- measurement defines how timing is taken
-- validation defines what must remain correct
-- search defines how the candidate space is explored
-- sessions orchestrate the whole workflow
-- stores/reporters persist and explain the result
-
-## Mental Model
-
-There are three distinct workflows in this package:
-
-1. Benchmark
-2. Per-graph autotune
-3. Platform calibration
-
-They use many of the same measurement and validation utilities, but they serve different purposes.
-
-### Benchmark
-
-Benchmark compares an explicit set of already-defined candidates.
-
-Typical use:
-
-- compare current profile vs baseline profile
-- inspect regressions
-- compare multiple manual variants
-
-Benchmark does **not** search the space automatically.
-
-### Per-graph autotune
-
-Autotune searches for a better profile for one concrete workload/graph family.
-
-Typical use:
-
-- tune one workload for one data type and execution mode
-- start from a seed profile
-- explore a bounded candidate space
-- persist the winner
-
-Autotune is workload-specific.
-
-### Platform calibration
-
-Calibration searches for reusable machine-specific runtime defaults over representative workload families.
-
-Typical use:
-
-- calibrate runtime thresholds on one CPU/JDK/hardware profile
-- tune runtime defaults once and reuse them later
-- keep runtime knobs separate from graph rewrite policy
-
-Calibration is platform-oriented, not one-graph-oriented.
-
-## Execution Source Of Truth
-
-The final executable artifact is still:
-
-- [config/profile/ExecutionProfile.java](../config/profile/ExecutionProfile.java)
-
-Everything inside `tuning` eventually feeds into that.
-
-This is important because it prevents a split-brain design:
-
-- benchmark candidates are real execution profiles
-- autotune winners are real execution profiles
-- calibration results are assembled into real execution profiles
-
-No hidden "tuning-only runtime mode" should exist.
-
-## Policy Split
-
-The package is organized around a conceptual separation between:
-
-- platform runtime defaults
-- graph-specific policy
-- final assembled execution profile
-
-This means:
-
-- calibration should target runtime knobs
-- graph autotune should target graph/workload-specific choices
-- the final merge should stay explicit
-
-Even when a workflow starts from a full `ExecutionProfile`, it should still respect that separation conceptually.
-
-This distinction matters because the same machine may need:
-
-- one reusable platform runtime profile
-- many graph-specific best-profile records
-- zero ambiguity about which layer each result belongs to
-
-In practice:
-
-- calibration should produce reusable runtime defaults
-- autotune should produce workload-specific runnable winners
-- benchmark should compare already-defined runnable profiles without inventing new semantics
-
-## Package Layout
-
-The main subpackages are:
-
-```text
-tuning/
-  candidate/
-  etalon/
-  measure/
-  report/
-  search/
-  session/
-  store/
-  validate/
-  workload/
-```
-
-### `candidate`
-
-Candidate-space definitions and profile mutation utilities.
-
-This layer answers:
-
-- which variants exist?
-- how do we enumerate or refine them?
-- how do we fingerprint them?
-
-Representative files:
-
-- [tuning/candidate/CandidateSpace.java](./candidate/CandidateSpace.java)
-- [tuning/candidate/ProfileGridCandidateSpace.java](./candidate/ProfileGridCandidateSpace.java)
-- [tuning/candidate/ProfileMutators.java](./candidate/ProfileMutators.java)
-
-### `measure`
-
-Measurement engine and policies.
-
-This layer answers:
-
-- how many warmup runs?
-- how many measured runs?
-- how are medians/statistics produced?
-
-Representative files:
-
-- [tuning/measure/MeasurementPolicy.java](./measure/MeasurementPolicy.java)
-- [tuning/measure/DefaultMeasurementEngine.java](./measure/DefaultMeasurementEngine.java)
-
-### `validate`
-
-Correctness validation for candidate execution.
-
-This layer answers:
-
-- what should be compared?
-- against what reference?
-- with what tolerance profile?
-
-Representative files:
-
-- [tuning/validate/ValidationEngine.java](./validate/ValidationEngine.java)
-- [tuning/validate/ValidationReference.java](./validate/ValidationReference.java)
-- [tuning/validate/ValidationTarget.java](./validate/ValidationTarget.java)
-
-### `search`
-
-Search strategies and bound/score models used by autotune and calibration.
-
-Representative files:
-
-- [tuning/search/SearchStrategy.java](./search/SearchStrategy.java)
-- [tuning/search/ExhaustiveSearchStrategy.java](./search/ExhaustiveSearchStrategy.java)
-- [tuning/search/BestFirstTreeSearchStrategy.java](./search/BestFirstTreeSearchStrategy.java)
-
-### `session`
-
-Top-level orchestration entry points for benchmark, autotune, and calibration.
-
-Representative files:
-
-- [tuning/session/BenchmarkSession.java](./session/BenchmarkSession.java)
-- [tuning/session/AutotuneSession.java](./session/AutotuneSession.java)
-- [tuning/session/PlatformCalibrationSession.java](./session/PlatformCalibrationSession.java)
-
-### `store`
-
-Persistence of reports, profiles, winners, and calibration outputs.
-
-This layer should be the only place that knows where artifacts live on disk.
-Search and measurement should work the same way whether persistence is enabled or disabled.
-
-### `report`
-
-Text and JSON renderers for benchmark/tuning/calibration results.
-
-### `workload`
-
-Reusable workload specifications used by all tuning workflows.
-
-This is the most important abstraction boundary:
-
-- workloads build fresh tensor graphs from the public tensor surface
-- they do not know whether they are used by benchmark, autotune, or calibration
-
-See also:
-
-- [tuning/WORKLOADS.md](./WORKLOADS.md)
-
-## Benchmark, Autotune, And Calibration In More Detail
-
-The three workflows share infrastructure, but they solve different questions.
-
-If those questions get mixed, results become misleading:
-
-- benchmark can accidentally turn into hidden search
-- autotune can accidentally overfit what should be platform calibration
-- calibration can accidentally start encoding one specific graph
-
-### Benchmark lifecycle
-
-1. Choose one workload.
-2. Define explicit benchmark entries.
-3. Instantiate a fresh graph for each candidate.
-4. Validate if configured.
-5. Warm up.
-6. Measure.
-7. Render and optionally persist the report.
-
-Use benchmark when you want a direct apples-to-apples comparison.
-
-Benchmark answers:
-
-- "which already-defined runnable profile is faster here?"
-
-Benchmark does **not** answer:
-
-- "what is the best candidate in the whole space?"
-- "what should become the machine default?"
-
-### Autotune lifecycle
-
-1. Choose one workload.
-2. Start from a seed profile.
-3. Define a candidate space.
-4. Let the search strategy explore/refine that space.
-5. Validate candidates as needed.
-6. Measure candidates.
-7. Persist the winner and history if desired.
-
-Use autotune when you want the system to search for a better profile for one workload family.
-
-Autotune answers:
-
-- "for this workload family, dtype, and execution mode, which runnable profile wins?"
-
-Autotune does **not** answer:
-
-- "what should all graphs on this machine use by default?"
-
-### Calibration lifecycle
-
-1. Choose calibration steps for a platform and dtype/mode.
-2. For each family, instantiate representative probe workloads.
-3. Generate runtime-profile candidates for that family.
-4. Measure and score them.
-5. Merge winning family settings into a reusable platform profile.
-6. Persist the calibrated result.
-
-Use calibration when the goal is to improve machine defaults, not to overfit one specific graph.
-
-Calibration answers:
-
-- "for this hardware/JDK/platform fingerprint, which runtime defaults should become reusable?"
-
-Calibration does **not** answer:
-
-- "which profile is best for this single application graph?"
-
-## Calibration Families
-
-Calibration is intentionally split into families because different hotspots have different cost models.
-
-The family enum is:
-
-- `MATMUL`
-- `ATTENTION_MATMUL`
-- `FUSED_THRESHOLDS`
-- `FUSED_CHEAP_CONTIGUOUS`
-- `FUSED_CHEAP_STRIDED`
-- `FUSED_NON_CHEAP_CONTIGUOUS`
-- `FUSED_NON_CHEAP_STRIDED`
-- `FUSED_ARITHMETIC`
-- `ELEMENTWISE_DISPATCH`
-- `REDUCTION`
-- `ATTENTION_THRESHOLDS`
-- `SCHEDULER`
-- `MATERIALIZATION`
-- `CONV2D`
-- `NUMERICS`
-
-Why the split exists:
-
-- matmul tiles and microkernels behave differently from fused thresholds
-- attention-specific thresholds do not share the same optimal values as generic reductions
-- materialization heuristics need non-contiguous probe workloads
-- numerics choices may trade speed against approximation policy
-
-This is better than one monolithic "CPU tuning" bucket.
-
-A family is the unit where platform calibration is allowed to generalize.
-That means a family should correspond to a real execution behavior class, not an arbitrary benchmark label.
-
-## Workloads As The Stable Boundary
-
-All workflows rely on the same workload contract:
-
-- build a fresh graph
-- expose a validation target and reference
-- attach metadata about what is being measured
-
-The workload itself should stay on the public modeling surface whenever possible:
-
 - `Tensor`
-- `TensorOps`
-- public option/config types such as:
-  - `tensor.options.Conv2dOptions`
-  - `tensor.options.Pool2dOptions`
-  - `tensor.options.AttentionOptions`
-  - `tensor.loss.LossReduction`
+- `CompiledGraph`
+- `PreparedExecution`
+- backend execution
 
-This keeps workloads representative and prevents tuning code from depending on backend internals.
+## Three Distinct Workflows
 
-That boundary is the main protection against benchmark slippage.
-If workloads start depending on backend-private helpers, tuning stops measuring the real public graph-building model.
+The package currently supports three different workflows.
 
-## Persistence
+### 1. Benchmark
 
-The tuning package can persist:
+Benchmark compares an explicit list of candidates.
 
-- benchmark reports
-- tuning results
-- best-profile records
-- platform runtime profiles
-- calibration results
-- tuning history
+Typical use:
 
-Persistence is deliberately a separate concern.
-The measurement/search code should not care whether results are stored to disk or discarded.
+- compare baseline vs optimized profile
+- compare stage-order variants
+- inspect regressions with trace detail
 
-There are two important persistence categories:
+Benchmark does not search the space automatically.
 
-1. graph-level winners
-   - runnable `ExecutionProfile` results for one workload fingerprint
-2. platform-level runtime defaults
-   - reusable runtime profiles keyed by hardware/platform identity
+### 2. Per-graph autotune
 
-The preferred persisted layout is platform-versioned storage under `profiles/platform/...`.
-Legacy `build/...` fallback locations may still exist for compatibility, but they are not the preferred source of truth.
+Autotune searches for a better `ExecutionProfile` for one concrete workload.
 
-Relevant files:
+Typical use:
 
-- [tuning/store](./store)
-- [tuning/PERSISTENCE.md](./PERSISTENCE.md)
+- start from a calibrated or hand-built seed profile
+- generate candidate profiles
+- validate and measure them
+- persist the winner and search history
 
-## Reporting
+### 3. Platform calibration
 
-All major workflows have text and JSON renderers.
+Calibration searches runtime defaults that should be reused across workloads on one hardware/JDK platform.
 
-That matters because the same core session can feed:
+Typical use:
 
-- local human inspection in the terminal
-- CI artifacts
-- machine-readable comparison tools
+- tune thresholds, tiles, dispatch cutoffs, and numeric policy once per machine
+- persist a `PlatformRuntimeProfile`
+- later assemble executable profiles from that runtime profile plus graph policy
 
-Relevant files:
+## Source Of Truth
 
-- [tuning/report](./report)
-- [tuning/REPORTING.md](./REPORTING.md)
+The executable source of truth is:
 
-## Minimal Examples
+- [../config/profile/ExecutionProfile.java](../config/profile/ExecutionProfile.java)
 
-These examples are intentionally short.
-They are meant to show workflow shape, not every available option.
+That principle is crucial.
 
-### Benchmark one workload
+- benchmark measures real `ExecutionProfile` objects
+- autotune searches real `ExecutionProfile` objects
+- calibration produces `PlatformRuntimeProfile`, which is later assembled into real `ExecutionProfile` objects
 
-```java
-BenchmarkRequest request = StandardWorkloads.benchmark(
-        "matmul_small",
-        List.of(
-                BenchmarkEntry.baseline("baseline", profileA),
-                BenchmarkEntry.candidate("candidate", profileB)
-        ),
-        TuningPreset.BALANCED
-);
-```
+There should be no hidden benchmark-only execution model.
 
-### Create a convolution workload
+## Package Map
 
-```java
-WorkloadSpec spec = StandardWorkloads.conv2d(
-        "conv2d_resnet_3x3",
-        2, 64, 128, 56, 56, 3, 3,
-        tensor.options.Conv2dOptions.defaults().withPadding(1, 1),
-        true
-);
-```
+- architecture and ownership:
+  - [ARCHITECTURE.md](./ARCHITECTURE.md)
+- runtime and graph knob surface:
+  - [KNOBS.md](./KNOBS.md)
+- persistence layout:
+  - [PERSISTENCE.md](./PERSISTENCE.md)
+- reporting:
+  - [REPORTING.md](./REPORTING.md)
+- search:
+  - [SEARCH.md](./SEARCH.md)
+- workloads:
+  - [WORKLOADS.md](./WORKLOADS.md)
+- historical context:
+  - [LEGACY-BENCHMARK-REVIEW.md](./LEGACY-BENCHMARK-REVIEW.md)
 
-### Start autotune from a seed profile
+## Main Runtime Concepts
 
-```java
-AutotuneRequest request = StandardWorkloads.autotune(
-        "transformer_hot_path",
-        seedProfile,
-        candidateSpace,
-        persistencePolicy
-);
-```
+### `ExecutionProfile`
 
-## Recommended Reading Order
+This is the runnable artifact benchmarked and autotuned.
 
-If you are new to this package, read in this order:
+It contains:
 
-1. this file
-2. [tuning/WORKLOADS.md](./WORKLOADS.md)
-3. [tuning/ARCHITECTURE.md](./ARCHITECTURE.md)
-4. [tuning/KNOBS.md](./KNOBS.md)
-5. [tuning/SEARCH.md](./SEARCH.md)
-6. [tuning/PERSISTENCE.md](./PERSISTENCE.md)
+- dtype
+- execution mode
+- optimizer policy
+- runtime config
+- workload metadata
 
-That sequence goes from conceptual model to workload construction, then to deeper tuning mechanics.
+### `PlatformRuntimeProfile`
 
-## CLI Workflows In This Repository
+This is the machine-oriented runtime-default artifact produced by platform calibration.
 
-The main CLI entrypoint is:
+It contains runtime families such as:
 
-- [synaptik/app/Main.java](../synaptik/app/Main.java)
+- matmul
+- fused dispatch
+- elementwise dispatch
+- reduction
+- scheduler
+- materialization
+- numerics
+- conv2d dispatch
 
-Current commands:
+It does not contain graph stage order.
 
-```bash
-./gradlew run --args="full f64"
-./gradlew run --args="calibrate f64"
-./gradlew run --args="calibrate f64 conv2d"
-./gradlew run --args="calibrate f64 conv2d 30 100 2"
-./gradlew run --args="autotune f64"
-./gradlew run --args="benchmark-winner f64"
-./gradlew run --args="benchmark-stage-space f64"
-```
+### `GraphExecutionPolicy`
 
-What they mean today:
+This is the graph-side policy layer, effectively the optimizer configuration family.
 
-- `full`
-  - convenience flow: calibration -> autotune -> winner benchmark
-- `calibrate`
-  - platform calibration for one dtype, optionally limited to one family and one measurement override
-- `autotune`
-  - graph autotune for the built-in `abc_sequence_matmul_<dtype>` workload
-- `benchmark-winner`
-  - baseline no-opt profile vs persisted winner on the same workload
-- `benchmark-stage-space`
-  - baseline plus all generated stage-order candidates on the same workload
+It contains:
 
-Important current reality:
+- stage order
+- rewrite config
+- CSE config
+- fuse config
+- memory config
 
-- the CLI is intentionally opinionated
-- it does not expose every possible tuning configuration
-- broader experiments are still expected to use the Java API
+## Typical Flow
 
-## Recommended Operator Workflow
+For the main CLI flow:
 
-For one clean dtype bring-up:
+1. calibrate platform runtime profile
+2. assemble an execution profile seed from calibrated runtime + graph policy
+3. autotune graph-level candidates for a workload
+4. benchmark the winner against the baseline
 
-1. run `calibrate`
-2. inspect the saved platform profile and report
-3. run `autotune`
-4. inspect the best profile and history
-5. run `benchmark-winner`
+That means:
 
-Concrete example:
+- calibration and autotune are not the same thing
+- calibration mostly answers runtime questions
+- autotune mostly answers graph-policy questions
 
-```bash
-./gradlew run --args="calibrate f64 30 100 2"
-./gradlew run --args="autotune f64"
-./gradlew run --args="benchmark-winner f64"
-```
+## Example: Workload-Specific Autotune
 
-This order matters because:
+Suppose the workload is the built-in `abc_sequence_matmul_f64`.
 
-- autotune expects an existing calibration profile
-- benchmark-winner expects an existing best-profile artifact
-- running phases separately reduces JVM warmup bias compared to one `full` run
+Autotune flow:
 
-## Artifact Flow Example
+1. load calibrated runtime defaults for `FLOAT64` forward/backward
+2. create a seed `ExecutionProfile`
+3. generate candidate variants, for example different stage orders
+4. validate correctness
+5. measure compile / prepare / traced run / steady-state
+6. persist:
+   - best profile
+   - history
+   - reports
 
-For the built-in `abc` flow:
+## Example: Platform Calibration
 
-```text
-calibration -> PlatformRuntimeProfile
-platform profile + graph policy -> ExecutionProfile seed
-autotune(seed) -> best ExecutionProfile
-benchmark(baseline, best) -> explain report
-```
+Suppose you calibrate only the `matmul` family for `f64`.
 
-This is the key architecture rule:
+The calibration step may search across combinations such as:
 
-- calibration produces reusable machine defaults
-- autotune produces workload-specific runnable winners
-- benchmark compares runnable profiles without inventing new semantics
+- BLAS provider
+- BLAS min-work threshold
+- Java matmul tile sizes
+- Java microkernel variant
+- matmul parallel threshold
+
+The result is not a graph winner.
+It is a machine-specific runtime profile that future executable profiles can reuse.
+
+## Important Ownership Rules
+
+The tuning layer follows these rules:
+
+- search chooses candidates, not execution semantics
+- validation rejects numerically or semantically invalid candidates
+- measurement records timings, not correctness
+- persistence distinguishes:
+  - runtime defaults
+  - best runnable profile
+  - history
+  - explain artifacts
+
+If those layers get mixed, the system drifts.
+
+## Current Public Calibration Families
+
+The CLI currently exposes family-specific calibration steps such as:
+
+- `matmul`
+- `attention-matmul`
+- `conv2d`
+- `fused-thresholds`
+- `fused-cheap-contiguous`
+- `fused-cheap-strided`
+- `fused-noncheap-contiguous`
+- `fused-noncheap-strided`
+- `elementwise`
+- `reduction`
+- `attention-thresholds`
+- `scheduler`
+- `materialization`
+- `numerics`
+
+One enum value still exists only as reserved surface, not as a standard preset step:
+
+- `FUSED_ARITHMETIC`
+
+That should be documented as enum presence, not as an actively used standard calibration family.

@@ -2,65 +2,39 @@
 
 The tuning layer is built around one hard rule:
 
-- tuning must not create a parallel execution model next to runtime
+- tuning must never invent a second execution model outside the normal runtime stack
 
-Every benchmarked or autotuned candidate must be genuinely runnable as:
-
-- `ExecutionProfile`
-- `CompiledGraph`
-- `PreparedExecution`
-
-So tuning does not benchmark an abstract "knob set". It benchmarks and evaluates a truly executable profile.
-
-That also means the ownership split is strict:
-
-- optimizer/rewrite decides graph structure
-- `prepare(...)` resolves backend dispatch policy from the chosen runtime profile
-- executors only run the prepared recipe
-
-## Reading Guide
-
-This document describes:
-
-- how the final executable profile is assembled
-- how benchmark, autotune, and platform calibration differ
-- which layers own runtime knobs and which own graph policy
-- which calibration families exist today
-- how orchestration combines workload, measurement, validation, search, and persistence
+Every measured candidate must be a genuinely runnable profile.
 
 ## Core Artifacts
 
-You need to distinguish four artifacts:
+You should distinguish four artifacts.
 
 ### 1. `PlatformRuntimeProfile`
 
 Machine-specific runtime defaults.
 
-It contains runtime families:
+Contains runtime families such as:
 
 - matmul
-- fused
+- fused dispatch
 - elementwise dispatch
 - reduction
 - scheduler
 - materialization
+- conv2d dispatch
 - numerics
 
-It does not contain:
+Does not contain:
 
 - optimizer stage order
-- rewrite policy
-- workload-specific graph winners
+- workload-specific best graph policy
 
 ### 2. `GraphExecutionPolicy`
 
-Graph-level policy.
+Graph policy layer.
 
-Today this is effectively a wrapper around:
-
-- `OptimizerConfig`
-
-So it contains:
+Today this is effectively the optimizer configuration family:
 
 - stage order
 - rewrite config
@@ -70,237 +44,126 @@ So it contains:
 
 ### 3. `ExecutionProfile`
 
-Runnable artifact that is actually measured.
+Actual runnable artifact.
 
-It is created by assembling:
+Assembled from:
 
 - graph policy
 - runtime profile
 - dtype
 - execution mode
-- optional workload metadata
+- workload metadata
 
-### 4. Persistence / Explain Artifacts
+### 4. Persistence / explain artifacts
 
-This group includes:
+Examples:
 
 - best profile records
 - tuning history
-- platform calibration reports
-- benchmark/autotune reports
+- calibration reports
+- benchmark reports
 
-These are not direct execute contracts.
+These are not direct runtime sources of truth.
 
 ## Assembly Boundary
 
-The only correct place where the final runnable profile is assembled is:
+The correct assembly point for a final executable profile is:
 
-- [ExecutionProfileAssembler.java](../config/profile/ExecutionProfileAssembler.java)
+- [../config/profile/ExecutionProfileAssembler.java](../config/profile/ExecutionProfileAssembler.java)
 
-The assembler takes:
+This boundary matters because:
 
-- `PlatformRuntimeProfile`
-- `GraphExecutionPolicy`
-- dtype
-- execution mode
+- calibration mutates `PlatformRuntimeProfile`
+- graph autotune compares `ExecutionProfile`
+- runtime executes `ExecutionProfile`
 
-and returns:
-
-- `ExecutionProfile`
-
-That is a critical boundary:
-
-- platform calibration mutates `PlatformRuntimeProfile`
-- graph autotune mutates or selects `ExecutionProfile`
-- runtime always ultimately receives `ExecutionProfile`
-
-## Workflow Split
-
-The tuning package currently contains three separate workflows.
+## Workflow Ownership
 
 ### Benchmark
 
-Role:
+Owns:
 
-- compare explicitly provided candidates
-- show traces and hotspots
-- compute speedup versus baseline
+- explicit candidate comparison
+- measurement
+- reporting
 
-It does not do:
+Does not own:
 
-- search
-- candidate refinement
-- mutation of runtime defaults
+- candidate-space search strategy
+- platform runtime calibration
 
-Entry:
+### Autotune
 
-- [BenchmarkSession.java](./session/BenchmarkSession.java)
+Owns:
 
-### Graph Autotune
-
-Role:
-
-- select the best `ExecutionProfile` for a specific workload
-- use a search strategy
-- persist the best profile and history
-
-Entry:
-
-- [AutotuneSession.java](./session/AutotuneSession.java)
-
-### Platform Calibration
-
-Role:
-
-- tune platform runtime defaults family by family
-- persist the resulting `PlatformRuntimeProfile`
-
-Entry:
-
-- [PlatformCalibrationSession.java](./session/PlatformCalibrationSession.java)
-
-## Session Responsibilities
-
-The `session` layer is the orchestrator. It combines:
-
-- candidate generation
+- candidate-space exploration
 - validation
 - measurement
-- search
-- progress reporting
-- persistence hooks
+- winner persistence
 
-It does not handle:
+Usually mutates:
 
-- kernel execution detail
-- optimizer internals
-- workload implementation detail
+- graph-side policy
+- or explicit runtime/profile variants supplied by the candidate space
 
-## Module Split
+### Calibration
 
-### `workload`
+Owns:
 
-Defines:
+- platform-family workload selection
+- platform-family candidate spaces
+- step-by-step runtime-default search
 
-- `WorkloadSpec`
-- `WorkloadInstance`
-- workload metadata
-- standard and calibration workload catalogs
+Produces:
 
-### `candidate`
+- `PlatformRuntimeProfile`
 
-Defines:
+## Search / Measure / Validate Split
 
-- `Candidate`
-- `CandidateSpace`
-- `RefinableCandidateSpace`
-- `ExecutionProfileMutator`
+The architecture is intentionally decomposed into sublayers:
 
-### `measure`
+- `candidate`
+  - candidate generation / mutation
+- `search`
+  - ordering and bounded exploration
+- `validate`
+  - semantic/numeric correctness guardrail
+- `measure`
+  - timing policy and statistics
+- `report`
+  - explain artifacts
+- `store`
+  - persistence
+- `session`
+  - orchestration
 
-Defines:
+This split replaces the older monolithic benchmark/autotune style where one huge class tried to do everything.
 
-- `MeasurementPolicy`
-- `MeasurementEngine`
-- `MeasurementResult`
+## Why Runtime Knobs Stay Outside The Optimizer
 
-The current default measurement engine:
+The optimizer changes graph structure.
+Runtime knobs affect prepared execution policy.
 
-- compiles the graph
-- prepares execution
-- optionally performs a traced run
-- runs warmup
-- runs steady-state repeats
+Examples of graph policy:
 
-### `validate`
+- `AR -> CSE -> FUSE -> MEM`
+- piecewise lowering enabled/disabled
+- conv2d lowering mode
 
-Defines:
+Examples of runtime policy:
 
-- workload correctness checks
-- baseline/reference validation
+- matmul BLAS threshold
+- matmul microkernel
+- fused ASM width
+- reduction vector threshold
+- scheduler chunk targets
+- approximation mode
 
-### `search`
+If runtime thresholds were pushed into optimizer stages, the architecture would blur compile-time semantics with hardware/runtime policy.
 
-Handles:
+## Current Family Surface
 
-- candidate ordering
-- refinement
-- tree search
-- history-aware preference/pruning
-
-### `report`
-
-Handles:
-
-- text and JSON explain artifacts
-- suite summaries
-- candidate summaries
-- calibration/tuning result renderers
-
-### `store`
-
-Handles:
-
-- platform profile store
-- best profile store
-- history store
-- hardware/workload fingerprinting
-- path helpers
-
-## Benchmark Flow
-
-`BenchmarkSession` currently does this in practice:
-
-1. instantiate a fresh workload for each `BenchmarkEntry`
-2. run validation
-3. if validation passes, measure the candidate
-4. return `BenchmarkReport`
-
-So:
-
-- benchmark does not operate on one shared graph instance across candidates
-- each candidate gets a fresh workload instance
-
-That is correct, because compiled/prepared runtime may change graph structure and cache state.
-
-## Autotune Flow
-
-`DefaultAutotuneSession` currently does:
-
-1. create `SearchContext`
-2. let the search strategy select the initial batch
-3. validate and measure the candidates
-4. if the strategy supports refinement, continue iterating
-5. sort successful candidates by steady-state median
-6. select finalists
-7. persist history and the best profile
-
-Important:
-
-- search selects candidates
-- the session is what measures them
-- "best" currently means the lowest steady-state median
-
-## Platform Calibration Flow
-
-`DefaultPlatformCalibrationSession` proceeds family by family:
-
-1. take a seed `PlatformRuntimeProfile`
-2. create a candidate space for the first family step
-3. assemble runnable `ExecutionProfile` instances from candidates
-4. run a benchmark suite for the selected calibration workloads
-5. let the score policy choose the winner
-6. use the winning runtime profile as the seed for the next family
-7. after the last step, persist the final `PlatformRuntimeProfile`
-
-That is the key difference from graph autotune:
-
-- calibration does not search for a workload-specific winner
-- calibration searches for reusable platform defaults
-
-## Current Calibration Families
-
-The current enum is:
+The calibration enum currently contains:
 
 - `MATMUL`
 - `ATTENTION_MATMUL`
@@ -315,283 +178,47 @@ The current enum is:
 - `ATTENTION_THRESHOLDS`
 - `SCHEDULER`
 - `MATERIALIZATION`
-- `CONV2D`
+- `CONV2D_GEMM_DISPATCH_F64`
+- `CONV2D_GEMM_DISPATCH_F32`
+- `CONV2D_GEMM_DISPATCH_BF16`
 - `NUMERICS`
 
-But not all families are currently used in standard presets.
+Important current reality:
 
-### Standard Training/Inference Presets Today
+- `FUSED_ARITHMETIC` exists in the enum
+- standard `PlatformCalibrationDefaults` do not currently expose it as a normal preset step
 
-`PlatformCalibrationDefaults.standardTrainingSteps(...)` and `standardInferenceSteps(...)` currently compose mainly:
+So documentation should describe it as reserved/not-in-standard-presets, not as a commonly run family.
 
-- `MATMUL`
-- `CONV2D`
-- fused threshold and ASM width families
-- `ELEMENTWISE_DISPATCH`
-- optionally `REDUCTION`
-- optionally `ATTENTION_THRESHOLDS`
-- optionally `ATTENTION_MATMUL`
-- optionally `SCHEDULER`
-- optionally `MATERIALIZATION`
-- optionally `NUMERICS`
+## BLAS Thread Policy
 
-The important current reality:
+Current public BLAS thread policy is intentionally canonicalized to:
 
-- `FUSED_ARITHMETIC` exists in the enum, but standard presets do not use it today
-- standard presets now split convolution runtime crossover tuning by dtype:
-  - `CONV2D_GEMM_DISPATCH_F64`
-  - `CONV2D_GEMM_DISPATCH_F32`
-  - `CONV2D_GEMM_DISPATCH_BF16`
-- graph rewrite policy for convolution lowering still lives separately in `optimizer.rewrite.conv2dLowering.mode`
+- `threads = 0`
 
-The documentation needs to say this explicitly, otherwise it gives the impression that more is calibrated than actually is.
+Meaning:
 
-## Family Ownership
+- provider-managed auto behavior
+- Synaptik does not try to own global process-wide BLAS thread counts as a runtime orchestration feature
 
-Every runtime knob needs a clear owner.
+This is an architectural decision, not an accidental omission.
 
-### `MATMUL`
+## Preferred Persistence Model
 
-This family currently includes for example:
-
-- BLAS provider
-- BLAS minimum work
-- `f32RequireMgeK`
-- `f32MaxNOverK`
-- `cpu.matMulParallelMinSize`
-- microkernel selection
-- tile selection
-- attention matmul tile/microkernel selection
-
-`runtime.blas.threads` stays in the persisted/profile schema for compatibility, but the effective policy is now fixed to provider-managed auto (`0`). Candidate spaces canonicalize it to a single AUTO variant and prepared execution no longer mutates process-global BLAS thread state at run time.
-
-### `CONV2D_GEMM_DISPATCH_*`
-
-These families currently own convolution GEMM crossover knobs:
-
-- `runtime.conv2d.blasProvider`
-- `runtime.conv2d.f64MinWork`
-- `runtime.conv2d.f32MinWork`
-- `runtime.conv2d.f32RequireMgeK`
-- `runtime.conv2d.f32MaxNOverK`
-- `runtime.conv2d.bf16MinWork`
-- `runtime.conv2d.bf16RequireMgeK`
-- `runtime.conv2d.bf16MaxNOverK`
-
-The split is per dtype because `F64` only calibrates provider/min-work crossover, while `F32` and `BF16` also calibrate shape gates.
-
-### `FUSED_THRESHOLDS`
-
-This family includes:
-
-- `cpu.fusedCheapVectorMinSize`
-- `cpu.fusedTranscendentalVectorMinSize`
-- `cpu.fusedCheapParallelMinSize`
-- `cpu.fusedTranscendentalParallelMinSize`
-
-### Fused ASM Width Families
-
-These families own width knobs for specific dispatch families:
-
-- cheap contiguous
-- cheap strided
-- non-cheap contiguous
-- non-cheap strided
-
-These are no longer just "internal experimental variables". They are part of the platform calibration surface.
-
-### `ELEMENTWISE_DISPATCH`
-
-This family owns non-fused elementwise thresholds:
-
-- cheap vector
-- transcendental vector
-- cheap parallel
-- transcendental parallel
-
-### `REDUCTION`
-
-This family owns:
-
-- reduction vector threshold
-- reduction parallel threshold
-- attention vector threshold
-- attention parallel threshold
-- `sumAccuracyMode`
-
-### `SCHEDULER`
-
-This family owns:
-
-- target chunks per worker
-- minimum chunk sizes
-- common pool threshold
-
-### `MATERIALIZATION`
-
-This family owns:
-
-- `cpu.contiguousMaterializeThreshold`
-
-### `NUMERICS`
-
-This family owns:
-
-- `approxMode`
-- `forceExactTranscendentals`
-
-### `GRAPH_POLICY`
-
-This group owns:
-
-- optimizer stage order
-- rewrite configs
-- conv2d lowering mode
-
-But this is not `PlatformRuntimeProfile`. This is `GraphExecutionPolicy`.
-
-## Search And Calibration Are Different
-
-This is one of the most common sources of confusion:
-
-- calibration candidate space generates `PlatformRuntimeProfile` mutations
-- autotune candidate space generates `ExecutionProfile` variants
-
-The first is reusable across workloads.
-The second is workload-specific search.
-
-## Score Policy
-
-Platform calibration uses an explicit score policy per step.
-
-Common choices today:
-
-- `averageMedianMs()`
-- `weightedGeometricMeanWithWorstBucketPenalty(alpha)`
-
-This matters especially for attention families, where one workload bucket should not dominate completely, while a weak worst-case bucket should still be penalized.
-
-## Tracing Boundary
-
-Trace data is generated by the execution layer.
-
-Tuning only consumes it through:
-
-- compile trace
-- prepare trace
-- run trace
-- step trace metadata
-
-That means:
-
-- a tuning report can say that a candidate ran with `vectorWidth=4`
-- but tuning does not compute that itself, it only reads the trace from runtime
-
-## Persistence Boundary
-
-Persistence is also split by workflow:
-
-- platform calibration persists `PlatformRuntimeProfile`
-- autotune persists the best `ExecutionProfile`
-- history persists candidate-level evidence
-- reports persist explain artifacts
-
-More in:
-
-- [PERSISTENCE.md](./PERSISTENCE.md)
-
-## Example: Assemble Executable From Platform Defaults
-
-```java
-ExecutionProfile profile = ExecutionProfileAssembler.assemble(
-        "abc-f64",
-        "abc-f64",
-        DataType.FLOAT64,
-        ExecutionMode.FORWARD_BACKWARD,
-        platformRuntimeProfile,
-        GraphExecutionPolicy.trainingDefaults()
-);
-```
-
-This is the final artifact that goes into a benchmark or an application run.
-
-## Example: Platform Calibration Vs Autotune
-
-Platform calibration:
-
-- takes a training/inference seed
-- mutates runtime defaults
-- returns `PlatformRuntimeProfile`
-
-Autotune:
-
-- takes a workload
-- takes a seed profile
-- searches candidate `ExecutionProfile` variants
-- returns the best executable profile for that workload
-
-## Common Mistakes
-
-- mixing runtime knobs and optimizer policy into one profile without clear ownership
-- treating a platform calibration winner as a graph-specific best profile
-- benchmarking candidates that are not truly runnable `ExecutionProfile` instances
-- storing explain artifacts as the execute source of truth
-
-## Related Docs
-
-- overview: [README.md](./README.md)
-- workloads: [WORKLOADS.md](./WORKLOADS.md)
-- knobs: [KNOBS.md](./KNOBS.md)
-- persistence: [PERSISTENCE.md](./PERSISTENCE.md)
-- search: [SEARCH.md](./SEARCH.md)
-- reporting: [REPORTING.md](./REPORTING.md)
-
-## End-To-End Example
-
-For the built-in `abc` workflow in this repository, the architecture is:
-
-1. calibration produces a `PlatformRuntimeProfile`
-2. `ExecutionProfileAssembler` merges it with graph policy
-3. autotune searches candidate `ExecutionProfile` variants
-4. benchmark measures baseline vs winner on fresh workload instances
-
-Conceptually:
+The preferred persistent layout is:
 
 ```text
-PlatformRuntimeProfile
-    + GraphExecutionPolicy
-    + dtype/mode/workload metadata
-    -> ExecutionProfile
-    -> compile()
-    -> prepare()
-    -> run()
+profiles/platform/<platform-id>/...
 ```
 
-This is the key architectural boundary:
+That makes calibration and autotune artifacts versionable together with the repository if desired, while still preserving compatibility fallbacks from older `build/...` locations.
 
-- tuning may choose profiles
-- compile/prepare resolve execution recipes from those profiles
-- executors only run the prepared recipe
+## Architectural Anti-Patterns To Avoid
 
-## Ownership Checklist
+These should not return under a new name:
 
-When adding a new decision, ask:
-
-### Does it change graph semantics or graph shape?
-
-Then it belongs to:
-
-- graph policy
-- optimizer config
-- graph autotune candidate spaces
-
-### Does it change runtime crossover or backend selection within an already prepared family?
-
-Then it belongs to:
-
-- `PlatformRuntimeProfile`
-- platform calibration
-
-### Does it only affect how the prepared recipe executes one step?
-
-Then it belongs below tuning, inside compile/prepare/runtime, not in the tuning API itself
+- benchmark-only execution models
+- hidden candidate abstractions that runtime never executes
+- reports acting as runtime source of truth
+- executor-owned tuning policy that bypasses compile/prepare boundaries
+- global mutable runtime side effects treated as profile-local state

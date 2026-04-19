@@ -1,82 +1,82 @@
 # MEM Stage
 
-`MEM` is the graph-level memory planning and buffer reuse stage.
+`MEM` is the graph-level memory planning and reuse stage.
 
-Its purpose is to analyze tensor lifetimes in the already optimized graph and reduce allocation pressure by:
+It runs after structural graph shape is already finalized.
+Its job is to reduce allocation pressure by:
 
-- aliasing view-like tensors to their storage owners
-- assigning reusable temporaries to shared storage slots
-- allocating fresh buffers only when reuse is not allowed or not possible
+- aliasing view-like tensors to storage owners
+- reusing temporary buffers where lifetimes do not overlap
+- keeping required forward/backward values alive when needed
 
 ## Entry Points
 
-- rule: [rules/MemoryOptimizerRule.java](./rules/MemoryOptimizerRule.java)
-- planner: [memory/MemoryPlanner.java](./memory/MemoryPlanner.java)
-- plan model: [memory/MemoryPlan.java](./memory/MemoryPlan.java)
-- policy: [memory/MemoryPlannerPolicy.java](./memory/MemoryPlannerPolicy.java)
+- rule:
+  - [rules/MemoryOptimizerRule.java](./rules/MemoryOptimizerRule.java)
+- planner:
+  - [memory/MemoryPlanner.java](./memory/MemoryPlanner.java)
+- plan model:
+  - [memory/MemoryPlan.java](./memory/MemoryPlan.java)
+  - [memory/MemoryPlanSummary.java](./memory/MemoryPlanSummary.java)
+- policy:
+  - [memory/MemoryPlannerPolicy.java](./memory/MemoryPlannerPolicy.java)
 
-## Activation And Scope
+## Activation
 
-The stage is globally gated by the system property:
+The stage is gated by:
 
 ```text
 cg.optimizer.enableMemoryReuse
 ```
 
-If that property is false, the stage is a no-op.
+If that system property is `false`, the stage is a no-op.
 
-The stage also bails out early when:
+## Current Scope
 
-- the graph is null or empty
-- the graph contains mixed dtypes
-- the graph dtype is `BFLOAT16`
-- the graph dtype is `INT32`
-- the graph dtype is `BOOL`
-
-So today the rule only applies to uniform:
+Today the rule runs only for uniform graphs of dtype:
 
 - `FLOAT64`
 - `FLOAT32`
 
-graphs.
+It bails out for:
+
+- mixed-dtype graphs
+- `BFLOAT16`
+- `INT32`
+- `BOOL`
 
 ## High-Level Split
 
-The implementation is split into two parts:
+The implementation is split into:
 
-1. `MemoryPlanner.plan(...)`
-   - pure planning
-   - computes lifetimes, reusable intervals, slot assignment, and summary metrics
-2. `MemoryOptimizerRule.apply(...)`
-   - materializes the plan onto actual tensor runtime storage
+1. planning
+   - pure analysis in `MemoryPlanner.plan(...)`
+2. application
+   - actual runtime-buffer assignment in `MemoryOptimizerRule.apply(...)`
 
-That split is useful because the same plan can be inspected and debugged independently of execution.
+That split is useful because the plan can be inspected independently of the buffer mutation step.
 
-## Step 1: Forward Boundary Detection
+## Step 1: Find The Forward Boundary
 
-The planner first determines where forward ends and backward begins.
+The planner needs to distinguish forward and backward lifetime regions.
 
 Current rule:
 
-- scan from the end of the graph
-- find the last `NOOP` whose label equals `Tensor.SYSTEM_FORWARD_OUTPUT_LABEL`
+- scan the graph from the end
+- find the last `NOOP` labeled `Tensor.SYSTEM_FORWARD_OUTPUT_LABEL`
 - use its index as the forward boundary
-- if no such tensor exists, treat the entire graph as one phase
+- if none is found, treat the whole graph as one phase
 
-This boundary is later used for:
+This matters because some forward values must stay alive across the forward/backward boundary.
 
-- deciding whether a forward tensor must be saved for backward
-- separating forward and backward slot pools when policy requires it
+## Step 2: Resolve Storage Owners
 
-## Step 2: Storage Owner Resolution
+Not every tensor owns its own storage.
+Some tensors are views or aliases.
 
-Not every tensor owns storage. Some tensors are views or aliases.
+Current alias-at-runtime rules:
 
-The planner resolves a `storageOwner` for every tensor.
-
-Current aliasing rules:
-
-- always alias input 0 at runtime for:
+- always alias input 0 for:
   - `NOOP`
   - `EXPAND`
   - `SELECT`
@@ -85,32 +85,26 @@ Current aliasing rules:
   - `SQUEEZE`
 - `RESHAPE` aliases input 0 only if the input is contiguous
 
-Everything else owns its own storage by default.
+Everything else owns storage by default.
 
-This is why the plan is owner-based rather than tensor-based.
+So the memory planner works in terms of storage owners, not merely tensor identities.
 
-## Step 3: Consumer Tracking
+## Step 3: Track Consumers And Last Reads
 
-The planner computes, for each storage owner:
+For each storage owner the planner computes:
 
-- how many times it is consumed
-- the index of its last read
-- whether a forward owner is used again from the backward side
+- consumer count
+- last read index
+- whether the owner is needed again from backward
 
-If an owner has no consumers at all, its `lastReadIndex` is set to `Integer.MAX_VALUE`.
+If a storage owner has no consumers, its `lastReadIndex` is treated as `Integer.MAX_VALUE`.
+That intentionally keeps true outputs alive to the end.
 
-That is deliberate. It means consumer-free results are treated as live until the end, which prevents incorrect reuse of true outputs.
+## Step 4: Assign Memory Roles
 
-## Step 4: Role Assignment
+Each tensor receives one role.
 
-Every tensor receives a `NodeLifetime`:
-
-- `birthIndex`
-- `lastReadIndex`
-- `role`
-- `storageOwner`
-
-Current roles are:
+Current roles:
 
 - `LEAF`
 - `FORWARD_TEMP`
@@ -119,94 +113,103 @@ Current roles are:
 - `BACKWARD_TEMP`
 - `VIEW_ALIAS`
 
-Role assignment rules:
+Interpretation:
 
-- alias views -> `VIEW_ALIAS`
-- tensors referenced as some other tensor's `.getGradient()` -> `GRADIENT_TARGET`
-- forward owners that are consumed from backward -> `SAVED_FORWARD`
-- backward tensors -> `BACKWARD_TEMP`
-- other computed forward tensors -> `FORWARD_TEMP`
-- tensors with no op -> `LEAF`
+- `LEAF`
+  - original input/parameter style tensors
+- `FORWARD_TEMP`
+  - forward-only temporary
+- `SAVED_FORWARD`
+  - forward value that must survive into backward
+- `GRADIENT_TARGET`
+  - tensor used as a gradient publication target
+- `BACKWARD_TEMP`
+  - backward-only temporary
+- `VIEW_ALIAS`
+  - does not own runtime storage
 
-## Step 5: Reusable Interval Selection
+## Step 5: Build Reusable Intervals
 
-Not every owner becomes reusable.
+Only some owners become reusable intervals.
 
-An owner is eligible for a `ReusableInterval` only if:
+Current eligibility:
 
-- it is its own storage owner
-- its role is one of:
+- tensor is its own storage owner
+- role is one of:
   - `FORWARD_TEMP`
   - `BACKWARD_TEMP`
   - `SAVED_FORWARD`
-- its flat size is at least `policy.minReusableBufferSize()`
+- flat size is at least `policy.minReusableBufferSize()`
 
-This is intentionally conservative:
+This is conservative by design.
 
-- leafs are not pooled
-- alias views do not get their own slots
-- gradient targets are not pooled here
-
-## Step 6: Slot Assignment
+## Step 6: Assign Slots
 
 Reusable intervals are sorted by:
 
 1. `birthIndex`
 2. `lastReadIndex`
 
-Then the planner walks them in order.
+Then slot assignment proceeds greedily:
 
-For each interval:
+1. release expired active slots
+2. choose the smallest compatible free slot
+3. if none exists, allocate a new slot id
+4. assign the chosen slot to the interval owner
 
-1. release all active slots whose `lastReadIndex < currentBirth`
-2. choose the best compatible free slot
-3. if no compatible slot exists, create a new slot
-4. record slot ownership for the interval's storage owner
-
-### Slot Compatibility Rules
+### Compatibility rules
 
 A free slot is compatible only if:
 
 - dtype matches
-- if `separateForwardBackwardPools == true`, phase must match
-- if `allowLargerBufferReuse == false`, slot size must equal interval size
-- if `allowLargerBufferReuse == true`, slot size must be at least interval size
+- forward/backward pool policy allows phase sharing
+- size policy allows equal-size or larger-buffer reuse
 
-Among compatible slots, the planner chooses the smallest fitting one.
+Intervals with role `SAVED_FORWARD` are treated as `"shared"` for phase compatibility.
 
-### Phase Model
+## Step 7: Apply The Plan
 
-Current phase labels are:
+The rule then mutates runtime data assignment.
 
-- `forward`
-- `backward`
-- `shared`
+### View aliases
 
-Intervals with role `SAVED_FORWARD` are treated as `shared`.
+If a tensor is `VIEW_ALIAS`, runtime storage is aliased from the resolved storage owner.
 
-Important current implementation detail:
+### Slotted owners
 
-- `MemoryPlannerPolicy` contains `allowCrossPhaseReuse`
-- but the slot chooser does not branch on that flag directly
-- effective cross-phase behavior is currently controlled by `separateForwardBackwardPools`
+If an owner has a slot:
 
-So today the practical behavior is:
+- the slot buffer is allocated lazily
+- the whole slot buffer is zero-filled
+- the tensor is assigned that reused buffer
 
-- if pools are separated, forward and backward slots do not mix except through `shared`
-- if pools are not separated, cross-phase reuse is effectively allowed as long as other constraints match
+### Non-slotted owners
 
-That is the current code behavior and should be kept in mind when tuning policy.
+If no slot is assigned:
 
-## Step 7: Summary Metrics
+- the tensor receives a fresh dense buffer of its flat size
 
-The planner computes a `MemoryPlanSummary` with metrics such as:
+## Why Reused Buffers Are Zero-Filled
 
-- reusable interval count
+The current implementation explicitly zero-fills reused slot buffers before assignment.
+
+This is conservative but safe:
+
+- it avoids stale-data bleed between logically unrelated tensors
+- it keeps semantics straightforward during debugging
+
+It is not necessarily the globally cheapest possible policy, but it is the current correct one.
+
+## Summary Metrics
+
+`MemoryPlanSummary` exposes metrics such as:
+
+- interval count
 - slot count
 - reuse count
 - reuse hit rate
 - allocated slot bytes
-- peak live bytes
+- peak total live bytes
 - peak reusable bytes
 - peak saved-forward bytes
 - peak gradient-target bytes
@@ -216,169 +219,41 @@ The planner computes a `MemoryPlanSummary` with metrics such as:
 - gradient-target count
 - average saved-forward hold distance
 
-These are useful when validating whether a memory optimization change actually improved the plan.
+Those metrics are the right place to look when evaluating a memory-reuse change.
 
-## Applying The Plan
+## Worked Example
 
-`MemoryOptimizerRule` applies the plan separately for:
-
-- `FLOAT64`
-- `FLOAT32`
-
-The logic is the same, only the backing array type changes.
-
-### For view aliases
-
-If `lifetime.role() == VIEW_ALIAS`, runtime storage is aliased via:
+Suppose a forward graph has these simplified temporaries:
 
 ```text
-tensor.aliasRuntimeFrom(lifetime.storageOwner())
-```
-
-### For slotted owners
-
-If the tensor's owner has a slot:
-
-1. fetch or lazily allocate the slot buffer
-2. zero-fill the whole buffer
-3. assign that buffer to the tensor
-
-This happens through:
-
-- `double[]` buffers for `FLOAT64`
-- `float[]` buffers for `FLOAT32`
-
-### For non-slotted owners
-
-If no slot is assigned, the rule allocates a fresh dense array of the tensor's flat size.
-
-## Why Zero-Fill Happens
-
-The rule explicitly fills reused slot buffers with zeros before assignment.
-
-This is conservative but correct:
-
-- it avoids stale data when a kernel does not overwrite every position
-- it makes alias/reuse bugs easier to reason about
-
-The cost is extra memory bandwidth, so it is a correctness-first choice.
-
-## Debugging Hooks
-
-`MemoryOptimizerRule` exposes the most recent plan statically:
-
-- `lastPlan()`
-- `lastExplain()`
-- `lastSummary()`
-
-`MemoryPlan.explain()` prints:
-
-- plan summary
-- slot assignment by slot id
-- per-node assignment
-- saved forward values
-
-This is the first thing to inspect when reuse behavior looks suspicious.
-
-## Example
-
-Consider a simple forward-only chain:
-
-```text
-t1 = add(x, y)
-t2 = relu(t1)
-t3 = mul(t2, z)
+t1 = a.add(b)
+t2 = t1.relu()
+t3 = t2.mul(c)
 ```
 
 If:
 
-- `t1` is no longer needed after `t2`
-- `t2` is no longer needed after `t3`
-- shapes and dtypes match
+- `t1` is dead after `t2`
+- `t2` is dead after `t3`
+- sizes and dtype match
 
-then `t1` and `t2` may share the same slot across time.
+then `MEM` may place `t1` and `t2` into the same reusable slot because their live intervals do not overlap.
 
 Conceptually:
 
-```text
-slot 0:
-  [t1 live ........]
-             [t2 live ........]
-```
+- slot 0:
+  - first holds `t1`
+  - later reuses the same buffer for `t2`
 
-The tensors remain distinct graph nodes, but their runtime backing storage is reused.
+That reduces allocation count without changing graph semantics.
 
-## Important Limits
+## What MEM Does Not Do
 
-- the stage only works on uniform `FLOAT32` or `FLOAT64` graphs
-- it does not currently reuse `BFLOAT16`, `INT32`, or `BOOL`
-- it does not pool gradient targets
-- reuse is shape-size based, not semantic
-- zero-fill can trade some raw speed for safety
+`MEM` does not:
 
-## Practical Meaning
+- change graph formulas
+- decide optimizer stage order
+- decide runtime vector widths
+- choose BLAS thresholds
 
-`MEM` is the stage that turns a graph from "allocate a fresh dense array for almost everything" into "reuse storage where lifetime analysis proves it is safe".
-
-If you are debugging unexpected peak memory or trying to understand why a temporary still allocates fresh storage, this is the stage to inspect first.
-
-## Concrete Reuse Example
-
-Consider:
-
-```text
-t1 = add(x, y)
-t2 = relu(t1)
-t3 = mul(t2, z)
-t4 = exp(t3)
-```
-
-If all tensors share dtype/size and each one dies before the next becomes live, the plan may reuse one slot sequentially:
-
-```text
-slot 0 -> t1
-slot 0 -> t2
-slot 0 -> t3
-slot 0 -> t4
-```
-
-The nodes stay distinct.
-Only their runtime backing storage is reused.
-
-## Saved-Forward Example
-
-Now consider:
-
-```text
-f1 = linear(x, w, b)
-f2 = relu(f1)
-loss = sum(f2)
-g1 = backward helper that still needs f2
-```
-
-`f2` may become `SAVED_FORWARD` instead of a short-lived forward temp.
-That means the planner keeps it alive across the forward/backward boundary instead of reusing its storage too early.
-
-## Practical Interpretation Of Summary Metrics
-
-Useful heuristics when reading `MemoryPlanSummary`:
-
-- high `reuseHitRate`
-  - many eligible intervals successfully shared storage
-- high `savedForwardCount`
-  - backward is forcing many forward activations to stay live
-- high `peakSavedForwardBytes`
-  - saved activations dominate memory pressure
-- many intervals but low reuse
-  - sizes, phases, or lifetime overlap are blocking reuse
-
-## Debug Checklist
-
-If a tensor did not reuse storage and you expected it to:
-
-1. confirm the graph is uniform `FLOAT32` or `FLOAT64`
-2. check whether it is a true owner or only a view alias
-3. check whether it became `SAVED_FORWARD` or `GRADIENT_TARGET`
-4. check whether its size passed `minReusableBufferSize`
-5. check whether another overlapping lifetime occupied the slot
-6. check whether phase separation blocked reuse
+It only plans and applies storage reuse over the already optimized graph.
