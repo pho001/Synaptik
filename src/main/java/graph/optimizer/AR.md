@@ -781,3 +781,80 @@ Everything else remains on the regular `conv2d` primitive.
 - optional lowering of `conv2d` into `conv2dGemm`
 
 If a new pattern is semantically recognizable in the graph and should become a stable backend primitive, `AR` is usually the first place to consider.
+
+## Real Before/After Walkthroughs
+
+### Example 1: linear plus softmax backward cleanup
+
+Before:
+
+```text
+z1 = matmul(x, w)
+z2 = add(z1, b)
+z3 = softmax(z2, -1)
+z4 = mul(outGrad, z3)
+z5 = sum(z4, -1, keepDims = true)
+z6 = sub(outGrad, z5)
+z7 = mul(z3, z6)
+```
+
+After `AR`:
+
+```text
+z2 = linear(x, w, b)
+z3 = softmax(z2, -1)
+z7 = softmaxGrad(z3, outGrad, -1)
+```
+
+This is the intended style of improvement:
+
+- keep semantics
+- simplify the graph
+- expose stable backend-friendly primitives
+
+### Example 2: decomposed indexed cross entropy
+
+Before:
+
+```text
+z1 = logSoftmax(logits, classDim)
+z2 = gather(z1, targetIndices, classDim)
+z3 = neg(z2)
+z4 = mean(z3, -1)
+```
+
+After `AR`:
+
+```text
+z4 = crossEntropyLossIndices(logits, targetIndices, classDim, MEAN)
+```
+
+## What AR Intentionally Does Not Do
+
+`AR` should not:
+
+- choose vector width
+- choose parallel chunk sizes
+- choose Java vs BLAS dispatch
+- fuse long elementwise chains as a runtime tactic
+- become a general symbolic theorem prover
+
+That boundary is deliberate.
+If a transformation depends on hardware/runtime economics rather than graph semantics, it belongs later.
+
+## How To Debug A Missing Rewrite
+
+When a rewrite does not trigger, check these in order:
+
+1. the stage order really contains `AR`
+2. the relevant rewrite family is enabled
+3. the pattern matches the implemented operand order and shape preconditions
+4. the graph is already in the canonical form the matcher expects
+5. the node is in the expected phase
+
+In practice, most misses come from small structural differences such as:
+
+- an unexpected broadcast wrapper
+- a different reduction axis or `keepDims`
+- a constant represented differently from what the matcher accepts
+- a graph that is semantically equivalent but not yet canonicalized

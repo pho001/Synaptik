@@ -109,7 +109,7 @@ This is important because it prevents a split-brain design:
 - autotune winners are real execution profiles
 - calibration results are assembled into real execution profiles
 
-No hidden “tuning-only runtime mode” should exist.
+No hidden "tuning-only runtime mode" should exist.
 
 ## Policy Split
 
@@ -346,7 +346,7 @@ Why the split exists:
 - materialization heuristics need non-contiguous probe workloads
 - numerics choices may trade speed against approximation policy
 
-This is better than one monolithic “CPU tuning” bucket.
+This is better than one monolithic "CPU tuning" bucket.
 
 A family is the unit where platform calibration is allowed to generalize.
 That means a family should correspond to a real execution behavior class, not an arbitrary benchmark label.
@@ -470,3 +470,81 @@ If you are new to this package, read in this order:
 6. [tuning/PERSISTENCE.md](./PERSISTENCE.md)
 
 That sequence goes from conceptual model to workload construction, then to deeper tuning mechanics.
+
+## CLI Workflows In This Repository
+
+The main CLI entrypoint is:
+
+- [synaptik/app/Main.java](../synaptik/app/Main.java)
+
+Current commands:
+
+```bash
+./gradlew run --args="full f64"
+./gradlew run --args="calibrate f64"
+./gradlew run --args="calibrate f64 conv2d"
+./gradlew run --args="calibrate f64 conv2d 30 100 2"
+./gradlew run --args="autotune f64"
+./gradlew run --args="benchmark-winner f64"
+./gradlew run --args="benchmark-stage-space f64"
+```
+
+What they mean today:
+
+- `full`
+  - convenience flow: calibration -> autotune -> winner benchmark
+- `calibrate`
+  - platform calibration for one dtype, optionally limited to one family and one measurement override
+- `autotune`
+  - graph autotune for the built-in `abc_sequence_matmul_<dtype>` workload
+- `benchmark-winner`
+  - baseline no-opt profile vs persisted winner on the same workload
+- `benchmark-stage-space`
+  - baseline plus all generated stage-order candidates on the same workload
+
+Important current reality:
+
+- the CLI is intentionally opinionated
+- it does not expose every possible tuning configuration
+- broader experiments are still expected to use the Java API
+
+## Recommended Operator Workflow
+
+For one clean dtype bring-up:
+
+1. run `calibrate`
+2. inspect the saved platform profile and report
+3. run `autotune`
+4. inspect the best profile and history
+5. run `benchmark-winner`
+
+Concrete example:
+
+```bash
+./gradlew run --args="calibrate f64 30 100 2"
+./gradlew run --args="autotune f64"
+./gradlew run --args="benchmark-winner f64"
+```
+
+This order matters because:
+
+- autotune expects an existing calibration profile
+- benchmark-winner expects an existing best-profile artifact
+- running phases separately reduces JVM warmup bias compared to one `full` run
+
+## Artifact Flow Example
+
+For the built-in `abc` flow:
+
+```text
+calibration -> PlatformRuntimeProfile
+platform profile + graph policy -> ExecutionProfile seed
+autotune(seed) -> best ExecutionProfile
+benchmark(baseline, best) -> explain report
+```
+
+This is the key architecture rule:
+
+- calibration produces reusable machine defaults
+- autotune produces workload-specific runnable winners
+- benchmark compares runnable profiles without inventing new semantics

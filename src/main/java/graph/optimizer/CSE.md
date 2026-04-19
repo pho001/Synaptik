@@ -280,3 +280,69 @@ The scalar leaves may share the same scalar-leaf signature.
 - earlier rewrites produced repeated structured subexpressions
 
 If two nodes look visually identical in the graph and you expect them to share storage and execution, `CSE` is the first place to inspect.
+
+## Realistic Before/After Example
+
+A common backward-style pattern is repeated helper work:
+
+```text
+t1 = sub(outGrad, mean(outGrad, -1, keepDims = true))
+t2 = mul(t1, inv(std))
+t3 = sub(outGrad, mean(outGrad, -1, keepDims = true))
+t4 = mul(t3, inv(std))
+```
+
+After `CSE`, this can become conceptually:
+
+```text
+t1 = sub(outGrad, mean(outGrad, -1, keepDims = true))
+t2 = inv(std)
+t3 = mul(t1, t2)
+t4 = mul(t1, t2)
+```
+
+That matters because fewer repeated graph nodes means:
+
+- fewer executions
+- fewer temporaries
+- more opportunity for later fusion and memory reuse
+
+## Why Structural Equality Stays Strict
+
+These two merge:
+
+```text
+add(x, y)
+add(y, x)
+```
+
+because `ADD` is explicitly handled as commutative.
+
+These do not merge until earlier canonicalization rewrites them:
+
+```text
+sub(x, neg(y))
+add(x, y)
+```
+
+That division of labor is intentional:
+
+- `AR` canonicalizes
+- `CSE` deduplicates
+
+## Debug Checklist
+
+If you expected a merge and it did not happen, inspect:
+
+1. whether `AR` ran before `CSE`
+2. whether the two subgraphs are structurally identical after canonicalization
+3. whether `strictSafety` is enabled
+4. whether one of the differing inputs is a distinct leaf by identity
+5. whether an op parameter differs subtly but materially
+
+Typical subtle blockers:
+
+- different reduction axes
+- different `keepDims`
+- `linear(..., hasBias=true)` vs no bias
+- same values but different trainable leaves

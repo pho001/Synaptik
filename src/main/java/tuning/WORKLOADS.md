@@ -143,9 +143,9 @@ In practice that means:
 - autotune passes candidate profiles produced by the search space
 - calibration assembles temporary execution profiles from runtime-profile candidates
 
-From the workload’s point of view, the contract stays stable:
+From the workload's point of view, the contract stays stable:
 
-- “build the graph for this profile”
+- "build the graph for this profile"
 
 What workloads may depend on from the profile:
 
@@ -349,8 +349,8 @@ They are allowed to be synthetic as long as they isolate a real execution family
 
 This split exists because calibration and benchmark solve different problems:
 
-- benchmark should answer “which candidate is faster on this real workload?”
-- calibration should answer “which runtime defaults are best for this execution family on this machine?”
+- benchmark should answer "which candidate is faster on this real workload?"
+- calibration should answer "which runtime defaults are best for this execution family on this machine?"
 
 ## Synthetic Probes vs Real Workloads
 
@@ -450,3 +450,66 @@ Use:
 
 The most important thing is not the class name.
 It is whether the workload is honest about what it measures.
+
+## Built-In Catalog Today
+
+`StandardWorkloads.defaultCatalog()` currently registers:
+
+- `matmul_small`
+- `matmul_batched_attention_like`
+- `abc_sequence_matmul_small`
+- `conv2d_resnet_3x3`
+- `mlp_classifier_small`
+- `mlp_classifier_blas_heavy`
+- `layer_norm_small`
+- `max_pool2d_small`
+- `cross_entropy_small`
+- `transformer_hot_path`
+
+This mix is intentional.
+It covers:
+
+- isolated probes
+- composed hot paths
+- application-like training graphs
+
+## Why Scalarized Roots Are Common
+
+Many workloads end with `sum(...)` or another scalar reduction.
+That is not because the workload only cares about reductions.
+It is a practical way to:
+
+- force the whole graph to run
+- give the benchmark one clear sink
+- keep forward/backward behavior stable across candidates
+
+The validation target can still point at a richer intermediate tensor.
+
+## Workload Design Guidelines
+
+Good workloads are:
+
+- deterministic
+- built from the public tensor surface
+- explicit about shapes and options
+- focused on one clear performance question
+
+Bad workloads are:
+
+- backend-private shortcuts
+- reused graph instances across candidates
+- giant synthetic graphs with no clear diagnostic value
+
+## Choosing The Right Workload Type
+
+Use isolated probes when:
+
+- calibrating thresholds
+- comparing microkernels
+- measuring one family in isolation
+
+Use composed scenarios when:
+
+- measuring optimizer/runtime interaction
+- validating fused or lowered hot paths
+- searching workload-specific best profiles

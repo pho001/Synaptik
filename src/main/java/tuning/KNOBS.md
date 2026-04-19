@@ -450,3 +450,87 @@ The result is again a normal `ExecutionProfile`.
 - architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
 - search: [SEARCH.md](./SEARCH.md)
 - persistence: [PERSISTENCE.md](./PERSISTENCE.md)
+
+## How To Read A Knob
+
+Every knob should be read through three questions:
+
+1. who owns it?
+2. what decision does it control?
+3. which workflow searches it?
+
+Example:
+
+- `cpu.fusedCheapVectorMinSize`
+  - owner: `FUSED_THRESHOLDS`
+  - decision: when cheap fused kernels become eligible for vector execution
+  - searched by: platform calibration
+
+Example:
+
+- `optimizer.stageOrder`
+  - owner: graph policy
+  - decision: which optimizer stages run, and in which order
+  - searched by: graph autotune, not platform calibration
+
+## Practical Knob Categories
+
+### Threshold knobs
+
+These answer:
+
+- "from what size does this tactic become worthwhile?"
+
+Examples:
+
+- vector thresholds
+- parallel thresholds
+- BLAS minimum work
+- materialization thresholds
+
+### Shape-gate knobs
+
+These answer:
+
+- "for this shape family, should the aggressive path even be considered?"
+
+Examples:
+
+- `runtime.blas.f32RequireMgeK`
+- `runtime.blas.f32MaxNOverK`
+- `runtime.conv2d.f32RequireMgeK`
+- `runtime.conv2d.f32MaxNOverK`
+
+### Structural selection knobs
+
+These choose among several runtime implementations of the same primitive.
+
+Examples:
+
+- matmul microkernel
+- matmul tiles
+- attention matmul tiles
+- approximation mode
+
+## Example: BLAS Crossover
+
+This runtime choice is driven mainly by:
+
+- `runtime.blas.provider`
+- `runtime.blas.matmulMinWork`
+- `runtime.blas.f32RequireMgeK`
+- `runtime.blas.f32MaxNOverK`
+
+Interpretation example:
+
+```text
+provider = OPENBLAS_FFM
+matmulMinWork = 2_000_000
+f32RequireMgeK = true
+f32MaxNOverK = 3.0
+```
+
+Meaning:
+
+- BLAS is only eligible once work reaches `2_000_000`
+- for `FLOAT32`, very wide-but-shallow shapes may still be rejected by the shape gates

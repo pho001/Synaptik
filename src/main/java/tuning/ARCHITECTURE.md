@@ -545,3 +545,53 @@ Autotune:
 - persistence: [PERSISTENCE.md](./PERSISTENCE.md)
 - search: [SEARCH.md](./SEARCH.md)
 - reporting: [REPORTING.md](./REPORTING.md)
+
+## End-To-End Example
+
+For the built-in `abc` workflow in this repository, the architecture is:
+
+1. calibration produces a `PlatformRuntimeProfile`
+2. `ExecutionProfileAssembler` merges it with graph policy
+3. autotune searches candidate `ExecutionProfile` variants
+4. benchmark measures baseline vs winner on fresh workload instances
+
+Conceptually:
+
+```text
+PlatformRuntimeProfile
+    + GraphExecutionPolicy
+    + dtype/mode/workload metadata
+    -> ExecutionProfile
+    -> compile()
+    -> prepare()
+    -> run()
+```
+
+This is the key architectural boundary:
+
+- tuning may choose profiles
+- compile/prepare resolve execution recipes from those profiles
+- executors only run the prepared recipe
+
+## Ownership Checklist
+
+When adding a new decision, ask:
+
+### Does it change graph semantics or graph shape?
+
+Then it belongs to:
+
+- graph policy
+- optimizer config
+- graph autotune candidate spaces
+
+### Does it change runtime crossover or backend selection within an already prepared family?
+
+Then it belongs to:
+
+- `PlatformRuntimeProfile`
+- platform calibration
+
+### Does it only affect how the prepared recipe executes one step?
+
+Then it belongs below tuning, inside compile/prepare/runtime, not in the tuning API itself

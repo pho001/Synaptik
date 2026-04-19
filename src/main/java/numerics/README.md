@@ -330,3 +330,63 @@ Do not turn this into:
 
 - graph: [../graph/README.md](../graph/README.md)
 - tuning: [../tuning/README.md](../tuning/README.md)
+
+## Practical Comparison Recipes
+
+### Rewrite-only safety check
+
+Use:
+
+```bash
+java --add-modules jdk.incubator.vector \
+  -Dnumerics.dtype=FLOAT32 \
+  -Dnumerics.stageA=NONE \
+  -Dnumerics.stageB=AR \
+  -cp build/classes/java/main \
+  numerics.NumericsCli
+```
+
+This is the quickest way to check whether `AR` changed outputs or gradients unexpectedly.
+
+### Fusion drift check
+
+Use:
+
+```bash
+java --add-modules jdk.incubator.vector \
+  -Dnumerics.dtype=FLOAT32 \
+  -Dnumerics.stageA=AR,CSE \
+  -Dnumerics.stageB=AR,CSE,FUSE \
+  -cp build/classes/java/main \
+  numerics.NumericsCli
+```
+
+This isolates the numerics effect of enabling graph fusion on top of the same rewrite baseline.
+
+## How To Interpret Drift
+
+Rough practical reading:
+
+- small abs/rel error with low ULP drift
+  - usually safe
+- tiny abs error but elevated ULP drift
+  - often still acceptable for `FLOAT32`, but inspect context
+- invalid values
+  - immediate red flag
+- drift concentrated only in the broadcast scenario
+  - likely points to layout/broadcast path differences rather than the deep training graph
+
+## When To Use This Harness
+
+Use it when:
+
+- changing optimizer stage order
+- enabling or disabling approximation policy
+- introducing new fused or lowered implementations
+- checking whether two profile variants stay numerically close
+
+Do not use it as a substitute for:
+
+- performance benchmarking
+- unit coverage
+- task-specific model accuracy evaluation

@@ -325,3 +325,52 @@ That matters because:
 - architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
 - persistence: [PERSISTENCE.md](./PERSISTENCE.md)
 - reporting: [REPORTING.md](./REPORTING.md)
+
+## Concrete Search Example
+
+Suppose graph autotune starts from a calibrated seed and a stage-order candidate space that can generate:
+
+- `AR,CSE`
+- `AR,CSE,MEM`
+- `AR,CSE,FUSE`
+- `AR,CSE,FUSE,MEM`
+
+An exhaustive strategy simply returns all of them.
+The session then:
+
+1. validates each candidate
+2. measures each candidate
+3. ranks the valid ones by steady-state median
+
+Search never decides the winner by itself.
+It only decides what should be measured and in what order.
+
+## Why History-Aware Reordering Helps
+
+History-aware search is useful when:
+
+- candidate spaces are stable across repeated runs
+- the same workload and hardware appear again
+
+It can:
+
+- move historically good candidates earlier
+- deprioritize or skip historically invalid candidates
+
+It cannot:
+
+- prove a historical winner is still correct after code changes
+- replace fresh validation and measurement
+
+## Good Search Strategy Selection
+
+Use exhaustive search when:
+
+- the space is small
+- you care about full coverage
+
+Use beam/best-first/branch-and-bound when:
+
+- the space is refinable
+- full enumeration is too expensive
+- you have at least a somewhat meaningful bound or neighborhood model

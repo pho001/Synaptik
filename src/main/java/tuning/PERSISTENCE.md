@@ -325,3 +325,52 @@ historyStore.append(path, new TuningHistoryEntry(
 - architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
 - reporting: [REPORTING.md](./REPORTING.md)
 - search: [SEARCH.md](./SEARCH.md)
+
+## Real Repository Layout Example
+
+For the current CLI flow on one machine, artifacts typically end up under:
+
+```text
+profiles/platform/<platform-id>/
+  calibration/
+    f64-forward-backward.json
+  reports/
+    calibration-f64-forward-backward.json
+    calibration-f64-forward-backward.txt
+  tuning/
+    abc/
+      f64-best-profile.json
+      f64-history.jsonl
+```
+
+The exact `<platform-id>` comes from the captured hardware fingerprint.
+
+## Preferred Vs Legacy Paths
+
+Current behavior is:
+
+- prefer `profiles/platform/...`
+- if a legacy `build/...` artifact exists and the preferred one does not, migrate it forward
+
+This keeps old local results usable without making `build/...` the long-term source of truth.
+
+## Practical Lifecycle Rules
+
+### Recalibrate when:
+
+- hardware changed
+- JDK changed materially
+- runtime-family meaning changed
+- a major backend path was rewritten
+
+### Rerun autotune when:
+
+- graph policy search space changed
+- workload semantics changed
+- stage order meaning changed
+- the calibrated runtime seed changed enough to invalidate the old winner
+
+### Keep reports even when you overwrite winners
+
+Because reports are the audit trail.
+They are not execute source of truth, but they explain why a profile won at the time it was measured.

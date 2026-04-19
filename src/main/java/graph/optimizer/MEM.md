@@ -321,3 +321,64 @@ The tensors remain distinct graph nodes, but their runtime backing storage is re
 `MEM` is the stage that turns a graph from "allocate a fresh dense array for almost everything" into "reuse storage where lifetime analysis proves it is safe".
 
 If you are debugging unexpected peak memory or trying to understand why a temporary still allocates fresh storage, this is the stage to inspect first.
+
+## Concrete Reuse Example
+
+Consider:
+
+```text
+t1 = add(x, y)
+t2 = relu(t1)
+t3 = mul(t2, z)
+t4 = exp(t3)
+```
+
+If all tensors share dtype/size and each one dies before the next becomes live, the plan may reuse one slot sequentially:
+
+```text
+slot 0 -> t1
+slot 0 -> t2
+slot 0 -> t3
+slot 0 -> t4
+```
+
+The nodes stay distinct.
+Only their runtime backing storage is reused.
+
+## Saved-Forward Example
+
+Now consider:
+
+```text
+f1 = linear(x, w, b)
+f2 = relu(f1)
+loss = sum(f2)
+g1 = backward helper that still needs f2
+```
+
+`f2` may become `SAVED_FORWARD` instead of a short-lived forward temp.
+That means the planner keeps it alive across the forward/backward boundary instead of reusing its storage too early.
+
+## Practical Interpretation Of Summary Metrics
+
+Useful heuristics when reading `MemoryPlanSummary`:
+
+- high `reuseHitRate`
+  - many eligible intervals successfully shared storage
+- high `savedForwardCount`
+  - backward is forcing many forward activations to stay live
+- high `peakSavedForwardBytes`
+  - saved activations dominate memory pressure
+- many intervals but low reuse
+  - sizes, phases, or lifetime overlap are blocking reuse
+
+## Debug Checklist
+
+If a tensor did not reuse storage and you expected it to:
+
+1. confirm the graph is uniform `FLOAT32` or `FLOAT64`
+2. check whether it is a true owner or only a view alias
+3. check whether it became `SAVED_FORWARD` or `GRADIENT_TARGET`
+4. check whether its size passed `minReusableBufferSize`
+5. check whether another overlapping lifetime occupied the slot
+6. check whether phase separation blocked reuse

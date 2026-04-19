@@ -287,3 +287,51 @@ that is expected in a sequential family flow:
 - architecture: [ARCHITECTURE.md](./ARCHITECTURE.md)
 - persistence: [PERSISTENCE.md](./PERSISTENCE.md)
 - search: [SEARCH.md](./SEARCH.md)
+
+## Reading Benchmark Reports In Practice
+
+A useful mental model is:
+
+- `compileMs`
+  - graph compilation and optimizer cost
+- `prepareMs`
+  - backend-specific preparation cost
+- `traceMs`
+  - one traced cold run with step metadata
+- `medianMs`
+  - steady-state throughput signal
+
+So a candidate can legitimately:
+
+- lose on `traceMs`
+- but still win on `medianMs`
+
+That usually means:
+
+- cold start got a bit heavier
+- steady-state execution got faster
+
+## Hot-Step Interpretation
+
+When the benchmark report prints hot steps, treat them as:
+
+- the first place to inspect real bottlenecks
+- not a proof that optimizer shape alone is wrong
+
+For example:
+
+- a hot `FUSED` step suggests looking at fused profitability, family thresholds, or ASM width
+- a hot `MATMUL` step suggests looking at tiles, microkernels, BLAS crossover, or shape gates
+- a hot `CONV2D_GEMM` step suggests looking at conv2d lowering and GEMM crossover policy
+
+## Why Reports And Persistence Stay Separate
+
+Even a perfect JSON report should not become runtime config.
+Reports are for:
+
+- explanation
+- audit
+- CI artifacts
+- regression comparison
+
+Profiles are for execution.

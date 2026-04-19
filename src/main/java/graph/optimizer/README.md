@@ -175,3 +175,88 @@ Every optimizer rule must preserve:
 - forward/backward phase boundaries
 
 Whenever a rewrite seems attractive but weakens those guarantees, it does not belong here in its current form.
+
+## End-To-End Example
+
+Consider this decomposed forward fragment:
+
+```text
+t1 = matmul(x, w)
+t2 = add(t1, b)
+t3 = add(t2, zeros_like(t2))
+t4 = add(t2, zeros_like(t2))
+t5 = relu(t4)
+t6 = mulScalar(t5, 0.5)
+```
+
+With a typical inference-style order:
+
+```text
+AR -> CSE -> FUSE -> MEM
+```
+
+the stages conceptually do this:
+
+1. `AR`
+   - `add(matmul(x, w), b)` becomes `linear(x, w, b)`
+   - trivial `+ zeros_like(...)` noise collapses
+2. `CSE`
+   - repeated structurally identical subexpressions are shared
+3. `FUSE`
+   - the remaining elementwise tail may become one fused node
+4. `MEM`
+   - short-lived temporaries may reuse storage slots
+
+That is why stage order matters.
+Each stage is intentionally small, but the overall graph shape changes step by step.
+
+## Typical Debugging Questions
+
+### "Why was this decomposed graph not lowered?"
+
+Inspect `AR`.
+Common causes:
+
+- the pattern is not in the canonical form the matcher expects
+- shape/rank/axis preconditions are not satisfied
+- the relevant rewrite family is disabled
+
+### "Why do I still have duplicated work?"
+
+Inspect `CSE`.
+Common causes:
+
+- the expressions are only mathematically equivalent, not structurally identical
+- leaf identity intentionally differs
+- strict safety keeps them separate
+
+### "Why did this chain not become one fused node?"
+
+Inspect `FUSE`.
+Common causes:
+
+- a non-elementwise consumer introduced a boundary
+- there is a cross-phase edge
+- the cluster score did not reach threshold
+- a shared expensive node was intentionally preserved
+
+### "Why is this still allocating?"
+
+Inspect `MEM`.
+Common causes:
+
+- dtype or graph shape is outside reuse support
+- the tensor is a true output, saved-forward value, or gradient target
+- lifetime overlap prevents slot reuse
+
+## Practical Inspection Order
+
+When debugging optimizer behavior, the fastest order is usually:
+
+1. confirm the stage order on the `ExecutionProfile`
+2. inspect `AR`
+3. inspect `CSE`
+4. inspect `FUSE`
+5. inspect `MEM`
+
+That order matters because memory planning cannot rescue a graph that was never canonicalized, deduplicated, or fused the way you expected.

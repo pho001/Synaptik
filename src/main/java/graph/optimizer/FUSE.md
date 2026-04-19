@@ -310,3 +310,74 @@ If a forward tensor is consumed by a backward tensor, that forward tensor become
 Use this stage when you want the runtime to see fewer, larger elementwise expressions without encoding those fused patterns manually in the public API.
 
 If a graph looks like a long chain of fusable elementwise ops, `FUSE` is the stage that decides whether that chain becomes one fused node or stays decomposed.
+
+## Concrete Cluster Walkthrough
+
+Consider:
+
+```text
+t1 = add(x, y)
+t2 = sub(t1, z)
+t3 = relu(t2)
+t4 = mulScalar(t3, 0.5)
+t5 = sum(t4, -1)
+```
+
+`FUSE` can absorb `t1..t4`, but `t5` is a hard reduction boundary.
+So the result is conceptually:
+
+```text
+t4 = fused(add -> sub -> relu -> mulScalar)
+t5 = sum(t4, -1)
+```
+
+That is the intended behavior.
+Fusion reduces graph fragmentation without erasing higher-level semantic boundaries.
+
+## Materialization Point Intuition
+
+Think of a materialization point as:
+
+- "this value should exist as a real graph boundary"
+
+Typical reasons:
+
+- a non-elementwise op consumes it
+- another phase consumes it
+- recomputing it inside multiple fused clusters would be wasteful
+
+Example:
+
+```text
+t1 = exp(x)
+t2 = add(t1, y)
+t3 = sub(t1, z)
+```
+
+With `preserveSharedExpensiveNodes = true`, `t1` is likely materialized so `exp(x)` is not duplicated inside two separate fused clusters.
+
+## Why Runtime Still Matters After Fusion
+
+Graph fusion does not pick the final machine code shape.
+After a fused node exists, runtime still decides:
+
+- dispatch family
+- scalar vs vector path
+- parallel vs non-parallel path
+- ASM vector width for the chosen family
+
+So the split is:
+
+- optimizer decides cluster shape
+- runtime decides execution tactic
+
+## Debug Checklist
+
+When fusion does not happen, inspect:
+
+1. whether the op types report `isFusable()`
+2. whether a non-elementwise consumer introduced a boundary
+3. whether a cross-phase edge exists
+4. whether the node is shared and non-cheap
+5. whether the preview plan was rejected as broadcast-heavy and unprofitable
+6. whether the final score reached `scoreThreshold`
