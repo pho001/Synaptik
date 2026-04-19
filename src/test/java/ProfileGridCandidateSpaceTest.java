@@ -42,9 +42,9 @@ public class ProfileGridCandidateSpaceTest {
                 true
         ));
 
-        assertEquals(6, candidates.size());
+        assertEquals(2, candidates.size());
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("conv2dLowering=OFF")));
-        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasThreads=2")));
+        assertTrue(candidates.stream().allMatch(c -> c.name().contains("blasThreads=AUTO")));
     }
 
     @Test

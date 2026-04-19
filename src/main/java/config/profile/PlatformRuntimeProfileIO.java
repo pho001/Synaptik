@@ -64,6 +64,16 @@ public final class PlatformRuntimeProfileIO {
                 "    \"matMulMicroKernel\": \"" + profile.matmul().matMulMicroKernel().name() + "\",\n" +
                 "    \"attentionMatMulMicroKernel\": \"" + profile.matmul().attentionMatMulMicroKernel().name() + "\"\n" +
                 "  },\n" +
+                "  \"conv2d\": {\n" +
+                "    \"conv2dBlasProvider\": \"" + profile.conv2d().blasProvider().name() + "\",\n" +
+                "    \"conv2dF64BlasMinWork\": " + profile.conv2d().f64BlasMinWork() + ",\n" +
+                "    \"conv2dF32BlasMinWork\": " + profile.conv2d().f32BlasMinWork() + ",\n" +
+                "    \"conv2dF32RequireMgeK\": " + profile.conv2d().f32RequireMgeK() + ",\n" +
+                "    \"conv2dF32MaxNOverK\": " + profile.conv2d().f32MaxNOverK() + ",\n" +
+                "    \"conv2dBf16BlasMinWork\": " + profile.conv2d().bf16BlasMinWork() + ",\n" +
+                "    \"conv2dBf16RequireMgeK\": " + profile.conv2d().bf16RequireMgeK() + ",\n" +
+                "    \"conv2dBf16MaxNOverK\": " + profile.conv2d().bf16MaxNOverK() + "\n" +
+                "  },\n" +
                 "  \"fused\": {\n" +
                 "    \"fusedCheapVectorMinSize\": " + profile.fused().fusedCheapVectorMinSize() + ",\n" +
                 "    \"fusedTranscendentalVectorMinSize\": " + profile.fused().fusedTranscendentalVectorMinSize() + ",\n" +
@@ -133,6 +143,38 @@ public final class PlatformRuntimeProfileIO {
             int loadedMatMulTileM = findInt(json, "matMulTileM", fallback.matmul().matMulTileM());
             int loadedMatMulTileN = findInt(json, "matMulTileN", fallback.matmul().matMulTileN());
             int loadedMatMulTileK = findInt(json, "matMulTileK", fallback.matmul().matMulTileK());
+            MatmulPlatformProfile loadedMatmul = new MatmulPlatformProfile(
+                    findEnum(json, "blasProvider", fallback.matmul().blasProvider(), BlasProvider.class),
+                    findLong(json, "blasMatmulMinWork", fallback.matmul().blasMatmulMinWork()),
+                    findInt(json, "blasThreads", fallback.matmul().blasThreads()),
+                    findBoolean(json, "f32RequireMgeK", fallback.matmul().f32RequireMgeK()),
+                    findDouble(json, "f32MaxNOverK", fallback.matmul().f32MaxNOverK()),
+                    findInt(json, "loopUnrollFactor", fallback.matmul().loopUnrollFactor()),
+                    loadedMatMulTileM,
+                    loadedMatMulTileN,
+                    loadedMatMulTileK,
+                    findInt(json, "attentionMatMulTileM", loadedMatMulTileM),
+                    findInt(json, "attentionMatMulTileN", loadedMatMulTileN),
+                    findInt(json, "attentionMatMulTileK", loadedMatMulTileK),
+                    findInt(json, "matMulParallelMinSize", fallback.matmul().matMulParallelMinSize()),
+                    loadedMatMulMicroKernel,
+                    findEnum(
+                            json,
+                            "attentionMatMulMicroKernel",
+                            loadedMatMulMicroKernel,
+                            CpuMatMulMicroKernel.class
+                    )
+            );
+            Conv2dPlatformProfile loadedConv2d = new Conv2dPlatformProfile(
+                    findEnum(json, "conv2dBlasProvider", loadedMatmul.blasProvider(), BlasProvider.class),
+                    findLong(json, "conv2dF64BlasMinWork", loadedMatmul.blasMatmulMinWork()),
+                    findLong(json, "conv2dF32BlasMinWork", loadedMatmul.blasMatmulMinWork()),
+                    findBoolean(json, "conv2dF32RequireMgeK", loadedMatmul.f32RequireMgeK()),
+                    findDouble(json, "conv2dF32MaxNOverK", loadedMatmul.f32MaxNOverK()),
+                    findLong(json, "conv2dBf16BlasMinWork", loadedMatmul.blasMatmulMinWork()),
+                    findBoolean(json, "conv2dBf16RequireMgeK", loadedMatmul.f32RequireMgeK()),
+                    findDouble(json, "conv2dBf16MaxNOverK", loadedMatmul.f32MaxNOverK())
+            );
             return new PlatformRuntimeProfile(
                     new PlatformProfileMetadata(
                             findString(json, "platformProfileId", m.platformProfileId()),
@@ -145,28 +187,8 @@ public final class PlatformRuntimeProfileIO {
                             findEnum(json, "dataType", m.dataType(), DataType.class),
                             findEnum(json, "executionMode", m.executionMode(), ExecutionMode.class)
                     ),
-                    new MatmulPlatformProfile(
-                            findEnum(json, "blasProvider", fallback.matmul().blasProvider(), BlasProvider.class),
-                            findLong(json, "blasMatmulMinWork", fallback.matmul().blasMatmulMinWork()),
-                            findInt(json, "blasThreads", fallback.matmul().blasThreads()),
-                            findBoolean(json, "f32RequireMgeK", fallback.matmul().f32RequireMgeK()),
-                            findDouble(json, "f32MaxNOverK", fallback.matmul().f32MaxNOverK()),
-                            findInt(json, "loopUnrollFactor", fallback.matmul().loopUnrollFactor()),
-                            loadedMatMulTileM,
-                            loadedMatMulTileN,
-                            loadedMatMulTileK,
-                            findInt(json, "attentionMatMulTileM", loadedMatMulTileM),
-                            findInt(json, "attentionMatMulTileN", loadedMatMulTileN),
-                            findInt(json, "attentionMatMulTileK", loadedMatMulTileK),
-                            findInt(json, "matMulParallelMinSize", fallback.matmul().matMulParallelMinSize()),
-                            loadedMatMulMicroKernel,
-                            findEnum(
-                                    json,
-                                    "attentionMatMulMicroKernel",
-                                    loadedMatMulMicroKernel,
-                                    CpuMatMulMicroKernel.class
-                            )
-                    ),
+                    loadedMatmul,
+                    loadedConv2d,
                     new FusedPlatformProfile(
                             findInt(json, "fusedCheapVectorMinSize", fallback.fused().fusedCheapVectorMinSize()),
                             findInt(json, "fusedTranscendentalVectorMinSize", fallback.fused().fusedTranscendentalVectorMinSize()),

@@ -306,40 +306,36 @@ public final class ProfileMutators {
     }
 
     public static ExecutionProfileMutator blasThreads(List<Integer> threadCounts) {
-        List<Integer> safeCounts = threadCounts == null ? List.of() : List.copyOf(threadCounts);
         return (baseProfile, workload) -> {
+            String variantName = "blasThreads=" + formatBlasThreads(baseProfile.runtime().blas().threads());
             if (!usesMatmulRuntimePolicies(workload.kind())) {
-                return List.of(new ExecutionProfileVariant("blasThreads=" + formatBlasThreads(baseProfile.runtime().blas().threads()), baseProfile));
+                return List.of(new ExecutionProfileVariant(variantName, baseProfile));
             }
-            List<ExecutionProfileVariant> variants = new ArrayList<>();
-            for (Integer threads : safeCounts) {
-                BlasConfig cfg = new BlasConfig(
-                        baseProfile.runtime().blas().provider(),
-                        baseProfile.runtime().blas().matmulMinWork(),
-                        baseProfile.runtime().blas().f32RequireMgeK(),
-                        baseProfile.runtime().blas().f32MaxNOverK(),
-                        baseProfile.runtime().blas().debug(),
-                        threads == null ? 0 : threads
-                );
-                variants.add(new ExecutionProfileVariant(
-                        "blasThreads=" + formatBlasThreads(cfg.threads()),
-                        new ExecutionProfile(
-                                baseProfile.profileName(),
-                                baseProfile.candidateName(),
-                                baseProfile.dataType(),
-                                baseProfile.mode(),
-                                baseProfile.optimizer(),
-                                new config.runtime.RuntimeConfig(
-                                        baseProfile.runtime().kernel(),
-                                        baseProfile.runtime().approximation(),
-                                        cfg,
-                                        baseProfile.runtime().fused()
-                                ),
-                                baseProfile.workload()
-                        )
-                ));
-            }
-            return variants;
+            BlasConfig cfg = new BlasConfig(
+                    baseProfile.runtime().blas().provider(),
+                    baseProfile.runtime().blas().matmulMinWork(),
+                    baseProfile.runtime().blas().f32RequireMgeK(),
+                    baseProfile.runtime().blas().f32MaxNOverK(),
+                    baseProfile.runtime().blas().debug(),
+                    0
+            );
+            return List.of(new ExecutionProfileVariant(
+                    variantName,
+                    new ExecutionProfile(
+                            baseProfile.profileName(),
+                            baseProfile.candidateName(),
+                            baseProfile.dataType(),
+                            baseProfile.mode(),
+                            baseProfile.optimizer(),
+                            new config.runtime.RuntimeConfig(
+                                    baseProfile.runtime().kernel(),
+                                    baseProfile.runtime().approximation(),
+                                    cfg,
+                                    baseProfile.runtime().fused()
+                            ),
+                            baseProfile.workload()
+                    )
+            ));
         };
     }
 

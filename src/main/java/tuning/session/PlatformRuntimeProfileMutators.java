@@ -3,6 +3,7 @@ package tuning.session;
 import backend.ApproxMode;
 import backend.blas.BlasProvider;
 import config.backend.CpuMatMulMicroKernel;
+import config.profile.Conv2dPlatformProfile;
 import config.profile.ElementwiseDispatchPlatformProfile;
 import config.profile.FusedPlatformProfile;
 import config.profile.MaterializationPlatformProfile;
@@ -28,6 +29,171 @@ public final class PlatformRuntimeProfileMutators {
     }
 
     private PlatformRuntimeProfileMutators() {
+    }
+
+    public static PlatformRuntimeProfileMutator conv2dBlasProviders(
+            List<BlasProvider> providers,
+            List<Long> f64MinWorks,
+            List<Long> f32MinWorks,
+            List<Long> bf16MinWorks
+    ) {
+        List<BlasProvider> safeProviders = providers == null ? List.of() : List.copyOf(providers);
+        List<Long> safeF64 = f64MinWorks == null ? List.of() : List.copyOf(f64MinWorks);
+        List<Long> safeF32 = f32MinWorks == null ? List.of() : List.copyOf(f32MinWorks);
+        List<Long> safeBf16 = bf16MinWorks == null ? List.of() : List.copyOf(bf16MinWorks);
+        return (baseProfile, workload) -> {
+            if (!usesConv2dFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("conv2dBlas=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (BlasProvider provider : safeProviders) {
+                if (provider == null) {
+                    continue;
+                }
+                if (provider == BlasProvider.NONE) {
+                    Conv2dPlatformProfile conv2d = new Conv2dPlatformProfile(
+                            BlasProvider.NONE,
+                            baseProfile.conv2d().f64BlasMinWork(),
+                            baseProfile.conv2d().f32BlasMinWork(),
+                            baseProfile.conv2d().f32RequireMgeK(),
+                            baseProfile.conv2d().f32MaxNOverK(),
+                            baseProfile.conv2d().bf16BlasMinWork(),
+                            baseProfile.conv2d().bf16RequireMgeK(),
+                            baseProfile.conv2d().bf16MaxNOverK()
+                    );
+                    out.add(new RuntimeProfileCandidate(
+                            "conv2dBlasProvider=NONE",
+                            withConv2d(baseProfile, conv2d),
+                            Map.of("runtime.conv2d.blasProvider", conv2d.blasProvider().name())
+                    ));
+                    continue;
+                }
+                List<Long> mins = switch (baseProfile.dataType()) {
+                    case FLOAT64 -> safeF64;
+                    case FLOAT32 -> safeF32;
+                    case BFLOAT16 -> safeBf16;
+                    default -> List.of(baseProfile.conv2d().f64BlasMinWork());
+                };
+                for (Long minWork : mins) {
+                    Conv2dPlatformProfile conv2d = switch (baseProfile.dataType()) {
+                        case FLOAT64 -> new Conv2dPlatformProfile(
+                                provider,
+                                minWork == null ? baseProfile.conv2d().f64BlasMinWork() : minWork,
+                                baseProfile.conv2d().f32BlasMinWork(),
+                                baseProfile.conv2d().f32RequireMgeK(),
+                                baseProfile.conv2d().f32MaxNOverK(),
+                                baseProfile.conv2d().bf16BlasMinWork(),
+                                baseProfile.conv2d().bf16RequireMgeK(),
+                                baseProfile.conv2d().bf16MaxNOverK()
+                        );
+                        case FLOAT32 -> new Conv2dPlatformProfile(
+                                provider,
+                                baseProfile.conv2d().f64BlasMinWork(),
+                                minWork == null ? baseProfile.conv2d().f32BlasMinWork() : minWork,
+                                baseProfile.conv2d().f32RequireMgeK(),
+                                baseProfile.conv2d().f32MaxNOverK(),
+                                baseProfile.conv2d().bf16BlasMinWork(),
+                                baseProfile.conv2d().bf16RequireMgeK(),
+                                baseProfile.conv2d().bf16MaxNOverK()
+                        );
+                        case BFLOAT16 -> new Conv2dPlatformProfile(
+                                provider,
+                                baseProfile.conv2d().f64BlasMinWork(),
+                                baseProfile.conv2d().f32BlasMinWork(),
+                                baseProfile.conv2d().f32RequireMgeK(),
+                                baseProfile.conv2d().f32MaxNOverK(),
+                                minWork == null ? baseProfile.conv2d().bf16BlasMinWork() : minWork,
+                                baseProfile.conv2d().bf16RequireMgeK(),
+                                baseProfile.conv2d().bf16MaxNOverK()
+                        );
+                        default -> baseProfile.conv2d();
+                    };
+                    String key = switch (baseProfile.dataType()) {
+                        case FLOAT64 -> "runtime.conv2d.f64MinWork";
+                        case FLOAT32 -> "runtime.conv2d.f32MinWork";
+                        case BFLOAT16 -> "runtime.conv2d.bf16MinWork";
+                        default -> "runtime.conv2d.minWork";
+                    };
+                    long selectedMinWork = switch (baseProfile.dataType()) {
+                        case FLOAT64 -> conv2d.f64BlasMinWork();
+                        case FLOAT32 -> conv2d.f32BlasMinWork();
+                        case BFLOAT16 -> conv2d.bf16BlasMinWork();
+                        default -> 0L;
+                    };
+                    out.add(new RuntimeProfileCandidate(
+                            "conv2dBlasProvider=" + conv2d.blasProvider().name() + ":minWork=" + selectedMinWork,
+                            withConv2d(baseProfile, conv2d),
+                            Map.of(
+                                    "runtime.conv2d.blasProvider", conv2d.blasProvider().name(),
+                                    key, String.valueOf(selectedMinWork)
+                            )
+                    ));
+                }
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator conv2dShapeHeuristics(
+            List<Boolean> requireMgeK,
+            List<Double> maxNOverK
+    ) {
+        List<Boolean> safeRequire = requireMgeK == null ? List.of() : List.copyOf(requireMgeK);
+        List<Double> safeRatios = maxNOverK == null ? List.of() : List.copyOf(maxNOverK);
+        return (baseProfile, workload) -> {
+            if (!usesConv2dFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("conv2dShape=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (Boolean require : safeRequire) {
+                for (Double ratio : safeRatios) {
+                    Conv2dPlatformProfile conv2d = switch (baseProfile.dataType()) {
+                        case FLOAT32 -> new Conv2dPlatformProfile(
+                                baseProfile.conv2d().blasProvider(),
+                                baseProfile.conv2d().f64BlasMinWork(),
+                                baseProfile.conv2d().f32BlasMinWork(),
+                                require == null ? baseProfile.conv2d().f32RequireMgeK() : require,
+                                ratio == null ? baseProfile.conv2d().f32MaxNOverK() : ratio,
+                                baseProfile.conv2d().bf16BlasMinWork(),
+                                baseProfile.conv2d().bf16RequireMgeK(),
+                                baseProfile.conv2d().bf16MaxNOverK()
+                        );
+                        case BFLOAT16 -> new Conv2dPlatformProfile(
+                                baseProfile.conv2d().blasProvider(),
+                                baseProfile.conv2d().f64BlasMinWork(),
+                                baseProfile.conv2d().f32BlasMinWork(),
+                                baseProfile.conv2d().f32RequireMgeK(),
+                                baseProfile.conv2d().f32MaxNOverK(),
+                                baseProfile.conv2d().bf16BlasMinWork(),
+                                require == null ? baseProfile.conv2d().bf16RequireMgeK() : require,
+                                ratio == null ? baseProfile.conv2d().bf16MaxNOverK() : ratio
+                        );
+                        default -> baseProfile.conv2d();
+                    };
+                    String requireKey = baseProfile.dataType() == tensor.DataType.BFLOAT16
+                            ? "runtime.conv2d.bf16RequireMgeK"
+                            : "runtime.conv2d.f32RequireMgeK";
+                    String ratioKey = baseProfile.dataType() == tensor.DataType.BFLOAT16
+                            ? "runtime.conv2d.bf16MaxNOverK"
+                            : "runtime.conv2d.f32MaxNOverK";
+                    boolean selectedRequire = baseProfile.dataType() == tensor.DataType.BFLOAT16
+                            ? conv2d.bf16RequireMgeK()
+                            : conv2d.f32RequireMgeK();
+                    double selectedRatio = baseProfile.dataType() == tensor.DataType.BFLOAT16
+                            ? conv2d.bf16MaxNOverK()
+                            : conv2d.f32MaxNOverK();
+                    out.add(new RuntimeProfileCandidate(
+                            "conv2dShape=" + selectedRequire + "/" + selectedRatio,
+                            withConv2d(baseProfile, conv2d),
+                            Map.of(
+                                    requireKey, String.valueOf(selectedRequire),
+                                    ratioKey, String.valueOf(selectedRatio)
+                            )
+                    ));
+                }
+            }
+            return out;
+        };
     }
 
     public static PlatformRuntimeProfileMutator matmulBlasProviders(
@@ -174,46 +340,42 @@ public final class PlatformRuntimeProfileMutators {
     }
 
     public static PlatformRuntimeProfileMutator blasThreads(List<Integer> threadCounts) {
-        List<Integer> safe = threadCounts == null ? List.of() : List.copyOf(threadCounts);
         return (baseProfile, workload) -> {
+            String candidateName = "blasThreads=AUTO";
             if (!usesMatmulFamily(workload.kind())) {
-                return List.of(new RuntimeProfileCandidate("blasThreads=current", baseProfile, Map.of()));
+                return List.of(new RuntimeProfileCandidate(candidateName, baseProfile, Map.of("runtime.blas.threads", "0")));
             }
-            List<RuntimeProfileCandidate> out = new ArrayList<>();
-            for (Integer threads : safe) {
-                MatmulPlatformProfile matmul = new MatmulPlatformProfile(
-                        baseProfile.matmul().blasProvider(),
-                        baseProfile.matmul().blasMatmulMinWork(),
-                        threads == null ? baseProfile.matmul().blasThreads() : threads,
-                        baseProfile.matmul().f32RequireMgeK(),
-                        baseProfile.matmul().f32MaxNOverK(),
-                        baseProfile.matmul().loopUnrollFactor(),
-                        baseProfile.matmul().matMulTileM(),
-                        baseProfile.matmul().matMulTileN(),
-                        baseProfile.matmul().matMulTileK(),
-                        baseProfile.matmul().attentionMatMulTileM(),
-                        baseProfile.matmul().attentionMatMulTileN(),
-                        baseProfile.matmul().attentionMatMulTileK(),
-                        baseProfile.matmul().matMulParallelMinSize(),
-                        baseProfile.matmul().matMulMicroKernel(),
-                        baseProfile.matmul().attentionMatMulMicroKernel()
-                );
-                out.add(new RuntimeProfileCandidate(
-                        "blasThreads=" + matmul.blasThreads(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                matmul,
-                                baseProfile.fused(),
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
-                        Map.of("runtime.blas.threads", String.valueOf(matmul.blasThreads()))
-                ));
-            }
-            return out;
+            MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                    baseProfile.matmul().blasProvider(),
+                    baseProfile.matmul().blasMatmulMinWork(),
+                    0,
+                    baseProfile.matmul().f32RequireMgeK(),
+                    baseProfile.matmul().f32MaxNOverK(),
+                    baseProfile.matmul().loopUnrollFactor(),
+                    baseProfile.matmul().matMulTileM(),
+                    baseProfile.matmul().matMulTileN(),
+                    baseProfile.matmul().matMulTileK(),
+                    baseProfile.matmul().attentionMatMulTileM(),
+                    baseProfile.matmul().attentionMatMulTileN(),
+                    baseProfile.matmul().attentionMatMulTileK(),
+                    baseProfile.matmul().matMulParallelMinSize(),
+                    baseProfile.matmul().matMulMicroKernel(),
+                    baseProfile.matmul().attentionMatMulMicroKernel()
+            );
+            return List.of(new RuntimeProfileCandidate(
+                    candidateName,
+                    new PlatformRuntimeProfile(
+                            baseProfile.metadata(),
+                            matmul,
+                            baseProfile.fused(),
+                            baseProfile.elementwiseDispatch(),
+                            baseProfile.reduction(),
+                            baseProfile.scheduler(),
+                            baseProfile.materialization(),
+                            baseProfile.numerics()
+                    ),
+                    Map.of("runtime.blas.threads", "0")
+            ));
         };
     }
 
@@ -962,8 +1124,11 @@ public final class PlatformRuntimeProfileMutators {
         return kind == WorkloadKind.MATMUL
                 || kind == WorkloadKind.MLP_CLASSIFICATION
                 || kind == WorkloadKind.ABC_SEQUENCE_MATMUL
-                || kind == WorkloadKind.CONV2D
                 || kind == WorkloadKind.TRANSFORMER_HOT_PATH;
+    }
+
+    private static boolean usesConv2dFamily(WorkloadKind kind) {
+        return kind == WorkloadKind.CONV2D;
     }
 
     private static boolean usesGenericRuntimeFamily(WorkloadKind kind) {
@@ -1041,5 +1206,19 @@ public final class PlatformRuntimeProfileMutators {
             case NON_CHEAP_CONTIGUOUS -> "cpu.fusedNonCheapContiguousAsmVectorWidth";
             case NON_CHEAP_STRIDED -> "cpu.fusedNonCheapStridedAsmVectorWidth";
         };
+    }
+
+    private static PlatformRuntimeProfile withConv2d(PlatformRuntimeProfile baseProfile, Conv2dPlatformProfile conv2d) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                conv2d,
+                baseProfile.fused(),
+                baseProfile.elementwiseDispatch(),
+                baseProfile.reduction(),
+                baseProfile.scheduler(),
+                baseProfile.materialization(),
+                baseProfile.numerics()
+        );
     }
 }

@@ -562,10 +562,10 @@ public final class Main {
                 return PlatformCalibrationDefaults.attentionMatmulStep(name, preset);
             }
         },
-        CONV2D("conv2d", PlatformCalibrationFamily.CONV2D) {
+        CONV2D("conv2d", null) {
             @Override
             PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.conv2dStep(name, preset);
+                return PlatformCalibrationDefaults.conv2dGemmDispatchStep(name, preset, dataType);
             }
         },
         FUSED_THRESHOLDS("fused-thresholds", PlatformCalibrationFamily.FUSED_THRESHOLDS) {

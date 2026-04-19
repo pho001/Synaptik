@@ -45,7 +45,7 @@ public class PlatformCalibrationProgressListenerTest {
                                 TuningPreset.QUICK,
                                 profile -> new PlatformRuntimeProfileGridCandidateSpace(
                                         profile,
-                                        List.of(PlatformRuntimeProfileMutators.blasThreads(List.of(1)))
+                                        List.of(PlatformRuntimeProfileMutators.blasThreads(List.of(0)))
                                 ),
                                 PlatformCalibrationScorePolicy.averageMedianMs()
                         )

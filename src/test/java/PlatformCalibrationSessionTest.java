@@ -48,7 +48,7 @@ public class PlatformCalibrationSessionTest {
                                 base -> new PlatformRuntimeProfileGridCandidateSpace(
                                         base,
                                         List.of(
-                                                PlatformRuntimeProfileMutators.blasThreads(List.of(1))
+                                                PlatformRuntimeProfileMutators.blasThreads(List.of(0))
                                         )
                                 ),
                                 PlatformCalibrationScorePolicy.averageMedianMs()

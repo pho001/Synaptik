@@ -23,6 +23,7 @@ import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.RewriteConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
+import config.runtime.Conv2dConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
@@ -226,11 +227,53 @@ public final class ExecutionProfileIO {
                     findBoolean(json, "debug", defaultProfile.runtime().blas().debug()),
                     findInt(json, "threads", defaultProfile.runtime().blas().threads())
             );
+            Conv2dConfig conv2d = new Conv2dConfig(
+                    BlasProvider.fromProperty(findString(
+                            json,
+                            "conv2dProvider",
+                            defaultProfile.runtime().conv2d().provider().name()
+                    )),
+                    Math.max(1L, Math.round(findDouble(
+                            json,
+                            "conv2dF64MinWork",
+                            defaultProfile.runtime().conv2d().f64MinWork()
+                    ))),
+                    Math.max(1L, Math.round(findDouble(
+                            json,
+                            "conv2dF32MinWork",
+                            defaultProfile.runtime().conv2d().f32MinWork()
+                    ))),
+                    findBoolean(
+                            json,
+                            "conv2dF32RequireMgeK",
+                            defaultProfile.runtime().conv2d().f32RequireMgeK()
+                    ),
+                    findDouble(
+                            json,
+                            "conv2dF32MaxNOverK",
+                            defaultProfile.runtime().conv2d().f32MaxNOverK()
+                    ),
+                    Math.max(1L, Math.round(findDouble(
+                            json,
+                            "conv2dBf16MinWork",
+                            defaultProfile.runtime().conv2d().bf16MinWork()
+                    ))),
+                    findBoolean(
+                            json,
+                            "conv2dBf16RequireMgeK",
+                            defaultProfile.runtime().conv2d().bf16RequireMgeK()
+                    ),
+                    findDouble(
+                            json,
+                            "conv2dBf16MaxNOverK",
+                            defaultProfile.runtime().conv2d().bf16MaxNOverK()
+                    )
+            );
             FusedExecutionPolicy fused = new FusedExecutionPolicy(
                     findEnum(json, "fusedPrimaryBackend", defaultProfile.runtime().fused().primaryBackend(), FusedPrimaryBackend.class),
                     findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback())
             );
-            RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas, fused);
+            RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas, conv2d, fused);
 
             WorkloadProfile defaultWorkload = defaultProfile.workload();
             WorkloadKind workloadKind = findEnum(json, "kind", defaultWorkload.kind(), WorkloadKind.class);
@@ -278,6 +321,7 @@ public final class ExecutionProfileIO {
         var cuda = kernel.cuda();
         var opencl = kernel.opencl();
         var blas = runtime.blas();
+        var conv2d = runtime.conv2d();
         var approximation = runtime.approximation();
         var fused = runtime.fused();
         var workload = profile.workload();
@@ -382,6 +426,16 @@ public final class ExecutionProfileIO {
                 "      \"f32MaxNOverK\": " + blas.f32MaxNOverK() + ",\n" +
                 "      \"debug\": " + blas.debug() + ",\n" +
                 "      \"threads\": " + blas.threads() + "\n" +
+                "    },\n" +
+                "    \"conv2d\": {\n" +
+                "      \"conv2dProvider\": \"" + conv2d.provider().name() + "\",\n" +
+                "      \"conv2dF64MinWork\": " + conv2d.f64MinWork() + ",\n" +
+                "      \"conv2dF32MinWork\": " + conv2d.f32MinWork() + ",\n" +
+                "      \"conv2dF32RequireMgeK\": " + conv2d.f32RequireMgeK() + ",\n" +
+                "      \"conv2dF32MaxNOverK\": " + conv2d.f32MaxNOverK() + ",\n" +
+                "      \"conv2dBf16MinWork\": " + conv2d.bf16MinWork() + ",\n" +
+                "      \"conv2dBf16RequireMgeK\": " + conv2d.bf16RequireMgeK() + ",\n" +
+                "      \"conv2dBf16MaxNOverK\": " + conv2d.bf16MaxNOverK() + "\n" +
                 "    },\n" +
                 "    \"fused\": {\n" +
                 "      \"fusedPrimaryBackend\": \"" + fused.primaryBackend().name() + "\",\n" +

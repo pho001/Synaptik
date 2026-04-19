@@ -72,7 +72,7 @@ public class ExecutionProfileIoTest {
                                 OpenClKernelConfig.defaultsInference()
                         ),
                         new ApproximationConfig(ApproxMode.OFF, false),
-                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 2),
+                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 0),
                         new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
                 ),
                 new WorkloadProfile(config.profile.WorkloadKind.TRANSFORMER_HOT_PATH, 4, 8, 64, 32, 32, 256, true)

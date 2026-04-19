@@ -17,6 +17,7 @@ import java.util.Objects;
 public record PlatformRuntimeProfile(
         PlatformProfileMetadata metadata,
         MatmulPlatformProfile matmul,
+        Conv2dPlatformProfile conv2d,
         FusedPlatformProfile fused,
         ElementwiseDispatchPlatformProfile elementwiseDispatch,
         ReductionPlatformProfile reduction,
@@ -27,12 +28,26 @@ public record PlatformRuntimeProfile(
     public PlatformRuntimeProfile {
         Objects.requireNonNull(metadata, "metadata cannot be null");
         Objects.requireNonNull(matmul, "matmul cannot be null");
+        conv2d = conv2d == null ? Conv2dPlatformProfile.fromMatmul(matmul) : conv2d;
         Objects.requireNonNull(fused, "fused cannot be null");
         Objects.requireNonNull(elementwiseDispatch, "elementwiseDispatch cannot be null");
         Objects.requireNonNull(reduction, "reduction cannot be null");
         Objects.requireNonNull(scheduler, "scheduler cannot be null");
         Objects.requireNonNull(materialization, "materialization cannot be null");
         Objects.requireNonNull(numerics, "numerics cannot be null");
+    }
+
+    public PlatformRuntimeProfile(
+            PlatformProfileMetadata metadata,
+            MatmulPlatformProfile matmul,
+            FusedPlatformProfile fused,
+            ElementwiseDispatchPlatformProfile elementwiseDispatch,
+            ReductionPlatformProfile reduction,
+            SchedulerPlatformProfile scheduler,
+            MaterializationPlatformProfile materialization,
+            NumericsPlatformProfile numerics
+    ) {
+        this(metadata, matmul, Conv2dPlatformProfile.fromMatmul(matmul), fused, elementwiseDispatch, reduction, scheduler, materialization, numerics);
     }
 
     public static PlatformRuntimeProfile fromExecutionProfile(
@@ -72,6 +87,16 @@ public record PlatformRuntimeProfile(
                         cpu.matMulParallelMinSize(),
                         cpu.matMulMicroKernel(),
                         cpu.attentionMatMulMicroKernel()
+                ),
+                new Conv2dPlatformProfile(
+                        profile.runtime().conv2d().provider(),
+                        profile.runtime().conv2d().f64MinWork(),
+                        profile.runtime().conv2d().f32MinWork(),
+                        profile.runtime().conv2d().f32RequireMgeK(),
+                        profile.runtime().conv2d().f32MaxNOverK(),
+                        profile.runtime().conv2d().bf16MinWork(),
+                        profile.runtime().conv2d().bf16RequireMgeK(),
+                        profile.runtime().conv2d().bf16MaxNOverK()
                 ),
                 new FusedPlatformProfile(
                         cpu.fusedCheapVectorMinSize(),
@@ -166,6 +191,16 @@ public record PlatformRuntimeProfile(
                         matmul.f32MaxNOverK(),
                         false,
                         matmul.blasThreads()
+                ),
+                new config.runtime.Conv2dConfig(
+                        conv2d.blasProvider(),
+                        conv2d.f64BlasMinWork(),
+                        conv2d.f32BlasMinWork(),
+                        conv2d.f32RequireMgeK(),
+                        conv2d.f32MaxNOverK(),
+                        conv2d.bf16BlasMinWork(),
+                        conv2d.bf16RequireMgeK(),
+                        conv2d.bf16MaxNOverK()
                 ),
                 metadata.executionMode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD
                         ? FusedExecutionPolicy.defaultsTraining()

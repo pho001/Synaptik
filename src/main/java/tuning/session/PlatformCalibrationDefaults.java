@@ -1,7 +1,7 @@
 package tuning.session;
 
 import backend.blas.BlasProvider;
-import backend.kernels.cpu.CpuExecutionPlanner;
+import backend.kernels.cpu.plan.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;
 import graph.optimizer.fusion.FusedDispatchFamily;
@@ -193,10 +193,16 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
-    public static PlatformCalibrationStep conv2dStep(String name, TuningPreset preset) {
+    public static PlatformCalibrationStep conv2dGemmDispatchStep(String name, TuningPreset preset, DataType dataType) {
+        PlatformCalibrationFamily family = switch (dataType) {
+            case FLOAT64 -> PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64;
+            case FLOAT32 -> PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F32;
+            case BFLOAT16 -> PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_BF16;
+            default -> throw new IllegalArgumentException("Unsupported conv2d calibration dtype: " + dataType);
+        };
         return new PlatformCalibrationStep(
                 name,
-                PlatformCalibrationFamily.CONV2D,
+                family,
                 List.of(
                         CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_8_low", 4, 128, 64, 8, 8),
                         CalibrationWorkloads.conv2dPointwiseProjection(name + "_workload_pointwise_8_edge_1m", 4, 128, 128, 8, 8),
@@ -210,17 +216,7 @@ public final class PlatformCalibrationDefaults {
                 preset,
                 base -> new PlatformRuntimeProfileGridCandidateSpace(
                         base,
-                        List.of(
-                                PlatformRuntimeProfileMutators.matmulBlasProviders(
-                                        List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
-                                        List.of(50_000L, 100_000L, 250_000L, 1_000_000L, 4_000_000L)
-                                ),
-                                PlatformRuntimeProfileMutators.matmulShapeHeuristics(
-                                        List.of(true, false),
-                                        List.of(1.5, 2.0, 3.0, 4.0, 6.0, 100.0)
-                                ),
-                                PlatformRuntimeProfileMutators.blasThreads(List.of(0))
-                        )
+                        supportedConv2dDispatchMutators(dataType)
                 ),
                 PlatformCalibrationScorePolicy.weightedGeometricMeanWithWorstBucketPenalty(0.25d)
         );
@@ -423,7 +419,7 @@ public final class PlatformCalibrationDefaults {
     ) {
         List<PlatformCalibrationStep> steps = new ArrayList<>();
         steps.add(matmulStep(prefix + "-matmul", preset));
-        steps.add(conv2dStep(prefix + "-conv2d", preset));
+        steps.add(conv2dGemmDispatchStep(prefix + "-conv2d", preset, dataType));
         addFusedSteps(steps, prefix + "-fused", preset, dataType);
         steps.add(elementwiseDispatchStep(prefix + "-elementwise", preset));
         if (includeReduction) {
@@ -454,7 +450,7 @@ public final class PlatformCalibrationDefaults {
     ) {
         List<PlatformCalibrationStep> steps = new ArrayList<>();
         steps.add(matmulStep(prefix + "-matmul-train", preset));
-        steps.add(conv2dStep(prefix + "-conv2d-train", preset));
+        steps.add(conv2dGemmDispatchStep(prefix + "-conv2d-train", preset, dataType));
         addFusedSteps(steps, prefix + "-fused-train", preset, dataType);
         steps.add(elementwiseDispatchStep(prefix + "-elementwise-train", preset));
         if (includeReduction) {
@@ -472,6 +468,44 @@ public final class PlatformCalibrationDefaults {
             steps.add(numericsStep(prefix + "-numerics-train", preset));
         }
         return List.copyOf(steps);
+    }
+
+    private static List<PlatformRuntimeProfileMutator> supportedConv2dDispatchMutators(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> List.of(
+                    PlatformRuntimeProfileMutators.conv2dBlasProviders(
+                            List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
+                            List.of(50_000L, 100_000L, 250_000L, 1_000_000L, 4_000_000L),
+                            List.of(),
+                            List.of()
+                    )
+            );
+            case FLOAT32 -> List.of(
+                    PlatformRuntimeProfileMutators.conv2dBlasProviders(
+                            List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
+                            List.of(),
+                            List.of(50_000L, 100_000L, 250_000L, 1_000_000L, 4_000_000L),
+                            List.of()
+                    ),
+                    PlatformRuntimeProfileMutators.conv2dShapeHeuristics(
+                            List.of(true, false),
+                            List.of(1.5, 2.0, 3.0, 4.0, 6.0, 100.0)
+                    )
+            );
+            case BFLOAT16 -> List.of(
+                    PlatformRuntimeProfileMutators.conv2dBlasProviders(
+                            List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
+                            List.of(),
+                            List.of(),
+                            List.of(50_000L, 100_000L, 250_000L, 1_000_000L, 4_000_000L)
+                    ),
+                    PlatformRuntimeProfileMutators.conv2dShapeHeuristics(
+                            List.of(true, false),
+                            List.of(1.5, 2.0, 3.0, 4.0, 6.0, 100.0)
+                    )
+            );
+            default -> List.of();
+        };
     }
 
     private static void addFusedSteps(

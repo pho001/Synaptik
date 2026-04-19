@@ -91,6 +91,14 @@ public final class CandidateFingerprint {
         sb.append("blas.f32Req=").append(runtime.blas().f32RequireMgeK()).append('|');
         sb.append("blas.f32MaxNOverK=").append(fmt(runtime.blas().f32MaxNOverK())).append('|');
         sb.append("blas.threads=").append(runtime.blas().threads()).append('|');
+        sb.append("conv2d.provider=").append(runtime.conv2d().provider()).append('|');
+        sb.append("conv2d.f64MinWork=").append(runtime.conv2d().f64MinWork()).append('|');
+        sb.append("conv2d.f32MinWork=").append(runtime.conv2d().f32MinWork()).append('|');
+        sb.append("conv2d.f32Req=").append(runtime.conv2d().f32RequireMgeK()).append('|');
+        sb.append("conv2d.f32MaxNOverK=").append(fmt(runtime.conv2d().f32MaxNOverK())).append('|');
+        sb.append("conv2d.bf16MinWork=").append(runtime.conv2d().bf16MinWork()).append('|');
+        sb.append("conv2d.bf16Req=").append(runtime.conv2d().bf16RequireMgeK()).append('|');
+        sb.append("conv2d.bf16MaxNOverK=").append(fmt(runtime.conv2d().bf16MaxNOverK())).append('|');
         sb.append("fused.primary=").append(runtime.fused().primaryBackend()).append('|');
         sb.append("fused.allowFallback=").append(runtime.fused().allowBackendFallback()).append('|');
         return sb.toString();

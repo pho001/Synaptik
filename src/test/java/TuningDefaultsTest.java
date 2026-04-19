@@ -69,7 +69,7 @@ public class TuningDefaultsTest {
         assertEquals(2, request.measurement().warmupIters());
         assertEquals(8, request.measurement().measureIters());
         assertEquals(ValidationToleranceProfile.BALANCED_DTYPE_AWARE, request.validation().toleranceProfile());
-        assertEquals(1e-6, request.validation().absTolerance(tensor.DataType.FLOAT32));
+        assertEquals(3e-6, request.validation().absTolerance(tensor.DataType.FLOAT32));
         assertEquals(2e-3, request.validation().absTolerance(tensor.DataType.BFLOAT16));
         assertEquals(1, request.entries().size());
     }

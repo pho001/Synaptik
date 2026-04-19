@@ -24,6 +24,7 @@ public record MatmulPlatformProfile(
 ) {
     public MatmulPlatformProfile {
         blasProvider = Objects.requireNonNull(blasProvider, "blasProvider cannot be null");
+        blasThreads = 0;
         attentionMatMulTileM = attentionMatMulTileM <= 0 ? matMulTileM : attentionMatMulTileM;
         attentionMatMulTileN = attentionMatMulTileN <= 0 ? matMulTileN : attentionMatMulTileN;
         attentionMatMulTileK = attentionMatMulTileK <= 0 ? matMulTileK : attentionMatMulTileK;

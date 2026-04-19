@@ -12,6 +12,12 @@ Every benchmarked or autotuned candidate must be genuinely runnable as:
 
 So tuning does not benchmark an abstract "knob set". It benchmarks and evaluates a truly executable profile.
 
+That also means the ownership split is strict:
+
+- optimizer/rewrite decides graph structure
+- `prepare(...)` resolves backend dispatch policy from the chosen runtime profile
+- executors only run the prepared recipe
+
 ## Reading Guide
 
 This document describes:
@@ -332,7 +338,11 @@ But not all families are currently used in standard presets.
 The important current reality:
 
 - `FUSED_ARITHMETIC` exists in the enum, but standard presets do not use it today
-- `CONV2D` is part of the standard preset steps, but it currently tunes runtime BLAS crossover behavior on convolution workloads, not graph rewrite policy
+- standard presets now split convolution runtime crossover tuning by dtype:
+  - `CONV2D_GEMM_DISPATCH_F64`
+  - `CONV2D_GEMM_DISPATCH_F32`
+  - `CONV2D_GEMM_DISPATCH_BF16`
+- graph rewrite policy for convolution lowering still lives separately in `optimizer.rewrite.conv2dLowering.mode`
 
 The documentation needs to say this explicitly, otherwise it gives the impression that more is calibrated than actually is.
 
@@ -353,7 +363,22 @@ This family currently includes for example:
 - tile selection
 - attention matmul tile/microkernel selection
 
-`runtime.blas.threads` stays part of the standard matmul candidate surface, but current presets pin it to a single allowed value: provider auto/default (`0`).
+`runtime.blas.threads` stays in the persisted/profile schema for compatibility, but the effective policy is now fixed to provider-managed auto (`0`). Candidate spaces canonicalize it to a single AUTO variant and prepared execution no longer mutates process-global BLAS thread state at run time.
+
+### `CONV2D_GEMM_DISPATCH_*`
+
+These families currently own convolution GEMM crossover knobs:
+
+- `runtime.conv2d.blasProvider`
+- `runtime.conv2d.f64MinWork`
+- `runtime.conv2d.f32MinWork`
+- `runtime.conv2d.f32RequireMgeK`
+- `runtime.conv2d.f32MaxNOverK`
+- `runtime.conv2d.bf16MinWork`
+- `runtime.conv2d.bf16RequireMgeK`
+- `runtime.conv2d.bf16MaxNOverK`
+
+The split is per dtype because `F64` only calibrates provider/min-work crossover, while `F32` and `BF16` also calibrate shape gates.
 
 ### `FUSED_THRESHOLDS`
 

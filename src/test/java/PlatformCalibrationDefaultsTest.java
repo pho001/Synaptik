@@ -38,7 +38,7 @@ public class PlatformCalibrationDefaultsTest {
         assertFalse(request.steps().isEmpty());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_STRIDED));
@@ -77,7 +77,7 @@ public class PlatformCalibrationDefaultsTest {
         assertEquals(14, request.steps().size());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_STRIDED));
@@ -202,7 +202,7 @@ public class PlatformCalibrationDefaultsTest {
 
     @Test
     void conv2dStepBuildsMultiWorkloadBlasCalibrationSpace() {
-        var step = PlatformCalibrationDefaults.conv2dStep("conv2d", TuningPreset.QUICK);
+        var step = PlatformCalibrationDefaults.conv2dGemmDispatchStep("conv2d", TuningPreset.QUICK, tensor.DataType.FLOAT32);
 
         PlatformRuntimeProfile base = PlatformRuntimeProfile.fromExecutionProfile(
                 "platform-f32",
@@ -223,10 +223,10 @@ public class PlatformCalibrationDefaultsTest {
 
         assertTrue(step.workloads().size() >= 4);
         assertTrue(candidates.stream().anyMatch(candidate ->
-                "NONE".equals(candidate.runtimeProfile().matmul().blasProvider().name())));
+                "NONE".equals(candidate.runtimeProfile().conv2d().blasProvider().name())));
         assertTrue(candidates.stream().anyMatch(candidate ->
-                "OPENBLAS_FFM".equals(candidate.runtimeProfile().matmul().blasProvider().name())
-                        && candidate.runtimeProfile().matmul().blasMatmulMinWork() == 50_000L));
+                "OPENBLAS_FFM".equals(candidate.runtimeProfile().conv2d().blasProvider().name())
+                        && candidate.runtimeProfile().conv2d().f32BlasMinWork() == 50_000L));
     }
 
     @Test

@@ -71,6 +71,25 @@ A knob that is stored in the runtime profile, but not swept by today's standard 
 
 - `cpu.loopUnrollFactor`
 
+### `CONV2D_GEMM_DISPATCH_F64`
+
+- `runtime.conv2d.blasProvider`
+- `runtime.conv2d.f64MinWork`
+
+### `CONV2D_GEMM_DISPATCH_F32`
+
+- `runtime.conv2d.blasProvider`
+- `runtime.conv2d.f32MinWork`
+- `runtime.conv2d.f32RequireMgeK`
+- `runtime.conv2d.f32MaxNOverK`
+
+### `CONV2D_GEMM_DISPATCH_BF16`
+
+- `runtime.conv2d.blasProvider`
+- `runtime.conv2d.bf16MinWork`
+- `runtime.conv2d.bf16RequireMgeK`
+- `runtime.conv2d.bf16MaxNOverK`
+
 ### `FUSED_THRESHOLDS`
 
 - `cpu.fusedCheapVectorMinSize`
@@ -148,7 +167,9 @@ The following ranges describe what standard `PlatformCalibrationDefaults` curren
 
 `blasThreads`
 
-- `0`
+- compatibility-only placeholder
+- canonicalized to `0`
+- runtime does not call BLAS thread setters; the provider keeps its own internal auto policy
 
 `matMulParallelMinSize`
 
