@@ -6,7 +6,7 @@ import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
-import utils.FastExp;
+import utils.FastTranscendentals;
 
 final class StridedRank2Loops {
     private StridedRank2Loops() {
@@ -256,7 +256,7 @@ final class StridedRank2Loops {
                 if (outColStride == 1 && aColStride == 0) {
                     for (int row = 0; row < rows; row++) {
                         double value = a[aBaseOffset + row * aRowStride];
-                        StridedVectorSupport.fillRowF64(out, outBaseOffset + row * outRowStride, cols, useFastExpApprox ? FastExp.fastExpF64(value) : Math.exp(value));
+                        StridedVectorSupport.fillRowF64(out, outBaseOffset + row * outRowStride, cols, useFastExpApprox ? FastTranscendentals.fastExpF64(value) : Math.exp(value));
                     }
                 } else {
                     for (int row = 0; row < rows; row++) {
@@ -264,19 +264,19 @@ final class StridedRank2Loops {
                         int aRowBase = aBaseOffset + row * aRowStride;
                         for (int col = 0; col < cols; col++) {
                             double value = a[aRowBase + col * aColStride];
-                            out[outRowBase + col * outColStride] = useFastExpApprox ? FastExp.fastExpF64(value) : Math.exp(value);
+                            out[outRowBase + col * outColStride] = useFastExpApprox ? FastTranscendentals.fastExpF64(value) : Math.exp(value);
                         }
                     }
                 }
             }
             case FAST_EXP -> {
                 if (outColStride == 1 && aColStride == 0) {
-                    for (int row = 0; row < rows; row++) StridedVectorSupport.fillRowF64(out, outBaseOffset + row * outRowStride, cols, FastExp.fastExpF64(a[aBaseOffset + row * aRowStride]));
+                    for (int row = 0; row < rows; row++) StridedVectorSupport.fillRowF64(out, outBaseOffset + row * outRowStride, cols, FastTranscendentals.fastExpF64(a[aBaseOffset + row * aRowStride]));
                 } else {
                     for (int row = 0; row < rows; row++) {
                         int outRowBase = outBaseOffset + row * outRowStride;
                         int aRowBase = aBaseOffset + row * aRowStride;
-                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastExp.fastExpF64(a[aRowBase + col * aColStride]);
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastTranscendentals.fastExpF64(a[aRowBase + col * aColStride]);
                     }
                 }
             }
@@ -284,7 +284,7 @@ final class StridedRank2Loops {
                 if (outColStride == 1 && aColStride == 0) {
                     for (int row = 0; row < rows; row++) {
                         double value = a[aBaseOffset + row * aRowStride];
-                        StridedVectorSupport.fillRowF64(out, outBaseOffset + row * outRowStride, cols, useFastTanhApprox ? FastExp.fastTanhF64(value) : Math.tanh(value));
+                        StridedVectorSupport.fillRowF64(out, outBaseOffset + row * outRowStride, cols, useFastTanhApprox ? FastTranscendentals.fastTanhF64(value) : Math.tanh(value));
                     }
                 } else {
                     for (int row = 0; row < rows; row++) {
@@ -292,19 +292,19 @@ final class StridedRank2Loops {
                         int aRowBase = aBaseOffset + row * aRowStride;
                         for (int col = 0; col < cols; col++) {
                             double value = a[aRowBase + col * aColStride];
-                            out[outRowBase + col * outColStride] = useFastTanhApprox ? FastExp.fastTanhF64(value) : Math.tanh(value);
+                            out[outRowBase + col * outColStride] = useFastTanhApprox ? FastTranscendentals.fastTanhF64(value) : Math.tanh(value);
                         }
                     }
                 }
             }
             case FAST_TANH -> {
                 if (outColStride == 1 && aColStride == 0) {
-                    for (int row = 0; row < rows; row++) StridedVectorSupport.fillRowF64(out, outBaseOffset + row * outRowStride, cols, FastExp.fastTanhF64(a[aBaseOffset + row * aRowStride]));
+                    for (int row = 0; row < rows; row++) StridedVectorSupport.fillRowF64(out, outBaseOffset + row * outRowStride, cols, FastTranscendentals.fastTanhF64(a[aBaseOffset + row * aRowStride]));
                 } else {
                     for (int row = 0; row < rows; row++) {
                         int outRowBase = outBaseOffset + row * outRowStride;
                         int aRowBase = aBaseOffset + row * aRowStride;
-                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastExp.fastTanhF64(a[aRowBase + col * aColStride]);
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastTranscendentals.fastTanhF64(a[aRowBase + col * aColStride]);
                     }
                 }
             }
@@ -477,7 +477,7 @@ final class StridedRank2Loops {
                 if (outColStride == 1 && aColStride == 0) {
                     for (int row = 0; row < rows; row++) {
                         float value = a[aBaseOffset + row * aRowStride];
-                        StridedVectorSupport.fillRowF32(out, outBaseOffset + row * outRowStride, cols, useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value));
+                        StridedVectorSupport.fillRowF32(out, outBaseOffset + row * outRowStride, cols, useFastExpApprox ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value));
                     }
                 } else {
                     for (int row = 0; row < rows; row++) {
@@ -485,19 +485,19 @@ final class StridedRank2Loops {
                         int aRowBase = aBaseOffset + row * aRowStride;
                         for (int col = 0; col < cols; col++) {
                             float value = a[aRowBase + col * aColStride];
-                            out[outRowBase + col * outColStride] = useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value);
+                            out[outRowBase + col * outColStride] = useFastExpApprox ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value);
                         }
                     }
                 }
             }
             case FAST_EXP -> {
                 if (outColStride == 1 && aColStride == 0) {
-                    for (int row = 0; row < rows; row++) StridedVectorSupport.fillRowF32(out, outBaseOffset + row * outRowStride, cols, FastExp.fastExpF32(a[aBaseOffset + row * aRowStride]));
+                    for (int row = 0; row < rows; row++) StridedVectorSupport.fillRowF32(out, outBaseOffset + row * outRowStride, cols, FastTranscendentals.fastExpF32(a[aBaseOffset + row * aRowStride]));
                 } else {
                     for (int row = 0; row < rows; row++) {
                         int outRowBase = outBaseOffset + row * outRowStride;
                         int aRowBase = aBaseOffset + row * aRowStride;
-                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastExp.fastExpF32(a[aRowBase + col * aColStride]);
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastTranscendentals.fastExpF32(a[aRowBase + col * aColStride]);
                     }
                 }
             }
@@ -505,7 +505,7 @@ final class StridedRank2Loops {
                 if (outColStride == 1 && aColStride == 0) {
                     for (int row = 0; row < rows; row++) {
                         float value = a[aBaseOffset + row * aRowStride];
-                        StridedVectorSupport.fillRowF32(out, outBaseOffset + row * outRowStride, cols, useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value));
+                        StridedVectorSupport.fillRowF32(out, outBaseOffset + row * outRowStride, cols, useFastTanhApprox ? FastTranscendentals.fastTanhF32(value) : (float) Math.tanh(value));
                     }
                 } else {
                     for (int row = 0; row < rows; row++) {
@@ -513,19 +513,19 @@ final class StridedRank2Loops {
                         int aRowBase = aBaseOffset + row * aRowStride;
                         for (int col = 0; col < cols; col++) {
                             float value = a[aRowBase + col * aColStride];
-                            out[outRowBase + col * outColStride] = useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value);
+                            out[outRowBase + col * outColStride] = useFastTanhApprox ? FastTranscendentals.fastTanhF32(value) : (float) Math.tanh(value);
                         }
                     }
                 }
             }
             case FAST_TANH -> {
                 if (outColStride == 1 && aColStride == 0) {
-                    for (int row = 0; row < rows; row++) StridedVectorSupport.fillRowF32(out, outBaseOffset + row * outRowStride, cols, FastExp.fastTanhF32(a[aBaseOffset + row * aRowStride]));
+                    for (int row = 0; row < rows; row++) StridedVectorSupport.fillRowF32(out, outBaseOffset + row * outRowStride, cols, FastTranscendentals.fastTanhF32(a[aBaseOffset + row * aRowStride]));
                 } else {
                     for (int row = 0; row < rows; row++) {
                         int outRowBase = outBaseOffset + row * outRowStride;
                         int aRowBase = aBaseOffset + row * aRowStride;
-                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastExp.fastTanhF32(a[aRowBase + col * aColStride]);
+                        for (int col = 0; col < cols; col++) out[outRowBase + col * outColStride] = FastTranscendentals.fastTanhF32(a[aRowBase + col * aColStride]);
                     }
                 }
             }

@@ -4,7 +4,7 @@ import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
 import operations.Operation;
 import tensor.Tensor;
-import utils.FastExp;
+import utils.FastTranscendentals;
 
 import java.util.List;
 
@@ -26,16 +26,16 @@ public final class CpuFastExpKernel implements CpuKernel, UnaryElementwiseKernel
 
     @Override
     public double applyF64(double value) {
-        return FastExp.fastExpF64(value);
+        return FastTranscendentals.fastExpF64(value);
     }
 
     @Override
     public float applyF32(float value) {
-        return FastExp.fastExpF32(value);
+        return FastTranscendentals.fastExpF32(value);
     }
 
     @Override
     public float applyBF16(float value) {
-        return FastExp.fastExpF32(value);
+        return FastTranscendentals.fastExpF32(value);
     }
 }

@@ -7,7 +7,7 @@ import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
-import utils.FastExp;
+import utils.FastTranscendentals;
 
 final class StridedElementWiseSemantics {
     private static final BoolUnaryOp BOOL_NOT = value -> value == 0 ? (byte) 1 : (byte) 0;
@@ -166,10 +166,10 @@ final class StridedElementWiseSemantics {
             case NEG -> value -> -value;
             case INV -> value -> 1.0 / value;
             case LOG -> Math::log;
-            case EXP -> useFastExpApprox ? FastExp::fastExpF64 : Math::exp;
-            case FAST_EXP -> FastExp::fastExpF64;
-            case TANH -> useFastTanhApprox ? FastExp::fastTanhF64 : Math::tanh;
-            case FAST_TANH -> FastExp::fastTanhF64;
+            case EXP -> useFastExpApprox ? FastTranscendentals::fastExpF64 : Math::exp;
+            case FAST_EXP -> FastTranscendentals::fastExpF64;
+            case TANH -> useFastTanhApprox ? FastTranscendentals::fastTanhF64 : Math::tanh;
+            case FAST_TANH -> FastTranscendentals::fastTanhF64;
             case SQRT -> Math::sqrt;
             case ABS -> Math::abs;
             case RELU -> value -> Math.max(0.0, value);
@@ -202,10 +202,10 @@ final class StridedElementWiseSemantics {
             case NEG -> value -> -value;
             case INV -> value -> 1.0f / value;
             case LOG -> value -> (float) Math.log(value);
-            case EXP -> useFastExpApprox ? FastExp::fastExpF32 : value -> (float) Math.exp(value);
-            case FAST_EXP -> FastExp::fastExpF32;
-            case TANH -> useFastTanhApprox ? FastExp::fastTanhF32 : value -> (float) Math.tanh(value);
-            case FAST_TANH -> FastExp::fastTanhF32;
+            case EXP -> useFastExpApprox ? FastTranscendentals::fastExpF32 : value -> (float) Math.exp(value);
+            case FAST_EXP -> FastTranscendentals::fastExpF32;
+            case TANH -> useFastTanhApprox ? FastTranscendentals::fastTanhF32 : value -> (float) Math.tanh(value);
+            case FAST_TANH -> FastTranscendentals::fastTanhF32;
             case SQRT -> value -> (float) Math.sqrt(value);
             case ABS -> Math::abs;
             case RELU -> value -> Math.max(0.0f, value);
@@ -240,14 +240,14 @@ final class StridedElementWiseSemantics {
             case LOG -> valueBits -> CpuDTypeOps.toBFloat16Bits((float) Math.log(CpuDTypeOps.fromBFloat16Bits(valueBits)));
             case EXP -> valueBits -> {
                 float value = CpuDTypeOps.fromBFloat16Bits(valueBits);
-                return CpuDTypeOps.toBFloat16Bits(useFastExpApprox ? FastExp.fastExpF32(value) : (float) Math.exp(value));
+                return CpuDTypeOps.toBFloat16Bits(useFastExpApprox ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value));
             };
-            case FAST_EXP -> valueBits -> CpuDTypeOps.toBFloat16Bits(FastExp.fastExpF32(CpuDTypeOps.fromBFloat16Bits(valueBits)));
+            case FAST_EXP -> valueBits -> CpuDTypeOps.toBFloat16Bits(FastTranscendentals.fastExpF32(CpuDTypeOps.fromBFloat16Bits(valueBits)));
             case TANH -> valueBits -> {
                 float value = CpuDTypeOps.fromBFloat16Bits(valueBits);
-                return CpuDTypeOps.toBFloat16Bits(useFastTanhApprox ? FastExp.fastTanhF32(value) : (float) Math.tanh(value));
+                return CpuDTypeOps.toBFloat16Bits(useFastTanhApprox ? FastTranscendentals.fastTanhF32(value) : (float) Math.tanh(value));
             };
-            case FAST_TANH -> valueBits -> CpuDTypeOps.toBFloat16Bits(FastExp.fastTanhF32(CpuDTypeOps.fromBFloat16Bits(valueBits)));
+            case FAST_TANH -> valueBits -> CpuDTypeOps.toBFloat16Bits(FastTranscendentals.fastTanhF32(CpuDTypeOps.fromBFloat16Bits(valueBits)));
             case SQRT -> valueBits -> CpuDTypeOps.toBFloat16Bits((float) Math.sqrt(CpuDTypeOps.fromBFloat16Bits(valueBits)));
             case ABS -> valueBits -> CpuDTypeOps.toBFloat16Bits(Math.abs(CpuDTypeOps.fromBFloat16Bits(valueBits)));
             case RELU -> valueBits -> CpuDTypeOps.toBFloat16Bits(Math.max(0.0f, CpuDTypeOps.fromBFloat16Bits(valueBits)));

@@ -1,6 +1,6 @@
 package graph.codegen;
 
-import utils.FastExp;
+import utils.FastTranscendentals;
 
 public final class FusedDTypeOps {
     public static final int MODE_F64 = 0;
@@ -58,9 +58,9 @@ public final class FusedDTypeOps {
 
     public static double fastExp(double a, int mode) {
         return switch (mode) {
-            case MODE_F64 -> FastExp.fastExpF64(a);
-            case MODE_F32 -> (double) FastExp.fastExpF32((float) a);
-            case MODE_BF16 -> cast(FastExp.fastExpF32((float) a), MODE_BF16);
+            case MODE_F64 -> FastTranscendentals.fastExpF64(a);
+            case MODE_F32 -> (double) FastTranscendentals.fastExpF32((float) a);
+            case MODE_BF16 -> cast(FastTranscendentals.fastExpF32((float) a), MODE_BF16);
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -78,9 +78,9 @@ public final class FusedDTypeOps {
 
     public static double fastTanh(double a, int mode) {
         return switch (mode) {
-            case MODE_F64 -> FastExp.fastTanhF64(a);
-            case MODE_F32 -> (double) FastExp.fastTanhF32((float) a);
-            case MODE_BF16 -> cast(FastExp.fastTanhF32((float) a), MODE_BF16);
+            case MODE_F64 -> FastTranscendentals.fastTanhF64(a);
+            case MODE_F32 -> (double) FastTranscendentals.fastTanhF32((float) a);
+            case MODE_BF16 -> cast(FastTranscendentals.fastTanhF32((float) a), MODE_BF16);
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }

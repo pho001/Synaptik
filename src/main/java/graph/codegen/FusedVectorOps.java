@@ -5,7 +5,7 @@ import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorSpecies;
-import utils.FastExp;
+import utils.FastTranscendentals;
 
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
@@ -253,15 +253,15 @@ public final class FusedVectorOps {
 
     public static Object fastExp(Object a, int mode) {
         return switch (mode) {
-            case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastExp::fastExpF64);
-            case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastExp::fastExpF32);
+            case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastTranscendentals::fastExpF64);
+            case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastTranscendentals::fastExpF32);
             case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.fastExp(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
-    public static DoubleVector fastExpF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, FastExp::fastExpF64); }
-    public static FloatVector fastExpF32(FloatVector a) { return (FloatVector) mapUnaryF(a, FastExp::fastExpF32); }
+    public static DoubleVector fastExpF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, FastTranscendentals::fastExpF64); }
+    public static FloatVector fastExpF32(FloatVector a) { return (FloatVector) mapUnaryF(a, FastTranscendentals::fastExpF32); }
 
     public static Object log(Object a, int mode) {
         return switch (mode) {
@@ -308,15 +308,15 @@ public final class FusedVectorOps {
 
     public static Object fastTanh(Object a, int mode) {
         return switch (mode) {
-            case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastExp::fastTanhF64);
-            case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastExp::fastTanhF32);
+            case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastTranscendentals::fastTanhF64);
+            case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastTranscendentals::fastTanhF32);
             case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.fastTanh(x, mode));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
-    public static DoubleVector fastTanhF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, FastExp::fastTanhF64); }
-    public static FloatVector fastTanhF32(FloatVector a) { return (FloatVector) mapUnaryF(a, FastExp::fastTanhF32); }
+    public static DoubleVector fastTanhF64(DoubleVector a) { return (DoubleVector) mapUnaryD(a, FastTranscendentals::fastTanhF64); }
+    public static FloatVector fastTanhF32(FloatVector a) { return (FloatVector) mapUnaryF(a, FastTranscendentals::fastTanhF32); }
 
     public static Object sigmoid(Object a, int mode) {
         return switch (mode) {

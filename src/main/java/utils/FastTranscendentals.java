@@ -1,6 +1,6 @@
 package utils;
 
-public final class FastExp {
+public final class FastTranscendentals {
     private static final boolean FORCE_EXACT_TRANSCENDENTALS =
             Boolean.parseBoolean(System.getProperty("cg.math.forceExactTranscendentals", "false"));
 
@@ -10,7 +10,7 @@ public final class FastExp {
     private static final double FAST_EXP_F64_A = 1_512_775.3951951857d;
     private static final double FAST_EXP_F64_B = 1_072_632_447.0d;
 
-    private FastExp() {}
+    private FastTranscendentals() {}
 
     public static float fastExpF32(float x) {
         if (FORCE_EXACT_TRANSCENDENTALS) {

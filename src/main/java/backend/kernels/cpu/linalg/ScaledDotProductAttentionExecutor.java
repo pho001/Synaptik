@@ -10,7 +10,7 @@ import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
 import tensor.DataType;
 import tensor.Tensor;
-import utils.FastExp;
+import utils.FastTranscendentals;
 
 import java.util.Arrays;
 import java.util.List;
@@ -343,7 +343,7 @@ final class ScaledDotProductAttentionExecutor {
                 continue;
             }
             float shifted = rowScores[keyIndex] - max;
-            float exp = fastExp ? FastExp.fastExpF32(shifted) : (float) Math.exp(shifted);
+            float exp = fastExp ? FastTranscendentals.fastExpF32(shifted) : (float) Math.exp(shifted);
             rowScores[keyIndex] = exp;
             sum += exp;
         }
@@ -438,7 +438,7 @@ final class ScaledDotProductAttentionExecutor {
                 continue;
             }
             double shifted = rowScores[keyIndex] - max;
-            double exp = fastExp ? FastExp.fastExpF64(shifted) : Math.exp(shifted);
+            double exp = fastExp ? FastTranscendentals.fastExpF64(shifted) : Math.exp(shifted);
             rowScores[keyIndex] = exp;
             sum += exp;
         }
@@ -1304,7 +1304,7 @@ final class ScaledDotProductAttentionExecutor {
                 continue;
             }
             double value = values[index] * scale - max;
-            double exp = fastExp ? FastExp.fastExpF64(value) : Math.exp(value);
+            double exp = fastExp ? FastTranscendentals.fastExpF64(value) : Math.exp(value);
             values[index] = exp;
             sum += exp;
         }
@@ -1337,7 +1337,7 @@ final class ScaledDotProductAttentionExecutor {
                 continue;
             }
             float value = values[index] * scale - max;
-            float exp = fastExp ? FastExp.fastExpF32(value) : (float) Math.exp(value);
+            float exp = fastExp ? FastTranscendentals.fastExpF32(value) : (float) Math.exp(value);
             values[index] = exp;
             sum += exp;
         }

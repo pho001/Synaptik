@@ -1,6 +1,6 @@
 package graph.codegen;
 
-import utils.FastExp;
+import utils.FastTranscendentals;
 
 public final class FusedScalarOps {
     private FusedScalarOps() {}
@@ -11,46 +11,46 @@ public final class FusedScalarOps {
 
     public static float expF32(float x, boolean useFastExpApprox) {
         if (useFastExpApprox) {
-            return FastExp.fastExpF32(x);
+            return FastTranscendentals.fastExpF32(x);
         }
         return (float) Math.exp(x);
     }
 
     public static double expF64(double x, boolean useFastExpApprox) {
         if (useFastExpApprox) {
-            return FastExp.fastExpF64(x);
+            return FastTranscendentals.fastExpF64(x);
         }
         return Math.exp(x);
     }
 
     public static float fastExpF32(float x) {
-        return FastExp.fastExpF32(x);
+        return FastTranscendentals.fastExpF32(x);
     }
 
     public static double fastExpF64(double x) {
-        return FastExp.fastExpF64(x);
+        return FastTranscendentals.fastExpF64(x);
     }
 
     public static float tanhF32(float x, boolean useFastTanhApprox) {
         if (useFastTanhApprox) {
-            return FastExp.fastTanhF32(x);
+            return FastTranscendentals.fastTanhF32(x);
         }
         return (float) Math.tanh(x);
     }
 
     public static double tanhF64(double x, boolean useFastTanhApprox) {
         if (useFastTanhApprox) {
-            return FastExp.fastTanhF64(x);
+            return FastTranscendentals.fastTanhF64(x);
         }
         return Math.tanh(x);
     }
 
     public static float fastTanhF32(float x) {
-        return FastExp.fastTanhF32(x);
+        return FastTranscendentals.fastTanhF32(x);
     }
 
     public static double fastTanhF64(double x) {
-        return FastExp.fastTanhF64(x);
+        return FastTranscendentals.fastTanhF64(x);
     }
 
     public static float powF32(float x, float exponent) {
