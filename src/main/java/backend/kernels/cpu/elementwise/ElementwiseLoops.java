@@ -32,16 +32,21 @@ public final class ElementwiseLoops {
         switch (out.getDataType()) {
             case FLOAT64 -> runBinaryF64(kernel, left.getFloat64Data(), right.getFloat64Data(), out.getFloat64Data(), plan, hints);
             case FLOAT32 -> runBinaryF32(kernel, left.getFloat32Data(), right.getFloat32Data(), out.getFloat32Data(), plan, hints);
-            case BFLOAT16 -> runBinaryBF16(
-                    kernel,
-                    left.getBFloat16Data(),
-                    right.getBFloat16Data(),
-                    context.inputFloatContinuation(0, out.getFlatDataSize()),
-                    context.inputFloatContinuation(1, out.getFlatDataSize()),
-                    out.getBFloat16Data(),
-                    plan,
-                    hints
-            );
+            case BFLOAT16 -> {
+                float[] leftContinuation = context.inputFloatContinuation(0, out.getFlatDataSize());
+                float[] rightContinuation = context.inputFloatContinuation(1, out.getFlatDataSize());
+                runBinaryBF16(
+                        kernel,
+                        left.getBFloat16Data(),
+                        right.getBFloat16Data(),
+                        leftContinuation,
+                        rightContinuation,
+                        out.getBFloat16Data(),
+                        plan,
+                        hints,
+                        context
+                );
+            }
             case INT32, BOOL -> throw unsupported(out.getDataType(), "binary elementwise kernel");
         }
     }
@@ -51,13 +56,17 @@ public final class ElementwiseLoops {
         switch (out.getDataType()) {
             case FLOAT64 -> runUnaryF64(kernel, input.getFloat64Data(), out.getFloat64Data(), hints);
             case FLOAT32 -> runUnaryF32(kernel, input.getFloat32Data(), out.getFloat32Data(), hints);
-            case BFLOAT16 -> runUnaryBF16(
-                    kernel,
-                    input.getBFloat16Data(),
-                    context.inputFloatContinuation(0, out.getFlatDataSize()),
-                    out.getBFloat16Data(),
-                    hints
-            );
+            case BFLOAT16 -> {
+                float[] continuation = context.inputFloatContinuation(0, out.getFlatDataSize());
+                runUnaryBF16(
+                        kernel,
+                        input.getBFloat16Data(),
+                        continuation,
+                        out.getBFloat16Data(),
+                        hints,
+                        context
+                );
+            }
             case INT32, BOOL -> throw unsupported(out.getDataType(), "unary elementwise kernel");
         }
     }
@@ -74,14 +83,18 @@ public final class ElementwiseLoops {
         switch (out.getDataType()) {
             case FLOAT64 -> runScalarUnaryF64(kernel, input.getFloat64Data(), parameterF64, out.getFloat64Data(), hints);
             case FLOAT32 -> runScalarUnaryF32(kernel, input.getFloat32Data(), parameterF32, out.getFloat32Data(), hints);
-            case BFLOAT16 -> runScalarUnaryBF16(
-                    kernel,
-                    input.getBFloat16Data(),
-                    context.inputFloatContinuation(0, out.getFlatDataSize()),
-                    parameterF32,
-                    out.getBFloat16Data(),
-                    hints
-            );
+            case BFLOAT16 -> {
+                float[] continuation = context.inputFloatContinuation(0, out.getFlatDataSize());
+                runScalarUnaryBF16(
+                        kernel,
+                        input.getBFloat16Data(),
+                        continuation,
+                        parameterF32,
+                        out.getBFloat16Data(),
+                        hints,
+                        context
+                );
+            }
             case INT32, BOOL -> throw unsupported(out.getDataType(), "scalar unary elementwise kernel");
         }
     }
@@ -293,11 +306,18 @@ public final class ElementwiseLoops {
             float[] rightContinuation,
             short[] out,
             ResolvedBroadcastPlan plan,
-            ResolvedDispatchHints hints
+            ResolvedDispatchHints hints,
+            CpuKernelContext context
     ) {
         if (plan != null && !plan.isNoBroadcast()) {
             runBroadcast(out.length, hints, (start, end) ->
                     scalarBroadcastBF16(kernel, leftStorage, rightStorage, leftContinuation, rightContinuation, out, plan, start, end));
+            return;
+        }
+        if (canPublishFloatContinuation(context)) {
+            float[] outFloat = context.cpuWorkspace().requireFloatWorkspace();
+            runBinaryBF16ToFloat(kernel, leftStorage, rightStorage, leftContinuation, rightContinuation, outFloat, hints);
+            context.cpuWorkspace().publishFloatContinuation(out.length);
             return;
         }
         if (kernel.supportsDirectBF16()) {
@@ -336,8 +356,15 @@ public final class ElementwiseLoops {
             short[] in,
             float[] continuation,
             short[] out,
-            ResolvedDispatchHints hints
+            ResolvedDispatchHints hints,
+            CpuKernelContext context
     ) {
+        if (canPublishFloatContinuation(context)) {
+            float[] outFloat = context.cpuWorkspace().requireFloatWorkspace();
+            runUnaryBF16ToFloat(kernel, in, continuation, outFloat, hints);
+            context.cpuWorkspace().publishFloatContinuation(out.length);
+            return;
+        }
         if (kernel.supportsDirectBF16()) {
             kernel.runDirectBF16(in, continuation, out, hints);
             return;
@@ -387,8 +414,15 @@ public final class ElementwiseLoops {
             float[] continuation,
             float parameter,
             short[] out,
-            ResolvedDispatchHints hints
+            ResolvedDispatchHints hints,
+            CpuKernelContext context
     ) {
+        if (canPublishFloatContinuation(context)) {
+            float[] outFloat = context.cpuWorkspace().requireFloatWorkspace();
+            runScalarUnaryBF16ToFloat(kernel, in, continuation, parameter, outFloat, hints);
+            context.cpuWorkspace().publishFloatContinuation(out.length);
+            return;
+        }
         if (kernel.supportsDirectBF16()) {
             kernel.runDirectBF16(in, continuation, parameter, out, hints);
             return;
@@ -592,6 +626,21 @@ public final class ElementwiseLoops {
         }
     }
 
+    private static void scalarDirectBF16ToF32(
+            BinaryElementwiseKernel kernel,
+            short[] leftStorage,
+            short[] rightStorage,
+            float[] leftContinuation,
+            float[] rightContinuation,
+            float[] out,
+            int start,
+            int end
+    ) {
+        for (int i = start; i < end; i++) {
+            out[i] = kernel.applyBF16(loadBF16(leftContinuation, leftStorage, i), loadBF16(rightContinuation, rightStorage, i));
+        }
+    }
+
     private static void scalarBroadcastF64(
             BinaryElementwiseKernel kernel,
             double[] left,
@@ -696,6 +745,19 @@ public final class ElementwiseLoops {
         }
     }
 
+    private static void scalarUnaryBF16ToF32(
+            UnaryElementwiseKernel kernel,
+            short[] in,
+            float[] continuation,
+            float[] out,
+            int start,
+            int end
+    ) {
+        for (int i = start; i < end; i++) {
+            out[i] = kernel.applyBF16(loadBF16(continuation, in, i));
+        }
+    }
+
     private static void scalarUnaryF64(
             ScalarUnaryElementwiseKernel kernel,
             double[] in,
@@ -770,6 +832,77 @@ public final class ElementwiseLoops {
         for (int i = start; i < end; i++) {
             out[i] = storeBF16(kernel.applyBF16(loadBF16(continuation, in, i), parameter));
         }
+    }
+
+    private static void scalarUnaryBF16ToF32(
+            ScalarUnaryElementwiseKernel kernel,
+            short[] in,
+            float[] continuation,
+            float parameter,
+            float[] out,
+            int start,
+            int end
+    ) {
+        for (int i = start; i < end; i++) {
+            out[i] = kernel.applyBF16(loadBF16(continuation, in, i), parameter);
+        }
+    }
+
+    private static void runBinaryBF16ToFloat(
+            BinaryElementwiseKernel kernel,
+            short[] leftStorage,
+            short[] rightStorage,
+            float[] leftContinuation,
+            float[] rightContinuation,
+            float[] out,
+            ResolvedDispatchHints hints
+    ) {
+        if (leftContinuation != null && rightContinuation != null && kernel.supportsDirectF32()) {
+            kernel.runDirectF32(leftContinuation, rightContinuation, out, hints);
+            return;
+        }
+        boolean vectorized = leftContinuation != null
+                && rightContinuation != null
+                && hints.vectorized()
+                && kernel.supportsVectorF32();
+        runDirect(out.length, hints, vectorized,
+                (start, end) -> scalarDirectBF16ToF32(kernel, leftStorage, rightStorage, leftContinuation, rightContinuation, out, start, end),
+                (start, end) -> vectorDirectF32(kernel, leftContinuation, rightContinuation, out, start, end));
+    }
+
+    private static void runUnaryBF16ToFloat(
+            UnaryElementwiseKernel kernel,
+            short[] in,
+            float[] continuation,
+            float[] out,
+            ResolvedDispatchHints hints
+    ) {
+        if (continuation != null && kernel.supportsDirectF32()) {
+            kernel.runDirectF32(continuation, out, hints);
+            return;
+        }
+        boolean vectorized = continuation != null && hints.vectorized() && kernel.supportsVectorF32();
+        runDirect(out.length, hints, vectorized,
+                (start, end) -> scalarUnaryBF16ToF32(kernel, in, continuation, out, start, end),
+                (start, end) -> vectorUnaryF32(kernel, continuation, out, start, end));
+    }
+
+    private static void runScalarUnaryBF16ToFloat(
+            ScalarUnaryElementwiseKernel kernel,
+            short[] in,
+            float[] continuation,
+            float parameter,
+            float[] out,
+            ResolvedDispatchHints hints
+    ) {
+        if (continuation != null && kernel.supportsDirectF32()) {
+            kernel.runDirectF32(continuation, parameter, out, hints);
+            return;
+        }
+        boolean vectorized = continuation != null && hints.vectorized() && kernel.supportsVectorF32();
+        runDirect(out.length, hints, vectorized,
+                (start, end) -> scalarUnaryBF16ToF32(kernel, in, continuation, parameter, out, start, end),
+                (start, end) -> vectorUnaryF32(kernel, continuation, parameter, out, start, end));
     }
 
     private static void scalarDirectCompareF64(
@@ -1060,6 +1193,12 @@ public final class ElementwiseLoops {
 
     private static float loadBF16(float[] continuation, short[] storage, int index) {
         return continuation != null ? continuation[index] : CpuDTypeOps.fromBFloat16Bits(storage[index]);
+    }
+
+    private static boolean canPublishFloatContinuation(CpuKernelContext context) {
+        return context != null
+                && context.publishFloatContinuation()
+                && context.cpuWorkspace() != null;
     }
 
     private static short storeBF16(float value) {

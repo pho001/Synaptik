@@ -71,6 +71,12 @@ final class MatMulExecutor {
                 context.cpuWorkspace().publishFloatContinuation(out.length);
                 return;
             }
+            if (context.cpuWorkspace() != null) {
+                float[] continuation = context.cpuWorkspace().requireFloatWorkspace();
+                MatMulJavaBackend.runBF16ToFloat(ad, as, bd, bs, continuation, node.getShapeUnsafe(), hints);
+                context.cpuWorkspace().publishFloatContinuation(out.length);
+                return;
+            }
         }
         if (as.length == 2 && bs.length == 2 && hints.useBlas() && MatMulBlasBackend.tryBlasBF16(ad, bd, out, tmp, m, n, k)) {
             return;

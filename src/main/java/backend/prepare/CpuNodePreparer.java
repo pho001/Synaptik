@@ -41,6 +41,8 @@ final class CpuNodePreparer {
             throw new IllegalStateException("Missing CPU kernel for opType=" + operation.opType());
         }
 
+        boolean publishFloatContinuation = shouldPublishFloatContinuation(node, operation, context);
+
         ResolvedDispatchHints dispatchHintsOverride = null;
         PreparedFusedDispatch preparedFusedDispatch = null;
         if (operation.opType().category() == Operation.OpArityClass.ELEMENT_WISE) {
@@ -74,7 +76,7 @@ final class CpuNodePreparer {
                 planner,
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),
-                shouldPublishFloatContinuation(node, operation, context),
+                publishFloatContinuation,
                 dispatchHintsOverride
         );
 
@@ -92,7 +94,7 @@ final class CpuNodePreparer {
             );
         }
 
-        CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(node, operation, cpuPlan, context);
+        CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(node, operation, cpuPlan, publishFloatContinuation, context);
         return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, kernel, cpuPlan, fusedExecutable, cpuWorkspace);
     }
 
@@ -100,24 +102,27 @@ final class CpuNodePreparer {
             CompiledNode node,
             Operation operation,
             CpuNodeExecutionPlan cpuPlan,
+            boolean publishFloatContinuation,
             BackendPrepareContext context
     ) {
         return switch (operation.opType()) {
             case MAX_POOL2D -> CpuNodeWorkspace.withIntWorkspace(node.flatDataSize());
             case MAX_POOL2D_BACKWARD_INPUT -> resolveSharedMaxPoolWorkspace(node, context);
-            case MATMUL -> needsBFloat16BlasWorkspace(node, cpuPlan)
+            case MATMUL -> (publishFloatContinuation || needsBFloat16BlasWorkspace(node, cpuPlan))
                     ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
                     : null;
-            case LINEAR -> needsBFloat16BlasWorkspace(node, cpuPlan)
+            case LINEAR -> (publishFloatContinuation || needsBFloat16BlasWorkspace(node, cpuPlan))
                     ? CpuNodeWorkspace.withFloatWorkspaceAndPackedLinearWeights(node.flatDataSize())
                     : CpuNodeWorkspace.withPackedLinearWeights();
-            case LOG_SOFTMAX -> shouldPublishFloatContinuation(node, operation, context)
+            case LOG_SOFTMAX -> publishFloatContinuation
                     ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
                     : null;
             case CONV2D_GEMM -> node.dataType() == DataType.BFLOAT16
                     ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
                     : null;
-            default -> null;
+            default -> publishFloatContinuation
+                    ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
+                    : null;
         };
     }
 
@@ -151,17 +156,10 @@ final class CpuNodePreparer {
             Operation operation,
             BackendPrepareContext context
     ) {
-        if (context.supportsBackward()) {
-            return false;
-        }
         if (node.dataType() != DataType.BFLOAT16 || operation == null) {
             return false;
         }
-        if (operation.opType() != Operation.OpType.MATMUL && operation.opType() != Operation.OpType.LINEAR
-                && operation.opType() != Operation.OpType.SUM && operation.opType() != Operation.OpType.MEAN
-                && operation.opType() != Operation.OpType.LOG_SOFTMAX
-                && operation.opType() != Operation.OpType.EXPAND && operation.opType() != Operation.OpType.PERMUTE
-                && operation.opType() != Operation.OpType.RESHAPE && operation.opType() != Operation.OpType.CONTIGUOUS) {
+        if (!supportsFloatContinuationProducer(operation.opType())) {
             return false;
         }
         var next = context.consumersFor(node.id());
@@ -171,11 +169,6 @@ final class CpuNodePreparer {
         CompiledNode consumer = next.getFirst();
         if (consumer == null || consumer.operation() == null || consumer.dataType() != DataType.BFLOAT16) {
             return false;
-        }
-        if (operation.opType() == Operation.OpType.SUM || operation.opType() == Operation.OpType.MEAN
-                || operation.opType() == Operation.OpType.EXPAND || operation.opType() == Operation.OpType.PERMUTE
-                || operation.opType() == Operation.OpType.RESHAPE || operation.opType() == Operation.OpType.CONTIGUOUS) {
-            return isSingleInputAliasOrReductionChain(node, consumer, context);
         }
         return switch (consumer.operation().opType()) {
             case RELU, ABS, CLAMP_MIN, CLAMP_MAX, SQRT, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, INV ->
@@ -275,6 +268,15 @@ final class CpuNodePreparer {
             }
         }
         return true;
+    }
+
+    private boolean supportsFloatContinuationProducer(Operation.OpType opType) {
+        return switch (opType) {
+            case MATMUL, LINEAR, LOG_SOFTMAX,
+                    ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
+                    POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
+            default -> false;
+        };
     }
 
     private boolean isSingleInputAliasOrReductionChain(CompiledNode producer, CompiledNode consumer, BackendPrepareContext context) {
