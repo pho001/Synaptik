@@ -1,6 +1,7 @@
 package backend.kernels.cpu.layout;
 
 import backend.CpuPreparedInput;
+import backend.kernels.cpu.elementwise.strided.StridedLayoutDecision;
 import backend.kernels.cpu.plan.PreparedTypeContract;
 import backend.kernels.cpu.plan.CpuExecutionPlanner;
 import operations.Operation;
@@ -21,7 +22,7 @@ public final class PreparedInputPlanner {
             Tensor node,
             PreparedTypeContract typeContract,
             CpuExecutionPlanner planner,
-            boolean stridedPath
+            StridedLayoutDecision layoutDecision
     ) {
         if (inputs.isEmpty()) {
             return new PreparedInputsResult(List.of(), List.of());
@@ -32,7 +33,7 @@ public final class PreparedInputPlanner {
             return new PreparedInputsResult(List.of(), inputs);
         }
 
-        if (stridedPath) {
+        if (layoutDecision != null && layoutDecision.useStridedPath()) {
             return new PreparedInputsResult(List.of(), inputs);
         }
 
@@ -47,7 +48,8 @@ public final class PreparedInputPlanner {
 
             DataType expectedInputType = typeContract.expectedInputTypes().get(i);
 
-            if (!PreparedInputPolicy.requiresPreparedInput(op, input, node, expectedInputType, planner)) {
+            boolean forcePrepared = layoutDecision != null && layoutDecision.shouldForcePrepareInput(i);
+            if (!forcePrepared && !PreparedInputPolicy.requiresPreparedInput(op, input, node, expectedInputType, planner)) {
                 runtimeInputs.add(input);
                 continue;
             }

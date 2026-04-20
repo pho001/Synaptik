@@ -107,7 +107,11 @@ public final class PlatformRuntimeProfileIO {
                 "    \"commonPoolLowCostMaxWorkPerWorker\": " + profile.scheduler().commonPoolLowCostMaxWorkPerWorker() + "\n" +
                 "  },\n" +
                 "  \"materialization\": {\n" +
-                "    \"contiguousMaterializeThreshold\": " + profile.materialization().contiguousMaterializeThreshold() + "\n" +
+                "    \"contiguousMaterializeThreshold\": " + profile.materialization().contiguousMaterializeThreshold() + ",\n" +
+                "    \"cheapF64MaterializeThreshold\": " + profile.materialization().cheapF64MaterializeThreshold() + ",\n" +
+                "    \"cheapF32MaterializeThreshold\": " + profile.materialization().cheapF32MaterializeThreshold() + ",\n" +
+                "    \"cheapBF16MaterializeThreshold\": " + profile.materialization().cheapBF16MaterializeThreshold() + ",\n" +
+                "    \"whereMaterializeThreshold\": " + profile.materialization().whereMaterializeThreshold() + "\n" +
                 "  },\n" +
                 "  \"numerics\": {\n" +
                 "    \"approxMode\": \"" + profile.numerics().approxMode().name() + "\",\n" +
@@ -238,7 +242,27 @@ public final class PlatformRuntimeProfileIO {
                             findInt(json, "commonPoolLowCostMaxWorkPerWorker", fallback.scheduler().commonPoolLowCostMaxWorkPerWorker())
                     ),
                     new MaterializationPlatformProfile(
-                            findInt(json, "contiguousMaterializeThreshold", fallback.materialization().contiguousMaterializeThreshold())
+                            findInt(json, "contiguousMaterializeThreshold", fallback.materialization().contiguousMaterializeThreshold()),
+                            findInt(
+                                    json,
+                                    "cheapF64MaterializeThreshold",
+                                    fallback.materialization().cheapF64MaterializeThreshold()
+                            ),
+                            findInt(
+                                    json,
+                                    "cheapF32MaterializeThreshold",
+                                    fallback.materialization().cheapF32MaterializeThreshold()
+                            ),
+                            findInt(
+                                    json,
+                                    "cheapBF16MaterializeThreshold",
+                                    fallback.materialization().cheapBF16MaterializeThreshold()
+                            ),
+                            findInt(
+                                    json,
+                                    "whereMaterializeThreshold",
+                                    fallback.materialization().whereMaterializeThreshold()
+                            )
                     ),
                     new NumericsPlatformProfile(
                             findEnum(json, "approxMode", fallback.numerics().approxMode(), ApproxMode.class),

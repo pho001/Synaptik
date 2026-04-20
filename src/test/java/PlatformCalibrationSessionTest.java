@@ -81,15 +81,19 @@ public class PlatformCalibrationSessionTest {
                         new config.backend.KernelTuningConfig(
                                 new config.backend.CpuKernelConfig(
                                         4, 32, 32, 32,
-                                        256, 256, 256, 256, 256,
-                                        50_000, 50_000, 50_000, 50_000, 50_000,
+                                        256, 256, 256, 256, 256, 256,
+                                        50_000, 50_000, 50_000, 50_000, 50_000, 50_000,
                                         16_384,
+                                        32_768, 4_096, 2_048, 8_192,
                                         5, 3, 2,
                                         2_048, 4_096, 8_192, 32_768,
                                         4, 2, 8, 1,
                                         config.backend.SumAccuracyMode.FAST,
                                         2_000_000,
-                                        config.backend.AttentionMatMulPolicy.AUTO
+                                        config.backend.AttentionMatMulPolicy.AUTO,
+                                        config.backend.CpuMatMulMicroKernel.AUTO,
+                                        config.backend.CpuMatMulMicroKernel.AUTO,
+                                        32, 32, 32
                                 ),
                                 config.backend.CudaKernelConfig.defaultsInference(),
                                 config.backend.OpenClKernelConfig.defaultsInference()
@@ -120,10 +124,20 @@ public class PlatformCalibrationSessionTest {
         assertEquals(2, loaded.fused().fusedCheapStridedAsmVectorWidth());
         assertEquals(8, loaded.fused().fusedNonCheapContiguousAsmVectorWidth());
         assertEquals(1, loaded.fused().fusedNonCheapStridedAsmVectorWidth());
+        assertEquals(16_384, loaded.materialization().contiguousMaterializeThreshold());
+        assertEquals(32_768, loaded.materialization().cheapF64MaterializeThreshold());
+        assertEquals(4_096, loaded.materialization().cheapF32MaterializeThreshold());
+        assertEquals(2_048, loaded.materialization().cheapBF16MaterializeThreshold());
+        assertEquals(8_192, loaded.materialization().whereMaterializeThreshold());
         assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedCheapContiguousAsmVectorWidth());
         assertEquals(2, loaded.toRuntimeConfig().kernel().cpu().fusedCheapStridedAsmVectorWidth());
         assertEquals(8, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapContiguousAsmVectorWidth());
         assertEquals(1, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapStridedAsmVectorWidth());
+        assertEquals(16_384, loaded.toRuntimeConfig().kernel().cpu().contiguousMaterializeThreshold());
+        assertEquals(32_768, loaded.toRuntimeConfig().kernel().cpu().cheapF64MaterializeThreshold());
+        assertEquals(4_096, loaded.toRuntimeConfig().kernel().cpu().cheapF32MaterializeThreshold());
+        assertEquals(2_048, loaded.toRuntimeConfig().kernel().cpu().cheapBF16MaterializeThreshold());
+        assertEquals(8_192, loaded.toRuntimeConfig().kernel().cpu().whereMaterializeThreshold());
     }
 
     private static ExecutionProfile defaultSeed() {

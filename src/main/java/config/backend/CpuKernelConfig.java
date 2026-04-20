@@ -5,6 +5,10 @@ public final class CpuKernelConfig {
     private static final int DEFAULT_PARALLEL_MIN_SIZE = 100_000;
     private static final int DEFAULT_MATMUL_PARALLEL_MIN_SIZE = 2_000_000;
     private static final int DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD = 1_000_000_000;
+    private static final int DEFAULT_CHEAP_F64_MATERIALIZE_THRESHOLD = DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD;
+    private static final int DEFAULT_CHEAP_F32_MATERIALIZE_THRESHOLD = DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD;
+    private static final int DEFAULT_CHEAP_BF16_MATERIALIZE_THRESHOLD = DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD;
+    private static final int DEFAULT_WHERE_MATERIALIZE_THRESHOLD = DEFAULT_CONTIGUOUS_MATERIALIZE_THRESHOLD;
     private static final int DEFAULT_LOW_COST_TARGET_CHUNKS_PER_WORKER = 4;
     private static final int DEFAULT_MEDIUM_COST_TARGET_CHUNKS_PER_WORKER = 2;
     private static final int DEFAULT_HIGH_COST_TARGET_CHUNKS_PER_WORKER = 1;
@@ -39,6 +43,10 @@ public final class CpuKernelConfig {
     private final int attentionParallelMinSize;
     private final int matMulParallelMinSize;
     private final int contiguousMaterializeThreshold;
+    private final int cheapF64MaterializeThreshold;
+    private final int cheapF32MaterializeThreshold;
+    private final int cheapBF16MaterializeThreshold;
+    private final int whereMaterializeThreshold;
     private final int lowCostTargetChunksPerWorker;
     private final int mediumCostTargetChunksPerWorker;
     private final int highCostTargetChunksPerWorker;
@@ -638,6 +646,10 @@ public final class CpuKernelConfig {
                 reductionParallelMinSize,
                 attentionParallelMinSize,
                 contiguousMaterializeThreshold,
+                contiguousMaterializeThreshold,
+                contiguousMaterializeThreshold,
+                contiguousMaterializeThreshold,
+                contiguousMaterializeThreshold,
                 lowCostTargetChunksPerWorker,
                 mediumCostTargetChunksPerWorker,
                 highCostTargetChunksPerWorker,
@@ -698,6 +710,92 @@ public final class CpuKernelConfig {
             int attentionMatMulTileN,
             int attentionMatMulTileK
     ) {
+        this(
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                cheapVectorMinSize,
+                transcendentalVectorMinSize,
+                fusedCheapVectorMinSize,
+                fusedTranscendentalVectorMinSize,
+                reductionVectorMinSize,
+                attentionVectorMinSize,
+                cheapParallelMinSize,
+                transcendentalParallelMinSize,
+                fusedCheapParallelMinSize,
+                fusedTranscendentalParallelMinSize,
+                reductionParallelMinSize,
+                attentionParallelMinSize,
+                contiguousMaterializeThreshold,
+                contiguousMaterializeThreshold,
+                contiguousMaterializeThreshold,
+                contiguousMaterializeThreshold,
+                contiguousMaterializeThreshold,
+                lowCostTargetChunksPerWorker,
+                mediumCostTargetChunksPerWorker,
+                highCostTargetChunksPerWorker,
+                minScalarChunkSize,
+                minVectorChunkSize,
+                minReductionChunkSize,
+                commonPoolLowCostMaxWorkPerWorker,
+                fusedCheapContiguousAsmVectorWidth,
+                fusedCheapStridedAsmVectorWidth,
+                fusedNonCheapContiguousAsmVectorWidth,
+                fusedNonCheapStridedAsmVectorWidth,
+                sumAccuracyMode,
+                matMulParallelMinSize,
+                attentionMatMulPolicy,
+                matMulMicroKernel,
+                attentionMatMulMicroKernel,
+                attentionMatMulTileM,
+                attentionMatMulTileN,
+                attentionMatMulTileK
+        );
+    }
+
+    public CpuKernelConfig(
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int cheapVectorMinSize,
+            int transcendentalVectorMinSize,
+            int fusedCheapVectorMinSize,
+            int fusedTranscendentalVectorMinSize,
+            int reductionVectorMinSize,
+            int attentionVectorMinSize,
+            int cheapParallelMinSize,
+            int transcendentalParallelMinSize,
+            int fusedCheapParallelMinSize,
+            int fusedTranscendentalParallelMinSize,
+            int reductionParallelMinSize,
+            int attentionParallelMinSize,
+            int contiguousMaterializeThreshold,
+            int cheapF64MaterializeThreshold,
+            int cheapF32MaterializeThreshold,
+            int cheapBF16MaterializeThreshold,
+            int whereMaterializeThreshold,
+            int lowCostTargetChunksPerWorker,
+            int mediumCostTargetChunksPerWorker,
+            int highCostTargetChunksPerWorker,
+            int minScalarChunkSize,
+            int minVectorChunkSize,
+            int minReductionChunkSize,
+            int commonPoolLowCostMaxWorkPerWorker,
+            int fusedCheapContiguousAsmVectorWidth,
+            int fusedCheapStridedAsmVectorWidth,
+            int fusedNonCheapContiguousAsmVectorWidth,
+            int fusedNonCheapStridedAsmVectorWidth,
+            SumAccuracyMode sumAccuracyMode,
+            int matMulParallelMinSize,
+            AttentionMatMulPolicy attentionMatMulPolicy,
+            CpuMatMulMicroKernel matMulMicroKernel,
+            CpuMatMulMicroKernel attentionMatMulMicroKernel,
+            int attentionMatMulTileM,
+            int attentionMatMulTileN,
+            int attentionMatMulTileK
+    ) {
         this.loopUnrollFactor = loopUnrollFactor;
         this.matMulTileM = matMulTileM;
         this.matMulTileN = matMulTileN;
@@ -719,6 +817,10 @@ public final class CpuKernelConfig {
         this.attentionParallelMinSize = Math.max(1, attentionParallelMinSize);
         this.matMulParallelMinSize = Math.max(1, matMulParallelMinSize);
         this.contiguousMaterializeThreshold = Math.max(0, contiguousMaterializeThreshold);
+        this.cheapF64MaterializeThreshold = Math.max(0, cheapF64MaterializeThreshold);
+        this.cheapF32MaterializeThreshold = Math.max(0, cheapF32MaterializeThreshold);
+        this.cheapBF16MaterializeThreshold = Math.max(0, cheapBF16MaterializeThreshold);
+        this.whereMaterializeThreshold = Math.max(0, whereMaterializeThreshold);
         this.lowCostTargetChunksPerWorker = Math.max(1, lowCostTargetChunksPerWorker);
         this.mediumCostTargetChunksPerWorker = Math.max(1, mediumCostTargetChunksPerWorker);
         this.highCostTargetChunksPerWorker = Math.max(1, highCostTargetChunksPerWorker);
@@ -760,6 +862,10 @@ public final class CpuKernelConfig {
     public int parallelMinSize() { return cheapParallelMinSize; }
     public int matMulParallelMinSize() { return matMulParallelMinSize; }
     public int contiguousMaterializeThreshold() { return contiguousMaterializeThreshold; }
+    public int cheapF64MaterializeThreshold() { return cheapF64MaterializeThreshold; }
+    public int cheapF32MaterializeThreshold() { return cheapF32MaterializeThreshold; }
+    public int cheapBF16MaterializeThreshold() { return cheapBF16MaterializeThreshold; }
+    public int whereMaterializeThreshold() { return whereMaterializeThreshold; }
     public int lowCostTargetChunksPerWorker() { return lowCostTargetChunksPerWorker; }
     public int mediumCostTargetChunksPerWorker() { return mediumCostTargetChunksPerWorker; }
     public int highCostTargetChunksPerWorker() { return highCostTargetChunksPerWorker; }

@@ -130,7 +130,13 @@ public record PlatformRuntimeProfile(
                         cpu.minReductionChunkSize(),
                         cpu.commonPoolLowCostMaxWorkPerWorker()
                 ),
-                new MaterializationPlatformProfile(cpu.contiguousMaterializeThreshold()),
+                new MaterializationPlatformProfile(
+                        cpu.contiguousMaterializeThreshold(),
+                        cpu.cheapF64MaterializeThreshold(),
+                        cpu.cheapF32MaterializeThreshold(),
+                        cpu.cheapBF16MaterializeThreshold(),
+                        cpu.whereMaterializeThreshold()
+                ),
                 new NumericsPlatformProfile(
                         profile.runtime().approximation().approxMode(),
                         profile.runtime().approximation().forceExactTranscendentals()
@@ -157,6 +163,10 @@ public record PlatformRuntimeProfile(
                 reduction.reductionParallelMinSize(),
                 reduction.attentionParallelMinSize(),
                 materialization.contiguousMaterializeThreshold(),
+                materialization.cheapF64MaterializeThreshold(),
+                materialization.cheapF32MaterializeThreshold(),
+                materialization.cheapBF16MaterializeThreshold(),
+                materialization.whereMaterializeThreshold(),
                 scheduler.lowCostTargetChunksPerWorker(),
                 scheduler.mediumCostTargetChunksPerWorker(),
                 scheduler.highCostTargetChunksPerWorker(),

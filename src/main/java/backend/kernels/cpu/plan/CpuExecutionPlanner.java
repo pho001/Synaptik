@@ -61,6 +61,10 @@ public final class CpuExecutionPlanner {
             int attentionParallelMinSize,
             int matMulParallelMinSize,
             int contiguousMaterializeThreshold,
+            int cheapF64MaterializeThreshold,
+            int cheapF32MaterializeThreshold,
+            int cheapBF16MaterializeThreshold,
+            int whereMaterializeThreshold,
             int lowCostTargetChunksPerWorker,
             int mediumCostTargetChunksPerWorker,
             int highCostTargetChunksPerWorker,
@@ -95,6 +99,10 @@ public final class CpuExecutionPlanner {
                 attentionParallelMinSize,
                 matMulParallelMinSize,
                 contiguousMaterializeThreshold,
+                cheapF64MaterializeThreshold,
+                cheapF32MaterializeThreshold,
+                cheapBF16MaterializeThreshold,
+                whereMaterializeThreshold,
                 lowCostTargetChunksPerWorker,
                 mediumCostTargetChunksPerWorker,
                 highCostTargetChunksPerWorker,
@@ -134,6 +142,10 @@ public final class CpuExecutionPlanner {
             int attentionParallelMinSize,
             int matMulParallelMinSize,
             int contiguousMaterializeThreshold,
+            int cheapF64MaterializeThreshold,
+            int cheapF32MaterializeThreshold,
+            int cheapBF16MaterializeThreshold,
+            int whereMaterializeThreshold,
             int lowCostTargetChunksPerWorker,
             int mediumCostTargetChunksPerWorker,
             int highCostTargetChunksPerWorker,
@@ -171,6 +183,10 @@ public final class CpuExecutionPlanner {
                 attentionParallelMinSize,
                 matMulParallelMinSize,
                 contiguousMaterializeThreshold,
+                cheapF64MaterializeThreshold,
+                cheapF32MaterializeThreshold,
+                cheapBF16MaterializeThreshold,
+                whereMaterializeThreshold,
                 lowCostTargetChunksPerWorker,
                 mediumCostTargetChunksPerWorker,
                 highCostTargetChunksPerWorker,
@@ -219,6 +235,10 @@ public final class CpuExecutionPlanner {
                 config.attentionParallelMinSize(),
                 config.matMulParallelMinSize(),
                 config.contiguousMaterializeThreshold(),
+                config.cheapF64MaterializeThreshold(),
+                config.cheapF32MaterializeThreshold(),
+                config.cheapBF16MaterializeThreshold(),
+                config.whereMaterializeThreshold(),
                 config.lowCostTargetChunksPerWorker(),
                 config.mediumCostTargetChunksPerWorker(),
                 config.highCostTargetChunksPerWorker(),
@@ -270,6 +290,10 @@ public final class CpuExecutionPlanner {
 
     public boolean shouldMaterializeNonContiguous(int logicalSize) {
         return policy.shouldMaterializeNonContiguous(logicalSize);
+    }
+
+    public boolean shouldMaterializeCheapStridedElementwise(Operation op, DataType targetType, int logicalSize) {
+        return policy.shouldMaterializeCheapStridedElementwise(op, targetType, logicalSize);
     }
 
     public int preferredVectorWidth(ResolvedCpuComputeContract contract) {

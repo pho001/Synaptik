@@ -208,12 +208,18 @@ public final class ProfileMutators {
                                                 baseCpu.fusedCheapVectorMinSize(),
                                                 baseCpu.fusedTranscendentalVectorMinSize(),
                                                 baseCpu.reductionVectorMinSize(),
+                                                baseCpu.attentionVectorMinSize(),
                                                 baseCpu.cheapParallelMinSize(),
                                                 baseCpu.transcendentalParallelMinSize(),
                                                 baseCpu.fusedCheapParallelMinSize(),
                                                 baseCpu.fusedTranscendentalParallelMinSize(),
                                                 baseCpu.reductionParallelMinSize(),
+                                                baseCpu.attentionParallelMinSize(),
                                                 baseCpu.contiguousMaterializeThreshold(),
+                                                baseCpu.cheapF64MaterializeThreshold(),
+                                                baseCpu.cheapF32MaterializeThreshold(),
+                                                baseCpu.cheapBF16MaterializeThreshold(),
+                                                baseCpu.whereMaterializeThreshold(),
                                                 low,
                                                 medium,
                                                 high,
@@ -227,7 +233,12 @@ public final class ProfileMutators {
                                                 baseCpu.fusedNonCheapStridedAsmVectorWidth(),
                                                 baseCpu.sumAccuracyMode(),
                                                 baseCpu.matMulParallelMinSize(),
-                                                baseCpu.attentionMatMulPolicy()
+                                                baseCpu.attentionMatMulPolicy(),
+                                                baseCpu.matMulMicroKernel(),
+                                                baseCpu.attentionMatMulMicroKernel(),
+                                                baseCpu.attentionMatMulTileM(),
+                                                baseCpu.attentionMatMulTileN(),
+                                                baseCpu.attentionMatMulTileK()
                                         );
                                         variants.add(new ExecutionProfileVariant(
                                                 "scheduler="
@@ -514,12 +525,18 @@ public final class ProfileMutators {
                         baseCpu.fusedCheapVectorMinSize(),
                         baseCpu.fusedTranscendentalVectorMinSize(),
                         baseCpu.reductionVectorMinSize(),
+                        baseCpu.attentionVectorMinSize(),
                         baseCpu.cheapParallelMinSize(),
                         baseCpu.transcendentalParallelMinSize(),
                         baseCpu.fusedCheapParallelMinSize(),
                         baseCpu.fusedTranscendentalParallelMinSize(),
                         baseCpu.reductionParallelMinSize(),
+                        baseCpu.attentionParallelMinSize(),
                         baseCpu.contiguousMaterializeThreshold(),
+                        baseCpu.cheapF64MaterializeThreshold(),
+                        baseCpu.cheapF32MaterializeThreshold(),
+                        baseCpu.cheapBF16MaterializeThreshold(),
+                        baseCpu.whereMaterializeThreshold(),
                         baseCpu.lowCostTargetChunksPerWorker(),
                         baseCpu.mediumCostTargetChunksPerWorker(),
                         baseCpu.highCostTargetChunksPerWorker(),
@@ -533,7 +550,12 @@ public final class ProfileMutators {
                         width == null ? baseCpu.fusedNonCheapStridedAsmVectorWidth() : width,
                         baseCpu.sumAccuracyMode(),
                         baseCpu.matMulParallelMinSize(),
-                        baseCpu.attentionMatMulPolicy()
+                        baseCpu.attentionMatMulPolicy(),
+                        baseCpu.matMulMicroKernel(),
+                        baseCpu.attentionMatMulMicroKernel(),
+                        baseCpu.attentionMatMulTileM(),
+                        baseCpu.attentionMatMulTileN(),
+                        baseCpu.attentionMatMulTileK()
                 );
                 variants.add(new ExecutionProfileVariant(
                         "fusedAsmVectorWidth=" + tunedCpu.fusedAsmVectorWidth(),
@@ -612,12 +634,18 @@ public final class ProfileMutators {
                                 baseCpu.fusedCheapVectorMinSize(),
                                 baseCpu.fusedTranscendentalVectorMinSize(),
                                 baseCpu.reductionVectorMinSize(),
+                                baseCpu.attentionVectorMinSize(),
                                 cheap == null ? baseCpu.cheapParallelMinSize() : cheap,
                                 trans == null ? baseCpu.transcendentalParallelMinSize() : trans,
                                 baseCpu.fusedCheapParallelMinSize(),
                                 baseCpu.fusedTranscendentalParallelMinSize(),
                                 red == null ? baseCpu.reductionParallelMinSize() : red,
+                                baseCpu.attentionParallelMinSize(),
                                 baseCpu.contiguousMaterializeThreshold(),
+                                baseCpu.cheapF64MaterializeThreshold(),
+                                baseCpu.cheapF32MaterializeThreshold(),
+                                baseCpu.cheapBF16MaterializeThreshold(),
+                                baseCpu.whereMaterializeThreshold(),
                                 baseCpu.lowCostTargetChunksPerWorker(),
                                 baseCpu.mediumCostTargetChunksPerWorker(),
                                 baseCpu.highCostTargetChunksPerWorker(),
@@ -631,7 +659,12 @@ public final class ProfileMutators {
                                 baseCpu.fusedNonCheapStridedAsmVectorWidth(),
                                 baseCpu.sumAccuracyMode(),
                                 baseCpu.matMulParallelMinSize(),
-                                baseCpu.attentionMatMulPolicy()
+                                baseCpu.attentionMatMulPolicy(),
+                                baseCpu.matMulMicroKernel(),
+                                baseCpu.attentionMatMulMicroKernel(),
+                                baseCpu.attentionMatMulTileM(),
+                                baseCpu.attentionMatMulTileN(),
+                                baseCpu.attentionMatMulTileK()
                         );
                         variants.add(new ExecutionProfileVariant(
                                 "parallelThresholds=" + tunedCpu.cheapParallelMinSize()
@@ -791,12 +824,18 @@ public final class ProfileMutators {
                 fusedCheapVectorMinSize == null ? base.fusedCheapVectorMinSize() : fusedCheapVectorMinSize,
                 fusedTranscendentalVectorMinSize == null ? base.fusedTranscendentalVectorMinSize() : fusedTranscendentalVectorMinSize,
                 reductionVectorMinSize == null ? base.reductionVectorMinSize() : reductionVectorMinSize,
+                base.attentionVectorMinSize(),
                 cheapParallelMinSize == null ? base.cheapParallelMinSize() : cheapParallelMinSize,
                 transcendentalParallelMinSize == null ? base.transcendentalParallelMinSize() : transcendentalParallelMinSize,
                 fusedCheapParallelMinSize == null ? base.fusedCheapParallelMinSize() : fusedCheapParallelMinSize,
                 fusedTranscendentalParallelMinSize == null ? base.fusedTranscendentalParallelMinSize() : fusedTranscendentalParallelMinSize,
                 reductionParallelMinSize == null ? base.reductionParallelMinSize() : reductionParallelMinSize,
+                base.attentionParallelMinSize(),
                 base.contiguousMaterializeThreshold(),
+                base.cheapF64MaterializeThreshold(),
+                base.cheapF32MaterializeThreshold(),
+                base.cheapBF16MaterializeThreshold(),
+                base.whereMaterializeThreshold(),
                 base.lowCostTargetChunksPerWorker(),
                 base.mediumCostTargetChunksPerWorker(),
                 base.highCostTargetChunksPerWorker(),
@@ -811,7 +850,11 @@ public final class ProfileMutators {
                 base.sumAccuracyMode(),
                 matmulParallelMin == null ? base.matMulParallelMinSize() : matmulParallelMin,
                 attention == null ? base.attentionMatMulPolicy() : attention,
-                base.matMulMicroKernel()
+                base.matMulMicroKernel(),
+                base.attentionMatMulMicroKernel(),
+                base.attentionMatMulTileM(),
+                base.attentionMatMulTileN(),
+                base.attentionMatMulTileK()
         );
     }
 

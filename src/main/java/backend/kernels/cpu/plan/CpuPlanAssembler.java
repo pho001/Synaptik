@@ -3,6 +3,7 @@ package backend.kernels.cpu.plan;
 import backend.CpuLayoutPlan;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
+import backend.kernels.cpu.elementwise.strided.StridedLayoutDecision;
 import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
 import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
 import backend.kernels.cpu.elementwise.strided.StridedPathEligibility;
@@ -41,14 +42,14 @@ public final class CpuPlanAssembler {
         PreparedTypeContract typeContract = CpuTypeContractResolver.resolve(op, node, safeInputs);
         DataType targetType = typeContract.outputType();
 
-        boolean stridedPath = StridedPathEligibility.canUse(op, safeInputs, node, targetType, planner);
-        PreparedInputsResult prepared = PreparedInputPlanner.plan(op, safeInputs, node, typeContract, planner, stridedPath);
+        StridedLayoutDecision layoutDecision = StridedPathEligibility.resolve(op, safeInputs, node, targetType, planner);
+        PreparedInputsResult prepared = PreparedInputPlanner.plan(op, safeInputs, node, typeContract, planner, layoutDecision);
 
         ResolvedBroadcastPlan broadcastPlan = BroadcastPlanResolver.resolve(op, prepared.runtimeInputs(), node);
         ResolvedWhereBroadcastPlan whereBroadcastPlan = BroadcastPlanResolver.resolveWhere(op, prepared.runtimeInputs(), node);
 
         CpuLayoutPlan layoutPlan = new CpuLayoutPlan(
-                stridedPath,
+                layoutDecision,
                 targetType,
                 planner.contiguousMaterializeThreshold(),
                 broadcastPlan,

@@ -93,6 +93,23 @@ public class NonContiguousExecutionTest {
     }
 
     @Test
+    public void testMulNonContiguousFloat32StridedVsMaterializeEquivalence() {
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
+
+        Tensor left = new Tensor(new float[]{1, 2, 3, 4, 5, 6, 7, 8}, new int[]{2, 4}, new int[]{1, 2}, null, "left_noncontig", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{2, 3, 4, 5, 6, 7, 8, 9}, new int[]{2, 4}, null, "right_contig", DataType.FLOAT32);
+
+        Tensor strided = left.mul(right);
+        CompiledGraph.compile(strided, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
+
+        Tensor materialized = left.mul(right);
+        CompiledGraph.compile(materialized, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
+
+        assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS32);
+    }
+
+    @Test
     public void testMulScalarExpandedRowViewFloat32StridedVsMaterializeEquivalence() {
         RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
         RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));

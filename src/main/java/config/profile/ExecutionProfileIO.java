@@ -157,6 +157,10 @@ public final class ExecutionProfileIO {
                     findInt(json, "cpuReductionParallelMinSize", defaultKernel.cpu().reductionParallelMinSize()),
                     findInt(json, "cpuAttentionParallelMinSize", defaultKernel.cpu().attentionParallelMinSize()),
                     findInt(json, "cpuContiguousMaterializeThreshold", defaultKernel.cpu().contiguousMaterializeThreshold()),
+                    findInt(json, "cpuCheapF64MaterializeThreshold", defaultKernel.cpu().cheapF64MaterializeThreshold()),
+                    findInt(json, "cpuCheapF32MaterializeThreshold", defaultKernel.cpu().cheapF32MaterializeThreshold()),
+                    findInt(json, "cpuCheapBF16MaterializeThreshold", defaultKernel.cpu().cheapBF16MaterializeThreshold()),
+                    findInt(json, "cpuWhereMaterializeThreshold", defaultKernel.cpu().whereMaterializeThreshold()),
                     findInt(json, "cpuLowCostTargetChunksPerWorker", defaultKernel.cpu().lowCostTargetChunksPerWorker()),
                     findInt(json, "cpuMediumCostTargetChunksPerWorker", defaultKernel.cpu().mediumCostTargetChunksPerWorker()),
                     findInt(json, "cpuHighCostTargetChunksPerWorker", defaultKernel.cpu().highCostTargetChunksPerWorker()),
@@ -390,6 +394,10 @@ public final class ExecutionProfileIO {
                 "        \"cpuAttentionParallelMinSize\": " + cpu.attentionParallelMinSize() + ",\n" +
                 "        \"cpuMatMulParallelMinSize\": " + cpu.matMulParallelMinSize() + ",\n" +
                 "        \"cpuContiguousMaterializeThreshold\": " + cpu.contiguousMaterializeThreshold() + ",\n" +
+                "        \"cpuCheapF64MaterializeThreshold\": " + cpu.cheapF64MaterializeThreshold() + ",\n" +
+                "        \"cpuCheapF32MaterializeThreshold\": " + cpu.cheapF32MaterializeThreshold() + ",\n" +
+                "        \"cpuCheapBF16MaterializeThreshold\": " + cpu.cheapBF16MaterializeThreshold() + ",\n" +
+                "        \"cpuWhereMaterializeThreshold\": " + cpu.whereMaterializeThreshold() + ",\n" +
                 "        \"cpuLowCostTargetChunksPerWorker\": " + cpu.lowCostTargetChunksPerWorker() + ",\n" +
                 "        \"cpuMediumCostTargetChunksPerWorker\": " + cpu.mediumCostTargetChunksPerWorker() + ",\n" +
                 "        \"cpuHighCostTargetChunksPerWorker\": " + cpu.highCostTargetChunksPerWorker() + ",\n" +

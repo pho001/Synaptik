@@ -1,6 +1,7 @@
 package backend;
 
 import backend.runtime.ExecutionContext;
+import backend.kernels.cpu.elementwise.strided.StridedLayoutDecision;
 import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
 import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
 import tensor.DataType;
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.Objects;
 
 public record CpuLayoutPlan(
-        boolean stridedPath,
+        StridedLayoutDecision layoutDecision,
         DataType targetType,
         int materializeThreshold,
         ResolvedBroadcastPlan broadcastPlan,
@@ -21,10 +22,15 @@ public record CpuLayoutPlan(
         List<Tensor> runtimeInputs
 ) {
     public CpuLayoutPlan {
+        layoutDecision = layoutDecision == null ? StridedLayoutDecision.NONE : layoutDecision;
         Objects.requireNonNull(targetType, "targetType cannot be null");
         materializeThreshold = Math.max(0, materializeThreshold);
         preparedInputs = List.copyOf(preparedInputs == null ? List.of() : preparedInputs);
         runtimeInputs = List.copyOf(runtimeInputs == null ? List.of() : runtimeInputs);
+    }
+
+    public boolean stridedPath() {
+        return layoutDecision.useStridedPath();
     }
 
     public List<Tensor> apply(int nodeId, List<Tensor> originalInputs, ExecutionContext executionContext) {

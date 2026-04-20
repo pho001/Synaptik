@@ -114,20 +114,19 @@ final class StridedRank2Loops {
             return true;
         }
 
-        for (int row = 0; row < rows; row++) {
-            int outRowBase = outBaseOffset + row * outRowStride;
-            int aRowBase = aBaseOffset + row * aRowStride;
-            int bRowBase = bBaseOffset + row * bRowStride;
-            for (int col = 0; col < cols; col++) {
-                out[outRowBase + col * outColStride] = switch (kind) {
-                    case ADD -> a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
-                    case SUB -> a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
-                    case MUL -> a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
-                    case DIV -> a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
-                    case MIN -> Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
-                    case MAX -> Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
-                };
-            }
+        switch (kind) {
+            case ADD -> denseBinaryF64Add(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case SUB -> denseBinaryF64Sub(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case MUL -> denseBinaryF64Mul(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case DIV -> denseBinaryF64Div(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case MIN -> denseBinaryF64Min(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case MAX -> denseBinaryF64Max(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
         }
         return true;
     }
@@ -178,22 +177,213 @@ final class StridedRank2Loops {
             return true;
         }
 
+        switch (kind) {
+            case ADD -> denseBinaryF32Add(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case SUB -> denseBinaryF32Sub(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case MUL -> denseBinaryF32Mul(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case DIV -> denseBinaryF32Div(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case MIN -> denseBinaryF32Min(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+            case MAX -> denseBinaryF32Max(a, b, out, rows, cols, aBaseOffset, bBaseOffset, outBaseOffset,
+                    aRowStride, aColStride, bRowStride, bColStride, outRowStride, outColStride);
+        }
+        return true;
+    }
+
+    private static void denseBinaryF64Add(
+            double[] a, double[] b, double[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
         for (int row = 0; row < rows; row++) {
             int outRowBase = outBaseOffset + row * outRowStride;
             int aRowBase = aBaseOffset + row * aRowStride;
             int bRowBase = bBaseOffset + row * bRowStride;
             for (int col = 0; col < cols; col++) {
-                out[outRowBase + col * outColStride] = switch (kind) {
-                    case ADD -> a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
-                    case SUB -> a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
-                    case MUL -> a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
-                    case DIV -> a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
-                    case MIN -> Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
-                    case MAX -> Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
-                };
+                out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
             }
         }
-        return true;
+    }
+
+    private static void denseBinaryF64Sub(
+            double[] a, double[] b, double[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
+            }
+        }
+    }
+
+    private static void denseBinaryF64Mul(
+            double[] a, double[] b, double[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
+            }
+        }
+    }
+
+    private static void denseBinaryF64Div(
+            double[] a, double[] b, double[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
+            }
+        }
+    }
+
+    private static void denseBinaryF64Min(
+            double[] a, double[] b, double[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+            }
+        }
+    }
+
+    private static void denseBinaryF64Max(
+            double[] a, double[] b, double[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+            }
+        }
+    }
+
+    private static void denseBinaryF32Add(
+            float[] a, float[] b, float[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] + b[bRowBase + col * bColStride];
+            }
+        }
+    }
+
+    private static void denseBinaryF32Sub(
+            float[] a, float[] b, float[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] - b[bRowBase + col * bColStride];
+            }
+        }
+    }
+
+    private static void denseBinaryF32Mul(
+            float[] a, float[] b, float[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] * b[bRowBase + col * bColStride];
+            }
+        }
+    }
+
+    private static void denseBinaryF32Div(
+            float[] a, float[] b, float[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = a[aRowBase + col * aColStride] / b[bRowBase + col * bColStride];
+            }
+        }
+    }
+
+    private static void denseBinaryF32Min(
+            float[] a, float[] b, float[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = Math.min(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+            }
+        }
+    }
+
+    private static void denseBinaryF32Max(
+            float[] a, float[] b, float[] out,
+            int rows, int cols,
+            int aBaseOffset, int bBaseOffset, int outBaseOffset,
+            int aRowStride, int aColStride, int bRowStride, int bColStride, int outRowStride, int outColStride
+    ) {
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = Math.max(a[aRowBase + col * aColStride], b[bRowBase + col * bColStride]);
+            }
+        }
     }
 
     private static boolean tryUnaryF64(

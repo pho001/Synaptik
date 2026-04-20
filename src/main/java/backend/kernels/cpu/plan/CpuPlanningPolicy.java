@@ -45,6 +45,10 @@ public final class CpuPlanningPolicy {
     private final int attentionParallelMinSize;
     private final int matMulParallelMinSize;
     private final int contiguousMaterializeThreshold;
+    private final int cheapF64MaterializeThreshold;
+    private final int cheapF32MaterializeThreshold;
+    private final int cheapBF16MaterializeThreshold;
+    private final int whereMaterializeThreshold;
     private final int lowCostTargetChunksPerWorker;
     private final int mediumCostTargetChunksPerWorker;
     private final int highCostTargetChunksPerWorker;
@@ -79,6 +83,10 @@ public final class CpuPlanningPolicy {
             int attentionParallelMinSize,
             int matMulParallelMinSize,
             int contiguousMaterializeThreshold,
+            int cheapF64MaterializeThreshold,
+            int cheapF32MaterializeThreshold,
+            int cheapBF16MaterializeThreshold,
+            int whereMaterializeThreshold,
             int lowCostTargetChunksPerWorker,
             int mediumCostTargetChunksPerWorker,
             int highCostTargetChunksPerWorker,
@@ -118,6 +126,10 @@ public final class CpuPlanningPolicy {
         this.attentionParallelMinSize = Math.max(1, attentionParallelMinSize);
         this.matMulParallelMinSize = Math.max(1, matMulParallelMinSize);
         this.contiguousMaterializeThreshold = Math.max(0, contiguousMaterializeThreshold);
+        this.cheapF64MaterializeThreshold = Math.max(0, cheapF64MaterializeThreshold);
+        this.cheapF32MaterializeThreshold = Math.max(0, cheapF32MaterializeThreshold);
+        this.cheapBF16MaterializeThreshold = Math.max(0, cheapBF16MaterializeThreshold);
+        this.whereMaterializeThreshold = Math.max(0, whereMaterializeThreshold);
         this.lowCostTargetChunksPerWorker = Math.max(1, lowCostTargetChunksPerWorker);
         this.mediumCostTargetChunksPerWorker = Math.max(1, mediumCostTargetChunksPerWorker);
         this.highCostTargetChunksPerWorker = Math.max(1, highCostTargetChunksPerWorker);
@@ -205,6 +217,48 @@ public final class CpuPlanningPolicy {
 
     public boolean shouldMaterializeNonContiguous(int logicalSize) {
         return logicalSize >= contiguousMaterializeThreshold;
+    }
+
+    public int cheapElementwiseMaterializeThreshold(DataType targetType) {
+        if (targetType == null) {
+            return contiguousMaterializeThreshold;
+        }
+        return switch (targetType) {
+            case FLOAT64 -> cheapF64MaterializeThreshold;
+            case FLOAT32 -> cheapF32MaterializeThreshold;
+            case BFLOAT16 -> cheapBF16MaterializeThreshold;
+            case BOOL, INT32 -> contiguousMaterializeThreshold;
+        };
+    }
+
+    public int whereMaterializeThreshold() {
+        return whereMaterializeThreshold;
+    }
+
+    public boolean shouldMaterializeCheapStridedElementwise(Operation op, DataType targetType, int logicalSize) {
+        if (op == null || logicalSize <= 0) {
+            return false;
+        }
+        if (op.opType() == Operation.OpType.WHERE) {
+            return logicalSize >= whereMaterializeThreshold;
+        }
+        if (!isCheapElementwiseMaterializationCandidate(op)) {
+            return false;
+        }
+        return logicalSize >= cheapElementwiseMaterializeThreshold(targetType);
+    }
+
+    private boolean isCheapElementwiseMaterializationCandidate(Operation op) {
+        if (op == null || op.opType() == null) {
+            return false;
+        }
+        return switch (op.opType()) {
+            case ADD, SUB, MUL, DIV, MIN, MAX,
+                    GT, GE, LT, LE, EQ, NE,
+                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
+                    NEG, INV, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX -> true;
+            default -> false;
+        };
     }
 
     public int preferredVectorWidth(ResolvedCpuComputeContract contract) {
