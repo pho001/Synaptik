@@ -78,7 +78,6 @@ final class MatMulExecutor {
         if (hints.useBatchedBlas() && MatMulBlasBackend.tryBatchedBlasBF16(ad, as, bd, bs, out, tmp, node.getShapeUnsafe(), m, n, k)) {
             return;
         }
-        Arrays.fill(out, (short) 0);
         MatMulJavaBackend.runBF16(ad, as, bd, bs, out, node.getShapeUnsafe(), hints);
     }
 

@@ -34,6 +34,11 @@ final class AbcCurrentBestProfileBenchmarkTest {
         run(DataType.FLOAT32, "f32");
     }
 
+    @Test
+    void benchmarkBF16ForwardBackward() {
+        run(DataType.BFLOAT16, "bf16");
+    }
+
     private static void run(DataType dataType, String dtypeId) {
         Path profilePath = resolveExisting(
                 Path.of("profiles", "platform", PlatformCalibrationPaths.platformId(HardwareFingerprint.capture()), "tuning", "abc", dtypeId + "-best-profile.json"),

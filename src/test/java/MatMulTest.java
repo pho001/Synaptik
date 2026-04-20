@@ -163,6 +163,27 @@ public class MatMulTest {
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 
+    @Test
+    void bfloat16MatmulJavaFallbackMatchesFloat64Baseline() {
+        double[] aValues = random(32 * 48, 101);
+        double[] bValues = random(48 * 24, 103);
+
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{32, 48}, null, "aBase", DataType.FLOAT64);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{48, 24}, null, "bBase", DataType.FLOAT64);
+        Tensor baseline = aBase.matmul(bBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aValues.clone(), new int[]{32, 48}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(bValues.clone(), new int[]{48, 24}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 3e-2);
+    }
+
     private static RuntimeConfig bfloat16BlasRuntime() {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
@@ -175,6 +196,14 @@ public class MatMulTest {
                         false,
                         1
                 )
+        );
+    }
+
+    private static RuntimeConfig bfloat16JavaRuntime() {
+        return new RuntimeConfig(
+                KernelTuningConfig.defaultsInference(),
+                config.runtime.ApproximationConfig.defaults(),
+                BlasConfig.disabled()
         );
     }
 
