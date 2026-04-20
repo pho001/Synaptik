@@ -67,31 +67,23 @@ Those belong to runtime config, backend planners, and the tuning layer.
 
 ## Current Execution Model
 
-`GraphOptimizer` now supports an iterative fixpoint prefix followed by terminal stages.
+`GraphOptimizer` is a single-pass ordered pipeline.
 
-Current factory behavior:
-
-- iterative prefix:
-  - everything except `MEM`
-- terminal suffix:
-  - `MEM`
-
-That means a stage order such as:
+A stage order such as:
 
 ```text
 AR -> CSE -> FUSE -> MEM
 ```
 
-is executed as:
+is executed exactly once in that order:
 
-1. run `AR -> CSE -> FUSE`
-2. fingerprint the graph
-3. if the graph changed, run `AR -> CSE -> FUSE` again
-4. stop at structural fixpoint or the configured round cap
-5. run `MEM` exactly once
+1. run `AR`
+2. run `CSE`
+3. run `FUSE`
+4. run `MEM`
 
-This is important because the system no longer relies on repeated semantic recompile as an accidental extra optimization strategy.
-The fixpoint behavior is explicit, bounded, and compile-local.
+There is no outer fixpoint loop around the stage sequence.
+If a future optimization needs iterative behavior, it should live inside the specific stage that owns that transformation rather than by replaying the whole public pipeline.
 
 ## Snapshot Boundary
 
@@ -178,7 +170,7 @@ Owns:
 
 See [MEM.md](./MEM.md).
 
-## Example: Why Fixpoint Matters
+## Example: Stage Interaction
 
 Consider this schematic graph:
 
@@ -186,13 +178,18 @@ Consider this schematic graph:
 z = exp(log(x)).add(0)
 ```
 
-One `AR` round can simplify:
+`AR` can simplify:
 
 - `exp(log(x)) -> x`
 - `x + 0 -> x`
 
-But in more complex graphs, a first rewrite may expose new CSE or fusion opportunities only after the first round completes.
-The fixpoint prefix makes those opportunities deterministic without requiring repeated public `compile()` calls.
+After that, later stages can act on the already simplified graph:
+
+- `CSE` can collapse duplicates that remain after rewriting
+- `FUSE` can group surviving elementwise chains
+- `MEM` can plan reuse on the final graph shape
+
+The important point is that these interactions happen inside one ordered optimizer pass, not by replaying the whole stage sequence multiple times.
 
 ## What To Change When
 

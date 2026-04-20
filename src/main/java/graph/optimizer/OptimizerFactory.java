@@ -13,26 +13,15 @@ import java.util.List;
 import java.util.Objects;
 
 public final class OptimizerFactory {
-    private static final int DEFAULT_FIXPOINT_ROUNDS = 4;
-
     private OptimizerFactory() {}
 
     public static GraphOptimizer create(OptimizerConfig config) {
         Objects.requireNonNull(config, "config cannot be null");
-        List<OptimizationRule> iterative = new ArrayList<>(config.stageOrder().size());
-        List<OptimizationRule> terminal = new ArrayList<>(1);
+        List<OptimizationRule> rules = new ArrayList<>(config.stageOrder().size());
         for (OptimizerStage stage : config.stageOrder()) {
-            OptimizationRule rule = createRule(stage, config);
-            if (stage == OptimizerStage.MEM) {
-                terminal.add(rule);
-            } else {
-                iterative.add(rule);
-            }
+            rules.add(createRule(stage, config));
         }
-        List<OptimizationRule> rules = new ArrayList<>(iterative.size() + terminal.size());
-        rules.addAll(iterative);
-        rules.addAll(terminal);
-        return new GraphOptimizer(rules, iterative.size(), DEFAULT_FIXPOINT_ROUNDS);
+        return new GraphOptimizer(rules);
     }
 
     public static SemanticForwardCanonicalizer createSemanticForwardCanonicalizer(OptimizerConfig config) {
