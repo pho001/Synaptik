@@ -277,7 +277,8 @@ That preparation currently involves:
 The important boundary is:
 
 - `FUSE` stage decides that a graph region should become one fused primitive
-- prepare/runtime decide how that fused primitive is executed on the current backend
+- `prepare(...)` decides how that fused primitive is executed on the current backend
+- `execute(...)` runs that already prepared fused executable
 
 ## Data Publication Contract
 

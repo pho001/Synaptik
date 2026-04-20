@@ -20,7 +20,7 @@ Use this package when you need to answer questions such as:
 
 - which kernel family executes this primitive?
 - where is backend selection resolved?
-- which work is decided in `prepare(...)` and which work is still done at runtime?
+- which work is decided in `prepare(...)` and which work is only per-run state during `execute(...)`?
 - how do matmul / conv2d / fused / reduction dispatch hints reach the executor?
 
 Related docs:
@@ -124,7 +124,7 @@ Examples of planned metadata:
 - conv2d GEMM BLAS-vs-Java decision
 - attention direct thresholds and delegated matmul hints
 
-The planner layer is therefore the natural home for runtime threshold interpretation.
+The planner layer is therefore the natural home for runtime-profile threshold interpretation.
 The executor layer should stay small and execution-focused.
 
 ## Prepared CPU Metadata
@@ -249,7 +249,7 @@ That split is important:
 ## Fused Backend
 
 Graph-level fusion produces one `FUSED` node.
-Runtime still needs to choose how that fused node runs.
+Preparation still needs to choose how that fused node runs.
 
 Current fused execution ideas include:
 

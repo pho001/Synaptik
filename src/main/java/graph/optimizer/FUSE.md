@@ -241,13 +241,15 @@ The cluster internals still exist inside the fused operation plan, but they are 
 `FUSE` does not decide:
 
 - which ASM vector width to use
-- whether the fused node runs scalar or vector at runtime
+- whether the fused node runs scalar or vector in the prepared execution plan
 - how many workers to use
 - exact machine code shape
 
-Those belong to backend preparation and runtime tuning.
+Those belong to backend preparation driven by the selected runtime profile.
+In the current architecture they are fixed during `prepare(...)`, not rediscovered inside `execute(...)`.
 
 So the correct mental model is:
 
 - `FUSE` decides graph shape
-- runtime/backend decide execution shape
+- `prepare(...)` plus backend planning decide execution shape
+- `execute(...)` runs the prepared recipe

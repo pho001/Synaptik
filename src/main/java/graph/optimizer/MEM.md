@@ -253,7 +253,7 @@ That reduces allocation count without changing graph semantics.
 
 - change graph formulas
 - decide optimizer stage order
-- decide runtime vector widths
+- decide prepared-execution vector widths
 - choose BLAS thresholds
 
 It only plans and applies storage reuse over the already optimized graph.

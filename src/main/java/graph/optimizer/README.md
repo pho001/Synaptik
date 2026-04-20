@@ -11,7 +11,7 @@ Output:
 - a semantically equivalent topologically ordered graph snapshot
 
 The optimizer does not execute kernels.
-It also does not decide runtime dispatch knobs such as vector width, worker count, BLAS thresholds, or approximation mode.
+It also does not decide prepared-execution dispatch knobs such as vector width, worker count, BLAS thresholds, or approximation mode.
 
 ## Public Stage Model
 
@@ -63,7 +63,7 @@ The optimizer does not own:
 - BLAS provider thread behavior
 - approximation policy
 
-Those belong to runtime config, backend planners, and the tuning layer.
+Those belong to the runtime profile, backend planners, and the tuning layer.
 
 ## Current Execution Model
 

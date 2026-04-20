@@ -414,7 +414,7 @@ Runtime selection between Java and BLAS for the lowered GEMM primitives still ha
 - decide thread counts
 - run memory reuse
 
-Those are downstream concerns.
+Those are downstream prepare/planning concerns.
 
 `AR` should be read as:
 
