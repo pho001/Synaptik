@@ -144,15 +144,14 @@ public final class Main {
                     layout.profilePath()
             );
         }
-        PlatformCalibrationStep step = options.family().createStep(
-                "calib-" + options.family().cliName() + "-train",
-                TuningPreset.BALANCED,
-                dtype.dataType
-        );
         return PlatformCalibrationRequest.fromSeedExecutionProfile(
                 layout.platformId(),
                 seed,
-                List.of(step),
+                options.family().createSteps(
+                        "calib-" + options.family().cliName() + "-train",
+                        TuningPreset.BALANCED,
+                        dtype.dataType
+                ),
                 layout.profilePath()
         );
     }
@@ -552,86 +551,89 @@ public final class Main {
     enum CalibrationFamilyTarget {
         MATMUL("matmul", PlatformCalibrationFamily.MATMUL) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.matmulStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.matmulStep(name, preset));
             }
         },
         ATTENTION_MATMUL("attention-matmul", PlatformCalibrationFamily.ATTENTION_MATMUL) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.attentionMatmulStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.attentionMatmulStep(name, preset));
             }
         },
         CONV2D("conv2d", null) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.conv2dGemmDispatchStep(name, preset, dataType);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.conv2dGemmDispatchStep(name, preset, dataType));
             }
         },
         FUSED_THRESHOLDS("fused-thresholds", PlatformCalibrationFamily.FUSED_THRESHOLDS) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.fusedDispatchStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.fusedDispatchStep(name, preset));
             }
         },
         FUSED_CHEAP_CONTIGUOUS("fused-cheap-contiguous", PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.fusedCheapContiguousStep(name, preset, dataType);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.fusedCheapContiguousStep(name, preset, dataType));
             }
         },
         FUSED_CHEAP_STRIDED("fused-cheap-strided", PlatformCalibrationFamily.FUSED_CHEAP_STRIDED) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.fusedCheapStridedStep(name, preset, dataType);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.fusedCheapStridedStep(name, preset, dataType));
             }
         },
         FUSED_NON_CHEAP_CONTIGUOUS("fused-noncheap-contiguous", PlatformCalibrationFamily.FUSED_NON_CHEAP_CONTIGUOUS) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.fusedNonCheapContiguousStep(name, preset, dataType);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.fusedNonCheapContiguousStep(name, preset, dataType));
             }
         },
         FUSED_NON_CHEAP_STRIDED("fused-noncheap-strided", PlatformCalibrationFamily.FUSED_NON_CHEAP_STRIDED) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.fusedNonCheapStridedStep(name, preset, dataType);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.fusedNonCheapStridedStep(name, preset, dataType));
             }
         },
         ELEMENTWISE("elementwise", PlatformCalibrationFamily.ELEMENTWISE_DISPATCH) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.elementwiseDispatchStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.elementwiseDispatchStep(name, preset));
             }
         },
         REDUCTION("reduction", PlatformCalibrationFamily.REDUCTION) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.reductionStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.reductionStep(name, preset));
             }
         },
         ATTENTION_THRESHOLDS("attention-thresholds", PlatformCalibrationFamily.ATTENTION_THRESHOLDS) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.attentionStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.attentionStep(name, preset));
             }
         },
         SCHEDULER("scheduler", PlatformCalibrationFamily.SCHEDULER) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.schedulerStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.schedulerStep(name, preset));
             }
         },
         MATERIALIZATION("materialization", PlatformCalibrationFamily.MATERIALIZATION) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.materializationStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(
+                        PlatformCalibrationDefaults.materializationStep(name, preset),
+                        PlatformCalibrationDefaults.whereMaterializationStep(name + "-where", preset)
+                );
             }
         },
         NUMERICS("numerics", PlatformCalibrationFamily.NUMERICS) {
             @Override
-            PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType) {
-                return PlatformCalibrationDefaults.numericsStep(name, preset);
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.numericsStep(name, preset));
             }
         };
 
@@ -651,7 +653,7 @@ public final class Main {
             return family;
         }
 
-        abstract PlatformCalibrationStep createStep(String name, TuningPreset preset, DataType dataType);
+        abstract List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType);
 
         static CalibrationFamilyTarget parse(String value) {
             if (value == null) {

@@ -1,7 +1,9 @@
 package synaptik.app;
 
 import org.junit.jupiter.api.Test;
+import tensor.DataType;
 import tuning.measure.MeasurementPolicy;
+import tuning.session.TuningPreset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -65,5 +67,14 @@ class MainCliParsingTest {
                 IllegalArgumentException.class,
                 () -> Main.parseCalibrationOptions(new String[]{"calibrate", "f64", "conv2d", "30", "100"})
         );
+    }
+
+    @Test
+    void materializationFamilyCreatesBothGenericAndWhereSteps() {
+        var steps = Main.CalibrationFamilyTarget.MATERIALIZATION.createSteps("mat", TuningPreset.BALANCED, DataType.FLOAT64);
+
+        assertEquals(2, steps.size());
+        assertEquals("mat", steps.get(0).name());
+        assertEquals("mat-where", steps.get(1).name());
     }
 }

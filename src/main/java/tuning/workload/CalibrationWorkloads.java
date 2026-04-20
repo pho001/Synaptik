@@ -22,6 +22,7 @@ public final class CalibrationWorkloads {
                 .register(reductionSum("calib_reduction_sum", 262_144))
                 .register(schedulerCheapParallel("calib_scheduler_cheap", 262_144))
                 .register(materializationStridedElementwise("calib_materialization_strided", 256, 256))
+                .register(materializationStridedWhere("calib_materialization_where", 256, 256))
                 .register(conv2dPointwiseProjection("calib_conv2d_pointwise_low", 4, 128, 64, 8, 8))
                 .register(conv2dPointwiseProjection("calib_conv2d_pointwise_edge_1m", 4, 128, 128, 8, 8))
                 .register(conv2dPointwiseProjection("calib_conv2d_pointwise_edge_2m", 4, 128, 256, 8, 8))
@@ -180,6 +181,26 @@ public final class CalibrationWorkloads {
         );
     }
 
+    public static TensorRootWorkloadSpec materializationStridedWhere(String name, int rows, int cols) {
+        return new TensorRootWorkloadSpec(
+                name,
+                WorkloadKind.GENERIC,
+                environment -> {
+                    int size = rows * cols;
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 211), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor b = tensor.TensorDataFactory.shapedTensor("B", random(size, 212), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor maskBase = new Tensor(maskPattern(size), new int[]{rows, cols}, null, "MASK", DataType.BOOL);
+                    tensor.Tensor aT = a.transpose();
+                    tensor.Tensor bT = b.transpose();
+                    tensor.Tensor maskT = maskBase.transpose();
+                    return Tensor.where(maskT, aT, bT).add(aT).sum();
+                },
+                environment -> ValidationReference.none(),
+                environment -> WorkloadMetadata.of(name, WorkloadKind.GENERIC)
+        );
+    }
+
     public static Conv2dWorkloadSpec conv2dResnet3x3(String name) {
         return conv2dResnet3x3(name, 2, 64, 128, 56, 56);
     }
@@ -221,6 +242,14 @@ public final class CalibrationWorkloads {
         double[] out = new double[size];
         for (int i = 0; i < size; i++) {
             out[i] = Math.sin(i * 0.013 + seed * 0.07) + (random.nextDouble() - 0.5) * 0.1;
+        }
+        return out;
+    }
+
+    private static byte[] maskPattern(int size) {
+        byte[] out = new byte[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = (byte) (((i * 17 + 3) & 1) == 0 ? 1 : 0);
         }
         return out;
     }

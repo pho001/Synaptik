@@ -74,7 +74,7 @@ public class PlatformCalibrationDefaultsTest {
                 Path.of("build", "test-platform-profile.json")
         );
 
-        assertEquals(14, request.steps().size());
+        assertEquals(15, request.steps().size());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
@@ -88,6 +88,10 @@ public class PlatformCalibrationDefaultsTest {
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.SCHEDULER));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATERIALIZATION));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.NUMERICS));
+        assertEquals(
+                2L,
+                request.steps().stream().filter(step -> step.family() == PlatformCalibrationFamily.MATERIALIZATION).count()
+        );
     }
 
     @Test

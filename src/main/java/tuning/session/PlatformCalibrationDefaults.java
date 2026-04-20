@@ -432,6 +432,7 @@ public final class PlatformCalibrationDefaults {
         }
         if (includeMaterialization) {
             steps.add(materializationStep(prefix + "-materialization", preset));
+            steps.add(whereMaterializationStep(prefix + "-materialization-where", preset));
         }
         if (includeNumerics) {
             steps.add(numericsStep(prefix + "-numerics", preset));
@@ -463,6 +464,7 @@ public final class PlatformCalibrationDefaults {
         }
         if (includeMaterialization) {
             steps.add(materializationStep(prefix + "-materialization-train", preset));
+            steps.add(whereMaterializationStep(prefix + "-materialization-where-train", preset));
         }
         if (includeNumerics) {
             steps.add(numericsStep(prefix + "-numerics-train", preset));
@@ -631,7 +633,35 @@ public final class PlatformCalibrationDefaults {
                         base,
                         List.of(
                                 PlatformRuntimeProfileMutators.materializationThresholds(
-                                        materializationThresholdCandidates(base.materialization().contiguousMaterializeThreshold())
+                                        materializationThresholdCandidates(switch (base.dataType()) {
+                                            case FLOAT64 -> base.materialization().cheapF64MaterializeThreshold();
+                                            case FLOAT32 -> base.materialization().cheapF32MaterializeThreshold();
+                                            case BFLOAT16 -> base.materialization().cheapBF16MaterializeThreshold();
+                                            default -> base.materialization().contiguousMaterializeThreshold();
+                                        })
+                                )
+                        )
+                ),
+                PlatformCalibrationScorePolicy.averageMedianMs()
+        );
+    }
+
+    public static PlatformCalibrationStep whereMaterializationStep(String name, TuningPreset preset) {
+        return new PlatformCalibrationStep(
+                name,
+                PlatformCalibrationFamily.MATERIALIZATION,
+                List.of(
+                        CalibrationWorkloads.materializationStridedWhere(name + "_workload_small", 128, 128),
+                        CalibrationWorkloads.materializationStridedWhere(name + "_workload_medium", 256, 256),
+                        CalibrationWorkloads.materializationStridedWhere(name + "_workload_threshold_524k", 512, 1024),
+                        CalibrationWorkloads.materializationStridedWhere(name + "_workload_threshold_1m", 1024, 1024)
+                ),
+                preset,
+                base -> new PlatformRuntimeProfileGridCandidateSpace(
+                        base,
+                        List.of(
+                                PlatformRuntimeProfileMutators.whereMaterializationThresholds(
+                                        materializationThresholdCandidates(base.materialization().whereMaterializeThreshold())
                                 )
                         )
                 ),

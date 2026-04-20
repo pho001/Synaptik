@@ -1098,22 +1098,73 @@ public final class PlatformRuntimeProfileMutators {
             }
             List<RuntimeProfileCandidate> out = new ArrayList<>();
             for (Integer threshold : safe) {
+                MaterializationPlatformProfile base = baseProfile.materialization();
+                MaterializationPlatformProfile materialization = switch (baseProfile.dataType()) {
+                    case FLOAT64 -> new MaterializationPlatformProfile(
+                            base.contiguousMaterializeThreshold(),
+                            threshold == null ? base.cheapF64MaterializeThreshold() : threshold,
+                            base.cheapF32MaterializeThreshold(),
+                            base.cheapBF16MaterializeThreshold(),
+                            base.whereMaterializeThreshold()
+                    );
+                    case FLOAT32 -> new MaterializationPlatformProfile(
+                            base.contiguousMaterializeThreshold(),
+                            base.cheapF64MaterializeThreshold(),
+                            threshold == null ? base.cheapF32MaterializeThreshold() : threshold,
+                            base.cheapBF16MaterializeThreshold(),
+                            base.whereMaterializeThreshold()
+                    );
+                    case BFLOAT16 -> new MaterializationPlatformProfile(
+                            base.contiguousMaterializeThreshold(),
+                            base.cheapF64MaterializeThreshold(),
+                            base.cheapF32MaterializeThreshold(),
+                            threshold == null ? base.cheapBF16MaterializeThreshold() : threshold,
+                            base.whereMaterializeThreshold()
+                    );
+                    default -> base;
+                };
+                String key = switch (baseProfile.dataType()) {
+                    case FLOAT64 -> "cpu.materialization.cheapF64Threshold";
+                    case FLOAT32 -> "cpu.materialization.cheapF32Threshold";
+                    case BFLOAT16 -> "cpu.materialization.cheapBF16Threshold";
+                    default -> "cpu.materialization.threshold";
+                };
+                int selectedThreshold = switch (baseProfile.dataType()) {
+                    case FLOAT64 -> materialization.cheapF64MaterializeThreshold();
+                    case FLOAT32 -> materialization.cheapF32MaterializeThreshold();
+                    case BFLOAT16 -> materialization.cheapBF16MaterializeThreshold();
+                    default -> materialization.contiguousMaterializeThreshold();
+                };
+                out.add(new RuntimeProfileCandidate(
+                        "materialization=" + selectedThreshold,
+                        withMaterialization(baseProfile, materialization),
+                        Map.of(key, String.valueOf(selectedThreshold))
+                ));
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator whereMaterializationThresholds(List<Integer> thresholds) {
+        List<Integer> safe = thresholds == null ? List.of() : List.copyOf(thresholds);
+        return (baseProfile, workload) -> {
+            if (!usesGenericRuntimeFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("where-materialization=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (Integer threshold : safe) {
+                MaterializationPlatformProfile base = baseProfile.materialization();
                 MaterializationPlatformProfile materialization = new MaterializationPlatformProfile(
-                        threshold == null ? baseProfile.materialization().contiguousMaterializeThreshold() : threshold
+                        base.contiguousMaterializeThreshold(),
+                        base.cheapF64MaterializeThreshold(),
+                        base.cheapF32MaterializeThreshold(),
+                        base.cheapBF16MaterializeThreshold(),
+                        threshold == null ? base.whereMaterializeThreshold() : threshold
                 );
                 out.add(new RuntimeProfileCandidate(
-                        "materialization=" + materialization.contiguousMaterializeThreshold(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                baseProfile.matmul(),
-                                baseProfile.fused(),
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                materialization,
-                                baseProfile.numerics()
-                        ),
-                        Map.of("cpu.contiguousMaterializeThreshold", String.valueOf(materialization.contiguousMaterializeThreshold()))
+                        "where-materialization=" + materialization.whereMaterializeThreshold(),
+                        withMaterialization(baseProfile, materialization),
+                        Map.of("cpu.materialization.whereThreshold", String.valueOf(materialization.whereMaterializeThreshold()))
                 ));
             }
             return out;
@@ -1218,6 +1269,20 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.reduction(),
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
+                baseProfile.numerics()
+        );
+    }
+
+    private static PlatformRuntimeProfile withMaterialization(PlatformRuntimeProfile baseProfile, MaterializationPlatformProfile materialization) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                baseProfile.conv2d(),
+                baseProfile.fused(),
+                baseProfile.elementwiseDispatch(),
+                baseProfile.reduction(),
+                baseProfile.scheduler(),
+                materialization,
                 baseProfile.numerics()
         );
     }
