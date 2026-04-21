@@ -137,10 +137,33 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
-    public static PlatformCalibrationStep matmulStep(String name, TuningPreset preset) {
+    public static PlatformCalibrationStep matmulJavaStep(String name, TuningPreset preset) {
         return new PlatformCalibrationStep(
                 name,
-                PlatformCalibrationFamily.MATMUL,
+                PlatformCalibrationFamily.MATMUL_JAVA,
+                List.of(
+                        CalibrationWorkloads.matmulSquare(name + "_workload_small", 64),
+                        CalibrationWorkloads.matmulSquare(name + "_workload_medium", 128),
+                        CalibrationWorkloads.matmulTallSkinny(name + "_workload_tall_skinny", 256, 64, 64),
+                        CalibrationWorkloads.matmulBatchedAttentionLike(name + "_workload_attention_like", 8, 128, 64, 64)
+                ),
+                preset,
+                base -> new PlatformRuntimeProfileGridCandidateSpace(
+                        base,
+                        List.of(
+                                PlatformRuntimeProfileMutators.matmulMicroKernels(supportedMatMulMicroKernels(seedProfileDataType(base))),
+                                PlatformRuntimeProfileMutators.matmulTiles(supportedMatMulTiles(seedProfileDataType(base))),
+                                PlatformRuntimeProfileMutators.matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000))
+                        )
+                ),
+                PlatformCalibrationScorePolicy.averageMedianMs()
+        );
+    }
+
+    public static PlatformCalibrationStep matmulBlasDispatchStep(String name, TuningPreset preset) {
+        return new PlatformCalibrationStep(
+                name,
+                PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH,
                 List.of(
                         CalibrationWorkloads.matmulSquare(name + "_workload_small", 64),
                         CalibrationWorkloads.matmulSquare(name + "_workload_medium", 128),
@@ -155,14 +178,11 @@ public final class PlatformCalibrationDefaults {
                                         List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
                                         List.of(1_000_000L, 2_000_000L, 4_000_000L)
                                 ),
-                                PlatformRuntimeProfileMutators.matmulMicroKernels(supportedMatMulMicroKernels(seedProfileDataType(base))),
-                                PlatformRuntimeProfileMutators.matmulTiles(supportedMatMulTiles(seedProfileDataType(base))),
                                 PlatformRuntimeProfileMutators.matmulShapeHeuristics(
                                         List.of(true, false),
                                         List.of(1.5, 2.0, 3.0, 4.0, 6.0)
                                 ),
-                                PlatformRuntimeProfileMutators.blasThreads(List.of(0)),
-                                PlatformRuntimeProfileMutators.matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000))
+                                PlatformRuntimeProfileMutators.blasThreads(List.of(0))
                         )
                 ),
                 PlatformCalibrationScorePolicy.averageMedianMs()
@@ -233,6 +253,11 @@ public final class PlatformCalibrationDefaults {
                     CpuMatMulMicroKernel.F64_4X1,
                     CpuMatMulMicroKernel.F64_2X2
             );
+            case BFLOAT16 -> List.of(
+                    CpuMatMulMicroKernel.BF16_2X4,
+                    CpuMatMulMicroKernel.BF16_4X2,
+                    CpuMatMulMicroKernel.BF16_4X4
+            );
             case FLOAT32 -> List.of(
                     CpuMatMulMicroKernel.F32_2X4,
                     CpuMatMulMicroKernel.F32_2X8,
@@ -250,6 +275,12 @@ public final class PlatformCalibrationDefaults {
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 32),
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64)
+            );
+            case BFLOAT16 -> List.of(
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 128)
             );
             case FLOAT32 -> List.of(
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),
@@ -418,7 +449,7 @@ public final class PlatformCalibrationDefaults {
             boolean includeScheduler
     ) {
         List<PlatformCalibrationStep> steps = new ArrayList<>();
-        steps.add(matmulStep(prefix + "-matmul", preset));
+        addMatmulSteps(steps, prefix + "-matmul", preset);
         steps.add(conv2dGemmDispatchStep(prefix + "-conv2d", preset, dataType));
         addFusedSteps(steps, prefix + "-fused", preset, dataType);
         steps.add(elementwiseDispatchStep(prefix + "-elementwise", preset));
@@ -450,7 +481,7 @@ public final class PlatformCalibrationDefaults {
             boolean includeScheduler
     ) {
         List<PlatformCalibrationStep> steps = new ArrayList<>();
-        steps.add(matmulStep(prefix + "-matmul-train", preset));
+        addMatmulSteps(steps, prefix + "-matmul-train", preset);
         steps.add(conv2dGemmDispatchStep(prefix + "-conv2d-train", preset, dataType));
         addFusedSteps(steps, prefix + "-fused-train", preset, dataType);
         steps.add(elementwiseDispatchStep(prefix + "-elementwise-train", preset));
@@ -521,6 +552,15 @@ public final class PlatformCalibrationDefaults {
         steps.add(fusedCheapStridedStep(prefix + "-cheap-strided", preset, dataType));
         steps.add(fusedNonCheapContiguousStep(prefix + "-noncheap-contig", preset, dataType));
         steps.add(fusedNonCheapStridedStep(prefix + "-noncheap-strided", preset, dataType));
+    }
+
+    private static void addMatmulSteps(
+            List<PlatformCalibrationStep> steps,
+            String prefix,
+            TuningPreset preset
+    ) {
+        steps.add(matmulJavaStep(prefix + "-java", preset));
+        steps.add(matmulBlasDispatchStep(prefix + "-blas", preset));
     }
 
     public static PlatformCalibrationStep elementwiseDispatchStep(String name, TuningPreset preset) {

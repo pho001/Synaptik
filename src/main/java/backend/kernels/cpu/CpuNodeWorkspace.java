@@ -74,7 +74,7 @@ public final class CpuNodeWorkspace {
     public CpuNodeWorkspace fork() {
         int[] ints = intWorkspace == null ? null : new int[intWorkspace.length];
         float[] floats = floatWorkspace == null ? null : new float[floatWorkspace.length];
-        PackedLinearWeightCache cache = packedLinearWeightCache == null ? null : new PackedLinearWeightCache();
+        PackedLinearWeightCache cache = packedLinearWeightCache;
         return new CpuNodeWorkspace(ints, floats, cache);
     }
 

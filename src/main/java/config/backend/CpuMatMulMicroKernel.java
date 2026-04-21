@@ -7,6 +7,9 @@ public enum CpuMatMulMicroKernel {
     F64_2X1,
     F64_4X1,
     F64_2X2,
+    BF16_2X4,
+    BF16_4X2,
+    BF16_4X4,
     F32_2X4,
     F32_2X8,
     F32_4X2,
@@ -18,6 +21,7 @@ public enum CpuMatMulMicroKernel {
         }
         return switch (dataType) {
             case FLOAT64 -> this == AUTO || this == F64_2X1 || this == F64_4X1 || this == F64_2X2;
+            case BFLOAT16 -> this == AUTO || this == BF16_2X4 || this == BF16_4X2 || this == BF16_4X4;
             case FLOAT32 -> this == AUTO || this == F32_2X4 || this == F32_2X8 || this == F32_4X2 || this == F32_4X4;
             default -> this == AUTO;
         };
@@ -39,6 +43,7 @@ public enum CpuMatMulMicroKernel {
         }
         return switch (dataType) {
             case FLOAT64 -> F64_4X1;
+            case BFLOAT16 -> BF16_4X2;
             case FLOAT32 -> F32_4X2;
             default -> AUTO;
         };

@@ -2,6 +2,8 @@ package tuning.session;
 
 public enum PlatformCalibrationFamily {
     MATMUL,
+    MATMUL_JAVA,
+    MATMUL_BLAS_DISPATCH,
     ATTENTION_MATMUL,
     FUSED_THRESHOLDS,
     FUSED_CHEAP_CONTIGUOUS,

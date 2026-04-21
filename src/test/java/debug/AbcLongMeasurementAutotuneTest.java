@@ -49,6 +49,11 @@ final class AbcLongMeasurementAutotuneTest {
         run(DataType.FLOAT32, "f32");
     }
 
+    @Test
+    void autotuneBF16ForwardBackward() {
+        run(DataType.BFLOAT16, "bf16");
+    }
+
     private static void run(DataType dataType, String dtypeId) {
         ExecutionProfile seed = calibratedAbcSeed(dataType, dtypeId);
         var request = AutotuneRequest.fromSeedExecutionProfile(

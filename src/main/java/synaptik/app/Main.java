@@ -549,10 +549,25 @@ public final class Main {
     }
 
     enum CalibrationFamilyTarget {
-        MATMUL("matmul", PlatformCalibrationFamily.MATMUL) {
+        MATMUL("matmul", null) {
             @Override
             List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
-                return List.of(PlatformCalibrationDefaults.matmulStep(name, preset));
+                return List.of(
+                        PlatformCalibrationDefaults.matmulJavaStep(name + "-java", preset),
+                        PlatformCalibrationDefaults.matmulBlasDispatchStep(name + "-blas", preset)
+                );
+            }
+        },
+        MATMUL_JAVA("matmul-java", PlatformCalibrationFamily.MATMUL_JAVA) {
+            @Override
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.matmulJavaStep(name, preset));
+            }
+        },
+        MATMUL_BLAS("matmul-blas", PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH) {
+            @Override
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.matmulBlasDispatchStep(name, preset));
             }
         },
         ATTENTION_MATMUL("attention-matmul", PlatformCalibrationFamily.ATTENTION_MATMUL) {

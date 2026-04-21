@@ -36,7 +36,8 @@ public class PlatformCalibrationDefaultsTest {
 
         assertEquals("test-platform", request.platformId());
         assertFalse(request.steps().isEmpty());
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_JAVA));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
@@ -51,9 +52,9 @@ public class PlatformCalibrationDefaultsTest {
 
     @Test
     void helperStepFactoriesUseRequestedPreset() {
-        var step = PlatformCalibrationDefaults.matmulStep("matmul", TuningPreset.THOROUGH);
+        var step = PlatformCalibrationDefaults.matmulJavaStep("matmul", TuningPreset.THOROUGH);
         assertEquals(TuningPreset.THOROUGH, step.preset());
-        assertEquals(PlatformCalibrationFamily.MATMUL, step.family());
+        assertEquals(PlatformCalibrationFamily.MATMUL_JAVA, step.family());
     }
 
     @Test
@@ -74,8 +75,9 @@ public class PlatformCalibrationDefaultsTest {
                 Path.of("build", "test-platform-profile.json")
         );
 
-        assertEquals(15, request.steps().size());
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL));
+        assertEquals(16, request.steps().size());
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_JAVA));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
@@ -118,7 +120,7 @@ public class PlatformCalibrationDefaultsTest {
 
     @Test
     void matmulStepGeneratesDtypeSpecificTileCandidates() {
-        var step = PlatformCalibrationDefaults.matmulStep("matmul", TuningPreset.QUICK);
+        var step = PlatformCalibrationDefaults.matmulJavaStep("matmul", TuningPreset.QUICK);
 
         PlatformRuntimeProfile f64Base = PlatformRuntimeProfile.fromExecutionProfile(
                 "platform-f64",
@@ -175,7 +177,7 @@ public class PlatformCalibrationDefaultsTest {
 
     @Test
     void matmulStepGeneratesBlasProviderAndMinWorkCandidates() {
-        var step = PlatformCalibrationDefaults.matmulStep("matmul", TuningPreset.QUICK);
+        var step = PlatformCalibrationDefaults.matmulBlasDispatchStep("matmul", TuningPreset.QUICK);
 
         PlatformRuntimeProfile base = PlatformRuntimeProfile.fromExecutionProfile(
                 "platform-f64",

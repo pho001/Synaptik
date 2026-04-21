@@ -177,6 +177,30 @@ public class LinearExecutionTest {
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 
+    @Test
+    void bfloat16LinearThenReluMatchesBaselineWhenJavaContinuationIsEnabled() {
+        double[] inputValues = random(32 * 64, 51);
+        double[] weightValues = random(64 * 96, 57);
+        double[] biasValues = random(96, 61);
+
+        Tensor inputBase = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "inputBase", DataType.FLOAT64);
+        Tensor weightBase = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weightBase", DataType.FLOAT64);
+        Tensor biasBase = new Tensor(biasValues.clone(), new int[]{96}, null, "biasBase", DataType.FLOAT64);
+        Tensor baseline = inputBase.linear(weightBase, biasBase).relu();
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(inputValues.clone(), new int[]{32, 64}, null, "input", DataType.BFLOAT16);
+        Tensor weight = new Tensor(weightValues.clone(), new int[]{64, 96}, null, "weight", DataType.BFLOAT16);
+        Tensor bias = new Tensor(biasValues.clone(), new int[]{96}, null, "bias", DataType.BFLOAT16);
+        Tensor out = input.linear(weight, bias).relu();
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 3e-2);
+    }
+
     private static RuntimeConfig bfloat16BlasRuntime() {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
@@ -189,6 +213,14 @@ public class LinearExecutionTest {
                         false,
                         1
                 )
+        );
+    }
+
+    private static RuntimeConfig bfloat16JavaRuntime() {
+        return new RuntimeConfig(
+                KernelTuningConfig.defaultsInference(),
+                config.runtime.ApproximationConfig.defaults(),
+                BlasConfig.disabled()
         );
     }
 

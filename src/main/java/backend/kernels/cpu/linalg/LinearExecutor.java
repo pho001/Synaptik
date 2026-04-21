@@ -43,6 +43,12 @@ final class LinearExecutor {
         if (op.hasBias() && tryBlasForwardBF16WithFloatContinuation(input, weight, bias, out, context)) {
             return;
         }
+        if (tryPackedLinearBF16(input, weight, out, context)) {
+            if (op.hasBias()) {
+                addBiasBF16(out, bias);
+            }
+            return;
+        }
         MatMulExecutor.forwardBF16(input, weight, out, context);
         if (op.hasBias()) {
             addBiasBF16(out, bias);
@@ -98,7 +104,7 @@ final class LinearExecutor {
         }
         ResolvedMatMulHints hints = requireHints(context);
         float[] tmp = context.cpuWorkspace().requireFloatWorkspace();
-        if (!tryMatMulToFloatBF16(input, weight, out, hints, tmp)) {
+        if (!tryMatMulToFloatBF16(input, weight, out, hints, context, tmp)) {
             return false;
         }
 
@@ -114,6 +120,7 @@ final class LinearExecutor {
             Tensor weight,
             Tensor out,
             ResolvedMatMulHints hints,
+            CpuKernelContext context,
             float[] tmp
     ) {
         int[] as = input.getShapeUnsafe();
@@ -123,6 +130,22 @@ final class LinearExecutor {
         int n = bs[bs.length - 1];
         short[] ad = input.getBFloat16Data();
         short[] bd = weight.getBFloat16Data();
+        float[] inputContinuation = context.inputFloatContinuation(0, input.getFlatDataSize());
+
+        if (!hints.useBlas() && !hints.useBatchedBlas()
+                && context.cpuWorkspace() != null
+                && context.cpuWorkspace().packedLinearWeightCache() != null) {
+            PackedLinearWeightCache.BF16PackedWeights packed = context.cpuWorkspace().packedLinearWeightCache().requireBF16(weight, hints);
+            if (packed != null) {
+                Arrays.fill(tmp, 0, out.getFlatDataSize(), 0.0f);
+                if (inputContinuation != null) {
+                    MatMulJavaBackend.runPackedF32(inputContinuation, as, packed, tmp, out.getShapeUnsafe(), hints);
+                } else {
+                    MatMulJavaBackend.runPackedBF16ToFloat(ad, as, packed, tmp, out.getShapeUnsafe(), hints);
+                }
+                return true;
+            }
+        }
 
         boolean executed = (as.length == 2 && bs.length == 2 && hints.useBlas()
                 && MatMulBlasBackend.tryBlasBF16ToFloat(ad, bd, tmp, m, n, k))
@@ -168,6 +191,22 @@ final class LinearExecutor {
         float[] outData = out.getFloat32Data();
         Arrays.fill(outData, 0.0f);
         MatMulJavaBackend.runPackedF32(input.getFloat32Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
+        return true;
+    }
+
+    private static boolean tryPackedLinearBF16(Tensor input, Tensor weight, Tensor out, CpuKernelContext context) {
+        if (context == null || context.cpuWorkspace() == null || context.cpuWorkspace().packedLinearWeightCache() == null) {
+            return false;
+        }
+        ResolvedMatMulHints hints = requireHints(context);
+        if (hints.useBlas() || hints.useBatchedBlas()) {
+            return false;
+        }
+        PackedLinearWeightCache.BF16PackedWeights packed = context.cpuWorkspace().packedLinearWeightCache().requireBF16(weight, hints);
+        if (packed == null) {
+            return false;
+        }
+        MatMulJavaBackend.runPackedBF16(input.getBFloat16Data(), input.getShapeUnsafe(), packed, out.getBFloat16Data(), out.getShapeUnsafe(), hints);
         return true;
     }
 
