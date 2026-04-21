@@ -1,6 +1,12 @@
 package backend.kernels.cpu.linalg;
 
 import backend.kernels.cpu.*;
+import backend.kernels.cpu.linalg.matmul.bf16.BF16MatMulJavaBackend;
+import backend.kernels.cpu.linalg.matmul.blas.MatMulBlasBackend;
+import backend.kernels.cpu.linalg.matmul.common.PackedLinearWeightCache;
+import backend.kernels.cpu.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.kernels.cpu.linalg.matmul.f32.F32MatMulJavaBackend;
+import backend.kernels.cpu.linalg.matmul.f64.F64MatMulJavaBackend;
 import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
@@ -20,7 +26,7 @@ final class LinearExecutor {
 
     static void forwardF64(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
         if (!tryPackedLinearF64(input, weight, out, context)) {
-            MatMulExecutor.forwardF64(input, weight, out, context);
+            requireExecutable(context).execute(input, weight, out, context);
         }
         if (op.hasBias()) {
             addBiasF64(out, bias);
@@ -29,7 +35,7 @@ final class LinearExecutor {
 
     static void forwardF32(linear op, Tensor input, Tensor weight, Tensor bias, Tensor out, CpuKernelContext context) {
         if (!tryPackedLinearF32(input, weight, out, context)) {
-            MatMulExecutor.forwardF32(input, weight, out, context);
+            requireExecutable(context).execute(input, weight, out, context);
         }
         if (op.hasBias()) {
             addBiasF32(out, bias);
@@ -49,7 +55,7 @@ final class LinearExecutor {
             }
             return;
         }
-        MatMulExecutor.forwardBF16(input, weight, out, context);
+        requireExecutable(context).execute(input, weight, out, context);
         if (op.hasBias()) {
             addBiasBF16(out, bias);
         }
@@ -139,9 +145,9 @@ final class LinearExecutor {
             if (packed != null) {
                 Arrays.fill(tmp, 0, out.getFlatDataSize(), 0.0f);
                 if (inputContinuation != null) {
-                    MatMulJavaBackend.runPackedF32(inputContinuation, as, packed, tmp, out.getShapeUnsafe(), hints);
+                    F32MatMulJavaBackend.runPacked(inputContinuation, as, packed, tmp, out.getShapeUnsafe(), hints);
                 } else {
-                    MatMulJavaBackend.runPackedBF16ToFloat(ad, as, packed, tmp, out.getShapeUnsafe(), hints);
+                    BF16MatMulJavaBackend.runPackedToFloat(ad, as, packed, tmp, out.getShapeUnsafe(), hints);
                 }
                 return true;
             }
@@ -154,7 +160,7 @@ final class LinearExecutor {
         if (executed) {
             return true;
         }
-        MatMulJavaBackend.runBF16ToFloat(ad, as, bd, bs, tmp, out.getShapeUnsafe(), hints);
+        BF16MatMulJavaBackend.runToFloat(ad, as, bd, bs, tmp, out.getShapeUnsafe(), hints);
         return true;
     }
 
@@ -172,7 +178,7 @@ final class LinearExecutor {
         }
         double[] outData = out.getFloat64Data();
         Arrays.fill(outData, 0.0d);
-        MatMulJavaBackend.runPackedF64(input.getFloat64Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
+        F64MatMulJavaBackend.runPacked(input.getFloat64Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
         return true;
     }
 
@@ -190,7 +196,7 @@ final class LinearExecutor {
         }
         float[] outData = out.getFloat32Data();
         Arrays.fill(outData, 0.0f);
-        MatMulJavaBackend.runPackedF32(input.getFloat32Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
+        F32MatMulJavaBackend.runPacked(input.getFloat32Data(), input.getShapeUnsafe(), packed, outData, out.getShapeUnsafe(), hints);
         return true;
     }
 
@@ -206,7 +212,7 @@ final class LinearExecutor {
         if (packed == null) {
             return false;
         }
-        MatMulJavaBackend.runPackedBF16(input.getBFloat16Data(), input.getShapeUnsafe(), packed, out.getBFloat16Data(), out.getShapeUnsafe(), hints);
+        BF16MatMulJavaBackend.runPacked(input.getBFloat16Data(), input.getShapeUnsafe(), packed, out.getBFloat16Data(), out.getShapeUnsafe(), hints);
         return true;
     }
 
@@ -280,6 +286,18 @@ final class LinearExecutor {
     }
 
     private static ResolvedMatMulHints requireHints(CpuKernelContext context) {
-        return MatMulExecutor.requireHints(context);
+        ResolvedMatMulHints hints = context.matMulHints();
+        if (hints == null) {
+            throw new IllegalStateException("Missing ResolvedMatMulHints for linear execution.");
+        }
+        return hints;
+    }
+
+    private static PreparedMatMulExecutable requireExecutable(CpuKernelContext context) {
+        PreparedMatMulExecutable executable = context.matMulExecutable();
+        if (executable == null) {
+            throw new IllegalStateException("Missing PreparedMatMulExecutable for linear execution.");
+        }
+        return executable;
     }
 }

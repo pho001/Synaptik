@@ -6,6 +6,10 @@ import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.linalg.attention.plan.ResolvedAttentionHints;
 import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.kernels.cpu.linalg.attention.plan.ResolvedScaledDotProductAttentionPlan;
+import backend.kernels.cpu.linalg.matmul.blas.MatMulBlasBackend;
+import backend.kernels.cpu.linalg.matmul.common.MatMulBatchingSupport;
+import backend.kernels.cpu.linalg.matmul.f32.F32MatMulJavaBackend;
+import backend.kernels.cpu.linalg.matmul.f64.F64MatMulJavaBackend;
 import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
 import tensor.DataType;
@@ -209,10 +213,10 @@ final class ScaledDotProductAttentionExecutor {
         int keyLen = keyShape[keyShape.length - 2];
         int depth = queryShape[queryShape.length - 1];
         int valueDim = outShape[outShape.length - 1];
-        int[] queryBatchOffsets = MatMulJavaBackend.computeBatchOffsets(queryShape, outShape);
-        int[] keyBatchOffsets = MatMulJavaBackend.computeBatchOffsets(keyShape, outShape);
-        int[] valueBatchOffsets = MatMulJavaBackend.computeBatchOffsets(valueShape, outShape);
-        int[] maskBatchOffsets = mask == null ? null : MatMulJavaBackend.computeBatchOffsets(maskShape, outShape);
+        int[] queryBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(queryShape, outShape);
+        int[] keyBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(keyShape, outShape);
+        int[] valueBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(valueShape, outShape);
+        int[] maskBatchOffsets = mask == null ? null : MatMulBatchingSupport.computeBatchOffsets(maskShape, outShape);
         int totalRows = batchCount * queryLen;
         if (hints == null) {
             throw new IllegalStateException("Missing prepared forward attention hints.");
@@ -262,10 +266,10 @@ final class ScaledDotProductAttentionExecutor {
         int keyLen = keyShape[keyShape.length - 2];
         int depth = queryShape[queryShape.length - 1];
         int valueDim = outShape[outShape.length - 1];
-        int[] queryBatchOffsets = MatMulJavaBackend.computeBatchOffsets(queryShape, outShape);
-        int[] keyBatchOffsets = MatMulJavaBackend.computeBatchOffsets(keyShape, outShape);
-        int[] valueBatchOffsets = MatMulJavaBackend.computeBatchOffsets(valueShape, outShape);
-        int[] maskBatchOffsets = mask == null ? null : MatMulJavaBackend.computeBatchOffsets(maskShape, outShape);
+        int[] queryBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(queryShape, outShape);
+        int[] keyBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(keyShape, outShape);
+        int[] valueBatchOffsets = MatMulBatchingSupport.computeBatchOffsets(valueShape, outShape);
+        int[] maskBatchOffsets = mask == null ? null : MatMulBatchingSupport.computeBatchOffsets(maskShape, outShape);
         int totalRows = batchCount * queryLen;
         if (hints == null) {
             throw new IllegalStateException("Missing prepared forward attention hints.");
@@ -1442,7 +1446,7 @@ final class ScaledDotProductAttentionExecutor {
             return;
         }
         Arrays.fill(od, 0.0d);
-        MatMulJavaBackend.runF64(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
+        F64MatMulJavaBackend.run(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
     }
 
     private static void runMatMulF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
@@ -1461,7 +1465,7 @@ final class ScaledDotProductAttentionExecutor {
             return;
         }
         Arrays.fill(od, 0.0f);
-        MatMulJavaBackend.runF32(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
+        F32MatMulJavaBackend.run(ad, as, bd, bs, od, out.getShapeUnsafe(), hints);
     }
 
     private static void runMatMulRightTransposedF64(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
@@ -1469,7 +1473,7 @@ final class ScaledDotProductAttentionExecutor {
         double[] bd = b.getFloat64Data();
         double[] od = out.getFloat64Data();
         Arrays.fill(od, 0.0d);
-        MatMulJavaBackend.runF64RightTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
+        F64MatMulJavaBackend.runRightTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
     private static void runMatMulRightTransposedF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
@@ -1477,7 +1481,7 @@ final class ScaledDotProductAttentionExecutor {
         float[] bd = b.getFloat32Data();
         float[] od = out.getFloat32Data();
         Arrays.fill(od, 0.0f);
-        MatMulJavaBackend.runF32RightTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
+        F32MatMulJavaBackend.runRightTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
     private static void runMatMulLeftTransposedF64(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
@@ -1485,7 +1489,7 @@ final class ScaledDotProductAttentionExecutor {
         double[] bd = b.getFloat64Data();
         double[] od = out.getFloat64Data();
         Arrays.fill(od, 0.0d);
-        MatMulJavaBackend.runF64LeftTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
+        F64MatMulJavaBackend.runLeftTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
     private static void runMatMulLeftTransposedF32(Tensor a, Tensor b, Tensor out, ResolvedMatMulHints hints) {
@@ -1493,7 +1497,7 @@ final class ScaledDotProductAttentionExecutor {
         float[] bd = b.getFloat32Data();
         float[] od = out.getFloat32Data();
         Arrays.fill(od, 0.0f);
-        MatMulJavaBackend.runF32LeftTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
+        F32MatMulJavaBackend.runLeftTransposed(ad, a.getShapeUnsafe(), bd, b.getShapeUnsafe(), od, out.getShapeUnsafe(), hints);
     }
 
     private static void computeSoftmaxGradRowsF64(

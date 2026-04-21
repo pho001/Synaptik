@@ -5,6 +5,7 @@ import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
 import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
 import backend.kernels.cpu.linalg.attention.plan.ResolvedScaledDotProductAttentionPlan;
+import backend.kernels.cpu.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.kernels.cpu.nn.conv2d.plan.ResolvedConv2dHints;
 import backend.kernels.cpu.reduction.plan.ResolvedReductionHints;
@@ -71,6 +72,10 @@ public final class CpuKernelContext {
 
     public ResolvedMatMulHints matMulHints() {
         return nodePlan.matMulHints();
+    }
+
+    public PreparedMatMulExecutable matMulExecutable() {
+        return nodePlan.matMulExecutable();
     }
 
     public ResolvedConv2dHints conv2dHints() {

@@ -6,6 +6,7 @@ import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
 import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
 import backend.kernels.cpu.linalg.attention.plan.ResolvedScaledDotProductAttentionPlan;
+import backend.kernels.cpu.linalg.matmul.exec.PreparedMatMulExecutable;
 import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
 import backend.kernels.cpu.nn.conv2d.plan.ResolvedConv2dHints;
 import backend.kernels.cpu.reduction.plan.ResolvedReductionHints;
@@ -24,6 +25,7 @@ public record CpuNodeExecutionPlan(
         ResolvedDispatchHints dispatchHints,
         ResolvedReductionHints reductionHints,
         ResolvedMatMulHints matMulHints,
+        PreparedMatMulExecutable matMulExecutable,
         ResolvedConv2dHints conv2dHints,
         ResolvedScaledDotProductAttentionPlan attentionPlan
 ) {

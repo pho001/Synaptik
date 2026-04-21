@@ -251,6 +251,44 @@ public class PreparedExecutionBuildTest {
         assertEquals("F32", matmulStep.metadata().cpuPlan().computeContract().computeType().name());
         assertEquals("CPU_MATMUL_BLAS", matmulStep.metadata().cpuPlan().computeContract().backend().name());
         assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertNotNull(matmulStep.metadata().cpuPlan().matMulExecutable());
+        assertEquals("BF16BlasMatMulExecutable", matmulStep.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+    }
+
+    @Test
+    void float64MatmulPrepareBuildsBlasExecutableWhenEligible() {
+        Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT64);
+        Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.FLOAT64);
+        Tensor out = a.matmul(b);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(bfloat16BlasRuntime());
+
+        var matmulStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+
+        assertNotNull(matmulStep.metadata().cpuPlan().matMulExecutable());
+        assertEquals("F64BlasMatMulExecutable", matmulStep.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
+    }
+
+    @Test
+    void float32MatmulPrepareBuildsJavaExecutableWhenBlasDisabled() {
+        Tensor a = new Tensor(new float[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[64 * 96], new int[]{64, 96}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var matmulStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+
+        assertNotNull(matmulStep.metadata().cpuPlan().matMulExecutable());
+        assertEquals("F32JavaMatMulExecutable", matmulStep.metadata().cpuPlan().matMulExecutable().getClass().getSimpleName());
     }
 
     @Test

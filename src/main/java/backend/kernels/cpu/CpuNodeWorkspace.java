@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.kernels.cpu.linalg.PackedLinearWeightCache;
+import backend.kernels.cpu.linalg.matmul.common.PackedLinearWeightCache;
 
 public final class CpuNodeWorkspace {
     private final int[] intWorkspace;

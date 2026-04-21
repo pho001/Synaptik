@@ -1,4 +1,4 @@
-package backend.kernels.cpu.linalg;
+package backend.kernels.cpu.linalg.matmul.common;
 
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.kernels.cpu.linalg.matmul.plan.ResolvedMatMulHints;
@@ -6,7 +6,7 @@ import tensor.Tensor;
 import tensor.TensorStorage;
 
 public final class PackedLinearWeightCache {
-    interface PackedFloatPanels {
+    public interface PackedFloatPanels {
         float[] panel(int kStart, int jStart);
     }
 
@@ -14,7 +14,7 @@ public final class PackedLinearWeightCache {
     private volatile F64PackedWeights cachedF64;
     private volatile BF16PackedWeights cachedBF16;
 
-    F32PackedWeights requireF32(Tensor weight, ResolvedMatMulHints hints) {
+    public F32PackedWeights requireF32(Tensor weight, ResolvedMatMulHints hints) {
         if (weight == null || hints == null || !weight.isContiguous() || weight.getShapeUnsafe().length != 2) {
             return null;
         }
@@ -41,7 +41,7 @@ public final class PackedLinearWeightCache {
         }
     }
 
-    F64PackedWeights requireF64(Tensor weight, ResolvedMatMulHints hints) {
+    public F64PackedWeights requireF64(Tensor weight, ResolvedMatMulHints hints) {
         if (weight == null || hints == null || !weight.isContiguous() || weight.getShapeUnsafe().length != 2) {
             return null;
         }
@@ -68,7 +68,7 @@ public final class PackedLinearWeightCache {
         }
     }
 
-    BF16PackedWeights requireBF16(Tensor weight, ResolvedMatMulHints hints) {
+    public BF16PackedWeights requireBF16(Tensor weight, ResolvedMatMulHints hints) {
         if (weight == null || hints == null || !weight.isContiguous() || weight.getShapeUnsafe().length != 2) {
             return null;
         }
@@ -95,7 +95,7 @@ public final class PackedLinearWeightCache {
         }
     }
 
-    static final class F32PackedWeights implements PackedFloatPanels {
+    public static final class F32PackedWeights implements PackedFloatPanels {
         private final TensorStorage storage;
         private final long version;
         private final int baseOffset;
@@ -175,7 +175,7 @@ public final class PackedLinearWeightCache {
         }
     }
 
-    static final class F64PackedWeights {
+    public static final class F64PackedWeights {
         private final TensorStorage storage;
         private final long version;
         private final int baseOffset;
@@ -249,12 +249,12 @@ public final class PackedLinearWeightCache {
                     && this.tileK == tileK;
         }
 
-        double[] panel(int kStart, int jStart) {
+        public double[] panel(int kStart, int jStart) {
             return panels[(kStart / tileK) * blockCols + (jStart / tileN)];
         }
     }
 
-    static final class BF16PackedWeights implements PackedFloatPanels {
+    public static final class BF16PackedWeights implements PackedFloatPanels {
         private final TensorStorage storage;
         private final long version;
         private final int baseOffset;

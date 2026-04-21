@@ -10,6 +10,8 @@ import backend.kernels.cpu.elementwise.strided.StridedPathEligibility;
 import backend.kernels.cpu.layout.BroadcastPlanResolver;
 import backend.kernels.cpu.layout.PreparedInputPlanner;
 import backend.kernels.cpu.layout.PreparedInputsResult;
+import backend.kernels.cpu.linalg.matmul.exec.PreparedMatMulExecutable;
+import backend.kernels.cpu.linalg.matmul.exec.PreparedMatMulExecutableFactory;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import operations.Operation;
@@ -67,6 +69,12 @@ public final class CpuPlanAssembler {
                 conv2dConfig,
                 dispatchHintsOverride
         );
+        PreparedMatMulExecutable matMulExecutable = PreparedMatMulExecutableFactory.create(
+                op,
+                node,
+                operationPlans.matMulHints(),
+                publishFloatContinuation
+        );
         return new CpuNodeExecutionPlan(
                 layoutPlan,
                 operationPlans.computeContract(),
@@ -76,6 +84,7 @@ public final class CpuPlanAssembler {
                 operationPlans.dispatchHints(),
                 operationPlans.reductionHints(),
                 operationPlans.matMulHints(),
+                matMulExecutable,
                 operationPlans.conv2dHints(),
                 operationPlans.attentionPlan()
         );
