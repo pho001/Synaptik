@@ -27,6 +27,34 @@ public final class CpuSoftmaxGradKernel implements CpuKernel {
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         softmaxGrad grad = require(op);
         Tensor[] pair = requirePair(inputs);
+        float[] primaryContinuation = context.inputFloatContinuation(0, pair[0].getFlatDataSize());
+        float[] gradContinuation = context.inputFloatContinuation(1, pair[1].getFlatDataSize());
+        if (context.publishFloatContinuation() && context.cpuWorkspace() != null) {
+            float[] out = context.cpuWorkspace().requireFloatWorkspace();
+            SoftmaxGradExecutor.executeSoftmaxBF16ToFloat(
+                    pair[0],
+                    primaryContinuation,
+                    pair[1],
+                    gradContinuation,
+                    out,
+                    grad.getDimension(),
+                    context
+            );
+            context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
+            return;
+        }
+        if (primaryContinuation != null || gradContinuation != null) {
+            SoftmaxGradExecutor.executeSoftmaxBF16(
+                    pair[0],
+                    primaryContinuation,
+                    pair[1],
+                    gradContinuation,
+                    node,
+                    grad.getDimension(),
+                    context
+            );
+            return;
+        }
         SoftmaxGradExecutor.executeSoftmaxBF16(pair[0], pair[1], node, grad.getDimension(), context);
     }
 

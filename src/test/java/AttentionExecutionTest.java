@@ -160,6 +160,92 @@ public class AttentionExecutionTest {
         assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
     }
 
+    @Test
+    void bfloat16AttentionWeightsCanBeReadFromFloat32RuntimeCache() {
+        Tensor q = new Tensor(new double[]{
+                1, 0,
+                0, 1
+        }, new int[]{1, 2, 2}, null, "q", DataType.BFLOAT16);
+        Tensor k = new Tensor(new double[]{
+                1, 0,
+                0, 1
+        }, new int[]{1, 2, 2}, null, "k", DataType.BFLOAT16);
+        Tensor v = new Tensor(new double[]{
+                10, 1,
+                1, 10
+        }, new int[]{1, 2, 2}, null, "v", DataType.BFLOAT16);
+        q.setRequiresGrad(true);
+        k.setRequiresGrad(true);
+        v.setRequiresGrad(true);
+
+        Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(1.0));
+        Tensor weights = new Tensor(
+                new int[]{1, 2, 2},
+                java.util.List.of(out),
+                new scaledDotProductAttentionWeights(),
+                "attentionWeights",
+                DataType.BFLOAT16
+        );
+        CompiledGraph.compile(weights, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD);
+
+        double e = Math.exp(1.0);
+        double denom = e + 1.0;
+        assertArrayEquals(new double[]{
+                e / denom, 1.0 / denom,
+                1.0 / denom, e / denom
+        }, weights.toDoubleArrayCopy(), 2e-2);
+    }
+
+    @Test
+    void bfloat16AttentionBackwardMatchesFloat64Baseline() {
+        Tensor q64 = new Tensor(new double[]{
+                1, 0,
+                0, 1
+        }, new int[]{1, 2, 2}, null, "q64", DataType.FLOAT64);
+        Tensor k64 = new Tensor(new double[]{
+                1, 0,
+                0, 1
+        }, new int[]{1, 2, 2}, null, "k64", DataType.FLOAT64);
+        Tensor v64 = new Tensor(new double[]{
+                10, 1,
+                1, 10
+        }, new int[]{1, 2, 2}, null, "v64", DataType.FLOAT64);
+        q64.setRequiresGrad(true);
+        k64.setRequiresGrad(true);
+        v64.setRequiresGrad(true);
+        Tensor loss64 = q64.scaledDotProductAttention(k64, v64, AttentionOptions.defaults().withScale(1.0)).sum();
+        CompiledGraph.compile(loss64, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        Tensor q16 = new Tensor(new double[]{
+                1, 0,
+                0, 1
+        }, new int[]{1, 2, 2}, null, "q16", DataType.BFLOAT16);
+        Tensor k16 = new Tensor(new double[]{
+                1, 0,
+                0, 1
+        }, new int[]{1, 2, 2}, null, "k16", DataType.BFLOAT16);
+        Tensor v16 = new Tensor(new double[]{
+                10, 1,
+                1, 10
+        }, new int[]{1, 2, 2}, null, "v16", DataType.BFLOAT16);
+        q16.setRequiresGrad(true);
+        k16.setRequiresGrad(true);
+        v16.setRequiresGrad(true);
+        Tensor loss16 = q16.scaledDotProductAttention(k16, v16, AttentionOptions.defaults().withScale(1.0)).sum();
+        CompiledGraph compiledGraph = CompiledGraph.compile(loss16, OptimizerConfig.noOptimization());
+        compiledGraph.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        assertTrue(containsOp(compiledGraph, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
+        assertNotNull(q16.getGradient());
+        assertNotNull(k16.getGradient());
+        assertNotNull(v16.getGradient());
+        assertArrayEquals(q64.getGradient().toDoubleArrayCopy(), q16.getGradient().toDoubleArrayCopy(), 8e-2);
+        assertArrayEquals(k64.getGradient().toDoubleArrayCopy(), k16.getGradient().toDoubleArrayCopy(), 8e-2);
+        assertArrayEquals(v64.getGradient().toDoubleArrayCopy(), v16.getGradient().toDoubleArrayCopy(), 8e-2);
+    }
+
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
         return compiledGraph.getCompiledGraphAsList().stream()
                 .map(Tensor::getOperation)

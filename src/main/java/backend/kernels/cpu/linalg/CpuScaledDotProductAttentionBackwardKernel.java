@@ -22,6 +22,12 @@ public final class CpuScaledDotProductAttentionBackwardKernel implements CpuKern
         ScaledDotProductAttentionExecutor.executeBackwardF32(require(op).getOutputKind(), pair[0], pair[1], node, context);
     }
 
+    @Override
+    public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
+        Tensor[] pair = requirePair(inputs);
+        ScaledDotProductAttentionExecutor.executeBackwardBF16(require(op).getOutputKind(), pair[0], pair[1], node, context);
+    }
+
     private static scaledDotProductAttentionBackward require(Operation op) {
         if (!(op instanceof scaledDotProductAttentionBackward backward)) {
             throw new IllegalArgumentException("CpuScaledDotProductAttentionBackwardKernel requires scaledDotProductAttentionBackward operation");

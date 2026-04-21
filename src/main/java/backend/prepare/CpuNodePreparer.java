@@ -176,6 +176,9 @@ final class CpuNodePreparer {
             case ADD, SUB, MUL, DIV, MIN, MAX ->
                     isSupportedBinaryContinuationConsumer(consumer, node, context);
             case SUM, MEAN, SOFTMAX, LOG_SOFTMAX -> isSupportedReductionContinuationConsumer(consumer, node);
+            case LAYER_NORM -> isSupportedLayerNormContinuationConsumer(consumer, node, context);
+            case RMS_NORM -> isSupportedRmsNormContinuationConsumer(consumer, node, context);
+            case SOFTMAX_GRAD, LOG_SOFTMAX_GRAD -> isSupportedSoftmaxGradContinuationConsumer(consumer, node, context);
             case NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES -> isSupportedDenseLossContinuationConsumer(consumer, node, context);
             case FUSED -> isSupportedFusedContinuationConsumer((FusedOperation) consumer.operation(), consumer, node, context);
             default -> false;
@@ -214,6 +217,55 @@ final class CpuNodePreparer {
                 && consumer.inputIds().getFirst() == producer.id()
                 && producer.contiguous()
                 && !producer.hasStorageOffset();
+    }
+
+    private boolean isSupportedLayerNormContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
+        if (consumer.inputIds().size() != 3 || consumer.inputIds().getFirst() != producer.id()) {
+            return false;
+        }
+        CompiledNode gamma = context.compiledNode(consumer.inputIds().get(1));
+        CompiledNode beta = context.compiledNode(consumer.inputIds().get(2));
+        return producer.contiguous()
+                && !producer.hasStorageOffset()
+                && consumer.contiguous()
+                && !consumer.hasStorageOffset()
+                && isContiguousBFloat16Parameter(gamma)
+                && isContiguousBFloat16Parameter(beta);
+    }
+
+    private boolean isSupportedRmsNormContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
+        if (consumer.inputIds().size() != 2 || consumer.inputIds().getFirst() != producer.id()) {
+            return false;
+        }
+        CompiledNode gamma = context.compiledNode(consumer.inputIds().get(1));
+        return producer.contiguous()
+                && !producer.hasStorageOffset()
+                && consumer.contiguous()
+                && !consumer.hasStorageOffset()
+                && isContiguousBFloat16Parameter(gamma);
+    }
+
+    private boolean isSupportedSoftmaxGradContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
+        if (consumer.inputIds().size() != 2) {
+            return false;
+        }
+        int firstId = consumer.inputIds().get(0);
+        int secondId = consumer.inputIds().get(1);
+        if (firstId != producer.id() && secondId != producer.id()) {
+            return false;
+        }
+        CompiledNode other = context.compiledNode(firstId == producer.id() ? secondId : firstId);
+        if (other == null || other.dataType() != DataType.BFLOAT16) {
+            return false;
+        }
+        return java.util.Arrays.equals(producer.shape(), consumer.shape())
+                && java.util.Arrays.equals(other.shape(), consumer.shape())
+                && producer.contiguous()
+                && !producer.hasStorageOffset()
+                && other.contiguous()
+                && !other.hasStorageOffset()
+                && consumer.contiguous()
+                && !consumer.hasStorageOffset();
     }
 
     private boolean isSupportedDenseLossContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
@@ -272,11 +324,19 @@ final class CpuNodePreparer {
 
     private boolean supportsFloatContinuationProducer(Operation.OpType opType) {
         return switch (opType) {
-            case MATMUL, LINEAR, LOG_SOFTMAX,
+            case MATMUL, LINEAR, SOFTMAX, LOG_SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD, LAYER_NORM, RMS_NORM,
+                    SCALED_DOT_PRODUCT_ATTENTION, SCALED_DOT_PRODUCT_ATTENTION_BACKWARD,
                     ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
                     POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
             default -> false;
         };
+    }
+
+    private boolean isContiguousBFloat16Parameter(CompiledNode node) {
+        return node != null
+                && node.dataType() == DataType.BFLOAT16
+                && node.contiguous()
+                && !node.hasStorageOffset();
     }
 
     private boolean isSingleInputAliasOrReductionChain(CompiledNode producer, CompiledNode consumer, BackendPrepareContext context) {

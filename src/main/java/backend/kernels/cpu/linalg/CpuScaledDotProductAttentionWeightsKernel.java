@@ -25,7 +25,19 @@ public final class CpuScaledDotProductAttentionWeightsKernel implements CpuKerne
     @Override
     public void forwardBF16(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
         Tensor cached = requireCachedWeights(op, inputs, node, context);
-        System.arraycopy(cached.getBFloat16Data(), 0, node.getBFloat16Data(), 0, node.getFlatDataSize());
+        if (cached.getDataType() == tensor.DataType.BFLOAT16) {
+            System.arraycopy(cached.getBFloat16Data(), 0, node.getBFloat16Data(), 0, node.getFlatDataSize());
+            return;
+        }
+        if (cached.getDataType() == tensor.DataType.FLOAT32) {
+            float[] src = cached.getFloat32Data();
+            short[] dst = node.getBFloat16Data();
+            for (int i = 0; i < dst.length; i++) {
+                dst[i] = backend.kernels.cpu.CpuDTypeOps.toBFloat16Bits(src[i]);
+            }
+            return;
+        }
+        throw new IllegalStateException("Unsupported cached weights dtype for BF16 export: " + cached.getDataType());
     }
 
     private static Tensor requireCachedWeights(Operation op, List<Tensor> inputs, Tensor node, CpuKernelContext context) {
@@ -42,7 +54,8 @@ public final class CpuScaledDotProductAttentionWeightsKernel implements CpuKerne
             throw new IllegalStateException("scaledDotProductAttentionWeights requires cached forward weights on the attention output tensor");
         }
         Tensor weights = runtimeCache.weights();
-        if (weights.getDataType() != node.getDataType()) {
+        if (weights.getDataType() != node.getDataType()
+                && !(weights.getDataType() == tensor.DataType.FLOAT32 && node.getDataType() == tensor.DataType.BFLOAT16)) {
             throw new IllegalStateException("scaledDotProductAttentionWeights cache dtype mismatch: cache="
                     + weights.getDataType() + ", node=" + node.getDataType());
         }

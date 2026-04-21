@@ -28,6 +28,12 @@ public final class CpuSoftmaxKernel implements CpuKernel {
         softmax reduction = require(op);
         Tensor input = requireSingleInput(inputs);
         float[] continuation = context.inputFloatContinuation(0, input.getFlatDataSize());
+        if (context.publishFloatContinuation() && context.cpuWorkspace() != null && continuation != null) {
+            float[] out = context.cpuWorkspace().requireFloatWorkspace();
+            SoftmaxLikeExecutor.executeF32ToFloat(SoftmaxLikeReduction.SOFTMAX, input, continuation, out, reduction.getDimension(), context);
+            context.cpuWorkspace().publishFloatContinuation(input.getFlatDataSize());
+            return;
+        }
         if (continuation != null) {
             SoftmaxLikeExecutor.executeF32ToBF16(SoftmaxLikeReduction.SOFTMAX, input, continuation, node, reduction.getDimension(), context);
             return;

@@ -183,7 +183,7 @@ public final class TensorAttentionOps {
     }
 
     private static boolean supportsLoweredBackward(DataType dataType) {
-        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
     }
 
     private static int[] rawQueryGradShape(int[] outShape, int[] queryShape) {

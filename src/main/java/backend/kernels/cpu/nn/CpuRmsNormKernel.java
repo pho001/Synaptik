@@ -41,6 +41,21 @@ public final class CpuRmsNormKernel implements CpuKernel {
         rmsNorm norm = require(op);
         Tensor input = requireInput(inputs, 0, "input");
         Tensor gamma = requireInput(inputs, 1, "gamma");
+        float[] inputContinuation = context.inputFloatContinuation(0, input.getFlatDataSize());
+        if (context.publishFloatContinuation() && context.cpuWorkspace() != null) {
+            float[] out = context.cpuWorkspace().requireFloatWorkspace();
+            if (inputContinuation != null) {
+                executeBF16ToFloat(norm, input, inputContinuation, gamma, node, out, context);
+            } else {
+                executeBF16ToFloat(norm, input, gamma, node, out, context);
+            }
+            context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
+            return;
+        }
+        if (inputContinuation != null) {
+            executeBF16(norm, input, inputContinuation, gamma, node, context);
+            return;
+        }
         executeBF16(norm, input, gamma, node, context);
     }
 
@@ -83,16 +98,100 @@ public final class CpuRmsNormKernel implements CpuKernel {
     private static void executeBF16(rmsNorm norm, Tensor input, Tensor gamma, Tensor node, CpuKernelContext context) {
         validateLayout(input, gamma, node, norm.getNormalizedRank());
         short[] in = input.getBFloat16Data();
-        short[] weights = gamma.getBFloat16Data();
-        short[] out = node.getBFloat16Data();
         NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
+        float[] weights = decodeBFloat16(gamma.getBFloat16Data(), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
+        short[] out = node.getBFloat16Data();
         runGroups(shape, context, group -> applyGroupBF16(
                 in,
                 weights,
                 out,
                 input.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
-                gamma.getStorageOffsetUnsafe(),
+                0,
                 node.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
+                shape.normalizedSize(),
+                (float) norm.getEpsilon()
+        ));
+    }
+
+    private static void executeBF16(
+            rmsNorm norm,
+            Tensor input,
+            float[] inputContinuation,
+            Tensor gamma,
+            Tensor node,
+            CpuKernelContext context
+    ) {
+        validateLayout(input, gamma, node, norm.getNormalizedRank());
+        if (inputContinuation == null) {
+            throw new IllegalArgumentException("RmsNorm BF16 continuation input cannot be null.");
+        }
+        NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
+        float[] weights = decodeBFloat16(gamma.getBFloat16Data(), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
+        short[] out = node.getBFloat16Data();
+        runGroups(shape, context, group -> applyGroupF32ToBF16(
+                inputContinuation,
+                weights,
+                out,
+                group * shape.normalizedSize(),
+                0,
+                node.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
+                shape.normalizedSize(),
+                (float) norm.getEpsilon()
+        ));
+    }
+
+    private static void executeBF16ToFloat(
+            rmsNorm norm,
+            Tensor input,
+            Tensor gamma,
+            Tensor node,
+            float[] out,
+            CpuKernelContext context
+    ) {
+        validateLayout(input, gamma, node, norm.getNormalizedRank());
+        if (out == null || out.length < node.getFlatDataSize()) {
+            throw new IllegalArgumentException("RmsNorm float continuation output is missing or too small.");
+        }
+        short[] in = input.getBFloat16Data();
+        NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
+        float[] weights = decodeBFloat16(gamma.getBFloat16Data(), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
+        runGroups(shape, context, group -> applyGroupBF16ToF32(
+                in,
+                weights,
+                out,
+                input.getStorageOffsetUnsafe() + group * shape.normalizedSize(),
+                0,
+                group * shape.normalizedSize(),
+                shape.normalizedSize(),
+                (float) norm.getEpsilon()
+        ));
+    }
+
+    private static void executeBF16ToFloat(
+            rmsNorm norm,
+            Tensor input,
+            float[] inputContinuation,
+            Tensor gamma,
+            Tensor node,
+            float[] out,
+            CpuKernelContext context
+    ) {
+        validateLayout(input, gamma, node, norm.getNormalizedRank());
+        if (inputContinuation == null) {
+            throw new IllegalArgumentException("RmsNorm BF16 continuation input cannot be null.");
+        }
+        if (out == null || out.length < node.getFlatDataSize()) {
+            throw new IllegalArgumentException("RmsNorm float continuation output is missing or too small.");
+        }
+        NormShape shape = resolveNormShape(input, gamma, node, norm.getNormalizedRank());
+        float[] weights = decodeBFloat16(gamma.getBFloat16Data(), gamma.getStorageOffsetUnsafe(), shape.normalizedSize());
+        runGroups(shape, context, group -> applyGroupF32(
+                inputContinuation,
+                weights,
+                out,
+                group * shape.normalizedSize(),
+                0,
+                group * shape.normalizedSize(),
                 shape.normalizedSize(),
                 (float) norm.getEpsilon()
         ));
@@ -163,12 +262,45 @@ public final class CpuRmsNormKernel implements CpuKernel {
         }
     }
 
-    private static void applyGroupBF16(short[] in, short[] gamma, short[] out, int inBase, int gammaBase, int outBase, int normalizedSize, float epsilon) {
+    private static void applyGroupBF16(short[] in, float[] gamma, short[] out, int inBase, int gammaBase, int outBase, int normalizedSize, float epsilon) {
         float invRms = (float) (1.0d / Math.sqrt(sumSquaresBF16(in, inBase, normalizedSize) / normalizedSize + epsilon));
         for (int i = 0; i < normalizedSize; i++) {
             float value = CpuDTypeOps.fromBFloat16Bits(in[inBase + i]);
-            float weight = CpuDTypeOps.fromBFloat16Bits(gamma[gammaBase + i]);
-            out[outBase + i] = CpuDTypeOps.toBFloat16Bits(value * weight * invRms);
+            out[outBase + i] = CpuDTypeOps.toBFloat16Bits(value * gamma[gammaBase + i] * invRms);
+        }
+    }
+
+    private static void applyGroupF32ToBF16(float[] in, float[] gamma, short[] out, int inBase, int gammaBase, int outBase, int normalizedSize, float epsilon) {
+        float invRms = (float) (1.0d / Math.sqrt(sumSquaresF32(in, inBase, normalizedSize) / normalizedSize + epsilon));
+        if (canUseVectorPath(normalizedSize, F32_SPECIES.length())) {
+            FloatVector inv = FloatVector.broadcast(F32_SPECIES, invRms);
+            float[] lanes = new float[F32_SPECIES.length()];
+            int upper = F32_SPECIES.loopBound(normalizedSize);
+            int i = 0;
+            for (; i < upper; i += F32_SPECIES.length()) {
+                FloatVector.fromArray(F32_SPECIES, in, inBase + i)
+                        .mul(FloatVector.fromArray(F32_SPECIES, gamma, gammaBase + i))
+                        .mul(inv)
+                        .intoArray(lanes, 0);
+                for (int lane = 0; lane < F32_SPECIES.length(); lane++) {
+                    out[outBase + i + lane] = CpuDTypeOps.toBFloat16Bits(lanes[lane]);
+                }
+            }
+            for (; i < normalizedSize; i++) {
+                out[outBase + i] = CpuDTypeOps.toBFloat16Bits(in[inBase + i] * gamma[gammaBase + i] * invRms);
+            }
+            return;
+        }
+        for (int i = 0; i < normalizedSize; i++) {
+            out[outBase + i] = CpuDTypeOps.toBFloat16Bits(in[inBase + i] * gamma[gammaBase + i] * invRms);
+        }
+    }
+
+    private static void applyGroupBF16ToF32(short[] in, float[] gamma, float[] out, int inBase, int gammaBase, int outBase, int normalizedSize, float epsilon) {
+        float invRms = (float) (1.0d / Math.sqrt(sumSquaresBF16(in, inBase, normalizedSize) / normalizedSize + epsilon));
+        for (int i = 0; i < normalizedSize; i++) {
+            float value = CpuDTypeOps.fromBFloat16Bits(in[inBase + i]);
+            out[outBase + i] = value * gamma[gammaBase + i] * invRms;
         }
     }
 
@@ -227,6 +359,14 @@ public final class CpuRmsNormKernel implements CpuKernel {
             total += value * value;
         }
         return total;
+    }
+
+    private static float[] decodeBFloat16(short[] values, int base, int length) {
+        float[] decoded = new float[length];
+        for (int i = 0; i < length; i++) {
+            decoded[i] = CpuDTypeOps.fromBFloat16Bits(values[base + i]);
+        }
+        return decoded;
     }
 
     private static boolean canUseVectorPath(int normalizedSize, int speciesLength) {

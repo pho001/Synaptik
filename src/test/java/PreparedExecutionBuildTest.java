@@ -299,6 +299,71 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void bfloat16SoftmaxToMeanKeepsFloatContinuationInInference() {
+        Tensor input = new Tensor(new double[32 * 64], new int[]{32, 64}, null, "input", DataType.BFLOAT16);
+        Tensor weight = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "weight", DataType.BFLOAT16);
+        Tensor bias = new Tensor(new double[96], new int[]{96}, null, "bias", DataType.BFLOAT16);
+        Tensor out = input.linear(weight, bias).softmax(1).mean(1);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var linearStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.LINEAR)
+                .findFirst()
+                .orElseThrow();
+        var softmaxStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.SOFTMAX)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(linearStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(softmaxStep.metadata().cpuPlan().publishFloatContinuation());
+        assertEquals("BFLOAT16", softmaxStep.metadata().cpuPlan().computeContract().storageType().name());
+        assertEquals("F32", softmaxStep.metadata().cpuPlan().computeContract().computeType().name());
+        assertEquals("CPU_REDUCTION", softmaxStep.metadata().cpuPlan().computeContract().backend().name());
+    }
+
+    @Test
+    void bfloat16LayerNormToMeanKeepsFloatContinuationInInference() {
+        Tensor input = new Tensor(new double[32 * 64], new int[]{32, 64}, null, "input", DataType.BFLOAT16);
+        Tensor gamma = new Tensor(new double[64], new int[]{64}, null, "gamma", DataType.BFLOAT16);
+        Tensor beta = new Tensor(new double[64], new int[]{64}, null, "beta", DataType.BFLOAT16);
+        Tensor out = input.layerNorm(gamma, beta, 1e-5).mean(1);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var layerNormStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.LAYER_NORM)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(layerNormStep.metadata().cpuPlan().publishFloatContinuation());
+        assertEquals("BFLOAT16", layerNormStep.metadata().cpuPlan().computeContract().storageType().name());
+        assertEquals("F32", layerNormStep.metadata().cpuPlan().computeContract().computeType().name());
+    }
+
+    @Test
+    void bfloat16RmsNormToMeanKeepsFloatContinuationInInference() {
+        Tensor input = new Tensor(new double[32 * 64], new int[]{32, 64}, null, "input", DataType.BFLOAT16);
+        Tensor gamma = new Tensor(new double[64], new int[]{64}, null, "gamma", DataType.BFLOAT16);
+        Tensor out = input.rmsNorm(gamma, 1e-5).mean(1);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var rmsNormStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.RMS_NORM)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(rmsNormStep.metadata().cpuPlan().publishFloatContinuation());
+        assertEquals("BFLOAT16", rmsNormStep.metadata().cpuPlan().computeContract().storageType().name());
+        assertEquals("F32", rmsNormStep.metadata().cpuPlan().computeContract().computeType().name());
+    }
+
+    @Test
     void bfloat16LogSoftmaxToNllLossKeepsFloatContinuationInInference() {
         Tensor logits = new Tensor(new double[16 * 8], new int[]{16, 8}, null, "logits", DataType.BFLOAT16);
         Tensor targets = new Tensor(new double[16 * 8], new int[]{16, 8}, null, "targets", DataType.BFLOAT16);
@@ -331,6 +396,46 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
 
         assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
+    void bfloat16SoftmaxGradPublishesFloatContinuationInTrainingUnaryChain() {
+        Tensor input = new Tensor(new double[16 * 8], new int[]{16, 8}, null, "input", DataType.BFLOAT16);
+        input.setRequiresGrad(true);
+        Tensor out = input.exp().softmax(1).sum();
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.trainingDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var softmaxGradStep = execution.backwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.SOFTMAX_GRAD)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("BFLOAT16", softmaxGradStep.metadata().cpuPlan().computeContract().storageType().name());
+        assertEquals("F32", softmaxGradStep.metadata().cpuPlan().computeContract().computeType().name());
+        assertEquals("CPU_REDUCTION", softmaxGradStep.metadata().cpuPlan().computeContract().backend().name());
+        assertTrue(softmaxGradStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
+    void bfloat16LogSoftmaxGradPublishesFloatContinuationInTrainingUnaryChain() {
+        Tensor input = new Tensor(new double[16 * 8], new int[]{16, 8}, null, "input", DataType.BFLOAT16);
+        input.setRequiresGrad(true);
+        Tensor out = input.exp().logSoftmax(1).sum();
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.trainingDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var logSoftmaxGradStep = execution.backwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("BFLOAT16", logSoftmaxGradStep.metadata().cpuPlan().computeContract().storageType().name());
+        assertEquals("F32", logSoftmaxGradStep.metadata().cpuPlan().computeContract().computeType().name());
+        assertEquals("CPU_REDUCTION", logSoftmaxGradStep.metadata().cpuPlan().computeContract().backend().name());
+        assertTrue(logSoftmaxGradStep.metadata().cpuPlan().publishFloatContinuation());
     }
 
     private static RuntimeConfig bfloat16BlasRuntime() {

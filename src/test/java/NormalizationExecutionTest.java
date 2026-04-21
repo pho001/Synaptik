@@ -94,6 +94,34 @@ public class NormalizationExecutionTest {
     }
 
     @Test
+    void bfloat16LayerNormMatchesExpectedValues() {
+        Tensor input = new Tensor(new double[]{1, 3}, new int[]{1, 2}, null, "input", DataType.BFLOAT16);
+        Tensor gamma = new Tensor(new double[]{2, 3}, new int[]{2}, null, "gamma", DataType.BFLOAT16);
+        Tensor beta = new Tensor(new double[]{10, 20}, new int[]{2}, null, "beta", DataType.BFLOAT16);
+
+        Tensor out = input.layerNorm(gamma, beta, 1e-12);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{8, 23}, out.toDoubleArrayCopy(), 0.125);
+    }
+
+    @Test
+    void bfloat16RmsNormMatchesExpectedValues() {
+        Tensor input = new Tensor(new double[]{3, 4}, new int[]{1, 2}, null, "input", DataType.BFLOAT16);
+        Tensor gamma = new Tensor(new double[]{1, 1}, new int[]{2}, null, "gamma", DataType.BFLOAT16);
+
+        Tensor out = input.rmsNorm(gamma, 1e-12);
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                3.0 / Math.sqrt(12.5),
+                4.0 / Math.sqrt(12.5)
+        }, out.toDoubleArrayCopy(), 0.05);
+    }
+
+    @Test
     void layerNormBackwardSupportsMultipleLeadingAxes() {
         Tensor input = new Tensor(new double[]{
                 1, 2, 3, 4,
