@@ -12,6 +12,7 @@ import backend.runtime.ExecutionContext;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.trace.ConvTraceMetadata;
 import graph.fused.PreparedFusedExecutable;
+import operations.Operation;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -162,10 +163,51 @@ public final class CpuKernelContext {
         }
         CompiledNodeExecutionMetadata metadata = inputMetadatas.get(inputIndex);
         Integer inputNodeId = inputIndex < inputNodeIds.size() ? inputNodeIds.get(inputIndex) : null;
-        CpuNodeWorkspace workspace = inputNodeId == null ? null : executionContext.cpuWorkspaceForNodeId(inputNodeId);
-        if (metadata == null || workspace == null || !workspace.hasFloatContinuation(requiredLength)) {
+        return resolveInputFloatContinuation(inputNodeId, metadata, requiredLength, 0);
+    }
+
+    private float[] resolveInputFloatContinuation(
+            Integer nodeId,
+            CompiledNodeExecutionMetadata metadata,
+            int requiredLength,
+            int depth
+    ) {
+        if (nodeId == null || metadata == null || depth > 8) {
             return null;
         }
-        return workspace.requireFloatWorkspace();
+        CpuNodeWorkspace workspace = executionContext.cpuWorkspaceForNodeId(nodeId);
+        if (workspace != null && workspace.hasFloatContinuation(requiredLength)) {
+            return workspace.requireFloatWorkspace();
+        }
+        if (!isContinuationPassthroughNode(nodeId)) {
+            return null;
+        }
+        Tensor runtimeTensor = executionContext.runtimeTensorForNodeId(nodeId);
+        List<Tensor> prev = runtimeTensor.getPrevTensors();
+        if (prev == null || prev.size() != 1) {
+            return null;
+        }
+        Integer upstreamNodeId = executionContext.nodeIdForRuntimeTensor(prev.getFirst());
+        if (upstreamNodeId == null) {
+            return null;
+        }
+        return resolveInputFloatContinuation(
+                upstreamNodeId,
+                executionContext.metadataForNodeId(upstreamNodeId),
+                requiredLength,
+                depth + 1
+        );
+    }
+
+    private boolean isContinuationPassthroughNode(int nodeId) {
+        Tensor runtimeTensor = executionContext.runtimeTensorForNodeId(nodeId);
+        Operation operation = runtimeTensor.getOperation();
+        if (operation == null || operation.opType() == null) {
+            return false;
+        }
+        return switch (operation.opType()) {
+            case RESHAPE, CONTIGUOUS -> true;
+            default -> false;
+        };
     }
 }

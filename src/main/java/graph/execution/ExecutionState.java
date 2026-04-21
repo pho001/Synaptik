@@ -7,6 +7,7 @@ import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,15 +25,18 @@ public final class ExecutionState {
     private final Map<Integer, Tensor> runtimeTensorByNodeId;
     private final Map<Integer, CpuNodeWorkspace> cpuWorkspaceByNodeId;
     private final Map<PreparedInputKey, Tensor> preparedInputTensorByKey;
+    private final Map<Tensor, Integer> runtimeNodeIdByTensor;
 
     private ExecutionState(
             Map<Integer, Tensor> runtimeTensorByNodeId,
             Map<Integer, CpuNodeWorkspace> cpuWorkspaceByNodeId,
-            Map<PreparedInputKey, Tensor> preparedInputTensorByKey
+            Map<PreparedInputKey, Tensor> preparedInputTensorByKey,
+            Map<Tensor, Integer> runtimeNodeIdByTensor
     ) {
         this.runtimeTensorByNodeId = Map.copyOf(runtimeTensorByNodeId);
         this.cpuWorkspaceByNodeId = Map.copyOf(cpuWorkspaceByNodeId);
         this.preparedInputTensorByKey = Map.copyOf(preparedInputTensorByKey);
+        this.runtimeNodeIdByTensor = Map.copyOf(runtimeNodeIdByTensor);
     }
 
     public static ExecutionState create(
@@ -44,6 +48,7 @@ public final class ExecutionState {
         Objects.requireNonNull(metadataIndex, "metadataIndex cannot be null");
 
         Map<Integer, Tensor> runtimeTensors = new HashMap<>(compiledNodes.size());
+        Map<Tensor, Integer> runtimeNodeIds = new IdentityHashMap<>(compiledNodes.size());
         for (CompiledNode node : compiledNodes) {
             Tensor runtimeTensor = new Tensor(
                     node.shape(),
@@ -63,6 +68,7 @@ public final class ExecutionState {
                 }
             }
             runtimeTensors.put(node.id(), runtimeTensor);
+            runtimeNodeIds.put(runtimeTensor, node.id());
         }
         for (CompiledNode node : compiledNodes) {
             if (node.inputIds().isEmpty()) {
@@ -103,7 +109,7 @@ public final class ExecutionState {
                 }
             }
         }
-        return new ExecutionState(runtimeTensors, workspaces, preparedInputs);
+        return new ExecutionState(runtimeTensors, workspaces, preparedInputs, runtimeNodeIds);
     }
 
     public Tensor runtimeTensorForNodeId(int nodeId) {
@@ -124,5 +130,9 @@ public final class ExecutionState {
             throw new IllegalStateException("Missing prepared runtime tensor for nodeId=" + nodeId + ", inputIndex=" + inputIndex);
         }
         return tensor;
+    }
+
+    public Integer nodeIdForRuntimeTensor(Tensor tensor) {
+        return tensor == null ? null : runtimeNodeIdByTensor.get(tensor);
     }
 }

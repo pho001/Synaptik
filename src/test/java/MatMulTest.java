@@ -164,6 +164,27 @@ public class MatMulTest {
     }
 
     @Test
+    void bfloat16MatmulReshapeThenNegMatchesBaselineWhenJavaContinuationIsEnabled() {
+        double[] aValues = random(64 * 64, 111);
+        double[] bValues = random(64 * 96, 113);
+
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.BFLOAT16);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
+        Tensor baseline = aBase.matmul(bBase).reshape(32, 192).neg();
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).reshape(32, 192).neg();
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
     void bfloat16MatmulJavaFallbackMatchesFloat64Baseline() {
         double[] aValues = random(32 * 48, 101);
         double[] bValues = random(48 * 24, 103);

@@ -274,6 +274,74 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void bfloat16MatmulToNegPublishesFloatContinuationInInference() {
+        Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).neg();
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var matmulStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
+    void bfloat16MatmulToMulScalarPublishesFloatContinuationInInference() {
+        Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).mul(0.5);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var matmulStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
+    void bfloat16MatmulToPowPublishesFloatContinuationInInference() {
+        Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).pow(1.5);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var matmulStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
+    void bfloat16MatmulReshapeToNegPublishesFloatContinuationInInference() {
+        Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).reshape(32, 192).neg();
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(bfloat16BlasRuntime());
+
+        var matmulStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
     void bfloat16LinearToLogSoftmaxPreparesBfloat16ReductionPath() {
         Tensor input = new Tensor(new double[32 * 64], new int[]{32, 64}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "weight", DataType.BFLOAT16);

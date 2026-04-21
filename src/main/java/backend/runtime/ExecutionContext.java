@@ -103,6 +103,13 @@ public final class ExecutionContext {
         return executionState.preparedInputTensorFor(nodeId, inputIndex);
     }
 
+    public Integer nodeIdForRuntimeTensor(Tensor tensor) {
+        if (executionState == null) {
+            return null;
+        }
+        return executionState.nodeIdForRuntimeTensor(tensor);
+    }
+
     public <T> T runtimeStateFor(Tensor tensor, Class<T> type) {
         Objects.requireNonNull(type, "type cannot be null");
         Object state = runtimeStateIndex.get(tensor);

@@ -21,6 +21,7 @@ import tensor.DataType;
 
 final class CpuNodePreparer {
     private static final FusedExecutionBackendResolver FUSED_BACKEND_RESOLVER = new FusedExecutionBackendResolver();
+    private record ContinuationConsumerTarget(CompiledNode consumer, int producerInputIndex) {}
 
     private final config.runtime.RuntimeConfig runtimeConfig;
     private final CpuExecutionPlanner planner;
@@ -162,134 +163,169 @@ final class CpuNodePreparer {
         if (!supportsFloatContinuationProducer(operation.opType())) {
             return false;
         }
-        var next = context.consumersFor(node.id());
-        if (next.size() != 1) {
+        ContinuationConsumerTarget target = resolveContinuationConsumerTarget(node, context);
+        if (target == null) {
             return false;
         }
-        CompiledNode consumer = next.getFirst();
+        CompiledNode consumer = target.consumer();
         if (consumer == null || consumer.operation() == null || consumer.dataType() != DataType.BFLOAT16) {
             return false;
         }
         return switch (consumer.operation().opType()) {
-            case RELU, ABS, CLAMP_MIN, CLAMP_MAX, SQRT, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, INV ->
-                    isSupportedUnaryContinuationConsumer(consumer, node);
+            case RELU, ABS, CLAMP_MIN, CLAMP_MAX, SQRT, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, INV,
+                    NEG, MUL_SCALAR, POW ->
+                    isSupportedUnaryContinuationConsumer(target);
             case ADD, SUB, MUL, DIV, MIN, MAX ->
-                    isSupportedBinaryContinuationConsumer(consumer, node, context);
-            case SUM, MEAN, SOFTMAX, LOG_SOFTMAX -> isSupportedReductionContinuationConsumer(consumer, node);
-            case LAYER_NORM -> isSupportedLayerNormContinuationConsumer(consumer, node, context);
-            case RMS_NORM -> isSupportedRmsNormContinuationConsumer(consumer, node, context);
-            case SOFTMAX_GRAD, LOG_SOFTMAX_GRAD -> isSupportedSoftmaxGradContinuationConsumer(consumer, node, context);
-            case NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES -> isSupportedDenseLossContinuationConsumer(consumer, node, context);
-            case FUSED -> isSupportedFusedContinuationConsumer((FusedOperation) consumer.operation(), consumer, node, context);
+                    isSupportedBinaryContinuationConsumer(target, context);
+            case SUM, MEAN, SOFTMAX, LOG_SOFTMAX -> isSupportedReductionContinuationConsumer(target);
+            case LAYER_NORM -> isSupportedLayerNormContinuationConsumer(target, context);
+            case RMS_NORM -> isSupportedRmsNormContinuationConsumer(target, context);
+            case SOFTMAX_GRAD, LOG_SOFTMAX_GRAD -> isSupportedSoftmaxGradContinuationConsumer(target, context);
+            case NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES -> isSupportedDenseLossContinuationConsumer(target, context);
+            case FUSED -> isSupportedFusedContinuationConsumer((FusedOperation) consumer.operation(), target, context);
             default -> false;
         };
     }
 
-    private boolean isSupportedUnaryContinuationConsumer(CompiledNode consumer, CompiledNode producer) {
-        return consumer.inputIds().size() == 1
-                && consumer.inputIds().getFirst() == producer.id();
+    private ContinuationConsumerTarget resolveContinuationConsumerTarget(
+            CompiledNode producer,
+            BackendPrepareContext context
+    ) {
+        CompiledNode current = producer;
+        while (true) {
+            var next = context.consumersFor(current.id());
+            if (next.size() != 1) {
+                return null;
+            }
+            CompiledNode consumer = next.getFirst();
+            if (consumer == null || consumer.operation() == null || consumer.dataType() != DataType.BFLOAT16) {
+                return null;
+            }
+            int producerInputIndex = consumer.inputIds().indexOf(current.id());
+            if (producerInputIndex < 0) {
+                return null;
+            }
+            if (!isSafeContinuationPassthrough(current, consumer, producerInputIndex)) {
+                return new ContinuationConsumerTarget(consumer, producerInputIndex);
+            }
+            current = consumer;
+        }
     }
 
-    private boolean isSupportedBinaryContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
+    private boolean isSafeContinuationPassthrough(
+            CompiledNode producer,
+            CompiledNode consumer,
+            int producerInputIndex
+    ) {
+        if (consumer.operation() == null || consumer.operation().opType() == null) {
+            return false;
+        }
+        if (producerInputIndex != 0 || consumer.inputIds().size() != 1 || consumer.dataType() != DataType.BFLOAT16) {
+            return false;
+        }
+        if (producer.flatDataSize() != consumer.flatDataSize()) {
+            return false;
+        }
+        return switch (consumer.operation().opType()) {
+            case RESHAPE, CONTIGUOUS -> true;
+            default -> false;
+        };
+    }
+
+    private boolean isSupportedUnaryContinuationConsumer(ContinuationConsumerTarget target) {
+        return target.producerInputIndex() == 0
+                && target.consumer().inputIds().size() == 1;
+    }
+
+    private boolean isSupportedBinaryContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
+        CompiledNode consumer = target.consumer();
         if (consumer.inputIds().size() != 2) {
             return false;
         }
-        int leftId = consumer.inputIds().get(0);
-        int rightId = consumer.inputIds().get(1);
-        if (leftId != producer.id() && rightId != producer.id()) {
-            return false;
-        }
-        CompiledNode other = context.compiledNode(leftId == producer.id() ? rightId : leftId);
+        int otherIndex = target.producerInputIndex() == 0 ? 1 : 0;
+        CompiledNode other = context.compiledNode(consumer.inputIds().get(otherIndex));
         if (other == null || other.dataType() != DataType.BFLOAT16) {
             return false;
         }
-        if (!java.util.Arrays.equals(producer.shape(), consumer.shape())
-                || !java.util.Arrays.equals(other.shape(), consumer.shape())) {
+        if (!java.util.Arrays.equals(other.shape(), consumer.shape())) {
             return false;
         }
-        return producer.contiguous() && !producer.hasStorageOffset()
-                && other.contiguous() && !other.hasStorageOffset()
+        return other.contiguous() && !other.hasStorageOffset()
                 && consumer.contiguous() && !consumer.hasStorageOffset();
     }
 
-    private boolean isSupportedReductionContinuationConsumer(CompiledNode consumer, CompiledNode producer) {
-        return consumer.inputIds().size() == 1
-                && consumer.inputIds().getFirst() == producer.id()
-                && producer.contiguous()
-                && !producer.hasStorageOffset();
+    private boolean isSupportedReductionContinuationConsumer(ContinuationConsumerTarget target) {
+        return target.producerInputIndex() == 0
+                && target.consumer().inputIds().size() == 1;
     }
 
-    private boolean isSupportedLayerNormContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
-        if (consumer.inputIds().size() != 3 || consumer.inputIds().getFirst() != producer.id()) {
+    private boolean isSupportedLayerNormContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
+        CompiledNode consumer = target.consumer();
+        if (target.producerInputIndex() != 0 || consumer.inputIds().size() != 3) {
             return false;
         }
         CompiledNode gamma = context.compiledNode(consumer.inputIds().get(1));
         CompiledNode beta = context.compiledNode(consumer.inputIds().get(2));
-        return producer.contiguous()
-                && !producer.hasStorageOffset()
-                && consumer.contiguous()
+        return consumer.contiguous()
                 && !consumer.hasStorageOffset()
                 && isContiguousBFloat16Parameter(gamma)
                 && isContiguousBFloat16Parameter(beta);
     }
 
-    private boolean isSupportedRmsNormContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
-        if (consumer.inputIds().size() != 2 || consumer.inputIds().getFirst() != producer.id()) {
+    private boolean isSupportedRmsNormContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
+        CompiledNode consumer = target.consumer();
+        if (target.producerInputIndex() != 0 || consumer.inputIds().size() != 2) {
             return false;
         }
         CompiledNode gamma = context.compiledNode(consumer.inputIds().get(1));
-        return producer.contiguous()
-                && !producer.hasStorageOffset()
-                && consumer.contiguous()
-                && !consumer.hasStorageOffset()
-                && isContiguousBFloat16Parameter(gamma);
+        return consumer.contiguous() && !consumer.hasStorageOffset() && isContiguousBFloat16Parameter(gamma);
     }
 
-    private boolean isSupportedSoftmaxGradContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
+    private boolean isSupportedSoftmaxGradContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
+        CompiledNode consumer = target.consumer();
         if (consumer.inputIds().size() != 2) {
             return false;
         }
-        int firstId = consumer.inputIds().get(0);
-        int secondId = consumer.inputIds().get(1);
-        if (firstId != producer.id() && secondId != producer.id()) {
-            return false;
-        }
-        CompiledNode other = context.compiledNode(firstId == producer.id() ? secondId : firstId);
+        int otherIndex = target.producerInputIndex() == 0 ? 1 : 0;
+        CompiledNode other = context.compiledNode(consumer.inputIds().get(otherIndex));
         if (other == null || other.dataType() != DataType.BFLOAT16) {
             return false;
         }
-        return java.util.Arrays.equals(producer.shape(), consumer.shape())
-                && java.util.Arrays.equals(other.shape(), consumer.shape())
-                && producer.contiguous()
-                && !producer.hasStorageOffset()
+        return java.util.Arrays.equals(other.shape(), consumer.shape())
                 && other.contiguous()
                 && !other.hasStorageOffset()
                 && consumer.contiguous()
                 && !consumer.hasStorageOffset();
     }
 
-    private boolean isSupportedDenseLossContinuationConsumer(CompiledNode consumer, CompiledNode producer, BackendPrepareContext context) {
+    private boolean isSupportedDenseLossContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
+        CompiledNode consumer = target.consumer();
         if (consumer.inputIds().size() != 2) {
             return false;
         }
-        if (consumer.inputIds().getFirst() != producer.id()) {
+        if (target.producerInputIndex() != 0) {
             return false;
         }
+        CompiledNode logits = context.compiledNode(consumer.inputIds().get(0));
         CompiledNode targets = context.compiledNode(consumer.inputIds().get(1));
-        return targets != null
+        return logits != null
+                && targets != null
+                && logits.dataType() == DataType.BFLOAT16
                 && targets.dataType() == DataType.BFLOAT16
-                && java.util.Arrays.equals(targets.shape(), producer.shape())
-                && producer.contiguous()
-                && !producer.hasStorageOffset();
+                && java.util.Arrays.equals(targets.shape(), logits.shape())
+                && logits.contiguous()
+                && !logits.hasStorageOffset()
+                && targets.contiguous()
+                && !targets.hasStorageOffset();
     }
 
     private boolean isSupportedFusedContinuationConsumer(
             FusedOperation fused,
-            CompiledNode consumer,
-            CompiledNode producer,
+            ContinuationConsumerTarget target,
             BackendPrepareContext context
     ) {
-        if (fused == null || !consumer.inputIds().contains(producer.id())) {
+        CompiledNode consumer = target.consumer();
+        if (fused == null || target.producerInputIndex() < 0) {
             return false;
         }
         var plan = fused.getPlan();
@@ -337,28 +373,5 @@ final class CpuNodePreparer {
                 && node.dataType() == DataType.BFLOAT16
                 && node.contiguous()
                 && !node.hasStorageOffset();
-    }
-
-    private boolean isSingleInputAliasOrReductionChain(CompiledNode producer, CompiledNode consumer, BackendPrepareContext context) {
-        if (consumer == null || consumer.operation() == null
-                || consumer.inputIds().size() != 1 || consumer.inputIds().getFirst() != producer.id()) {
-            return false;
-        }
-        Operation.OpType opType = consumer.operation().opType();
-        if (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN) {
-            return true;
-        }
-        if (opType != Operation.OpType.EXPAND && opType != Operation.OpType.PERMUTE
-                && opType != Operation.OpType.RESHAPE && opType != Operation.OpType.CONTIGUOUS) {
-            return false;
-        }
-        var next = context.consumersFor(consumer.id());
-        if (next.size() != 1) {
-            return false;
-        }
-        CompiledNode nextConsumer = next.getFirst();
-        return nextConsumer != null
-                && nextConsumer.dataType() == DataType.BFLOAT16
-                && isSingleInputAliasOrReductionChain(consumer, nextConsumer, context);
     }
 }
