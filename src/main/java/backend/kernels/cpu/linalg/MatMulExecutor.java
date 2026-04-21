@@ -63,6 +63,10 @@ final class MatMulExecutor {
                 ? context.cpuWorkspace().requireFloatWorkspace()
                 : null;
         if (context.publishFloatContinuation()) {
+            if (tryPackedMatMulToFloatBF16(a, b, node, context, hints)) {
+                context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
+                return;
+            }
             if (as.length == 2 && bs.length == 2 && hints.useBlas() && MatMulBlasBackend.tryBlasBF16ToFloat(ad, bd, tmp, m, n, k)) {
                 context.cpuWorkspace().publishFloatContinuation(m * n);
                 return;
@@ -78,6 +82,9 @@ final class MatMulExecutor {
                 return;
             }
         }
+        if (tryPackedMatMulBF16(a, b, node, context, hints)) {
+            return;
+        }
         if (as.length == 2 && bs.length == 2 && hints.useBlas() && MatMulBlasBackend.tryBlasBF16(ad, bd, out, tmp, m, n, k)) {
             return;
         }
@@ -85,6 +92,65 @@ final class MatMulExecutor {
             return;
         }
         MatMulJavaBackend.runBF16(ad, as, bd, bs, out, node.getShapeUnsafe(), hints);
+    }
+
+    private static boolean tryPackedMatMulToFloatBF16(
+            Tensor a,
+            Tensor b,
+            Tensor node,
+            CpuKernelContext context,
+            ResolvedMatMulHints hints
+    ) {
+        if (context == null || context.cpuWorkspace() == null || context.cpuWorkspace().packedLinearWeightCache() == null) {
+            return false;
+        }
+        if (hints.useBlas() || hints.useBatchedBlas()) {
+            return false;
+        }
+        if (b.getShapeUnsafe().length != 2 || !b.isContiguous()) {
+            return false;
+        }
+        PackedLinearWeightCache.BF16PackedWeights packed = context.cpuWorkspace().packedLinearWeightCache().requireBF16(b, hints);
+        if (packed == null) {
+            return false;
+        }
+        float[] out = context.cpuWorkspace().requireFloatWorkspace();
+        float[] leftContinuation = context.inputFloatContinuation(0, a.getFlatDataSize());
+        if (leftContinuation != null) {
+            MatMulJavaBackend.runPackedF32(leftContinuation, a.getShapeUnsafe(), packed, out, node.getShapeUnsafe(), hints);
+        } else {
+            MatMulJavaBackend.runPackedBF16ToFloat(a.getBFloat16Data(), a.getShapeUnsafe(), packed, out, node.getShapeUnsafe(), hints);
+        }
+        return true;
+    }
+
+    private static boolean tryPackedMatMulBF16(
+            Tensor a,
+            Tensor b,
+            Tensor node,
+            CpuKernelContext context,
+            ResolvedMatMulHints hints
+    ) {
+        if (context == null || context.cpuWorkspace() == null || context.cpuWorkspace().packedLinearWeightCache() == null) {
+            return false;
+        }
+        if (hints.useBlas() || hints.useBatchedBlas()) {
+            return false;
+        }
+        if (b.getShapeUnsafe().length != 2 || !b.isContiguous()) {
+            return false;
+        }
+        PackedLinearWeightCache.BF16PackedWeights packed = context.cpuWorkspace().packedLinearWeightCache().requireBF16(b, hints);
+        if (packed == null) {
+            return false;
+        }
+        float[] leftContinuation = context.inputFloatContinuation(0, a.getFlatDataSize());
+        if (leftContinuation != null) {
+            MatMulJavaBackend.runPackedF32ToBF16(leftContinuation, a.getShapeUnsafe(), packed, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+            return true;
+        }
+        MatMulJavaBackend.runPackedBF16(a.getBFloat16Data(), a.getShapeUnsafe(), packed, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+        return true;
     }
 
     static ResolvedMatMulHints requireHints(CpuKernelContext context) {

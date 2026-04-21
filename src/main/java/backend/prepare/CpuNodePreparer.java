@@ -109,9 +109,7 @@ final class CpuNodePreparer {
         return switch (operation.opType()) {
             case MAX_POOL2D -> CpuNodeWorkspace.withIntWorkspace(node.flatDataSize());
             case MAX_POOL2D_BACKWARD_INPUT -> resolveSharedMaxPoolWorkspace(node, context);
-            case MATMUL -> (publishFloatContinuation || needsBFloat16BlasWorkspace(node, cpuPlan))
-                    ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
-                    : null;
+            case MATMUL -> resolveMatMulWorkspace(node, cpuPlan, publishFloatContinuation);
             case LINEAR -> (publishFloatContinuation || needsBFloat16BlasWorkspace(node, cpuPlan))
                     ? CpuNodeWorkspace.withFloatWorkspaceAndPackedLinearWeights(node.flatDataSize())
                     : CpuNodeWorkspace.withPackedLinearWeights();
@@ -125,6 +123,20 @@ final class CpuNodePreparer {
                     ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize())
                     : null;
         };
+    }
+
+    private CpuNodeWorkspace resolveMatMulWorkspace(
+            CompiledNode node,
+            CpuNodeExecutionPlan cpuPlan,
+            boolean publishFloatContinuation
+    ) {
+        boolean needsFloatWorkspace = publishFloatContinuation || needsBFloat16BlasWorkspace(node, cpuPlan);
+        if (node.dataType() != DataType.BFLOAT16) {
+            return needsFloatWorkspace ? CpuNodeWorkspace.withFloatWorkspace(node.flatDataSize()) : null;
+        }
+        return needsFloatWorkspace
+                ? CpuNodeWorkspace.withFloatWorkspaceAndPackedLinearWeights(node.flatDataSize())
+                : CpuNodeWorkspace.withPackedLinearWeights();
     }
 
     private boolean needsBFloat16BlasWorkspace(CompiledNode node, CpuNodeExecutionPlan cpuPlan) {
