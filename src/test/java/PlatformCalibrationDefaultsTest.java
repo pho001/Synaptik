@@ -390,4 +390,17 @@ public class PlatformCalibrationDefaultsTest {
         assertFalse(candidates.stream()
                 .anyMatch(candidate -> "8".equals(candidate.knobAssignments().get("cpu.fusedCheapStridedAsmVectorWidth"))));
     }
+
+    @Test
+    void fusedNonCheapStridedCalibrationStepCoversTranscendentalAndAffineRationalPatterns() {
+        var step = PlatformCalibrationDefaults.fusedNonCheapStridedStep(
+                "fused-noncheap-strided",
+                TuningPreset.QUICK,
+                tensor.DataType.BFLOAT16
+        );
+
+        assertEquals(2, step.workloads().size());
+        assertTrue(step.workloads().get(0).name().contains("transcendental"));
+        assertTrue(step.workloads().get(1).name().contains("affine_rational"));
+    }
 }

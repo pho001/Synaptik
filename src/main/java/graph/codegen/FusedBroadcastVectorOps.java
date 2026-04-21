@@ -51,6 +51,33 @@ public final class FusedBroadcastVectorOps {
         return DoubleVector.fromArray(species, input, 0, idx, 0);
     }
 
+    public static Object loadVectorBF16(FusedBroadcastCursor cursor, short[] input, int width) {
+        VectorSpecies<Float> species = speciesF32(width);
+        if (cursor.isScalarBroadcast()) {
+            return FloatVector.broadcast(species, backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(input[cursor.idx()]));
+        }
+        float[] scratch = new float[species.length()];
+        if (cursor.staysWithinInnermostDimension(species.length())) {
+            int base = cursor.idx();
+            int laneStride = cursor.innermostLaneStride();
+            cursor.advance(species.length());
+            if (laneStride == 0) {
+                return FloatVector.broadcast(species, backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(input[base]));
+            }
+            if (laneStride == 1) {
+                for (int lane = 0; lane < species.length(); lane++) {
+                    scratch[lane] = backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(input[base + lane]);
+                }
+                return FloatVector.fromArray(species, scratch, 0);
+            }
+        }
+        int[] idx = cursor.nextIndices(species.length());
+        for (int lane = 0; lane < species.length(); lane++) {
+            scratch[lane] = backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(input[idx[lane]]);
+        }
+        return FloatVector.fromArray(species, scratch, 0);
+    }
+
     public static Object loadMaskF32(FusedBroadcastCursor cursor, byte[] input, int width) {
         VectorSpecies<Float> species = speciesF32(width);
         if (cursor.isScalarBroadcast()) {

@@ -19,6 +19,7 @@ public final class CalibrationWorkloads {
                 .register(fusedCheapStridedElementwise("calib_fused_cheap_strided", 256, 256))
                 .register(fusedTranscendental("calib_fused_transcendental", 65_536))
                 .register(fusedTranscendentalStrided("calib_fused_transcendental_strided", 256, 256))
+                .register(fusedAffineRationalStrided("calib_fused_affine_rational_strided", 256, 2048))
                 .register(reductionSum("calib_reduction_sum", 262_144))
                 .register(schedulerCheapParallel("calib_scheduler_cheap", 262_144))
                 .register(materializationStridedElementwise("calib_materialization_strided", 256, 256))
@@ -105,6 +106,40 @@ public final class CalibrationWorkloads {
                     tensor.Tensor a = tensor.TensorDataFactory.shapedTensor("A", random(size, 111), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor aT = a.transpose();
                     return aT.exp().tanh().log().sigmoid().sum();
+                },
+                environment -> ValidationReference.none(),
+                environment -> WorkloadMetadata.of(name, WorkloadKind.GENERIC)
+        );
+    }
+
+    public static TensorRootWorkloadSpec fusedAffineRationalStrided(String name, int rows, int cols) {
+        return new TensorRootWorkloadSpec(
+                name,
+                WorkloadKind.GENERIC,
+                environment -> {
+                    int size = rows * cols;
+                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    tensor.Tensor stridedBase = tensor.TensorDataFactory.shapedTensor(
+                            "STRIDED_BASE",
+                            random(size, 311),
+                            requiresGrad,
+                            environment.profile().dataType(),
+                            cols,
+                            rows
+                    );
+                    tensor.Tensor scale = tensor.TensorDataFactory.shapedTensor("SCALE", random(size, 312), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor bias = tensor.TensorDataFactory.shapedTensor("BIAS", random(size, 313), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor grad = tensor.TensorDataFactory.shapedTensor("GRAD", random(size, 314), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor denom = tensor.TensorDataFactory.shapedTensor("DENOM", positiveRandom(size, 315, 0.75), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor residual = tensor.TensorDataFactory.shapedTensor("RESIDUAL", random(size, 316), requiresGrad, environment.profile().dataType(), rows, cols);
+                    tensor.Tensor strided = stridedBase.transpose();
+                    return strided.neg()
+                            .mul(scale)
+                            .add(bias)
+                            .mul(grad)
+                            .div(denom)
+                            .add(residual)
+                            .sum();
                 },
                 environment -> ValidationReference.none(),
                 environment -> WorkloadMetadata.of(name, WorkloadKind.GENERIC)
@@ -246,6 +281,15 @@ public final class CalibrationWorkloads {
         double[] out = new double[size];
         for (int i = 0; i < size; i++) {
             out[i] = Math.sin(i * 0.013 + seed * 0.07) + (random.nextDouble() - 0.5) * 0.1;
+        }
+        return out;
+    }
+
+    private static double[] positiveRandom(int size, int seed, double floor) {
+        java.util.Random random = new java.util.Random(seed);
+        double[] out = new double[size];
+        for (int i = 0; i < size; i++) {
+            out[i] = floor + Math.abs(Math.sin(i * 0.017 + seed * 0.11)) + random.nextDouble() * 0.25;
         }
         return out;
     }

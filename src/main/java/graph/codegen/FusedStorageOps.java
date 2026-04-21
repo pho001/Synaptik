@@ -40,10 +40,10 @@ public final class FusedStorageOps {
                 return loadVectorF32(tensor, index);
             }
             case FusedDTypeOps.MODE_BF16 -> {
-                double[] lanes = new double[DOUBLE_SPECIES.length()];
+                float[] lanes = new float[FLOAT_SPECIES.length()];
                 short[] src = tensor.getBFloat16Data();
                 for (int i = 0; i < lanes.length; i++) lanes[i] = CpuDTypeOps.fromBFloat16Bits(src[index + i]);
-                return DoubleVector.fromArray(DOUBLE_SPECIES, lanes, 0);
+                return FloatVector.fromArray(FLOAT_SPECIES, lanes, 0);
             }
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         }
@@ -56,8 +56,8 @@ public final class FusedStorageOps {
                 storeVectorF32(tensor, index, (FloatVector) vector);
             }
             case FusedDTypeOps.MODE_BF16 -> {
-                double[] lanes = new double[DOUBLE_SPECIES.length()];
-                ((DoubleVector) vector).intoArray(lanes, 0);
+                float[] lanes = new float[FLOAT_SPECIES.length()];
+                ((FloatVector) vector).intoArray(lanes, 0);
                 short[] dst = tensor.getBFloat16Data();
                 for (int i = 0; i < lanes.length; i++) dst[index + i] = CpuDTypeOps.toBFloat16Bits((float) lanes[i]);
             }
@@ -97,12 +97,13 @@ public final class FusedStorageOps {
         vector.intoArray(tensor.getFloat32Data(), index);
     }
 
-    public static Object loadVectorBF16Array(short[] src, int index) {
-        double[] lanes = new double[DOUBLE_SPECIES.length()];
+    public static Object loadVectorBF16Array(short[] src, int index, int width) {
+        VectorSpecies<Float> species = speciesF32(width);
+        float[] lanes = new float[species.length()];
         for (int i = 0; i < lanes.length; i++) {
             lanes[i] = CpuDTypeOps.fromBFloat16Bits(src[index + i]);
         }
-        return DoubleVector.fromArray(DOUBLE_SPECIES, lanes, 0);
+        return FloatVector.fromArray(species, lanes, 0);
     }
 
     public static Object loadMaskF32Array(byte[] src, int index, int width) {
@@ -142,8 +143,9 @@ public final class FusedStorageOps {
     }
 
     public static void storeVectorBF16Array(short[] dst, int index, Object vector) {
-        double[] lanes = new double[DOUBLE_SPECIES.length()];
-        ((DoubleVector) vector).intoArray(lanes, 0);
+        FloatVector typed = (FloatVector) vector;
+        float[] lanes = new float[typed.species().length()];
+        typed.intoArray(lanes, 0);
         for (int i = 0; i < lanes.length; i++) {
             dst[index + i] = CpuDTypeOps.toBFloat16Bits((float) lanes[i]);
         }

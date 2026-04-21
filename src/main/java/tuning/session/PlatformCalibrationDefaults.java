@@ -427,7 +427,10 @@ public final class PlatformCalibrationDefaults {
                 name,
                 PlatformCalibrationFamily.FUSED_NON_CHEAP_STRIDED,
                 FusedDispatchFamily.NON_CHEAP_STRIDED,
-                List.of(CalibrationWorkloads.fusedTranscendentalStrided(name + "_workload", 256, 256)),
+                List.of(
+                        CalibrationWorkloads.fusedTranscendentalStrided(name + "_transcendental_workload", 256, 256),
+                        CalibrationWorkloads.fusedAffineRationalStrided(name + "_affine_rational_workload", 256, 2048)
+                ),
                 preset,
                 dataType
         );

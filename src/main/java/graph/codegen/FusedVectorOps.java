@@ -17,7 +17,7 @@ public final class FusedVectorOps {
     private FusedVectorOps() {}
 
     public static int width(int mode) {
-        return mode == FusedDTypeOps.MODE_F32 ? FLOAT_SPECIES.length() : DOUBLE_SPECIES.length();
+        return mode == FusedDTypeOps.MODE_F64 ? DOUBLE_SPECIES.length() : FLOAT_SPECIES.length();
     }
 
     public static int widthF64() {
@@ -32,7 +32,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).add((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).add((FloatVector) b);
-            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.add(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryBF16(a, b, (x, y) -> FusedDTypeOps.add(x, y, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -44,7 +44,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).sub((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).sub((FloatVector) b);
-            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.sub(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryBF16(a, b, (x, y) -> FusedDTypeOps.sub(x, y, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -56,7 +56,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).mul((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).mul((FloatVector) b);
-            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.mul(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryBF16(a, b, (x, y) -> FusedDTypeOps.mul(x, y, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -68,7 +68,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).div((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).div((FloatVector) b);
-            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.div(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryBF16(a, b, (x, y) -> FusedDTypeOps.div(x, y, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -80,7 +80,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).min((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).min((FloatVector) b);
-            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.min(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryBF16(a, b, (x, y) -> FusedDTypeOps.min(x, y, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -92,7 +92,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max((DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max((FloatVector) b);
-            case FusedDTypeOps.MODE_BF16 -> mapBinaryD(a, b, (x, y) -> FusedDTypeOps.max(x, y, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapBinaryBF16(a, b, (x, y) -> FusedDTypeOps.max(x, y, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -104,7 +104,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).neg();
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).neg();
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.neg(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.neg(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -116,7 +116,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> doubleOne((DoubleVector) a).div((DoubleVector) a);
             case FusedDTypeOps.MODE_F32 -> floatOne((FloatVector) a).div((FloatVector) a);
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.inv(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.inv(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -128,7 +128,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).mul(scalar);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).mul((float) scalar);
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.mulScalar(x, scalar, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.mulScalar(x, scalar, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -157,7 +157,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max(doubleZero((DoubleVector) a));
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max(floatZero((FloatVector) a));
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.relu(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.relu(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -169,7 +169,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).abs();
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).abs();
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.abs(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.abs(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -181,7 +181,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).max(minValue);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).max((float) minValue);
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.clampMin(x, minValue, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.clampMin(x, minValue, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -193,7 +193,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).min(maxValue);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).min((float) maxValue);
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.clampMax(x, maxValue, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.clampMax(x, maxValue, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -212,7 +212,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::sqrt);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.sqrt(x));
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.sqrt(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.sqrt(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -231,7 +231,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::exp);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.exp(x));
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.exp(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.exp(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -255,7 +255,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastTranscendentals::fastExpF64);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastTranscendentals::fastExpF32);
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.fastExp(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.fastExp(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -267,7 +267,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::log);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.log(x));
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.log(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.log(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -286,7 +286,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, Math::tanh);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) Math.tanh(x));
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.tanh(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.tanh(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -310,7 +310,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, FastTranscendentals::fastTanhF64);
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, FastTranscendentals::fastTanhF32);
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.fastTanh(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.fastTanh(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -322,7 +322,7 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> mapUnaryD(a, x -> 1.0 / (1.0 + Math.exp(-x)));
             case FusedDTypeOps.MODE_F32 -> mapUnaryF(a, x -> (float) (1.0 / (1.0 + Math.exp(-x))));
-            case FusedDTypeOps.MODE_BF16 -> mapUnaryD(a, x -> FusedDTypeOps.sigmoid(x, mode));
+            case FusedDTypeOps.MODE_BF16 -> mapUnaryBF16(a, x -> FusedDTypeOps.sigmoid(x, FusedDTypeOps.MODE_BF16));
             default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
@@ -379,28 +379,29 @@ public final class FusedVectorOps {
 
     private static Object powBF16(Object a, double exponent) {
         if (exponent == 0.0d) {
-            return mapUnaryD(a, x -> FusedDTypeOps.cast(1.0d, FusedDTypeOps.MODE_BF16));
+            return mapUnaryBF16(a, x -> FusedDTypeOps.cast(1.0d, FusedDTypeOps.MODE_BF16));
         }
         if (exponent == 1.0d) {
             return a;
         }
         if (exponent == 2.0d) {
-            return mapUnaryD(a, x -> FusedDTypeOps.cast(x * x, FusedDTypeOps.MODE_BF16));
+            return mapUnaryBF16(a, x -> FusedDTypeOps.cast(x * x, FusedDTypeOps.MODE_BF16));
         }
         if (exponent == 0.5d) {
-            return mapUnaryD(a, x -> FusedDTypeOps.cast(Math.sqrt(x), FusedDTypeOps.MODE_BF16));
+            return mapUnaryBF16(a, x -> FusedDTypeOps.cast(Math.sqrt(x), FusedDTypeOps.MODE_BF16));
         }
         if (exponent == -1.0d) {
-            return mapUnaryD(a, x -> FusedDTypeOps.cast(1.0d / x, FusedDTypeOps.MODE_BF16));
+            return mapUnaryBF16(a, x -> FusedDTypeOps.cast(1.0d / x, FusedDTypeOps.MODE_BF16));
         }
-        return mapUnaryD(a, x -> FusedDTypeOps.pow(x, exponent, FusedDTypeOps.MODE_BF16));
+        return mapUnaryBF16(a, x -> FusedDTypeOps.pow(x, exponent, FusedDTypeOps.MODE_BF16));
     }
 
     public static Object gt(Object a, Object b, int mode) {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.GT, (DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).compare(VectorOperators.GT, (FloatVector) b);
-            default -> throw new IllegalArgumentException("Vector compare GT is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((FloatVector) a).compare(VectorOperators.GT, (FloatVector) b);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -411,7 +412,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.GE, (DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).compare(VectorOperators.GE, (FloatVector) b);
-            default -> throw new IllegalArgumentException("Vector compare GE is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((FloatVector) a).compare(VectorOperators.GE, (FloatVector) b);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -422,7 +424,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.LT, (DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).compare(VectorOperators.LT, (FloatVector) b);
-            default -> throw new IllegalArgumentException("Vector compare LT is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((FloatVector) a).compare(VectorOperators.LT, (FloatVector) b);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -433,7 +436,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.LE, (DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).compare(VectorOperators.LE, (FloatVector) b);
-            default -> throw new IllegalArgumentException("Vector compare LE is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((FloatVector) a).compare(VectorOperators.LE, (FloatVector) b);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -444,7 +448,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.EQ, (DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).compare(VectorOperators.EQ, (FloatVector) b);
-            default -> throw new IllegalArgumentException("Vector compare EQ is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((FloatVector) a).compare(VectorOperators.EQ, (FloatVector) b);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -455,7 +460,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) a).compare(VectorOperators.NE, (DoubleVector) b);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) a).compare(VectorOperators.NE, (FloatVector) b);
-            default -> throw new IllegalArgumentException("Vector compare NE is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((FloatVector) a).compare(VectorOperators.NE, (FloatVector) b);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -466,7 +472,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((VectorMask<Double>) a).and((VectorMask<Double>) b);
             case FusedDTypeOps.MODE_F32 -> ((VectorMask<Float>) a).and((VectorMask<Float>) b);
-            default -> throw new IllegalArgumentException("Vector logicalAnd is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((VectorMask<Float>) a).and((VectorMask<Float>) b);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -477,7 +484,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((VectorMask<Double>) a).or((VectorMask<Double>) b);
             case FusedDTypeOps.MODE_F32 -> ((VectorMask<Float>) a).or((VectorMask<Float>) b);
-            default -> throw new IllegalArgumentException("Vector logicalOr is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((VectorMask<Float>) a).or((VectorMask<Float>) b);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -488,7 +496,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((VectorMask<Double>) a).not();
             case FusedDTypeOps.MODE_F32 -> ((VectorMask<Float>) a).not();
-            default -> throw new IllegalArgumentException("Vector logicalNot is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((VectorMask<Float>) a).not();
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -499,7 +508,8 @@ public final class FusedVectorOps {
         return switch (mode) {
             case FusedDTypeOps.MODE_F64 -> ((DoubleVector) ifFalse).blend((DoubleVector) ifTrue, (VectorMask<Double>) condition);
             case FusedDTypeOps.MODE_F32 -> ((FloatVector) ifFalse).blend((FloatVector) ifTrue, (VectorMask<Float>) condition);
-            default -> throw new IllegalArgumentException("Vector where is supported only for F32/F64.");
+            case FusedDTypeOps.MODE_BF16 -> ((FloatVector) ifFalse).blend((FloatVector) ifTrue, (VectorMask<Float>) condition);
+            default -> throw new IllegalArgumentException("Unsupported mode: " + mode);
         };
     }
 
@@ -557,6 +567,31 @@ public final class FusedVectorOps {
         rv.intoArray(b, 0);
         for (int i = 0; i < a.length; i++) {
             a[i] = fn.applyAsFloat(a[i], b[i]);
+        }
+        return FloatVector.fromArray(species, a, 0);
+    }
+
+    private static Object mapUnaryBF16(Object vector, DoubleUnaryOperator fn) {
+        FloatVector v = (FloatVector) vector;
+        VectorSpecies<Float> species = v.species();
+        float[] buf = new float[species.length()];
+        v.intoArray(buf, 0);
+        for (int i = 0; i < buf.length; i++) {
+            buf[i] = (float) fn.applyAsDouble(buf[i]);
+        }
+        return FloatVector.fromArray(species, buf, 0);
+    }
+
+    private static Object mapBinaryBF16(Object left, Object right, DoubleBinaryOperator fn) {
+        FloatVector lv = (FloatVector) left;
+        FloatVector rv = (FloatVector) right;
+        VectorSpecies<Float> species = lv.species();
+        float[] a = new float[species.length()];
+        float[] b = new float[species.length()];
+        lv.intoArray(a, 0);
+        rv.intoArray(b, 0);
+        for (int i = 0; i < a.length; i++) {
+            a[i] = (float) fn.applyAsDouble(a[i], b[i]);
         }
         return FloatVector.fromArray(species, a, 0);
     }

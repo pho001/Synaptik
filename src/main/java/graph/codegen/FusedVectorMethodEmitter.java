@@ -117,9 +117,6 @@ public final class FusedVectorMethodEmitter {
     }
 
     private static boolean supportsVector(FusedGenerationContext context, FusedExpressionPlan plan) {
-        if (context.precisionMode() == FusedDTypeOps.MODE_BF16) {
-            return false;
-        }
         return true;
     }
 

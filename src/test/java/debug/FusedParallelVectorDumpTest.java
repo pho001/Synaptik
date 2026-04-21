@@ -129,7 +129,7 @@ final class FusedParallelVectorDumpTest {
                 fused.getPlan().nodeCount(),
                 fused.getPlan().inputCount(),
                 dataType == DataType.BFLOAT16
-                        ? "BF16 generated class still has applyRangeVector method, but current emitter delegates it to scalar."
+                        ? "BF16 generated class now emits a real Vector API range loop using FloatVector lanes plus BF16 storage conversion helpers."
                         : "F32/F64 generated class contains a real Vector API range loop; parallel scheduling happens in backend.kernels.cpu.fused.FusedExecutor."
         );
 

@@ -15,8 +15,10 @@ import operations.fused.FusedOperation;
 import operations.Operation;
 import backend.kernels.cpu.CpuExecutionBackend;
 import backend.kernels.cpu.CpuKernelCostClass;
+import backend.kernels.cpu.CpuComputeDType;
 import backend.kernels.cpu.ResolvedCpuComputeContract;
 import tensor.DataType;
+import graph.codegen.FusedDTypeOps;
 
 import java.util.Objects;
 
@@ -276,7 +278,7 @@ public final class CpuPlanningPolicy {
         if (contract == null) {
             return 1;
         }
-        if (shouldForceScalarFusedAsm(fused)) {
+        if (shouldForceScalarFusedAsm(fused) || shouldClampBf16NonCheapStridedAsmWidthToScalar(contract, fused)) {
             return 1;
         }
         int available = switch (contract.computeType()) {
@@ -389,6 +391,19 @@ public final class CpuPlanningPolicy {
                 || specializationKind == FusedAsmSpecializationKind.F32_MASKED_SCALE_WHERE_INVERTED;
     }
 
+    private boolean shouldClampBf16NonCheapStridedAsmWidthToScalar(
+            ResolvedCpuComputeContract contract,
+            FusedOperation fused
+    ) {
+        if (contract == null
+                || contract.computeType() != CpuComputeDType.BF16_NATIVE
+                || fused == null
+                || fused.getDispatchFamily() != FusedDispatchFamily.NON_CHEAP_STRIDED) {
+            return false;
+        }
+        return isBf16AffineRationalStridedPlan(fused);
+    }
+
     private int effectiveVectorMinSize(Operation op) {
         int base = Math.max(1, resolveBaseVectorMinSize(op));
         if (op == null) {
@@ -482,6 +497,47 @@ public final class CpuPlanningPolicy {
             }
         }
         return hasWhere && hasBoolInput && hasBroadcastInput;
+    }
+
+    private boolean isBf16AffineRationalStridedPlan(FusedOperation fused) {
+        if (fused == null || fused.getPlan() == null || fused.getPrecisionMode() != FusedDTypeOps.MODE_BF16) {
+            return false;
+        }
+        int directStridedInputs = 0;
+        int directContiguousInputs = 0;
+        for (FusedExternalInputPlan input : fused.getPlan().inputs()) {
+            if (input.dataType() != DataType.BFLOAT16) {
+                return false;
+            }
+            switch (input.accessKind()) {
+                case DIRECT_STRIDED -> directStridedInputs++;
+                case DIRECT_CONTIGUOUS -> directContiguousInputs++;
+                default -> {
+                    return false;
+                }
+            }
+        }
+        if (directStridedInputs != 1 || directContiguousInputs < 3) {
+            return false;
+        }
+
+        boolean hasDivision = false;
+        for (FusedNodePlan node : fused.getPlan().nodes()) {
+            if (node.outputType() != DataType.BFLOAT16) {
+                return false;
+            }
+            switch (node.opType()) {
+                case NEG, ADD, SUB, MUL, DIV, INV, MUL_SCALAR -> {
+                    if (node.opType() == Operation.OpType.DIV || node.opType() == Operation.OpType.INV) {
+                        hasDivision = true;
+                    }
+                }
+                default -> {
+                    return false;
+                }
+            }
+        }
+        return hasDivision && fused.getPlan().nodeCount() >= 5;
     }
 
     private boolean fusedContainsTranscendental(FusedOperation fused) {
