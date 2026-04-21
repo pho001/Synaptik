@@ -11,7 +11,7 @@ final class BF16MatMulDispatch {
             short[] a, int[] aShape, PackedLinearWeightCache.BF16PackedWeights packedB,
             short[] out, int[] outShape, ResolvedMatMulHints hints
     ) {
-        BF16MatMulAccumulators.BF16AccumKernel kernel = BF16MatMulAccumulators.selectBF16Kernel(hints.microKernel());
+        BF16AccumKernel kernel = BF16MatMulAccumulatorSelector.select(hints.microKernel());
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -46,7 +46,7 @@ final class BF16MatMulDispatch {
             float[] a, int[] aShape, PackedLinearWeightCache.PackedFloatPanels packedB,
             short[] out, int[] outShape, ResolvedMatMulHints hints
     ) {
-        BF16MatMulAccumulators.BF16AccumKernel kernel = BF16MatMulAccumulators.selectBF16Kernel(hints.microKernel());
+        BF16AccumKernel kernel = BF16MatMulAccumulatorSelector.select(hints.microKernel());
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -81,7 +81,7 @@ final class BF16MatMulDispatch {
             short[] a, int[] aShape, PackedLinearWeightCache.BF16PackedWeights packedB,
             float[] out, int[] outShape, ResolvedMatMulHints hints
     ) {
-        BF16MatMulAccumulators.BF16AccumKernel kernel = BF16MatMulAccumulators.selectBF16Kernel(hints.microKernel());
+        BF16AccumKernel kernel = BF16MatMulAccumulatorSelector.select(hints.microKernel());
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -113,7 +113,7 @@ final class BF16MatMulDispatch {
     }
 
     public static void run(short[] a, int[] aShape, short[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints) {
-        BF16MatMulAccumulators.BF16AccumKernel kernel = BF16MatMulAccumulators.selectBF16Kernel(hints.microKernel());
+        BF16AccumKernel kernel = BF16MatMulAccumulatorSelector.select(hints.microKernel());
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -147,7 +147,7 @@ final class BF16MatMulDispatch {
     }
 
     public static void runToFloat(short[] a, int[] aShape, short[] b, int[] bShape, float[] out, int[] outShape, ResolvedMatMulHints hints) {
-        BF16MatMulAccumulators.BF16AccumKernel kernel = BF16MatMulAccumulators.selectBF16Kernel(hints.microKernel());
+        BF16AccumKernel kernel = BF16MatMulAccumulatorSelector.select(hints.microKernel());
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -181,7 +181,7 @@ final class BF16MatMulDispatch {
     }
 
     public static void runF32ToBF16(float[] a, int[] aShape, float[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints) {
-        BF16MatMulAccumulators.BF16AccumKernel kernel = BF16MatMulAccumulators.selectBF16Kernel(hints.microKernel());
+        BF16AccumKernel kernel = BF16MatMulAccumulatorSelector.select(hints.microKernel());
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -217,7 +217,7 @@ final class BF16MatMulDispatch {
     public static void runF32LeftBF16RightToBF16(
             float[] a, int[] aShape, short[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints
     ) {
-        BF16MatMulAccumulators.BF16AccumKernel kernel = BF16MatMulAccumulators.selectBF16Kernel(hints.microKernel());
+        BF16AccumKernel kernel = BF16MatMulAccumulatorSelector.select(hints.microKernel());
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];
@@ -253,7 +253,7 @@ final class BF16MatMulDispatch {
     public static void runF32LeftBF16RightToFloat(
             float[] a, int[] aShape, short[] b, int[] bShape, float[] out, int[] outShape, ResolvedMatMulHints hints
     ) {
-        BF16MatMulAccumulators.BF16AccumKernel kernel = BF16MatMulAccumulators.selectBF16Kernel(hints.microKernel());
+        BF16AccumKernel kernel = BF16MatMulAccumulatorSelector.select(hints.microKernel());
         int batchCount = batchCount(outShape);
         int m = outShape[outShape.length - 2];
         int n = outShape[outShape.length - 1];

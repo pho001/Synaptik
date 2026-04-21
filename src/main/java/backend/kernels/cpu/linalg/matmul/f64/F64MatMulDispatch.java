@@ -38,9 +38,9 @@ final class F64MatMulDispatch {
 
     public static void run(double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints) {
         F64BlockKernel kernel = switch (hints.microKernel()) {
-            case F64_2X1 -> F64MatMulKernel1Col::computeBlockF64_2x1;
-            case F64_2X2 -> F64MatMulKernel2Cols::computeBlockF64_2x2;
-            default -> F64MatMulKernel1Col::computeBlockF64_4x1;
+            case F64_2X1 -> F64MatMulKernel2x1::computeBlockF64_2x1;
+            case F64_2X2 -> F64MatMulKernel2x2::computeBlockF64_2x2;
+            default -> F64MatMulKernel4x1::computeBlockF64_4x1;
         };
         runF64Blocks(a, aShape, b, bShape, out, outShape, hints, kernel);
     }
@@ -49,9 +49,9 @@ final class F64MatMulDispatch {
             double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints
     ) {
         F64BlockKernel kernel = switch (hints.microKernel()) {
-            case F64_2X1 -> F64MatMulKernel1Col::computeBlockF64_2x1_RhsTransposed;
-            case F64_2X2 -> F64MatMulKernel2Cols::computeBlockF64_2x2_RhsTransposed;
-            default -> F64MatMulKernel1Col::computeBlockF64_4x1_RhsTransposed;
+            case F64_2X1 -> F64MatMulKernel2x1::computeBlockF64_2x1_RhsTransposed;
+            case F64_2X2 -> F64MatMulKernel2x2::computeBlockF64_2x2_RhsTransposed;
+            default -> F64MatMulKernel4x1::computeBlockF64_4x1_RhsTransposed;
         };
         runF64RightTransposedBlocks(a, aShape, b, bShape, out, outShape, hints, kernel);
     }
@@ -60,9 +60,9 @@ final class F64MatMulDispatch {
             double[] a, int[] aShape, double[] b, int[] bShape, double[] out, int[] outShape, ResolvedMatMulHints hints
     ) {
         F64BlockKernel kernel = switch (hints.microKernel()) {
-            case F64_2X1 -> F64MatMulKernel1Col::computeBlockF64_2x1_LhsTransposed;
-            case F64_2X2 -> F64MatMulKernel2Cols::computeBlockF64_2x2_LhsTransposed;
-            default -> F64MatMulKernel1Col::computeBlockF64_4x1_LhsTransposed;
+            case F64_2X1 -> F64MatMulKernel2x1::computeBlockF64_2x1_LhsTransposed;
+            case F64_2X2 -> F64MatMulKernel2x2::computeBlockF64_2x2_LhsTransposed;
+            default -> F64MatMulKernel4x1::computeBlockF64_4x1_LhsTransposed;
         };
         runF64LeftTransposedBlocks(a, aShape, b, bShape, out, outShape, hints, kernel);
     }
@@ -72,9 +72,9 @@ final class F64MatMulDispatch {
             double[] out, int[] outShape, ResolvedMatMulHints hints
     ) {
         PackedF64BlockKernel kernel = switch (hints.microKernel()) {
-            case F64_2X1 -> F64MatMulKernel1Col::computeBlockPackedF64_2x1;
-            case F64_2X2 -> F64MatMulKernel2Cols::computeBlockPackedF64_2x2;
-            default -> F64MatMulKernel1Col::computeBlockPackedF64_4x1;
+            case F64_2X1 -> F64MatMulKernel2x1::computeBlockPackedF64_2x1;
+            case F64_2X2 -> F64MatMulKernel2x2::computeBlockPackedF64_2x2;
+            default -> F64MatMulKernel4x1::computeBlockPackedF64_4x1;
         };
         runPackedF64Blocks(a, aShape, packedB, out, outShape, hints, kernel);
     }

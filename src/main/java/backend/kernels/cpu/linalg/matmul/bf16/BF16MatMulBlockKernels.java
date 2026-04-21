@@ -15,7 +15,7 @@ final class BF16MatMulBlockKernels {
             int kStart, int kEnd,
             int n, int k,
             int tm, int tn, int tk,
-            BF16MatMulAccumulators.BF16AccumKernel kernel
+            BF16AccumKernel kernel
     ) {
         int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
@@ -55,7 +55,7 @@ final class BF16MatMulBlockKernels {
             int kStart, int kEnd,
             int n, int k,
             int tm, int tn, int tk,
-            BF16MatMulAccumulators.BF16AccumKernel kernel
+            BF16AccumKernel kernel
     ) {
         int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
@@ -95,7 +95,7 @@ final class BF16MatMulBlockKernels {
             int kStart, int kEnd,
             int n, int k,
             int tm, int tn, int tk,
-            BF16MatMulAccumulators.BF16AccumKernel kernel
+            BF16AccumKernel kernel
     ) {
         int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
@@ -133,7 +133,7 @@ final class BF16MatMulBlockKernels {
             int kStart, int kEnd,
             int n, int k,
             int tm, int tn, int tk,
-            BF16MatMulAccumulators.BF16AccumKernel kernel
+            BF16AccumKernel kernel
     ) {
         int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
@@ -171,7 +171,7 @@ final class BF16MatMulBlockKernels {
             int kStart, int kEnd,
             int n, int k,
             int tm, int tn, int tk,
-            BF16MatMulAccumulators.BF16AccumKernel kernel
+            BF16AccumKernel kernel
     ) {
         int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
@@ -211,7 +211,7 @@ final class BF16MatMulBlockKernels {
             int kStart, int kEnd,
             int n, int k,
             int tm, int tn, int tk,
-            BF16MatMulAccumulators.BF16AccumKernel kernel
+            BF16AccumKernel kernel
     ) {
         int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
@@ -251,7 +251,7 @@ final class BF16MatMulBlockKernels {
             int kStart, int kEnd,
             int n, int k,
             int tm, int tn, int tk,
-            BF16MatMulAccumulators.BF16AccumKernel kernel
+            BF16AccumKernel kernel
     ) {
         int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
@@ -289,7 +289,7 @@ final class BF16MatMulBlockKernels {
             int kStart, int kEnd,
             int n, int k,
             int tm, int tn, int tk,
-            BF16MatMulAccumulators.BF16AccumKernel kernel
+            BF16AccumKernel kernel
     ) {
         int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {

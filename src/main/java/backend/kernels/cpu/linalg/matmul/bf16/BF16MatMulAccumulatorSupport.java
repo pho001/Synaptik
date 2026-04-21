@@ -1,169 +1,15 @@
 package backend.kernels.cpu.linalg.matmul.bf16;
 
-import config.backend.CpuMatMulMicroKernel;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
 
-final class BF16MatMulAccumulators {
-    @FunctionalInterface
-    interface BF16AccumKernel {
-        void compute(
-                float[] packedA,
-                float[] accum,
-                float[] packedB,
-                int tileRows,
-                int colOffset,
-                int panelDepth,
-                int totalCols,
-                int tileCols
-        );
+final class BF16MatMulAccumulatorSupport {
+    static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
+
+    private BF16MatMulAccumulatorSupport() {
     }
 
-    private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
-
-    private BF16MatMulAccumulators() {
-    }
-
-    static BF16AccumKernel selectBF16Kernel(CpuMatMulMicroKernel microKernel) {
-        return switch (microKernel) {
-            case BF16_2X4 -> BF16MatMulAccumulators::accumulateBF16_2x4;
-            case BF16_4X4 -> BF16MatMulAccumulators::accumulateBF16_4x4;
-            default -> BF16MatMulAccumulators::accumulateBF16_4x2;
-        };
-    }
-
-    private static void accumulateBF16_2x4(
-            float[] packedA,
-            float[] accum,
-            float[] packedB,
-            int tileRows,
-            int colOffset,
-            int panelDepth,
-            int totalCols,
-            int tileCols
-    ) {
-        int width = F32.length();
-        int vectorLimit = tileCols - (tileCols % width);
-        int blockLimit = tileCols - (tileCols % (width * 4));
-        int row = 0;
-        for (; row + 1 < tileRows; row += 2) {
-            computeTwoRowsFourColsF32(
-                    packedA, accum, packedB,
-                    0, 0,
-                    row,
-                    colOffset,
-                    0, panelDepth,
-                    totalCols, panelDepth,
-                    tileCols,
-                    blockLimit,
-                    vectorLimit,
-                    width
-            );
-        }
-        for (; row < tileRows; row++) {
-            computeSingleRowFourColsF32(
-                    packedA, accum, packedB,
-                    0, 0,
-                    row,
-                    colOffset,
-                    0, panelDepth,
-                    totalCols, panelDepth,
-                    tileCols,
-                    blockLimit,
-                    vectorLimit,
-                    width
-            );
-        }
-    }
-
-    private static void accumulateBF16_4x2(
-            float[] packedA,
-            float[] accum,
-            float[] packedB,
-            int tileRows,
-            int colOffset,
-            int panelDepth,
-            int totalCols,
-            int tileCols
-    ) {
-        int width = F32.length();
-        int vectorLimit = tileCols - (tileCols % width);
-        int blockLimit = tileCols - (tileCols % (width * 2));
-        int row = 0;
-        for (; row + 3 < tileRows; row += 4) {
-            computeFourRowsTwoColsF32(
-                    packedA, accum, packedB,
-                    0, 0,
-                    row,
-                    colOffset,
-                    0, panelDepth,
-                    totalCols, panelDepth,
-                    tileCols,
-                    blockLimit,
-                    vectorLimit,
-                    width
-            );
-        }
-        for (; row < tileRows; row++) {
-            computeSingleRowTwoColsF32(
-                    packedA, accum, packedB,
-                    0, 0,
-                    row,
-                    colOffset,
-                    0, panelDepth,
-                    totalCols, panelDepth,
-                    tileCols,
-                    blockLimit,
-                    vectorLimit,
-                    width
-            );
-        }
-    }
-
-    private static void accumulateBF16_4x4(
-            float[] packedA,
-            float[] accum,
-            float[] packedB,
-            int tileRows,
-            int colOffset,
-            int panelDepth,
-            int totalCols,
-            int tileCols
-    ) {
-        int width = F32.length();
-        int vectorLimit = tileCols - (tileCols % width);
-        int blockLimit = tileCols - (tileCols % (width * 4));
-        int row = 0;
-        for (; row + 3 < tileRows; row += 4) {
-            computeFourRowsFourColsF32(
-                    packedA, accum, packedB,
-                    0, 0,
-                    row,
-                    colOffset,
-                    0, panelDepth,
-                    totalCols, panelDepth,
-                    tileCols,
-                    blockLimit,
-                    vectorLimit,
-                    width
-            );
-        }
-        for (; row < tileRows; row++) {
-            computeSingleRowFourColsF32(
-                    packedA, accum, packedB,
-                    0, 0,
-                    row,
-                    colOffset,
-                    0, panelDepth,
-                    totalCols, panelDepth,
-                    tileCols,
-                    blockLimit,
-                    vectorLimit,
-                    width
-            );
-        }
-    }
-    private static void computeTwoRowsFourColsF32(
+    static void computeTwoRowsFourColsF32(
             float[] a, float[] out, float[] packedB,
             int aOffset, int outOffset,
             int row,
@@ -242,7 +88,8 @@ final class BF16MatMulAccumulators {
             out[outRow1 + outCol] = sum1;
         }
     }
-    private static void computeFourRowsTwoColsF32(
+
+    static void computeFourRowsTwoColsF32(
             float[] a, float[] out, float[] packedB,
             int aOffset, int outOffset,
             int row,
@@ -338,7 +185,7 @@ final class BF16MatMulAccumulators {
         }
     }
 
-    private static void computeSingleRowTwoColsF32(
+    static void computeSingleRowTwoColsF32(
             float[] a, float[] out, float[] packedB,
             int aOffset, int outOffset,
             int row,
@@ -385,7 +232,8 @@ final class BF16MatMulAccumulators {
             out[outRow + outCol] = sum;
         }
     }
-    private static void computeFourRowsFourColsF32(
+
+    static void computeFourRowsFourColsF32(
             float[] a, float[] out, float[] packedB,
             int aOffset, int outOffset,
             int row,
@@ -507,7 +355,7 @@ final class BF16MatMulAccumulators {
         }
     }
 
-    private static void computeSingleRowFourColsF32(
+    static void computeSingleRowFourColsF32(
             float[] a, float[] out, float[] packedB,
             int aOffset, int outOffset,
             int row,
@@ -560,5 +408,4 @@ final class BF16MatMulAccumulators {
             out[outRow + outCol] = sum;
         }
     }
-
 }
