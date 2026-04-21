@@ -40,6 +40,10 @@ public final class CalibrationWorkloads {
         return StandardWorkloads.matmul(name, 1, m, k, n);
     }
 
+    public static MatMulWorkloadSpec matmulWide(String name, int m, int k, int n) {
+        return StandardWorkloads.matmul(name, 1, m, k, n);
+    }
+
     public static MatMulWorkloadSpec matmulBatchedAttentionLike(String name, int batch, int m, int k, int n) {
         return StandardWorkloads.matmul(name, batch, m, k, n);
     }

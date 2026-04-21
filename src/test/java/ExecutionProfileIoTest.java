@@ -72,7 +72,7 @@ public class ExecutionProfileIoTest {
                                 OpenClKernelConfig.defaultsInference()
                         ),
                         new ApproximationConfig(ApproxMode.OFF, false),
-                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 0),
+                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 12.0d, false, 0),
                         new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
                 ),
                 new WorkloadProfile(config.profile.WorkloadKind.TRANSFORMER_HOT_PATH, 4, 8, 64, 32, 32, 256, true)
@@ -109,6 +109,10 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().kernel().cpu().attentionMatMulMicroKernel(), actual.runtime().kernel().cpu().attentionMatMulMicroKernel());
         assertEquals(expected.runtime().blas().provider(), actual.runtime().blas().provider());
         assertEquals(expected.runtime().blas().threads(), actual.runtime().blas().threads());
+        assertEquals(expected.runtime().blas().f32RequireMgeK(), actual.runtime().blas().f32RequireMgeK());
+        assertEquals(expected.runtime().blas().f32MaxNOverK(), actual.runtime().blas().f32MaxNOverK());
+        assertEquals(expected.runtime().blas().f32WideRequireMgeK(), actual.runtime().blas().f32WideRequireMgeK());
+        assertEquals(expected.runtime().blas().f32WideMaxNOverK(), actual.runtime().blas().f32WideMaxNOverK());
         assertEquals(expected.runtime().approximation().approxMode(), actual.runtime().approximation().approxMode());
         assertEquals(expected.runtime().fused(), actual.runtime().fused());
         assertEquals(expected.workload(), actual.workload());

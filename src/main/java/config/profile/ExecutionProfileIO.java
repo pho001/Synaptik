@@ -228,6 +228,8 @@ public final class ExecutionProfileIO {
                     Math.max(1L, Math.round(findDouble(json, "matmulMinWork", defaultProfile.runtime().blas().matmulMinWork()))),
                     findBoolean(json, "f32RequireMgeK", defaultProfile.runtime().blas().f32RequireMgeK()),
                     findDouble(json, "f32MaxNOverK", defaultProfile.runtime().blas().f32MaxNOverK()),
+                    findBoolean(json, "f32WideRequireMgeK", defaultProfile.runtime().blas().f32WideRequireMgeK()),
+                    findDouble(json, "f32WideMaxNOverK", defaultProfile.runtime().blas().f32WideMaxNOverK()),
                     findBoolean(json, "debug", defaultProfile.runtime().blas().debug()),
                     findInt(json, "threads", defaultProfile.runtime().blas().threads())
             );
@@ -432,6 +434,8 @@ public final class ExecutionProfileIO {
                 "      \"matmulMinWork\": " + blas.matmulMinWork() + ",\n" +
                 "      \"f32RequireMgeK\": " + blas.f32RequireMgeK() + ",\n" +
                 "      \"f32MaxNOverK\": " + blas.f32MaxNOverK() + ",\n" +
+                "      \"f32WideRequireMgeK\": " + blas.f32WideRequireMgeK() + ",\n" +
+                "      \"f32WideMaxNOverK\": " + blas.f32WideMaxNOverK() + ",\n" +
                 "      \"debug\": " + blas.debug() + ",\n" +
                 "      \"threads\": " + blas.threads() + "\n" +
                 "    },\n" +

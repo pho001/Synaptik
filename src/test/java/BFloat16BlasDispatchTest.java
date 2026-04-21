@@ -64,6 +64,26 @@ public class BFloat16BlasDispatchTest {
     }
 
     @Test
+    void bfloat16WideMatmulUsesWideSpecificBlasHeuristic() {
+        Assumptions.assumeTrue(OpenBlasFfmBridge.isAvailable(), "OpenBLAS FFM is unavailable");
+
+        Tensor a = new Tensor(random(256 * 256), new int[]{256, 256}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(random(256 * 2048), new int[]{256, 2048}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b);
+
+        var trace = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .executeTraced(blasRuntimeWide(1L, true, 4.0d, true, 12.0d), ExecutionMode.FORWARD);
+
+        ExecutionStepTrace matmul = trace.steps().stream()
+                .filter(step -> "MATMUL".equals(step.opType()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(matmul);
+        assertNotNull(matmul.metadata().matMul());
+        assertTrue(matmul.metadata().matMul().useBlas());
+    }
+
+    @Test
     void bfloat16Conv2dLoweringBuildsConv2dGemmStep() {
         Tensor input = new Tensor(random(2 * 64 * 32 * 32), new int[]{2, 64, 32, 32}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(random(128 * 64 * 3 * 3), new int[]{128, 64, 3, 3}, null, "weight", DataType.BFLOAT16);
@@ -148,14 +168,26 @@ public class BFloat16BlasDispatchTest {
     }
 
     private static RuntimeConfig blasRuntime(long minWork) {
+        return blasRuntimeWide(minWork, false, 100.0d, false, 100.0d);
+    }
+
+    private static RuntimeConfig blasRuntimeWide(
+            long minWork,
+            boolean requireMgeK,
+            double maxNOverK,
+            boolean wideRequireMgeK,
+            double wideMaxNOverK
+    ) {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
                 config.runtime.ApproximationConfig.defaults(),
                 new BlasConfig(
                         BlasProvider.OPENBLAS_FFM,
                         minWork,
-                        false,
-                        100.0d,
+                        requireMgeK,
+                        maxNOverK,
+                        wideRequireMgeK,
+                        wideMaxNOverK,
                         false,
                         1
                 )

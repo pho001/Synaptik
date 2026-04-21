@@ -53,6 +53,8 @@ public final class PlatformRuntimeProfileIO {
                 "    \"blasThreads\": " + profile.matmul().blasThreads() + ",\n" +
                 "    \"f32RequireMgeK\": " + profile.matmul().f32RequireMgeK() + ",\n" +
                 "    \"f32MaxNOverK\": " + profile.matmul().f32MaxNOverK() + ",\n" +
+                "    \"f32WideRequireMgeK\": " + profile.matmul().f32WideRequireMgeK() + ",\n" +
+                "    \"f32WideMaxNOverK\": " + profile.matmul().f32WideMaxNOverK() + ",\n" +
                 "    \"loopUnrollFactor\": " + profile.matmul().loopUnrollFactor() + ",\n" +
                 "    \"matMulTileM\": " + profile.matmul().matMulTileM() + ",\n" +
                 "    \"matMulTileN\": " + profile.matmul().matMulTileN() + ",\n" +
@@ -153,6 +155,8 @@ public final class PlatformRuntimeProfileIO {
                     findInt(json, "blasThreads", fallback.matmul().blasThreads()),
                     findBoolean(json, "f32RequireMgeK", fallback.matmul().f32RequireMgeK()),
                     findDouble(json, "f32MaxNOverK", fallback.matmul().f32MaxNOverK()),
+                    findBoolean(json, "f32WideRequireMgeK", fallback.matmul().f32WideRequireMgeK()),
+                    findDouble(json, "f32WideMaxNOverK", fallback.matmul().f32WideMaxNOverK()),
                     findInt(json, "loopUnrollFactor", fallback.matmul().loopUnrollFactor()),
                     loadedMatMulTileM,
                     loadedMatMulTileN,

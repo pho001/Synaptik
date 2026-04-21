@@ -1,6 +1,6 @@
 {
   "platformId": "mac_os_x-aarch64-oracle_corporation-16c",
-  "createdAt": "2026-04-20T12:23:03.588788+02:00",
+  "createdAt": "2026-04-21T06:26:56.474366+02:00",
   "persisted": true,
   "outputProfilePath": "profiles/platform/mac_os_x-aarch64-oracle_corporation-16c/calibration/bf16-forward-backward.json",
   "profileName": "platform-seed-bf16-training",
@@ -17,356 +17,14 @@
   },
   "steps": [
     {
-      "name": "calib-matmul-train-java",
-      "family": "MATMUL_JAVA",
-      "seedRuntimeProfile": "mac_os_x-aarch64-oracle_corporation-16c",
-      "selectedRuntimeProfile": "mac_os_x-aarch64-oracle_corporation-16c",
-      "selectedExecutionProfile": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x128x64+matmulParallel=500000",
-      "score": 0.441255,
-      "scoreMetric": "averageMedianMs",
-      "winner": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x128x64+matmulParallel=500000",
-      "suiteSummary": {
-        "workloadCount": 4,
-        "candidateCount": 144,
-        "successCount": 144,
-        "failureCount": 0
-      },
-      "candidateSummaries": [
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.457286,
-          "geometricMeanMs": 0.457286,
-          "worstBucketMedianMs": 0.927768,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.460736,
-          "geometricMeanMs": 0.460736,
-          "worstBucketMedianMs": 0.919444,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.442836,
-          "geometricMeanMs": 0.442836,
-          "worstBucketMedianMs": 0.916667,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.471269,
-          "geometricMeanMs": 0.471269,
-          "worstBucketMedianMs": 0.947800,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.462030,
-          "geometricMeanMs": 0.462030,
-          "worstBucketMedianMs": 0.946989,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.456552,
-          "geometricMeanMs": 0.456552,
-          "worstBucketMedianMs": 0.945032,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x128+matmulParallel=100000",
-          "valid": true,
-          "score": 0.451790,
-          "geometricMeanMs": 0.451790,
-          "worstBucketMedianMs": 0.925540,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x128+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.458177,
-          "geometricMeanMs": 0.458177,
-          "worstBucketMedianMs": 0.909825,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x128+matmulParallel=500000",
-          "valid": true,
-          "score": 0.450671,
-          "geometricMeanMs": 0.450671,
-          "worstBucketMedianMs": 0.916505,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.456055,
-          "geometricMeanMs": 0.456055,
-          "worstBucketMedianMs": 0.916215,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.462423,
-          "geometricMeanMs": 0.462423,
-          "worstBucketMedianMs": 0.922752,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.455388,
-          "geometricMeanMs": 0.455388,
-          "worstBucketMedianMs": 0.916161,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.450629,
-          "geometricMeanMs": 0.450629,
-          "worstBucketMedianMs": 0.923872,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.452324,
-          "geometricMeanMs": 0.452324,
-          "worstBucketMedianMs": 0.931983,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.444653,
-          "geometricMeanMs": 0.444653,
-          "worstBucketMedianMs": 0.944975,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.451848,
-          "geometricMeanMs": 0.451848,
-          "worstBucketMedianMs": 0.916855,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.457544,
-          "geometricMeanMs": 0.457544,
-          "worstBucketMedianMs": 0.929044,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.447210,
-          "geometricMeanMs": 0.447210,
-          "worstBucketMedianMs": 0.932450,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x128+matmulParallel=100000",
-          "valid": true,
-          "score": 0.460268,
-          "geometricMeanMs": 0.460268,
-          "worstBucketMedianMs": 0.969717,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x128+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.457349,
-          "geometricMeanMs": 0.457349,
-          "worstBucketMedianMs": 0.923489,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x128+matmulParallel=500000",
-          "valid": true,
-          "score": 0.446414,
-          "geometricMeanMs": 0.446414,
-          "worstBucketMedianMs": 0.922897,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.459074,
-          "geometricMeanMs": 0.459074,
-          "worstBucketMedianMs": 0.948825,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.460934,
-          "geometricMeanMs": 0.460934,
-          "worstBucketMedianMs": 0.940877,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.456236,
-          "geometricMeanMs": 0.456236,
-          "worstBucketMedianMs": 0.945659,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.448417,
-          "geometricMeanMs": 0.448417,
-          "worstBucketMedianMs": 0.918055,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.462179,
-          "geometricMeanMs": 0.462179,
-          "worstBucketMedianMs": 0.949503,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.441255,
-          "geometricMeanMs": 0.441255,
-          "worstBucketMedianMs": 0.929850,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.457930,
-          "geometricMeanMs": 0.457930,
-          "worstBucketMedianMs": 0.939134,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.454274,
-          "geometricMeanMs": 0.454274,
-          "worstBucketMedianMs": 0.921898,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.441613,
-          "geometricMeanMs": 0.441613,
-          "worstBucketMedianMs": 0.924707,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x128+matmulParallel=100000",
-          "valid": true,
-          "score": 0.456587,
-          "geometricMeanMs": 0.456587,
-          "worstBucketMedianMs": 0.936886,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x128+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.468151,
-          "geometricMeanMs": 0.468151,
-          "worstBucketMedianMs": 0.940262,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x128+matmulParallel=500000",
-          "valid": true,
-          "score": 0.459992,
-          "geometricMeanMs": 0.459992,
-          "worstBucketMedianMs": 0.954885,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 0.463396,
-          "geometricMeanMs": 0.463396,
-          "worstBucketMedianMs": 0.943645,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 0.469123,
-          "geometricMeanMs": 0.469123,
-          "worstBucketMedianMs": 0.947254,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 0.458311,
-          "geometricMeanMs": 0.458311,
-          "worstBucketMedianMs": 0.933153,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        }
-      ]
-    },
-    {
-      "name": "calib-matmul-train-blas",
+      "name": "calib-matmul-blas-train-regular",
       "family": "MATMUL_BLAS_DISPATCH",
       "seedRuntimeProfile": "mac_os_x-aarch64-oracle_corporation-16c",
       "selectedRuntimeProfile": "mac_os_x-aarch64-oracle_corporation-16c",
-      "selectedExecutionProfile": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/6.0+blasThreads=AUTO",
-      "score": 0.436457,
+      "selectedExecutionProfile": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/4.0+blasThreads=AUTO",
+      "score": 0.565403,
       "scoreMetric": "averageMedianMs",
-      "winner": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/6.0+blasThreads=AUTO",
+      "winner": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/4.0+blasThreads=AUTO",
       "suiteSummary": {
         "workloadCount": 4,
         "candidateCount": 160,
@@ -377,360 +35,450 @@
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=false/1.5+blasThreads=AUTO",
           "valid": true,
-          "score": 0.439743,
-          "geometricMeanMs": 0.439743,
-          "worstBucketMedianMs": 0.918987,
+          "score": 0.614454,
+          "geometricMeanMs": 0.614454,
+          "worstBucketMedianMs": 1.290214,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=false/2.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.442287,
-          "geometricMeanMs": 0.442287,
-          "worstBucketMedianMs": 0.925812,
+          "score": 0.569441,
+          "geometricMeanMs": 0.569441,
+          "worstBucketMedianMs": 1.196902,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=false/3.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.440283,
-          "geometricMeanMs": 0.440283,
-          "worstBucketMedianMs": 0.917442,
+          "score": 0.570314,
+          "geometricMeanMs": 0.570314,
+          "worstBucketMedianMs": 1.214633,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=false/4.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.438884,
-          "geometricMeanMs": 0.438884,
-          "worstBucketMedianMs": 0.917963,
+          "score": 0.572237,
+          "geometricMeanMs": 0.572237,
+          "worstBucketMedianMs": 1.212705,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=false/6.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.442663,
-          "geometricMeanMs": 0.442663,
-          "worstBucketMedianMs": 0.935167,
+          "score": 0.565504,
+          "geometricMeanMs": 0.565504,
+          "worstBucketMedianMs": 1.195807,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=true/1.5+blasThreads=AUTO",
           "valid": true,
-          "score": 0.439940,
-          "geometricMeanMs": 0.439940,
-          "worstBucketMedianMs": 0.916425,
+          "score": 0.602156,
+          "geometricMeanMs": 0.602156,
+          "worstBucketMedianMs": 1.223011,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=true/2.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.460783,
-          "geometricMeanMs": 0.460783,
-          "worstBucketMedianMs": 0.997719,
+          "score": 0.565810,
+          "geometricMeanMs": 0.565810,
+          "worstBucketMedianMs": 1.203769,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=true/3.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.441005,
-          "geometricMeanMs": 0.441005,
-          "worstBucketMedianMs": 0.920780,
+          "score": 0.567199,
+          "geometricMeanMs": 0.567199,
+          "worstBucketMedianMs": 1.203371,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=true/4.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.437244,
-          "geometricMeanMs": 0.437244,
-          "worstBucketMedianMs": 0.911036,
+          "score": 0.571059,
+          "geometricMeanMs": 0.571059,
+          "worstBucketMedianMs": 1.205395,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=NONE+matmulShape=true/6.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.439736,
-          "geometricMeanMs": 0.439736,
-          "worstBucketMedianMs": 0.917686,
+          "score": 0.570048,
+          "geometricMeanMs": 0.570048,
+          "worstBucketMedianMs": 1.200510,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=false/1.5+blasThreads=AUTO",
           "valid": true,
-          "score": 0.441427,
-          "geometricMeanMs": 0.441427,
-          "worstBucketMedianMs": 0.925850,
+          "score": 0.569983,
+          "geometricMeanMs": 0.569983,
+          "worstBucketMedianMs": 1.203294,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=false/2.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.440959,
-          "geometricMeanMs": 0.440959,
-          "worstBucketMedianMs": 0.919491,
+          "score": 0.567449,
+          "geometricMeanMs": 0.567449,
+          "worstBucketMedianMs": 1.206796,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=false/3.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.440733,
-          "geometricMeanMs": 0.440733,
-          "worstBucketMedianMs": 0.926610,
+          "score": 0.571594,
+          "geometricMeanMs": 0.571594,
+          "worstBucketMedianMs": 1.233015,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=false/4.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.451611,
-          "geometricMeanMs": 0.451611,
-          "worstBucketMedianMs": 0.968901,
+          "score": 0.567096,
+          "geometricMeanMs": 0.567096,
+          "worstBucketMedianMs": 1.200419,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=false/6.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.442196,
-          "geometricMeanMs": 0.442196,
-          "worstBucketMedianMs": 0.924844,
+          "score": 0.566710,
+          "geometricMeanMs": 0.566710,
+          "worstBucketMedianMs": 1.204483,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=true/1.5+blasThreads=AUTO",
           "valid": true,
-          "score": 0.441033,
-          "geometricMeanMs": 0.441033,
-          "worstBucketMedianMs": 0.922535,
+          "score": 0.567773,
+          "geometricMeanMs": 0.567773,
+          "worstBucketMedianMs": 1.199149,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=true/2.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.442320,
-          "geometricMeanMs": 0.442320,
-          "worstBucketMedianMs": 0.925439,
+          "score": 0.567655,
+          "geometricMeanMs": 0.567655,
+          "worstBucketMedianMs": 1.199296,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=true/3.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.439403,
-          "geometricMeanMs": 0.439403,
-          "worstBucketMedianMs": 0.922485,
+          "score": 0.570648,
+          "geometricMeanMs": 0.570648,
+          "worstBucketMedianMs": 1.204842,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=true/4.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.442608,
-          "geometricMeanMs": 0.442608,
-          "worstBucketMedianMs": 0.928292,
+          "score": 0.577201,
+          "geometricMeanMs": 0.577201,
+          "worstBucketMedianMs": 1.241826,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=1000000+matmulShape=true/6.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.443024,
-          "geometricMeanMs": 0.443024,
-          "worstBucketMedianMs": 0.922863,
+          "score": 0.568374,
+          "geometricMeanMs": 0.568374,
+          "worstBucketMedianMs": 1.198146,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=false/1.5+blasThreads=AUTO",
           "valid": true,
-          "score": 0.445695,
-          "geometricMeanMs": 0.445695,
-          "worstBucketMedianMs": 0.932739,
+          "score": 0.570145,
+          "geometricMeanMs": 0.570145,
+          "worstBucketMedianMs": 1.201089,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=false/2.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.445838,
-          "geometricMeanMs": 0.445838,
-          "worstBucketMedianMs": 0.935866,
+          "score": 0.571446,
+          "geometricMeanMs": 0.571446,
+          "worstBucketMedianMs": 1.200828,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=false/3.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.445985,
-          "geometricMeanMs": 0.445985,
-          "worstBucketMedianMs": 0.941233,
+          "score": 0.567331,
+          "geometricMeanMs": 0.567331,
+          "worstBucketMedianMs": 1.200900,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=false/4.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.446703,
-          "geometricMeanMs": 0.446703,
-          "worstBucketMedianMs": 0.939810,
+          "score": 0.581707,
+          "geometricMeanMs": 0.581707,
+          "worstBucketMedianMs": 1.197581,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=false/6.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.444910,
-          "geometricMeanMs": 0.444910,
-          "worstBucketMedianMs": 0.927201,
+          "score": 0.570226,
+          "geometricMeanMs": 0.570226,
+          "worstBucketMedianMs": 1.204401,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=true/1.5+blasThreads=AUTO",
           "valid": true,
-          "score": 0.446445,
-          "geometricMeanMs": 0.446445,
-          "worstBucketMedianMs": 0.942889,
+          "score": 0.566714,
+          "geometricMeanMs": 0.566714,
+          "worstBucketMedianMs": 1.201711,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=true/2.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.445827,
-          "geometricMeanMs": 0.445827,
-          "worstBucketMedianMs": 0.943415,
+          "score": 0.572940,
+          "geometricMeanMs": 0.572940,
+          "worstBucketMedianMs": 1.205714,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=true/3.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.447989,
-          "geometricMeanMs": 0.447989,
-          "worstBucketMedianMs": 0.950835,
+          "score": 0.573589,
+          "geometricMeanMs": 0.573589,
+          "worstBucketMedianMs": 1.222803,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=true/4.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.452275,
-          "geometricMeanMs": 0.452275,
-          "worstBucketMedianMs": 0.950014,
+          "score": 0.572949,
+          "geometricMeanMs": 0.572949,
+          "worstBucketMedianMs": 1.203792,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=2000000+matmulShape=true/6.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.447950,
-          "geometricMeanMs": 0.447950,
-          "worstBucketMedianMs": 0.939230,
+          "score": 0.573618,
+          "geometricMeanMs": 0.573618,
+          "worstBucketMedianMs": 1.214908,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/1.5+blasThreads=AUTO",
           "valid": true,
-          "score": 0.439563,
-          "geometricMeanMs": 0.439563,
-          "worstBucketMedianMs": 0.913864,
+          "score": 0.567025,
+          "geometricMeanMs": 0.567025,
+          "worstBucketMedianMs": 1.197854,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/2.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.446210,
-          "geometricMeanMs": 0.446210,
-          "worstBucketMedianMs": 0.910713,
+          "score": 0.572920,
+          "geometricMeanMs": 0.572920,
+          "worstBucketMedianMs": 1.218453,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/3.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.438690,
-          "geometricMeanMs": 0.438690,
-          "worstBucketMedianMs": 0.912532,
+          "score": 0.566765,
+          "geometricMeanMs": 0.566765,
+          "worstBucketMedianMs": 1.205055,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/4.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.437095,
-          "geometricMeanMs": 0.437095,
-          "worstBucketMedianMs": 0.905133,
+          "score": 0.565403,
+          "geometricMeanMs": 0.565403,
+          "worstBucketMedianMs": 1.207883,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/6.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.436457,
-          "geometricMeanMs": 0.436457,
-          "worstBucketMedianMs": 0.905357,
+          "score": 0.574684,
+          "geometricMeanMs": 0.574684,
+          "worstBucketMedianMs": 1.202514,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=true/1.5+blasThreads=AUTO",
           "valid": true,
-          "score": 0.445017,
-          "geometricMeanMs": 0.445017,
-          "worstBucketMedianMs": 0.929406,
+          "score": 0.604144,
+          "geometricMeanMs": 0.604144,
+          "worstBucketMedianMs": 1.192085,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=true/2.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.447823,
-          "geometricMeanMs": 0.447823,
-          "worstBucketMedianMs": 0.946878,
+          "score": 0.596888,
+          "geometricMeanMs": 0.596888,
+          "worstBucketMedianMs": 1.260732,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=true/3.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.445484,
-          "geometricMeanMs": 0.445484,
-          "worstBucketMedianMs": 0.935574,
+          "score": 0.577247,
+          "geometricMeanMs": 0.577247,
+          "worstBucketMedianMs": 1.215704,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=true/4.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.449608,
-          "geometricMeanMs": 0.449608,
-          "worstBucketMedianMs": 0.950108,
+          "score": 0.574763,
+          "geometricMeanMs": 0.574763,
+          "worstBucketMedianMs": 1.206196,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
           "candidateId": "base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=true/6.0+blasThreads=AUTO",
           "valid": true,
-          "score": 0.440498,
-          "geometricMeanMs": 0.440498,
-          "worstBucketMedianMs": 0.911638,
+          "score": 0.567106,
+          "geometricMeanMs": 0.567106,
+          "worstBucketMedianMs": 1.198876,
+          "variancePenalty": 0.000000,
+          "explanation": "averageMedianMs"
+        }
+      ]
+    },
+    {
+      "name": "calib-matmul-blas-train-wide",
+      "family": "MATMUL_BLAS_DISPATCH_WIDE",
+      "seedRuntimeProfile": "mac_os_x-aarch64-oracle_corporation-16c",
+      "selectedRuntimeProfile": "mac_os_x-aarch64-oracle_corporation-16c",
+      "selectedExecutionProfile": "base+matmulWideShape=false/6.0",
+      "score": 6.479146,
+      "scoreMetric": "averageMedianMs",
+      "winner": "base+matmulWideShape=false/6.0",
+      "suiteSummary": {
+        "workloadCount": 2,
+        "candidateCount": 16,
+        "successCount": 16,
+        "failureCount": 0
+      },
+      "candidateSummaries": [
+        {
+          "candidateId": "base+matmulWideShape=false/12.0",
+          "valid": true,
+          "score": 6.505973,
+          "geometricMeanMs": 6.505973,
+          "worstBucketMedianMs": 10.652716,
+          "variancePenalty": 0.000000,
+          "explanation": "averageMedianMs"
+        },
+        {
+          "candidateId": "base+matmulWideShape=false/4.0",
+          "valid": true,
+          "score": 6.641621,
+          "geometricMeanMs": 6.641621,
+          "worstBucketMedianMs": 10.905366,
+          "variancePenalty": 0.000000,
+          "explanation": "averageMedianMs"
+        },
+        {
+          "candidateId": "base+matmulWideShape=false/6.0",
+          "valid": true,
+          "score": 6.479146,
+          "geometricMeanMs": 6.479146,
+          "worstBucketMedianMs": 10.620707,
+          "variancePenalty": 0.000000,
+          "explanation": "averageMedianMs"
+        },
+        {
+          "candidateId": "base+matmulWideShape=false/8.0",
+          "valid": true,
+          "score": 6.621489,
+          "geometricMeanMs": 6.621489,
+          "worstBucketMedianMs": 10.908803,
+          "variancePenalty": 0.000000,
+          "explanation": "averageMedianMs"
+        },
+        {
+          "candidateId": "base+matmulWideShape=true/12.0",
+          "valid": true,
+          "score": 6.699533,
+          "geometricMeanMs": 6.699533,
+          "worstBucketMedianMs": 11.049068,
+          "variancePenalty": 0.000000,
+          "explanation": "averageMedianMs"
+        },
+        {
+          "candidateId": "base+matmulWideShape=true/4.0",
+          "valid": true,
+          "score": 6.561590,
+          "geometricMeanMs": 6.561590,
+          "worstBucketMedianMs": 10.715564,
+          "variancePenalty": 0.000000,
+          "explanation": "averageMedianMs"
+        },
+        {
+          "candidateId": "base+matmulWideShape=true/6.0",
+          "valid": true,
+          "score": 6.542471,
+          "geometricMeanMs": 6.542471,
+          "worstBucketMedianMs": 10.750319,
+          "variancePenalty": 0.000000,
+          "explanation": "averageMedianMs"
+        },
+        {
+          "candidateId": "base+matmulWideShape=true/8.0",
+          "valid": true,
+          "score": 6.479841,
+          "geometricMeanMs": 6.479841,
+          "worstBucketMedianMs": 10.609948,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         }

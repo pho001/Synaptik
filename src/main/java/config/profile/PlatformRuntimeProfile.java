@@ -77,6 +77,8 @@ public record PlatformRuntimeProfile(
                         profile.runtime().blas().threads(),
                         profile.runtime().blas().f32RequireMgeK(),
                         profile.runtime().blas().f32MaxNOverK(),
+                        profile.runtime().blas().f32WideRequireMgeK(),
+                        profile.runtime().blas().f32WideMaxNOverK(),
                         cpu.loopUnrollFactor(),
                         cpu.matMulTileM(),
                         cpu.matMulTileN(),
@@ -199,6 +201,8 @@ public record PlatformRuntimeProfile(
                         matmul.blasMatmulMinWork(),
                         matmul.f32RequireMgeK(),
                         matmul.f32MaxNOverK(),
+                        matmul.f32WideRequireMgeK(),
+                        matmul.f32WideMaxNOverK(),
                         false,
                         matmul.blasThreads()
                 ),

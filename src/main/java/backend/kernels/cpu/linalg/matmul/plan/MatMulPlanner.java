@@ -11,6 +11,7 @@ import tensor.Tensor;
 import java.util.Objects;
 
 public final class MatMulPlanner {
+    private static final double WIDE_N_OVER_K_TRIGGER = 4.0d;
     private final CpuPlanningPolicy policy;
 
     public MatMulPlanner(CpuPlanningPolicy policy) {
@@ -190,10 +191,11 @@ public final class MatMulPlanner {
             return false;
         }
         if (outDataType == DataType.FLOAT32 || outDataType == DataType.BFLOAT16) {
-            if (blasConfig.f32RequireMgeK() && m < k) {
+            MatMulBlasShapeHeuristics heuristics = selectBlasShapeHeuristics(m, n, k, blasConfig);
+            if (heuristics.requireMgeK() && m < k) {
                 return false;
             }
-            if (((double) n / Math.max(1, k)) > blasConfig.f32MaxNOverK()) {
+            if (((double) n / Math.max(1, k)) > heuristics.maxNOverK()) {
                 return false;
             }
         }
@@ -230,10 +232,11 @@ public final class MatMulPlanner {
             return false;
         }
         if (outDataType == DataType.FLOAT32 || outDataType == DataType.BFLOAT16) {
-            if (blasConfig.f32RequireMgeK() && m < k) {
+            MatMulBlasShapeHeuristics heuristics = selectBlasShapeHeuristics(m, n, k, blasConfig);
+            if (heuristics.requireMgeK() && m < k) {
                 return false;
             }
-            if (((double) n / Math.max(1, k)) > blasConfig.f32MaxNOverK()) {
+            if (((double) n / Math.max(1, k)) > heuristics.maxNOverK()) {
                 return false;
             }
         }
@@ -243,6 +246,25 @@ public final class MatMulPlanner {
             case AUTO -> true;
         };
     }
+
+    private MatMulBlasShapeHeuristics selectBlasShapeHeuristics(int m, int n, int k, BlasConfig blasConfig) {
+        if (isWideShape(n, k)) {
+            return new MatMulBlasShapeHeuristics(
+                    blasConfig.f32WideRequireMgeK(),
+                    blasConfig.f32WideMaxNOverK()
+            );
+        }
+        return new MatMulBlasShapeHeuristics(
+                blasConfig.f32RequireMgeK(),
+                blasConfig.f32MaxNOverK()
+        );
+    }
+
+    private static boolean isWideShape(int n, int k) {
+        return ((double) n / Math.max(1, k)) > WIDE_N_OVER_K_TRIGGER;
+    }
+
+    private record MatMulBlasShapeHeuristics(boolean requireMgeK, double maxNOverK) {}
 
     private boolean isAttentionLikeBatchedMatMul(int[] as, int[] bs, int[] os) {
         if (as.length < 3 || bs.length < 3 || os.length < 3) {

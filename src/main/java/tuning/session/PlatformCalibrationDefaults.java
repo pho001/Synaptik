@@ -180,9 +180,31 @@ public final class PlatformCalibrationDefaults {
                                 ),
                                 PlatformRuntimeProfileMutators.matmulShapeHeuristics(
                                         List.of(true, false),
-                                        List.of(1.5, 2.0, 3.0, 4.0, 6.0)
+                                        supportedMatMulBlasShapeRatios(seedProfileDataType(base))
                                 ),
                                 PlatformRuntimeProfileMutators.blasThreads(List.of(0))
+                        )
+                ),
+                PlatformCalibrationScorePolicy.averageMedianMs()
+        );
+    }
+
+    public static PlatformCalibrationStep matmulBlasWideDispatchStep(String name, TuningPreset preset) {
+        return new PlatformCalibrationStep(
+                name,
+                PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE,
+                List.of(
+                        CalibrationWorkloads.matmulWide(name + "_workload_medium_wide", 128, 128, 1024),
+                        CalibrationWorkloads.matmulWide(name + "_workload_large_wide", 256, 256, 2048)
+                ),
+                preset,
+                base -> new PlatformRuntimeProfileGridCandidateSpace(
+                        base,
+                        List.of(
+                                PlatformRuntimeProfileMutators.matmulWideShapeHeuristics(
+                                        List.of(true, false),
+                                        supportedMatMulWideBlasShapeRatios(seedProfileDataType(base))
+                                )
                         )
                 ),
                 PlatformCalibrationScorePolicy.averageMedianMs()
@@ -320,6 +342,22 @@ public final class PlatformCalibrationDefaults {
                             CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K
                     )
             );
+        };
+    }
+
+    private static List<Double> supportedMatMulBlasShapeRatios(DataType dataType) {
+        return switch (dataType) {
+            case BFLOAT16 -> List.of(1.5, 2.0, 3.0, 4.0, 6.0);
+            case FLOAT32 -> List.of(1.5, 2.0, 3.0, 4.0, 6.0);
+            default -> List.of(1.5, 2.0, 3.0, 4.0, 6.0);
+        };
+    }
+
+    private static List<Double> supportedMatMulWideBlasShapeRatios(DataType dataType) {
+        return switch (dataType) {
+            case BFLOAT16 -> List.of(4.0, 6.0, 8.0, 12.0);
+            case FLOAT32 -> List.of(4.0, 6.0, 8.0);
+            default -> List.of(4.0, 6.0, 8.0);
         };
     }
 
@@ -561,6 +599,7 @@ public final class PlatformCalibrationDefaults {
     ) {
         steps.add(matmulJavaStep(prefix + "-java", preset));
         steps.add(matmulBlasDispatchStep(prefix + "-blas", preset));
+        steps.add(matmulBlasWideDispatchStep(prefix + "-blas-wide", preset));
     }
 
     public static PlatformCalibrationStep elementwiseDispatchStep(String name, TuningPreset preset) {

@@ -554,7 +554,8 @@ public final class Main {
             List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
                 return List.of(
                         PlatformCalibrationDefaults.matmulJavaStep(name + "-java", preset),
-                        PlatformCalibrationDefaults.matmulBlasDispatchStep(name + "-blas", preset)
+                        PlatformCalibrationDefaults.matmulBlasDispatchStep(name + "-blas", preset),
+                        PlatformCalibrationDefaults.matmulBlasWideDispatchStep(name + "-blas-wide", preset)
                 );
             }
         },
@@ -564,10 +565,25 @@ public final class Main {
                 return List.of(PlatformCalibrationDefaults.matmulJavaStep(name, preset));
             }
         },
-        MATMUL_BLAS("matmul-blas", PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH) {
+        MATMUL_BLAS("matmul-blas", null) {
+            @Override
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(
+                        PlatformCalibrationDefaults.matmulBlasDispatchStep(name + "-regular", preset),
+                        PlatformCalibrationDefaults.matmulBlasWideDispatchStep(name + "-wide", preset)
+                );
+            }
+        },
+        MATMUL_BLAS_REGULAR("matmul-blas-regular", PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH) {
             @Override
             List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
                 return List.of(PlatformCalibrationDefaults.matmulBlasDispatchStep(name, preset));
+            }
+        },
+        MATMUL_BLAS_WIDE("matmul-blas-wide", PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE) {
+            @Override
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.matmulBlasWideDispatchStep(name, preset));
             }
         },
         ATTENTION_MATMUL("attention-matmul", PlatformCalibrationFamily.ATTENTION_MATMUL) {

@@ -38,6 +38,7 @@ public class PlatformCalibrationDefaultsTest {
         assertFalse(request.steps().isEmpty());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_JAVA));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
@@ -75,9 +76,10 @@ public class PlatformCalibrationDefaultsTest {
                 Path.of("build", "test-platform-profile.json")
         );
 
-        assertEquals(16, request.steps().size());
+        assertEquals(17, request.steps().size());
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_JAVA));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
         assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
@@ -204,6 +206,36 @@ public class PlatformCalibrationDefaultsTest {
         assertTrue(candidates.stream().anyMatch(candidate ->
                 "OPENBLAS_FFM".equals(candidate.runtimeProfile().matmul().blasProvider().name())
                         && candidate.runtimeProfile().matmul().blasMatmulMinWork() == 4_000_000L));
+    }
+
+    @Test
+    void bfloat16MatmulBlasWideStepGeneratesWideShapeRatioCandidates() {
+        var step = PlatformCalibrationDefaults.matmulBlasWideDispatchStep("matmul-wide", TuningPreset.QUICK);
+
+        PlatformRuntimeProfile base = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform-bf16",
+                "hw",
+                "TEST",
+                new ExecutionProfile(
+                        "seed-bf16",
+                        "seed-bf16",
+                        tensor.DataType.BFLOAT16,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.runtime.RuntimeConfig.inferenceDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+
+        var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
+
+        assertEquals(PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE, step.family());
+        assertTrue(step.workloads().size() >= 2);
+        assertTrue(step.workloads().stream().allMatch(workload -> workload.name().contains("wide")));
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                Double.compare(candidate.runtimeProfile().matmul().f32WideMaxNOverK(), 8.0d) == 0));
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                Double.compare(candidate.runtimeProfile().matmul().f32WideMaxNOverK(), 12.0d) == 0));
     }
 
     @Test

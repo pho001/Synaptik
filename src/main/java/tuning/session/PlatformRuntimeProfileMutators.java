@@ -339,6 +339,61 @@ public final class PlatformRuntimeProfileMutators {
         };
     }
 
+    public static PlatformRuntimeProfileMutator matmulWideShapeHeuristics(
+            List<Boolean> requireMgeK,
+            List<Double> maxNOverK
+    ) {
+        List<Boolean> safeRequire = requireMgeK == null ? List.of() : List.copyOf(requireMgeK);
+        List<Double> safeRatios = maxNOverK == null ? List.of() : List.copyOf(maxNOverK);
+        return (baseProfile, workload) -> {
+            if (!usesMatmulFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("matmulWideShape=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (Boolean require : safeRequire) {
+                for (Double ratio : safeRatios) {
+                    MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                            baseProfile.matmul().blasProvider(),
+                            baseProfile.matmul().blasMatmulMinWork(),
+                            baseProfile.matmul().blasThreads(),
+                            baseProfile.matmul().f32RequireMgeK(),
+                            baseProfile.matmul().f32MaxNOverK(),
+                            require == null ? baseProfile.matmul().f32WideRequireMgeK() : require,
+                            ratio == null ? baseProfile.matmul().f32WideMaxNOverK() : ratio,
+                            baseProfile.matmul().loopUnrollFactor(),
+                            baseProfile.matmul().matMulTileM(),
+                            baseProfile.matmul().matMulTileN(),
+                            baseProfile.matmul().matMulTileK(),
+                            baseProfile.matmul().attentionMatMulTileM(),
+                            baseProfile.matmul().attentionMatMulTileN(),
+                            baseProfile.matmul().attentionMatMulTileK(),
+                            baseProfile.matmul().matMulParallelMinSize(),
+                            baseProfile.matmul().matMulMicroKernel(),
+                            baseProfile.matmul().attentionMatMulMicroKernel()
+                    );
+                    out.add(new RuntimeProfileCandidate(
+                            "matmulWideShape=" + matmul.f32WideRequireMgeK() + "/" + matmul.f32WideMaxNOverK(),
+                            new PlatformRuntimeProfile(
+                                    baseProfile.metadata(),
+                                    matmul,
+                                    baseProfile.fused(),
+                                    baseProfile.elementwiseDispatch(),
+                                    baseProfile.reduction(),
+                                    baseProfile.scheduler(),
+                                    baseProfile.materialization(),
+                                    baseProfile.numerics()
+                            ),
+                            Map.of(
+                                    "runtime.blas.f32WideRequireMgeK", String.valueOf(matmul.f32WideRequireMgeK()),
+                                    "runtime.blas.f32WideMaxNOverK", String.valueOf(matmul.f32WideMaxNOverK())
+                            )
+                    ));
+                }
+            }
+            return out;
+        };
+    }
+
     public static PlatformRuntimeProfileMutator blasThreads(List<Integer> threadCounts) {
         return (baseProfile, workload) -> {
             String candidateName = "blasThreads=AUTO";
