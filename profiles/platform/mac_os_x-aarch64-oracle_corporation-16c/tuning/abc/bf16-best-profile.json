@@ -1,15 +1,15 @@
 {
-  "score": 14.00589063,
-  "updatedAt": "2026-04-21T08:58:01.524255+02:00",
+  "score": 13.65532813,
+  "updatedAt": "2026-04-21T10:06:42.179235+02:00",
   "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
   "workloadKey": "name=abc_sequence_matmul_bf16|kind=ABC_SEQUENCE_MATMUL|dtype=BFLOAT16|mode=FORWARD_BACKWARD|batch=256|features=2048",
   "profile": {
       "profileName": "abc-bf16-calibrated",
-      "candidateName": "abc-bf16-calibrated+stageOrder=CSE-FUSE-AR-MEM:abc-bf16-calibrated",
+      "candidateName": "abc-bf16-calibrated+stageOrder=FUSE-CSE-AR:abc-bf16-calibrated",
       "dataType": "BFLOAT16",
       "mode": "FORWARD_BACKWARD",
       "optimizer": {
-        "stageOrder": ["CSE", "FUSE", "AR", "MEM"],
+        "stageOrder": ["FUSE", "CSE", "AR"],
         "rewrite": {
           "algebraicEnabled": true,
           "linearLoweringEnabled": true,
@@ -48,11 +48,11 @@
           "cpu": {
             "cpuLoopUnrollFactor": 1,
             "cpuMatMulTileM": 16,
-            "cpuMatMulTileN": 0,
-            "cpuMatMulTileK": 0,
+            "cpuMatMulTileN": 128,
+            "cpuMatMulTileK": 64,
             "cpuAttentionMatMulTileM": 16,
-            "cpuAttentionMatMulTileN": 0,
-            "cpuAttentionMatMulTileK": 0,
+            "cpuAttentionMatMulTileN": 128,
+            "cpuAttentionMatMulTileK": 64,
             "cpuCheapVectorMinSize": 1024,
             "cpuTranscendentalVectorMinSize": 1024,
             "cpuFusedCheapVectorMinSize": 1024,
@@ -65,7 +65,7 @@
             "cpuFusedTranscendentalParallelMinSize": 100000,
             "cpuReductionParallelMinSize": 100000,
             "cpuAttentionParallelMinSize": 100000,
-            "cpuMatMulParallelMinSize": 2000000,
+            "cpuMatMulParallelMinSize": 100000,
             "cpuContiguousMaterializeThreshold": 1000000000,
             "cpuCheapF64MaterializeThreshold": 1000000000,
             "cpuCheapF32MaterializeThreshold": 1000000000,
@@ -84,7 +84,7 @@
             "cpuFusedNonCheapStridedAsmVectorWidth": 1,
             "cpuSumAccuracyMode": "FAST",
             "cpuAttentionMatMulPolicy": "AUTO",
-            "cpuMatMulMicroKernel": "AUTO",
+            "cpuMatMulMicroKernel": "BF16_4X2",
             "cpuAttentionMatMulMicroKernel": "AUTO"
           },
           "cuda": {
@@ -106,7 +106,7 @@
           "f32RequireMgeK": true,
           "f32MaxNOverK": 3.0,
           "f32WideRequireMgeK": true,
-          "f32WideMaxNOverK": 6.0,
+          "f32WideMaxNOverK": 3.0,
           "debug": false,
           "threads": 0
         },

@@ -1,6 +1,6 @@
 Platform Calibration Result
 platformId=mac_os_x-aarch64-oracle_corporation-16c
-createdAt=2026-04-21T08:56:58.098489+02:00
+createdAt=2026-04-21T10:05:37.787530+02:00
 persisted=true
 outputProfilePath=profiles/platform/mac_os_x-aarch64-oracle_corporation-16c/calibration/bf16-forward-backward.json
 profileName=platform-seed-bf16-training
@@ -18,4 +18,4 @@ cores=16
 
 Steps
 name                   family             seedRuntime        selectedExec       score        metric            
-calib-matmul-blas-wide-train MATMUL_BLAS_DISPATCH_WIDE mac_os_x-aarch64-oracle_corporation-16c base+matmulWideShape=true/6.0 5.796742     weightedGeometricMeanWithWorstBucketPenalty
+calib-matmul-java-train MATMUL_JAVA        mac_os_x-aarch64-oracle_corporation-16c base+matmulMicroKernel=BF16_4X2+matmulTiles=16x128x64+matmulParallel=100000 4.600132     averageMedianMs   

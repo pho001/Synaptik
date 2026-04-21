@@ -142,9 +142,10 @@ public final class PlatformCalibrationDefaults {
                 name,
                 PlatformCalibrationFamily.MATMUL_JAVA,
                 List.of(
-                        CalibrationWorkloads.matmulSquare(name + "_workload_small", 64),
                         CalibrationWorkloads.matmulSquare(name + "_workload_medium", 128),
-                        CalibrationWorkloads.matmulTallSkinny(name + "_workload_tall_skinny", 256, 64, 64),
+                        CalibrationWorkloads.matmulSquare(name + "_workload_large", 256),
+                        CalibrationWorkloads.matmulWide(name + "_workload_projection_wide", 256, 256, 2_048),
+                        CalibrationWorkloads.matmulTallSkinny(name + "_workload_projection_tall", 2_048, 256, 256),
                         CalibrationWorkloads.matmulBatchedAttentionLike(name + "_workload_attention_like", 8, 128, 64, 64)
                 ),
                 preset,
@@ -301,10 +302,11 @@ public final class PlatformCalibrationDefaults {
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64)
             );
             case BFLOAT16 -> List.of(
+                    new PlatformRuntimeProfileMutators.MatmulTiles(16, 64, 64),
+                    new PlatformRuntimeProfileMutators.MatmulTiles(16, 128, 64),
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 128, 64),
-                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 64),
-                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 128)
+                    new PlatformRuntimeProfileMutators.MatmulTiles(64, 128, 64)
             );
             case FLOAT32 -> List.of(
                     new PlatformRuntimeProfileMutators.MatmulTiles(32, 64, 64),

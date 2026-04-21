@@ -168,13 +168,50 @@ public class PlatformCalibrationDefaultsTest {
                         + "x" + candidate.runtimeProfile().matmul().matMulTileK())
                 .collect(Collectors.toSet());
 
+        PlatformRuntimeProfile bf16Base = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform-bf16",
+                "hw",
+                "TEST",
+                new ExecutionProfile(
+                        "seed-bf16",
+                        "seed-bf16",
+                        tensor.DataType.BFLOAT16,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.inferenceDefaults(),
+                        config.runtime.RuntimeConfig.inferenceDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+        var bf16Candidates = step.candidateSpaceFactory().create(bf16Base).generate(step.workloads().getFirst());
+        Set<String> bf16Tiles = bf16Candidates.stream()
+                .filter(candidate -> candidate.knobAssignments().containsKey("cpu.matMulTileM"))
+                .map(candidate -> candidate.runtimeProfile().matmul().matMulTileM()
+                        + "x" + candidate.runtimeProfile().matmul().matMulTileN()
+                        + "x" + candidate.runtimeProfile().matmul().matMulTileK())
+                .collect(Collectors.toSet());
+
         assertTrue(f64Tiles.contains("16x64x32"));
         assertTrue(f64Tiles.contains("32x128x64"));
         assertFalse(f64Tiles.contains("64x256x128"));
 
+        assertTrue(bf16Tiles.contains("16x64x64"));
+        assertTrue(bf16Tiles.contains("16x128x64"));
+        assertTrue(bf16Tiles.contains("64x128x64"));
+        assertFalse(bf16Tiles.contains("64x128x128"));
+
         assertTrue(f32Tiles.contains("32x64x64"));
         assertTrue(f32Tiles.contains("64x256x128"));
         assertFalse(f32Tiles.contains("16x64x32"));
+    }
+
+    @Test
+    void matmulStepIncludesProjectionWorkloadsCloseToAbcHotPath() {
+        var step = PlatformCalibrationDefaults.matmulJavaStep("matmul", TuningPreset.QUICK);
+
+        assertTrue(step.workloads().size() >= 5);
+        assertTrue(step.workloads().stream().anyMatch(workload -> workload.name().contains("projection_wide")));
+        assertTrue(step.workloads().stream().anyMatch(workload -> workload.name().contains("projection_tall")));
+        assertTrue(step.workloads().stream().anyMatch(workload -> workload.name().contains("workload_large")));
     }
 
     @Test
