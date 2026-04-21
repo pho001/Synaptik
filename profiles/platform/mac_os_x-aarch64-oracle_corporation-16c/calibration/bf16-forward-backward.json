@@ -5,54 +5,79 @@
     "frameworkVersion": "dev",
     "plannerSchemaVersion": "1",
     "persistenceSchemaVersion": "1",
-    "createdAtIso": "2026-04-12T10:34:10.431678+02:00",
+    "createdAtIso": "2026-04-20T12:22:16.622049+02:00",
     "calibrationPreset": "UNSPECIFIED",
     "dataType": "BFLOAT16",
     "executionMode": "FORWARD_BACKWARD"
   },
   "matmul": {
-    "blasProvider": "NONE",
-    "blasMatmulMinWork": 2000000,
-    "blasThreads": 4,
-    "f32RequireMgeK": true,
-    "f32MaxNOverK": 1.5,
+    "blasProvider": "OPENBLAS_FFM",
+    "blasMatmulMinWork": 4000000,
+    "blasThreads": 0,
+    "f32RequireMgeK": false,
+    "f32MaxNOverK": 6.0,
     "loopUnrollFactor": 1,
-    "matMulTileM": 16,
-    "matMulTileN": 0,
-    "matMulTileK": 0,
-    "matMulParallelMinSize": 100000
+    "matMulTileM": 32,
+    "matMulTileN": 128,
+    "matMulTileK": 64,
+    "attentionMatMulTileM": 16,
+    "attentionMatMulTileN": 128,
+    "attentionMatMulTileK": 64,
+    "matMulParallelMinSize": 500000,
+    "matMulMicroKernel": "BF16_4X4",
+    "attentionMatMulMicroKernel": "AUTO"
+  },
+  "conv2d": {
+    "conv2dBlasProvider": "OPENBLAS_FFM",
+    "conv2dF64BlasMinWork": 4000000,
+    "conv2dF32BlasMinWork": 4000000,
+    "conv2dF32RequireMgeK": false,
+    "conv2dF32MaxNOverK": 6.0,
+    "conv2dBf16BlasMinWork": 4000000,
+    "conv2dBf16RequireMgeK": false,
+    "conv2dBf16MaxNOverK": 6.0
   },
   "fused": {
     "fusedCheapVectorMinSize": 1024,
-    "fusedTranscendentalVectorMinSize": 128,
-    "fusedCheapParallelMinSize": 16384,
-    "fusedTranscendentalParallelMinSize": 1024
+    "fusedTranscendentalVectorMinSize": 1024,
+    "fusedCheapParallelMinSize": 100000,
+    "fusedTranscendentalParallelMinSize": 100000,
+    "fusedCheapContiguousAsmVectorWidth": 1,
+    "fusedCheapStridedAsmVectorWidth": 1,
+    "fusedNonCheapContiguousAsmVectorWidth": 1,
+    "fusedNonCheapStridedAsmVectorWidth": 1
   },
   "elementwiseDispatch": {
-    "cheapVectorMinSize": 128,
-    "transcendentalVectorMinSize": 32,
-    "cheapParallelMinSize": 16384,
-    "transcendentalParallelMinSize": 16384
+    "cheapVectorMinSize": 1024,
+    "transcendentalVectorMinSize": 1024,
+    "cheapParallelMinSize": 100000,
+    "transcendentalParallelMinSize": 100000
   },
   "reduction": {
-    "reductionVectorMinSize": 512,
-    "reductionParallelMinSize": 16384,
+    "reductionVectorMinSize": 1024,
+    "reductionParallelMinSize": 100000,
+    "attentionVectorMinSize": 1024,
+    "attentionParallelMinSize": 100000,
     "sumAccuracyMode": "FAST"
   },
   "scheduler": {
-    "lowCostTargetChunksPerWorker": 5,
-    "mediumCostTargetChunksPerWorker": 3,
-    "highCostTargetChunksPerWorker": 2,
+    "lowCostTargetChunksPerWorker": 4,
+    "mediumCostTargetChunksPerWorker": 2,
+    "highCostTargetChunksPerWorker": 1,
     "minScalarChunkSize": 4096,
     "minVectorChunkSize": 8192,
     "minReductionChunkSize": 16384,
     "commonPoolLowCostMaxWorkPerWorker": 16384
   },
   "materialization": {
-    "contiguousMaterializeThreshold": 524288
+    "contiguousMaterializeThreshold": 1000000000,
+    "cheapF64MaterializeThreshold": 1000000000,
+    "cheapF32MaterializeThreshold": 1000000000,
+    "cheapBF16MaterializeThreshold": 1000000000,
+    "whereMaterializeThreshold": 1000000000
   },
   "numerics": {
-    "approxMode": "ALWAYS",
+    "approxMode": "OFF",
     "forceExactTranscendentals": false
   }
 }
