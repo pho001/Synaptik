@@ -1,15 +1,15 @@
 {
-  "score": 14.54588013,
-  "updatedAt": "2026-04-21T06:28:28.387874+02:00",
+  "score": 14.00589063,
+  "updatedAt": "2026-04-21T08:58:01.524255+02:00",
   "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
   "workloadKey": "name=abc_sequence_matmul_bf16|kind=ABC_SEQUENCE_MATMUL|dtype=BFLOAT16|mode=FORWARD_BACKWARD|batch=256|features=2048",
   "profile": {
       "profileName": "abc-bf16-calibrated",
-      "candidateName": "abc-bf16-calibrated+stageOrder=AR-FUSE-CSE-MEM:abc-bf16-calibrated",
+      "candidateName": "abc-bf16-calibrated+stageOrder=CSE-FUSE-AR-MEM:abc-bf16-calibrated",
       "dataType": "BFLOAT16",
       "mode": "FORWARD_BACKWARD",
       "optimizer": {
-        "stageOrder": ["AR", "FUSE", "CSE", "MEM"],
+        "stageOrder": ["CSE", "FUSE", "AR", "MEM"],
         "rewrite": {
           "algebraicEnabled": true,
           "linearLoweringEnabled": true,
@@ -101,24 +101,24 @@
           }
         },
         "blas": {
-          "provider": "OPENBLAS_FFM",
-          "matmulMinWork": 4000000,
-          "f32RequireMgeK": false,
-          "f32MaxNOverK": 4.0,
-          "f32WideRequireMgeK": false,
+          "provider": "NONE",
+          "matmulMinWork": 2000000,
+          "f32RequireMgeK": true,
+          "f32MaxNOverK": 3.0,
+          "f32WideRequireMgeK": true,
           "f32WideMaxNOverK": 6.0,
           "debug": false,
           "threads": 0
         },
         "conv2d": {
-          "conv2dProvider": "OPENBLAS_FFM",
-          "conv2dF64MinWork": 4000000,
-          "conv2dF32MinWork": 4000000,
-          "conv2dF32RequireMgeK": false,
-          "conv2dF32MaxNOverK": 4.0,
-          "conv2dBf16MinWork": 4000000,
-          "conv2dBf16RequireMgeK": false,
-          "conv2dBf16MaxNOverK": 4.0
+          "conv2dProvider": "NONE",
+          "conv2dF64MinWork": 2000000,
+          "conv2dF32MinWork": 2000000,
+          "conv2dF32RequireMgeK": true,
+          "conv2dF32MaxNOverK": 3.0,
+          "conv2dBf16MinWork": 2000000,
+          "conv2dBf16RequireMgeK": true,
+          "conv2dBf16MaxNOverK": 3.0
         },
         "fused": {
           "fusedPrimaryBackend": "ASM",

@@ -194,8 +194,10 @@ public final class PlatformCalibrationDefaults {
                 name,
                 PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE,
                 List.of(
-                        CalibrationWorkloads.matmulWide(name + "_workload_medium_wide", 128, 128, 1024),
-                        CalibrationWorkloads.matmulWide(name + "_workload_large_wide", 256, 256, 2048)
+                        CalibrationWorkloads.matmulWide(name + "_workload_ratio6_medium_wide", 128, 128, 768),
+                        CalibrationWorkloads.matmulWide(name + "_workload_ratio8_medium_wide", 128, 128, 1024),
+                        CalibrationWorkloads.matmulWide(name + "_workload_ratio8_large_wide", 256, 256, 2048),
+                        CalibrationWorkloads.matmulWide(name + "_workload_ratio12_medium_wide", 128, 128, 1536)
                 ),
                 preset,
                 base -> new PlatformRuntimeProfileGridCandidateSpace(
@@ -207,7 +209,7 @@ public final class PlatformCalibrationDefaults {
                                 )
                         )
                 ),
-                PlatformCalibrationScorePolicy.averageMedianMs()
+                PlatformCalibrationScorePolicy.weightedGeometricMeanWithWorstBucketPenalty(0.25d)
         );
     }
 

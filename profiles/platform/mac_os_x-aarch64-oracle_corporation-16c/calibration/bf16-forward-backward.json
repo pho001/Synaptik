@@ -5,18 +5,18 @@
     "frameworkVersion": "dev",
     "plannerSchemaVersion": "1",
     "persistenceSchemaVersion": "1",
-    "createdAtIso": "2026-04-21T06:26:09.542253+02:00",
+    "createdAtIso": "2026-04-21T08:56:24.565908+02:00",
     "calibrationPreset": "UNSPECIFIED",
     "dataType": "BFLOAT16",
     "executionMode": "FORWARD_BACKWARD"
   },
   "matmul": {
-    "blasProvider": "OPENBLAS_FFM",
-    "blasMatmulMinWork": 4000000,
+    "blasProvider": "NONE",
+    "blasMatmulMinWork": 2000000,
     "blasThreads": 0,
-    "f32RequireMgeK": false,
-    "f32MaxNOverK": 4.0,
-    "f32WideRequireMgeK": false,
+    "f32RequireMgeK": true,
+    "f32MaxNOverK": 3.0,
+    "f32WideRequireMgeK": true,
     "f32WideMaxNOverK": 6.0,
     "loopUnrollFactor": 1,
     "matMulTileM": 16,
@@ -30,14 +30,14 @@
     "attentionMatMulMicroKernel": "AUTO"
   },
   "conv2d": {
-    "conv2dBlasProvider": "OPENBLAS_FFM",
-    "conv2dF64BlasMinWork": 4000000,
-    "conv2dF32BlasMinWork": 4000000,
-    "conv2dF32RequireMgeK": false,
-    "conv2dF32MaxNOverK": 4.0,
-    "conv2dBf16BlasMinWork": 4000000,
-    "conv2dBf16RequireMgeK": false,
-    "conv2dBf16MaxNOverK": 4.0
+    "conv2dBlasProvider": "NONE",
+    "conv2dF64BlasMinWork": 2000000,
+    "conv2dF32BlasMinWork": 2000000,
+    "conv2dF32RequireMgeK": true,
+    "conv2dF32MaxNOverK": 3.0,
+    "conv2dBf16BlasMinWork": 2000000,
+    "conv2dBf16RequireMgeK": true,
+    "conv2dBf16MaxNOverK": 3.0
   },
   "fused": {
     "fusedCheapVectorMinSize": 1024,

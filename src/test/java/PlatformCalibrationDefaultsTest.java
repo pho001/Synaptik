@@ -230,8 +230,9 @@ public class PlatformCalibrationDefaultsTest {
         var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
 
         assertEquals(PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE, step.family());
-        assertTrue(step.workloads().size() >= 2);
+        assertTrue(step.workloads().size() >= 4);
         assertTrue(step.workloads().stream().allMatch(workload -> workload.name().contains("wide")));
+        assertEquals("weightedGeometricMeanWithWorstBucketPenalty", step.scorePolicy().metricName());
         assertTrue(candidates.stream().anyMatch(candidate ->
                 Double.compare(candidate.runtimeProfile().matmul().f32WideMaxNOverK(), 8.0d) == 0));
         assertTrue(candidates.stream().anyMatch(candidate ->
