@@ -59,12 +59,17 @@ final class MatMulExecutor {
         short[] bd = b.getBFloat16Data();
         short[] out = node.getBFloat16Data();
         ResolvedMatMulHints hints = requireHints(context);
+        float[] leftContinuation = context.inputFloatContinuation(0, a.getFlatDataSize());
+        float[] rightContinuation = context.inputFloatContinuation(1, b.getFlatDataSize());
         float[] tmp = (hints.useBlas() || hints.useBatchedBlas()) && context.cpuWorkspace() != null
                 ? context.cpuWorkspace().requireFloatWorkspace()
                 : null;
         if (context.publishFloatContinuation()) {
-            if (tryPackedMatMulToFloatBF16(a, b, node, context, hints)) {
+            if (rightContinuation == null && tryPackedMatMulToFloatBF16(a, b, node, context, hints)) {
                 context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
+                return;
+            }
+            if (tryContinuationMatMulToFloatBF16(as, bs, node, context, hints, ad, bd, leftContinuation, rightContinuation)) {
                 return;
             }
             if (as.length == 2 && bs.length == 2 && hints.useBlas() && MatMulBlasBackend.tryBlasBF16ToFloat(ad, bd, tmp, m, n, k)) {
@@ -82,7 +87,10 @@ final class MatMulExecutor {
                 return;
             }
         }
-        if (tryPackedMatMulBF16(a, b, node, context, hints)) {
+        if (rightContinuation == null && tryPackedMatMulBF16(a, b, node, context, hints)) {
+            return;
+        }
+        if (tryContinuationMatMulBF16(as, bs, node, hints, ad, bd, leftContinuation, rightContinuation)) {
             return;
         }
         if (as.length == 2 && bs.length == 2 && hints.useBlas() && MatMulBlasBackend.tryBlasBF16(ad, bd, out, tmp, m, n, k)) {
@@ -122,6 +130,58 @@ final class MatMulExecutor {
             MatMulJavaBackend.runPackedBF16ToFloat(a.getBFloat16Data(), a.getShapeUnsafe(), packed, out, node.getShapeUnsafe(), hints);
         }
         return true;
+    }
+
+    private static boolean tryContinuationMatMulToFloatBF16(
+            int[] as,
+            int[] bs,
+            Tensor node,
+            CpuKernelContext context,
+            ResolvedMatMulHints hints,
+            short[] ad,
+            short[] bd,
+            float[] leftContinuation,
+            float[] rightContinuation
+    ) {
+        if (context == null || context.cpuWorkspace() == null || hints.useBlas() || hints.useBatchedBlas()) {
+            return false;
+        }
+        float[] out = context.cpuWorkspace().requireFloatWorkspace();
+        if (leftContinuation != null && rightContinuation != null) {
+            MatMulJavaBackend.runF32(leftContinuation, as, rightContinuation, bs, out, node.getShapeUnsafe(), hints);
+            context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
+            return true;
+        }
+        if (leftContinuation != null) {
+            MatMulJavaBackend.runF32LeftBF16RightToFloat(leftContinuation, as, bd, bs, out, node.getShapeUnsafe(), hints);
+            context.cpuWorkspace().publishFloatContinuation(node.getFlatDataSize());
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean tryContinuationMatMulBF16(
+            int[] as,
+            int[] bs,
+            Tensor node,
+            ResolvedMatMulHints hints,
+            short[] ad,
+            short[] bd,
+            float[] leftContinuation,
+            float[] rightContinuation
+    ) {
+        if (hints.useBlas() || hints.useBatchedBlas()) {
+            return false;
+        }
+        if (leftContinuation != null && rightContinuation != null) {
+            MatMulJavaBackend.runF32ToBF16(leftContinuation, as, rightContinuation, bs, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+            return true;
+        }
+        if (leftContinuation != null) {
+            MatMulJavaBackend.runF32LeftBF16RightToBF16(leftContinuation, as, bd, bs, node.getBFloat16Data(), node.getShapeUnsafe(), hints);
+            return true;
+        }
+        return false;
     }
 
     private static boolean tryPackedMatMulBF16(

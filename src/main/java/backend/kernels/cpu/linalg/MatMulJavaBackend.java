@@ -358,6 +358,112 @@ final class MatMulJavaBackend {
         }
     }
 
+    static void runF32ToBF16(float[] a, int[] aShape, float[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints) {
+        BF16AccumKernel kernel = selectBF16Kernel(hints.microKernel());
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int k = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                computeBlockF32ToBF16(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tm, tn, tk, kernel);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            computeBlockF32ToBF16(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, k, n, k, tm, tn, tk, kernel);
+        }
+    }
+
+    static void runF32LeftBF16RightToBF16(
+            float[] a, int[] aShape, short[] b, int[] bShape, short[] out, int[] outShape, ResolvedMatMulHints hints
+    ) {
+        BF16AccumKernel kernel = selectBF16Kernel(hints.microKernel());
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int k = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                computeBlockF32LeftBF16RightToBF16(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tm, tn, tk, kernel);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            computeBlockF32LeftBF16RightToBF16(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, k, n, k, tm, tn, tk, kernel);
+        }
+    }
+
+    static void runF32LeftBF16RightToFloat(
+            float[] a, int[] aShape, short[] b, int[] bShape, float[] out, int[] outShape, ResolvedMatMulHints hints
+    ) {
+        BF16AccumKernel kernel = selectBF16Kernel(hints.microKernel());
+        int batchCount = batchCount(outShape);
+        int m = outShape[outShape.length - 2];
+        int n = outShape[outShape.length - 1];
+        int k = aShape[aShape.length - 1];
+        int tm = positiveTile(hints.tileM(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_M);
+        int tn = positiveTile(hints.tileN(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_N);
+        int tk = positiveTile(hints.tileK(), CpuExecutionPlanner.DEFAULT_MATMUL_TILE_K);
+        boolean parallel = hints.parallel() && hints.plannedWorkers() > 1;
+
+        int blockRows = (m + tm - 1) / tm;
+        int blockCols = (n + tn - 1) / tn;
+        int[] aBatchOffsets = computeBatchOffsets(aShape, outShape);
+        int[] bBatchOffsets = computeBatchOffsets(bShape, outShape);
+        if (parallel && batchCount * blockRows * blockCols > 1) {
+            CpuThreadPool.runChunks(batchCount * blockRows * blockCols, hints.plannedWorkers(), task -> {
+                int batch = task / (blockRows * blockCols);
+                int batchTask = task % (blockRows * blockCols);
+                int rowBlock = batchTask / blockCols;
+                int colBlock = batchTask % blockCols;
+                int i0 = rowBlock * tm;
+                int i1 = Math.min(i0 + tm, m);
+                int j0 = colBlock * tn;
+                int j1 = Math.min(j0 + tn, n);
+                computeBlockF32LeftBF16RightToFloat(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, i0, i1, j0, j1, 0, k, n, k, tm, tn, tk, kernel);
+            });
+            return;
+        }
+        for (int batch = 0; batch < batchCount; batch++) {
+            computeBlockF32LeftBF16RightToFloat(a, b, out, aBatchOffsets[batch], bBatchOffsets[batch], batch * m * n, 0, m, 0, n, 0, k, n, k, tm, tn, tk, kernel);
+        }
+    }
+
     static int batchCount(int[] outShape) {
         int count = 1;
         for (int i = 0; i < outShape.length - 2; i++) {
@@ -2906,6 +3012,124 @@ final class MatMulJavaBackend {
                     int tileCols = jjEnd - jj;
                     int colOffset = jj - jStart;
                     float[] packedB = packedWeights.panel(kk, jj);
+                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+                }
+            }
+
+            for (int row = 0; row < tileRows; row++) {
+                int outRow = outOffset + (ii + row) * n + jStart;
+                int accumBase = row * totalCols;
+                System.arraycopy(accum, accumBase, out, outRow, totalCols);
+            }
+        }
+    }
+
+    private static void computeBlockF32ToBF16(
+            float[] a, float[] b, short[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tm, int tn, int tk,
+            BF16AccumKernel kernel
+    ) {
+        int totalCols = jEnd - jStart;
+        for (int ii = iStart; ii < iEnd; ii += tm) {
+            int iiEnd = Math.min(ii + tm, iEnd);
+            int tileRows = iiEnd - ii;
+            float[] accum = bf16AccumTile(tileRows * totalCols);
+            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
+
+            for (int kk = kStart; kk < kEnd; kk += tk) {
+                int kkEnd = Math.min(kk + tk, kEnd);
+                int panelDepth = kkEnd - kk;
+                float[] packedA = packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int tileCols = jjEnd - jj;
+                    int colOffset = jj - jStart;
+                    float[] packedB = packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+                }
+            }
+
+            for (int row = 0; row < tileRows; row++) {
+                int outRow = outOffset + (ii + row) * n + jStart;
+                int accumBase = row * totalCols;
+                for (int j = 0; j < totalCols; j++) {
+                    out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF32LeftBF16RightToBF16(
+            float[] a, short[] b, short[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tm, int tn, int tk,
+            BF16AccumKernel kernel
+    ) {
+        int totalCols = jEnd - jStart;
+        for (int ii = iStart; ii < iEnd; ii += tm) {
+            int iiEnd = Math.min(ii + tm, iEnd);
+            int tileRows = iiEnd - ii;
+            float[] accum = bf16AccumTile(tileRows * totalCols);
+            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
+
+            for (int kk = kStart; kk < kEnd; kk += tk) {
+                int kkEnd = Math.min(kk + tk, kEnd);
+                int panelDepth = kkEnd - kk;
+                float[] packedA = packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int tileCols = jjEnd - jj;
+                    int colOffset = jj - jStart;
+                    float[] packedB = packedPanelBF16(b, bOffset, kk, kkEnd, jj, jjEnd, n);
+                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+                }
+            }
+
+            for (int row = 0; row < tileRows; row++) {
+                int outRow = outOffset + (ii + row) * n + jStart;
+                int accumBase = row * totalCols;
+                for (int j = 0; j < totalCols; j++) {
+                    out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
+                }
+            }
+        }
+    }
+
+    private static void computeBlockF32LeftBF16RightToFloat(
+            float[] a, short[] b, float[] out,
+            int aOffset, int bOffset, int outOffset,
+            int iStart, int iEnd,
+            int jStart, int jEnd,
+            int kStart, int kEnd,
+            int n, int k,
+            int tm, int tn, int tk,
+            BF16AccumKernel kernel
+    ) {
+        int totalCols = jEnd - jStart;
+        for (int ii = iStart; ii < iEnd; ii += tm) {
+            int iiEnd = Math.min(ii + tm, iEnd);
+            int tileRows = iiEnd - ii;
+            float[] accum = bf16AccumTile(tileRows * totalCols);
+            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
+
+            for (int kk = kStart; kk < kEnd; kk += tk) {
+                int kkEnd = Math.min(kk + tk, kEnd);
+                int panelDepth = kkEnd - kk;
+                float[] packedA = packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
+                for (int jj = jStart; jj < jEnd; jj += tn) {
+                    int jjEnd = Math.min(jj + tn, jEnd);
+                    int tileCols = jjEnd - jj;
+                    int colOffset = jj - jStart;
+                    float[] packedB = packedPanelBF16(b, bOffset, kk, kkEnd, jj, jjEnd, n);
                     kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
                 }
             }

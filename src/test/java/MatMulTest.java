@@ -205,6 +205,48 @@ public class MatMulTest {
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 3e-2);
     }
 
+    @Test
+    void bfloat16UnaryProducerCanFeedMatmulViaJavaContinuation() {
+        double[] aValues = random(64 * 64, 121);
+        double[] bValues = random(64 * 96, 123);
+
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.BFLOAT16);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
+        Tensor baseline = aBase.relu().matmul(bBase);
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.relu().matmul(b);
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void bfloat16DualUnaryProducersCanFeedMatmulViaJavaContinuation() {
+        double[] aValues = random(64 * 64, 131);
+        double[] bValues = random(64 * 96, 137);
+
+        Tensor aBase = new Tensor(aValues.clone(), new int[]{64, 64}, null, "aBase", DataType.BFLOAT16);
+        Tensor bBase = new Tensor(bValues.clone(), new int[]{64, 96}, null, "bBase", DataType.BFLOAT16);
+        Tensor baseline = aBase.relu().matmul(bBase.relu());
+        CompiledGraph.compile(baseline, OptimizerConfig.noOptimization())
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+        double[] expected = baseline.toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(aValues.clone(), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(bValues.clone(), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.relu().matmul(b.relu());
+        CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .execute(bfloat16JavaRuntime(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
+    }
+
     private static RuntimeConfig bfloat16BlasRuntime() {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),

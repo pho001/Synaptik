@@ -189,6 +189,7 @@ final class CpuNodePreparer {
                     isSupportedUnaryContinuationConsumer(target);
             case ADD, SUB, MUL, DIV, MIN, MAX ->
                     isSupportedBinaryContinuationConsumer(target, context);
+            case MATMUL -> isSupportedMatMulContinuationConsumer(target, context);
             case SUM, MEAN, SOFTMAX, LOG_SOFTMAX -> isSupportedReductionContinuationConsumer(target);
             case LAYER_NORM -> isSupportedLayerNormContinuationConsumer(target, context);
             case RMS_NORM -> isSupportedRmsNormContinuationConsumer(target, context);
@@ -269,6 +270,21 @@ final class CpuNodePreparer {
     private boolean isSupportedReductionContinuationConsumer(ContinuationConsumerTarget target) {
         return target.producerInputIndex() == 0
                 && target.consumer().inputIds().size() == 1;
+    }
+
+    private boolean isSupportedMatMulContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
+        CompiledNode consumer = target.consumer();
+        if (consumer.inputIds().size() != 2) {
+            return false;
+        }
+        int otherIndex = target.producerInputIndex() == 0 ? 1 : 0;
+        CompiledNode other = context.compiledNode(consumer.inputIds().get(otherIndex));
+        return other != null
+                && other.dataType() == DataType.BFLOAT16
+                && other.contiguous()
+                && !other.hasStorageOffset()
+                && consumer.contiguous()
+                && !consumer.hasStorageOffset();
     }
 
     private boolean isSupportedLayerNormContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
