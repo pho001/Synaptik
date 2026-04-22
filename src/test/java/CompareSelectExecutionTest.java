@@ -150,6 +150,20 @@ public class CompareSelectExecutionTest {
     }
 
     @Test
+    void bfloat16WhereBroadcastChainSupportsContinuationBackedExecution() {
+        Tensor condition = new Tensor(new byte[]{1, 0}, new int[]{2, 1}, null, "cond", DataType.BOOL);
+        Tensor base = new Tensor(new double[]{1, 2, 3, 4}, new int[]{2, 2}, null, "base", DataType.BFLOAT16);
+        Tensor ifTrue = base.add(Tensor.scalar(1.0, DataType.BFLOAT16));
+        Tensor ifFalse = Tensor.scalar(-10.0, DataType.BFLOAT16);
+        Tensor out = Tensor.where(condition, ifTrue, ifFalse).relu();
+
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization()).execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertEquals(DataType.BFLOAT16, out.getDataType());
+        assertArrayEquals(new double[]{2.0, 3.0, 0.0, 0.0}, out.toDoubleArrayCopy(), 1e-2);
+    }
+
+    @Test
     void whereRejectsNonBoolCondition() {
         Tensor condition = new Tensor(new double[]{1, 0}, new int[]{2}, null, "cond", DataType.FLOAT64);
         Tensor ifTrue = new Tensor(new double[]{1, 2}, new int[]{2}, null, "x", DataType.FLOAT64);

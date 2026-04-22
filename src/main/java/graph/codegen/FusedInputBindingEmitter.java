@@ -1,6 +1,7 @@
 package graph.codegen;
 
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Label;
 import tensor.DataType;
 import tensor.Tensor;
 import utils.SlotKey;
@@ -19,6 +20,7 @@ public final class FusedInputBindingEmitter {
             SlotManager sm
     ) {
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
+        List<Integer> continuationSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS);
         for (int i = 0; i < context.plan().inputCount(); i++) {
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
             mv.visitLdcInsn(i);
@@ -26,6 +28,20 @@ public final class FusedInputBindingEmitter {
             mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
             FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.plan().inputs().get(i).dataType());
             mv.visitVarInsn(ASTORE, inputSlots.get(i));
+
+            if (context.plan().inputs().get(i).dataType() == DataType.BFLOAT16) {
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
+                mv.visitLdcInsn(i);
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
+                mv.visitLdcInsn(i);
+                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+                mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
+                mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFlatDataSize", "()I", false);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/CpuKernelContext", "inputFloatContinuation", "(II)[F", false);
+            } else {
+                mv.visitInsn(ACONST_NULL);
+            }
+            mv.visitVarInsn(ASTORE, continuationSlots.get(i));
         }
     }
 
@@ -62,6 +78,7 @@ public final class FusedInputBindingEmitter {
             SlotManager sm
     ) {
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
+        List<Integer> continuationSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS);
         for (int i = 0; i < context.plan().inputCount(); i++) {
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
             mv.visitLdcInsn(i);
@@ -69,6 +86,20 @@ public final class FusedInputBindingEmitter {
             mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
             FusedAsmSupport.emitGetRawArrayFromTensorCall(mv, context.plan().inputs().get(i).dataType());
             mv.visitVarInsn(ASTORE, inputSlots.get(i));
+
+            if (context.plan().inputs().get(i).dataType() == DataType.BFLOAT16) {
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_CONTEXT));
+                mv.visitLdcInsn(i);
+                mv.visitVarInsn(ALOAD, sm.get(SlotKey.CLUSTER_TENSOR_INPUTS));
+                mv.visitLdcInsn(i);
+                mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+                mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
+                mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFlatDataSize", "()I", false);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/CpuKernelContext", "inputFloatContinuation", "(II)[F", false);
+            } else {
+                mv.visitInsn(ACONST_NULL);
+            }
+            mv.visitVarInsn(ASTORE, continuationSlots.get(i));
         }
     }
 
@@ -108,6 +139,7 @@ public final class FusedInputBindingEmitter {
             int vectorWidth
     ) {
         List<Integer> inputSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS);
+        List<Integer> continuationSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS);
         List<Integer> cachedInputVectorSlots = sm.getGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS);
         List<Integer> cursorSlots = sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS);
 
@@ -130,6 +162,29 @@ public final class FusedInputBindingEmitter {
                     FusedAsmSupport.emitLoadBoolVectorFromCursorCall(mv, precisionMode);
                 }
             } else {
+                Label storeLoadedVector = null;
+                if (meta.dataType() == DataType.BFLOAT16 && precisionMode != FusedDTypeOps.MODE_F64) {
+                    Label loadFromStorage = new Label();
+                    storeLoadedVector = new Label();
+                    mv.visitVarInsn(ALOAD, continuationSlots.get(i));
+                    mv.visitJumpInsn(IFNULL, loadFromStorage);
+                    if (meta.isLinearAccess()) {
+                        mv.visitVarInsn(ALOAD, continuationSlots.get(i));
+                        mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+                        if (meta.storageOffset() != 0) {
+                            mv.visitLdcInsn(meta.storageOffset());
+                            mv.visitInsn(IADD);
+                        }
+                        FusedAsmSupport.emitDirectLinearVectorLoad(mv, precisionMode, vectorWidth);
+                    } else {
+                        mv.visitVarInsn(ALOAD, cursorSlots.get(i));
+                        mv.visitVarInsn(ALOAD, continuationSlots.get(i));
+                        FusedAsmSupport.emitVectorWidthConstant(mv, vectorWidth);
+                        FusedAsmSupport.emitLoadVectorFromContinuationCursorCall(mv, precisionMode);
+                    }
+                    mv.visitJumpInsn(GOTO, storeLoadedVector);
+                    mv.visitLabel(loadFromStorage);
+                }
                 if (meta.isLinearAccess()) {
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));
                     mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
@@ -148,6 +203,9 @@ public final class FusedInputBindingEmitter {
                     mv.visitVarInsn(ALOAD, inputSlots.get(i));
                     FusedAsmSupport.emitVectorWidthConstant(mv, vectorWidth);
                     FusedAsmSupport.emitLoadVectorFromCursorCall(mv, precisionMode);
+                }
+                if (storeLoadedVector != null) {
+                    mv.visitLabel(storeLoadedVector);
                 }
             }
             mv.visitVarInsn(ASTORE, cachedInputVectorSlots.get(i));

@@ -8,6 +8,7 @@ final class BF16MatMulKernel4x4 {
             float[] packedA,
             float[] accum,
             float[] packedB,
+            int packedBOffset,
             int tileRows,
             int colOffset,
             int panelDepth,
@@ -21,6 +22,7 @@ final class BF16MatMulKernel4x4 {
         for (; row + 3 < tileRows; row += 4) {
             BF16MatMulAccumulatorSupport.computeFourRowsFourColsF32(
                     packedA, accum, packedB,
+                    packedBOffset,
                     0, 0,
                     row,
                     colOffset,
@@ -35,6 +37,7 @@ final class BF16MatMulKernel4x4 {
         for (; row < tileRows; row++) {
             BF16MatMulAccumulatorSupport.computeSingleRowFourColsF32(
                     packedA, accum, packedB,
+                    packedBOffset,
                     0, 0,
                     row,
                     colOffset,

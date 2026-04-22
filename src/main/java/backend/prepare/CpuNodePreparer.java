@@ -17,6 +17,7 @@ import graph.fused.FusedExecutionPlan;
 import graph.fused.PreparedFusedExecutable;
 import operations.Operation;
 import operations.fused.FusedOperation;
+import tensor.BroadcastPlanner;
 import tensor.DataType;
 
 final class CpuNodePreparer {
@@ -189,6 +190,7 @@ final class CpuNodePreparer {
                     isSupportedUnaryContinuationConsumer(target);
             case ADD, SUB, MUL, DIV, MIN, MAX ->
                     isSupportedBinaryContinuationConsumer(target, context);
+            case WHERE -> isSupportedWhereContinuationConsumer(target, context);
             case MATMUL -> isSupportedMatMulContinuationConsumer(target, context);
             case SUM, MEAN, SOFTMAX, LOG_SOFTMAX -> isSupportedReductionContinuationConsumer(target);
             case LAYER_NORM -> isSupportedLayerNormContinuationConsumer(target, context);
@@ -255,16 +257,48 @@ final class CpuNodePreparer {
         if (consumer.inputIds().size() != 2) {
             return false;
         }
+        CompiledNode producer = context.compiledNode(consumer.inputIds().get(target.producerInputIndex()));
         int otherIndex = target.producerInputIndex() == 0 ? 1 : 0;
         CompiledNode other = context.compiledNode(consumer.inputIds().get(otherIndex));
-        if (other == null || other.dataType() != DataType.BFLOAT16) {
+        if (producer == null || producer.dataType() != DataType.BFLOAT16 || other == null || other.dataType() != DataType.BFLOAT16) {
             return false;
         }
-        if (!java.util.Arrays.equals(other.shape(), consumer.shape())) {
+        return producer.contiguous()
+                && !producer.hasStorageOffset()
+                && other.contiguous()
+                && !other.hasStorageOffset()
+                && consumer.contiguous()
+                && !consumer.hasStorageOffset()
+                && isBroadcastCompatible(producer, other, consumer.shape());
+    }
+
+    private boolean isSupportedWhereContinuationConsumer(ContinuationConsumerTarget target, BackendPrepareContext context) {
+        CompiledNode consumer = target.consumer();
+        if (consumer.inputIds().size() != 3 || target.producerInputIndex() == 0) {
             return false;
         }
-        return other.contiguous() && !other.hasStorageOffset()
-                && consumer.contiguous() && !consumer.hasStorageOffset();
+        CompiledNode producer = context.compiledNode(consumer.inputIds().get(target.producerInputIndex()));
+        CompiledNode condition = context.compiledNode(consumer.inputIds().get(0));
+        int otherBranchIndex = target.producerInputIndex() == 1 ? 2 : 1;
+        CompiledNode otherBranch = context.compiledNode(consumer.inputIds().get(otherBranchIndex));
+        if (producer == null
+                || condition == null
+                || otherBranch == null
+                || producer.dataType() != DataType.BFLOAT16
+                || condition.dataType() != DataType.BOOL
+                || otherBranch.dataType() != DataType.BFLOAT16) {
+            return false;
+        }
+        return producer.contiguous()
+                && !producer.hasStorageOffset()
+                && condition.contiguous()
+                && !condition.hasStorageOffset()
+                && otherBranch.contiguous()
+                && !otherBranch.hasStorageOffset()
+                && consumer.contiguous()
+                && !consumer.hasStorageOffset()
+                && isBroadcastCompatible(producer, otherBranch, consumer.shape())
+                && isBroadcastCompatible(condition, producer, consumer.shape());
     }
 
     private boolean isSupportedReductionContinuationConsumer(ContinuationConsumerTarget target) {
@@ -391,9 +425,20 @@ final class CpuNodePreparer {
             case MATMUL, LINEAR, SOFTMAX, LOG_SOFTMAX, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD, LAYER_NORM, RMS_NORM,
                     SCALED_DOT_PRODUCT_ATTENTION, SCALED_DOT_PRODUCT_ATTENTION_BACKWARD,
                     ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
-                    POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
+                    POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, WHERE -> true;
             default -> false;
         };
+    }
+
+    private boolean isBroadcastCompatible(CompiledNode left, CompiledNode right, int[] expectedOutputShape) {
+        try {
+            return java.util.Arrays.equals(
+                    BroadcastPlanner.plan(left.shape(), left.strides(), right.shape(), right.strides()).outShape(),
+                    expectedOutputShape
+            );
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     private boolean isContiguousBFloat16Parameter(CompiledNode node) {

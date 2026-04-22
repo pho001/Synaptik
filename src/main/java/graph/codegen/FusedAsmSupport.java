@@ -2,6 +2,7 @@ package graph.codegen;
 
 import graph.codegen.FusedDTypeOps;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Label;
 import tensor.DataType;
 import tensor.Tensor;
 import utils.SlotKey;
@@ -94,6 +95,7 @@ final class FusedAsmSupport {
         sm.define(SlotKey.CLUSTER_TENSOR_VALUES);
         sm.define(SlotKey.LOOP_COUNTER);
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS, externalInputCount);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.FUSED_NODE_VALUES, nodeCount);
         sm.defineGroup(SlotKey.FUSED_NODE_BOOL_VALUES, nodeCount);
@@ -114,6 +116,7 @@ final class FusedAsmSupport {
         sm.define(SlotKey.SECOND_LOOP_COUNTER);
         sm.define(SlotKey.RANGE_UPPER);
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS, externalInputCount);
+        sm.defineGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.CLUSTER_INTERMEDIATES_ARRAYS, externalInputCount);
         sm.defineGroup(SlotKey.FUSED_NODE_VECTOR_VALUES, nodeCount);
@@ -160,6 +163,14 @@ final class FusedAsmSupport {
                     "(Ljdk/incubator/vector/VectorSpecies;[DI)Ljdk/incubator/vector/DoubleVector;",
                     false
             );
+        } else if (precisionMode == FusedDTypeOps.MODE_BF16) {
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "jdk/incubator/vector/FloatVector",
+                    "fromArray",
+                    "(Ljdk/incubator/vector/VectorSpecies;[FI)Ljdk/incubator/vector/FloatVector;",
+                    false
+            );
         } else {
             throw new UnsupportedOperationException("Direct linear vector loads are supported only for F32/F64 fused modes.");
         }
@@ -201,6 +212,20 @@ final class FusedAsmSupport {
                     false
             );
         }
+    }
+
+    static void emitLoadVectorFromContinuationCursorCall(MethodVisitor mv, int precisionMode) {
+        if (precisionMode == FusedDTypeOps.MODE_F32 || precisionMode == FusedDTypeOps.MODE_BF16) {
+            mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    "graph/codegen/FusedBroadcastVectorOps",
+                    "loadVectorF32",
+                    "(Lgraph/codegen/FusedBroadcastCursor;[FI)Ljdk/incubator/vector/FloatVector;",
+                    false
+            );
+            return;
+        }
+        throw new UnsupportedOperationException("Continuation cursor vector loads are supported only for F32/BF16 fused modes.");
     }
 
     static void emitLoadBoolVectorFromCursorCall(MethodVisitor mv, int precisionMode) {
@@ -593,9 +618,34 @@ final class FusedAsmSupport {
             java.util.List<FusedExternalInputPlan> inputPlans
     ) {
         if (ref < inputPlans.size()) {
+            FusedExternalInputPlan meta = inputPlans.get(ref);
+            Label done = null;
+            if (meta.dataType() == tensor.DataType.BFLOAT16) {
+                int continuationSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_CONTINUATION_ARRAYS).get(ref);
+                Label storageLoad = new Label();
+                done = new Label();
+                mv.visitVarInsn(ALOAD, continuationSlot);
+                mv.visitJumpInsn(IFNULL, storageLoad);
+                mv.visitVarInsn(ALOAD, continuationSlot);
+                if (meta.isLinearAccess()) {
+                    mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
+                    if (meta.storageOffset() != 0) {
+                        mv.visitLdcInsn(meta.storageOffset());
+                        mv.visitInsn(IADD);
+                    }
+                } else {
+                    mv.visitVarInsn(ALOAD, sm.getGroup(SlotKey.CLUSTER_INPUTS_GRAD_ARRAYS).get(ref));
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "graph/codegen/FusedBroadcastCursor", "idx", "()I", false);
+                }
+                mv.visitInsn(FALOAD);
+                if (precisionMode != FusedDTypeOps.MODE_F32) {
+                    mv.visitInsn(F2D);
+                }
+                mv.visitJumpInsn(GOTO, done);
+                mv.visitLabel(storageLoad);
+            }
             int inputSlot = sm.getGroup(SlotKey.CLUSTER_INPUTS_VALUES_ARRAYS).get(ref);
             mv.visitVarInsn(ALOAD, inputSlot);
-            FusedExternalInputPlan meta = inputPlans.get(ref);
             if (meta.isLinearAccess()) {
                 mv.visitVarInsn(ILOAD, sm.get(SlotKey.LOOP_COUNTER));
                 if (meta.storageOffset() != 0) {
@@ -607,6 +657,9 @@ final class FusedAsmSupport {
                 mv.visitMethodInsn(INVOKEVIRTUAL, "graph/codegen/FusedBroadcastCursor", "idx", "()I", false);
             }
             emitScalarArrayLoadInsn(mv, precisionMode);
+            if (done != null) {
+                mv.visitLabel(done);
+            }
             return;
         }
 

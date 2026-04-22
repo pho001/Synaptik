@@ -33,8 +33,8 @@ public final class ElementwiseLoops {
             case FLOAT64 -> runBinaryF64(kernel, left.getFloat64Data(), right.getFloat64Data(), out.getFloat64Data(), plan, hints);
             case FLOAT32 -> runBinaryF32(kernel, left.getFloat32Data(), right.getFloat32Data(), out.getFloat32Data(), plan, hints);
             case BFLOAT16 -> {
-                float[] leftContinuation = context.inputFloatContinuation(0, out.getFlatDataSize());
-                float[] rightContinuation = context.inputFloatContinuation(1, out.getFlatDataSize());
+                float[] leftContinuation = context.inputFloatContinuation(0, left.getFlatDataSize());
+                float[] rightContinuation = context.inputFloatContinuation(1, right.getFlatDataSize());
                 runBinaryBF16(
                         kernel,
                         left.getBFloat16Data(),
@@ -138,7 +138,18 @@ public final class ElementwiseLoops {
         switch (out.getDataType()) {
             case FLOAT64 -> runWhereF64(kernel, condition.getBoolData(), ifTrue.getFloat64Data(), ifFalse.getFloat64Data(), out.getFloat64Data(), plan, hints);
             case FLOAT32 -> runWhereF32(kernel, condition.getBoolData(), ifTrue.getFloat32Data(), ifFalse.getFloat32Data(), out.getFloat32Data(), plan, hints);
-            case BFLOAT16 -> runWhereBF16(kernel, condition.getBoolData(), ifTrue.getBFloat16Data(), ifFalse.getBFloat16Data(), out.getBFloat16Data(), plan, hints);
+            case BFLOAT16 -> runWhereBF16(
+                    kernel,
+                    condition.getBoolData(),
+                    ifTrue.getBFloat16Data(),
+                    ifFalse.getBFloat16Data(),
+                    context.inputFloatContinuation(1, ifTrue.getFlatDataSize()),
+                    context.inputFloatContinuation(2, ifFalse.getFlatDataSize()),
+                    out.getBFloat16Data(),
+                    plan,
+                    hints,
+                    context
+            );
             case INT32, BOOL -> throw unsupported(out.getDataType(), "where elementwise kernel");
         }
     }
@@ -310,6 +321,13 @@ public final class ElementwiseLoops {
             CpuKernelContext context
     ) {
         if (plan != null && !plan.isNoBroadcast()) {
+            if (canPublishFloatContinuation(context)) {
+                float[] outFloat = context.cpuWorkspace().requireFloatWorkspace();
+                runBroadcast(out.length, hints, (start, end) ->
+                        scalarBroadcastBF16ToF32(kernel, leftStorage, rightStorage, leftContinuation, rightContinuation, outFloat, plan, start, end));
+                context.cpuWorkspace().publishFloatContinuation(out.length);
+                return;
+            }
             runBroadcast(out.length, hints, (start, end) ->
                     scalarBroadcastBF16(kernel, leftStorage, rightStorage, leftContinuation, rightContinuation, out, plan, start, end));
             return;
@@ -524,16 +542,35 @@ public final class ElementwiseLoops {
             byte[] condition,
             short[] ifTrue,
             short[] ifFalse,
+            float[] ifTrueContinuation,
+            float[] ifFalseContinuation,
             short[] out,
             ResolvedWhereBroadcastPlan plan,
-            ResolvedDispatchHints hints
+            ResolvedDispatchHints hints,
+            CpuKernelContext context
     ) {
         if (plan != null && !plan.isNoBroadcast()) {
-            runBroadcast(out.length, hints, (start, end) -> scalarBroadcastWhereBF16(kernel, condition, ifTrue, ifFalse, out, plan, start, end));
+            if (canPublishFloatContinuation(context)) {
+                float[] outFloat = context.cpuWorkspace().requireFloatWorkspace();
+                runBroadcast(out.length, hints, (start, end) ->
+                        scalarBroadcastWhereBF16ToF32(kernel, condition, ifTrue, ifFalse, ifTrueContinuation, ifFalseContinuation, outFloat, plan, start, end));
+                context.cpuWorkspace().publishFloatContinuation(out.length);
+                return;
+            }
+            runBroadcast(out.length, hints, (start, end) ->
+                    scalarBroadcastWhereBF16(kernel, condition, ifTrue, ifFalse, ifTrueContinuation, ifFalseContinuation, out, plan, start, end));
+            return;
+        }
+        if (canPublishFloatContinuation(context)) {
+            float[] outFloat = context.cpuWorkspace().requireFloatWorkspace();
+            runDirect(out.length, hints, false,
+                    (start, end) -> scalarDirectWhereBF16ToF32(kernel, condition, ifTrue, ifFalse, ifTrueContinuation, ifFalseContinuation, outFloat, start, end),
+                    null);
+            context.cpuWorkspace().publishFloatContinuation(out.length);
             return;
         }
         runDirect(out.length, hints, false,
-                (start, end) -> scalarDirectWhereBF16(kernel, condition, ifTrue, ifFalse, out, start, end),
+                (start, end) -> scalarDirectWhereBF16(kernel, condition, ifTrue, ifFalse, ifTrueContinuation, ifFalseContinuation, out, start, end),
                 null);
     }
 
@@ -694,6 +731,29 @@ public final class ElementwiseLoops {
                     loadBF16(leftContinuation, leftStorage, cursor.leftIdx),
                     loadBF16(rightContinuation, rightStorage, cursor.rightIdx)
             ));
+            if (i + 1 < end) {
+                advanceBroadcastCursor(cursor);
+            }
+        }
+    }
+
+    private static void scalarBroadcastBF16ToF32(
+            BinaryElementwiseKernel kernel,
+            short[] leftStorage,
+            short[] rightStorage,
+            float[] leftContinuation,
+            float[] rightContinuation,
+            float[] out,
+            ResolvedBroadcastPlan plan,
+            int start,
+            int end
+    ) {
+        BroadcastCursor cursor = initBroadcastCursor(plan, start);
+        for (int i = start; i < end; i++) {
+            out[i] = kernel.applyBF16(
+                    loadBF16(leftContinuation, leftStorage, cursor.leftIdx),
+                    loadBF16(rightContinuation, rightStorage, cursor.rightIdx)
+            );
             if (i + 1 < end) {
                 advanceBroadcastCursor(cursor);
             }
@@ -1074,12 +1134,38 @@ public final class ElementwiseLoops {
             byte[] condition,
             short[] ifTrue,
             short[] ifFalse,
+            float[] ifTrueContinuation,
+            float[] ifFalseContinuation,
             short[] out,
             int start,
             int end
     ) {
         for (int i = start; i < end; i++) {
-            out[i] = storeBF16(kernel.applyBF16(condition[i], loadBF16(null, ifTrue, i), loadBF16(null, ifFalse, i)));
+            out[i] = storeBF16(kernel.applyBF16(
+                    condition[i],
+                    loadBF16(ifTrueContinuation, ifTrue, i),
+                    loadBF16(ifFalseContinuation, ifFalse, i)
+            ));
+        }
+    }
+
+    private static void scalarDirectWhereBF16ToF32(
+            WhereElementwiseKernel kernel,
+            byte[] condition,
+            short[] ifTrue,
+            short[] ifFalse,
+            float[] ifTrueContinuation,
+            float[] ifFalseContinuation,
+            float[] out,
+            int start,
+            int end
+    ) {
+        for (int i = start; i < end; i++) {
+            out[i] = kernel.applyBF16(
+                    condition[i],
+                    loadBF16(ifTrueContinuation, ifTrue, i),
+                    loadBF16(ifFalseContinuation, ifFalse, i)
+            );
         }
     }
 
@@ -1156,6 +1242,8 @@ public final class ElementwiseLoops {
             byte[] condition,
             short[] ifTrue,
             short[] ifFalse,
+            float[] ifTrueContinuation,
+            float[] ifFalseContinuation,
             short[] out,
             ResolvedWhereBroadcastPlan plan,
             int start,
@@ -1175,7 +1263,51 @@ public final class ElementwiseLoops {
         int trueIdx = initialIndex(coords, trueEff);
         int falseIdx = initialIndex(coords, falseEff);
         for (int i = start; i < end; i++) {
-            out[i] = storeBF16(kernel.applyBF16(condition[condIdx], loadBF16(null, ifTrue, trueIdx), loadBF16(null, ifFalse, falseIdx)));
+            out[i] = storeBF16(kernel.applyBF16(
+                    condition[condIdx],
+                    loadBF16(ifTrueContinuation, ifTrue, trueIdx),
+                    loadBF16(ifFalseContinuation, ifFalse, falseIdx)
+            ));
+            if (i + 1 < end) {
+                int[] next = nextTernaryIndices(coords, outShape, condEff, trueEff, falseEff, condResets, trueResets, falseResets, rank, condIdx, trueIdx, falseIdx);
+                condIdx = next[0];
+                trueIdx = next[1];
+                falseIdx = next[2];
+            }
+        }
+    }
+
+    private static void scalarBroadcastWhereBF16ToF32(
+            WhereElementwiseKernel kernel,
+            byte[] condition,
+            short[] ifTrue,
+            short[] ifFalse,
+            float[] ifTrueContinuation,
+            float[] ifFalseContinuation,
+            float[] out,
+            ResolvedWhereBroadcastPlan plan,
+            int start,
+            int end
+    ) {
+        int[] outStrides = plan.outStrides();
+        int[] outShape = plan.outShape();
+        int[] condEff = plan.condEffStrides();
+        int[] trueEff = plan.trueEffStrides();
+        int[] falseEff = plan.falseEffStrides();
+        int[] condResets = plan.condResets();
+        int[] trueResets = plan.trueResets();
+        int[] falseResets = plan.falseResets();
+        int rank = outStrides.length;
+        int[] coords = initCoords(start, outStrides, rank);
+        int condIdx = initialIndex(coords, condEff);
+        int trueIdx = initialIndex(coords, trueEff);
+        int falseIdx = initialIndex(coords, falseEff);
+        for (int i = start; i < end; i++) {
+            out[i] = kernel.applyBF16(
+                    condition[condIdx],
+                    loadBF16(ifTrueContinuation, ifTrue, trueIdx),
+                    loadBF16(ifFalseContinuation, ifFalse, falseIdx)
+            );
             if (i + 1 < end) {
                 int[] next = nextTernaryIndices(coords, outShape, condEff, trueEff, falseEff, condResets, trueResets, falseResets, rank, condIdx, trueIdx, falseIdx);
                 condIdx = next[0];

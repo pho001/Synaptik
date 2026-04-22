@@ -11,6 +11,7 @@ final class BF16MatMulAccumulatorSupport {
 
     static void computeTwoRowsFourColsF32(
             float[] a, float[] out, float[] packedB,
+            int packedBOffset,
             int aOffset, int outOffset,
             int row,
             int jStart,
@@ -37,7 +38,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector c12 = FloatVector.fromArray(F32, out, outRow1 + outCol + 2 * width);
             FloatVector c13 = FloatVector.fromArray(F32, out, outRow1 + outCol + 3 * width);
             for (int p = kStart; p < kEnd; p++) {
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 FloatVector b0 = FloatVector.fromArray(F32, packedB, packedRow + j);
                 FloatVector b1 = FloatVector.fromArray(F32, packedB, packedRow + j + width);
                 FloatVector b2 = FloatVector.fromArray(F32, packedB, packedRow + j + 2 * width);
@@ -67,7 +68,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector c0 = FloatVector.fromArray(F32, out, outRow0 + outCol);
             FloatVector c1 = FloatVector.fromArray(F32, out, outRow1 + outCol);
             for (int p = kStart; p < kEnd; p++) {
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 FloatVector bv = FloatVector.fromArray(F32, packedB, packedRow + j);
                 c0 = c0.add(FloatVector.broadcast(F32, a[aRow0 + p]).mul(bv));
                 c1 = c1.add(FloatVector.broadcast(F32, a[aRow1 + p]).mul(bv));
@@ -80,7 +81,7 @@ final class BF16MatMulAccumulatorSupport {
             float sum0 = out[outRow0 + outCol];
             float sum1 = out[outRow1 + outCol];
             for (int p = kStart; p < kEnd; p++) {
-                float bv = packedB[(p - kStart) * panelWidth + j];
+                float bv = packedB[packedBOffset + (p - kStart) * panelWidth + j];
                 sum0 += a[aRow0 + p] * bv;
                 sum1 += a[aRow1 + p] * bv;
             }
@@ -91,6 +92,7 @@ final class BF16MatMulAccumulatorSupport {
 
     static void computeFourRowsTwoColsF32(
             float[] a, float[] out, float[] packedB,
+            int packedBOffset,
             int aOffset, int outOffset,
             int row,
             int jStart,
@@ -121,7 +123,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector c30 = FloatVector.fromArray(F32, out, outRow3 + outCol);
             FloatVector c31 = FloatVector.fromArray(F32, out, outRow3 + outCol + width);
             for (int p = kStart; p < kEnd; p++) {
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 FloatVector b0 = FloatVector.fromArray(F32, packedB, packedRow + j);
                 FloatVector b1 = FloatVector.fromArray(F32, packedB, packedRow + j + width);
                 FloatVector a0 = FloatVector.broadcast(F32, a[aRow0 + p]);
@@ -153,7 +155,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector c2 = FloatVector.fromArray(F32, out, outRow2 + outCol);
             FloatVector c3 = FloatVector.fromArray(F32, out, outRow3 + outCol);
             for (int p = kStart; p < kEnd; p++) {
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 FloatVector bv = FloatVector.fromArray(F32, packedB, packedRow + j);
                 c0 = c0.add(FloatVector.broadcast(F32, a[aRow0 + p]).mul(bv));
                 c1 = c1.add(FloatVector.broadcast(F32, a[aRow1 + p]).mul(bv));
@@ -172,7 +174,7 @@ final class BF16MatMulAccumulatorSupport {
             float sum2 = out[outRow2 + outCol];
             float sum3 = out[outRow3 + outCol];
             for (int p = kStart; p < kEnd; p++) {
-                float bv = packedB[(p - kStart) * panelWidth + j];
+                float bv = packedB[packedBOffset + (p - kStart) * panelWidth + j];
                 sum0 += a[aRow0 + p] * bv;
                 sum1 += a[aRow1 + p] * bv;
                 sum2 += a[aRow2 + p] * bv;
@@ -187,6 +189,7 @@ final class BF16MatMulAccumulatorSupport {
 
     static void computeSingleRowTwoColsF32(
             float[] a, float[] out, float[] packedB,
+            int packedBOffset,
             int aOffset, int outOffset,
             int row,
             int jStart,
@@ -206,7 +209,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector c1 = FloatVector.fromArray(F32, out, outRow + outCol + width);
             for (int p = kStart; p < kEnd; p++) {
                 FloatVector av = FloatVector.broadcast(F32, a[aRow + p]);
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 c0 = c0.add(av.mul(FloatVector.fromArray(F32, packedB, packedRow + j)));
                 c1 = c1.add(av.mul(FloatVector.fromArray(F32, packedB, packedRow + j + width)));
             }
@@ -218,7 +221,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector acc = FloatVector.fromArray(F32, out, outRow + outCol);
             for (int p = kStart; p < kEnd; p++) {
                 FloatVector av = FloatVector.broadcast(F32, a[aRow + p]);
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 acc = acc.add(av.mul(FloatVector.fromArray(F32, packedB, packedRow + j)));
             }
             acc.intoArray(out, outRow + outCol);
@@ -227,7 +230,7 @@ final class BF16MatMulAccumulatorSupport {
             int outCol = jStart + j;
             float sum = out[outRow + outCol];
             for (int p = kStart; p < kEnd; p++) {
-                sum += a[aRow + p] * packedB[(p - kStart) * panelWidth + j];
+                sum += a[aRow + p] * packedB[packedBOffset + (p - kStart) * panelWidth + j];
             }
             out[outRow + outCol] = sum;
         }
@@ -235,6 +238,7 @@ final class BF16MatMulAccumulatorSupport {
 
     static void computeFourRowsFourColsF32(
             float[] a, float[] out, float[] packedB,
+            int packedBOffset,
             int aOffset, int outOffset,
             int row,
             int jStart,
@@ -273,7 +277,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector c32 = FloatVector.fromArray(F32, out, outRow3 + outCol + 2 * width);
             FloatVector c33 = FloatVector.fromArray(F32, out, outRow3 + outCol + 3 * width);
             for (int p = kStart; p < kEnd; p++) {
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 FloatVector b0 = FloatVector.fromArray(F32, packedB, packedRow + j);
                 FloatVector b1 = FloatVector.fromArray(F32, packedB, packedRow + j + width);
                 FloatVector b2 = FloatVector.fromArray(F32, packedB, packedRow + j + 2 * width);
@@ -323,7 +327,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector c2 = FloatVector.fromArray(F32, out, outRow2 + outCol);
             FloatVector c3 = FloatVector.fromArray(F32, out, outRow3 + outCol);
             for (int p = kStart; p < kEnd; p++) {
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 FloatVector bv = FloatVector.fromArray(F32, packedB, packedRow + j);
                 c0 = c0.add(FloatVector.broadcast(F32, a[aRow0 + p]).mul(bv));
                 c1 = c1.add(FloatVector.broadcast(F32, a[aRow1 + p]).mul(bv));
@@ -342,7 +346,7 @@ final class BF16MatMulAccumulatorSupport {
             float sum2 = out[outRow2 + outCol];
             float sum3 = out[outRow3 + outCol];
             for (int p = kStart; p < kEnd; p++) {
-                float bv = packedB[(p - kStart) * panelWidth + j];
+                float bv = packedB[packedBOffset + (p - kStart) * panelWidth + j];
                 sum0 += a[aRow0 + p] * bv;
                 sum1 += a[aRow1 + p] * bv;
                 sum2 += a[aRow2 + p] * bv;
@@ -357,6 +361,7 @@ final class BF16MatMulAccumulatorSupport {
 
     static void computeSingleRowFourColsF32(
             float[] a, float[] out, float[] packedB,
+            int packedBOffset,
             int aOffset, int outOffset,
             int row,
             int jStart,
@@ -378,7 +383,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector c3 = FloatVector.fromArray(F32, out, outRow + outCol + 3 * width);
             for (int p = kStart; p < kEnd; p++) {
                 FloatVector av = FloatVector.broadcast(F32, a[aRow + p]);
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 c0 = c0.add(av.mul(FloatVector.fromArray(F32, packedB, packedRow + j)));
                 c1 = c1.add(av.mul(FloatVector.fromArray(F32, packedB, packedRow + j + width)));
                 c2 = c2.add(av.mul(FloatVector.fromArray(F32, packedB, packedRow + j + 2 * width)));
@@ -394,7 +399,7 @@ final class BF16MatMulAccumulatorSupport {
             FloatVector acc = FloatVector.fromArray(F32, out, outRow + outCol);
             for (int p = kStart; p < kEnd; p++) {
                 FloatVector av = FloatVector.broadcast(F32, a[aRow + p]);
-                int packedRow = (p - kStart) * panelWidth;
+                int packedRow = packedBOffset + (p - kStart) * panelWidth;
                 acc = acc.add(av.mul(FloatVector.fromArray(F32, packedB, packedRow + j)));
             }
             acc.intoArray(out, outRow + outCol);
@@ -403,7 +408,7 @@ final class BF16MatMulAccumulatorSupport {
             int outCol = jStart + j;
             float sum = out[outRow + outCol];
             for (int p = kStart; p < kEnd; p++) {
-                sum += a[aRow + p] * packedB[(p - kStart) * panelWidth + j];
+                sum += a[aRow + p] * packedB[packedBOffset + (p - kStart) * panelWidth + j];
             }
             out[outRow + outCol] = sum;
         }

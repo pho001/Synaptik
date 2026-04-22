@@ -256,6 +256,29 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void bfloat16MatmulToBroadcastAddToReluPublishesFloatContinuationInInference() {
+        Tensor a = new Tensor(new double[16 * 8], new int[]{16, 8}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(new double[8 * 12], new int[]{8, 12}, null, "b", DataType.BFLOAT16);
+        Tensor bias = new Tensor(new double[12], new int[]{12}, null, "bias", DataType.BFLOAT16);
+        Tensor out = a.matmul(b).add(bias).relu();
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var matmulStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+        var addStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.ADD)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(addStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
     void float64MatmulPrepareBuildsBlasExecutableWhenEligible() {
         Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.FLOAT64);
@@ -377,6 +400,30 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
 
         assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
+    void bfloat16MatmulToWhereToReluPublishesFloatContinuationInInference() {
+        Tensor a = new Tensor(new double[8 * 8], new int[]{8, 8}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(new double[8 * 12], new int[]{8, 12}, null, "b", DataType.BFLOAT16);
+        Tensor mask = new Tensor(new byte[8], new int[]{8, 1}, null, "mask", DataType.BOOL);
+        Tensor fill = Tensor.scalar(-1.0, DataType.BFLOAT16);
+        Tensor out = Tensor.where(mask, a.matmul(b), fill).relu();
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var matmulStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+        var whereStep = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.WHERE)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
+        assertTrue(whereStep.metadata().cpuPlan().publishFloatContinuation());
     }
 
     @Test

@@ -1,6 +1,6 @@
 {
   "platformId": "mac_os_x-aarch64-oracle_corporation-16c",
-  "createdAt": "2026-04-21T10:05:37.787530+02:00",
+  "createdAt": "2026-04-21T11:03:34.439474+02:00",
   "persisted": true,
   "outputProfilePath": "profiles/platform/mac_os_x-aarch64-oracle_corporation-16c/calibration/bf16-forward-backward.json",
   "profileName": "platform-seed-bf16-training",
@@ -17,423 +17,45 @@
   },
   "steps": [
     {
-      "name": "calib-matmul-java-train",
-      "family": "MATMUL_JAVA",
+      "name": "calib-fused-noncheap-strided-train",
+      "family": "FUSED_NON_CHEAP_STRIDED",
       "seedRuntimeProfile": "mac_os_x-aarch64-oracle_corporation-16c",
       "selectedRuntimeProfile": "mac_os_x-aarch64-oracle_corporation-16c",
-      "selectedExecutionProfile": "base+matmulMicroKernel=BF16_4X2+matmulTiles=16x128x64+matmulParallel=100000",
-      "score": 4.600132,
+      "selectedExecutionProfile": "base+fusedAsmVectorWidth[noncheap-strided]=4",
+      "score": 11.201962,
       "scoreMetric": "averageMedianMs",
-      "winner": "base+matmulMicroKernel=BF16_4X2+matmulTiles=16x128x64+matmulParallel=100000",
+      "winner": "base+fusedAsmVectorWidth[noncheap-strided]=4",
       "suiteSummary": {
-        "workloadCount": 5,
-        "candidateCount": 225,
-        "successCount": 225,
+        "workloadCount": 2,
+        "candidateCount": 6,
+        "successCount": 6,
         "failureCount": 0
       },
       "candidateSummaries": [
         {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=16x128x64+matmulParallel=100000",
+          "candidateId": "base+fusedAsmVectorWidth[noncheap-strided]=1",
           "valid": true,
-          "score": 5.617732,
-          "geometricMeanMs": 5.617732,
-          "worstBucketMedianMs": 14.691714,
+          "score": 11.555841,
+          "geometricMeanMs": 11.555841,
+          "worstBucketMedianMs": 16.235074,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=16x128x64+matmulParallel=2000000",
+          "candidateId": "base+fusedAsmVectorWidth[noncheap-strided]=2",
           "valid": true,
-          "score": 4.611805,
-          "geometricMeanMs": 4.611805,
-          "worstBucketMedianMs": 9.999151,
+          "score": 11.420693,
+          "geometricMeanMs": 11.420693,
+          "worstBucketMedianMs": 16.200067,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         },
         {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=16x128x64+matmulParallel=500000",
+          "candidateId": "base+fusedAsmVectorWidth[noncheap-strided]=4",
           "valid": true,
-          "score": 6.113407,
-          "geometricMeanMs": 6.113407,
-          "worstBucketMedianMs": 17.201218,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=16x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.702441,
-          "geometricMeanMs": 4.702441,
-          "worstBucketMedianMs": 10.062084,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=16x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 5.044900,
-          "geometricMeanMs": 5.044900,
-          "worstBucketMedianMs": 11.904893,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=16x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.949160,
-          "geometricMeanMs": 4.949160,
-          "worstBucketMedianMs": 11.272968,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.637312,
-          "geometricMeanMs": 4.637312,
-          "worstBucketMedianMs": 10.064755,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.642796,
-          "geometricMeanMs": 4.642796,
-          "worstBucketMedianMs": 10.060192,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.640264,
-          "geometricMeanMs": 4.640264,
-          "worstBucketMedianMs": 10.068406,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.676051,
-          "geometricMeanMs": 4.676051,
-          "worstBucketMedianMs": 10.106870,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.671976,
-          "geometricMeanMs": 4.671976,
-          "worstBucketMedianMs": 10.036471,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=32x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.656396,
-          "geometricMeanMs": 4.656396,
-          "worstBucketMedianMs": 9.929030,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.900364,
-          "geometricMeanMs": 4.900364,
-          "worstBucketMedianMs": 10.686806,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.930181,
-          "geometricMeanMs": 4.930181,
-          "worstBucketMedianMs": 10.711732,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_2X4+matmulTiles=64x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.837812,
-          "geometricMeanMs": 4.837812,
-          "worstBucketMedianMs": 10.415853,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=16x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.600132,
-          "geometricMeanMs": 4.600132,
-          "worstBucketMedianMs": 9.936667,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=16x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.608226,
-          "geometricMeanMs": 4.608226,
-          "worstBucketMedianMs": 9.857757,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=16x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.603145,
-          "geometricMeanMs": 4.603145,
-          "worstBucketMedianMs": 10.028126,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=16x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.606505,
-          "geometricMeanMs": 4.606505,
-          "worstBucketMedianMs": 9.897427,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=16x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.625013,
-          "geometricMeanMs": 4.625013,
-          "worstBucketMedianMs": 10.119194,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=16x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.653131,
-          "geometricMeanMs": 4.653131,
-          "worstBucketMedianMs": 10.101640,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.629057,
-          "geometricMeanMs": 4.629057,
-          "worstBucketMedianMs": 9.937779,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.735121,
-          "geometricMeanMs": 4.735121,
-          "worstBucketMedianMs": 10.490716,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.731304,
-          "geometricMeanMs": 4.731304,
-          "worstBucketMedianMs": 10.291111,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.731999,
-          "geometricMeanMs": 4.731999,
-          "worstBucketMedianMs": 10.228604,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.668503,
-          "geometricMeanMs": 4.668503,
-          "worstBucketMedianMs": 10.151764,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=32x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.661443,
-          "geometricMeanMs": 4.661443,
-          "worstBucketMedianMs": 10.017927,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 5.584148,
-          "geometricMeanMs": 5.584148,
-          "worstBucketMedianMs": 14.166289,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 5.106063,
-          "geometricMeanMs": 5.106063,
-          "worstBucketMedianMs": 11.475904,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X2+matmulTiles=64x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 5.684563,
-          "geometricMeanMs": 5.684563,
-          "worstBucketMedianMs": 14.594430,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=16x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.603355,
-          "geometricMeanMs": 4.603355,
-          "worstBucketMedianMs": 9.907535,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=16x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.748177,
-          "geometricMeanMs": 4.748177,
-          "worstBucketMedianMs": 10.146430,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=16x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.628959,
-          "geometricMeanMs": 4.628959,
-          "worstBucketMedianMs": 9.968814,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=16x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.792377,
-          "geometricMeanMs": 4.792377,
-          "worstBucketMedianMs": 10.439462,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=16x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.699583,
-          "geometricMeanMs": 4.699583,
-          "worstBucketMedianMs": 10.136271,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=16x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.703211,
-          "geometricMeanMs": 4.703211,
-          "worstBucketMedianMs": 10.123516,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.708307,
-          "geometricMeanMs": 4.708307,
-          "worstBucketMedianMs": 10.213583,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.704910,
-          "geometricMeanMs": 4.704910,
-          "worstBucketMedianMs": 10.121211,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.656892,
-          "geometricMeanMs": 4.656892,
-          "worstBucketMedianMs": 9.876127,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x64x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.751188,
-          "geometricMeanMs": 4.751188,
-          "worstBucketMedianMs": 10.277415,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x64x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.759419,
-          "geometricMeanMs": 4.759419,
-          "worstBucketMedianMs": 10.212032,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=32x64x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.757222,
-          "geometricMeanMs": 4.757222,
-          "worstBucketMedianMs": 10.347447,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x64+matmulParallel=100000",
-          "valid": true,
-          "score": 4.889777,
-          "geometricMeanMs": 4.889777,
-          "worstBucketMedianMs": 10.262613,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x64+matmulParallel=2000000",
-          "valid": true,
-          "score": 4.840717,
-          "geometricMeanMs": 4.840717,
-          "worstBucketMedianMs": 10.433021,
-          "variancePenalty": 0.000000,
-          "explanation": "averageMedianMs"
-        },
-        {
-          "candidateId": "base+matmulMicroKernel=BF16_4X4+matmulTiles=64x128x64+matmulParallel=500000",
-          "valid": true,
-          "score": 4.873129,
-          "geometricMeanMs": 4.873129,
-          "worstBucketMedianMs": 10.466304,
+          "score": 11.201962,
+          "geometricMeanMs": 11.201962,
+          "worstBucketMedianMs": 15.764530,
           "variancePenalty": 0.000000,
           "explanation": "averageMedianMs"
         }

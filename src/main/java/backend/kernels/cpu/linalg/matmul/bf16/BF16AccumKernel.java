@@ -6,6 +6,7 @@ interface BF16AccumKernel {
             float[] packedA,
             float[] accum,
             float[] packedB,
+            int packedBOffset,
             int tileRows,
             int colOffset,
             int panelDepth,

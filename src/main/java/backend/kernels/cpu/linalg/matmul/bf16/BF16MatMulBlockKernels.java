@@ -7,6 +7,22 @@ final class BF16MatMulBlockKernels {
     private BF16MatMulBlockKernels() {
     }
 
+    private static void storeTileAsBF16(float[] accum, short[] out, int outRowBase, int tileRows, int tileCols, int n) {
+        for (int row = 0; row < tileRows; row++) {
+            int outRow = outRowBase + row * n;
+            int accumBase = row * tileCols;
+            for (int j = 0; j < tileCols; j++) {
+                out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
+            }
+        }
+    }
+
+    private static void storeTileAsFloat(float[] accum, float[] out, int outRowBase, int tileRows, int tileCols, int n) {
+        for (int row = 0; row < tileRows; row++) {
+            System.arraycopy(accum, row * tileCols, out, outRowBase + row * n, tileCols);
+        }
+    }
+
     static void computeBlockBF16(
             short[] a, short[] b, short[] out,
             int aOffset, int bOffset, int outOffset,
@@ -17,32 +33,23 @@ final class BF16MatMulBlockKernels {
             int tm, int tn, int tk,
             BF16AccumKernel kernel
     ) {
-        int totalCols = jEnd - jStart;
-        for (int ii = iStart; ii < iEnd; ii += tm) {
-            int iiEnd = Math.min(ii + tm, iEnd);
-            int tileRows = iiEnd - ii;
-            float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * totalCols);
-            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
-
-            for (int kk = kStart; kk < kEnd; kk += tk) {
-                int kkEnd = Math.min(kk + tk, kEnd);
-                int panelDepth = kkEnd - kk;
-                float[] packedA = BF16MatMulPacking.packedPanelBF16Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
-                for (int jj = jStart; jj < jEnd; jj += tn) {
-                    int jjEnd = Math.min(jj + tn, jEnd);
-                    int tileCols = jjEnd - jj;
-                    int colOffset = jj - jStart;
-                    float[] packedB = BF16MatMulPacking.packedPanelBF16(b, bOffset, kk, kkEnd, jj, jjEnd, n);
-                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+        for (int jj = jStart; jj < jEnd; jj += tn) {
+            int jjEnd = Math.min(jj + tn, jEnd);
+            int tileCols = jjEnd - jj;
+            float[] packedBStrip = BF16MatMulPacking.packedPanelBF16(b, bOffset, kStart, kEnd, jj, jjEnd, n);
+            for (int ii = iStart; ii < iEnd; ii += tm) {
+                int iiEnd = Math.min(ii + tm, iEnd);
+                int tileRows = iiEnd - ii;
+                float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * tileCols);
+                java.util.Arrays.fill(accum, 0, tileRows * tileCols, 0.0f);
+                for (int kk = kStart; kk < kEnd; kk += tk) {
+                    int kkEnd = Math.min(kk + tk, kEnd);
+                    int panelDepth = kkEnd - kk;
+                    float[] packedA = BF16MatMulPacking.packedPanelBF16Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
+                    int packedBOffset = (kk - kStart) * tileCols;
+                    kernel.compute(packedA, accum, packedBStrip, packedBOffset, tileRows, 0, panelDepth, tileCols, tileCols);
                 }
-            }
-
-            for (int row = 0; row < tileRows; row++) {
-                int outRow = outOffset + (ii + row) * n + jStart;
-                int accumBase = row * totalCols;
-                for (int j = 0; j < totalCols; j++) {
-                    out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
-                }
+                storeTileAsBF16(accum, out, outOffset + ii * n + jj, tileRows, tileCols, n);
             }
         }
     }
@@ -57,32 +64,22 @@ final class BF16MatMulBlockKernels {
             int tm, int tn, int tk,
             BF16AccumKernel kernel
     ) {
-        int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
             int iiEnd = Math.min(ii + tm, iEnd);
             int tileRows = iiEnd - ii;
-            float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * totalCols);
-            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
-
-            for (int kk = kStart; kk < kEnd; kk += tk) {
-                int kkEnd = Math.min(kk + tk, kEnd);
-                int panelDepth = kkEnd - kk;
-                float[] packedA = BF16MatMulPacking.packedPanelBF16Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
-                for (int jj = jStart; jj < jEnd; jj += tn) {
-                    int jjEnd = Math.min(jj + tn, jEnd);
-                    int tileCols = jjEnd - jj;
-                    int colOffset = jj - jStart;
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int tileCols = jjEnd - jj;
+                float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * tileCols);
+                java.util.Arrays.fill(accum, 0, tileRows * tileCols, 0.0f);
+                for (int kk = kStart; kk < kEnd; kk += tk) {
+                    int kkEnd = Math.min(kk + tk, kEnd);
+                    int panelDepth = kkEnd - kk;
+                    float[] packedA = BF16MatMulPacking.packedPanelBF16Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
                     float[] packedB = packedWeights.panel(kk, jj);
-                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+                    kernel.compute(packedA, accum, packedB, 0, tileRows, 0, panelDepth, tileCols, tileCols);
                 }
-            }
-
-            for (int row = 0; row < tileRows; row++) {
-                int outRow = outOffset + (ii + row) * n + jStart;
-                int accumBase = row * totalCols;
-                for (int j = 0; j < totalCols; j++) {
-                    out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
-                }
+                storeTileAsBF16(accum, out, outOffset + ii * n + jj, tileRows, tileCols, n);
             }
         }
     }
@@ -97,30 +94,23 @@ final class BF16MatMulBlockKernels {
             int tm, int tn, int tk,
             BF16AccumKernel kernel
     ) {
-        int totalCols = jEnd - jStart;
-        for (int ii = iStart; ii < iEnd; ii += tm) {
-            int iiEnd = Math.min(ii + tm, iEnd);
-            int tileRows = iiEnd - ii;
-            float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * totalCols);
-            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
-
-            for (int kk = kStart; kk < kEnd; kk += tk) {
-                int kkEnd = Math.min(kk + tk, kEnd);
-                int panelDepth = kkEnd - kk;
-                float[] packedA = BF16MatMulPacking.packedPanelBF16Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
-                for (int jj = jStart; jj < jEnd; jj += tn) {
-                    int jjEnd = Math.min(jj + tn, jEnd);
-                    int tileCols = jjEnd - jj;
-                    int colOffset = jj - jStart;
-                    float[] packedB = BF16MatMulPacking.packedPanelBF16(b, bOffset, kk, kkEnd, jj, jjEnd, n);
-                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+        for (int jj = jStart; jj < jEnd; jj += tn) {
+            int jjEnd = Math.min(jj + tn, jEnd);
+            int tileCols = jjEnd - jj;
+            float[] packedBStrip = BF16MatMulPacking.packedPanelBF16(b, bOffset, kStart, kEnd, jj, jjEnd, n);
+            for (int ii = iStart; ii < iEnd; ii += tm) {
+                int iiEnd = Math.min(ii + tm, iEnd);
+                int tileRows = iiEnd - ii;
+                float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * tileCols);
+                java.util.Arrays.fill(accum, 0, tileRows * tileCols, 0.0f);
+                for (int kk = kStart; kk < kEnd; kk += tk) {
+                    int kkEnd = Math.min(kk + tk, kEnd);
+                    int panelDepth = kkEnd - kk;
+                    float[] packedA = BF16MatMulPacking.packedPanelBF16Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
+                    int packedBOffset = (kk - kStart) * tileCols;
+                    kernel.compute(packedA, accum, packedBStrip, packedBOffset, tileRows, 0, panelDepth, tileCols, tileCols);
                 }
-            }
-
-            for (int row = 0; row < tileRows; row++) {
-                int outRow = outOffset + (ii + row) * n + jStart;
-                int accumBase = row * totalCols;
-                System.arraycopy(accum, accumBase, out, outRow, totalCols);
+                storeTileAsFloat(accum, out, outOffset + ii * n + jj, tileRows, tileCols, n);
             }
         }
     }
@@ -135,30 +125,22 @@ final class BF16MatMulBlockKernels {
             int tm, int tn, int tk,
             BF16AccumKernel kernel
     ) {
-        int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
             int iiEnd = Math.min(ii + tm, iEnd);
             int tileRows = iiEnd - ii;
-            float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * totalCols);
-            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
-
-            for (int kk = kStart; kk < kEnd; kk += tk) {
-                int kkEnd = Math.min(kk + tk, kEnd);
-                int panelDepth = kkEnd - kk;
-                float[] packedA = BF16MatMulPacking.packedPanelBF16Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
-                for (int jj = jStart; jj < jEnd; jj += tn) {
-                    int jjEnd = Math.min(jj + tn, jEnd);
-                    int tileCols = jjEnd - jj;
-                    int colOffset = jj - jStart;
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int tileCols = jjEnd - jj;
+                float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * tileCols);
+                java.util.Arrays.fill(accum, 0, tileRows * tileCols, 0.0f);
+                for (int kk = kStart; kk < kEnd; kk += tk) {
+                    int kkEnd = Math.min(kk + tk, kEnd);
+                    int panelDepth = kkEnd - kk;
+                    float[] packedA = BF16MatMulPacking.packedPanelBF16Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
                     float[] packedB = packedWeights.panel(kk, jj);
-                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+                    kernel.compute(packedA, accum, packedB, 0, tileRows, 0, panelDepth, tileCols, tileCols);
                 }
-            }
-
-            for (int row = 0; row < tileRows; row++) {
-                int outRow = outOffset + (ii + row) * n + jStart;
-                int accumBase = row * totalCols;
-                System.arraycopy(accum, accumBase, out, outRow, totalCols);
+                storeTileAsFloat(accum, out, outOffset + ii * n + jj, tileRows, tileCols, n);
             }
         }
     }
@@ -173,32 +155,23 @@ final class BF16MatMulBlockKernels {
             int tm, int tn, int tk,
             BF16AccumKernel kernel
     ) {
-        int totalCols = jEnd - jStart;
-        for (int ii = iStart; ii < iEnd; ii += tm) {
-            int iiEnd = Math.min(ii + tm, iEnd);
-            int tileRows = iiEnd - ii;
-            float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * totalCols);
-            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
-
-            for (int kk = kStart; kk < kEnd; kk += tk) {
-                int kkEnd = Math.min(kk + tk, kEnd);
-                int panelDepth = kkEnd - kk;
-                float[] packedA = BF16MatMulPacking.packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
-                for (int jj = jStart; jj < jEnd; jj += tn) {
-                    int jjEnd = Math.min(jj + tn, jEnd);
-                    int tileCols = jjEnd - jj;
-                    int colOffset = jj - jStart;
-                    float[] packedB = BF16MatMulPacking.packedPanelF32(b, bOffset, kk, kkEnd, jj, jjEnd, n);
-                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+        for (int jj = jStart; jj < jEnd; jj += tn) {
+            int jjEnd = Math.min(jj + tn, jEnd);
+            int tileCols = jjEnd - jj;
+            float[] packedBStrip = BF16MatMulPacking.packedPanelF32(b, bOffset, kStart, kEnd, jj, jjEnd, n);
+            for (int ii = iStart; ii < iEnd; ii += tm) {
+                int iiEnd = Math.min(ii + tm, iEnd);
+                int tileRows = iiEnd - ii;
+                float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * tileCols);
+                java.util.Arrays.fill(accum, 0, tileRows * tileCols, 0.0f);
+                for (int kk = kStart; kk < kEnd; kk += tk) {
+                    int kkEnd = Math.min(kk + tk, kEnd);
+                    int panelDepth = kkEnd - kk;
+                    float[] packedA = BF16MatMulPacking.packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
+                    int packedBOffset = (kk - kStart) * tileCols;
+                    kernel.compute(packedA, accum, packedBStrip, packedBOffset, tileRows, 0, panelDepth, tileCols, tileCols);
                 }
-            }
-
-            for (int row = 0; row < tileRows; row++) {
-                int outRow = outOffset + (ii + row) * n + jStart;
-                int accumBase = row * totalCols;
-                for (int j = 0; j < totalCols; j++) {
-                    out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
-                }
+                storeTileAsBF16(accum, out, outOffset + ii * n + jj, tileRows, tileCols, n);
             }
         }
     }
@@ -213,32 +186,23 @@ final class BF16MatMulBlockKernels {
             int tm, int tn, int tk,
             BF16AccumKernel kernel
     ) {
-        int totalCols = jEnd - jStart;
-        for (int ii = iStart; ii < iEnd; ii += tm) {
-            int iiEnd = Math.min(ii + tm, iEnd);
-            int tileRows = iiEnd - ii;
-            float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * totalCols);
-            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
-
-            for (int kk = kStart; kk < kEnd; kk += tk) {
-                int kkEnd = Math.min(kk + tk, kEnd);
-                int panelDepth = kkEnd - kk;
-                float[] packedA = BF16MatMulPacking.packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
-                for (int jj = jStart; jj < jEnd; jj += tn) {
-                    int jjEnd = Math.min(jj + tn, jEnd);
-                    int tileCols = jjEnd - jj;
-                    int colOffset = jj - jStart;
-                    float[] packedB = BF16MatMulPacking.packedPanelBF16(b, bOffset, kk, kkEnd, jj, jjEnd, n);
-                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+        for (int jj = jStart; jj < jEnd; jj += tn) {
+            int jjEnd = Math.min(jj + tn, jEnd);
+            int tileCols = jjEnd - jj;
+            float[] packedBStrip = BF16MatMulPacking.packedPanelBF16(b, bOffset, kStart, kEnd, jj, jjEnd, n);
+            for (int ii = iStart; ii < iEnd; ii += tm) {
+                int iiEnd = Math.min(ii + tm, iEnd);
+                int tileRows = iiEnd - ii;
+                float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * tileCols);
+                java.util.Arrays.fill(accum, 0, tileRows * tileCols, 0.0f);
+                for (int kk = kStart; kk < kEnd; kk += tk) {
+                    int kkEnd = Math.min(kk + tk, kEnd);
+                    int panelDepth = kkEnd - kk;
+                    float[] packedA = BF16MatMulPacking.packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
+                    int packedBOffset = (kk - kStart) * tileCols;
+                    kernel.compute(packedA, accum, packedBStrip, packedBOffset, tileRows, 0, panelDepth, tileCols, tileCols);
                 }
-            }
-
-            for (int row = 0; row < tileRows; row++) {
-                int outRow = outOffset + (ii + row) * n + jStart;
-                int accumBase = row * totalCols;
-                for (int j = 0; j < totalCols; j++) {
-                    out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
-                }
+                storeTileAsBF16(accum, out, outOffset + ii * n + jj, tileRows, tileCols, n);
             }
         }
     }
@@ -253,30 +217,23 @@ final class BF16MatMulBlockKernels {
             int tm, int tn, int tk,
             BF16AccumKernel kernel
     ) {
-        int totalCols = jEnd - jStart;
-        for (int ii = iStart; ii < iEnd; ii += tm) {
-            int iiEnd = Math.min(ii + tm, iEnd);
-            int tileRows = iiEnd - ii;
-            float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * totalCols);
-            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
-
-            for (int kk = kStart; kk < kEnd; kk += tk) {
-                int kkEnd = Math.min(kk + tk, kEnd);
-                int panelDepth = kkEnd - kk;
-                float[] packedA = BF16MatMulPacking.packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
-                for (int jj = jStart; jj < jEnd; jj += tn) {
-                    int jjEnd = Math.min(jj + tn, jEnd);
-                    int tileCols = jjEnd - jj;
-                    int colOffset = jj - jStart;
-                    float[] packedB = BF16MatMulPacking.packedPanelBF16(b, bOffset, kk, kkEnd, jj, jjEnd, n);
-                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+        for (int jj = jStart; jj < jEnd; jj += tn) {
+            int jjEnd = Math.min(jj + tn, jEnd);
+            int tileCols = jjEnd - jj;
+            float[] packedBStrip = BF16MatMulPacking.packedPanelBF16(b, bOffset, kStart, kEnd, jj, jjEnd, n);
+            for (int ii = iStart; ii < iEnd; ii += tm) {
+                int iiEnd = Math.min(ii + tm, iEnd);
+                int tileRows = iiEnd - ii;
+                float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * tileCols);
+                java.util.Arrays.fill(accum, 0, tileRows * tileCols, 0.0f);
+                for (int kk = kStart; kk < kEnd; kk += tk) {
+                    int kkEnd = Math.min(kk + tk, kEnd);
+                    int panelDepth = kkEnd - kk;
+                    float[] packedA = BF16MatMulPacking.packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
+                    int packedBOffset = (kk - kStart) * tileCols;
+                    kernel.compute(packedA, accum, packedBStrip, packedBOffset, tileRows, 0, panelDepth, tileCols, tileCols);
                 }
-            }
-
-            for (int row = 0; row < tileRows; row++) {
-                int outRow = outOffset + (ii + row) * n + jStart;
-                int accumBase = row * totalCols;
-                System.arraycopy(accum, accumBase, out, outRow, totalCols);
+                storeTileAsFloat(accum, out, outOffset + ii * n + jj, tileRows, tileCols, n);
             }
         }
     }
@@ -291,32 +248,22 @@ final class BF16MatMulBlockKernels {
             int tm, int tn, int tk,
             BF16AccumKernel kernel
     ) {
-        int totalCols = jEnd - jStart;
         for (int ii = iStart; ii < iEnd; ii += tm) {
             int iiEnd = Math.min(ii + tm, iEnd);
             int tileRows = iiEnd - ii;
-            float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * totalCols);
-            java.util.Arrays.fill(accum, 0, tileRows * totalCols, 0.0f);
-
-            for (int kk = kStart; kk < kEnd; kk += tk) {
-                int kkEnd = Math.min(kk + tk, kEnd);
-                int panelDepth = kkEnd - kk;
-                float[] packedA = BF16MatMulPacking.packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
-                for (int jj = jStart; jj < jEnd; jj += tn) {
-                    int jjEnd = Math.min(jj + tn, jEnd);
-                    int tileCols = jjEnd - jj;
-                    int colOffset = jj - jStart;
+            for (int jj = jStart; jj < jEnd; jj += tn) {
+                int jjEnd = Math.min(jj + tn, jEnd);
+                int tileCols = jjEnd - jj;
+                float[] accum = BF16MatMulPacking.bf16AccumTile(tileRows * tileCols);
+                java.util.Arrays.fill(accum, 0, tileRows * tileCols, 0.0f);
+                for (int kk = kStart; kk < kEnd; kk += tk) {
+                    int kkEnd = Math.min(kk + tk, kEnd);
+                    int panelDepth = kkEnd - kk;
+                    float[] packedA = BF16MatMulPacking.packedPanelF32Left(a, aOffset, ii, iiEnd, kk, kkEnd, k);
                     float[] packedB = packedWeights.panel(kk, jj);
-                    kernel.compute(packedA, accum, packedB, tileRows, colOffset, panelDepth, totalCols, tileCols);
+                    kernel.compute(packedA, accum, packedB, 0, tileRows, 0, panelDepth, tileCols, tileCols);
                 }
-            }
-
-            for (int row = 0; row < tileRows; row++) {
-                int outRow = outOffset + (ii + row) * n + jStart;
-                int accumBase = row * totalCols;
-                for (int j = 0; j < totalCols; j++) {
-                    out[outRow + j] = CpuDTypeOps.toBFloat16Bits(accum[accumBase + j]);
-                }
+                storeTileAsBF16(accum, out, outOffset + ii * n + jj, tileRows, tileCols, n);
             }
         }
     }
