@@ -4,6 +4,8 @@ import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorSpecies;
 
+import java.util.Arrays;
+
 final class StridedVectorSupport {
     private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
@@ -199,5 +201,9 @@ final class StridedVectorSupport {
         for (; col < cols; col++) {
             out[outBase + col] = value;
         }
+    }
+
+    static void fillRowBF16(short[] out, int outBase, int cols, short value) {
+        Arrays.fill(out, outBase, outBase + cols, value);
     }
 }

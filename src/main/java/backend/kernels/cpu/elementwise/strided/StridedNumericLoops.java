@@ -83,6 +83,25 @@ final class StridedNumericLoops {
             return;
         }
 
+        if (inputs.rank() == 2 && StridedRank2Loops.tryForwardBF16(
+                op,
+                inputs.a(),
+                inputs.b(),
+                inputs.aStrides(),
+                inputs.bStrides(),
+                inputs.aBaseOffset(),
+                inputs.bBaseOffset(),
+                inputs.out(),
+                inputs.outShape()[0],
+                inputs.outShape()[1],
+                inputs.outStrides(),
+                inputs.outBaseOffset(),
+                useFastExpApprox,
+                useFastTanhApprox
+        )) {
+            return;
+        }
+
         forwardGenericBF16(op, inputs, useFastExpApprox, useFastTanhApprox);
     }
 

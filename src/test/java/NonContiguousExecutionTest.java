@@ -125,6 +125,22 @@ public class NonContiguousExecutionTest {
         assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), EPS32);
     }
 
+    @Test
+    public void testMulScalarExpandedRowViewBFloat16StridedVsMaterializeEquivalence() {
+        RuntimeConfig stridedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 100));
+        RuntimeConfig materializedConfig = runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1_024, 100_000, 0));
+
+        Tensor bias = new Tensor(new float[]{3, 7}, new int[]{2, 1}, null, "bias_bf16", DataType.BFLOAT16);
+
+        Tensor strided = bias.expand(2, 4).mul(0.5);
+        CompiledGraph.compile(strided, OptimizerConfig.noOptimization()).execute(stridedConfig, ExecutionMode.FORWARD);
+
+        Tensor materialized = bias.expand(2, 4).mul(0.5);
+        CompiledGraph.compile(materialized, OptimizerConfig.noOptimization()).execute(materializedConfig, ExecutionMode.FORWARD);
+
+        assertArrayEquals(materialized.toDoubleArrayCopy(), strided.toDoubleArrayCopy(), 2e-3);
+    }
+
     private static RuntimeConfig runtimeConfig(CpuKernelConfig cpuKernelConfig) {
         return new RuntimeConfig(cpuKernelConfig, config.runtime.ApproximationConfig.defaults(), config.runtime.BlasConfig.disabled());
     }

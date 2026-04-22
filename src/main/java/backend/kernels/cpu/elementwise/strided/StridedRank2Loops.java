@@ -68,6 +68,34 @@ final class StridedRank2Loops {
         };
     }
 
+    static boolean tryForwardBF16(
+            Operation op,
+            short[] a,
+            short[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            short[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (out == null || outStrides == null || outStrides.length != 2) {
+            return false;
+        }
+        return switch (op.opType()) {
+            case ADD, SUB, MUL, DIV, MIN, MAX ->
+                    tryBinaryBF16(op, a, b, aStrides, bStrides, aBaseOffset, bBaseOffset, out, rows, cols, outStrides, outBaseOffset);
+            case NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH, POW, SQRT, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID ->
+                    tryUnaryBF16(op, a, aStrides, aBaseOffset, out, rows, cols, outStrides, outBaseOffset, useFastExpApprox, useFastTanhApprox);
+            default -> false;
+        };
+    }
+
     private static boolean tryBinaryF64(
             Operation op,
             double[] a,
@@ -824,6 +852,120 @@ final class StridedRank2Loops {
                 }
             }
             default -> throw new UnsupportedOperationException("Unsupported rank-2 F32 unary op: " + op.opType());
+        }
+        return true;
+    }
+
+    private static boolean tryBinaryBF16(
+            Operation op,
+            short[] a,
+            short[] b,
+            int[] aStrides,
+            int[] bStrides,
+            int aBaseOffset,
+            int bBaseOffset,
+            short[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset
+    ) {
+        if (a == null || b == null || aStrides == null || bStrides == null || aStrides.length != 2 || bStrides.length != 2) {
+            return false;
+        }
+
+        StridedElementWiseSemantics.BF16BinaryOp binary = StridedElementWiseSemantics.resolveBF16Binary(op);
+        if (binary == null) {
+            return false;
+        }
+
+        int outRowStride = outStrides[0];
+        int outColStride = outStrides[1];
+        int aRowStride = aStrides[0];
+        int aColStride = aStrides[1];
+        int bRowStride = bStrides[0];
+        int bColStride = bStrides[1];
+
+        if (outColStride == 1 && aColStride == 0 && bColStride == 0) {
+            for (int row = 0; row < rows; row++) {
+                short value = binary.apply(
+                        a[aBaseOffset + row * aRowStride],
+                        b[bBaseOffset + row * bRowStride]
+                );
+                StridedVectorSupport.fillRowBF16(out, outBaseOffset + row * outRowStride, cols, value);
+            }
+            return true;
+        }
+
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            int bRowBase = bBaseOffset + row * bRowStride;
+            if (aColStride == 0) {
+                short left = a[aRowBase];
+                for (int col = 0; col < cols; col++) {
+                    out[outRowBase + col * outColStride] = binary.apply(left, b[bRowBase + col * bColStride]);
+                }
+                continue;
+            }
+            if (bColStride == 0) {
+                short right = b[bRowBase];
+                for (int col = 0; col < cols; col++) {
+                    out[outRowBase + col * outColStride] = binary.apply(a[aRowBase + col * aColStride], right);
+                }
+                continue;
+            }
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = binary.apply(
+                        a[aRowBase + col * aColStride],
+                        b[bRowBase + col * bColStride]
+                );
+            }
+        }
+        return true;
+    }
+
+    private static boolean tryUnaryBF16(
+            Operation op,
+            short[] a,
+            int[] aStrides,
+            int aBaseOffset,
+            short[] out,
+            int rows,
+            int cols,
+            int[] outStrides,
+            int outBaseOffset,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (a == null || aStrides == null || aStrides.length != 2) {
+            return false;
+        }
+
+        StridedElementWiseSemantics.BF16UnaryOp unary = StridedElementWiseSemantics.resolveBF16Unary(op, useFastExpApprox, useFastTanhApprox);
+        if (unary == null) {
+            return false;
+        }
+
+        int outRowStride = outStrides[0];
+        int outColStride = outStrides[1];
+        int aRowStride = aStrides[0];
+        int aColStride = aStrides[1];
+
+        if (outColStride == 1 && aColStride == 0) {
+            for (int row = 0; row < rows; row++) {
+                short value = unary.apply(a[aBaseOffset + row * aRowStride]);
+                StridedVectorSupport.fillRowBF16(out, outBaseOffset + row * outRowStride, cols, value);
+            }
+            return true;
+        }
+
+        for (int row = 0; row < rows; row++) {
+            int outRowBase = outBaseOffset + row * outRowStride;
+            int aRowBase = aBaseOffset + row * aRowStride;
+            for (int col = 0; col < cols; col++) {
+                out[outRowBase + col * outColStride] = unary.apply(a[aRowBase + col * aColStride]);
+            }
         }
         return true;
     }
