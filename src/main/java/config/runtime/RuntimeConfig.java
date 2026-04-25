@@ -12,7 +12,8 @@ public record RuntimeConfig(
         ApproximationConfig approximation,
         BlasConfig blas,
         Conv2dConfig conv2d,
-        FusedExecutionPolicy fused
+        FusedExecutionPolicy fused,
+        AcceleratorConfig accelerator
 ) {
     public RuntimeConfig {
         kernel = Objects.requireNonNull(kernel, "kernel cannot be null");
@@ -20,6 +21,7 @@ public record RuntimeConfig(
         blas = blas == null ? BlasConfig.disabled() : blas;
         conv2d = conv2d == null ? Conv2dConfig.fromBlasConfig(blas) : conv2d;
         fused = fused == null ? FusedExecutionPolicy.defaultsTraining() : fused;
+        accelerator = accelerator == null ? AcceleratorConfig.defaultsTraining() : accelerator;
     }
 
     public RuntimeConfig(
@@ -27,7 +29,14 @@ public record RuntimeConfig(
             ApproximationConfig approximation,
             BlasConfig blas
     ) {
-        this(kernel, approximation, blas, Conv2dConfig.fromBlasConfig(blas), FusedExecutionPolicy.defaultsTraining());
+        this(
+                kernel,
+                approximation,
+                blas,
+                Conv2dConfig.fromBlasConfig(blas),
+                FusedExecutionPolicy.defaultsTraining(),
+                AcceleratorConfig.defaultsTraining()
+        );
     }
 
     public RuntimeConfig(
@@ -36,7 +45,27 @@ public record RuntimeConfig(
             BlasConfig blas,
             FusedExecutionPolicy fused
     ) {
-        this(kernel, approximation, blas, Conv2dConfig.fromBlasConfig(blas), fused);
+        this(kernel, approximation, blas, Conv2dConfig.fromBlasConfig(blas), fused, AcceleratorConfig.defaultsTraining());
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            FusedExecutionPolicy fused,
+            AcceleratorConfig accelerator
+    ) {
+        this(kernel, approximation, blas, Conv2dConfig.fromBlasConfig(blas), fused, accelerator);
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
+            FusedExecutionPolicy fused
+    ) {
+        this(kernel, approximation, blas, conv2d, fused, AcceleratorConfig.defaultsTraining());
     }
 
     public RuntimeConfig(
@@ -44,7 +73,14 @@ public record RuntimeConfig(
             ApproximationConfig approximation,
             BlasConfig blas
     ) {
-        this(cpuKernelConfig, approximation, blas, Conv2dConfig.fromBlasConfig(blas), FusedExecutionPolicy.defaultsTraining());
+        this(
+                cpuKernelConfig,
+                approximation,
+                blas,
+                Conv2dConfig.fromBlasConfig(blas),
+                FusedExecutionPolicy.defaultsTraining(),
+                AcceleratorConfig.defaultsTraining()
+        );
     }
 
     public RuntimeConfig(
@@ -53,7 +89,31 @@ public record RuntimeConfig(
             BlasConfig blas,
             FusedExecutionPolicy fused
     ) {
-        this(cpuKernelConfig, approximation, blas, Conv2dConfig.fromBlasConfig(blas), fused);
+        this(
+                cpuKernelConfig,
+                approximation,
+                blas,
+                Conv2dConfig.fromBlasConfig(blas),
+                fused,
+                AcceleratorConfig.defaultsTraining()
+        );
+    }
+
+    public RuntimeConfig(
+            CpuKernelConfig cpuKernelConfig,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            FusedExecutionPolicy fused,
+            AcceleratorConfig accelerator
+    ) {
+        this(
+                cpuKernelConfig,
+                approximation,
+                blas,
+                Conv2dConfig.fromBlasConfig(blas),
+                fused,
+                accelerator
+        );
     }
 
     public RuntimeConfig(
@@ -62,6 +122,17 @@ public record RuntimeConfig(
             BlasConfig blas,
             Conv2dConfig conv2d,
             FusedExecutionPolicy fused
+    ) {
+        this(cpuKernelConfig, approximation, blas, conv2d, fused, AcceleratorConfig.defaultsTraining());
+    }
+
+    public RuntimeConfig(
+            CpuKernelConfig cpuKernelConfig,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
+            FusedExecutionPolicy fused,
+            AcceleratorConfig accelerator
     ) {
         this(
                 new KernelTuningConfig(
@@ -72,7 +143,8 @@ public record RuntimeConfig(
                 approximation,
                 blas,
                 conv2d,
-                fused
+                fused,
+                accelerator
         );
     }
 
@@ -82,7 +154,8 @@ public record RuntimeConfig(
                 ApproximationConfig.defaults(),
                 BlasConfig.disabled(),
                 Conv2dConfig.disabled(),
-                FusedExecutionPolicy.defaultsTraining()
+                FusedExecutionPolicy.defaultsTraining(),
+                AcceleratorConfig.defaultsTraining()
         );
     }
 
@@ -92,7 +165,8 @@ public record RuntimeConfig(
                 ApproximationConfig.defaults(),
                 BlasConfig.disabled(),
                 Conv2dConfig.disabled(),
-                FusedExecutionPolicy.defaultsInference()
+                FusedExecutionPolicy.defaultsInference(),
+                AcceleratorConfig.defaultsInference()
         );
     }
 
@@ -126,7 +200,8 @@ public record RuntimeConfig(
                 new FusedExecutionPolicy(
                         FusedPrimaryBackend.ASM,
                         false
-                )
+                ),
+                AcceleratorConfig.defaultsTraining()
 
         );
         return runtime;
@@ -134,5 +209,9 @@ public record RuntimeConfig(
 
     public CpuKernelConfig cpuKernelConfig() {
         return kernel.cpu();
+    }
+
+    public RuntimeConfig withAccelerator(AcceleratorConfig newAccelerator) {
+        return new RuntimeConfig(kernel, approximation, blas, conv2d, fused, newAccelerator);
     }
 }
