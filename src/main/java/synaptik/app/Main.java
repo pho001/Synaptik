@@ -666,6 +666,12 @@ public final class Main {
             List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
                 return List.of(PlatformCalibrationDefaults.numericsStep(name, preset));
             }
+        },
+        ACCELERATOR_METAL_SELECTION("accelerator-metal", PlatformCalibrationFamily.ACCELERATOR_METAL_SELECTION) {
+            @Override
+            List<PlatformCalibrationStep> createSteps(String name, TuningPreset preset, DataType dataType) {
+                return List.of(PlatformCalibrationDefaults.acceleratorMetalSelectionStep(name, preset));
+            }
         };
 
         private final String cliName;

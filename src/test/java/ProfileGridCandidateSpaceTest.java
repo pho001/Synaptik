@@ -1,9 +1,12 @@
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
+import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.candidate.ProfileGridCandidateSpace;
 import tuning.candidate.ProfileMutators;
+import tuning.session.PlatformRuntimeProfileGridCandidateSpace;
+import tuning.session.PlatformRuntimeProfileMutators;
 import tuning.workload.StandardWorkloads;
 
 import java.util.List;
@@ -202,6 +205,45 @@ public class ProfileGridCandidateSpaceTest {
 
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("parallelThresholds=4096/2048/8192")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("parallelThresholds=16384/2048/8192")));
+    }
+
+    @Test
+    void metalSelectionMutatorProducesVariantsAndSurvivesLaterRuntimeMutators() {
+        ExecutionProfile base = new ExecutionProfile(
+                "metal-selection",
+                "metal-selection",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        PlatformRuntimeProfile runtimeProfile = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform",
+                "hardware",
+                "TEST",
+                base
+        );
+        var candidates = new PlatformRuntimeProfileGridCandidateSpace(
+                runtimeProfile,
+                List.of(
+                        PlatformRuntimeProfileMutators.metalSelectionPolicies(
+                                List.of(true, false),
+                                List.of(true),
+                                List.of(0L, 1024L)
+                        ),
+                        PlatformRuntimeProfileMutators.blasThreads(List.of(0))
+                )
+        ).generate(StandardWorkloads.matmul("matmul", 1, 64, 64, 64));
+
+        assertEquals(4, candidates.size());
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("metalSelection=true/true/1024")));
+        assertTrue(candidates.stream().allMatch(c -> c.name().contains("blasThreads=AUTO")));
+        assertTrue(candidates.stream().anyMatch(c -> c.runtimeProfile().accelerator().metal().enabled()));
+        assertTrue(candidates.stream().anyMatch(c -> !c.runtimeProfile().accelerator().metal().enabled()));
+        assertTrue(candidates.stream().allMatch(c -> c.runtimeProfile().accelerator().metal().requireRuntimeAvailability()));
+        assertTrue(candidates.stream().anyMatch(c -> c.runtimeProfile().accelerator().metal().minimumEstimatedWork() == 1024L));
     }
 
     @Test

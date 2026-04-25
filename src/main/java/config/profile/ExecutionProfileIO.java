@@ -19,14 +19,19 @@ import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
+import config.optimizer.PartitionConfig;
 import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.RewriteConfig;
+import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
+import graph.optimizer.partition.AcceleratorTarget;
+import graph.optimizer.partition.PartitionPlannerStrategy;
 import tensor.DataType;
 
 import java.io.IOException;
@@ -121,12 +126,26 @@ public final class ExecutionProfileIO {
                     findBoolean(json, "allowLargerBufferReuse", defaultMemory.allowLargerBufferReuse()),
                     findInt(json, "minReusableBufferSize", defaultMemory.minReusableBufferSize())
             );
+            PartitionConfig defaultPartition = defaultProfile.optimizer().partition();
+            PartitionConfig partition = new PartitionConfig(
+                    findInt(json, "partitionMaxSearchNodes", defaultPartition.maxSearchNodes()),
+                    findInt(json, "partitionMaxVisitedCandidates", defaultPartition.maxVisitedCandidates()),
+                    findDouble(json, "partitionNodeWeight", defaultPartition.nodeWeight()),
+                    findDouble(json, "partitionInternalEdgeWeight", defaultPartition.internalEdgeWeight()),
+                    findDouble(json, "partitionMergeNodeBonus", defaultPartition.mergeNodeBonus()),
+                    findDouble(json, "partitionTailDepthWeight", defaultPartition.tailDepthWeight()),
+                    findDouble(json, "partitionExternalInputPenalty", defaultPartition.externalInputPenalty()),
+                    findDouble(json, "partitionWorkWeight", defaultPartition.workWeight()),
+                    findEnum(json, "partitionPlannerStrategy", defaultPartition.plannerStrategy(), PartitionPlannerStrategy.class),
+                    findEnum(json, "partitionAcceleratorTarget", defaultPartition.target(), AcceleratorTarget.class)
+            );
             OptimizerConfig optimizer = new OptimizerConfig(
                     stageOrder,
                     rewrite,
                     strictSafety ? CseConfig.strictDefaults() : CseConfig.aggressiveDefaults(),
                     fuse,
-                    memory
+                    memory,
+                    partition
             );
 
             KernelTuningConfig defaultKernel = defaultProfile.runtime().kernel();
@@ -279,7 +298,48 @@ public final class ExecutionProfileIO {
                     findEnum(json, "fusedPrimaryBackend", defaultProfile.runtime().fused().primaryBackend(), FusedPrimaryBackend.class),
                     findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback())
             );
-            RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas, conv2d, fused);
+            AcceleratorConfig accelerator = new AcceleratorConfig(
+                    new AcceleratorBackendConfig(
+                            findBoolean(json, "cudaEnabled", defaultProfile.runtime().accelerator().cuda().enabled()),
+                            findBoolean(
+                                    json,
+                                    "cudaRequireRuntimeAvailability",
+                                    defaultProfile.runtime().accelerator().cuda().requireRuntimeAvailability()
+                            ),
+                            findLong(
+                                    json,
+                                    "cudaMinimumEstimatedWork",
+                                    defaultProfile.runtime().accelerator().cuda().minimumEstimatedWork()
+                            )
+                    ),
+                    new AcceleratorBackendConfig(
+                            findBoolean(json, "openclEnabled", defaultProfile.runtime().accelerator().opencl().enabled()),
+                            findBoolean(
+                                    json,
+                                    "openclRequireRuntimeAvailability",
+                                    defaultProfile.runtime().accelerator().opencl().requireRuntimeAvailability()
+                            ),
+                            findLong(
+                                    json,
+                                    "openclMinimumEstimatedWork",
+                                    defaultProfile.runtime().accelerator().opencl().minimumEstimatedWork()
+                            )
+                    ),
+                    new AcceleratorBackendConfig(
+                            findBoolean(json, "metalEnabled", defaultProfile.runtime().accelerator().metal().enabled()),
+                            findBoolean(
+                                    json,
+                                    "metalRequireRuntimeAvailability",
+                                    defaultProfile.runtime().accelerator().metal().requireRuntimeAvailability()
+                            ),
+                            findLong(
+                                    json,
+                                    "metalMinimumEstimatedWork",
+                                    defaultProfile.runtime().accelerator().metal().minimumEstimatedWork()
+                            )
+                    )
+            );
+            RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas, conv2d, fused, accelerator);
 
             WorkloadProfile defaultWorkload = defaultProfile.workload();
             WorkloadKind workloadKind = findEnum(json, "kind", defaultWorkload.kind(), WorkloadKind.class);
@@ -330,6 +390,7 @@ public final class ExecutionProfileIO {
         var conv2d = runtime.conv2d();
         var approximation = runtime.approximation();
         var fused = runtime.fused();
+        var accelerator = runtime.accelerator();
         var workload = profile.workload();
 
         return "{\n" +
@@ -366,6 +427,18 @@ public final class ExecutionProfileIO {
                 "      \"allowCrossPhaseReuse\": " + optimizer.memory().allowCrossPhaseReuse() + ",\n" +
                 "      \"allowLargerBufferReuse\": " + optimizer.memory().allowLargerBufferReuse() + ",\n" +
                 "      \"minReusableBufferSize\": " + optimizer.memory().minReusableBufferSize() + "\n" +
+                "    },\n" +
+                "    \"partition\": {\n" +
+                "      \"partitionMaxSearchNodes\": " + optimizer.partition().maxSearchNodes() + ",\n" +
+                "      \"partitionMaxVisitedCandidates\": " + optimizer.partition().maxVisitedCandidates() + ",\n" +
+                "      \"partitionNodeWeight\": " + optimizer.partition().nodeWeight() + ",\n" +
+                "      \"partitionInternalEdgeWeight\": " + optimizer.partition().internalEdgeWeight() + ",\n" +
+                "      \"partitionMergeNodeBonus\": " + optimizer.partition().mergeNodeBonus() + ",\n" +
+                "      \"partitionTailDepthWeight\": " + optimizer.partition().tailDepthWeight() + ",\n" +
+                "      \"partitionExternalInputPenalty\": " + optimizer.partition().externalInputPenalty() + ",\n" +
+                "      \"partitionWorkWeight\": " + optimizer.partition().workWeight() + ",\n" +
+                "      \"partitionPlannerStrategy\": \"" + optimizer.partition().plannerStrategy().name() + "\",\n" +
+                "      \"partitionAcceleratorTarget\": \"" + optimizer.partition().target().name() + "\"\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"runtime\": {\n" +
@@ -453,6 +526,17 @@ public final class ExecutionProfileIO {
                 "      \"fusedPrimaryBackend\": \"" + fused.primaryBackend().name() + "\",\n" +
                 "      \"fusedAllowBackendFallback\": " + fused.allowBackendFallback() + "\n" +
                 "    },\n" +
+                "    \"accelerator\": {\n" +
+                "      \"cudaEnabled\": " + accelerator.cuda().enabled() + ",\n" +
+                "      \"cudaRequireRuntimeAvailability\": " + accelerator.cuda().requireRuntimeAvailability() + ",\n" +
+                "      \"cudaMinimumEstimatedWork\": " + accelerator.cuda().minimumEstimatedWork() + ",\n" +
+                "      \"openclEnabled\": " + accelerator.opencl().enabled() + ",\n" +
+                "      \"openclRequireRuntimeAvailability\": " + accelerator.opencl().requireRuntimeAvailability() + ",\n" +
+                "      \"openclMinimumEstimatedWork\": " + accelerator.opencl().minimumEstimatedWork() + ",\n" +
+                "      \"metalEnabled\": " + accelerator.metal().enabled() + ",\n" +
+                "      \"metalRequireRuntimeAvailability\": " + accelerator.metal().requireRuntimeAvailability() + ",\n" +
+                "      \"metalMinimumEstimatedWork\": " + accelerator.metal().minimumEstimatedWork() + "\n" +
+                "    },\n" +
                 "    \"workload\": {\n" +
                 "      \"kind\": \"" + workload.kind().name() + "\",\n" +
                 "      \"batch\": " + workload.batch() + ",\n" +
@@ -504,6 +588,11 @@ public final class ExecutionProfileIO {
     private static int findInt(String json, String key, int defaultValue) {
         Matcher matcher = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(-?\\d+)").matcher(json);
         return matcher.find() ? Integer.parseInt(matcher.group(1)) : defaultValue;
+    }
+
+    private static long findLong(String json, String key, long defaultValue) {
+        Matcher matcher = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(-?\\d+)").matcher(json);
+        return matcher.find() ? Long.parseLong(matcher.group(1)) : defaultValue;
     }
 
     private static String findString(String json, String key, String defaultValue) {

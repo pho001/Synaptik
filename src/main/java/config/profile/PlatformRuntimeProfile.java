@@ -23,7 +23,8 @@ public record PlatformRuntimeProfile(
         ReductionPlatformProfile reduction,
         SchedulerPlatformProfile scheduler,
         MaterializationPlatformProfile materialization,
-        NumericsPlatformProfile numerics
+        NumericsPlatformProfile numerics,
+        AcceleratorPlatformProfile accelerator
 ) {
     public PlatformRuntimeProfile {
         Objects.requireNonNull(metadata, "metadata cannot be null");
@@ -35,6 +36,32 @@ public record PlatformRuntimeProfile(
         Objects.requireNonNull(scheduler, "scheduler cannot be null");
         Objects.requireNonNull(materialization, "materialization cannot be null");
         Objects.requireNonNull(numerics, "numerics cannot be null");
+        accelerator = accelerator == null ? AcceleratorPlatformProfile.defaults() : accelerator;
+    }
+
+    public PlatformRuntimeProfile(
+            PlatformProfileMetadata metadata,
+            MatmulPlatformProfile matmul,
+            Conv2dPlatformProfile conv2d,
+            FusedPlatformProfile fused,
+            ElementwiseDispatchPlatformProfile elementwiseDispatch,
+            ReductionPlatformProfile reduction,
+            SchedulerPlatformProfile scheduler,
+            MaterializationPlatformProfile materialization,
+            NumericsPlatformProfile numerics
+    ) {
+        this(
+                metadata,
+                matmul,
+                conv2d,
+                fused,
+                elementwiseDispatch,
+                reduction,
+                scheduler,
+                materialization,
+                numerics,
+                AcceleratorPlatformProfile.defaults()
+        );
     }
 
     public PlatformRuntimeProfile(
@@ -47,7 +74,18 @@ public record PlatformRuntimeProfile(
             MaterializationPlatformProfile materialization,
             NumericsPlatformProfile numerics
     ) {
-        this(metadata, matmul, Conv2dPlatformProfile.fromMatmul(matmul), fused, elementwiseDispatch, reduction, scheduler, materialization, numerics);
+        this(
+                metadata,
+                matmul,
+                Conv2dPlatformProfile.fromMatmul(matmul),
+                fused,
+                elementwiseDispatch,
+                reduction,
+                scheduler,
+                materialization,
+                numerics,
+                AcceleratorPlatformProfile.defaults()
+        );
     }
 
     public static PlatformRuntimeProfile fromExecutionProfile(
@@ -142,7 +180,8 @@ public record PlatformRuntimeProfile(
                 new NumericsPlatformProfile(
                         profile.runtime().approximation().approxMode(),
                         profile.runtime().approximation().forceExactTranscendentals()
-                )
+                ),
+                AcceleratorPlatformProfile.fromRuntimeConfig(profile.runtime().accelerator())
         );
     }
 
@@ -218,7 +257,8 @@ public record PlatformRuntimeProfile(
                 ),
                 metadata.executionMode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD
                         ? FusedExecutionPolicy.defaultsTraining()
-                        : FusedExecutionPolicy.defaultsInference()
+                        : FusedExecutionPolicy.defaultsInference(),
+                accelerator.toRuntimeConfig()
         );
     }
 

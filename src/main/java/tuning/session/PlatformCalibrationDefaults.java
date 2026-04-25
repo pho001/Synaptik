@@ -238,6 +238,29 @@ public final class PlatformCalibrationDefaults {
         );
     }
 
+    public static PlatformCalibrationStep acceleratorMetalSelectionStep(String name, TuningPreset preset) {
+        return new PlatformCalibrationStep(
+                name,
+                PlatformCalibrationFamily.ACCELERATOR_METAL_SELECTION,
+                List.of(
+                        CalibrationWorkloads.appleMetalMatmulAddTanh(name + "_workload_medium", 128, 256, 256),
+                        CalibrationWorkloads.appleMetalMatmulAddTanh(name + "_workload_large", 512, 1024, 1024)
+                ),
+                preset,
+                base -> new PlatformRuntimeProfileGridCandidateSpace(
+                        base,
+                        List.of(
+                                PlatformRuntimeProfileMutators.metalSelectionPolicies(
+                                        List.of(true, false),
+                                        List.of(false, true),
+                                        List.of(0L, 8_000_000L, 64_000_000L, 256_000_000L)
+                                )
+                        )
+                ),
+                PlatformCalibrationScorePolicy.weightedGeometricMeanWithWorstBucketPenalty(0.25d)
+        );
+    }
+
     public static PlatformCalibrationStep conv2dGemmDispatchStep(String name, TuningPreset preset, DataType dataType) {
         PlatformCalibrationFamily family = switch (dataType) {
             case FLOAT64 -> PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64;
@@ -495,6 +518,7 @@ public final class PlatformCalibrationDefaults {
     ) {
         List<PlatformCalibrationStep> steps = new ArrayList<>();
         addMatmulSteps(steps, prefix + "-matmul", preset);
+        addAcceleratorSteps(steps, prefix + "-accelerator", preset, dataType);
         steps.add(conv2dGemmDispatchStep(prefix + "-conv2d", preset, dataType));
         addFusedSteps(steps, prefix + "-fused", preset, dataType);
         steps.add(elementwiseDispatchStep(prefix + "-elementwise", preset));
@@ -527,6 +551,7 @@ public final class PlatformCalibrationDefaults {
     ) {
         List<PlatformCalibrationStep> steps = new ArrayList<>();
         addMatmulSteps(steps, prefix + "-matmul-train", preset);
+        addAcceleratorSteps(steps, prefix + "-accelerator-train", preset, dataType);
         steps.add(conv2dGemmDispatchStep(prefix + "-conv2d-train", preset, dataType));
         addFusedSteps(steps, prefix + "-fused-train", preset, dataType);
         steps.add(elementwiseDispatchStep(prefix + "-elementwise-train", preset));
@@ -607,6 +632,17 @@ public final class PlatformCalibrationDefaults {
         steps.add(matmulJavaStep(prefix + "-java", preset));
         steps.add(matmulBlasDispatchStep(prefix + "-blas", preset));
         steps.add(matmulBlasWideDispatchStep(prefix + "-blas-wide", preset));
+    }
+
+    private static void addAcceleratorSteps(
+            List<PlatformCalibrationStep> steps,
+            String prefix,
+            TuningPreset preset,
+            DataType dataType
+    ) {
+        if (dataType == DataType.FLOAT32) {
+            steps.add(acceleratorMetalSelectionStep(prefix + "-metal-selection", preset));
+        }
     }
 
     public static PlatformCalibrationStep elementwiseDispatchStep(String name, TuningPreset preset) {

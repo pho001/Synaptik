@@ -118,6 +118,17 @@ public final class PlatformRuntimeProfileIO {
                 "  \"numerics\": {\n" +
                 "    \"approxMode\": \"" + profile.numerics().approxMode().name() + "\",\n" +
                 "    \"forceExactTranscendentals\": " + profile.numerics().forceExactTranscendentals() + "\n" +
+                "  },\n" +
+                "  \"accelerator\": {\n" +
+                "    \"cudaEnabled\": " + profile.accelerator().cuda().enabled() + ",\n" +
+                "    \"cudaRequireRuntimeAvailability\": " + profile.accelerator().cuda().requireRuntimeAvailability() + ",\n" +
+                "    \"cudaMinimumEstimatedWork\": " + profile.accelerator().cuda().minimumEstimatedWork() + ",\n" +
+                "    \"openclEnabled\": " + profile.accelerator().opencl().enabled() + ",\n" +
+                "    \"openclRequireRuntimeAvailability\": " + profile.accelerator().opencl().requireRuntimeAvailability() + ",\n" +
+                "    \"openclMinimumEstimatedWork\": " + profile.accelerator().opencl().minimumEstimatedWork() + ",\n" +
+                "    \"metalEnabled\": " + profile.accelerator().metal().enabled() + ",\n" +
+                "    \"metalRequireRuntimeAvailability\": " + profile.accelerator().metal().requireRuntimeAvailability() + ",\n" +
+                "    \"metalMinimumEstimatedWork\": " + profile.accelerator().metal().minimumEstimatedWork() + "\n" +
                 "  }\n" +
                 "}\n";
     }
@@ -271,6 +282,47 @@ public final class PlatformRuntimeProfileIO {
                     new NumericsPlatformProfile(
                             findEnum(json, "approxMode", fallback.numerics().approxMode(), ApproxMode.class),
                             findBoolean(json, "forceExactTranscendentals", fallback.numerics().forceExactTranscendentals())
+                    ),
+                    new AcceleratorPlatformProfile(
+                            new AcceleratorBackendPlatformProfile(
+                                    findBoolean(json, "cudaEnabled", fallback.accelerator().cuda().enabled()),
+                                    findBoolean(
+                                            json,
+                                            "cudaRequireRuntimeAvailability",
+                                            fallback.accelerator().cuda().requireRuntimeAvailability()
+                                    ),
+                                    findLong(
+                                            json,
+                                            "cudaMinimumEstimatedWork",
+                                            fallback.accelerator().cuda().minimumEstimatedWork()
+                                    )
+                            ),
+                            new AcceleratorBackendPlatformProfile(
+                                    findBoolean(json, "openclEnabled", fallback.accelerator().opencl().enabled()),
+                                    findBoolean(
+                                            json,
+                                            "openclRequireRuntimeAvailability",
+                                            fallback.accelerator().opencl().requireRuntimeAvailability()
+                                    ),
+                                    findLong(
+                                            json,
+                                            "openclMinimumEstimatedWork",
+                                            fallback.accelerator().opencl().minimumEstimatedWork()
+                                    )
+                            ),
+                            new AcceleratorBackendPlatformProfile(
+                                    findBoolean(json, "metalEnabled", fallback.accelerator().metal().enabled()),
+                                    findBoolean(
+                                            json,
+                                            "metalRequireRuntimeAvailability",
+                                            fallback.accelerator().metal().requireRuntimeAvailability()
+                                    ),
+                                    findLong(
+                                            json,
+                                            "metalMinimumEstimatedWork",
+                                            fallback.accelerator().metal().minimumEstimatedWork()
+                                    )
+                            )
                     )
             );
         } catch (Exception e) {

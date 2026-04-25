@@ -16,12 +16,15 @@ import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
+import config.optimizer.PartitionConfig;
 import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.RewriteConfig;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileIO;
 import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
+import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorConfig;
 import config.runtime.BlasConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
@@ -54,7 +57,8 @@ public class ExecutionProfileIoTest {
                         ),
                         CseConfig.aggressiveDefaults(),
                         FuseConfig.inferenceDefaults(),
-                        new MemoryConfig(false, false, true, 8)
+                        new MemoryConfig(false, false, true, 8),
+                        new PartitionConfig(9, 77, 11.0, 22.0, 33.0, 44.0, 55.0, 66.0)
                 ),
                 new RuntimeConfig(
                         new KernelTuningConfig(
@@ -73,7 +77,12 @@ public class ExecutionProfileIoTest {
                         ),
                         new ApproximationConfig(ApproxMode.OFF, false),
                         new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 12.0d, false, 0),
-                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true)
+                        new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true),
+                        new AcceleratorConfig(
+                                new AcceleratorBackendConfig(false, true, 111L),
+                                new AcceleratorBackendConfig(true, false, 222L),
+                                new AcceleratorBackendConfig(true, true, 333L)
+                        )
                 ),
                 new WorkloadProfile(config.profile.WorkloadKind.TRANSFORMER_HOT_PATH, 4, 8, 64, 32, 32, 256, true)
         );
@@ -90,6 +99,7 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.optimizer().rewrite(), actual.optimizer().rewrite());
         assertFalse(actual.optimizer().cse().strictSafety());
         assertEquals(expected.optimizer().memory(), actual.optimizer().memory());
+        assertEquals(expected.optimizer().partition(), actual.optimizer().partition());
         assertEquals(expected.runtime().kernel().cpu().cheapVectorMinSize(), actual.runtime().kernel().cpu().cheapVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().transcendentalVectorMinSize(), actual.runtime().kernel().cpu().transcendentalVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().reductionVectorMinSize(), actual.runtime().kernel().cpu().reductionVectorMinSize());
@@ -115,6 +125,7 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().blas().f32WideMaxNOverK(), actual.runtime().blas().f32WideMaxNOverK());
         assertEquals(expected.runtime().approximation().approxMode(), actual.runtime().approximation().approxMode());
         assertEquals(expected.runtime().fused(), actual.runtime().fused());
+        assertEquals(expected.runtime().accelerator(), actual.runtime().accelerator());
         assertEquals(expected.workload(), actual.workload());
     }
 

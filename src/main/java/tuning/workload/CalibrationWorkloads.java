@@ -1,9 +1,11 @@
 package tuning.workload;
 
+import backend.ComputeBackend;
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.runtime.ExecutionMode;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 import tuning.validate.ValidationReference;
 
 public final class CalibrationWorkloads {
@@ -47,6 +49,34 @@ public final class CalibrationWorkloads {
 
     public static MatMulWorkloadSpec matmulBatchedAttentionLike(String name, int batch, int m, int k, int n) {
         return StandardWorkloads.matmul(name, batch, m, k, n);
+    }
+
+    public static TensorRootWorkloadSpec appleMetalMatmulAddTanh(String name, int m, int k, int n) {
+        return new TensorRootWorkloadSpec(
+                name,
+                WorkloadKind.MATMUL,
+                environment -> {
+                    boolean requiresGrad = environment.profile().mode() == ExecutionMode.FORWARD_BACKWARD;
+                    DataType dataType = environment.profile().dataType();
+                    Tensor a = tensor(random(m * k, 701), new int[]{m, k}, "A", dataType);
+                    Tensor b = tensor(random(k * n, 702), new int[]{k, n}, "B", dataType);
+                    Tensor bias = tensor(random(n, 703), new int[]{n}, "BIAS", dataType);
+                    if (requiresGrad) {
+                        a.setRequiresGrad(true);
+                        b.setRequiresGrad(true);
+                        bias.setRequiresGrad(true);
+                    }
+                    Tensor matmul = a.matmul(b);
+                    Tensor add = matmul.add(bias);
+                    Tensor out = add.tanh();
+                    TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+                    TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+                    TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+                    return environment.profile().mode() == ExecutionMode.FORWARD ? out : out.sum();
+                },
+                environment -> ValidationReference.none(),
+                environment -> WorkloadMetadata.of(name, WorkloadKind.MATMUL)
+        );
     }
 
     public static TensorRootWorkloadSpec fusedCheapElementwise(String name, int size) {

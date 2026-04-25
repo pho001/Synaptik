@@ -5,6 +5,7 @@ import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.session.PlatformCalibrationFamily;
+import tuning.session.PlatformCalibrationDefaults;
 import tuning.session.PlatformCalibrationRequest;
 import tuning.session.PlatformCalibrationScorePolicy;
 import tuning.session.PlatformCalibrationSession;
@@ -19,6 +20,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -100,7 +102,12 @@ public class PlatformCalibrationSessionTest {
                         ),
                         config.runtime.ApproximationConfig.defaults(),
                         config.runtime.BlasConfig.disabled(),
-                        config.runtime.FusedExecutionPolicy.defaultsInference()
+                        config.runtime.FusedExecutionPolicy.defaultsInference(),
+                        new config.runtime.AcceleratorConfig(
+                                new config.runtime.AcceleratorBackendConfig(false, false, 123L),
+                                new config.runtime.AcceleratorBackendConfig(true, false, 456L),
+                                new config.runtime.AcceleratorBackendConfig(true, true, 789L)
+                        )
                 ),
                 WorkloadProfile.none()
         );
@@ -129,6 +136,10 @@ public class PlatformCalibrationSessionTest {
         assertEquals(4_096, loaded.materialization().cheapF32MaterializeThreshold());
         assertEquals(2_048, loaded.materialization().cheapBF16MaterializeThreshold());
         assertEquals(8_192, loaded.materialization().whereMaterializeThreshold());
+        assertEquals(123L, loaded.accelerator().cuda().minimumEstimatedWork());
+        assertEquals(456L, loaded.accelerator().opencl().minimumEstimatedWork());
+        assertEquals(789L, loaded.accelerator().metal().minimumEstimatedWork());
+        assertTrue(loaded.accelerator().metal().requireRuntimeAvailability());
         assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedCheapContiguousAsmVectorWidth());
         assertEquals(2, loaded.toRuntimeConfig().kernel().cpu().fusedCheapStridedAsmVectorWidth());
         assertEquals(8, loaded.toRuntimeConfig().kernel().cpu().fusedNonCheapContiguousAsmVectorWidth());
@@ -138,6 +149,36 @@ public class PlatformCalibrationSessionTest {
         assertEquals(4_096, loaded.toRuntimeConfig().kernel().cpu().cheapF32MaterializeThreshold());
         assertEquals(2_048, loaded.toRuntimeConfig().kernel().cpu().cheapBF16MaterializeThreshold());
         assertEquals(8_192, loaded.toRuntimeConfig().kernel().cpu().whereMaterializeThreshold());
+        assertEquals(789L, loaded.toRuntimeConfig().accelerator().metal().minimumEstimatedWork());
+        assertTrue(loaded.toRuntimeConfig().accelerator().metal().requireRuntimeAvailability());
+    }
+
+    @Test
+    void float32DefaultsIncludeAcceleratorMetalSelectionStepButFloat64DefaultsDoNot() {
+        ExecutionProfile float32Seed = new ExecutionProfile(
+                "seed-f32",
+                "seed-f32",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        ExecutionProfile float64Seed = new ExecutionProfile(
+                "seed-f64",
+                "seed-f64",
+                tensor.DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        var float32Request = PlatformCalibrationDefaults.quickInference("platform", float32Seed, Path.of("build", "tmp", "float32-calibration.json"));
+        var float64Request = PlatformCalibrationDefaults.quickInference("platform", float64Seed, Path.of("build", "tmp", "float64-calibration.json"));
+
+        assertTrue(float32Request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ACCELERATOR_METAL_SELECTION));
+        assertFalse(float64Request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ACCELERATOR_METAL_SELECTION));
     }
 
     private static ExecutionProfile defaultSeed() {

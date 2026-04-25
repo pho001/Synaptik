@@ -2,6 +2,8 @@ package tuning.session;
 
 import backend.ApproxMode;
 import backend.blas.BlasProvider;
+import config.profile.AcceleratorBackendPlatformProfile;
+import config.profile.AcceleratorPlatformProfile;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.Conv2dPlatformProfile;
 import config.profile.ElementwiseDispatchPlatformProfile;
@@ -231,16 +233,7 @@ public final class PlatformRuntimeProfileMutators {
                     );
                     out.add(new RuntimeProfileCandidate(
                             "blasProvider=NONE",
-                            new PlatformRuntimeProfile(
-                                    baseProfile.metadata(),
-                                    matmul,
-                                    baseProfile.fused(),
-                                    baseProfile.elementwiseDispatch(),
-                                    baseProfile.reduction(),
-                                    baseProfile.scheduler(),
-                                    baseProfile.materialization(),
-                                    baseProfile.numerics()
-                            ),
+                            withMatmul(baseProfile, matmul),
                             Map.of("runtime.blas.provider", matmul.blasProvider().name())
                     ));
                     continue;
@@ -265,16 +258,7 @@ public final class PlatformRuntimeProfileMutators {
                     );
                     out.add(new RuntimeProfileCandidate(
                             "blasProvider=" + matmul.blasProvider().name() + ":minWork=" + matmul.blasMatmulMinWork(),
-                            new PlatformRuntimeProfile(
-                                    baseProfile.metadata(),
-                                    matmul,
-                                    baseProfile.fused(),
-                                    baseProfile.elementwiseDispatch(),
-                                    baseProfile.reduction(),
-                                    baseProfile.scheduler(),
-                                    baseProfile.materialization(),
-                                    baseProfile.numerics()
-                            ),
+                            withMatmul(baseProfile, matmul),
                             Map.of(
                                     "runtime.blas.provider", matmul.blasProvider().name(),
                                     "runtime.blas.minWork", String.valueOf(matmul.blasMatmulMinWork())
@@ -318,16 +302,7 @@ public final class PlatformRuntimeProfileMutators {
                     );
                     out.add(new RuntimeProfileCandidate(
                             "matmulShape=" + matmul.f32RequireMgeK() + "/" + matmul.f32MaxNOverK(),
-                            new PlatformRuntimeProfile(
-                                    baseProfile.metadata(),
-                                    matmul,
-                                    baseProfile.fused(),
-                                    baseProfile.elementwiseDispatch(),
-                                    baseProfile.reduction(),
-                                    baseProfile.scheduler(),
-                                    baseProfile.materialization(),
-                                    baseProfile.numerics()
-                            ),
+                            withMatmul(baseProfile, matmul),
                             Map.of(
                                     "runtime.blas.f32RequireMgeK", String.valueOf(matmul.f32RequireMgeK()),
                                     "runtime.blas.f32MaxNOverK", String.valueOf(matmul.f32MaxNOverK())
@@ -373,16 +348,7 @@ public final class PlatformRuntimeProfileMutators {
                     );
                     out.add(new RuntimeProfileCandidate(
                             "matmulWideShape=" + matmul.f32WideRequireMgeK() + "/" + matmul.f32WideMaxNOverK(),
-                            new PlatformRuntimeProfile(
-                                    baseProfile.metadata(),
-                                    matmul,
-                                    baseProfile.fused(),
-                                    baseProfile.elementwiseDispatch(),
-                                    baseProfile.reduction(),
-                                    baseProfile.scheduler(),
-                                    baseProfile.materialization(),
-                                    baseProfile.numerics()
-                            ),
+                            withMatmul(baseProfile, matmul),
                             Map.of(
                                     "runtime.blas.f32WideRequireMgeK", String.valueOf(matmul.f32WideRequireMgeK()),
                                     "runtime.blas.f32WideMaxNOverK", String.valueOf(matmul.f32WideMaxNOverK())
@@ -419,16 +385,7 @@ public final class PlatformRuntimeProfileMutators {
             );
             return List.of(new RuntimeProfileCandidate(
                     candidateName,
-                    new PlatformRuntimeProfile(
-                            baseProfile.metadata(),
-                            matmul,
-                            baseProfile.fused(),
-                            baseProfile.elementwiseDispatch(),
-                            baseProfile.reduction(),
-                            baseProfile.scheduler(),
-                            baseProfile.materialization(),
-                            baseProfile.numerics()
-                    ),
+                    withMatmul(baseProfile, matmul),
                     Map.of("runtime.blas.threads", "0")
             ));
         };
@@ -461,16 +418,7 @@ public final class PlatformRuntimeProfileMutators {
                 );
                 out.add(new RuntimeProfileCandidate(
                         "matmulParallel=" + matmul.matMulParallelMinSize(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                matmul,
-                                baseProfile.fused(),
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
+                        withMatmul(baseProfile, matmul),
                         Map.of("cpu.matMulParallelMinSize", String.valueOf(matmul.matMulParallelMinSize()))
                 ));
             }
@@ -512,16 +460,7 @@ public final class PlatformRuntimeProfileMutators {
                 );
                 out.add(new RuntimeProfileCandidate(
                         "matmulTiles=" + matmul.matMulTileM() + "x" + matmul.matMulTileN() + "x" + matmul.matMulTileK(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                matmul,
-                                baseProfile.fused(),
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
+                        withMatmul(baseProfile, matmul),
                         Map.of(
                                 "cpu.matMulTileM", String.valueOf(matmul.matMulTileM()),
                                 "cpu.matMulTileN", String.valueOf(matmul.matMulTileN()),
@@ -565,16 +504,7 @@ public final class PlatformRuntimeProfileMutators {
                             out.add(new RuntimeProfileCandidate(
                                     "fusedDispatch=" + fused.fusedCheapVectorMinSize() + "/" + fused.fusedTranscendentalVectorMinSize()
                                             + "/" + fused.fusedCheapParallelMinSize() + "/" + fused.fusedTranscendentalParallelMinSize(),
-                                    new PlatformRuntimeProfile(
-                                            baseProfile.metadata(),
-                                            baseProfile.matmul(),
-                                            fused,
-                                            baseProfile.elementwiseDispatch(),
-                                            baseProfile.reduction(),
-                                            baseProfile.scheduler(),
-                                            baseProfile.materialization(),
-                                            baseProfile.numerics()
-                                    ),
+                                    withFused(baseProfile, fused),
                                     Map.of(
                                             "cpu.fusedCheapVectorMinSize", String.valueOf(fused.fusedCheapVectorMinSize()),
                                             "cpu.fusedTranscendentalVectorMinSize", String.valueOf(fused.fusedTranscendentalVectorMinSize()),
@@ -618,16 +548,7 @@ public final class PlatformRuntimeProfileMutators {
                 );
                 out.add(new RuntimeProfileCandidate(
                         "matmulMicroKernel=" + matmul.matMulMicroKernel().name(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                matmul,
-                                baseProfile.fused(),
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
+                        withMatmul(baseProfile, matmul),
                         Map.of("cpu.matMulMicroKernel", matmul.matMulMicroKernel().name())
                 ));
             }
@@ -665,16 +586,7 @@ public final class PlatformRuntimeProfileMutators {
                 );
                 out.add(new RuntimeProfileCandidate(
                         "attentionMatmulMicroKernel=" + matmul.attentionMatMulMicroKernel().name(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                matmul,
-                                baseProfile.fused(),
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
+                        withMatmul(baseProfile, matmul),
                         Map.of("cpu.attentionMatMulMicroKernel", matmul.attentionMatMulMicroKernel().name())
                 ));
             }
@@ -718,16 +630,7 @@ public final class PlatformRuntimeProfileMutators {
                         "attentionMatmulTiles=" + matmul.attentionMatMulTileM()
                                 + "x" + matmul.attentionMatMulTileN()
                                 + "x" + matmul.attentionMatMulTileK(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                matmul,
-                                baseProfile.fused(),
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
+                        withMatmul(baseProfile, matmul),
                         Map.of(
                                 "cpu.attentionMatMulTileM", String.valueOf(matmul.attentionMatMulTileM()),
                                 "cpu.attentionMatMulTileN", String.valueOf(matmul.attentionMatMulTileN()),
@@ -759,16 +662,7 @@ public final class PlatformRuntimeProfileMutators {
                 );
                 out.add(new RuntimeProfileCandidate(
                         "fusedAsmVectorWidth=" + fused.fusedAsmVectorWidth(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                baseProfile.matmul(),
-                                fused,
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
+                        withFused(baseProfile, fused),
                         Map.of("cpu.fusedAsmVectorWidth", String.valueOf(fused.fusedAsmVectorWidth()))
                 ));
             }
@@ -791,16 +685,7 @@ public final class PlatformRuntimeProfileMutators {
                 FusedPlatformProfile fused = withFusedAsmVectorWidth(baseProfile.fused(), family, resolvedWidth);
                 out.add(new RuntimeProfileCandidate(
                         "fusedAsmVectorWidth[" + family.id() + "]=" + currentFusedAsmVectorWidth(fused, family),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                baseProfile.matmul(),
-                                fused,
-                                baseProfile.elementwiseDispatch(),
-                                baseProfile.reduction(),
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
+                        withFused(baseProfile, fused),
                         Map.of(fusedAsmVectorWidthKey(family), String.valueOf(currentFusedAsmVectorWidth(fused, family)))
                 ));
             }
@@ -825,16 +710,7 @@ public final class PlatformRuntimeProfileMutators {
                 );
                 out.add(new RuntimeProfileCandidate(
                         "reductionVector=" + reduction.reductionVectorMinSize(),
-                        new PlatformRuntimeProfile(
-                                baseProfile.metadata(),
-                                baseProfile.matmul(),
-                                baseProfile.fused(),
-                                baseProfile.elementwiseDispatch(),
-                                reduction,
-                                baseProfile.scheduler(),
-                                baseProfile.materialization(),
-                                baseProfile.numerics()
-                        ),
+                        withReduction(baseProfile, reduction),
                         Map.of("cpu.reductionVectorMinSize", String.valueOf(reduction.reductionVectorMinSize()))
                 ));
             }
@@ -873,16 +749,7 @@ public final class PlatformRuntimeProfileMutators {
                         );
                         out.add(new RuntimeProfileCandidate(
                                 "parallelThresholds=" + elementwise.cheapParallelMinSize() + "/" + elementwise.transcendentalParallelMinSize() + "/" + reduction.reductionParallelMinSize(),
-                                new PlatformRuntimeProfile(
-                                        baseProfile.metadata(),
-                                        baseProfile.matmul(),
-                                        baseProfile.fused(),
-                                        elementwise,
-                                        reduction,
-                                        baseProfile.scheduler(),
-                                        baseProfile.materialization(),
-                                        baseProfile.numerics()
-                                ),
+                                withElementwiseAndReduction(baseProfile, elementwise, reduction),
                                 Map.of(
                                         "cpu.cheapParallelMinSize", String.valueOf(elementwise.cheapParallelMinSize()),
                                         "cpu.transcendentalParallelMinSize", String.valueOf(elementwise.transcendentalParallelMinSize()),
@@ -927,16 +794,7 @@ public final class PlatformRuntimeProfileMutators {
                                             + elementwise.transcendentalVectorMinSize() + "/"
                                             + elementwise.cheapParallelMinSize() + "/"
                                             + elementwise.transcendentalParallelMinSize(),
-                                    new PlatformRuntimeProfile(
-                                            baseProfile.metadata(),
-                                            baseProfile.matmul(),
-                                            baseProfile.fused(),
-                                            elementwise,
-                                            baseProfile.reduction(),
-                                            baseProfile.scheduler(),
-                                            baseProfile.materialization(),
-                                            baseProfile.numerics()
-                                    ),
+                                    withElementwiseDispatch(baseProfile, elementwise),
                                     Map.of(
                                             "cpu.cheapVectorMinSize", String.valueOf(elementwise.cheapVectorMinSize()),
                                             "cpu.transcendentalVectorMinSize", String.valueOf(elementwise.transcendentalVectorMinSize()),
@@ -974,16 +832,7 @@ public final class PlatformRuntimeProfileMutators {
                     );
                     out.add(new RuntimeProfileCandidate(
                             "reductionThresholds=" + reduction.reductionVectorMinSize() + "/" + reduction.reductionParallelMinSize(),
-                            new PlatformRuntimeProfile(
-                                    baseProfile.metadata(),
-                                    baseProfile.matmul(),
-                                    baseProfile.fused(),
-                                    baseProfile.elementwiseDispatch(),
-                                    reduction,
-                                    baseProfile.scheduler(),
-                                    baseProfile.materialization(),
-                                    baseProfile.numerics()
-                            ),
+                            withReduction(baseProfile, reduction),
                             Map.of(
                                     "cpu.reductionVectorMinSize", String.valueOf(reduction.reductionVectorMinSize()),
                                     "cpu.reductionParallelMinSize", String.valueOf(reduction.reductionParallelMinSize())
@@ -1017,16 +866,7 @@ public final class PlatformRuntimeProfileMutators {
                     );
                     out.add(new RuntimeProfileCandidate(
                             "attentionThresholds=" + reduction.attentionVectorMinSize() + "/" + reduction.attentionParallelMinSize(),
-                            new PlatformRuntimeProfile(
-                                    baseProfile.metadata(),
-                                    baseProfile.matmul(),
-                                    baseProfile.fused(),
-                                    baseProfile.elementwiseDispatch(),
-                                    reduction,
-                                    baseProfile.scheduler(),
-                                    baseProfile.materialization(),
-                                    baseProfile.numerics()
-                            ),
+                            withReduction(baseProfile, reduction),
                             Map.of(
                                     "cpu.attentionVectorMinSize", String.valueOf(reduction.attentionVectorMinSize()),
                                     "cpu.attentionParallelMinSize", String.valueOf(reduction.attentionParallelMinSize())
@@ -1078,16 +918,7 @@ public final class PlatformRuntimeProfileMutators {
                                         out.add(new RuntimeProfileCandidate(
                                                 "scheduler=" + scheduler.lowCostTargetChunksPerWorker() + "/" + scheduler.mediumCostTargetChunksPerWorker()
                                                         + "/" + scheduler.highCostTargetChunksPerWorker(),
-                                                new PlatformRuntimeProfile(
-                                                        baseProfile.metadata(),
-                                                        baseProfile.matmul(),
-                                                        baseProfile.fused(),
-                                                        baseProfile.elementwiseDispatch(),
-                                                        baseProfile.reduction(),
-                                                        scheduler,
-                                                        baseProfile.materialization(),
-                                                        baseProfile.numerics()
-                                                ),
+                                                withScheduler(baseProfile, scheduler),
                                                 Map.of(
                                                         "cpu.lowCostTargetChunksPerWorker", String.valueOf(scheduler.lowCostTargetChunksPerWorker()),
                                                         "cpu.mediumCostTargetChunksPerWorker", String.valueOf(scheduler.mediumCostTargetChunksPerWorker()),
@@ -1124,21 +955,60 @@ public final class PlatformRuntimeProfileMutators {
                     );
                     out.add(new RuntimeProfileCandidate(
                             "numerics=" + numerics.approxMode() + "/" + numerics.forceExactTranscendentals(),
-                            new PlatformRuntimeProfile(
-                                    baseProfile.metadata(),
-                                    baseProfile.matmul(),
-                                    baseProfile.fused(),
-                                    baseProfile.elementwiseDispatch(),
-                                    baseProfile.reduction(),
-                                    baseProfile.scheduler(),
-                                    baseProfile.materialization(),
-                                    numerics
-                            ),
+                            withNumerics(baseProfile, numerics),
                             Map.of(
                                     "runtime.approximation.approxMode", numerics.approxMode().name(),
                                     "runtime.approximation.forceExactTranscendentals", String.valueOf(numerics.forceExactTranscendentals())
                             )
                     ));
+                }
+            }
+            return out;
+        };
+    }
+
+    public static PlatformRuntimeProfileMutator metalSelectionPolicies(
+            List<Boolean> enabledOptions,
+            List<Boolean> requireRuntimeAvailabilityOptions,
+            List<Long> minimumEstimatedWorkOptions
+    ) {
+        List<Boolean> safeEnabled = enabledOptions == null ? List.of() : List.copyOf(enabledOptions);
+        List<Boolean> safeRequire = requireRuntimeAvailabilityOptions == null ? List.of() : List.copyOf(requireRuntimeAvailabilityOptions);
+        List<Long> safeMinimumWork = minimumEstimatedWorkOptions == null ? List.of() : List.copyOf(minimumEstimatedWorkOptions);
+        return (baseProfile, workload) -> {
+            if (!usesMatmulFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("metalSelection=current", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (Boolean enabled : safeEnabled) {
+                for (Boolean requireRuntimeAvailability : safeRequire) {
+                    for (Long minimumEstimatedWork : safeMinimumWork) {
+                        AcceleratorBackendPlatformProfile metal = new AcceleratorBackendPlatformProfile(
+                                enabled == null ? baseProfile.accelerator().metal().enabled() : enabled,
+                                requireRuntimeAvailability == null
+                                        ? baseProfile.accelerator().metal().requireRuntimeAvailability()
+                                        : requireRuntimeAvailability,
+                                minimumEstimatedWork == null
+                                        ? baseProfile.accelerator().metal().minimumEstimatedWork()
+                                        : minimumEstimatedWork
+                        );
+                        AcceleratorPlatformProfile accelerator = new AcceleratorPlatformProfile(
+                                baseProfile.accelerator().cuda(),
+                                baseProfile.accelerator().opencl(),
+                                metal
+                        );
+                        out.add(new RuntimeProfileCandidate(
+                                "metalSelection=" + metal.enabled()
+                                        + "/" + metal.requireRuntimeAvailability()
+                                        + "/" + metal.minimumEstimatedWork(),
+                                withAccelerator(baseProfile, accelerator),
+                                Map.of(
+                                        "runtime.accelerator.metal.enabled", String.valueOf(metal.enabled()),
+                                        "runtime.accelerator.metal.requireRuntimeAvailability", String.valueOf(metal.requireRuntimeAvailability()),
+                                        "runtime.accelerator.metal.minimumEstimatedWork", String.valueOf(metal.minimumEstimatedWork())
+                                )
+                        ));
+                    }
                 }
             }
             return out;
@@ -1324,7 +1194,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.reduction(),
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
-                baseProfile.numerics()
+                baseProfile.numerics(),
+                baseProfile.accelerator()
         );
     }
 
@@ -1338,7 +1209,138 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.reduction(),
                 baseProfile.scheduler(),
                 materialization,
-                baseProfile.numerics()
+                baseProfile.numerics(),
+                baseProfile.accelerator()
+        );
+    }
+
+    private static PlatformRuntimeProfile withMatmul(PlatformRuntimeProfile baseProfile, MatmulPlatformProfile matmul) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                matmul,
+                baseProfile.conv2d(),
+                baseProfile.fused(),
+                baseProfile.elementwiseDispatch(),
+                baseProfile.reduction(),
+                baseProfile.scheduler(),
+                baseProfile.materialization(),
+                baseProfile.numerics(),
+                baseProfile.accelerator()
+        );
+    }
+
+    private static PlatformRuntimeProfile withFused(PlatformRuntimeProfile baseProfile, FusedPlatformProfile fused) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                baseProfile.conv2d(),
+                fused,
+                baseProfile.elementwiseDispatch(),
+                baseProfile.reduction(),
+                baseProfile.scheduler(),
+                baseProfile.materialization(),
+                baseProfile.numerics(),
+                baseProfile.accelerator()
+        );
+    }
+
+    private static PlatformRuntimeProfile withElementwiseDispatch(
+            PlatformRuntimeProfile baseProfile,
+            ElementwiseDispatchPlatformProfile elementwiseDispatch
+    ) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                baseProfile.conv2d(),
+                baseProfile.fused(),
+                elementwiseDispatch,
+                baseProfile.reduction(),
+                baseProfile.scheduler(),
+                baseProfile.materialization(),
+                baseProfile.numerics(),
+                baseProfile.accelerator()
+        );
+    }
+
+    private static PlatformRuntimeProfile withReduction(PlatformRuntimeProfile baseProfile, ReductionPlatformProfile reduction) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                baseProfile.conv2d(),
+                baseProfile.fused(),
+                baseProfile.elementwiseDispatch(),
+                reduction,
+                baseProfile.scheduler(),
+                baseProfile.materialization(),
+                baseProfile.numerics(),
+                baseProfile.accelerator()
+        );
+    }
+
+    private static PlatformRuntimeProfile withElementwiseAndReduction(
+            PlatformRuntimeProfile baseProfile,
+            ElementwiseDispatchPlatformProfile elementwiseDispatch,
+            ReductionPlatformProfile reduction
+    ) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                baseProfile.conv2d(),
+                baseProfile.fused(),
+                elementwiseDispatch,
+                reduction,
+                baseProfile.scheduler(),
+                baseProfile.materialization(),
+                baseProfile.numerics(),
+                baseProfile.accelerator()
+        );
+    }
+
+    private static PlatformRuntimeProfile withScheduler(PlatformRuntimeProfile baseProfile, SchedulerPlatformProfile scheduler) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                baseProfile.conv2d(),
+                baseProfile.fused(),
+                baseProfile.elementwiseDispatch(),
+                baseProfile.reduction(),
+                scheduler,
+                baseProfile.materialization(),
+                baseProfile.numerics(),
+                baseProfile.accelerator()
+        );
+    }
+
+    private static PlatformRuntimeProfile withNumerics(PlatformRuntimeProfile baseProfile, NumericsPlatformProfile numerics) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                baseProfile.conv2d(),
+                baseProfile.fused(),
+                baseProfile.elementwiseDispatch(),
+                baseProfile.reduction(),
+                baseProfile.scheduler(),
+                baseProfile.materialization(),
+                numerics,
+                baseProfile.accelerator()
+        );
+    }
+
+    private static PlatformRuntimeProfile withAccelerator(
+            PlatformRuntimeProfile baseProfile,
+            AcceleratorPlatformProfile accelerator
+    ) {
+        return new PlatformRuntimeProfile(
+                baseProfile.metadata(),
+                baseProfile.matmul(),
+                baseProfile.conv2d(),
+                baseProfile.fused(),
+                baseProfile.elementwiseDispatch(),
+                baseProfile.reduction(),
+                baseProfile.scheduler(),
+                baseProfile.materialization(),
+                baseProfile.numerics(),
+                accelerator
         );
     }
 }
