@@ -1,5 +1,6 @@
 package graph.optimizer.rules;
 
+import backend.ComputeBackend;
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.OptimizerGraphSupport;
 import config.optimizer.FuseConfig;
@@ -58,6 +59,7 @@ public class FuseElementWiseRule implements OptimizationRule {
             boolean isElementWise = isFusedComputeCandidate(t.getOperation());
             boolean isCheap = t.getOperation() != null && t.getOperation().isCheap();
             boolean isFused = t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED;
+            boolean acceleratorClaimed = t.resolveBackend() != ComputeBackend.CPU;
             int consumersAll = allConsumerCounts.getOrDefault(t, 0);
             boolean hasNonElementWiseConsumer = false;
             for (Tensor c : samePhaseConsumersMap.getOrDefault(t, Collections.emptyList())) {
@@ -84,6 +86,7 @@ public class FuseElementWiseRule implements OptimizationRule {
             // f) Je to už fused uzel (ten dál nefúzujeme; je to hranice clusteru)
             boolean sharedExpensive = consumersAll > 1 && !isCheap;
             if (isFused
+                    || acceleratorClaimed
                     || t.getOperation() == null
                     || !isElementWise
                     || consumersAll == 0
@@ -99,6 +102,7 @@ public class FuseElementWiseRule implements OptimizationRule {
         Set<Tensor> retainedNodes = new HashSet<>(materializationPoints);
         for (Tensor t : sortedGraph) {
             if (materializationPoints.contains(t)
+                    && t.resolveBackend() == ComputeBackend.CPU
                     && t.getOperation() != null
                     && isFusedComputeCandidate(t.getOperation())
                     && t.getOperation().opType() != Operation.OpType.FUSED) {
@@ -166,6 +170,7 @@ public class FuseElementWiseRule implements OptimizationRule {
                                 && prev.getOperation() != null
                                 && isFusedComputeCandidate(prev.getOperation())
                                 && prev.getOperation().opType() != Operation.OpType.FUSED
+                                && prev.resolveBackend() == ComputeBackend.CPU
                                 && prev.isBackward() == curr.isBackward()) {
                             queue.add(prev);
                         }

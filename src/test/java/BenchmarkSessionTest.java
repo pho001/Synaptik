@@ -208,9 +208,9 @@ public class BenchmarkSessionTest {
                                 tuning.validate.ValidationResult.skipped(),
                                 new tuning.measure.MeasurementResult(
                                         tuning.measure.MeasurementPolicy.defaults(),
-                                        new graph.execution.trace.ExecutionTrace(
-                                                new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false),
-                                                new graph.execution.trace.PrepareTrace(true, 1L, 0, 0),
+                                                new graph.execution.trace.ExecutionTrace(
+                                                new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.AcceleratorPartitionCompileTrace.empty()),
+                                                new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.AcceleratorSelectionTrace.empty()),
                                                 graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)
                                         ),
                                         new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)

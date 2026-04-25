@@ -1,5 +1,9 @@
+import backend.ComputeBackend;
+import backend.accelerator.exec.PartitionExecutionRole;
+import backend.apple.exec.PreparedAppleGpuExecutable;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
+import config.optimizer.PartitionConfig;
 import config.runtime.RuntimeConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
@@ -11,7 +15,9 @@ import config.backend.KernelTuningConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -424,6 +430,1632 @@ public class PreparedExecutionBuildTest {
 
         assertTrue(matmulStep.metadata().cpuPlan().publishFloatContinuation());
         assertTrue(whereStep.metadata().cpuPlan().publishFloatContinuation());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulAddReluChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        assertEquals(1, execution.prepareTrace().acceleratorSelection().selectedCount());
+        var anchor = gpuSteps.getFirst();
+        assertEquals(ComputeBackend.GPU_METAL, anchor.metadata().backend());
+        assertEquals(PartitionExecutionRole.ANCHOR, anchor.metadata().partitionRole());
+        assertNotNull(anchor.metadata().acceleratorExecutable());
+        assertTrue(anchor.metadata().acceleratorExecutable() instanceof PreparedAppleGpuExecutable);
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) anchor.metadata().acceleratorExecutable();
+        assertNotNull(executable.bridgeContext());
+        assertNotNull(executable.bridgeExecutable());
+    }
+
+    @Test
+    void gpuMetalMockPartitionExecutionMatchesCpuForMatmulAddReluChain() {
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).relu();
+
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-6);
+    }
+
+    @Test
+    void gpuMetalSingleMatmulCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeContext().available());
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMatmulWithTransposedRhsCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{2, 3}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB.transpose());
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{2, 3}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b.transpose());
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeContext().available());
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalBackwardMatmulCanPrepareAndMatchCpuGradients() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        cpuA.setRequiresGrad(true);
+        cpuB.setRequiresGrad(true);
+        Tensor cpuMatmul = cpuA.matmul(cpuB);
+        Tensor cpuLoss = cpuMatmul.sum();
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        double[] expectedGradA = cpuA.getGradient().toDoubleArrayCopy().clone();
+        double[] expectedGradB = cpuB.getGradient().toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        a.setRequiresGrad(true);
+        b.setRequiresGrad(true);
+        Tensor matmul = a.matmul(b);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        Tensor loss = matmul.sum();
+
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.trainingDefaults());
+
+        long gpuBackwardMatmuls = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .count();
+        assertTrue(gpuBackwardMatmuls >= 1);
+
+        execution.execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(expectedGradA, a.getGradient().toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(expectedGradB, b.getGradient().toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalLinearBiasTanhCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuInput = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{2, 3}, null, "cpuInput", DataType.FLOAT32);
+        Tensor cpuWeight = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{3, 2}, null, "cpuWeight", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{0.1f, 0.2f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor input = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{3, 2}, null, "weight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.1f, 0.2f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.tanh();
+
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeContext().available());
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalPreparedExecutableReusesCompiledHandleForSameSubgraphSignature() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor a1 = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a1", DataType.FLOAT32);
+        Tensor b1 = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b1", DataType.FLOAT32);
+        Tensor bias1 = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias1", DataType.FLOAT32);
+        Tensor matmul1 = a1.matmul(b1);
+        Tensor add1 = matmul1.add(bias1);
+        Tensor out1 = add1.relu();
+        TensorInternalAccess.setBackend(matmul1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out1, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution1 = CompiledGraph.compile(out1, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+        PreparedAppleGpuExecutable executable1 = (PreparedAppleGpuExecutable) execution1.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow()
+                .metadata()
+                .acceleratorExecutable();
+
+        Tensor a2 = new Tensor(new float[]{2f, 3f, 4f, 5f, 6f, 7f}, new int[]{2, 3}, null, "a2", DataType.FLOAT32);
+        Tensor b2 = new Tensor(new float[]{2f, 3f, 4f, 5f, 6f, 7f}, new int[]{3, 2}, null, "b2", DataType.FLOAT32);
+        Tensor bias2 = new Tensor(new float[]{2f, -2f}, new int[]{2}, null, "bias2", DataType.FLOAT32);
+        Tensor matmul2 = a2.matmul(b2);
+        Tensor add2 = matmul2.add(bias2);
+        Tensor out2 = add2.relu();
+        TensorInternalAccess.setBackend(matmul2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out2, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution2 = CompiledGraph.compile(out2, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+        PreparedAppleGpuExecutable executable2 = (PreparedAppleGpuExecutable) execution2.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow()
+                .metadata()
+                .acceleratorExecutable();
+
+        assumeTrue(executable1.bridgeExecutable().available());
+        assumeTrue(executable2.bridgeExecutable().available());
+        assertEquals(executable1.bridgeExecutable().handle(), executable2.bridgeExecutable().handle());
+    }
+
+    @Test
+    void gpuMetalMatmulAddReluCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).relu();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeContext().available());
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulAddTanhChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertNotNull(executable.bridgeExecutable());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulNegChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor out = matmul.neg();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        assertEquals(PartitionExecutionRole.ANCHOR, gpuSteps.getFirst().metadata().partitionRole());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulReluSqrtInvChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor sqrt = relu.sqrt();
+        Tensor out = sqrt.inv();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(sqrt, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertNotNull(executable.bridgeExecutable());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulMulDivTanhChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor scale = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "scale", DataType.FLOAT32);
+        Tensor denom = new Tensor(new float[]{2.0f, 4.0f}, new int[]{2}, null, "denom", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor mul = matmul.mul(scale);
+        Tensor div = mul.div(denom);
+        Tensor out = div.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(mul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(div, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(2, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulSubTanhChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor shift = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "shift", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor sub = matmul.sub(shift);
+        Tensor out = sub.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(sub, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(1, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulClampChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor clampMin = matmul.clampMin(0.25);
+        Tensor clampMax = clampMin.clampMax(5.0);
+        Tensor out = clampMax.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(clampMin, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(clampMax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(2, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.hasScalarValue()).count());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMatmulBiasAddThenGenericAddChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor residual = new Tensor(new float[]{0.25f, 0.75f}, new int[]{2}, null, "residual", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor biased = matmul.add(bias);
+        Tensor added = biased.add(residual);
+        Tensor out = added.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(biased, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(added, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(1, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForBranchMergeDag() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor abs = matmul.abs();
+        Tensor add = relu.add(abs);
+        Tensor out = add.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(5, executable.plan().lowering().dagSpec().nodes().size());
+        assertEquals(5, executable.plan().subgraph().orderedNodeIds().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMultiMergeDag() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor abs = matmul.abs();
+        Tensor neg = matmul.neg();
+        Tensor add1 = relu.add(abs);
+        Tensor add2 = add1.add(neg);
+        Tensor out = add2.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(neg, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(7, executable.plan().lowering().dagSpec().nodes().size());
+        assertTrue(execution.prepareTrace().acceleratorSelection().selectedCount() >= 1);
+    }
+
+    @Test
+    void gpuMetalPartitionSearchBudgetCanLimitAcceptedDagSize() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor abs = matmul.abs();
+        Tensor add = relu.add(abs);
+        Tensor out = add.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        OptimizerConfig optimizer = OptimizerConfig.noOptimization().withPartition(
+                new PartitionConfig(1, 4, 1000.0, 120.0, 450.0, 80.0, 60.0, 1.0)
+        );
+        PreparedExecution execution = CompiledGraph.compile(out, optimizer)
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(1, executable.plan().lowering().dagSpec().nodes().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForReshapeDag() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor reshape = matmul.reshape(1, 4);
+        Tensor out = reshape.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForReshapeContiguousDag() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor reshape = matmul.reshape(1, 4);
+        Tensor contiguous = reshape.contiguous();
+        Tensor out = contiguous.neg();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(contiguous, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(4, executable.plan().lowering().dagSpec().nodes().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForPermuteDag() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor permute = matmul.permute(1, 0);
+        Tensor out = permute.neg();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForExpandSqueezeDag() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor reshape = matmul.reshape(1, 4);
+        Tensor expand = reshape.expandDims(0);
+        Tensor squeeze = expand.squeeze(0);
+        Tensor out = squeeze.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(expand, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(squeeze, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(5, executable.plan().lowering().dagSpec().nodes().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForAttentionLikeRank4Slice() {
+        Tensor q = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "k", DataType.FLOAT32);
+        Tensor kPermuted = k.permute(0, 1, 3, 2);
+        Tensor scores = q.matmul(kPermuted);
+        Tensor out = scores.mul(0.5);
+
+        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
+        assertEquals(2, executable.plan().lowering().dagSpec().externalInputs().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMaskedAttentionPreSoftmaxSlice() {
+        Tensor q = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "k", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "mask", DataType.BOOL);
+        Tensor fill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor kPermuted = k.permute(0, 1, 3, 2);
+        Tensor matmul = q.matmul(kPermuted);
+        Tensor scores = matmul.mul(0.5);
+        Tensor out = Tensor.where(mask, scores, fill);
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(4, executable.plan().lowering().dagSpec().nodes().size());
+        assertEquals(4, executable.plan().lowering().dagSpec().externalInputs().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMaskedAttentionSoftmaxSlice() {
+        Tensor q = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "k", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "mask", DataType.BOOL);
+        Tensor fill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor kPermuted = k.permute(0, 1, 3, 2);
+        Tensor matmul = q.matmul(kPermuted);
+        Tensor scores = matmul.mul(0.5);
+        Tensor masked = Tensor.where(mask, scores, fill);
+        Tensor out = masked.softmax(3);
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(masked, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(5, executable.plan().lowering().dagSpec().nodes().size());
+    }
+
+    @Test
+    void gpuMetalPartitionPrepareBuildsSingleAnchorStepForMaskedAttentionFullForwardSlice() {
+        Tensor q = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "k", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{
+                0.15f, 0.25f, 0.35f, 0.45f, 0.55f, 0.65f,
+                0.75f, 0.85f, 0.95f, 1.05f, 1.15f, 1.25f
+        }, new int[]{1, 2, 3, 2}, null, "v", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "mask", DataType.BOOL);
+        Tensor fill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor kPermuted = k.permute(0, 1, 3, 2);
+        Tensor matmul = q.matmul(kPermuted);
+        Tensor scores = matmul.mul(0.5);
+        Tensor masked = Tensor.where(mask, scores, fill);
+        Tensor weights = masked.softmax(3);
+        Tensor out = weights.matmul(v);
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(masked, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(weights, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(1, executable.plan().lowering().dagSpec().nodes().size());
+        assertEquals(graph.optimizer.partition.model.AcceleratorDagNodeType.SDPA, executable.plan().lowering().dagSpec().nodes().getFirst().type());
+    }
+
+    @Test
+    void acceleratorSelectionCanDisableMetalOffloadAtPrepareTime() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        RuntimeConfig runtime = RuntimeConfig.inferenceDefaults().withAccelerator(
+                RuntimeConfig.inferenceDefaults().accelerator().withMetal(
+                        RuntimeConfig.inferenceDefaults().accelerator().metal().withEnabled(false)
+                )
+        );
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(runtime);
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(0, gpuSteps.size());
+        assertEquals(0, execution.prepareTrace().acceleratorSelection().selectedCount());
+        assertEquals(1, execution.prepareTrace().acceleratorSelection().rejectedCount());
+        assertEquals("backend-disabled", execution.prepareTrace().acceleratorSelection().decisions().getFirst().reason());
+    }
+
+    @Test
+    void acceleratorSelectionCanRejectMetalCandidateByEstimatedWorkGate() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        RuntimeConfig runtime = RuntimeConfig.inferenceDefaults().withAccelerator(
+                RuntimeConfig.inferenceDefaults().accelerator().withMetal(
+                        RuntimeConfig.inferenceDefaults().accelerator().metal().withMinimumEstimatedWork(Long.MAX_VALUE)
+                )
+        );
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(runtime);
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(0, gpuSteps.size());
+        assertEquals(0, execution.prepareTrace().acceleratorSelection().selectedCount());
+        assertEquals(1, execution.prepareTrace().acceleratorSelection().rejectedCount());
+        assertEquals("estimated-work-below-minimum", execution.prepareTrace().acceleratorSelection().decisions().getFirst().reason());
+    }
+
+    @Test
+    void partStagePropagatesGpuIntentFromOutputBackToMatmulChain() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor out = a.matmul(b).add(bias).tanh();
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+    }
+
+    @Test
+    void gpuMetalMatmulAddTanhCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeContext().available());
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMatmulNegAbsSqrtInvCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).neg().abs().sqrt().inv();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor neg = matmul.neg();
+        Tensor abs = neg.abs();
+        Tensor sqrt = abs.sqrt();
+        Tensor out = sqrt.inv();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(neg, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(sqrt, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMatmulMulDivTanhCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuScale = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "cpuScale", DataType.FLOAT32);
+        Tensor cpuDenom = new Tensor(new float[]{2.0f, 4.0f}, new int[]{2}, null, "cpuDenom", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).mul(cpuScale).div(cpuDenom).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor scale = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "scale", DataType.FLOAT32);
+        Tensor denom = new Tensor(new float[]{2.0f, 4.0f}, new int[]{2}, null, "denom", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor mul = matmul.mul(scale);
+        Tensor div = mul.div(denom);
+        Tensor out = div.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(mul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(div, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMatmulSubTanhCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuShift = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "cpuShift", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).sub(cpuShift).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor shift = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "shift", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor sub = matmul.sub(shift);
+        Tensor out = sub.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(sub, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMatmulClampTanhCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).clampMin(0.25).clampMax(5.0).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor clampMin = matmul.clampMin(0.25);
+        Tensor clampMax = clampMin.clampMax(5.0);
+        Tensor out = clampMax.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(clampMin, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(clampMax, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMatmulBiasAddThenGenericAddCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
+        Tensor cpuResidual = new Tensor(new float[]{0.25f, 0.75f}, new int[]{2}, null, "cpuResidual", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).add(cpuResidual).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, 1.5f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor residual = new Tensor(new float[]{0.25f, 0.75f}, new int[]{2}, null, "residual", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor biased = matmul.add(bias);
+        Tensor added = biased.add(residual);
+        Tensor out = added.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(biased, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(added, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalBranchMergeDagCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuMatmul = cpuA.matmul(cpuB);
+        Tensor cpuOut = cpuMatmul.relu().add(cpuMatmul.abs()).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor abs = matmul.abs();
+        Tensor add = relu.add(abs);
+        Tensor out = add.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMultiMergeDagCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuMatmul = cpuA.matmul(cpuB);
+        Tensor cpuOut = cpuMatmul.relu().add(cpuMatmul.abs()).add(cpuMatmul.neg()).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor abs = matmul.abs();
+        Tensor neg = matmul.neg();
+        Tensor add1 = relu.add(abs);
+        Tensor add2 = add1.add(neg);
+        Tensor out = add2.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(neg, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add1, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add2, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalReshapeDagCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).reshape(1, 4).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor reshape = matmul.reshape(1, 4);
+        Tensor out = reshape.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalPermuteDagCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).permute(1, 0).neg();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor permute = matmul.permute(1, 0);
+        Tensor out = permute.neg();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalExpandSqueezeDagCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).reshape(1, 4).expandDims(0).squeeze(0).tanh();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor reshape = matmul.reshape(1, 4);
+        Tensor expand = reshape.expandDims(0);
+        Tensor squeeze = expand.squeeze(0);
+        Tensor out = squeeze.tanh();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(expand, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(squeeze, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalAttentionLikeRank4SliceCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuQ = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "cpuQ", DataType.FLOAT32);
+        Tensor cpuK = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "cpuK", DataType.FLOAT32);
+        Tensor cpuOut = cpuQ.matmul(cpuK.permute(0, 1, 3, 2)).mul(0.5);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor q = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "k", DataType.FLOAT32);
+        Tensor kPermuted = k.permute(0, 1, 3, 2);
+        Tensor scores = q.matmul(kPermuted);
+        Tensor out = scores.mul(0.5);
+
+        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMaskedAttentionPreSoftmaxSliceCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuQ = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "cpuQ", DataType.FLOAT32);
+        Tensor cpuK = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "cpuK", DataType.FLOAT32);
+        Tensor cpuMask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "cpuMask", DataType.BOOL);
+        Tensor cpuFill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor cpuOut = Tensor.where(cpuMask, cpuQ.matmul(cpuK.permute(0, 1, 3, 2)).mul(0.5), cpuFill);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor q = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "k", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "mask", DataType.BOOL);
+        Tensor fill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor kPermuted = k.permute(0, 1, 3, 2);
+        Tensor matmul = q.matmul(kPermuted);
+        Tensor scores = matmul.mul(0.5);
+        Tensor out = Tensor.where(mask, scores, fill);
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMaskedAttentionSoftmaxSliceCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuQ = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "cpuQ", DataType.FLOAT32);
+        Tensor cpuK = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "cpuK", DataType.FLOAT32);
+        Tensor cpuMask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "cpuMask", DataType.BOOL);
+        Tensor cpuFill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor cpuOut = Tensor.where(cpuMask, cpuQ.matmul(cpuK.permute(0, 1, 3, 2)).mul(0.5), cpuFill).softmax(3);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor q = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "k", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "mask", DataType.BOOL);
+        Tensor fill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor kPermuted = k.permute(0, 1, 3, 2);
+        Tensor matmul = q.matmul(kPermuted);
+        Tensor scores = matmul.mul(0.5);
+        Tensor masked = Tensor.where(mask, scores, fill);
+        Tensor out = masked.softmax(3);
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(masked, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMaskedAttentionFullForwardSliceCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuQ = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "cpuQ", DataType.FLOAT32);
+        Tensor cpuK = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "cpuK", DataType.FLOAT32);
+        Tensor cpuV = new Tensor(new float[]{
+                0.15f, 0.25f, 0.35f, 0.45f, 0.55f, 0.65f,
+                0.75f, 0.85f, 0.95f, 1.05f, 1.15f, 1.25f
+        }, new int[]{1, 2, 3, 2}, null, "cpuV", DataType.FLOAT32);
+        Tensor cpuMask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "cpuMask", DataType.BOOL);
+        Tensor cpuFill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor cpuWeights = Tensor.where(cpuMask, cpuQ.matmul(cpuK.permute(0, 1, 3, 2)).mul(0.5), cpuFill).softmax(3);
+        Tensor cpuOut = cpuWeights.matmul(cpuV);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor q = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f
+        }, new int[]{1, 2, 3, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.2f, 0.1f, 0.4f, 0.3f, 0.6f, 0.5f,
+                0.8f, 0.7f, 1.0f, 0.9f, 1.2f, 1.1f
+        }, new int[]{1, 2, 3, 2}, null, "k", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{
+                0.15f, 0.25f, 0.35f, 0.45f, 0.55f, 0.65f,
+                0.75f, 0.85f, 0.95f, 1.05f, 1.15f, 1.25f
+        }, new int[]{1, 2, 3, 2}, null, "v", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{
+                1, 1, 0,
+                1, 0, 0,
+                1, 1, 1,
+                1, 0, 1,
+                0, 0, 1,
+                1, 1, 0
+        }, new int[]{1, 2, 3, 3}, null, "mask", DataType.BOOL);
+        Tensor fill = Tensor.scalar(-1.0e3, DataType.FLOAT32);
+        Tensor kPermuted = k.permute(0, 1, 3, 2);
+        Tensor matmul = q.matmul(kPermuted);
+        Tensor scores = matmul.mul(0.5);
+        Tensor masked = Tensor.where(mask, scores, fill);
+        Tensor weights = masked.softmax(3);
+        Tensor out = weights.matmul(v);
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(kPermuted, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(scores, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(masked, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(weights, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuStep = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalMatmulAddExpCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuA = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{3, 2}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{0.1f, 0.2f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.matmul(cpuB).add(cpuBias).exp();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.1f, 0.2f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.exp();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assumeTrue(executable.bridgeContext().available());
+        assumeTrue(executable.bridgeExecutable().available());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
     }
 
     @Test

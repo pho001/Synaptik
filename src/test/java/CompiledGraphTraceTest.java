@@ -1,10 +1,12 @@
 import backend.runtime.ExecutionMode;
+import backend.ComputeBackend;
 import config.optimizer.OptimizerConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorInternalAccess;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,6 +23,7 @@ public class CompiledGraphTraceTest {
 
         assertTrue(compiled.compileTrace().measured());
         assertTrue(compiled.compileTrace().totalNodeCount() > 0);
+        assertTrue(compiled.compileTrace().acceleratorPartitions() != null);
         assertTrue(runTrace.durationNs() >= 0L);
         assertTrue(runTrace.steps().size() > 0);
         assertEquals("FORWARD", runTrace.mode().name());
@@ -60,5 +63,33 @@ public class CompiledGraphTraceTest {
         )).run();
 
         assertTrue(result.bestProfile() != null);
+    }
+
+    @Test
+    void applePartitionTraceCapturesLargestStructuralDagCandidateWhenLowererRejectsIt() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor abs = matmul.abs();
+        Tensor out = relu.add(abs);
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(abs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        var decisions = compiled.compileTrace().acceleratorPartitions().decisions();
+
+        assertTrue(decisions.stream().anyMatch(decision ->
+                decision.structuralNodeIds().size() >= 4
+                        && decision.opTypes().contains("RELU")
+                        && decision.opTypes().contains("ABS")
+                        && decision.opTypes().contains("ADD")
+        ));
+        assertTrue(decisions.stream().allMatch(decision -> decision.exploredCandidates() >= 0));
+        assertTrue(decisions.stream().allMatch(decision -> !decision.searchBudgetHit()));
+        assertTrue(decisions.stream().allMatch(decision -> decision.reason() != null && !decision.reason().isBlank()));
     }
 }

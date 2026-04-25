@@ -1,8 +1,10 @@
 package backend.prepare;
 
+import backend.accelerator.exec.PartitionExecutionRole;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
+import graph.optimizer.partition.AcceleratorPartitionPlan;
 
 import java.util.HashMap;
 import java.util.List;
@@ -15,6 +17,8 @@ public final class BackendPrepareContext {
     private final List<CompiledNode> compiledNodes;
     private final Map<Integer, List<CompiledNode>> consumers;
     private final Map<Integer, CompiledNodeExecutionMetadata> preparedMetadata;
+    private final Map<Integer, AcceleratorPartitionPlan> acceleratorPlansByAnchor;
+    private final Map<Integer, PartitionExecutionRole> partitionRoles;
 
     public BackendPrepareContext(
             RuntimeConfig runtimeConfig,
@@ -27,6 +31,8 @@ public final class BackendPrepareContext {
         this.compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
         this.consumers = Map.copyOf(consumers == null ? Map.of() : consumers);
         this.preparedMetadata = new HashMap<>();
+        this.acceleratorPlansByAnchor = new HashMap<>();
+        this.partitionRoles = new HashMap<>();
     }
 
     public RuntimeConfig runtimeConfig() {
@@ -62,5 +68,40 @@ public final class BackendPrepareContext {
             return;
         }
         preparedMetadata.put(nodeId, metadata);
+    }
+
+    public void publishAcceleratorPlans(List<AcceleratorPartitionPlan> plans) {
+        acceleratorPlansByAnchor.clear();
+        partitionRoles.clear();
+        if (plans == null) {
+            return;
+        }
+        for (AcceleratorPartitionPlan plan : plans) {
+            if (plan == null) {
+                continue;
+            }
+            acceleratorPlansByAnchor.put(plan.anchorNodeId(), plan);
+            for (int nodeId : plan.nodeIds()) {
+                partitionRoles.put(nodeId, nodeId == plan.anchorNodeId()
+                        ? PartitionExecutionRole.ANCHOR
+                        : PartitionExecutionRole.INTERIOR);
+            }
+        }
+    }
+
+    public AcceleratorPartitionPlan acceleratorPlanForAnchor(int nodeId) {
+        return acceleratorPlansByAnchor.get(nodeId);
+    }
+
+    public PartitionExecutionRole partitionRoleFor(int nodeId) {
+        return partitionRoles.getOrDefault(nodeId, PartitionExecutionRole.NONE);
+    }
+
+    public BackendPrepareContext fork() {
+        BackendPrepareContext fork = new BackendPrepareContext(runtimeConfig, supportsBackward, compiledNodes, consumers);
+        fork.preparedMetadata.putAll(this.preparedMetadata);
+        fork.acceleratorPlansByAnchor.putAll(this.acceleratorPlansByAnchor);
+        fork.partitionRoles.putAll(this.partitionRoles);
+        return fork;
     }
 }

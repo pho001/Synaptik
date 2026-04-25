@@ -1,5 +1,8 @@
 package graph;
 
+import backend.accelerator.exec.PartitionExecutionRole;
+import backend.accelerator.select.DefaultAcceleratorSelectionPolicy;
+import backend.accelerator.select.AcceleratorSelectionResult;
 import backend.prepare.BackendPrepareContext;
 import backend.prepare.BackendPrepareDispatcher;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -26,6 +29,11 @@ final class PreparedExecutionBuilder {
                 compiledNodes,
                 consumers
         );
+        AcceleratorSelectionResult selection = new DefaultAcceleratorSelectionPolicy().select(
+                graph.compiledAcceleratorCandidatesView(),
+                runtimeConfig
+        );
+        context.publishAcceleratorPlans(selection.selectedPlans());
         BackendPrepareDispatcher dispatcher = BackendPrepareDispatcher.from(runtimeConfig);
 
         List<PreparedNodeExecution> forwardSteps = new ArrayList<>();
@@ -36,6 +44,9 @@ final class PreparedExecutionBuilder {
             }
             CompiledNodeExecutionMetadata metadata = dispatcher.prepare(node, context);
             context.publishPreparedMetadata(node.id(), metadata);
+            if (metadata.partitionRole() == PartitionExecutionRole.INTERIOR) {
+                continue;
+            }
             PreparedNodeExecution step = new PreparedNodeExecution(node, metadata);
             if (node.id() <= graph.forwardBoundaryNodeId()) {
                 forwardSteps.add(step);
@@ -58,7 +69,8 @@ final class PreparedExecutionBuilder {
                         true,
                         System.nanoTime() - t0,
                         forwardSteps.size(),
-                        backwardSteps.size()
+                        backwardSteps.size(),
+                        selection.trace()
                 )
         );
     }

@@ -2,6 +2,7 @@ package backend.prepare;
 
 import backend.CPUBackend;
 import backend.ComputeBackend;
+import backend.accelerator.exec.PartitionExecutionRole;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.CpuNodeWorkspace;
@@ -34,9 +35,12 @@ final class CpuNodePreparer {
 
     CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         if (node.backend() != ComputeBackend.CPU) {
-            return new CompiledNodeExecutionMetadata(node.backend(), null, null, null, null);
+            return new CompiledNodeExecutionMetadata(node.backend(), null, null, null, null, null, PartitionExecutionRole.NONE);
         }
+        return prepareAsCpu(node, context);
+    }
 
+    CompiledNodeExecutionMetadata prepareAsCpu(CompiledNode node, BackendPrepareContext context) {
         Operation operation = node.operation();
         CpuKernel kernel = CpuKernelResolver.resolve(operation.opType());
         if (kernel == null) {
@@ -97,7 +101,7 @@ final class CpuNodePreparer {
         }
 
         CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(node, operation, cpuPlan, publishFloatContinuation, context);
-        return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, kernel, cpuPlan, fusedExecutable, cpuWorkspace);
+        return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, kernel, cpuPlan, fusedExecutable, cpuWorkspace, null, PartitionExecutionRole.NONE);
     }
 
     private CpuNodeWorkspace resolveCpuWorkspace(

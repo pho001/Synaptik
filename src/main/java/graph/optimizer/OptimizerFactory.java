@@ -2,6 +2,7 @@ package graph.optimizer;
 
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
+import graph.optimizer.partition.PartitionIntentRule;
 import graph.SemanticForwardCanonicalizer;
 import graph.optimizer.rewrite.RewriteRule;
 import graph.optimizer.rules.CommonSubexpressionEliminationRule;
@@ -42,6 +43,7 @@ public final class OptimizerFactory {
         return switch (stage) {
             case AR -> new RewriteRule(config.rewrite());
             case CSE -> new CommonSubexpressionEliminationRule(config.cse());
+            case PART -> new PartitionIntentRule();
             case FUSE -> new FuseElementWiseRule(config.fuse());
             case MEM -> new MemoryOptimizerRule(graph.optimizer.memory.MemoryPlannerPolicy.fromConfig(config.memory()));
         };

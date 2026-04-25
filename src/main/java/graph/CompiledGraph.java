@@ -2,15 +2,27 @@ package graph;
 
 import backend.runtime.ExecutionMode;
 import graph.execution.PreparedExecution;
+import graph.execution.trace.AcceleratorPartitionCompileTrace;
 import graph.execution.trace.CompileTrace;
 import graph.execution.trace.RunTrace;
 import graph.optimizer.GraphOptimizer;
+import graph.optimizer.partition.AcceleratorCandidatePartition;
+import graph.optimizer.partition.AcceleratorPartitionPlan;
+import graph.optimizer.partition.AcceleratorPartitionPlanner;
+import graph.optimizer.partition.AcceleratorRegionAdapterRegistry;
+import graph.optimizer.partition.AcceleratorTarget;
+import graph.optimizer.partition.GreedyMaxRegionPartitionPlanner;
+import graph.optimizer.partition.PartitionPlanningRequest;
+import graph.optimizer.partition.PartitionPlanningResult;
+import graph.optimizer.partition.PartitionPlannerStrategy;
+import graph.optimizer.partition.ScoredCandidatePartitionPlanner;
 import tensor.AutogradCompilationScope;
 import tensor.CompileMode;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,6 +34,7 @@ public class CompiledGraph {
     private final Tensor rootTensor;
     private final SemanticForwardCanonicalizer forwardCanonicalizer;
     private final GraphOptimizer optimizer;
+    private final config.optimizer.PartitionConfig partitionConfig;
     private final CompileMode compileMode;
     private CompileTrace compileTrace = CompileTrace.skipped();
     private final List<Tensor> finalGraph = new ArrayList<>();
@@ -31,6 +44,9 @@ public class CompiledGraph {
     private Map<Tensor, CompiledGradientBinding> compiledGradients = Map.of();
     private CompiledGradientBinding forwardSeedGradient;
     private CompiledNode compiledForwardOutput;
+    private List<AcceleratorPartitionPlan> compiledAcceleratorPlans = List.of();
+    private List<AcceleratorCandidatePartition> compiledAcceleratorCandidates = List.of();
+    private AcceleratorPartitionCompileTrace compiledAcceleratorPartitionTrace = AcceleratorPartitionCompileTrace.empty();
     private Tensor forwardOutput;
     private int forwardEndIndex = -1;
     private boolean compiledSupportsBackward;
@@ -39,11 +55,13 @@ public class CompiledGraph {
             Tensor rootTensor,
             SemanticForwardCanonicalizer forwardCanonicalizer,
             GraphOptimizer forwardOptimizer,
+            config.optimizer.PartitionConfig partitionConfig,
             CompileMode compileMode
     ) {
         this.rootTensor = rootTensor;
         this.forwardCanonicalizer = forwardCanonicalizer;
         this.optimizer = forwardOptimizer;
+        this.partitionConfig = partitionConfig == null ? config.optimizer.PartitionConfig.defaults() : partitionConfig;
         this.compileMode = compileMode == null ? CompileMode.AUTO : compileMode;
         long t0 = System.nanoTime();
         compile();
@@ -52,7 +70,8 @@ public class CompiledGraph {
                 System.nanoTime() - t0,
                 finalGraph.size(),
                 forwardGraph.size(),
-                supportsBackward()
+                supportsBackward(),
+                compiledAcceleratorPartitionTrace
         );
     }
 
@@ -71,6 +90,7 @@ public class CompiledGraph {
                 rootTensor,
                 graph.optimizer.OptimizerFactory.createSemanticForwardCanonicalizer(optimizerConfig),
                 graph.optimizer.OptimizerFactory.create(optimizerConfig),
+                optimizerConfig.partition(),
                 compileMode
         );
     }
@@ -86,7 +106,7 @@ public class CompiledGraph {
         if (optimizer == null) {
             throw new IllegalArgumentException("optimizer cannot be null");
         }
-        return new CompiledGraph(rootTensor, null, optimizer, compileMode);
+        return new CompiledGraph(rootTensor, null, optimizer, config.optimizer.PartitionConfig.defaults(), compileMode);
     }
 
     public void compile() {
@@ -95,6 +115,9 @@ public class CompiledGraph {
         compiledForwardOutput = null;
         compiledGradients = Map.of();
         forwardSeedGradient = null;
+        compiledAcceleratorPlans = List.of();
+        compiledAcceleratorCandidates = List.of();
+        compiledAcceleratorPartitionTrace = AcceleratorPartitionCompileTrace.empty();
         compiledSupportsBackward = false;
         finalGraph.clear();
         forwardGraph.clear();
@@ -269,6 +292,18 @@ public class CompiledGraph {
         return compiledGradients;
     }
 
+    List<AcceleratorPartitionPlan> compiledAcceleratorPlansView() {
+        return compiledAcceleratorPlans;
+    }
+
+    List<AcceleratorCandidatePartition> compiledAcceleratorCandidatesView() {
+        return compiledAcceleratorCandidates;
+    }
+
+    AcceleratorPartitionCompileTrace compiledAcceleratorPartitionTrace() {
+        return compiledAcceleratorPartitionTrace;
+    }
+
     private boolean hasTrainableLeafInputs() {
         for (Tensor tensor : forwardGraph) {
             if (tensor.getOperation() == null && tensor.getRequiresGrad()) {
@@ -360,6 +395,83 @@ public class CompiledGraph {
         if (compiledForwardOutput == null) {
             throw new IllegalStateException("Forward output compiled node snapshot is missing.");
         }
+        rebuildAcceleratorPartitionSnapshot();
+    }
+
+    private void rebuildAcceleratorPartitionSnapshot() {
+        if (compiledNodes.isEmpty()) {
+            compiledAcceleratorPlans = List.of();
+            compiledAcceleratorCandidates = List.of();
+            compiledAcceleratorPartitionTrace = AcceleratorPartitionCompileTrace.empty();
+            return;
+        }
+        AcceleratorTarget target = resolveAcceleratorTarget();
+        if (target.isNone()) {
+            compiledAcceleratorPlans = List.of();
+            compiledAcceleratorCandidates = List.of();
+            compiledAcceleratorPartitionTrace = AcceleratorPartitionCompileTrace.empty();
+            return;
+        }
+        backend.prepare.BackendPrepareContext prepareContext = new backend.prepare.BackendPrepareContext(
+                supportsBackward() ? config.runtime.RuntimeConfig.trainingDefaults() : config.runtime.RuntimeConfig.inferenceDefaults(),
+                compiledSupportsBackward,
+                compiledNodes,
+                buildConsumerMap(compiledNodes)
+        );
+        PartitionPlanningResult planning = selectPlanner(partitionConfig.plannerStrategy()).plan(
+                new PartitionPlanningRequest(
+                        partitionConfig.plannerStrategy(),
+                        target,
+                        prepareContext,
+                        graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(partitionConfig),
+                        AcceleratorRegionAdapterRegistry.forTarget(target)
+                )
+        );
+        compiledAcceleratorPlans = planning.plans();
+        compiledAcceleratorCandidates = planning.plans().stream()
+                .map(plan -> new AcceleratorCandidatePartition(
+                        plan.anchorNodeId(),
+                        plan.nodeIds(),
+                        java.util.Set.of(plan.backend()),
+                        plan
+                ))
+                .toList();
+        compiledAcceleratorPartitionTrace = planning.trace();
+    }
+
+    private AcceleratorTarget resolveAcceleratorTarget() {
+        AcceleratorTarget configured = partitionConfig.target();
+        if (configured != null && !configured.isAuto()) {
+            return configured;
+        }
+        for (CompiledNode node : compiledNodes) {
+            AcceleratorTarget target = AcceleratorTarget.fromBackend(node.backend());
+            if (!target.isNone()) {
+                return target;
+            }
+        }
+        return AcceleratorTarget.NONE;
+    }
+
+    private AcceleratorPartitionPlanner selectPlanner(PartitionPlannerStrategy strategy) {
+        PartitionPlannerStrategy resolved = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : strategy;
+        return switch (resolved) {
+            case GREEDY_MAX_REGION -> new GreedyMaxRegionPartitionPlanner();
+            case SCORED_CANDIDATE_SEARCH -> new ScoredCandidatePartitionPlanner();
+        };
+    }
+
+    private static Map<Integer, List<CompiledNode>> buildConsumerMap(List<CompiledNode> graph) {
+        Map<Integer, List<CompiledNode>> consumers = new HashMap<>();
+        for (CompiledNode node : graph) {
+            consumers.computeIfAbsent(node.id(), ignored -> new ArrayList<>());
+        }
+        for (CompiledNode node : graph) {
+            for (int inputId : node.inputIds()) {
+                consumers.computeIfAbsent(inputId, ignored -> new ArrayList<>()).add(node);
+            }
+        }
+        return consumers;
     }
 
     private void captureForwardSeedGradient() {
