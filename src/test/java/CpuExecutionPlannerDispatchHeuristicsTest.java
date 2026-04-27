@@ -5,12 +5,12 @@ import backend.kernels.cpu.CpuExecutionMode;
 import backend.kernels.cpu.ResolvedCpuComputeContract;
 import backend.kernels.cpu.plan.CpuExecutionPlanner;
 import config.backend.CpuKernelConfig;
-import graph.codegen.FusedAccessKind;
-import graph.codegen.FusedExpressionPlan;
-import graph.codegen.FusedExternalInputPlan;
-import graph.codegen.FusedNodePlan;
-import graph.optimizer.fusion.FusedDispatchFamily;
-import operations.fused.FusedOperation;
+import backend.cpu.fused.codegen.FusedAccessKind;
+import backend.cpu.fused.codegen.FusedExpressionPlan;
+import backend.cpu.fused.codegen.FusedExternalInputPlan;
+import backend.cpu.fused.codegen.FusedNodePlan;
+import backend.cpu.fused.optimize.FusedDispatchFamily;
+import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -33,8 +33,8 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 1,
                 new FusedExpressionPlan(
                         List.of(
-                                new FusedNodePlan(0, Operation.OpType.ADD, List.of(0, 1), 2, DataType.FLOAT32, graph.codegen.NoAttributes.INSTANCE),
-                                new FusedNodePlan(1, Operation.OpType.MUL, List.of(2, 1), 3, DataType.FLOAT32, graph.codegen.NoAttributes.INSTANCE)
+                                new FusedNodePlan(0, Operation.OpType.ADD, List.of(0, 1), 2, DataType.FLOAT32, backend.cpu.fused.codegen.NoAttributes.INSTANCE),
+                                new FusedNodePlan(1, Operation.OpType.MUL, List.of(2, 1), 3, DataType.FLOAT32, backend.cpu.fused.codegen.NoAttributes.INSTANCE)
                         ),
                         List.of(
                                 new FusedExternalInputPlan(0, DataType.FLOAT32, new int[]{65536}, new int[]{1}, 0, new int[]{1}, FusedAccessKind.DIRECT_CONTIGUOUS),
@@ -66,8 +66,8 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 2,
                 new FusedExpressionPlan(
                         List.of(
-                                new FusedNodePlan(0, Operation.OpType.MUL_SCALAR, List.of(2), 3, DataType.FLOAT32, new graph.codegen.ScalarDoubleAttribute(0.5)),
-                                new FusedNodePlan(1, Operation.OpType.WHERE, List.of(0, 1, 3), 4, DataType.FLOAT32, new graph.codegen.WhereAttributes())
+                                new FusedNodePlan(0, Operation.OpType.MUL_SCALAR, List.of(2), 3, DataType.FLOAT32, new backend.cpu.fused.codegen.ScalarDoubleAttribute(0.5)),
+                                new FusedNodePlan(1, Operation.OpType.WHERE, List.of(0, 1, 3), 4, DataType.FLOAT32, new backend.cpu.fused.codegen.WhereAttributes())
                         ),
                         List.of(
                                 new FusedExternalInputPlan(0, DataType.BOOL, new int[]{65536}, new int[]{1}, 0, new int[]{1}, FusedAccessKind.DIRECT_CONTIGUOUS),
@@ -100,8 +100,8 @@ public class CpuExecutionPlannerDispatchHeuristicsTest {
                 2,
                 new FusedExpressionPlan(
                         List.of(
-                                new FusedNodePlan(0, Operation.OpType.DIV, List.of(0, 1), 2, DataType.FLOAT32, graph.codegen.NoAttributes.INSTANCE),
-                                new FusedNodePlan(1, Operation.OpType.ADD, List.of(2, 1), 3, DataType.FLOAT32, graph.codegen.NoAttributes.INSTANCE)
+                                new FusedNodePlan(0, Operation.OpType.DIV, List.of(0, 1), 2, DataType.FLOAT32, backend.cpu.fused.codegen.NoAttributes.INSTANCE),
+                                new FusedNodePlan(1, Operation.OpType.ADD, List.of(2, 1), 3, DataType.FLOAT32, backend.cpu.fused.codegen.NoAttributes.INSTANCE)
                         ),
                         List.of(
                                 new FusedExternalInputPlan(0, DataType.FLOAT32, new int[]{65_536}, new int[]{1}, 0, new int[]{1}, FusedAccessKind.DIRECT_CONTIGUOUS),

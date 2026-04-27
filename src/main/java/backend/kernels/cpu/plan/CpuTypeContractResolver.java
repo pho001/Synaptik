@@ -1,8 +1,8 @@
 package backend.kernels.cpu.plan;
 
-import graph.codegen.FusedExternalInputPlan;
+import backend.cpu.fused.codegen.FusedExternalInputPlan;
 import operations.Operation;
-import operations.fused.FusedOperation;
+import backend.cpu.fused.plan.FusedOperation;
 import tensor.DataType;
 import tensor.Tensor;
 

@@ -1,8 +1,11 @@
 package graph.optimizer.rewrite;
 
+import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.reduction.logSoftmax;
 import operations.reduction.logSoftmaxGrad;
+import operations.reduction.reduceMaxGrad;
+import operations.reduction.reduceMinGrad;
 import operations.reduction.softmax;
 import operations.reduction.softmaxGrad;
 import operations.reduction.sum;
@@ -72,6 +75,7 @@ public final class ReductionLoweringRewrite extends AbstractRewriteRule {
                 original.getDataType()
         );
         lowered.setRequiresGrad(original.getRequiresGrad());
+        BackendIntentPropagator.preserve(lowered, softmaxOut);
         return lowered;
     }
 
@@ -87,6 +91,7 @@ public final class ReductionLoweringRewrite extends AbstractRewriteRule {
                 original.getDataType()
         );
         lowered.setRequiresGrad(original.getRequiresGrad());
+        BackendIntentPropagator.preserve(lowered, logSoftmaxOut);
         return lowered;
     }
 

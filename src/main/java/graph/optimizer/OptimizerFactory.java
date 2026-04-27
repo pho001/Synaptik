@@ -2,12 +2,12 @@ package graph.optimizer;
 
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
+import graph.optimizer.cse.CommonSubexpressionEliminationRule;
+import graph.optimizer.memory.MemoryOptimizerRule;
 import graph.optimizer.partition.PartitionIntentRule;
 import graph.SemanticForwardCanonicalizer;
+import graph.optimizer.region.RegionOptimizationRule;
 import graph.optimizer.rewrite.RewriteRule;
-import graph.optimizer.rules.CommonSubexpressionEliminationRule;
-import graph.optimizer.rules.FuseElementWiseRule;
-import graph.optimizer.rules.MemoryOptimizerRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,8 +43,8 @@ public final class OptimizerFactory {
         return switch (stage) {
             case AR -> new RewriteRule(config.rewrite());
             case CSE -> new CommonSubexpressionEliminationRule(config.cse());
-            case PART -> new PartitionIntentRule();
-            case FUSE -> new FuseElementWiseRule(config.fuse());
+            case PART -> new PartitionIntentRule(config.partition());
+            case FUSE -> new RegionOptimizationRule(config.fuse());
             case MEM -> new MemoryOptimizerRule(graph.optimizer.memory.MemoryPlannerPolicy.fromConfig(config.memory()));
         };
     }

@@ -1,7 +1,7 @@
 package backend.apple.bridge;
 
 import backend.runtime.ExecutionContext;
-import graph.optimizer.partition.apple.AppleGpuPartitionPlan;
+import backend.apple.lowering.AppleGpuPartitionPlan;
 import tensor.Tensor;
 
 public final class UnavailableAppleMpsGraphBridge implements AppleMpsGraphBridge {
@@ -36,7 +36,7 @@ public final class UnavailableAppleMpsGraphBridge implements AppleMpsGraphBridge
             AppleMpsBridgeContext bridgeContext,
             AppleMpsBridgeExecutable executable,
             java.util.List<Tensor> externalInputs,
-            Tensor out
+            java.util.List<Tensor> outputs
     ) {
         throw new UnsupportedOperationException(unavailableReason());
     }

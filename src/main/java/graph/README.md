@@ -65,11 +65,16 @@ Contains:
 
 - compile artifact:
   - [CompiledGraph.java](../graph/CompiledGraph.java)
-- compile-time graph snapshot support:
-  - [OptimizerGraphSnapshot.java](../graph/OptimizerGraphSnapshot.java)
+- compile orchestration and graph snapshot support:
+  - [compile/GraphCompiler.java](../graph/compile/GraphCompiler.java)
+  - [compile/CompileArtifacts.java](../graph/compile/CompileArtifacts.java)
+  - [compile/BackwardGraphBuilder.java](../graph/compile/BackwardGraphBuilder.java)
+  - [compile/GradientBindingCollector.java](../graph/compile/GradientBindingCollector.java)
+  - [compile/OptimizerGraphSnapshot.java](../graph/compile/OptimizerGraphSnapshot.java)
+  - [compile/PartitionPlanningSnapshotBuilder.java](../graph/compile/PartitionPlanningSnapshotBuilder.java)
   - [SemanticForwardCanonicalizer.java](../graph/SemanticForwardCanonicalizer.java)
 - prepare pipeline:
-  - [PreparedExecutionBuilder.java](../graph/PreparedExecutionBuilder.java)
+  - [backend/prepare/PreparedExecutionBuilder.java](../backend/prepare/PreparedExecutionBuilder.java)
   - [execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
   - [execution/PreparedNodeExecution.java](../graph/execution/PreparedNodeExecution.java)
   - [execution/CompiledNodeExecutionMetadata.java](../graph/execution/CompiledNodeExecutionMetadata.java)
@@ -77,14 +82,16 @@ Contains:
   - [execution/trace/CompileTrace.java](../graph/execution/trace/CompileTrace.java)
   - [execution/trace/PrepareTrace.java](../graph/execution/trace/PrepareTrace.java)
   - [execution/trace/RunTrace.java](../graph/execution/trace/RunTrace.java)
-- fused preparation:
-  - [fused/FusedExecutionPlan.java](../graph/fused/FusedExecutionPlan.java)
-  - [fused/FusedExecutionBackendResolver.java](../graph/fused/FusedExecutionBackendResolver.java)
-  - [fused/PreparedFusedExecutable.java](../graph/fused/PreparedFusedExecutable.java)
+- fused preparation now lives under backend CPU ownership:
+  - [../backend/cpu/fused/plan/FusedExecutionPlan.java](../backend/cpu/fused/plan/FusedExecutionPlan.java)
+  - [../backend/cpu/fused/exec/FusedExecutionBackendResolver.java](../backend/cpu/fused/exec/FusedExecutionBackendResolver.java)
+  - [../backend/cpu/fused/exec/PreparedFusedExecutable.java](../backend/cpu/fused/exec/PreparedFusedExecutable.java)
 
 ## Compile Pipeline
 
-`CompiledGraph.compile(root, optimizerConfig, compileMode)` currently follows this model.
+`CompiledGraph.compile(root, optimizerConfig, compileMode)` is the public entry point. Internally,
+`graph.compile.GraphCompiler` owns the mutable compile session and returns immutable
+`CompileArtifacts` for the facade and prepare layer.
 
 ### Step 1: choose the semantic forward output
 
@@ -217,7 +224,7 @@ What prepare does not do:
 - rerun optimizer stages
 - mutate tensor formulas
 
-`PreparedExecutionBuilder` performs backend-agnostic orchestration and delegates backend-specific node preparation through the backend prepare layer.
+`backend.prepare.PreparedExecutionBuilder` performs prepare orchestration from compile artifacts and delegates backend-specific node preparation through the backend prepare layer.
 
 ## Execution Model
 
@@ -264,8 +271,8 @@ That is what powers detailed benchmark and hotspot reports in the tuning layer.
 
 ## Fused Preparation
 
-Graph-level fusion produces a `FUSED` operation node.
-Preparation then resolves how that fused node should run.
+Graph-level fusion publishes optimized region units for lowering.
+CPU lowering attaches backend-owned fused plan artifacts to lowered execution units, and preparation resolves how those artifacts should run.
 
 That preparation currently involves:
 
@@ -276,8 +283,9 @@ That preparation currently involves:
 
 The important boundary is:
 
-- `FUSE` stage decides that a graph region should become one fused primitive
-- `prepare(...)` decides how that fused primitive is executed on the current backend
+- `FUSE` stage decides optimized region shape
+- CPU lowering builds backend-owned fused plan artifacts for fused elementwise units
+- `prepare(...)` decides how that fused artifact is executed on the current backend
 - `execute(...)` runs that already prepared fused executable
 
 ## Data Publication Contract

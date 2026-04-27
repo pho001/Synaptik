@@ -38,7 +38,7 @@ final class FusedNonCheapFamilyCalibrationTest {
     void calibrateNonCheapFusedFamiliesF32ForwardAndBenchmark() {
         ExecutionProfile seed = inferenceSeedProfile();
         GraphExecutionPolicy loweredPolicy = GraphExecutionPolicy.of(
-                OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.FUSE))
+                OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.PART, OptimizerStage.FUSE))
         );
         PlatformCalibrationLayout layout = PlatformCalibrationPaths.defaultLayout(
                 Path.of("build", "platform-calibration", "f32"),

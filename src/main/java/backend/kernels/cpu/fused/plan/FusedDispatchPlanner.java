@@ -5,7 +5,7 @@ import backend.kernels.cpu.CpuKernelCostClass;
 import backend.kernels.cpu.ResolvedCpuComputeContract;
 import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import backend.kernels.cpu.plan.CpuPlanningPolicy;
-import operations.fused.FusedOperation;
+import backend.cpu.fused.plan.FusedOperation;
 import tensor.Tensor;
 
 import java.util.Objects;

@@ -21,7 +21,7 @@ import config.backend.CpuMatMulMicroKernel;
 import config.backend.SumAccuracyMode;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
-import operations.fused.FusedOperation;
+import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;

@@ -13,10 +13,10 @@ import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.codegen.FusedKernelGeneratorRouter;
+import backend.cpu.fused.codegen.FusedKernelGeneratorRouter;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
-import operations.fused.FusedOperation;
+import backend.cpu.fused.plan.FusedOperation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.workload.StandardWorkloads;
@@ -50,7 +50,7 @@ final class FusedParallelVectorDumpTest {
                 "fused-dump-" + dataType.name().toLowerCase(),
                 dataType,
                 backend.runtime.ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.FUSE)),
+                OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.PART, OptimizerStage.FUSE)),
                 runtimeForDump(),
                 WorkloadProfile.none()
         );

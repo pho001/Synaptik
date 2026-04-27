@@ -12,7 +12,7 @@ import backend.kernels.cpu.reduction.plan.ResolvedReductionHints;
 import backend.runtime.ExecutionContext;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.trace.ConvTraceMetadata;
-import graph.fused.PreparedFusedExecutable;
+import backend.cpu.fused.exec.PreparedFusedExecutable;
 import operations.Operation;
 import tensor.Tensor;
 

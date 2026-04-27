@@ -1,13 +1,13 @@
 package backend.accelerator.select;
 
 import config.runtime.RuntimeConfig;
-import graph.optimizer.partition.AcceleratorPartitionPlan;
+import graph.optimizer.partition.PartitionPlan;
 
 public final class AcceleratorPlanCostModel {
     private AcceleratorPlanCostModel() {
     }
 
-    public static Decision decide(AcceleratorPartitionPlan plan, RuntimeConfig runtimeConfig) {
+    public static Decision decide(PartitionPlan plan, RuntimeConfig runtimeConfig) {
         if (plan == null) {
             return Decision.reject("missing-plan");
         }

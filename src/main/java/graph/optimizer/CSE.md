@@ -13,7 +13,7 @@ It is a graph-structure pass, not a value-equality pass.
 ## Entry Point
 
 - implementation:
-  - [rules/CommonSubexpressionEliminationRule.java](./rules/CommonSubexpressionEliminationRule.java)
+  - [cse/CommonSubexpressionEliminationRule.java](./cse/CommonSubexpressionEliminationRule.java)
 - config:
   - [../../config/optimizer/CseConfig.java](../../config/optimizer/CseConfig.java)
 

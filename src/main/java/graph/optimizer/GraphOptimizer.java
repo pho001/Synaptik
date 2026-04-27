@@ -1,5 +1,6 @@
 package graph.optimizer;
 
+import graph.optimizer.state.OptimizerState;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -23,11 +24,21 @@ public final class GraphOptimizer {
 
     public List<Tensor> optimize(List<Tensor> sortedGraph) {
         Objects.requireNonNull(sortedGraph, "sortedGraph cannot be null");
-        List<Tensor> current = sortedGraph;
+        return optimize(OptimizerState.ofGraph(sortedGraph)).graph();
+    }
+
+    public List<Tensor> optimize(List<Tensor> sortedGraph, Tensor forwardOutput) {
+        Objects.requireNonNull(sortedGraph, "sortedGraph cannot be null");
+        Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
+        return optimize(OptimizerState.ofGraph(sortedGraph, forwardOutput)).graph();
+    }
+
+    public OptimizerState optimize(OptimizerState initial) {
+        Objects.requireNonNull(initial, "initial cannot be null");
         if (rules.isEmpty()) {
-            return current;
+            return initial;
         }
-        return applyRules(current, rules);
+        return applyRules(initial, rules);
     }
 
     public GraphOptimizer addRule(OptimizationRule rule) {
@@ -42,8 +53,8 @@ public final class GraphOptimizer {
         return List.copyOf(rules);
     }
 
-    private static List<Tensor> applyRules(List<Tensor> graph, List<OptimizationRule> rules) {
-        List<Tensor> current = graph;
+    private static OptimizerState applyRules(OptimizerState state, List<OptimizationRule> rules) {
+        OptimizerState current = state;
         for (OptimizationRule rule : rules) {
             current = Objects.requireNonNull(rule.apply(current),
                     rule.getClass().getSimpleName() + " returned null");

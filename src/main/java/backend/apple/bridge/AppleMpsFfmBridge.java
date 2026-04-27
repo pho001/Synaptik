@@ -1,10 +1,10 @@
 package backend.apple.bridge;
 
-import graph.optimizer.partition.apple.AppleGpuPartitionPlan;
-import graph.optimizer.partition.apple.AppleGpuSubgraphSignature;
-import graph.optimizer.partition.model.AcceleratorDagInput;
-import graph.optimizer.partition.model.AcceleratorDagNode;
-import graph.optimizer.partition.model.AcceleratorDagSpec;
+import backend.apple.lowering.AppleGpuPartitionPlan;
+import backend.apple.lowering.AppleGpuSubgraphSignature;
+import backend.accelerator.dag.AcceleratorDagInput;
+import backend.accelerator.dag.AcceleratorDagNode;
+import backend.accelerator.dag.AcceleratorDagSpec;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -197,6 +197,11 @@ public final class AppleMpsFfmBridge implements AppleMpsGraphBridge {
                         MemorySegment outputDim3Seg = outputDim3.length == 0
                                 ? MemorySegment.NULL
                                 : compileArena.allocateFrom(JAVA_INT, outputDim3);
+                        int outputCount = dagSpec.outputNodeIndices().size();
+                        int[] outputNodeIndices = dagSpec.outputNodeIndices().stream().mapToInt(Integer::intValue).toArray();
+                        MemorySegment outputNodeIndicesSeg = outputNodeIndices.length == 0
+                                ? MemorySegment.NULL
+                                : compileArena.allocateFrom(JAVA_INT, outputNodeIndices);
                         return (MemorySegment) STATE.compilePartitionFn.invokeExact(
                             bridgeContext.handle(),
                             externalInputCount,
@@ -222,7 +227,8 @@ public final class AppleMpsFfmBridge implements AppleMpsGraphBridge {
                             outputDim1Seg,
                             outputDim2Seg,
                             outputDim3Seg,
-                            dagSpec.outputNodeIndex()
+                            outputCount,
+                            outputNodeIndicesSeg
                         );
                     }
                 } catch (Throwable t) {
@@ -238,8 +244,8 @@ public final class AppleMpsFfmBridge implements AppleMpsGraphBridge {
                     "",
                     cacheHit,
                     dagSpec.externalInputs().stream().map(AcceleratorDagInput::nodeId).toList(),
-                    dagSpec.outputNodeId(),
-                    dagSpec.outputNodeIndex()
+                    dagSpec.outputNodeIds(),
+                    dagSpec.outputNodeIndices()
             );
         } catch (Throwable t) {
             return AppleMpsBridgeExecutable.unavailable("compile_partition failed: " + safeMessage(t));
@@ -270,7 +276,7 @@ public final class AppleMpsFfmBridge implements AppleMpsGraphBridge {
             AppleMpsBridgeContext bridgeContext,
             AppleMpsBridgeExecutable executable,
             java.util.List<Tensor> externalInputs,
-            Tensor out
+            java.util.List<Tensor> outputs
     ) {
         if (!STATE.available) {
             throw new UnsupportedOperationException(unavailableReason());
@@ -285,9 +291,9 @@ public final class AppleMpsFfmBridge implements AppleMpsGraphBridge {
             throw new UnsupportedOperationException("Apple MPS shim is available, but execute_partition ABI is missing.");
         }
         java.util.List<Tensor> resolvedExternalInputs = externalInputs == null ? java.util.List.of() : java.util.List.copyOf(externalInputs);
-        float[] outData = out.getFloat32Data();
-        if (outData == null) {
-            throw new UnsupportedOperationException("Apple MPS FFM bridge currently supports only FLOAT32 output tensors with direct float[] storage.");
+        java.util.List<Tensor> resolvedOutputs = outputs == null ? java.util.List.of() : java.util.List.copyOf(outputs);
+        if (resolvedOutputs.isEmpty()) {
+            throw new UnsupportedOperationException("Apple MPS FFM bridge requires at least one output tensor.");
         }
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment externalInputSegs = resolvedExternalInputs.isEmpty() ? MemorySegment.NULL : arena.allocate(ADDRESS, resolvedExternalInputs.size());
@@ -306,17 +312,33 @@ public final class AppleMpsFfmBridge implements AppleMpsGraphBridge {
                 }
                 externalInputSegs.setAtIndex(ADDRESS, i, dataSeg);
             }
-            MemorySegment outSeg = arena.allocate(JAVA_FLOAT, outData.length);
+            MemorySegment outputSegs = arena.allocate(ADDRESS, resolvedOutputs.size());
+            MemorySegment outputLengths = arena.allocate(JAVA_INT, resolvedOutputs.size());
+            for (int i = 0; i < resolvedOutputs.size(); i++) {
+                Tensor out = resolvedOutputs.get(i);
+                float[] outData = out == null ? null : out.getFloat32Data();
+                if (outData == null) {
+                    throw new UnsupportedOperationException("Apple MPS FFM bridge currently supports only FLOAT32 output tensors with direct float[] storage.");
+                }
+                MemorySegment outSeg = arena.allocate(JAVA_FLOAT, outData.length);
+                outputSegs.setAtIndex(ADDRESS, i, outSeg);
+                outputLengths.setAtIndex(JAVA_INT, i, outData.length);
+            }
             int status = (int) STATE.executePartitionFn.invokeExact(
                     bridgeContext.handle(),
                     executable.handle(),
                     externalInputSegs,
                     resolvedExternalInputs.size(),
-                    outSeg
+                    outputSegs,
+                    resolvedOutputs.size()
             );
             if (status == 0) {
-                MemorySegment.ofArray(outData).copyFrom(outSeg);
-                out.markDataViewStale();
+                for (int i = 0; i < resolvedOutputs.size(); i++) {
+                    Tensor out = resolvedOutputs.get(i);
+                    float[] outData = out.getFloat32Data();
+                    MemorySegment.ofArray(outData).copyFrom(outputSegs.getAtIndex(ADDRESS, i).reinterpret((long) outData.length * JAVA_FLOAT.byteSize()));
+                    out.markDataViewStale();
+                }
                 return;
             }
             throw new UnsupportedOperationException("Apple MPS execute_partition returned non-zero status: " + status);
@@ -375,14 +397,15 @@ public final class AppleMpsFfmBridge implements AppleMpsGraphBridge {
                             ADDRESS,
                             ADDRESS,
                             ADDRESS,
-                            JAVA_INT
+                            JAVA_INT,
+                            ADDRESS
                     )
             );
             MethodHandle executePartitionFn = optionalHandle(
                     linker,
                     lookup,
                     "synaptik_apple_mps_execute_partition_f32",
-                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS)
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
             );
             MethodHandle destroyContextFn = optionalHandle(
                     linker,

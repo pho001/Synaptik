@@ -2,6 +2,7 @@ package backend.accelerator.select;
 
 import backend.ComputeBackend;
 import backend.apple.bridge.AppleMpsFfmBridge;
+import backend.cuda.bridge.CudaFfmBridge;
 
 public final class AcceleratorRuntimeAvailability {
     private AcceleratorRuntimeAvailability() {
@@ -13,7 +14,8 @@ public final class AcceleratorRuntimeAvailability {
         }
         return switch (backend) {
             case GPU_METAL -> new AppleMpsFfmBridge().isAvailable();
-            case GPU_CUDA, GPU_OPENCL, CPU -> false;
+            case GPU_CUDA -> new CudaFfmBridge().isAvailable();
+            case GPU_OPENCL, CPU -> false;
         };
     }
 }

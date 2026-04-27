@@ -1,27 +1,27 @@
 # FUSE Stage
 
-`FUSE` is the graph-level elementwise fusion stage.
+`FUSE` is the graph-level region optimization stage.
 
 Its responsibility is:
 
 - choose safe and worthwhile elementwise subgraphs
-- replace them with one `FUSED` primitive
-- leave the final machine-level execution strategy to backend preparation and runtime
+- publish optimized region units for backend lowering
+- leave fused operation descriptors, code generation, and machine-level execution strategy to backend preparation and runtime
 
 It is not a code generator by itself.
 
 ## Entry Points
 
 - rule:
-  - [rules/FuseElementWiseRule.java](./rules/FuseElementWiseRule.java)
+  - [region/RegionOptimizationRule.java](./region/RegionOptimizationRule.java)
 - config:
   - [../../config/optimizer/FuseConfig.java](../../config/optimizer/FuseConfig.java)
 - cost model:
-  - [fusion/FusedCostModel.java](./fusion/FusedCostModel.java)
+  - [../../backend/cpu/fused/optimize/FusedCostModel.java](../../backend/cpu/fused/optimize/FusedCostModel.java)
 
 ## What Counts As Fusable
 
-The fusion frontier is driven by operation metadata:
+The CPU elementwise fusion frontier is driven by operation metadata:
 
 ```text
 op.opType().isFusable()
@@ -36,16 +36,17 @@ The rule also refuses to fuse:
 
 ## High-Level Algorithm
 
-The current implementation follows four steps:
+The current implementation consumes `Partition` artifacts from the `PART` stage and follows three steps:
 
-1. build consumer maps
-2. determine materialization points
-3. grow candidate clusters backward from retained roots
-4. score and accept/reject those clusters
+1. snapshot the current graph as immutable compiled nodes
+2. optimize each partition into one or more execution units
+3. publish `OptimizedRegion` artifacts for lowering and prepare
+
+The rule does not mutate `Tensor.operation` or rewrite graph inputs directly. If no partition state is present, it returns no optimized regions.
 
 ## Consumer Maps
 
-The pass builds two consumer views:
+Region optimization builds two consumer views:
 
 - all-consumer view
   - used for liveness and materialization logic across the whole combined graph
@@ -223,18 +224,18 @@ Cluster output:
 
 - `y`
 
-If the score passes threshold and no materialization boundary blocks growth, this becomes one `FUSED` node.
+If the score passes threshold and no materialization boundary blocks growth, this becomes a fused elementwise execution unit in an optimized region.
 
 ## What Happens On Success
 
 On success:
 
-1. the original cluster root tensor is kept
-2. its operation is replaced with a fused operation descriptor
-3. its runtime inputs become the cluster external inputs
-4. internal swallowed nodes disappear from the main execution graph
+1. the original graph remains the semantic source of truth
+2. the optimized region records a fused elementwise execution unit
+3. lowering records the unit's ordered node ids and external input ids
+4. CPU prepare builds backend-owned fused plan descriptors from the lowered unit
 
-The cluster internals still exist inside the fused operation plan, but they are no longer separate main-graph execution nodes.
+The cluster internals remain visible in compile artifacts. Prepared execution can run them as one backend fused step without relying on graph-level `FUSED` mutation.
 
 ## What FUSE Does Not Decide
 
@@ -250,6 +251,6 @@ In the current architecture they are fixed during `prepare(...)`, not rediscover
 
 So the correct mental model is:
 
-- `FUSE` decides graph shape
+- `FUSE` decides optimized region shape
 - `prepare(...)` plus backend planning decide execution shape
 - `execute(...)` runs the prepared recipe

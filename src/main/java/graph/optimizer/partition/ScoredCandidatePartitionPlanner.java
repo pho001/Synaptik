@@ -1,9 +1,8 @@
 package graph.optimizer.partition;
 
-import backend.prepare.BackendPrepareContext;
 import graph.CompiledNode;
-import graph.execution.trace.AcceleratorPartitionCompileTrace;
-import graph.execution.trace.AcceleratorPartitionDecisionTrace;
+import graph.execution.trace.PartitionCompileTrace;
+import graph.execution.trace.PartitionDecisionTrace;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 
 import java.util.ArrayList;
@@ -13,18 +12,19 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public final class ScoredCandidatePartitionPlanner implements AcceleratorPartitionPlanner {
+public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
     private record AttemptResult(
-            AcceleratorPartitionPlan plan,
-            AcceleratorPartitionDecisionTrace decision
+            Partition partition,
+            PartitionPlan attachedPlan,
+            PartitionDecisionTrace decision
     ) {
     }
 
     private record SearchOutcome(
-            AcceleratorStructuralCandidate bestAccepted,
+            PartitionCandidate bestAccepted,
             double bestAcceptedScore,
             long bestAcceptedWork,
-            AcceleratorStructuralCandidate bestStructural,
+            PartitionCandidate bestStructural,
             double bestStructuralScore,
             int exploredCandidates,
             boolean searchBudgetHit
@@ -36,21 +36,22 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
         if (request == null || request.target().isNone()) {
             return PartitionPlanningResult.empty();
         }
-        BackendPrepareContext context = request.context();
+        PartitionPlanningContext context = request.context();
         List<CompiledNode> nodes = context.compiledNodes();
         if (nodes.isEmpty()) {
             return PartitionPlanningResult.empty();
         }
         boolean[] covered = new boolean[nodes.size()];
-        List<AcceleratorPartitionPlan> plans = new ArrayList<>();
-        List<AcceleratorPartitionDecisionTrace> decisions = new ArrayList<>();
+        List<Partition> partitions = new ArrayList<>();
+        java.util.LinkedHashMap<String, PartitionPlan> plansByPartitionId = new java.util.LinkedHashMap<>();
+        List<PartitionDecisionTrace> decisions = new ArrayList<>();
         for (int i = 0; i < nodes.size(); i++) {
             CompiledNode current = nodes.get(i);
             if (current.backend() != request.target().backend()) {
                 continue;
             }
             if (covered[i]) {
-                decisions.add(new AcceleratorPartitionDecisionTrace(
+                decisions.add(new PartitionDecisionTrace(
                         request.strategy(),
                         request.target(),
                         i,
@@ -70,18 +71,22 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
             }
             AttemptResult attempt = tryBuildPlan(i, request, covered);
             decisions.add(attempt.decision());
-            if (attempt.plan() == null) {
+            if (attempt.partition() == null) {
                 continue;
             }
-            for (int nodeId : attempt.plan().nodeIds()) {
+            if (attempt.attachedPlan() != null) {
+                plansByPartitionId.put(attempt.partition().partitionId(), attempt.attachedPlan());
+            }
+            for (int nodeId : attempt.partition().orderedNodeIds()) {
                 covered[nodeId] = true;
             }
-            plans.add(attempt.plan());
+            partitions.add(attempt.partition());
         }
-        int accepted = (int) decisions.stream().filter(AcceleratorPartitionDecisionTrace::accepted).count();
+        int accepted = (int) decisions.stream().filter(PartitionDecisionTrace::accepted).count();
         return new PartitionPlanningResult(
-                plans,
-                new AcceleratorPartitionCompileTrace(
+                partitions,
+                plansByPartitionId,
+                new PartitionCompileTrace(
                         request.strategy(),
                         request.target(),
                         decisions.size(),
@@ -93,12 +98,13 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
     }
 
     private AttemptResult tryBuildPlan(int startIndex, PartitionPlanningRequest request, boolean[] covered) {
-        BackendPrepareContext context = request.context();
+        PartitionPlanningContext context = request.context();
         CompiledNode start = context.compiledNodes().get(startIndex);
         if (!request.adapter().canSeed(start, context)) {
             return new AttemptResult(
                     null,
-                    new AcceleratorPartitionDecisionTrace(
+                    null,
+                    new PartitionDecisionTrace(
                             request.strategy(),
                             request.target(),
                             startIndex,
@@ -117,12 +123,13 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
             );
         }
         SearchOutcome search = searchBestCandidate(start.id(), request, covered);
-        AcceleratorStructuralCandidate accepted = search.bestAccepted();
-        AcceleratorStructuralCandidate structural = search.bestStructural();
+        PartitionCandidate accepted = search.bestAccepted();
+        PartitionCandidate structural = search.bestStructural();
         if (structural == null) {
             return new AttemptResult(
                     null,
-                    new AcceleratorPartitionDecisionTrace(
+                    null,
+                    new PartitionDecisionTrace(
                             request.strategy(),
                             request.target(),
                             startIndex,
@@ -143,7 +150,8 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
         if (accepted == null) {
             return new AttemptResult(
                     null,
-                    new AcceleratorPartitionDecisionTrace(
+                    null,
+                    new PartitionDecisionTrace(
                             request.strategy(),
                             request.target(),
                             startIndex,
@@ -161,11 +169,12 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
                     )
             );
         }
-        AcceleratorPartitionPlan plan = request.adapter().tryCreatePlan(accepted, context);
+        PartitionPlan plan = request.adapter().tryCreatePlan(accepted, context);
         if (plan == null) {
             return new AttemptResult(
                     null,
-                    new AcceleratorPartitionDecisionTrace(
+                    null,
+                    new PartitionDecisionTrace(
                             request.strategy(),
                             request.target(),
                             startIndex,
@@ -184,8 +193,17 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
             );
         }
         return new AttemptResult(
+                buildPartition(
+                        request,
+                        accepted,
+                        plan,
+                        "lowered",
+                        -1,
+                        search.exploredCandidates(),
+                        search.searchBudgetHit()
+                ),
                 plan,
-                new AcceleratorPartitionDecisionTrace(
+                new PartitionDecisionTrace(
                         request.strategy(),
                         request.target(),
                         startIndex,
@@ -236,7 +254,11 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
             accumulator.searchBudgetHit = true;
             return;
         }
-        AcceleratorStructuralCandidate structural = request.adapter().tryCreateStructuralCandidate(selected, request.context());
+        PartitionCandidate structural = request.adapter().tryCreateStructuralCandidate(
+                selected,
+                request.context(),
+                request.requiredMaterializedValueRefs()
+        );
         if (structural != null) {
             AcceleratorPartitionScoreModel.CandidateMetrics metrics = metricsFor(structural, request.context());
             double structuralScore = AcceleratorPartitionScoreModel.structuralScore(metrics, request.policy());
@@ -244,7 +266,7 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
                 accumulator.bestStructural = structural;
                 accumulator.bestStructuralScore = structuralScore;
             }
-            AcceleratorPartitionPlan acceptedPlan = request.adapter().tryCreatePlan(structural, request.context());
+            PartitionPlan acceptedPlan = request.adapter().tryCreatePlan(structural, request.context());
             if (acceptedPlan != null) {
                 double acceptedScore = AcceleratorPartitionScoreModel.acceptedScore(metrics, acceptedPlan.estimatedWork(), request.policy());
                 if (isBetterAccepted(
@@ -306,8 +328,8 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
     }
 
     private AcceleratorPartitionScoreModel.CandidateMetrics metricsFor(
-            AcceleratorStructuralCandidate candidate,
-            BackendPrepareContext context
+            PartitionCandidate candidate,
+            PartitionPlanningContext context
     ) {
         int internalEdgeCount = 0;
         int mergeNodeCount = 0;
@@ -339,9 +361,9 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
     }
 
     private boolean isBetterStructural(
-            AcceleratorStructuralCandidate candidate,
+            PartitionCandidate candidate,
             double candidateScore,
-            AcceleratorStructuralCandidate currentBest,
+            PartitionCandidate currentBest,
             double currentBestScore
     ) {
         if (candidate == null) {
@@ -360,10 +382,10 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
     }
 
     private boolean isBetterAccepted(
-            AcceleratorStructuralCandidate candidate,
+            PartitionCandidate candidate,
             double candidateScore,
             long candidateWork,
-            AcceleratorStructuralCandidate currentBest,
+            PartitionCandidate currentBest,
             double currentBestScore,
             long currentBestWork
     ) {
@@ -385,7 +407,7 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
         return candidate.anchorNodeId() < currentBest.anchorNodeId();
     }
 
-    private List<String> opNames(List<Integer> nodeIds, BackendPrepareContext context) {
+    private List<String> opNames(List<Integer> nodeIds, PartitionPlanningContext context) {
         List<String> out = new ArrayList<>(nodeIds.size());
         for (int nodeId : nodeIds) {
             CompiledNode node = context.compiledNode(nodeId);
@@ -396,11 +418,113 @@ public final class ScoredCandidatePartitionPlanner implements AcceleratorPartiti
         return List.copyOf(out);
     }
 
+    private Partition buildPartition(
+            PartitionPlanningRequest request,
+            PartitionCandidate candidate,
+            PartitionPlan attachedPlan,
+            String reason,
+            int rejectedNodeId,
+            int explored,
+            boolean budgetHit
+    ) {
+        PartitionPlanningContext context = request.context();
+        List<PartitionEdge> internalEdges = internalEdges(candidate.orderedNodeIds(), context);
+        List<PartitionEdge> boundaryEdges = boundaryEdges(candidate.orderedNodeIds(), context);
+        List<PartitionBoundaryReason> boundaryReasons = boundaryEdges.stream()
+                .map(ignored -> PartitionBoundaryReason.fromReason(reason))
+                .toList();
+        List<PartitionValue> values = candidate.orderedNodeIds().stream()
+                .map(nodeId -> new PartitionValue(PartitionValueRef.ofNode(nodeId), nodeId))
+                .toList();
+        List<PartitionValueRef> outputValueRefs = candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList();
+        List<PartitionValueRef> requiredMaterialized = candidate.outputNodeIds().stream()
+                .map(PartitionValueRef::ofNode)
+                .filter(request.requiredMaterializedValueRefs()::contains)
+                .toList();
+        PartitionDecisionTrace trace = new PartitionDecisionTrace(
+                request.strategy(),
+                request.target(),
+                candidate.anchorNodeId(),
+                true,
+                reason,
+                candidate.orderedNodeIds(),
+                candidate.orderedNodeIds(),
+                opNames(candidate.orderedNodeIds(), context),
+                attachedPlan == null ? 0L : attachedPlan.estimatedWork(),
+                Double.NEGATIVE_INFINITY,
+                Double.NEGATIVE_INFINITY,
+                explored,
+                budgetHit,
+                rejectedNodeId
+        );
+        return new Partition(
+                partitionId(request.target(), candidate.anchorNodeId()),
+                request.target(),
+                candidate.orderedNodeIds(),
+                values,
+                internalEdges,
+                candidate.externalInputIds(),
+                outputValueRefs,
+                candidate.anchorNodeId(),
+                requiredMaterialized,
+                boundaryEdges,
+                boundaryReasons,
+                attachedPlan == null ? 0L : attachedPlan.estimatedWork(),
+                metricsFor(candidate, context),
+                request.strategy(),
+                trace
+        );
+    }
+
+    private List<PartitionEdge> internalEdges(List<Integer> nodeIds, PartitionPlanningContext context) {
+        Set<Integer> selected = Set.copyOf(nodeIds);
+        List<PartitionEdge> edges = new ArrayList<>();
+        for (int nodeId : nodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            for (int inputId : node.inputIds()) {
+                if (selected.contains(inputId)) {
+                    edges.add(new PartitionEdge(inputId, nodeId));
+                }
+            }
+        }
+        return List.copyOf(edges);
+    }
+
+    private List<PartitionEdge> boundaryEdges(List<Integer> nodeIds, PartitionPlanningContext context) {
+        Set<Integer> selected = Set.copyOf(nodeIds);
+        List<PartitionEdge> edges = new ArrayList<>();
+        for (int nodeId : nodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            for (int inputId : node.inputIds()) {
+                if (!selected.contains(inputId)) {
+                    edges.add(new PartitionEdge(inputId, nodeId));
+                }
+            }
+            for (CompiledNode consumer : context.consumersFor(nodeId)) {
+                if (consumer != null && !selected.contains(consumer.id())) {
+                    edges.add(new PartitionEdge(nodeId, consumer.id()));
+                }
+            }
+        }
+        return List.copyOf(edges);
+    }
+
+    private String partitionId(PartitionTarget target, int anchorNodeId) {
+        String prefix = target == null ? "partition" : target.name().toLowerCase(java.util.Locale.ROOT);
+        return prefix + "-" + anchorNodeId;
+    }
+
     private static final class SearchAccumulator {
-        private AcceleratorStructuralCandidate bestAccepted;
+        private PartitionCandidate bestAccepted;
         private double bestAcceptedScore = Double.NEGATIVE_INFINITY;
         private long bestAcceptedWork;
-        private AcceleratorStructuralCandidate bestStructural;
+        private PartitionCandidate bestStructural;
         private double bestStructuralScore = Double.NEGATIVE_INFINITY;
         private int exploredCandidates;
         private boolean searchBudgetHit;

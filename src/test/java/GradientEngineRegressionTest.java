@@ -114,7 +114,7 @@ public class GradientEngineRegressionTest {
 
     private static OptimizerConfig optimizedTrainingConfig() {
         return new OptimizerConfig(
-                java.util.List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
+                java.util.List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM),
                 CseConfig.strictDefaults(),
                 FuseConfig.trainingDefaults(),
                 config.optimizer.MemoryConfig.defaults()

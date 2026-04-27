@@ -1,7 +1,9 @@
 package graph.optimizer.rewrite;
 
 import graph.optimizer.OptimizationRule;
+import graph.optimizer.intent.BackendIntentPropagator;
 import graph.optimizer.OptimizerGraphSupport;
+import graph.optimizer.state.OptimizerState;
 import operations.Operation;
 import operations.elementwise.unary.mulScalar;
 import operations.layout.permute;
@@ -24,7 +26,8 @@ import java.util.Set;
 
 final class AttentionBackwardLoweringRewrite implements OptimizationRule {
     @Override
-    public List<Tensor> apply(List<Tensor> sortedGraph) {
+    public OptimizerState apply(OptimizerState state) {
+        List<Tensor> sortedGraph = state.graph();
         List<Tensor> originalRoots = OptimizerGraphSupport.observableRoots(sortedGraph);
         Map<AttentionKey, List<Tensor>> attentionIndex = buildAttentionIndex(sortedGraph);
         Set<Tensor> forwardReachable = collectForwardReachable(sortedGraph);
@@ -44,7 +47,7 @@ final class AttentionBackwardLoweringRewrite implements OptimizationRule {
         }
 
         if (replacements.isEmpty()) {
-            return optimized;
+            return state.withGraph(optimized, state.forwardOutput());
         }
 
         for (Tensor tensor : sortedGraph) {
@@ -54,9 +57,11 @@ final class AttentionBackwardLoweringRewrite implements OptimizationRule {
             }
         }
 
-        return OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(
+        Tensor resolvedForwardOutput = OptimizerGraphSupport.resolveReplacement(state.forwardOutput(), replacements);
+        List<Tensor> rebuilt = OptimizerGraphSupport.rebuildTopologicalClosureFromRoots(
                 OptimizerGraphSupport.resolveRoots(originalRoots, replacements)
         );
+        return state.withGraph(rebuilt, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput);
     }
 
     private static Tensor rewriteTensor(
@@ -87,6 +92,7 @@ final class AttentionBackwardLoweringRewrite implements OptimizationRule {
                 tensor.getDataType()
         );
         lowered.setRequiresGrad(false);
+        BackendIntentPropagator.preserve(lowered, match.attentionOut());
         return lowered;
     }
 

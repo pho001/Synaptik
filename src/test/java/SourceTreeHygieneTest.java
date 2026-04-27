@@ -28,14 +28,371 @@ public class SourceTreeHygieneTest {
                     .filter(path -> {
                         String name = path.getFileName().toString();
                         return name.endsWith(".class")
+                                || name.endsWith(".java.txt")
+                                || name.endsWith(".java.bak")
+                                || name.endsWith(".java.orig")
+                                || name.endsWith(".java.tmp")
                                 || name.equals(".DS_Store")
                                 || name.startsWith(".tmp")
-                                || name.contains(".tmp");
+                                || name.contains(".tmp")
+                                || name.endsWith("~");
                     })
                     .map(Path::toString)
                     .sorted()
                     .toList();
             assertTrue(offenders.isEmpty(), () -> "Source tree contains generated artifacts: " + offenders);
+        }
+    }
+
+    @Test
+    void backendPrepareDoesNotRebuildOptimizerArtifacts() throws IOException {
+        Path root = Path.of("src/main/java/backend/prepare");
+        try (Stream<Path> paths = Files.walk(root)) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> line.contains("graph.optimizer.memory.MemoryPlanner")
+                                            || line.contains("graph.optimizer.region.DefaultRegionOptimizer")
+                                            || line.contains("graph.optimizer.region.RegionOptimizationContext"))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "backend.prepare rebuilds optimizer artifacts: " + offenders);
+        }
+    }
+
+    @Test
+    void runtimeMemoryBinderDoesNotUseGlobalMigrationGuards() throws IOException {
+        Path binder = Path.of("src/main/java/graph/execution/RuntimeMemoryBinder.java");
+        String source = Files.readString(binder);
+        assertTrue(!source.contains("containsPhase12BinderExcludedFamily"), "RuntimeMemoryBinder must not disable binding for a whole graph.");
+        assertTrue(!source.contains("skipRuntimeBinding"), "RuntimeMemoryBinder skip policy must be explicit and named.");
+        assertTrue(!source.contains("Phase 12"), "RuntimeMemoryBinder must not keep migration-era guard comments.");
+        assertTrue(!source.contains("MAX_POOL2D"), "RuntimeMemoryBinder must consume memory-plan binding policy, not hardcode workspace-sensitive families.");
+    }
+
+    @Test
+    void graphPartitionPackageDoesNotOwnConcreteCpuBackendCode() throws IOException {
+        assertGraphPartitionBackendPackageAbsent("cpu", "CPU backend partition code belongs under backend.cpu.partition");
+    }
+
+    @Test
+    void graphPartitionPackageDoesNotOwnConcreteCudaBackendCode() throws IOException {
+        assertGraphPartitionBackendPackageAbsent("cuda", "CUDA backend partition code belongs under backend.cuda.lowering");
+    }
+
+    @Test
+    void graphPartitionPackageDoesNotOwnConcreteAppleBackendCode() throws IOException {
+        assertGraphPartitionBackendPackageAbsent("apple", "Apple backend partition code belongs under backend.apple.lowering");
+    }
+
+    @Test
+    void graphPartitionPackageDoesNotOwnAcceleratorDagModelCode() throws IOException {
+        assertGraphPartitionBackendPackageAbsent("model", "Accelerator DAG model belongs under backend.accelerator.dag");
+    }
+
+    @Test
+    void graphOptimizerRulesPackageIsRemoved() throws IOException {
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/graph/optimizer/rules"));
+        assertTrue(offenders.isEmpty(), () -> "optimizer stage adapters belong in their domain packages: " + offenders);
+    }
+
+    @Test
+    void graphPartitionPackageDoesNotImportConcreteBackendImplementations() throws IOException {
+        Path root = Path.of("src/main/java/graph/optimizer/partition");
+        try (Stream<Path> paths = Files.walk(root)) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> line.contains("backend.apple.lowering")
+                                            || line.contains("backend.cuda.lowering")
+                                            || line.contains("backend.cpu.partition"))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "graph.optimizer.partition imports concrete backend implementations: " + offenders);
+        }
+    }
+
+    @Test
+    void graphPackageDoesNotOwnCpuFusedExecutableRuntime() throws IOException {
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/graph/fused"));
+        assertTrue(offenders.isEmpty(), () -> "CPU fused executable runtime belongs under backend.cpu.fused: " + offenders);
+    }
+
+    @Test
+    void legacyCpuFusedPackageDirectoriesAreRemoved() {
+        List<Path> legacyDirs = List.of(
+                Path.of("src/main/java/graph/fused"),
+                Path.of("src/main/java/graph/codegen"),
+                Path.of("src/main/java/graph/optimizer/fusion"),
+                Path.of("src/main/java/operations/fused")
+        );
+        List<String> offenders = legacyDirs.stream()
+                .filter(Files::exists)
+                .map(Path::toString)
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Legacy CPU fused package directories remain: " + offenders);
+    }
+
+    @Test
+    void sourceDoesNotImportLegacyGraphFusedRuntimePackage() throws IOException {
+        List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
+        try (Stream<Path> paths = roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> line.contains("graph.fused"))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Legacy graph.fused runtime references remain: " + offenders);
+        }
+    }
+
+    @Test
+    void graphPackageDoesNotOwnCpuFusedCodegen() throws IOException {
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/graph/codegen"));
+        assertTrue(offenders.isEmpty(), () -> "CPU fused codegen belongs under backend.cpu.fused.codegen: " + offenders);
+    }
+
+    @Test
+    void sourceDoesNotImportLegacyGraphCodegenPackage() throws IOException {
+        List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
+        try (Stream<Path> paths = roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> line.contains("graph.codegen"))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Legacy graph.codegen references remain: " + offenders);
+        }
+    }
+
+    @Test
+    void graphPackageDoesNotOwnCpuFusedOptimizationPolicy() throws IOException {
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/graph/optimizer/fusion"));
+        assertTrue(offenders.isEmpty(), () -> "CPU fused optimization policy belongs under backend.cpu.fused.optimize: " + offenders);
+    }
+
+    @Test
+    void sourceDoesNotImportLegacyGraphFusionPackage() throws IOException {
+        List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
+        try (Stream<Path> paths = roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> line.contains("graph.optimizer.fusion"))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Legacy graph.optimizer.fusion references remain: " + offenders);
+        }
+    }
+
+    @Test
+    void operationsPackageDoesNotOwnCpuFusedPlanDescriptors() throws IOException {
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/operations/fused"));
+        assertTrue(offenders.isEmpty(), () -> "CPU fused plan descriptors belong under backend.cpu.fused.plan: " + offenders);
+    }
+
+    @Test
+    void sourceDoesNotImportLegacyOperationsFusedPackage() throws IOException {
+        List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
+        try (Stream<Path> paths = roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> line.contains("operations.fused"))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Legacy operations.fused references remain: " + offenders);
+        }
+    }
+
+    @Test
+    void tensorOpsDoNotDependOnOptimizerRewriteHelpers() throws IOException {
+        Path root = Path.of("src/main/java/tensor/ops");
+        try (Stream<Path> paths = Files.walk(root)) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> line.contains("graph.optimizer.rewrite"))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "tensor ops must not depend on optimizer rewrite helpers: " + offenders);
+        }
+    }
+
+    @Test
+    void defaultRegionOptimizerDoesNotOwnCpuMixedUnitPolicy() throws IOException {
+        Path optimizer = Path.of("src/main/java/graph/optimizer/region/DefaultRegionOptimizer.java");
+        String source = Files.readString(optimizer);
+        assertTrue(!source.contains("buildMixedCpuUnits"), "CPU mixed-unit policy belongs in CpuRegionOptimizationPolicy.");
+        assertTrue(!source.contains("fused-subchain"), "CPU fused-subchain policy belongs outside DefaultRegionOptimizer.");
+        assertTrue(!source.contains("isSubchainFusable"), "CPU subchain fusion checks belong outside DefaultRegionOptimizer.");
+        assertTrue(!source.contains("consumesUnitOutput"), "CPU subchain traversal belongs outside DefaultRegionOptimizer.");
+    }
+
+    @Test
+    void prepareDoesNotGloballySkipLoweringForLegacyFusedGraphs() throws IOException {
+        Path builder = Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java");
+        String source = Files.readString(builder);
+        assertTrue(!source.contains("containsLegacyFusedGraph"), "prepare must not globally suppress lowered-region publication for legacy fused nodes.");
+        assertTrue(!source.contains("OpType.FUSED"), "legacy fused nodes must not be a prepare-layer global lowering gate.");
+    }
+
+    @Test
+    void regionOptimizationRuleDoesNotKeepLegacyGraphMutationFallback() throws IOException {
+        Path rule = Path.of("src/main/java/graph/optimizer/region/RegionOptimizationRule.java");
+        String source = Files.readString(rule);
+        assertTrue(!source.contains("applyLegacyGraphFusion"), "FUSE must consume partition state instead of running legacy graph-mutating fusion.");
+        assertTrue(!source.contains("TensorInternalAccess"), "FUSE must not mutate tensor operation/input structure directly.");
+        assertTrue(!source.contains("FusedOperationFactory"), "FUSED descriptors are backend CPU plan artifacts, not graph optimizer output.");
+    }
+
+    @Test
+    void cpuNodePreparerDoesNotInlineLoweredFusedDescriptorSynthesis() throws IOException {
+        Path preparer = Path.of("src/main/java/backend/prepare/CpuNodePreparer.java");
+        String source = Files.readString(preparer);
+        assertTrue(!source.contains("synthesizeFusedPreparation"), "Lowered fused descriptor construction belongs under backend.cpu.fused.plan.");
+        assertTrue(!source.contains("FusedOperationFactory"), "CpuNodePreparer should consume backend CPU fused plan preparation, not build descriptors inline.");
+    }
+
+    @Test
+    void preparedExecutionBuilderDoesNotOwnCompileArtifactRecovery() throws IOException {
+        Path builder = Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java");
+        String source = Files.readString(builder);
+        assertTrue(!source.contains("MemoryPlanner"), "prepare must consume compile artifacts instead of rebuilding memory plans.");
+        assertTrue(!source.contains("DefaultRegionOptimizer"), "prepare must consume compile artifacts instead of rebuilding optimized regions.");
+        assertTrue(source.contains("requireLoweringReadyOptimizerState"), "prepare must rely on CompileArtifacts lowering-ready contract.");
+    }
+
+    private static void assertGraphPartitionBackendPackageAbsent(String packageName, String message) throws IOException {
+        List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
+        try (Stream<Path> paths = roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> path.toString().contains("graph/optimizer/partition/" + packageName))
+                    .map(Path::toString)
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> message + ": " + offenders);
+        }
+    }
+
+    private static List<String> javaFilesUnder(Path root) throws IOException {
+        if (!Files.exists(root)) {
+            return List.of();
+        }
+        try (Stream<Path> paths = Files.walk(root)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .map(Path::toString)
+                    .sorted()
+                    .toList();
         }
     }
 }

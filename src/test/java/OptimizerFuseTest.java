@@ -1,6 +1,7 @@
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import graph.CompiledGraph;
+import graph.execution.PreparedExecution;
 import operations.Operation;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -20,8 +21,8 @@ public class OptimizerFuseTest {
        c0.setRequiresGrad(true);
         Tensor e0 = a0.add(b0).add(c0);
         CompiledGraph baselineGraph = CompiledGraph.compile(e0, OptimizerConfig.noOptimization());
-        baselineGraph.execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
-        int baselineGraphSize = baselineGraph.getCompiledGraphAsList().size();
+        PreparedExecution baselinePrepared = baselineGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        int baselineForwardSteps = baselinePrepared.forwardSteps().size();
 
         Tensor a = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "a");
         Tensor b = new Tensor(new double[]{3.0, 4.0}, new int[]{2}, null, "b");
@@ -34,14 +35,18 @@ public class OptimizerFuseTest {
         Tensor e = d.add(c);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(e, fuseOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{9.0, 12.0}, e.toDoubleArrayCopy(), 1e-9);
 
         assertNotNull(e.getOperation(), "Final tensor should have an operation");
-        int fusedGraphSize = compiledGraph.getCompiledGraphAsList().size();
-        assertTrue(fusedGraphSize < baselineGraphSize,
-                "Compiled graph should be smaller after fusion optimization");
+        long fusedPreparedSteps = prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
+                .count();
+        assertTrue(fusedPreparedSteps > 0, "Expected prepared fused execution metadata");
+        assertTrue(prepared.forwardSteps().size() < baselineForwardSteps,
+                "Prepared execution should have fewer forward steps after region fusion");
 
         compiledGraph.execute(config.runtime.RuntimeConfig.trainingDefaults(), backend.runtime.ExecutionMode.FORWARD_BACKWARD);
 
@@ -56,17 +61,19 @@ public class OptimizerFuseTest {
         Tensor out = base.select(0, 1).relu().exp();
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
-        Tensor fusedNode = compiledGraph.getCompiledGraphAsList().stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED)
-                .findFirst()
-                .orElseThrow();
+        long fusedPreparedSteps = prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
+                .count();
+        assertTrue(fusedPreparedSteps > 0, "Expected prepared fused execution metadata for view-fed chain");
 
-        assertEquals(1, fusedNode.getPrevTensors().size());
-        Tensor fusedInput = fusedNode.getPrevTensors().getFirst();
-        assertNull(fusedInput.getOperation());
-        assertEquals("base", fusedInput.getLabel());
+        assertArrayEquals(
+                new double[]{Math.exp(4.0), Math.exp(5.0), Math.exp(6.0)},
+                out.toDoubleArrayCopy(),
+                1e-5
+        );
     }
 
     @Test
@@ -76,15 +83,16 @@ public class OptimizerFuseTest {
         Tensor out = base.gather(indices, 1).relu().exp();
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
-        Tensor fusedNode = compiledGraph.getCompiledGraphAsList().stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED)
+        var fusedStep = prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(1, fusedNode.getPrevTensors().size());
-        Tensor fusedInput = fusedNode.getPrevTensors().getFirst();
+        assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
+        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.getOperation());
         assertEquals(Operation.OpType.GATHER, fusedInput.getOperation().opType());
     }
@@ -96,15 +104,16 @@ public class OptimizerFuseTest {
         Tensor out = base.takeAlongAxis(indices, 1).relu().exp();
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
-        Tensor fusedNode = compiledGraph.getCompiledGraphAsList().stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED)
+        var fusedStep = prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(1, fusedNode.getPrevTensors().size());
-        Tensor fusedInput = fusedNode.getPrevTensors().getFirst();
+        assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
+        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.getOperation());
         assertEquals(Operation.OpType.TAKE_ALONG_AXIS, fusedInput.getOperation().opType());
     }
@@ -117,15 +126,16 @@ public class OptimizerFuseTest {
         Tensor out = base.scatterAdd(indices, src, 1).relu().exp();
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
-        Tensor fusedNode = compiledGraph.getCompiledGraphAsList().stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED)
+        var fusedStep = prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(1, fusedNode.getPrevTensors().size());
-        Tensor fusedInput = fusedNode.getPrevTensors().getFirst();
+        assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
+        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.getOperation());
         assertEquals(Operation.OpType.SCATTER_ADD, fusedInput.getOperation().opType());
     }
@@ -136,15 +146,16 @@ public class OptimizerFuseTest {
         Tensor out = base.sum(1).relu().exp();
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
-        Tensor fusedNode = compiledGraph.getCompiledGraphAsList().stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED)
+        var fusedStep = prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(1, fusedNode.getPrevTensors().size());
-        Tensor fusedInput = fusedNode.getPrevTensors().getFirst();
+        assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
+        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.getOperation());
         assertEquals(Operation.OpType.SUM, fusedInput.getOperation().opType());
     }
@@ -156,20 +167,21 @@ public class OptimizerFuseTest {
         Tensor out = a.matmul(b).relu().exp();
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(config.runtime.RuntimeConfig.inferenceDefaults(), backend.runtime.ExecutionMode.FORWARD);
+        PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
 
-        Tensor fusedNode = compiledGraph.getCompiledGraphAsList().stream()
-                .filter(t -> t.getOperation() != null && t.getOperation().opType() == Operation.OpType.FUSED)
+        var fusedStep = prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(1, fusedNode.getPrevTensors().size());
-        Tensor fusedInput = fusedNode.getPrevTensors().getFirst();
+        assertEquals(1, fusedStep.metadata().executionInputNodeIds().size());
+        Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.getOperation());
         assertEquals(Operation.OpType.MATMUL, fusedInput.getOperation().opType());
     }
 
     private static OptimizerConfig fuseOnlyInferenceConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.FUSE));
+        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM));
     }
 }

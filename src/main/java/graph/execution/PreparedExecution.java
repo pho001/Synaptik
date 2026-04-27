@@ -1,6 +1,7 @@
 package graph.execution;
 
 import backend.ComputeEngine;
+import backend.cpu.fused.plan.FusedOperation;
 import backend.kernels.cpu.CpuDTypeOps;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -18,6 +19,7 @@ import graph.execution.trace.PrepareTrace;
 import graph.execution.trace.ReductionTraceMetadata;
 import graph.execution.trace.RunTrace;
 import graph.execution.trace.StepExecutionMetadata;
+import graph.optimizer.memory.MemoryPlan;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
@@ -31,6 +33,7 @@ import java.util.Objects;
 public final class PreparedExecution {
     private final RuntimeConfig runtimeConfig;
     private final boolean supportsBackward;
+    private final List<PreparedNodeExecution> executionSteps;
     private final List<PreparedNodeExecution> forwardSteps;
     private final List<PreparedNodeExecution> backwardSteps;
     private final List<CompiledNode> allNodes;
@@ -38,12 +41,14 @@ public final class PreparedExecution {
     private final Tensor rootTensor;
     private final CompiledNode forwardOutputNode;
     private final CompiledGradientBinding forwardSeedGradient;
+    private final MemoryPlan memoryPlan;
     private final PrepareTrace prepareTrace;
     private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
 
     public PreparedExecution(
             RuntimeConfig runtimeConfig,
             boolean supportsBackward,
+            List<PreparedNodeExecution> executionSteps,
             List<PreparedNodeExecution> forwardSteps,
             List<PreparedNodeExecution> backwardSteps,
             List<CompiledNode> allNodes,
@@ -51,10 +56,12 @@ public final class PreparedExecution {
             Tensor rootTensor,
             CompiledNode forwardOutputNode,
             CompiledGradientBinding forwardSeedGradient,
+            MemoryPlan memoryPlan,
             PrepareTrace prepareTrace
     ) {
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
         this.supportsBackward = supportsBackward;
+        this.executionSteps = List.copyOf(executionSteps == null ? List.of() : executionSteps);
         this.forwardSteps = List.copyOf(forwardSteps == null ? List.of() : forwardSteps);
         this.backwardSteps = List.copyOf(backwardSteps == null ? List.of() : backwardSteps);
         this.allNodes = List.copyOf(allNodes == null ? List.of() : allNodes);
@@ -62,8 +69,9 @@ public final class PreparedExecution {
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         this.forwardOutputNode = Objects.requireNonNull(forwardOutputNode, "forwardOutputNode cannot be null");
         this.forwardSeedGradient = forwardSeedGradient;
+        this.memoryPlan = memoryPlan;
         this.prepareTrace = prepareTrace == null ? PrepareTrace.skipped() : prepareTrace;
-        this.metadataIndex = buildMetadataIndex(this.forwardSteps, this.backwardSteps);
+        this.metadataIndex = buildMetadataIndex(this.executionSteps);
     }
 
     public RuntimeConfig runtimeConfig() {
@@ -80,6 +88,10 @@ public final class PreparedExecution {
 
     public List<PreparedNodeExecution> backwardSteps() {
         return backwardSteps;
+    }
+
+    public List<PreparedNodeExecution> executionSteps() {
+        return executionSteps;
     }
 
     public PrepareTrace prepareTrace() {
@@ -103,15 +115,17 @@ public final class PreparedExecution {
         long runStart = System.nanoTime();
         java.util.ArrayList<ExecutionStepTrace> steps = captureTrace ? new java.util.ArrayList<>() : null;
         ExecutionState executionState = ExecutionState.create(allNodes, metadataIndex, forwardOutputNode.id());
+        RuntimeMemoryBinder.bind(memoryPlan, allNodes, executionState);
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex, executionState);
-        executeSteps(forwardSteps, context, captureTrace, steps, 0);
-
-        syncRootData(mode, executionState);
 
         if (mode == ExecutionMode.FORWARD_BACKWARD) {
             seedRootGradient(executionState);
-            executeSteps(backwardSteps, context, captureTrace, steps, forwardSteps.size());
+            executeSteps(executionSteps, context, captureTrace, steps, 0);
+            syncRootData(mode, executionState);
             publishCompiledGradients(executionState);
+        } else {
+            executeSteps(forwardSteps, context, captureTrace, steps, 0);
+            syncRootData(mode, executionState);
         }
         return new RunTrace(mode, System.nanoTime() - runStart, steps == null ? List.of() : steps);
     }
@@ -124,15 +138,9 @@ public final class PreparedExecution {
         execute(ExecutionMode.FORWARD_BACKWARD);
     }
 
-    private static Map<Integer, CompiledNodeExecutionMetadata> buildMetadataIndex(
-            List<PreparedNodeExecution> forwardSteps,
-            List<PreparedNodeExecution> backwardSteps
-    ) {
+    private static Map<Integer, CompiledNodeExecutionMetadata> buildMetadataIndex(List<PreparedNodeExecution> executionSteps) {
         Map<Integer, CompiledNodeExecutionMetadata> out = new HashMap<>();
-        for (PreparedNodeExecution step : forwardSteps) {
-            out.put(step.compiledNode().id(), step.metadata());
-        }
-        for (PreparedNodeExecution step : backwardSteps) {
+        for (PreparedNodeExecution step : executionSteps) {
             out.put(step.compiledNode().id(), step.metadata());
         }
         return Map.copyOf(out);
@@ -159,7 +167,10 @@ public final class PreparedExecution {
         CompiledNode node = step.compiledNode();
         Tensor semanticNode = step.node();
         var metadata = step.metadata();
-        String opType = node.operation() == null ? "LEAF" : node.operation().opType().name();
+        operations.Operation executionOperation = metadata.executionOperation() == null
+                ? node.operation()
+                : metadata.executionOperation();
+        String opType = executionOperation == null ? "LEAF" : executionOperation.opType().name();
         String kernel = metadata.cpuKernel() == null ? "" : metadata.cpuKernel().getClass().getSimpleName();
         return new ExecutionStepTrace(
                 index,
@@ -237,7 +248,10 @@ public final class PreparedExecution {
             conv = trace;
         }
 
-        if (node.operation() instanceof operations.fused.FusedOperation fused) {
+        operations.Operation executionOperation = metadata.executionOperation() == null
+                ? node.operation()
+                : metadata.executionOperation();
+        if (executionOperation instanceof FusedOperation fused) {
             String executionBackend = step.metadata().fusedExecutable() == null
                     ? ""
                     : step.metadata().fusedExecutable().getClass().getSimpleName();
@@ -267,11 +281,80 @@ public final class PreparedExecution {
     }
 
     private void syncRootData(ExecutionMode mode, ExecutionState executionState) {
-        int actualRootNodeId = forwardOutputNode.inputIds().get(0);
+        Tensor publishTarget = resolveSemanticPublishTarget(rootTensor);
+        Integer publishNodeId = nodeIdForSemanticTensor(publishTarget);
+        if (publishNodeId != null) {
+            Tensor runtimePublished = executionState.runtimeTensorForNodeId(publishNodeId);
+            if (publishTarget.getStorage() == runtimePublished.getStorage()) {
+                repairSemanticAliasChain(rootTensor);
+                return;
+            }
+            if (mode == ExecutionMode.FORWARD_BACKWARD || runtimePublished != publishTarget) {
+                publishTarget.copyDataFrom(runtimePublished);
+            }
+            repairSemanticAliasChain(rootTensor);
+            return;
+        }
+
+        int actualRootNodeId = resolveForwardRuntimeRootNodeId();
         Tensor actualRoot = executionState.runtimeTensorForNodeId(actualRootNodeId);
         if (mode == ExecutionMode.FORWARD_BACKWARD || actualRoot != rootTensor) {
             rootTensor.copyDataFrom(actualRoot);
         }
+        repairSemanticAliasChain(rootTensor);
+    }
+
+    private Tensor resolveSemanticPublishTarget(Tensor tensor) {
+        Tensor current = tensor;
+        while (isAliasViewOp(current) && current.getPrevTensors() != null && !current.getPrevTensors().isEmpty()) {
+            current = current.getPrevTensors().getFirst();
+        }
+        return current;
+    }
+
+    private Integer nodeIdForSemanticTensor(Tensor tensor) {
+        if (tensor == null) {
+            return null;
+        }
+        for (CompiledNode node : allNodes) {
+            if (node.semanticTensor() == tensor || node.sourceTensor() == tensor) {
+                return node.id();
+            }
+        }
+        return null;
+    }
+
+    private int resolveForwardRuntimeRootNodeId() {
+        if (forwardOutputNode.operation() != null
+                && forwardOutputNode.operation().opType() == operations.Operation.OpType.NOOP
+                && Tensor.SYSTEM_FORWARD_OUTPUT_LABEL.equals(forwardOutputNode.label())
+                && !forwardOutputNode.inputIds().isEmpty()) {
+            return forwardOutputNode.inputIds().getFirst();
+        }
+        return forwardOutputNode.id();
+    }
+
+    private boolean isAliasViewOp(Tensor tensor) {
+        if (tensor == null || tensor.getOperation() == null) {
+            return false;
+        }
+        if (tensor.getPrevTensors() == null || tensor.getPrevTensors().isEmpty()) {
+            return false;
+        }
+        return switch (tensor.getOperation().opType()) {
+            case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
+            case RESHAPE -> tensor.getPrevTensors().getFirst().isContiguous();
+            default -> false;
+        };
+    }
+
+    private void repairSemanticAliasChain(Tensor tensor) {
+        if (!isAliasViewOp(tensor) || tensor.getPrevTensors() == null || tensor.getPrevTensors().isEmpty()) {
+            return;
+        }
+        Tensor source = tensor.getPrevTensors().getFirst();
+        repairSemanticAliasChain(source);
+        TensorInternalAccess.aliasRuntimeFrom(tensor, source);
     }
 
     private void seedRootGradient(ExecutionState executionState) {

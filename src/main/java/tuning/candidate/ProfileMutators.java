@@ -82,11 +82,11 @@ public final class ProfileMutators {
     }
 
     public static List<List<OptimizerStage>> allStageOrders() {
-        return allStageOrders(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM), true);
+        return allStageOrders(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM), true);
     }
 
     public static List<List<OptimizerStage>> allNonEmptyStageOrders() {
-        return allStageOrders(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM), false);
+        return allStageOrders(List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM), false);
     }
 
     public static List<List<OptimizerStage>> allConstrainedStageOrders() {
@@ -109,7 +109,9 @@ public final class ProfileMutators {
         for (int length = 1; length <= safeStages.size(); length++) {
             enumerateStageOrders(safeStages, length, new boolean[safeStages.size()], new ArrayList<>(), out);
         }
-        return List.copyOf(out);
+        return out.stream()
+                .filter(ProfileMutators::isValidStageOrder)
+                .toList();
     }
 
     public static List<ExecutionProfileMutator> transformerHotPathMutators() {
@@ -893,10 +895,26 @@ public final class ProfileMutators {
     }
 
     private static boolean isConstrainedStageOrder(List<OptimizerStage> stageOrder) {
-        if (stageOrder == null || stageOrder.isEmpty()) {
-            return true;
+        if (!isValidStageOrder(stageOrder)) {
+            return false;
         }
         int memIndex = stageOrder.indexOf(OptimizerStage.MEM);
         return memIndex < 0 || memIndex == stageOrder.size() - 1;
+    }
+
+    private static boolean isValidStageOrder(List<OptimizerStage> stageOrder) {
+        if (stageOrder == null || stageOrder.isEmpty()) {
+            return true;
+        }
+        int partitionIndex = stageOrder.indexOf(OptimizerStage.PART);
+        int fuseIndex = stageOrder.indexOf(OptimizerStage.FUSE);
+        int memIndex = stageOrder.indexOf(OptimizerStage.MEM);
+        if (fuseIndex >= 0 && partitionIndex < 0) {
+            return false;
+        }
+        if (partitionIndex >= 0 && fuseIndex >= 0 && partitionIndex > fuseIndex) {
+            return false;
+        }
+        return memIndex < 0 || fuseIndex >= 0;
     }
 }

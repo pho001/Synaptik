@@ -1,6 +1,7 @@
 package graph.execution;
 
 import graph.CompiledNode;
+import operations.Operation;
 import tensor.Tensor;
 
 import java.util.Objects;
@@ -16,5 +17,9 @@ public record PreparedNodeExecution(
 
     public Tensor node() {
         return compiledNode.semanticTensor();
+    }
+
+    public Operation executionOperation() {
+        return metadata.executionOperation() != null ? metadata.executionOperation() : compiledNode.operation();
     }
 }

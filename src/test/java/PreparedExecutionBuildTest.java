@@ -1,6 +1,7 @@
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.apple.exec.PreparedAppleGpuExecutable;
+import backend.cuda.exec.PreparedCudaExecutable;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.PartitionConfig;
@@ -90,6 +91,27 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void acceleratorLoweringArtifactsAreCompletedDuringCompile() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor out = matmul.relu();
+
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        OptimizerConfig partitionOnly = OptimizerConfig.inferenceDefaults()
+                .withStageOrder(java.util.List.of(config.optimizer.OptimizerStage.PART));
+        CompiledGraph compiled = CompiledGraph.compile(out, partitionOnly);
+
+        assertFalse(compiled.compileArtifacts().backendSelectionCandidates().isEmpty());
+        assertNotNull(compiled.compileArtifacts().optimizerState());
+        assertFalse(compiled.compileArtifacts().optimizerState().optimizedRegions().isEmpty());
+        assertNotNull(compiled.compileArtifacts().optimizerState().memoryPlan());
+        assertNotNull(compiled.compileArtifacts().memoryPlan());
+    }
+
+    @Test
     void bfloat16FusedPrepareSkipsCompiledAsmKernel() {
         Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new double[]{0.5, 1.5, -2.0, 3.0}, new int[]{4}, null, "b", DataType.BFLOAT16);
@@ -99,7 +121,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(RuntimeConfig.inferenceDefaults());
 
         var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -124,14 +146,14 @@ public class PreparedExecutionBuildTest {
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
         assertEquals("FLOAT32", fusedStep.metadata().cpuPlan().computeContract().storageType().name());
         assertEquals("F32", fusedStep.metadata().cpuPlan().computeContract().computeType().name());
         assertEquals("CPU_FUSED", fusedStep.metadata().cpuPlan().computeContract().backend().name());
-        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("graph.fused.asm."));
+        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("backend.cpu.fused.asm."));
     }
 
     @Test
@@ -149,14 +171,14 @@ public class PreparedExecutionBuildTest {
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
         assertEquals("FLOAT64", fusedStep.metadata().cpuPlan().computeContract().storageType().name());
         assertEquals("F64", fusedStep.metadata().cpuPlan().computeContract().computeType().name());
         assertEquals("CPU_FUSED", fusedStep.metadata().cpuPlan().computeContract().backend().name());
-        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("graph.fused.asm."));
+        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("backend.cpu.fused.asm."));
     }
 
     @Test
@@ -169,7 +191,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(runtimeWithFusedAsmWidth(1));
 
         var width1Fused = width1Execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -181,7 +203,7 @@ public class PreparedExecutionBuildTest {
                 .prepare(runtimeWithFusedAsmWidth(2));
 
         var width2Fused = width2Execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
@@ -210,11 +232,11 @@ public class PreparedExecutionBuildTest {
                 ));
 
         var fusedStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.FUSED)
+                .filter(step -> step.metadata().fusedExecutable() != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("graph.fused.asm."));
+        assertTrue(fusedStep.metadata().fusedExecutable().getClass().getName().startsWith("backend.cpu.fused.asm."));
     }
 
     @Test
@@ -452,7 +474,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        assertEquals(1, execution.prepareTrace().acceleratorSelection().selectedCount());
+        assertEquals(1, execution.prepareTrace().backendSelection().selectedCount());
         var anchor = gpuSteps.getFirst();
         assertEquals(ComputeBackend.GPU_METAL, anchor.metadata().backend());
         assertEquals(PartitionExecutionRole.ANCHOR, anchor.metadata().partitionRole());
@@ -555,6 +577,105 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void gpuMetalPureElementwiseChainCanPrepareAndExecute() {
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cpuB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.add(cpuB).relu().exp();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalPureElementwiseChainUsesFusedElementwiseLoweringWhenOptimizerRegionsExist() {
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cpuAOpt", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cpuBOpt", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.add(cpuB).relu().exp();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.inferenceDefaults())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "aOpt", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "bOpt", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(backend.lowering.LoweringFamily.APPLE_FUSED_ELEMENTWISE_GRAPH, executable.loweringFamily());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuCudaPureElementwiseChainCanPrepareAndExecuteThroughFallback() {
+        Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cpuCudaA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cpuCudaB", DataType.FLOAT32);
+        Tensor cpuOut = cpuA.add(cpuB).relu().exp();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cudaA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cudaB", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
+                .toList();
+        assertEquals(1, gpuSteps.size());
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(backend.lowering.LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH, executable.loweringFamily());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
     void gpuMetalBackwardMatmulCanPrepareAndMatchCpuGradients() {
         String explicitLib = System.getProperty("synaptik.apple.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
@@ -591,6 +712,268 @@ public class PreparedExecutionBuildTest {
         assertArrayEquals(expectedGradA, a.getGradient().toDoubleArrayCopy(), 1e-5);
         assertArrayEquals(expectedGradB, b.getGradient().toDoubleArrayCopy(), 1e-5);
     }
+
+    @Test
+    void gpuMetalBackwardSoftmaxGradCanPrepareAndMatchCpuGradients() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuInput", DataType.FLOAT32);
+        cpuInput.setRequiresGrad(true);
+        Tensor cpuSoftmax = cpuInput.exp().softmax(1);
+        Tensor cpuLoss = cpuSoftmax.sum();
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        double[] expectedGrad = cpuInput.getGradient().toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
+        input.setRequiresGrad(true);
+        Tensor softmax = input.exp().softmax(1);
+        TensorInternalAccess.setBackend(softmax, ComputeBackend.GPU_METAL);
+        Tensor loss = softmax.sum();
+
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(RuntimeConfig.trainingDefaults());
+
+        var gpuSoftmaxGrad = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.SOFTMAX_GRAD)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(ComputeBackend.GPU_METAL, gpuSoftmaxGrad.metadata().backend());
+
+        execution.execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(expectedGrad, input.getGradient().toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalBackwardLogSoftmaxGradCanPrepareAndMatchCpuGradients() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuInput", DataType.FLOAT32);
+        cpuInput.setRequiresGrad(true);
+        Tensor cpuLogSoftmax = cpuInput.exp().logSoftmax(1);
+        Tensor cpuLoss = cpuLogSoftmax.sum();
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        double[] expectedGrad = cpuInput.getGradient().toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
+        input.setRequiresGrad(true);
+        Tensor logSoftmax = input.exp().logSoftmax(1);
+        TensorInternalAccess.setBackend(logSoftmax, ComputeBackend.GPU_METAL);
+        Tensor loss = logSoftmax.sum();
+
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(RuntimeConfig.trainingDefaults());
+
+        var gpuLogSoftmaxGrad = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.LOG_SOFTMAX_GRAD)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(ComputeBackend.GPU_METAL, gpuLogSoftmaxGrad.metadata().backend());
+
+        execution.execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(expectedGrad, input.getGradient().toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalBackwardReduceMinGradCanPrepareAndMatchCpuGradients() {
+        Tensor cpuInput = new Tensor(new float[]{
+                1f, 1f, 2f,
+                3f, 2f, 2f
+        }, new int[]{2, 3}, null, "cpuInput", DataType.FLOAT32);
+        cpuInput.setRequiresGrad(true);
+        Tensor cpuReduced = cpuInput.min(1, true);
+        Tensor cpuLoss = cpuReduced.sum();
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        double[] expectedGrad = cpuInput.getGradient().toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(new float[]{
+                1f, 1f, 2f,
+                3f, 2f, 2f
+        }, new int[]{2, 3}, null, "input", DataType.FLOAT32);
+        input.setRequiresGrad(true);
+        Tensor reduced = input.min(1, true);
+        TensorInternalAccess.setBackend(reduced, ComputeBackend.GPU_METAL);
+        Tensor loss = reduced.sum();
+
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(RuntimeConfig.trainingDefaults());
+
+        var gpuReduceMinGrad = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.REDUCE_MIN_GRAD)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(ComputeBackend.GPU_METAL, gpuReduceMinGrad.metadata().backend());
+
+        execution.execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(expectedGrad, input.getGradient().toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalBackwardReduceMaxGradCanPrepareAndMatchCpuGradients() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 5f, 5f, 2f}, new int[]{4}, null, "cpuInput", DataType.FLOAT32);
+        cpuInput.setRequiresGrad(true);
+        Tensor cpuReduced = cpuInput.max();
+        Tensor cpuLoss = cpuReduced.sum();
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        double[] expectedGrad = cpuInput.getGradient().toDoubleArrayCopy().clone();
+
+        Tensor input = new Tensor(new float[]{1f, 5f, 5f, 2f}, new int[]{4}, null, "input", DataType.FLOAT32);
+        input.setRequiresGrad(true);
+        Tensor reduced = input.max();
+        TensorInternalAccess.setBackend(reduced, ComputeBackend.GPU_METAL);
+        Tensor loss = reduced.sum();
+
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(RuntimeConfig.trainingDefaults());
+
+        var gpuReduceMaxGrad = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.REDUCE_MAX_GRAD)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(ComputeBackend.GPU_METAL, gpuReduceMaxGrad.metadata().backend());
+
+        execution.execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(expectedGrad, input.getGradient().toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalBackwardMinGradCanPrepareAndMatchCpuGradients() {
+        Tensor cpuA = new Tensor(new float[]{1f, 5f, 3f}, new int[]{3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{2f, 4f, 3f}, new int[]{3}, null, "cpuB", DataType.FLOAT32);
+        cpuA.setRequiresGrad(true);
+        cpuB.setRequiresGrad(true);
+        Tensor cpuLoss = cpuA.min(cpuB).sum();
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        double[] expectedGradA = cpuA.getGradient().toDoubleArrayCopy().clone();
+        double[] expectedGradB = cpuB.getGradient().toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(new float[]{1f, 5f, 3f}, new int[]{3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{2f, 4f, 3f}, new int[]{3}, null, "b", DataType.FLOAT32);
+        a.setRequiresGrad(true);
+        b.setRequiresGrad(true);
+        Tensor min = a.min(b);
+        TensorInternalAccess.setBackend(min, ComputeBackend.GPU_METAL);
+        Tensor loss = min.sum();
+
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(RuntimeConfig.trainingDefaults());
+
+        var gpuMinGrad = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MIN_GRAD)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(ComputeBackend.GPU_METAL, gpuMinGrad.metadata().backend());
+
+        execution.execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(expectedGradA, a.getGradient().toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(expectedGradB, b.getGradient().toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalBackwardMaxGradCanPrepareAndMatchCpuGradients() {
+        Tensor cpuA = new Tensor(new float[]{1f, 5f, 3f}, new int[]{3}, null, "cpuA", DataType.FLOAT32);
+        Tensor cpuB = new Tensor(new float[]{2f, 4f, 3f}, new int[]{3}, null, "cpuB", DataType.FLOAT32);
+        cpuA.setRequiresGrad(true);
+        cpuB.setRequiresGrad(true);
+        Tensor cpuLoss = cpuA.max(cpuB).sum();
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        double[] expectedGradA = cpuA.getGradient().toDoubleArrayCopy().clone();
+        double[] expectedGradB = cpuB.getGradient().toDoubleArrayCopy().clone();
+
+        Tensor a = new Tensor(new float[]{1f, 5f, 3f}, new int[]{3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{2f, 4f, 3f}, new int[]{3}, null, "b", DataType.FLOAT32);
+        a.setRequiresGrad(true);
+        b.setRequiresGrad(true);
+        Tensor max = a.max(b);
+        TensorInternalAccess.setBackend(max, ComputeBackend.GPU_METAL);
+        Tensor loss = max.sum();
+
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(RuntimeConfig.trainingDefaults());
+
+        var gpuMaxGrad = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.MAX_GRAD)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(ComputeBackend.GPU_METAL, gpuMaxGrad.metadata().backend());
+
+        execution.execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(expectedGradA, a.getGradient().toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(expectedGradB, b.getGradient().toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalBackwardSdpaCanPrepareAndMatchCpuGradients() {
+        Tensor cpuQ = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "cpuQ", DataType.FLOAT32);
+        Tensor cpuK = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "cpuK", DataType.FLOAT32);
+        Tensor cpuV = new Tensor(new float[]{
+                10f, 1f,
+                1f, 10f
+        }, new int[]{1, 2, 2}, null, "cpuV", DataType.FLOAT32);
+        cpuQ.setRequiresGrad(true);
+        cpuK.setRequiresGrad(true);
+        cpuV.setRequiresGrad(true);
+        Tensor cpuLoss = cpuQ.scaledDotProductAttention(cpuK, cpuV, tensor.options.AttentionOptions.defaults().withScale(1.0)).sum();
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        double[] expectedGradQ = cpuQ.getGradient().toDoubleArrayCopy().clone();
+        double[] expectedGradK = cpuK.getGradient().toDoubleArrayCopy().clone();
+        double[] expectedGradV = cpuV.getGradient().toDoubleArrayCopy().clone();
+
+        Tensor q = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{
+                10f, 1f,
+                1f, 10f
+        }, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
+        q.setRequiresGrad(true);
+        k.setRequiresGrad(true);
+        v.setRequiresGrad(true);
+        Tensor attention = q.scaledDotProductAttention(k, v, tensor.options.AttentionOptions.defaults().withScale(1.0));
+        TensorInternalAccess.setBackend(attention, ComputeBackend.GPU_METAL);
+        Tensor loss = attention.sum();
+
+        PreparedExecution execution = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults())
+                .prepare(RuntimeConfig.trainingDefaults());
+
+        long gpuBackwardSdpa = execution.backwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD)
+                .count();
+        assertTrue(gpuBackwardSdpa >= 3);
+
+        execution.execute(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(expectedGradQ, q.getGradient().toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(expectedGradK, k.getGradient().toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(expectedGradV, v.getGradient().toDoubleArrayCopy(), 1e-5);
+    }
+
 
     @Test
     void gpuMetalLinearBiasTanhCanExecuteThroughExplicitAppleShim() {
@@ -945,7 +1328,7 @@ public class PreparedExecutionBuildTest {
         assertEquals(1, gpuSteps.size());
         PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(7, executable.plan().lowering().dagSpec().nodes().size());
-        assertTrue(execution.prepareTrace().acceleratorSelection().selectedCount() >= 1);
+        assertTrue(execution.prepareTrace().backendSelection().selectedCount() >= 1);
     }
 
     @Test
@@ -1235,7 +1618,7 @@ public class PreparedExecutionBuildTest {
         assertEquals(1, gpuSteps.size());
         PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(1, executable.plan().lowering().dagSpec().nodes().size());
-        assertEquals(graph.optimizer.partition.model.AcceleratorDagNodeType.SDPA, executable.plan().lowering().dagSpec().nodes().getFirst().type());
+        assertEquals(backend.accelerator.dag.AcceleratorDagNodeType.SDPA, executable.plan().lowering().dagSpec().nodes().getFirst().type());
     }
 
     @Test
@@ -1263,9 +1646,9 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(0, gpuSteps.size());
-        assertEquals(0, execution.prepareTrace().acceleratorSelection().selectedCount());
-        assertEquals(1, execution.prepareTrace().acceleratorSelection().rejectedCount());
-        assertEquals("backend-disabled", execution.prepareTrace().acceleratorSelection().decisions().getFirst().reason());
+        assertEquals(0, execution.prepareTrace().backendSelection().selectedCount());
+        assertEquals(1, execution.prepareTrace().backendSelection().rejectedCount());
+        assertEquals("backend-disabled", execution.prepareTrace().backendSelection().decisions().getFirst().reason());
     }
 
     @Test
@@ -1293,9 +1676,9 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(0, gpuSteps.size());
-        assertEquals(0, execution.prepareTrace().acceleratorSelection().selectedCount());
-        assertEquals(1, execution.prepareTrace().acceleratorSelection().rejectedCount());
-        assertEquals("estimated-work-below-minimum", execution.prepareTrace().acceleratorSelection().decisions().getFirst().reason());
+        assertEquals(0, execution.prepareTrace().backendSelection().selectedCount());
+        assertEquals(1, execution.prepareTrace().backendSelection().rejectedCount());
+        assertEquals("estimated-work-below-minimum", execution.prepareTrace().backendSelection().decisions().getFirst().reason());
     }
 
     @Test
@@ -2293,7 +2676,7 @@ public class PreparedExecutionBuildTest {
 
     private static OptimizerConfig fuseOnlyInferenceConfig() {
         return new OptimizerConfig(
-                java.util.List.of(config.optimizer.OptimizerStage.FUSE),
+                java.util.List.of(config.optimizer.OptimizerStage.PART, config.optimizer.OptimizerStage.FUSE, config.optimizer.OptimizerStage.MEM),
                 config.optimizer.RewriteConfig.defaults(),
                 config.optimizer.CseConfig.strictDefaults(),
                 config.optimizer.FuseConfig.inferenceDefaults(),

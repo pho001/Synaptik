@@ -1,5 +1,5 @@
 import config.optimizer.CseConfig;
-import graph.optimizer.rules.CommonSubexpressionEliminationRule;
+import graph.optimizer.cse.CommonSubexpressionEliminationRule;
 import operations.Operation;
 import operations.layout.noop;
 import org.junit.jupiter.api.Test;

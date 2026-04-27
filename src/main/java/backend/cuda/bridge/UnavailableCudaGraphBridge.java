@@ -1,6 +1,6 @@
 package backend.cuda.bridge;
 
-import graph.optimizer.partition.model.AcceleratorDagSpec;
+import backend.accelerator.dag.AcceleratorDagSpec;
 import tensor.Tensor;
 
 import java.util.List;
@@ -37,7 +37,7 @@ public final class UnavailableCudaGraphBridge implements CudaGraphBridge {
             CudaBridgeContext bridgeContext,
             CudaBridgeExecutable executable,
             List<Tensor> externalInputs,
-            Tensor out
+            List<Tensor> outputs
     ) {
         throw new UnsupportedOperationException(unavailableReason());
     }

@@ -5,8 +5,8 @@ import backend.kernels.cpu.CpuKernelContext;
 import backend.kernels.cpu.CpuKernelCostClass;
 import backend.kernels.cpu.CpuThreadPool;
 import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
-import graph.fused.PreparedFusedExecutable;
-import operations.fused.FusedOperation;
+import backend.cpu.fused.exec.PreparedFusedExecutable;
+import backend.cpu.fused.plan.FusedOperation;
 import tensor.Tensor;
 
 import java.util.List;

@@ -32,6 +32,7 @@ public class AbcStageOrderCompileRegressionTest {
                 OptimizerConfig.trainingDefaults().withStageOrder(List.of(
                         OptimizerStage.CSE,
                         OptimizerStage.AR,
+                        OptimizerStage.PART,
                         OptimizerStage.FUSE,
                         OptimizerStage.MEM
                 )),

@@ -1,5 +1,6 @@
 package tensor.ops.reduction;
 
+import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.reduction.logSoftmax;
 import operations.reduction.mean;
@@ -219,6 +220,7 @@ public final class TensorReduceOps {
                     isMax ? "reduce_max_grad" : "reduce_min_grad",
                     outGrad.getDataType()
             );
+            BackendIntentPropagator.preserve(grad, out);
             ReductionSupport.accumulateGradient(input, grad);
         });
         return out;
@@ -249,6 +251,7 @@ public final class TensorReduceOps {
                     isMax ? "reduce_max_grad" : "reduce_min_grad",
                     outGrad.getDataType()
             );
+            BackendIntentPropagator.preserve(grad, out);
             ReductionSupport.accumulateGradient(input, grad);
         });
         return out;

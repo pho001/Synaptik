@@ -3,8 +3,8 @@ package backend.kernels.cpu.fused;
 import backend.kernels.cpu.*;
 
 import backend.kernels.cpu.fused.FusedExecutionOptions;
-import graph.fused.PreparedFusedExecutable;
-import operations.fused.FusedOperation;
+import backend.cpu.fused.exec.PreparedFusedExecutable;
+import backend.cpu.fused.plan.FusedOperation;
 import operations.Operation;
 import tensor.Tensor;
 

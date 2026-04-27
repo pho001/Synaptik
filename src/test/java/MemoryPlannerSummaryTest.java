@@ -5,7 +5,7 @@ import graph.optimizer.OptimizerFactory;
 import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.MemoryPlanner;
 import graph.optimizer.memory.MemoryPlannerPolicy;
-import graph.optimizer.rules.MemoryOptimizerRule;
+import graph.optimizer.memory.MemoryOptimizerRule;
 import org.junit.jupiter.api.Test;
 import tensor.Tensor;
 
@@ -34,7 +34,7 @@ public class MemoryPlannerSummaryTest {
         assertTrue(plan.summary().peakReusableBytes() > 0);
         assertTrue(plan.summary().allocatedSlotBytes() > 0);
         assertTrue(plan.summary().savedForwardCount() > 0);
-        assertTrue(plan.summary().gradientTargetCount() > 0);
+        assertTrue(plan.summary().peakBackwardLiveBytes() > 0);
         assertTrue(plan.summary().reusableFreshAllocationCount() > 0);
         assertTrue(plan.summary().reuseHitRate() >= 0.0d);
         assertTrue(plan.summary().toMetricMap().containsKey("allocatedSlotBytes"));

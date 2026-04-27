@@ -5,13 +5,13 @@ public record PrepareTrace(
         long durationNs,
         int forwardStepCount,
         int backwardStepCount,
-        AcceleratorSelectionTrace acceleratorSelection
+        BackendSelectionTrace backendSelection
 ) {
     public PrepareTrace {
-        acceleratorSelection = acceleratorSelection == null ? AcceleratorSelectionTrace.empty() : acceleratorSelection;
+        backendSelection = backendSelection == null ? BackendSelectionTrace.empty() : backendSelection;
     }
 
     public static PrepareTrace skipped() {
-        return new PrepareTrace(false, 0L, 0, 0, AcceleratorSelectionTrace.empty());
+        return new PrepareTrace(false, 0L, 0, 0, BackendSelectionTrace.empty());
     }
 }

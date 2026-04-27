@@ -27,22 +27,26 @@ final class AbcF32StageOrderHotspotBenchmarkTest {
         ExecutionProfile best = loadBestProfile();
         ExecutionProfile arFuse = withStageOrder(best, "ar-fuse", List.of(
                 OptimizerStage.AR,
+                OptimizerStage.PART,
                 OptimizerStage.FUSE
         ));
-        ExecutionProfile fuseArMem = withStageOrder(best, "fuse-ar-mem", List.of(
-                OptimizerStage.FUSE,
+        ExecutionProfile arPartFuseMem = withStageOrder(best, "ar-part-fuse-mem", List.of(
                 OptimizerStage.AR,
+                OptimizerStage.PART,
+                OptimizerStage.FUSE,
                 OptimizerStage.MEM
         ));
         ExecutionProfile arFuseCseMem = withStageOrder(best, "ar-fuse-cse-mem", List.of(
                 OptimizerStage.AR,
-                OptimizerStage.FUSE,
                 OptimizerStage.CSE,
+                OptimizerStage.PART,
+                OptimizerStage.FUSE,
                 OptimizerStage.MEM
         ));
         ExecutionProfile cseArFuseMem = withStageOrder(best, "cse-ar-fuse-mem", List.of(
                 OptimizerStage.CSE,
                 OptimizerStage.AR,
+                OptimizerStage.PART,
                 OptimizerStage.FUSE,
                 OptimizerStage.MEM
         ));
@@ -52,7 +56,7 @@ final class AbcF32StageOrderHotspotBenchmarkTest {
                 List.of(
                         BenchmarkEntry.candidate("best-current", best),
                         BenchmarkEntry.candidate("ar-fuse", arFuse),
-                        BenchmarkEntry.candidate("fuse-ar-mem", fuseArMem),
+                        BenchmarkEntry.candidate("ar-part-fuse-mem", arPartFuseMem),
                         BenchmarkEntry.candidate("ar-fuse-cse-mem", arFuseCseMem),
                         BenchmarkEntry.candidate("cse-ar-fuse-mem", cseArFuseMem)
                 ),

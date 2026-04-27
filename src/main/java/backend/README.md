@@ -248,8 +248,8 @@ That split is important:
 
 ## Fused Backend
 
-Graph-level fusion produces one `FUSED` node.
-Preparation still needs to choose how that fused node runs.
+The optimizer produces optimized region units.
+CPU lowering turns fused elementwise units into backend-owned fused plan artifacts, and preparation chooses how those artifacts run.
 
 Current fused execution ideas include:
 
@@ -259,8 +259,9 @@ Current fused execution ideas include:
 
 The backend documentation should be read together with [../graph/optimizer/FUSE.md](../graph/optimizer/FUSE.md):
 
-- `FUSE` decides that a cluster should become one primitive
-- backend preparation decides how to execute that primitive
+- `FUSE` decides optimized region shape
+- backend lowering builds backend-owned execution artifacts
+- backend preparation decides how to execute those artifacts
 
 ## Trace Metadata
 

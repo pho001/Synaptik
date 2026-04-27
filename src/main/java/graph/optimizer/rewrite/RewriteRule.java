@@ -3,6 +3,7 @@ package graph.optimizer.rewrite;
 import config.optimizer.RewriteConfig;
 import config.optimizer.Conv2dLoweringMode;
 import graph.optimizer.OptimizationRule;
+import graph.optimizer.state.OptimizerState;
 import tensor.Tensor;
 
 import java.util.List;
@@ -63,8 +64,8 @@ public class RewriteRule implements OptimizationRule {
     }
 
     @Override
-    public List<Tensor> apply(List<Tensor> sortedGraph) {
-        List<Tensor> current = sortedGraph;
+    public OptimizerState apply(OptimizerState state) {
+        OptimizerState current = state;
         for (OptimizationRule delegate : delegates) {
             current = delegate.apply(current);
         }

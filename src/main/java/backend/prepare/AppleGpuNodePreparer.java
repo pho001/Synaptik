@@ -5,13 +5,12 @@ import backend.accelerator.exec.PartitionExecutionRole;
 import backend.apple.bridge.AppleMpsFfmBridge;
 import backend.apple.bridge.AppleMpsGraphBridge;
 import backend.apple.exec.PreparedAppleGpuExecutable;
+import backend.apple.lowering.AppleGpuPartitionPlan;
+import backend.lowering.LoweredRegion;
+import backend.lowering.LoweringFamily;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
-import graph.optimizer.partition.AcceleratorPartitionPlan;
-import graph.optimizer.partition.apple.AppleGpuPartitionPlan;
-
-import java.util.ArrayList;
-import java.util.List;
+import graph.optimizer.partition.PartitionPlan;
 
 final class AppleGpuNodePreparer {
     private final CpuNodePreparer cpuPreparer;
@@ -29,52 +28,50 @@ final class AppleGpuNodePreparer {
     CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         PartitionExecutionRole role = context.partitionRoleFor(node.id());
         if (role == PartitionExecutionRole.INTERIOR) {
-            return new CompiledNodeExecutionMetadata(ComputeBackend.GPU_METAL, null, null, null, null, null, role);
+            return GpuAcceleratorPrepareSupport.interiorMetadata(ComputeBackend.GPU_METAL, role);
         }
         if (role != PartitionExecutionRole.ANCHOR) {
             return cpuPreparer.prepareAsCpu(node, context);
         }
+        LoweredRegion loweredRegion = GpuAcceleratorPrepareSupport.requireLoweredRegion(
+                context.appleLoweredRegionForAnchor(node.id()),
+                "Apple GPU",
+                node.id()
+        );
+        LoweringFamily loweringFamily = GpuAcceleratorPrepareSupport.resolveLoweringFamily(
+                loweredRegion,
+                LoweringFamily.APPLE_GRAPH_REGION
+        );
 
-        AcceleratorPartitionPlan genericPlan = context.acceleratorPlanForAnchor(node.id());
-        if (!(genericPlan instanceof AppleGpuPartitionPlan plan)) {
-            throw new IllegalStateException("Missing Apple GPU partition plan for anchor node " + node.id());
-        }
-
-        BackendPrepareContext localContext = context.fork();
-        List<PreparedAppleGpuExecutable.PreparedStep> preparedSteps = new ArrayList<>(plan.nodeIds().size());
-        CompiledNodeExecutionMetadata anchorCpuMetadata = null;
-        CompiledNodeExecutionMetadata computeCpuMetadata = null;
-        CompiledNode computeNode = null;
-        for (int nodeId : plan.nodeIds()) {
-            CompiledNode partitionNode = context.compiledNode(nodeId);
-            if (partitionNode == null) {
-                throw new IllegalStateException("Missing compiled node for Apple partition nodeId=" + nodeId);
-            }
-            CompiledNodeExecutionMetadata cpuMetadata = cpuPreparer.prepareAsCpu(partitionNode, localContext);
-            localContext.publishPreparedMetadata(nodeId, cpuMetadata);
-            preparedSteps.add(new PreparedAppleGpuExecutable.PreparedStep(partitionNode, cpuMetadata));
-            if (computeNode == null) {
-                computeNode = partitionNode;
-                computeCpuMetadata = cpuMetadata;
-            }
-            if (nodeId == plan.anchorNodeId()) {
-                anchorCpuMetadata = cpuMetadata;
-            }
-        }
-        if (anchorCpuMetadata == null || anchorCpuMetadata.cpuPlan() == null) {
-            throw new IllegalStateException("Missing CPU anchor metadata for Apple partition anchor node " + node.id());
-        }
-        if (computeNode == null || computeCpuMetadata == null || computeCpuMetadata.cpuPlan() == null) {
-            throw new IllegalStateException("Missing CPU compute metadata for Apple partition entry node " + node.id());
-        }
+        PartitionPlan genericPlan = context.backendPlanForAnchor(node.id());
+        AppleGpuPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(
+                genericPlan,
+                AppleGpuPartitionPlan.class,
+                "Apple GPU",
+                node.id()
+        );
+        var fallback = GpuAcceleratorPrepareSupport.prepareCpuFallback(
+                plan,
+                context,
+                cpuPreparer,
+                "Apple GPU",
+                true
+        );
 
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.GPU_METAL,
                 null,
-                anchorCpuMetadata.cpuPlan(),
+                fallback.anchorCpuMetadata().cpuPlan(),
                 null,
                 null,
-                new PreparedAppleGpuExecutable(plan, computeNode, computeCpuMetadata.cpuPlan(), bridge, preparedSteps),
+                new PreparedAppleGpuExecutable(
+                        plan,
+                        loweringFamily,
+                        fallback.computeNode(),
+                        fallback.computeCpuMetadata().cpuPlan(),
+                        bridge,
+                        fallback.preparedSteps()
+                ),
                 PartitionExecutionRole.ANCHOR
         );
     }

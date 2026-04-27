@@ -1,6 +1,6 @@
 package config.optimizer;
 
-import graph.optimizer.partition.AcceleratorTarget;
+import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionPlannerStrategy;
 
 public record PartitionConfig(
@@ -13,13 +13,13 @@ public record PartitionConfig(
         double externalInputPenalty,
         double workWeight,
         PartitionPlannerStrategy plannerStrategy,
-        AcceleratorTarget target
+        PartitionTarget target
 ) {
     public PartitionConfig {
         maxSearchNodes = Math.max(1, maxSearchNodes);
         maxVisitedCandidates = Math.max(1, maxVisitedCandidates);
         plannerStrategy = plannerStrategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : plannerStrategy;
-        target = target == null ? AcceleratorTarget.AUTO : target;
+        target = target == null ? PartitionTarget.AUTO : target;
     }
 
     public PartitionConfig(
@@ -42,7 +42,7 @@ public record PartitionConfig(
                 externalInputPenalty,
                 workWeight,
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                AcceleratorTarget.AUTO
+                PartitionTarget.AUTO
         );
     }
 
@@ -57,7 +57,22 @@ public record PartitionConfig(
                 60.0,
                 1.0,
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                AcceleratorTarget.AUTO
+                PartitionTarget.AUTO
+        );
+    }
+
+    public PartitionConfig withTarget(PartitionTarget newTarget) {
+        return new PartitionConfig(
+                maxSearchNodes,
+                maxVisitedCandidates,
+                nodeWeight,
+                internalEdgeWeight,
+                mergeNodeBonus,
+                tailDepthWeight,
+                externalInputPenalty,
+                workWeight,
+                plannerStrategy,
+                newTarget
         );
     }
 }

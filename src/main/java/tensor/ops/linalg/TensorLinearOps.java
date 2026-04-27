@@ -1,6 +1,6 @@
 package tensor.ops.linalg;
 
-import backend.ComputeBackend;
+import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -22,12 +22,12 @@ public final class TensorLinearOps {
 
             if (input.getRequiresGrad()) {
                 Tensor gradInput = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(weight));
-                propagateAcceleratorBackend(out, gradInput);
+                BackendIntentPropagator.preserve(gradInput, out);
                 LinalgSupport.accumulateGradient(input, gradInput);
             }
             if (weight.getRequiresGrad()) {
                 Tensor gradWeight = LinalgSupport.transposeLastTwoAxes(input).matmul(outGrad);
-                propagateAcceleratorBackend(out, gradWeight);
+                BackendIntentPropagator.preserve(gradWeight, out);
                 LinalgSupport.accumulateGradient(weight, LinalgSupport.sumToShape(gradWeight, weight.getShapeUnsafe()));
             }
         });
@@ -46,12 +46,12 @@ public final class TensorLinearOps {
 
             if (input.getRequiresGrad()) {
                 Tensor gradInput = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(weight));
-                propagateAcceleratorBackend(out, gradInput);
+                BackendIntentPropagator.preserve(gradInput, out);
                 LinalgSupport.accumulateGradient(input, gradInput);
             }
             if (weight.getRequiresGrad()) {
                 Tensor gradWeight = LinalgSupport.transposeLastTwoAxes(input).matmul(outGrad);
-                propagateAcceleratorBackend(out, gradWeight);
+                BackendIntentPropagator.preserve(gradWeight, out);
                 LinalgSupport.accumulateGradient(weight, LinalgSupport.sumToShape(gradWeight, weight.getShapeUnsafe()));
             }
             if (bias.getRequiresGrad()) {
@@ -59,12 +59,5 @@ public final class TensorLinearOps {
             }
         });
         return out;
-    }
-
-    private static void propagateAcceleratorBackend(Tensor source, Tensor target) {
-        ComputeBackend backend = source == null ? null : source.resolveBackend();
-        if (backend == ComputeBackend.GPU_METAL || backend == ComputeBackend.GPU_CUDA || backend == ComputeBackend.GPU_OPENCL) {
-            TensorInternalAccess.setBackend(target, backend);
-        }
     }
 }

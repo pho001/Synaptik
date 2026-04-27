@@ -1,6 +1,6 @@
 package backend.cuda.bridge;
 
-import graph.optimizer.partition.model.AcceleratorDagSpec;
+import backend.accelerator.dag.AcceleratorDagSpec;
 import tensor.Tensor;
 
 import java.util.List;
@@ -24,6 +24,6 @@ public interface CudaGraphBridge {
             CudaBridgeContext bridgeContext,
             CudaBridgeExecutable executable,
             List<Tensor> externalInputs,
-            Tensor out
+            List<Tensor> outputs
     );
 }

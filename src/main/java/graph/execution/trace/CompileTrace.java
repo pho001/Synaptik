@@ -6,9 +6,9 @@ public record CompileTrace(
         int totalNodeCount,
         int forwardNodeCount,
         boolean supportsBackward,
-        AcceleratorPartitionCompileTrace acceleratorPartitions
+        PartitionCompileTrace partitionPlanning
 ) {
     public static CompileTrace skipped() {
-        return new CompileTrace(false, 0L, 0, 0, false, AcceleratorPartitionCompileTrace.empty());
+        return new CompileTrace(false, 0L, 0, 0, false, PartitionCompileTrace.empty());
     }
 }

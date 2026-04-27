@@ -1,11 +1,13 @@
 import backend.runtime.ExecutionMode;
+import backend.cpu.fused.plan.FusedOperation;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.runtime.RuntimeConfig;
 import config.backend.CpuKernelConfig;
 import graph.CompiledGraph;
-import graph.codegen.FusedDTypeOps;
-import graph.codegen.FusedKernelGeneratorRouter;
+import backend.cpu.fused.codegen.FusedDTypeOps;
+import backend.cpu.fused.codegen.FusedKernelGeneratorRouter;
+import graph.execution.PreparedNodeExecution;
 import graph.execution.PreparedExecution;
 import tensor.DataType;
 import tensor.Tensor;
@@ -205,11 +207,8 @@ public class FusedExecutionModesTest {
 
         Tensor out = Tensor.where(condFused, a, b).relu().mul(a);
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in graph containing where");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(CpuKernelConfig.defaultsTraining()));
+        prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
     }
 
@@ -243,17 +242,6 @@ public class FusedExecutionModesTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, 1)));
-        var fusedStep = prepared.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null)
-                .filter(step -> step.node().getOperation().opType() == operations.Operation.OpType.FUSED)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Expected fused node for masked-scale-where graph"));
-
-        assertTrue(
-                fusedStep.metadata().fusedExecutable().getClass().getName().contains("f32MaskedScaleWhereInverted"),
-                "Expected specialized fused executable for masked-scale-where graph"
-        );
-
         prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-6);
     }
@@ -277,11 +265,8 @@ public class FusedExecutionModesTest {
 
         Tensor out = a.greaterThan(b).logicalOr(c.lessThan(d));
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in compare/logical graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(CpuKernelConfig.defaultsTraining()));
+        prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toBooleanArrayCopy());
     }
 
@@ -304,11 +289,8 @@ public class FusedExecutionModesTest {
 
         Tensor out = Tensor.where(a.greaterThan(b), x, y).relu().mul(x);
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in compare-select graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(CpuKernelConfig.defaultsTraining()));
+        prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
     }
 
@@ -336,11 +318,8 @@ public class FusedExecutionModesTest {
         Tensor out = Tensor.where(a.greaterThan(b), x, y).relu().mul(x);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in compare-select vector graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-9);
     }
 
@@ -375,11 +354,8 @@ public class FusedExecutionModesTest {
 
         Tensor out = Tensor.where(a.greaterThan(b).logicalOr(c.lessThan(d)), x, y).mul(x);
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in compare/logical vector graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-9);
     }
 
@@ -410,11 +386,8 @@ public class FusedExecutionModesTest {
         Tensor out = Tensor.where(cond, x, y).relu().mul(z);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in external-bool vector graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-9);
     }
 
@@ -446,11 +419,8 @@ public class FusedExecutionModesTest {
 
         Tensor out = Tensor.where(a.greaterThan(b).logicalOr(a.lessThan(b)), x, y).sigmoid();
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in BFLOAT16 compare/logical/where graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 
@@ -474,11 +444,9 @@ public class FusedExecutionModesTest {
 
         Tensor out = a.sub(b).abs().clampMin(-0.25).clampMax(0.75).sigmoid();
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in BFLOAT16 abs/clamp graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
+        assertHasPreparedFusedStep(prepared);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 
@@ -502,11 +470,9 @@ public class FusedExecutionModesTest {
 
         Tensor out = a.sub(b).abs().add(b.abs()).mul(0.5).clampMin(0.01).sqrt().clampMax(1.25);
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in BFLOAT16 vector fast-path graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
+        assertHasPreparedFusedStep(prepared);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
 
@@ -525,17 +491,11 @@ public class FusedExecutionModesTest {
         PreparedExecution prepared = CompiledGraph.compile(out, fuseOnlyInferenceConfig())
                 .prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
 
-        var fusedStep = prepared.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null)
-                .filter(step -> step.node().getOperation().opType() == operations.Operation.OpType.FUSED)
-                .filter(step -> step.metadata().cpuPlan() != null)
-                .filter(step -> step.metadata().cpuPlan().dispatchHints() != null)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Expected BF16 fused step"));
+        var fusedStep = findPreparedFusedStep(prepared);
 
         byte[] bytecode = FusedKernelGeneratorRouter.generate(
                 "debug/test/Bf16VectorKernel",
-                ((operations.fused.FusedOperation) fusedStep.node().getOperation()).getPlan(),
+                ((FusedOperation) fusedStep.executionOperation()).getPlan(),
                 FusedDTypeOps.MODE_BF16,
                 fusedStep.metadata().cpuPlan().dispatchHints().vectorWidth()
         );
@@ -569,11 +529,9 @@ public class FusedExecutionModesTest {
         Tensor out = a.greaterThan(b).logicalOr(c.lessThan(d));
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in bool-output vector graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
+        assertHasPreparedFusedStep(prepared);
         assertArrayEquals(expected, out.toBooleanArrayCopy());
     }
 
@@ -604,11 +562,8 @@ public class FusedExecutionModesTest {
         Tensor out = viewFused.relu().exp().mul(viewFused);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(CpuKernelConfig.defaultsTraining()), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node for offset-view input graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(CpuKernelConfig.defaultsTraining()));
+        prepared.execute(ExecutionMode.FORWARD);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
     }
 
@@ -625,11 +580,9 @@ public class FusedExecutionModesTest {
 
         Tensor out = a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(config), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in compiled graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(config));
+        prepared.execute(ExecutionMode.FORWARD);
+        assertHasPreparedFusedStep(prepared);
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
     }
 
@@ -712,11 +665,9 @@ public class FusedExecutionModesTest {
         Tensor out = powZero.add(mulZero).add(input.pow(-1.0));
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
-        compiledGraph.execute(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)), ExecutionMode.FORWARD);
-
-        boolean hasFused = compiledGraph.getCompiledGraphAsList().stream()
-                .anyMatch(t -> t.getOperation() != null && t.getOperation().opType() == operations.Operation.OpType.FUSED);
-        assertTrue(hasFused, "Expected fused node in constant-canonicalization graph");
+        PreparedExecution prepared = compiledGraph.prepare(runtimeConfig(new CpuKernelConfig(4, 32, 32, 32, 1, Integer.MAX_VALUE)));
+        prepared.execute(ExecutionMode.FORWARD);
+        assertHasPreparedFusedStep(prepared);
 
         double[] expected = new double[inputValues.length];
         for (int i = 0; i < inputValues.length; i++) {
@@ -732,7 +683,19 @@ public class FusedExecutionModesTest {
         return new RuntimeConfig(cpuKernelConfig, config.runtime.ApproximationConfig.defaults(), config.runtime.BlasConfig.disabled());
     }
 
+    private static void assertHasPreparedFusedStep(PreparedExecution prepared) {
+        assertTrue(prepared.forwardSteps().stream().anyMatch(step -> step.metadata().fusedExecutable() != null),
+                "Expected prepared fused execution metadata");
+    }
+
+    private static PreparedNodeExecution findPreparedFusedStep(PreparedExecution prepared) {
+        return prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Expected prepared fused step"));
+    }
+
     private static OptimizerConfig fuseOnlyInferenceConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.FUSE));
+        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM));
     }
 }

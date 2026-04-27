@@ -1,24 +1,22 @@
 package backend.prepare;
 
 import backend.accelerator.exec.PartitionExecutionRole;
+import backend.lowering.LoweredExecutionUnit;
+import backend.lowering.LoweredRegion;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
-import graph.optimizer.partition.AcceleratorPartitionPlan;
+import graph.optimizer.partition.PartitionPlan;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public final class BackendPrepareContext {
-    private final RuntimeConfig runtimeConfig;
-    private final boolean supportsBackward;
-    private final List<CompiledNode> compiledNodes;
-    private final Map<Integer, List<CompiledNode>> consumers;
-    private final Map<Integer, CompiledNodeExecutionMetadata> preparedMetadata;
-    private final Map<Integer, AcceleratorPartitionPlan> acceleratorPlansByAnchor;
-    private final Map<Integer, PartitionExecutionRole> partitionRoles;
+    private final PrepareInputs inputs;
+    private final PreparedMetadataIndex metadataIndex;
+    private final BackendPlanIndex backendPlanIndex;
+    private final PartitionRoleIndex roleIndex;
+    private final LoweredRegionIndex loweredRegionIndex;
 
     public BackendPrepareContext(
             RuntimeConfig runtimeConfig,
@@ -26,82 +24,92 @@ public final class BackendPrepareContext {
             List<CompiledNode> compiledNodes,
             Map<Integer, List<CompiledNode>> consumers
     ) {
-        this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
-        this.supportsBackward = supportsBackward;
-        this.compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
-        this.consumers = Map.copyOf(consumers == null ? Map.of() : consumers);
-        this.preparedMetadata = new HashMap<>();
-        this.acceleratorPlansByAnchor = new HashMap<>();
-        this.partitionRoles = new HashMap<>();
+        this(
+                new PrepareInputs(runtimeConfig, supportsBackward, compiledNodes, consumers),
+                new PreparedMetadataIndex(),
+                new BackendPlanIndex(),
+                new PartitionRoleIndex(),
+                new LoweredRegionIndex()
+        );
+    }
+
+    private BackendPrepareContext(
+            PrepareInputs inputs,
+            PreparedMetadataIndex metadataIndex,
+            BackendPlanIndex backendPlanIndex,
+            PartitionRoleIndex roleIndex,
+            LoweredRegionIndex loweredRegionIndex
+    ) {
+        this.inputs = inputs;
+        this.metadataIndex = metadataIndex;
+        this.backendPlanIndex = backendPlanIndex;
+        this.roleIndex = roleIndex;
+        this.loweredRegionIndex = loweredRegionIndex;
     }
 
     public RuntimeConfig runtimeConfig() {
-        return runtimeConfig;
+        return inputs.runtimeConfig();
     }
 
     public boolean supportsBackward() {
-        return supportsBackward;
+        return inputs.supportsBackward();
     }
 
     public List<CompiledNode> compiledNodes() {
-        return compiledNodes;
+        return inputs.compiledNodes();
     }
 
     public CompiledNode compiledNode(int nodeId) {
-        if (nodeId < 0 || nodeId >= compiledNodes.size()) {
-            return null;
-        }
-        return compiledNodes.get(nodeId);
+        return inputs.compiledNode(nodeId);
     }
 
     public List<CompiledNode> consumersFor(int nodeId) {
-        return consumers.getOrDefault(nodeId, List.of());
+        return inputs.consumersFor(nodeId);
     }
 
     public CompiledNodeExecutionMetadata preparedMetadataFor(int nodeId) {
-        return preparedMetadata.get(nodeId);
+        return metadataIndex.metadataFor(nodeId);
     }
 
     public void publishPreparedMetadata(int nodeId, CompiledNodeExecutionMetadata metadata) {
-        if (metadata == null) {
-            preparedMetadata.remove(nodeId);
-            return;
-        }
-        preparedMetadata.put(nodeId, metadata);
+        metadataIndex.publish(nodeId, metadata);
     }
 
-    public void publishAcceleratorPlans(List<AcceleratorPartitionPlan> plans) {
-        acceleratorPlansByAnchor.clear();
-        partitionRoles.clear();
-        if (plans == null) {
-            return;
-        }
-        for (AcceleratorPartitionPlan plan : plans) {
-            if (plan == null) {
-                continue;
-            }
-            acceleratorPlansByAnchor.put(plan.anchorNodeId(), plan);
-            for (int nodeId : plan.nodeIds()) {
-                partitionRoles.put(nodeId, nodeId == plan.anchorNodeId()
-                        ? PartitionExecutionRole.ANCHOR
-                        : PartitionExecutionRole.INTERIOR);
-            }
-        }
+    public void publishBackendPlans(List<PartitionPlan> plans) {
+        backendPlanIndex.publish(plans, roleIndex);
     }
 
-    public AcceleratorPartitionPlan acceleratorPlanForAnchor(int nodeId) {
-        return acceleratorPlansByAnchor.get(nodeId);
+    public PartitionPlan backendPlanForAnchor(int nodeId) {
+        return backendPlanIndex.planForAnchor(nodeId);
+    }
+
+    public void publishLoweredRegions(List<LoweredRegion> loweredRegions) {
+        loweredRegionIndex.publish(loweredRegions, roleIndex);
+    }
+
+    public LoweredExecutionUnit cpuLoweredUnitForAnchor(int nodeId) {
+        return loweredRegionIndex.cpuUnitForAnchor(nodeId);
+    }
+
+    public LoweredRegion appleLoweredRegionForAnchor(int nodeId) {
+        return loweredRegionIndex.appleRegionForAnchor(nodeId);
+    }
+
+    public LoweredRegion cudaLoweredRegionForAnchor(int nodeId) {
+        return loweredRegionIndex.cudaRegionForAnchor(nodeId);
     }
 
     public PartitionExecutionRole partitionRoleFor(int nodeId) {
-        return partitionRoles.getOrDefault(nodeId, PartitionExecutionRole.NONE);
+        return roleIndex.roleFor(nodeId);
     }
 
     public BackendPrepareContext fork() {
-        BackendPrepareContext fork = new BackendPrepareContext(runtimeConfig, supportsBackward, compiledNodes, consumers);
-        fork.preparedMetadata.putAll(this.preparedMetadata);
-        fork.acceleratorPlansByAnchor.putAll(this.acceleratorPlansByAnchor);
-        fork.partitionRoles.putAll(this.partitionRoles);
-        return fork;
+        return new BackendPrepareContext(
+                inputs,
+                metadataIndex.fork(),
+                backendPlanIndex.fork(),
+                roleIndex.fork(),
+                loweredRegionIndex.fork()
+        );
     }
 }

@@ -30,7 +30,7 @@ import config.runtime.Conv2dConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
-import graph.optimizer.partition.AcceleratorTarget;
+import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionPlannerStrategy;
 import tensor.DataType;
 
@@ -137,7 +137,7 @@ public final class ExecutionProfileIO {
                     findDouble(json, "partitionExternalInputPenalty", defaultPartition.externalInputPenalty()),
                     findDouble(json, "partitionWorkWeight", defaultPartition.workWeight()),
                     findEnum(json, "partitionPlannerStrategy", defaultPartition.plannerStrategy(), PartitionPlannerStrategy.class),
-                    findEnum(json, "partitionAcceleratorTarget", defaultPartition.target(), AcceleratorTarget.class)
+                    findEnum(json, "partitionAcceleratorTarget", defaultPartition.target(), PartitionTarget.class)
             );
             OptimizerConfig optimizer = new OptimizerConfig(
                     stageOrder,

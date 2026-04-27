@@ -1,6 +1,6 @@
 package backend.apple.bridge;
 
-import graph.optimizer.partition.apple.AppleGpuPartitionPlan;
+import backend.apple.lowering.AppleGpuPartitionPlan;
 import tensor.Tensor;
 
 import java.util.List;
@@ -24,6 +24,6 @@ public interface AppleMpsGraphBridge {
             AppleMpsBridgeContext bridgeContext,
             AppleMpsBridgeExecutable executable,
             List<Tensor> externalInputs,
-            Tensor out
+            List<Tensor> outputs
     );
 }

@@ -1,5 +1,6 @@
 package tensor.ops.binary;
 
+import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.elementwise.binary.add;
 import operations.elementwise.binary.div;
@@ -179,6 +180,7 @@ public final class TensorBinaryOps {
                         "min_grad_a",
                         outGrad.getDataType()
                 );
+                BackendIntentPropagator.preserve(gradRaw, out);
                 BinarySupport.accumulateGradient(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
             }
             if (second.getRequiresGrad()) {
@@ -191,6 +193,7 @@ public final class TensorBinaryOps {
                         "min_grad_b",
                         outGrad.getDataType()
                 );
+                BackendIntentPropagator.preserve(gradRaw, out);
                 BinarySupport.accumulateGradient(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
             }
         });
@@ -217,6 +220,7 @@ public final class TensorBinaryOps {
                         "max_grad_a",
                         outGrad.getDataType()
                 );
+                BackendIntentPropagator.preserve(gradRaw, out);
                 BinarySupport.accumulateGradient(first, TensorBroadcastOps.sumToShape(gradRaw, first.getShape()));
             }
             if (second.getRequiresGrad()) {
@@ -229,6 +233,7 @@ public final class TensorBinaryOps {
                         "max_grad_b",
                         outGrad.getDataType()
                 );
+                BackendIntentPropagator.preserve(gradRaw, out);
                 BinarySupport.accumulateGradient(second, TensorBroadcastOps.sumToShape(gradRaw, second.getShape()));
             }
         });

@@ -53,7 +53,7 @@ application {
 }
 
 def sourceArtifactRoots = [layout.projectDirectory.dir('src'), layout.projectDirectory.dir('test')]
-def sourceArtifactPatterns = ['**/*.class', '**/.tmp*', '**/*.tmp*', '**/.DS_Store']
+def sourceArtifactPatterns = ['**/*.class', '**/*.java.txt', '**/*.java.bak', '**/*.java.orig', '**/*.java.tmp', '**/*~', '**/.tmp*', '**/*.tmp*', '**/.DS_Store']
 
 tasks.register('verifySourceTreeClean') {
     group = 'verification'

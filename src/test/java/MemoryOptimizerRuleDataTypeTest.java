@@ -3,7 +3,7 @@ import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.optimizer.rules.MemoryOptimizerRule;
+import graph.optimizer.memory.MemoryOptimizerRule;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;
@@ -87,6 +87,6 @@ public class MemoryOptimizerRuleDataTypeTest {
     private record RunResult(double[] out, double[] gradA, double[] gradB, double[] gradC) {}
 
     private static OptimizerConfig memOnlyTrainingConfig() {
-        return OptimizerConfig.trainingDefaults().withStageOrder(java.util.List.of(OptimizerStage.MEM));
+        return OptimizerConfig.trainingDefaults().withStageOrder(java.util.List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM));
     }
 }

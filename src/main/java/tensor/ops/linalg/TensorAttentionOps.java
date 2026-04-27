@@ -1,5 +1,6 @@
 package tensor.ops.linalg;
 
+import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
@@ -167,6 +168,7 @@ public final class TensorAttentionOps {
                 "scaledDotProductAttentionBackward",
                 attentionOut.getDataType()
         );
+        BackendIntentPropagator.preserve(grad, attentionOut);
         return grad;
     }
 

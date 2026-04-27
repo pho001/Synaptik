@@ -1,5 +1,13 @@
 package graph.optimizer.memory;
 
+import graph.optimizer.region.OptimizedRegion;
+import graph.optimizer.region.ExecutionUnit;
+import graph.optimizer.region.MaterializationDecision;
+import graph.optimizer.region.RegionValue;
+import graph.optimizer.region.RegionValueRef;
+import graph.optimizer.region.ValueTypeContract;
+import graph.optimizer.region.ValueTransportKind;
+import graph.optimizer.state.OptimizerState;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -13,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 
 public final class MemoryPlanner {
     private MemoryPlanner() {
@@ -23,10 +33,29 @@ public final class MemoryPlanner {
     }
 
     public static MemoryPlan plan(List<Tensor> sortedGraph, MemoryPlannerPolicy policy) {
+        return plan(sortedGraph, RegionValuePlanningArtifacts.empty(), policy);
+    }
+
+    public static MemoryPlan plan(OptimizerState state, MemoryPlannerPolicy policy) {
+        Objects.requireNonNull(state, "state cannot be null");
+        RegionValuePlanningArtifacts artifacts = buildRegionValuePlanningArtifacts(state);
+        return plan(state.graph(), artifacts, policy);
+    }
+
+    private static MemoryPlan plan(List<Tensor> sortedGraph, RegionValuePlanningArtifacts artifacts, MemoryPlannerPolicy policy) {
         Objects.requireNonNull(policy, "policy cannot be null");
         if (sortedGraph == null || sortedGraph.isEmpty()) {
             return new MemoryPlan(Map.of(), Map.of(), Map.of(), Map.of(), policy,
-                    new MemoryPlanSummary(0, 0, 0, 0, 0.0d, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0, 0, 0.0));
+                    new MemoryPlanSummary(0, 0, 0, 0, 0.0d, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0, 0, 0.0),
+                    artifacts.structuralView(),
+                    artifacts.regionValueLifetimes(),
+                    artifacts.materializationPlan(),
+                    artifacts.regionMemoryBindings(),
+                    artifacts.regionSlotByValueRef(),
+                    artifacts.regionSlotSizes(),
+                    artifacts.tensorToRegionValueRef(),
+                    artifacts.handoffRequirements(),
+                    Map.of());
         }
 
         Map<Tensor, Integer> indexByTensor = new IdentityHashMap<>();
@@ -94,8 +123,418 @@ public final class MemoryPlanner {
         Map<Tensor, ReusableInterval> reusableIntervals = buildReusableIntervals(sortedGraph, lifetimes, policy);
         SlotAssignment assignment = assignSlots(reusableIntervals.values().stream().toList(), forwardBoundaryIndex, policy);
         MemoryPlanSummary summary = buildSummary(sortedGraph, lifetimes, reusableIntervals, assignment.slotByOwner(), assignment.slotSizes(), forwardBoundaryIndex);
+        Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies = buildRuntimeBindingPolicies(sortedGraph);
 
-        return new MemoryPlan(lifetimes, reusableIntervals, assignment.slotByOwner(), assignment.slotSizes(), policy, summary);
+        return new MemoryPlan(
+                lifetimes,
+                reusableIntervals,
+                assignment.slotByOwner(),
+                assignment.slotSizes(),
+                policy,
+                summary,
+                artifacts.structuralView(),
+                artifacts.regionValueLifetimes(),
+                artifacts.materializationPlan(),
+                artifacts.regionMemoryBindings(),
+                artifacts.regionSlotByValueRef(),
+                artifacts.regionSlotSizes(),
+                artifacts.tensorToRegionValueRef(),
+                artifacts.handoffRequirements(),
+                runtimeBindingPolicies
+        );
+    }
+
+    private static Map<Tensor, RuntimeMemoryBindingPolicy> buildRuntimeBindingPolicies(List<Tensor> sortedGraph) {
+        IdentityHashMap<Tensor, RuntimeMemoryBindingPolicy> policies = new IdentityHashMap<>();
+        for (Tensor tensor : sortedGraph) {
+            Operation operation = tensor.getOperation();
+            if (operation == null || operation.opType() == null) {
+                policies.put(tensor, RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED);
+                continue;
+            }
+            RuntimeMemoryBindingPolicy policy = switch (operation.opType()) {
+                case MAX_POOL2D, MAX_POOL2D_BACKWARD_INPUT ->
+                        RuntimeMemoryBindingPolicy.skip("workspace-sensitive-storage");
+                default -> RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED;
+            };
+            policies.put(tensor, policy);
+        }
+        return Map.copyOf(policies);
+    }
+
+    private static RegionValuePlanningArtifacts buildRegionValuePlanningArtifacts(OptimizerState state) {
+        Objects.requireNonNull(state, "state cannot be null");
+        List<OptimizedRegion> optimizedRegions = state.optimizedRegions();
+        if (optimizedRegions == null || optimizedRegions.isEmpty()) {
+            return RegionValuePlanningArtifacts.empty();
+        }
+        Map<Tensor, Integer> graphLastUseByTensor = buildGraphLastUseByTensor(state);
+        List<String> regionIds = optimizedRegions.stream().map(OptimizedRegion::regionId).toList();
+        LinkedHashSet<RegionValueRef> materialized = new LinkedHashSet<>();
+        LinkedHashSet<RegionValueRef> continuation = new LinkedHashSet<>();
+        LinkedHashSet<RegionValueRef> virtual = new LinkedHashSet<>();
+        LinkedHashMap<RegionValueRef, StructuralValueFlowBuilder> flowBuilders = new LinkedHashMap<>();
+        LinkedHashMap<RegionValueRef, RegionValueDescriptor> descriptors = new LinkedHashMap<>();
+        LinkedHashMap<String, Integer> unitStepById = new LinkedHashMap<>();
+        LinkedHashMap<RegionValueRef, Integer> producerStepByValue = new LinkedHashMap<>();
+        int nextStep = 0;
+
+        for (OptimizedRegion region : optimizedRegions) {
+            for (RegionValue value : region.regionValues()) {
+                MaterializationDecision decision = switch (value.transportKind()) {
+                    case MATERIALIZED -> MaterializationDecision.MATERIALIZE;
+                    case CONTINUATION -> MaterializationDecision.CONTINUE;
+                    case VIRTUAL -> MaterializationDecision.VIRTUALIZE;
+                };
+                switch (value.transportKind()) {
+                    case MATERIALIZED -> materialized.add(value.ref());
+                    case CONTINUATION -> continuation.add(value.ref());
+                    case VIRTUAL -> virtual.add(value.ref());
+                }
+                flowBuilders.computeIfAbsent(value.ref(), ignored -> new StructuralValueFlowBuilder(value.ref()))
+                        .decision(decision)
+                        .producerRegion(region.regionId());
+                descriptors.put(value.ref(), new RegionValueDescriptor(
+                        value.ref(),
+                        decision,
+                        value.typeContract(),
+                        value.semanticTensor(),
+                        value.elementCount(),
+                        value.requiredMaterialized(),
+                        region.regionId()
+                ));
+            }
+            for (ExecutionUnit unit : region.executionUnits()) {
+                unitStepById.put(unit.unitId(), nextStep++);
+                for (RegionValueRef outputValueRef : unit.outputValueRefs()) {
+                    flowBuilders.computeIfAbsent(outputValueRef, ignored -> new StructuralValueFlowBuilder(outputValueRef))
+                            .producerRegion(region.regionId())
+                            .producerUnit(unit.unitId());
+                    producerStepByValue.put(outputValueRef, unitStepById.get(unit.unitId()));
+                }
+                for (RegionValueRef inputValueRef : unit.inputValueRefs()) {
+                    StructuralValueFlowBuilder builder = flowBuilders.get(inputValueRef);
+                    if (builder == null) {
+                        continue;
+                    }
+                    builder.addConsumerRegion(region.regionId());
+                    builder.addConsumerUnit(unit.unitId());
+                }
+            }
+        }
+
+        List<StructuralValueFlow> valueFlows = flowBuilders.values().stream()
+                .map(StructuralValueFlowBuilder::build)
+                .toList();
+        StructuralMemoryView structuralView = new StructuralMemoryView(
+                regionIds,
+                List.copyOf(materialized),
+                List.copyOf(continuation),
+                List.copyOf(virtual),
+                valueFlows
+        );
+        LinkedHashMap<RegionValueRef, RegionValueLifetime> regionValueLifetimes = new LinkedHashMap<>();
+        LinkedHashMap<RegionValueRef, MaterializationPlanEntry> materializationPlan = new LinkedHashMap<>();
+        LinkedHashMap<RegionValueRef, RegionMemoryBinding> regionMemoryBindings = new LinkedHashMap<>();
+        LinkedHashMap<RegionValueRef, Integer> regionSlotByValueRef = new LinkedHashMap<>();
+        LinkedHashMap<Integer, Integer> regionSlotSizes = new LinkedHashMap<>();
+        IdentityHashMap<Tensor, RegionValueRef> tensorToRegionValueRef = new IdentityHashMap<>();
+        ArrayList<RegionHandoffRequirement> handoffRequirements = new ArrayList<>();
+
+        for (StructuralValueFlow flow : valueFlows) {
+            RegionValueDescriptor descriptor = descriptors.get(flow.valueRef());
+            if (descriptor == null) {
+                continue;
+            }
+            tensorToRegionValueRef.put(descriptor.semanticTensor(), flow.valueRef());
+            int birthStep = producerStepByValue.getOrDefault(flow.valueRef(), 0);
+            int lastUseStep = birthStep;
+            for (String consumerUnitId : flow.consumerUnitIds()) {
+                Integer step = unitStepById.get(consumerUnitId);
+                if (step != null) {
+                    lastUseStep = Math.max(lastUseStep, step);
+                }
+            }
+            Integer graphLastUseStep = graphLastUseByTensor.get(descriptor.semanticTensor());
+            if (graphLastUseStep != null) {
+                lastUseStep = Math.max(lastUseStep, graphLastUseStep);
+            }
+            RegionValueLifetime lifetime = new RegionValueLifetime(
+                    flow.valueRef(),
+                    birthStep,
+                    lastUseStep,
+                    descriptor.elementCount(),
+                    descriptor.decision(),
+                    descriptor.typeContract(),
+                    flow.producerRegionId(),
+                    flow.producerUnitId(),
+                    flow.consumerRegionIds(),
+                    flow.consumerUnitIds()
+            );
+            regionValueLifetimes.put(flow.valueRef(), lifetime);
+            materializationPlan.put(flow.valueRef(), new MaterializationPlanEntry(
+                    flow.valueRef(),
+                    descriptor.decision(),
+                    descriptor.requiredMaterialized(),
+                    descriptor.decision() != MaterializationDecision.VIRTUALIZE
+            ));
+        }
+
+        BindingAssignment bindingAssignment = assignRegionBindings(regionValueLifetimes.values().stream().toList());
+        regionMemoryBindings.putAll(bindingAssignment.bindingsByValueRef());
+        regionSlotByValueRef.putAll(bindingAssignment.slotByValueRef());
+        regionSlotSizes.putAll(bindingAssignment.slotSizes());
+
+        for (RegionValueLifetime lifetime : regionValueLifetimes.values()) {
+            for (int i = 0; i < lifetime.consumerRegionIds().size(); i++) {
+                String consumerRegionId = lifetime.consumerRegionIds().get(i);
+                if (consumerRegionId == null
+                        || consumerRegionId.isBlank()
+                        || consumerRegionId.equals(lifetime.producerRegionId())) {
+                    continue;
+                }
+                String consumerUnitId = i < lifetime.consumerUnitIds().size()
+                        ? lifetime.consumerUnitIds().get(i)
+                        : null;
+                handoffRequirements.add(new RegionHandoffRequirement(
+                        lifetime.valueRef(),
+                        lifetime.producerRegionId(),
+                        lifetime.producerUnitId(),
+                        consumerRegionId,
+                        consumerUnitId,
+                        transportTypeFor(lifetime),
+                        lifetime.decision()
+                ));
+            }
+        }
+
+        return new RegionValuePlanningArtifacts(
+                structuralView,
+                Map.copyOf(regionValueLifetimes),
+                Map.copyOf(materializationPlan),
+                Map.copyOf(regionMemoryBindings),
+                Map.copyOf(regionSlotByValueRef),
+                Map.copyOf(regionSlotSizes),
+                Map.copyOf(tensorToRegionValueRef),
+                List.copyOf(handoffRequirements)
+        );
+    }
+
+    private static Map<Tensor, Integer> buildGraphLastUseByTensor(OptimizerState state) {
+        List<Tensor> graph = state.graph();
+        IdentityHashMap<Tensor, Integer> lastUseByTensor = new IdentityHashMap<>(graph.size());
+        for (int i = 0; i < graph.size(); i++) {
+            lastUseByTensor.put(graph.get(i), i);
+        }
+        for (int i = 0; i < graph.size(); i++) {
+            Tensor consumer = graph.get(i);
+            List<Tensor> inputs = consumer.getPrevTensors();
+            if (inputs == null || inputs.isEmpty()) {
+                continue;
+            }
+            for (Tensor input : inputs) {
+                if (input != null) {
+                    lastUseByTensor.merge(input, i, Math::max);
+                }
+            }
+        }
+        int terminalPublishStep = graph.size();
+        extendPublishedLifetime(lastUseByTensor, state.forwardOutput(), terminalPublishStep);
+        if (state.supportsBackward()) {
+            for (Tensor tensor : graph) {
+                Tensor gradient = tensor.getGradient();
+                if (gradient != null) {
+                    extendPublishedLifetime(lastUseByTensor, gradient, terminalPublishStep);
+                }
+            }
+        }
+        return Map.copyOf(lastUseByTensor);
+    }
+
+    private static void extendPublishedLifetime(
+            Map<Tensor, Integer> lastUseByTensor,
+            Tensor tensor,
+            int terminalPublishStep
+    ) {
+        Tensor current = tensor;
+        while (current != null) {
+            lastUseByTensor.merge(current, terminalPublishStep, Math::max);
+            if (!aliasesInput0AtRuntime(current)) {
+                return;
+            }
+            List<Tensor> inputs = current.getPrevTensors();
+            current = (inputs == null || inputs.isEmpty()) ? null : inputs.getFirst();
+        }
+    }
+
+    private static BindingAssignment assignRegionBindings(List<RegionValueLifetime> lifetimes) {
+        if (lifetimes.isEmpty()) {
+            return new BindingAssignment(Map.of(), Map.of(), Map.of());
+        }
+        List<RegionValueLifetime> allocatable = lifetimes.stream()
+                .filter(lifetime -> lifetime.decision() != MaterializationDecision.VIRTUALIZE)
+                .sorted(Comparator.comparingInt(RegionValueLifetime::birthStep).thenComparingInt(RegionValueLifetime::lastUseStep))
+                .toList();
+        ArrayList<RegionBindingState> active = new ArrayList<>();
+        ArrayList<RegionBindingState> free = new ArrayList<>();
+        LinkedHashMap<RegionValueRef, RegionMemoryBinding> bindings = new LinkedHashMap<>();
+        LinkedHashMap<RegionValueRef, Integer> slotByValueRef = new LinkedHashMap<>();
+        LinkedHashMap<Integer, Integer> slotSizes = new LinkedHashMap<>();
+        int nextBindingId = 0;
+        for (RegionValueLifetime lifetime : allocatable) {
+            releaseExpiredRegionBindings(active, free, lifetime.birthStep());
+            RegionBindingState chosen = chooseRegionBinding(free, lifetime);
+            if (chosen == null) {
+                chosen = new RegionBindingState(
+                        nextBindingId++,
+                        bindingKindFor(lifetime.decision()),
+                        storageTypeFor(lifetime),
+                        transportTypeFor(lifetime),
+                        slotSizeElementsFor(lifetime),
+                        Integer.MIN_VALUE
+                );
+                slotSizes.put(chosen.bindingId, slotSizeElementsFor(lifetime));
+            } else {
+                free.remove(chosen);
+            }
+            chosen.lastUseStep = lifetime.lastUseStep();
+            active.add(chosen);
+            bindings.put(lifetime.valueRef(), new RegionMemoryBinding(
+                    lifetime.valueRef(),
+                    chosen.kind,
+                    chosen.bindingId,
+                    chosen.storageType,
+                    chosen.transportType,
+                    true
+            ));
+            slotByValueRef.put(lifetime.valueRef(), chosen.bindingId);
+            slotSizes.merge(chosen.bindingId, slotSizeElementsFor(lifetime), Math::max);
+        }
+        for (RegionValueLifetime lifetime : lifetimes) {
+            if (bindings.containsKey(lifetime.valueRef())) {
+                continue;
+            }
+            bindings.put(lifetime.valueRef(), new RegionMemoryBinding(
+                    lifetime.valueRef(),
+                    RegionMemoryBindingKind.NONE,
+                    null,
+                    storageTypeFor(lifetime),
+                    transportTypeFor(lifetime),
+                    false
+            ));
+        }
+        return new BindingAssignment(Map.copyOf(bindings), Map.copyOf(slotByValueRef), Map.copyOf(slotSizes));
+    }
+
+    private static void releaseExpiredRegionBindings(
+            List<RegionBindingState> active,
+            List<RegionBindingState> free,
+            int currentBirthStep
+    ) {
+        List<RegionBindingState> released = new ArrayList<>();
+        for (RegionBindingState state : active) {
+            if (state.lastUseStep < currentBirthStep) {
+                released.add(state);
+            }
+        }
+        active.removeAll(released);
+        free.addAll(released);
+    }
+
+    private static RegionBindingState chooseRegionBinding(List<RegionBindingState> free, RegionValueLifetime lifetime) {
+        RegionMemoryBindingKind kind = bindingKindFor(lifetime.decision());
+        DataType storageType = storageTypeFor(lifetime);
+        DataType transportType = transportTypeFor(lifetime);
+        int slotSize = slotSizeElementsFor(lifetime);
+        for (RegionBindingState state : free) {
+            if (state.kind == kind
+                    && state.storageType == storageType
+                    && state.transportType == transportType
+                    && state.size == slotSize) {
+                return state;
+            }
+        }
+        return null;
+    }
+
+    private static RegionMemoryBindingKind bindingKindFor(MaterializationDecision decision) {
+        return switch (decision) {
+            case CONTINUE -> RegionMemoryBindingKind.CONTINUATION;
+            case MATERIALIZE -> RegionMemoryBindingKind.MATERIALIZED;
+            case VIRTUALIZE -> RegionMemoryBindingKind.NONE;
+        };
+    }
+
+    private static DataType storageTypeFor(RegionValueLifetime lifetime) {
+        return lifetime.typeContract().storageType();
+    }
+
+    private static DataType transportTypeFor(RegionValueLifetime lifetime) {
+        return switch (lifetime.decision()) {
+            case CONTINUE -> lifetime.typeContract().transportType();
+            case MATERIALIZE, VIRTUALIZE -> lifetime.typeContract().storageType();
+        };
+    }
+
+    private static int slotSizeElementsFor(RegionValueLifetime lifetime) {
+        return Math.max(0, lifetime.elementCount());
+    }
+
+    private static final class StructuralValueFlowBuilder {
+        private final RegionValueRef valueRef;
+        private MaterializationDecision decision = MaterializationDecision.MATERIALIZE;
+        private String producerRegionId;
+        private String producerUnitId;
+        private final LinkedHashSet<String> consumerRegionIds = new LinkedHashSet<>();
+        private final LinkedHashSet<String> consumerUnitIds = new LinkedHashSet<>();
+
+        private StructuralValueFlowBuilder(RegionValueRef valueRef) {
+            this.valueRef = valueRef;
+        }
+
+        private StructuralValueFlowBuilder decision(MaterializationDecision decision) {
+            this.decision = decision == null ? MaterializationDecision.MATERIALIZE : decision;
+            return this;
+        }
+
+        private StructuralValueFlowBuilder producerRegion(String producerRegionId) {
+            if (producerRegionId != null && !producerRegionId.isBlank()) {
+                this.producerRegionId = producerRegionId;
+            }
+            return this;
+        }
+
+        private StructuralValueFlowBuilder producerUnit(String producerUnitId) {
+            if (producerUnitId != null && !producerUnitId.isBlank()) {
+                this.producerUnitId = producerUnitId;
+            }
+            return this;
+        }
+
+        private StructuralValueFlowBuilder addConsumerRegion(String consumerRegionId) {
+            if (consumerRegionId != null && !consumerRegionId.isBlank()) {
+                consumerRegionIds.add(consumerRegionId);
+            }
+            return this;
+        }
+
+        private StructuralValueFlowBuilder addConsumerUnit(String consumerUnitId) {
+            if (consumerUnitId != null && !consumerUnitId.isBlank()) {
+                consumerUnitIds.add(consumerUnitId);
+            }
+            return this;
+        }
+
+        private StructuralValueFlow build() {
+            return new StructuralValueFlow(
+                    valueRef,
+                    decision,
+                    producerRegionId,
+                    producerUnitId,
+                    List.copyOf(consumerRegionIds),
+                    List.copyOf(consumerUnitIds)
+            );
+        }
     }
 
     private static Map<Tensor, ReusableInterval> buildReusableIntervals(
@@ -418,6 +857,73 @@ public final class MemoryPlanner {
             Map<Tensor, Integer> slotByOwner,
             Map<Integer, Integer> slotSizes
     ) {
+    }
+
+    private record BindingAssignment(
+            Map<RegionValueRef, RegionMemoryBinding> bindingsByValueRef,
+            Map<RegionValueRef, Integer> slotByValueRef,
+            Map<Integer, Integer> slotSizes
+    ) {
+    }
+
+    private record RegionValueDescriptor(
+            RegionValueRef valueRef,
+            MaterializationDecision decision,
+            ValueTypeContract typeContract,
+            Tensor semanticTensor,
+            int elementCount,
+            boolean requiredMaterialized,
+            String producerRegionId
+    ) {
+    }
+
+    private record RegionValuePlanningArtifacts(
+            StructuralMemoryView structuralView,
+            Map<RegionValueRef, RegionValueLifetime> regionValueLifetimes,
+            Map<RegionValueRef, MaterializationPlanEntry> materializationPlan,
+            Map<RegionValueRef, RegionMemoryBinding> regionMemoryBindings,
+            Map<RegionValueRef, Integer> regionSlotByValueRef,
+            Map<Integer, Integer> regionSlotSizes,
+            Map<Tensor, RegionValueRef> tensorToRegionValueRef,
+            List<RegionHandoffRequirement> handoffRequirements
+    ) {
+        private static RegionValuePlanningArtifacts empty() {
+            return new RegionValuePlanningArtifacts(
+                    StructuralMemoryView.empty(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of(),
+                    List.of()
+            );
+        }
+    }
+
+    private static final class RegionBindingState {
+        private final int bindingId;
+        private final RegionMemoryBindingKind kind;
+        private final DataType storageType;
+        private final DataType transportType;
+        private final int size;
+        private int lastUseStep;
+
+        private RegionBindingState(
+                int bindingId,
+                RegionMemoryBindingKind kind,
+                DataType storageType,
+                DataType transportType,
+                int size,
+                int lastUseStep
+        ) {
+            this.bindingId = bindingId;
+            this.kind = kind;
+            this.storageType = storageType;
+            this.transportType = transportType;
+            this.size = size;
+            this.lastUseStep = lastUseStep;
+        }
     }
 
     private static final class SlotState {

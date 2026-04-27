@@ -326,8 +326,9 @@ public class SelectExecutionTest {
         bMin.setRequiresGrad(true);
         Tensor minLoss = aMin.select(0, 1).min(bMin.select(0, 1)).sum();
 
-        CompiledGraph.compile(minLoss, OptimizerConfig.trainingDefaults())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph compiledMin = CompiledGraph.compile(minLoss, OptimizerConfig.trainingDefaults());
+        assertTrue(containsOp(compiledMin, Operation.OpType.MIN_GRAD));
+        compiledMin.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0, 0, 0,
@@ -350,8 +351,9 @@ public class SelectExecutionTest {
         bMax.setRequiresGrad(true);
         Tensor maxLoss = aMax.select(0, 1).max(bMax.select(0, 1)).sum();
 
-        CompiledGraph.compile(maxLoss, OptimizerConfig.trainingDefaults())
-                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+        CompiledGraph compiledMax = CompiledGraph.compile(maxLoss, OptimizerConfig.trainingDefaults());
+        assertTrue(containsOp(compiledMax, Operation.OpType.MAX_GRAD));
+        compiledMax.execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{
                 0, 0, 0,

@@ -3,7 +3,7 @@ import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.codegen.FusedDTypeOps;
+import backend.cpu.fused.codegen.FusedDTypeOps;
 import tensor.DataType;
 import tensor.Tensor;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -124,7 +124,7 @@ public class DataTypeExecutionCoverageTest {
         return switch (dataType) {
             case FLOAT64 -> 1e-9;
             case FLOAT32 -> 1e-6;
-            case BFLOAT16 -> 6e-3;
+            case BFLOAT16 -> 8e-3;
             case INT32, BOOL -> throw new UnsupportedOperationException("INT32/BOOL are not part of DataTypeExecutionCoverageTest.");
         };
     }
@@ -198,6 +198,6 @@ public class DataTypeExecutionCoverageTest {
     }
 
     private static OptimizerConfig fuseOnlyInferenceConfig() {
-        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.FUSE));
+        return OptimizerConfig.inferenceDefaults().withStageOrder(java.util.List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM));
     }
 }

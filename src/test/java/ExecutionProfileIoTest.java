@@ -48,7 +48,7 @@ public class ExecutionProfileIoTest {
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
                 new OptimizerConfig(
-                        List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.FUSE, OptimizerStage.MEM),
+                        List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM),
                         new RewriteConfig(
                                 new AlgebraicRewriteConfig(true),
                                 new LinearLoweringConfig(false),

@@ -32,6 +32,7 @@ public record OptimizerConfig(
         if (unique.size() != normalized.size()) {
             throw new IllegalArgumentException("stageOrder cannot contain duplicates");
         }
+        validateStageOrdering(normalized);
 
         stageOrder = List.copyOf(normalized);
     }
@@ -68,7 +69,7 @@ public record OptimizerConfig(
 
     public static OptimizerConfig trainingDefaults() {
         return new OptimizerConfig(
-                List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART, OptimizerStage.MEM),
+                List.of(OptimizerStage.AR, OptimizerStage.CSE, OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM),
                 RewriteConfig.defaults(),
                 CseConfig.strictDefaults(),
                 FuseConfig.trainingDefaults(),
@@ -118,5 +119,20 @@ public record OptimizerConfig(
 
     public OptimizerConfig withPartition(PartitionConfig newPartition) {
         return new OptimizerConfig(stageOrder, rewrite, cse, fuse, memory, newPartition);
+    }
+
+    private static void validateStageOrdering(List<OptimizerStage> stageOrder) {
+        int partitionIndex = stageOrder.indexOf(OptimizerStage.PART);
+        int fuseIndex = stageOrder.indexOf(OptimizerStage.FUSE);
+        int memoryIndex = stageOrder.indexOf(OptimizerStage.MEM);
+        if (fuseIndex >= 0 && partitionIndex < 0) {
+            throw new IllegalArgumentException("Optimizer stage order is invalid: FUSE requires PART.");
+        }
+        if (partitionIndex >= 0 && fuseIndex >= 0 && partitionIndex > fuseIndex) {
+            throw new IllegalArgumentException("Optimizer stage order is invalid: PART must run before FUSE.");
+        }
+        if (memoryIndex >= 0 && fuseIndex < 0) {
+            throw new IllegalArgumentException("Optimizer stage order is invalid: MEM requires FUSE.");
+        }
     }
 }

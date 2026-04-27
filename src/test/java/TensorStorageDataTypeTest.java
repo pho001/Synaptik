@@ -1,4 +1,4 @@
-import graph.codegen.FusedDTypeOps;
+import backend.cpu.fused.codegen.FusedDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;

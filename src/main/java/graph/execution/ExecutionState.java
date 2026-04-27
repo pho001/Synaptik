@@ -86,11 +86,13 @@ public final class ExecutionState {
         }
 
         Map<Integer, CpuNodeWorkspace> workspaces = new HashMap<>();
+        Map<CpuNodeWorkspace, CpuNodeWorkspace> runtimeWorkspaceByTemplate = new IdentityHashMap<>();
         Map<PreparedInputKey, Tensor> preparedInputs = new HashMap<>();
         for (Map.Entry<Integer, CompiledNodeExecutionMetadata> entry : metadataIndex.entrySet()) {
             CpuNodeWorkspace workspace = entry.getValue().cpuWorkspace();
             if (workspace != null) {
-                workspaces.put(entry.getKey(), workspace.fork());
+                CpuNodeWorkspace runtimeWorkspace = runtimeWorkspaceByTemplate.computeIfAbsent(workspace, ignored -> workspace.fork());
+                workspaces.put(entry.getKey(), runtimeWorkspace);
             }
             if (entry.getValue().cpuPlan() != null) {
                 for (CpuPreparedInput preparedInput : entry.getValue().cpuPlan().layoutPlan().preparedInputs()) {

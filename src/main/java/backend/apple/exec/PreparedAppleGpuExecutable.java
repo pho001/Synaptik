@@ -1,16 +1,16 @@
 package backend.apple.exec;
 
-import backend.CPUBackend;
 import backend.ComputeBackend;
+import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
+import backend.apple.lowering.AppleGpuPartitionPlan;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.apple.bridge.AppleMpsBridgeContext;
 import backend.apple.bridge.AppleMpsBridgeExecutable;
 import backend.apple.bridge.AppleMpsGraphBridge;
 import backend.runtime.ExecutionContext;
+import backend.lowering.LoweringFamily;
 import graph.CompiledNode;
-import graph.execution.CompiledNodeExecutionMetadata;
-import graph.optimizer.partition.apple.AppleGpuPartitionPlan;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -19,31 +19,25 @@ import java.util.List;
 import java.util.Objects;
 
 public final class PreparedAppleGpuExecutable implements PreparedAcceleratorExecutable {
-    private static final CPUBackend CPU_BACKEND = new CPUBackend();
-
-    public record PreparedStep(CompiledNode node, CompiledNodeExecutionMetadata metadata) {
-        public PreparedStep {
-            Objects.requireNonNull(node, "node cannot be null");
-            Objects.requireNonNull(metadata, "metadata cannot be null");
-        }
-    }
-
     private final AppleGpuPartitionPlan plan;
+    private final LoweringFamily loweringFamily;
     private final CompiledNode computeNode;
     private final CpuNodeExecutionPlan computeCpuPlan;
     private final AppleMpsGraphBridge bridge;
     private final AppleMpsBridgeContext bridgeContext;
     private final AppleMpsBridgeExecutable bridgeExecutable;
-    private final List<PreparedStep> cpuFallbackSteps;
+    private final List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps;
 
     public PreparedAppleGpuExecutable(
             AppleGpuPartitionPlan plan,
+            LoweringFamily loweringFamily,
             CompiledNode computeNode,
             CpuNodeExecutionPlan computeCpuPlan,
             AppleMpsGraphBridge bridge,
-            List<PreparedStep> cpuFallbackSteps
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps
     ) {
         this.plan = Objects.requireNonNull(plan, "plan cannot be null");
+        this.loweringFamily = Objects.requireNonNull(loweringFamily, "loweringFamily cannot be null");
         this.computeNode = Objects.requireNonNull(computeNode, "computeNode cannot be null");
         this.computeCpuPlan = Objects.requireNonNull(computeCpuPlan, "computeCpuPlan cannot be null");
         this.bridge = Objects.requireNonNull(bridge, "bridge cannot be null");
@@ -59,24 +53,43 @@ public final class PreparedAppleGpuExecutable implements PreparedAcceleratorExec
 
     @Override
     public void execute(ExecutionContext context) {
-        if (bridge.isAvailable() && bridgeContext.available() && bridgeExecutable.available()) {
+        if (shouldUseAppleBridge(context)
+                && PreparedAcceleratorExecutionSupport.bridgeReady(
+                bridge.isAvailable(),
+                bridgeContext.available(),
+                bridgeExecutable.available())) {
             List<Tensor> resolvedExternalInputs = resolveExternalInputs(context);
-            Tensor out = context.runtimeTensorForNodeId(bridgeExecutable.outputNodeId());
+            List<Tensor> outputs = PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(
+                    bridgeExecutable.outputNodeIds(),
+                    context
+            );
             if (resolvedExternalInputs.stream().allMatch(PreparedAppleGpuExecutable::isSupportedAppleInput)
-                    && isSupportedAppleInput(out)) {
-                bridge.execute(bridgeContext, bridgeExecutable, resolvedExternalInputs, out);
+                    && outputs.stream().allMatch(PreparedAppleGpuExecutable::isSupportedAppleInput)) {
+                bridge.execute(bridgeContext, bridgeExecutable, resolvedExternalInputs, outputs);
                 return;
             }
         }
-        for (PreparedStep step : cpuFallbackSteps) {
-            CPU_BACKEND.execute(step.node(), step.metadata(), context);
+        PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+    }
+
+    private boolean shouldUseAppleBridge(ExecutionContext context) {
+        if (context == null || !context.runsBackwardPass()) {
+            return true;
         }
+        return !containsForwardAttentionDag();
+    }
+
+    private boolean containsForwardAttentionDag() {
+        return plan.lowering().dagSpec().nodes().stream().anyMatch(node -> switch (node.type()) {
+            case SDPA -> true;
+            default -> false;
+        });
     }
 
     private List<Tensor> resolveExternalInputs(ExecutionContext context) {
         List<Tensor> computeResolvedInputs = computeCpuPlan.apply(
                 computeNode.id(),
-                resolveRuntimeInputs(computeNode, context),
+                PreparedAcceleratorExecutionSupport.resolveRuntimeInputs(computeNode, context),
                 context
         );
         List<Tensor> resolved = new ArrayList<>(bridgeExecutable.externalInputNodeIds().size());
@@ -91,17 +104,6 @@ public final class PreparedAppleGpuExecutable implements PreparedAcceleratorExec
         return List.copyOf(resolved);
     }
 
-    private static List<Tensor> resolveRuntimeInputs(CompiledNode node, ExecutionContext context) {
-        if (node.inputIds().isEmpty()) {
-            return List.of();
-        }
-        List<Tensor> out = new ArrayList<>(node.inputIds().size());
-        for (int inputNodeId : node.inputIds()) {
-            out.add(context.runtimeTensorForNodeId(inputNodeId));
-        }
-        return List.copyOf(out);
-    }
-
     private static boolean isSupportedAppleInput(Tensor tensor) {
         return tensor != null
                 && tensor.isContiguous()
@@ -112,6 +114,10 @@ public final class PreparedAppleGpuExecutable implements PreparedAcceleratorExec
 
     public AppleGpuPartitionPlan plan() {
         return plan;
+    }
+
+    public LoweringFamily loweringFamily() {
+        return loweringFamily;
     }
 
     public AppleMpsGraphBridge bridge() {

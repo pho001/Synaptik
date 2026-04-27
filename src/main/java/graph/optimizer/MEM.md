@@ -12,7 +12,7 @@ Its job is to reduce allocation pressure by:
 ## Entry Points
 
 - rule:
-  - [rules/MemoryOptimizerRule.java](./rules/MemoryOptimizerRule.java)
+  - [memory/MemoryOptimizerRule.java](./memory/MemoryOptimizerRule.java)
 - planner:
   - [memory/MemoryPlanner.java](./memory/MemoryPlanner.java)
 - plan model:
@@ -51,10 +51,10 @@ The implementation is split into:
 
 1. planning
    - pure analysis in `MemoryPlanner.plan(...)`
-2. application
-   - actual runtime-buffer assignment in `MemoryOptimizerRule.apply(...)`
+2. publication
+   - `MemoryOptimizerRule.apply(...)` stores the finalized `MemoryPlan` in `OptimizerState`
 
-That split is useful because the plan can be inspected independently of the buffer mutation step.
+That split is useful because runtime binding can consume compile-time memory artifacts instead of rebuilding memory policy.
 
 ## Step 1: Find The Forward Boundary
 

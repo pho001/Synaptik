@@ -31,12 +31,14 @@ final class AbcF64StageOrderHotspotBenchmarkTest {
         ExecutionProfile arCseFuse = withStageOrder(best, "ar-cse-fuse", List.of(
                 OptimizerStage.AR,
                 OptimizerStage.CSE,
+                OptimizerStage.PART,
                 OptimizerStage.FUSE
         ));
         ExecutionProfile bestNonCheapStridedW2 = withRuntime(best, "noncheap-strided-w2", runtimeWithNonCheapStridedAsmWidth(best.runtime(), 2));
         ExecutionProfile cseArFuse = withStageOrder(best, "cse-ar-fuse", List.of(
                 OptimizerStage.CSE,
                 OptimizerStage.AR,
+                OptimizerStage.PART,
                 OptimizerStage.FUSE
         ));
 

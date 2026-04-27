@@ -2,6 +2,7 @@ package graph.optimizer.rewrite;
 
 import config.optimizer.RewriteConfig;
 import graph.optimizer.OptimizationRule;
+import graph.optimizer.state.OptimizerState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,8 +29,8 @@ public final class SemanticForwardRewriteRule implements OptimizationRule {
     }
 
     @Override
-    public List<tensor.Tensor> apply(List<tensor.Tensor> sortedGraph) {
-        List<tensor.Tensor> current = Objects.requireNonNull(sortedGraph, "sortedGraph cannot be null");
+    public OptimizerState apply(OptimizerState state) {
+        OptimizerState current = Objects.requireNonNull(state, "state cannot be null");
         for (OptimizationRule delegate : delegates) {
             current = delegate.apply(current);
         }

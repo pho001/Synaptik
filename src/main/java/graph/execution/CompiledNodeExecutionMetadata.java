@@ -6,8 +6,10 @@ import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.CpuNodeWorkspace;
-import graph.fused.PreparedFusedExecutable;
+import backend.cpu.fused.exec.PreparedFusedExecutable;
+import operations.Operation;
 
+import java.util.List;
 import java.util.Objects;
 
 public record CompiledNodeExecutionMetadata(
@@ -17,10 +19,25 @@ public record CompiledNodeExecutionMetadata(
         PreparedFusedExecutable fusedExecutable,
         CpuNodeWorkspace cpuWorkspace,
         PreparedAcceleratorExecutable acceleratorExecutable,
+        Operation executionOperation,
+        List<Integer> executionInputNodeIds,
         PartitionExecutionRole partitionRole
 ) {
     public CompiledNodeExecutionMetadata {
         Objects.requireNonNull(backend, "backend cannot be null");
+        executionInputNodeIds = List.copyOf(executionInputNodeIds == null ? List.of() : executionInputNodeIds);
         partitionRole = partitionRole == null ? PartitionExecutionRole.NONE : partitionRole;
+    }
+
+    public CompiledNodeExecutionMetadata(
+            ComputeBackend backend,
+            CpuKernel cpuKernel,
+            CpuNodeExecutionPlan cpuPlan,
+            PreparedFusedExecutable fusedExecutable,
+            CpuNodeWorkspace cpuWorkspace,
+            PreparedAcceleratorExecutable acceleratorExecutable,
+            PartitionExecutionRole partitionRole
+    ) {
+        this(backend, cpuKernel, cpuPlan, fusedExecutable, cpuWorkspace, acceleratorExecutable, null, List.of(), partitionRole);
     }
 }

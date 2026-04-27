@@ -4,7 +4,7 @@ import backend.blas.BlasProvider;
 import backend.kernels.cpu.plan.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;
-import graph.optimizer.fusion.FusedDispatchFamily;
+import backend.cpu.fused.optimize.FusedDispatchFamily;
 import tuning.workload.CalibrationWorkloads;
 import tensor.DataType;
 

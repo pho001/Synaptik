@@ -1,6 +1,6 @@
 package tensor.ops.linalg;
 
-import backend.ComputeBackend;
+import graph.optimizer.intent.BackendIntentPropagator;
 import operations.Operation;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -22,24 +22,17 @@ public final class TensorMatMulOps {
 
             if (first.getRequiresGrad()) {
                 Tensor gradRaw = outGrad.matmul(LinalgSupport.transposeLastTwoAxes(second));
-                propagateAcceleratorBackend(out, gradRaw);
+                BackendIntentPropagator.preserve(gradRaw, out);
                 Tensor gradForFirst = LinalgSupport.sumToShape(gradRaw, first.getShapeUnsafe());
                 LinalgSupport.accumulateGradient(first, gradForFirst);
             }
             if (second.getRequiresGrad()) {
                 Tensor gradRaw = LinalgSupport.transposeLastTwoAxes(first).matmul(outGrad);
-                propagateAcceleratorBackend(out, gradRaw);
+                BackendIntentPropagator.preserve(gradRaw, out);
                 Tensor gradForSecond = LinalgSupport.sumToShape(gradRaw, second.getShapeUnsafe());
                 LinalgSupport.accumulateGradient(second, gradForSecond);
             }
         });
         return out;
-    }
-
-    private static void propagateAcceleratorBackend(Tensor source, Tensor target) {
-        ComputeBackend backend = source == null ? null : source.resolveBackend();
-        if (backend == ComputeBackend.GPU_METAL || backend == ComputeBackend.GPU_CUDA || backend == ComputeBackend.GPU_OPENCL) {
-            TensorInternalAccess.setBackend(target, backend);
-        }
     }
 }
