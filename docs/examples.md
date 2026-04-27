@@ -1,0 +1,368 @@
+<!-- generated-by: gsd-doc-writer -->
+# Examples
+
+Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Public API](public-api.md) | [Calibration & Autotune](calibration-autotune.md) | [Testing](testing.md)
+
+These examples are small Java snippets using the public `Tensor`, compile, and configuration APIs. They are written to be pasted into a small class in this repository or adapted into a test.
+
+## Running Examples
+
+Use the Gradle wrapper so the required JVM flags and dependencies are present:
+
+```bash
+./gradlew classes
+```
+
+For standalone Java execution outside Gradle, include:
+
+- `build/classes/java/main`
+- ASM runtime jars from Gradle's dependency cache
+- JVM flags from `build.gradle`: `--add-modules=jdk.incubator.vector` and `--enable-native-access=ALL-UNNAMED`
+
+The easiest executable pattern is to add a temporary class under `/tmp` or a scratch directory and run it with the Gradle runtime classpath. The examples below focus on the Java body and expected output.
+
+## Broadcast Add And ReLU
+
+```java
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+
+public class BroadcastReluExample {
+    public static void main(String[] args) {
+        Tensor a = new Tensor(
+                new double[]{1.0, 2.0, 3.0, 4.0},
+                new int[]{2, 2},
+                null,
+                "a",
+                DataType.FLOAT64
+        );
+        Tensor b = new Tensor(
+                new double[]{10.0, 20.0},
+                new int[]{2},
+                null,
+                "b",
+                DataType.FLOAT64
+        );
+
+        Tensor y = a.add(b).relu().compute();
+
+        System.out.println(Arrays.toString(y.getShape()));
+        System.out.println(Arrays.toString(y.toDoubleArrayCopy()));
+    }
+}
+```
+
+Expected output:
+
+```text
+[2, 2]
+[11.0, 22.0, 13.0, 24.0]
+```
+
+## Reverse-Mode Autodiff
+
+```java
+import tensor.CompileMode;
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+
+public class AutodiffExample {
+    public static void main(String[] args) {
+        Tensor x = new Tensor(
+                new double[]{1.0, -2.0, 3.0},
+                new int[]{3},
+                null,
+                "x",
+                DataType.FLOAT64
+        );
+        x.setRequiresGrad(true);
+
+        Tensor loss = x.mul(x).sum();
+        loss.compute(CompileMode.TRAINING);
+
+        System.out.println(loss.scalarAsDouble());
+        System.out.println(Arrays.toString(x.getGradient().toDoubleArrayCopy()));
+    }
+}
+```
+
+Expected output:
+
+```text
+14.0
+[2.0, -4.0, 6.0]
+```
+
+## Matrix Multiplication
+
+```java
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+
+public class MatmulExample {
+    public static void main(String[] args) {
+        Tensor left = new Tensor(
+                new double[]{1.0, 2.0, 3.0, 4.0, 5.0, 6.0},
+                new int[]{2, 3},
+                null,
+                "left",
+                DataType.FLOAT64
+        );
+        Tensor right = new Tensor(
+                new double[]{7.0, 8.0, 9.0, 10.0, 11.0, 12.0},
+                new int[]{3, 2},
+                null,
+                "right",
+                DataType.FLOAT64
+        );
+
+        Tensor product = left.matmul(right).compute();
+
+        System.out.println(Arrays.toString(product.getShape()));
+        System.out.println(Arrays.toString(product.toDoubleArrayCopy()));
+    }
+}
+```
+
+Expected output:
+
+```text
+[2, 2]
+[58.0, 64.0, 139.0, 154.0]
+```
+
+## Boolean Mask With `where`
+
+```java
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+
+public class WhereExample {
+    public static void main(String[] args) {
+        Tensor values = new Tensor(
+                new double[]{1.0, 2.0, 3.0, 4.0},
+                new int[]{2, 2},
+                null,
+                "values",
+                DataType.FLOAT64
+        );
+        Tensor mask = new Tensor(
+                new byte[]{1, 0, 1, 0},
+                new int[]{2, 2},
+                null,
+                "mask",
+                DataType.BOOL
+        );
+
+        Tensor selected = Tensor.where(
+                mask,
+                values,
+                Tensor.scalar(-1.0, DataType.FLOAT64)
+        ).compute();
+
+        System.out.println(Arrays.toString(selected.toDoubleArrayCopy()));
+    }
+}
+```
+
+Expected output:
+
+```text
+[1.0, -1.0, 3.0, -1.0]
+```
+
+## Softmax
+
+```java
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+
+public class SoftmaxExample {
+    public static void main(String[] args) {
+        Tensor logits = new Tensor(
+                new double[]{1.0, 2.0, 3.0},
+                new int[]{3},
+                null,
+                "logits",
+                DataType.FLOAT64
+        );
+
+        Tensor probabilities = logits.softmax(0).compute();
+
+        System.out.println(Arrays.toString(probabilities.toDoubleArrayCopy()));
+    }
+}
+```
+
+Expected output:
+
+```text
+[0.09003057317038045, 0.2447284710547976, 0.6652409557748218]
+```
+
+## Explicit Compile And Runtime Config
+
+```java
+import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+
+public class ExplicitCompileExample {
+    public static void main(String[] args) {
+        Tensor x = new Tensor(
+                new double[]{1.0, 2.0},
+                new int[]{2},
+                null,
+                "x",
+                DataType.FLOAT64
+        );
+        Tensor y = x.mul(4.0);
+
+        CompiledGraph graph = CompiledGraph.compile(y, OptimizerConfig.noOptimization());
+        graph.execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        System.out.println(Arrays.toString(y.toDoubleArrayCopy()));
+    }
+}
+```
+
+Expected output:
+
+```text
+[4.0, 8.0]
+```
+
+## Reusing PreparedExecution
+
+Use `PreparedExecution` when graph structure and runtime config are stable and only input storage changes between runs.
+
+```java
+import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
+import config.runtime.RuntimeConfig;
+import graph.CompiledGraph;
+import graph.execution.PreparedExecution;
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+
+public class PreparedExecutionExample {
+    public static void main(String[] args) {
+        Tensor x = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "x", DataType.FLOAT64);
+        Tensor y = x.mul(10.0);
+
+        CompiledGraph graph = CompiledGraph.compile(y, OptimizerConfig.inferenceDefaults());
+        PreparedExecution prepared = graph.prepare(RuntimeConfig.inferenceDefaults());
+
+        prepared.execute(ExecutionMode.FORWARD);
+        System.out.println(Arrays.toString(y.toDoubleArrayCopy()));
+
+        x.setData(new double[]{3.0, 4.0});
+        prepared.execute(ExecutionMode.FORWARD);
+        System.out.println(Arrays.toString(y.toDoubleArrayCopy()));
+    }
+}
+```
+
+Expected output:
+
+```text
+[10.0, 20.0]
+[30.0, 40.0]
+```
+
+Prepared executions create per-run execution state and forward leaf runtime tensors alias the current source tensor storage. Reusing a prepared execution is supported when shapes, dtypes, and graph structure stay unchanged; changing those structural properties requires recompiling.
+
+## ComputeOptions With Explicit Defaults
+
+```java
+import tensor.AutotunePolicy;
+import tensor.CompileMode;
+import tensor.ComputeOptions;
+import tensor.DataType;
+import tensor.Tensor;
+
+public class ComputeOptionsExample {
+    public static void main(String[] args) {
+        Tensor x = new Tensor(new double[]{2.0}, new int[]{1}, null, "x", DataType.FLOAT64);
+
+        Tensor y = x.mul(3.0).compute(new ComputeOptions()
+                .compileMode(CompileMode.INFERENCE_ONLY)
+                .autotune(AutotunePolicy.NEVER));
+
+        System.out.println(y.scalarAsDouble());
+    }
+}
+```
+
+Expected output:
+
+```text
+6.0
+```
+
+## CLI Examples
+
+The Gradle application entry point is `synaptik.app.Main`.
+
+Print usage for an unknown command:
+
+```bash
+./gradlew run --args="help"
+```
+
+Run the full local flow for `f64`:
+
+```bash
+./gradlew run --args="full f64"
+```
+
+Run calibration for all supported dtypes and all non-accelerator calibration families:
+
+```bash
+./gradlew run --args="calibrate --dtypes all --families all"
+```
+
+Run a single calibration family with explicit measurement counts:
+
+```bash
+./gradlew run --args="calibrate --dtype f32 --family matmul --measurement 30:100:2 --progress lines --color never"
+```
+
+Run autotune and then benchmark the stored winner:
+
+```bash
+./gradlew run --args="autotune f32"
+./gradlew run --args="benchmark-winner f32"
+```
+
+Expected side effects:
+
+- Calibration writes under `profiles/platform/<platform-id>/calibration/schema-v2/...` unless `--output-root` changes the root.
+- CLI autotune writes `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json` and `<dtype>-history.jsonl`.
+- `autotune` requires a calibration profile first.
+- `benchmark-winner` requires a best-profile artifact first.
+
+## Verification Notes
+
+The first five Java examples were executed against `build/classes/java/main` after `./gradlew classes`. The targeted verification command also passed:
+
+```bash
+./gradlew test --tests BroadcastBinaryOpsTest --tests CompiledGraphIdempotencyTest --tests PreparedExecutionBuildTest --tests ExecutionProfileIoTest
+```

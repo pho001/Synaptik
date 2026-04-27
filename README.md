@@ -1,4 +1,7 @@
+<!-- generated-by: gsd-doc-writer -->
 # Synaptik
+
+Documentation: [docs/index.md](docs/index.md) | [Tensor API](docs/tensor-api.md) | [Compute Flow](docs/compute-flow.md) | [Graph Optimizer](docs/graph-optimizer.md) | [Calibration & Autotune](docs/calibration-autotune.md) | [Public API](docs/public-api.md)
 
 Synaptik is a Java tensor framework built around an explicit graph lifecycle:
 
@@ -11,7 +14,7 @@ The project is not designed as an eager-only numerical notebook library.
 Its center of gravity is compiled graph execution, reverse-mode autodiff, explicit optimizer stages, and platform/profile-driven CPU execution.
 
 Today the CPU backend is the only fully implemented execution backend.
-CUDA and OpenCL packages exist as scaffolding, not as production-ready runtimes.
+Metal, CUDA, and OpenCL packages exist as scaffolding, not as production-ready runtimes.
 
 ## What This Repository Contains
 
@@ -35,6 +38,16 @@ That split is intentional:
 
 ## Reading Guide
 
+Top-level docs:
+
+1. [docs/index.md](docs/index.md) - the main documentation index and recommended reading paths.
+2. [docs/tensor-api.md](docs/tensor-api.md) - detailed operation-level Tensor API guide with signatures, edge cases, examples, and concrete calculations.
+3. [docs/compute-flow.md](docs/compute-flow.md) - deep walkthrough from graph construction through compile, prepare, execution, memory binding, and traces.
+4. [docs/graph-optimizer.md](docs/graph-optimizer.md) - detailed explanation of optimizer stages `AR`, `CSE`, `PART`, `FUSE`, and `MEM`.
+5. [docs/calibration-autotune.md](docs/calibration-autotune.md) - calibration families, owned knobs, candidate values, graph autotune parameters, persistence, and progress.
+6. [docs/architecture.md](docs/architecture.md) - implementation-grounded lifecycle, backend dispatch, module boundaries, tuning, and diagrams.
+7. [docs/modules.md](docs/modules.md) - package-by-package map for tensor, operations, graph, optimizer, backend, CPU kernels, accelerators, config, tuning, CLI, numerics, and utilities.
+
 If you want the shortest reliable path through the codebase:
 
 1. [src/main/java/tensor/README.md](src/main/java/tensor/README.md)
@@ -45,7 +58,10 @@ If you want the shortest reliable path through the codebase:
 
 If you are solving a specific problem:
 
-- public tensor API: [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
+- public tensor API: [docs/tensor-api.md](docs/tensor-api.md), then [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
+- compile/prepare/execute behavior: [docs/compute-flow.md](docs/compute-flow.md)
+- optimizer internals and stage behavior: [docs/graph-optimizer.md](docs/graph-optimizer.md)
+- calibration and graph autotune: [docs/calibration-autotune.md](docs/calibration-autotune.md)
 - optimizer stages and concrete rewrite/fusion behavior:
   - [src/main/java/graph/optimizer/README.md](src/main/java/graph/optimizer/README.md)
   - [src/main/java/graph/optimizer/AR.md](src/main/java/graph/optimizer/AR.md)
@@ -69,6 +85,7 @@ The current codebase includes:
 - graph-level optimization stages:
   - `AR`
   - `CSE`
+  - `PART`
   - `FUSE`
   - `MEM`
 - CPU kernel families for:
@@ -278,8 +295,8 @@ Supported commands:
 
 ```bash
 ./gradlew run --args="full f64"
-./gradlew run --args="calibrate f64"
-./gradlew run --args="calibrate f64 conv2d 30 100 2"
+./gradlew run --args="calibrate --dtype f64 --families all"
+./gradlew run --args="calibrate --dtype f64 --family conv2d-gemm-dispatch --measurement 30:100:2"
 ./gradlew run --args="autotune f64"
 ./gradlew run --args="benchmark-winner f64"
 ./gradlew run --args="benchmark-graph-space f64"
@@ -369,7 +386,7 @@ Example:
 java --add-modules jdk.incubator.vector \
   -Dnumerics.dtype=FLOAT32 \
   -Dnumerics.stageA=NONE \
-  -Dnumerics.stageB=AR,CSE,FUSE \
+  -Dnumerics.stageB=AR,CSE,PART,FUSE,MEM \
   -Dnumerics.size=200000 \
   -cp build/classes/java/main \
   numerics.NumericsCli
@@ -388,7 +405,7 @@ Use this rule of thumb:
 - new public API surface:
   - start in `tensor/ops/*`, then add/update `operations/*`
 - runtime execution traces and benchmark reports:
-  - start in `graph/execution/trace` and `tuning/report`
+  - start in `graph/execution/trace`, `tuning/benchmark/report`, `tuning/autotune/report`, `tuning/calibration/report`, and `tuning/reporting`
 
 ## Current Design Boundaries
 
