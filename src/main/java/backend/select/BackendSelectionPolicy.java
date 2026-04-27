@@ -1,4 +1,4 @@
-package backend.accelerator.select;
+package backend.select;
 
 import config.runtime.RuntimeConfig;
 import graph.optimizer.partition.BackendCandidatePartition;

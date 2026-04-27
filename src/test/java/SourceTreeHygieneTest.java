@@ -441,6 +441,16 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void genericBackendSelectionDoesNotLiveUnderAcceleratorPackage() throws IOException {
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/accelerator/select")).stream()
+                .map(path -> Path.of(path).getFileName().toString())
+                .filter(name -> name.startsWith("BackendSelection") || name.equals("DefaultBackendSelectionPolicy.java"))
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Generic backend selection belongs under backend.select: " + offenders);
+    }
+
+    @Test
     void appleNamedBackendTreesAreRemoved() {
         List<String> offenders = javaFilesUnderRoots(List.of(
                         Path.of("src/main/java/backend/apple"),

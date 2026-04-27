@@ -1,4 +1,4 @@
-package backend.accelerator.select;
+package backend.select;
 
 import graph.execution.trace.BackendSelectionTrace;
 import graph.optimizer.partition.PartitionPlan;

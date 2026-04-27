@@ -1,8 +1,8 @@
 package backend.prepare;
 
 import backend.accelerator.exec.PartitionExecutionRole;
-import backend.accelerator.select.BackendSelectionResult;
-import backend.accelerator.select.DefaultBackendSelectionPolicy;
+import backend.select.BackendSelectionResult;
+import backend.select.DefaultBackendSelectionPolicy;
 import backend.lowering.BackendCapabilities;
 import backend.lowering.LoweringContext;
 import backend.lowering.LoweringPipeline;
