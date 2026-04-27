@@ -1,6 +1,6 @@
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
-import backend.apple.exec.PreparedAppleGpuExecutable;
+import backend.metal.exec.PreparedMetalExecutable;
 import backend.cuda.exec.PreparedCudaExecutable;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
@@ -479,8 +479,8 @@ public class PreparedExecutionBuildTest {
         assertEquals(ComputeBackend.GPU_METAL, anchor.metadata().backend());
         assertEquals(PartitionExecutionRole.ANCHOR, anchor.metadata().partitionRole());
         assertNotNull(anchor.metadata().acceleratorExecutable());
-        assertTrue(anchor.metadata().acceleratorExecutable() instanceof PreparedAppleGpuExecutable);
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) anchor.metadata().acceleratorExecutable();
+        assertTrue(anchor.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable);
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) anchor.metadata().acceleratorExecutable();
         assertNotNull(executable.bridgeContext());
         assertNotNull(executable.bridgeExecutable());
     }
@@ -514,7 +514,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalSingleMatmulCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -535,7 +535,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -546,7 +546,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulWithTransposedRhsCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -567,7 +567,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -601,7 +601,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -634,8 +634,8 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
-        assertEquals(backend.lowering.LoweringFamily.APPLE_FUSED_ELEMENTWISE_GRAPH, executable.loweringFamily());
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(backend.lowering.LoweringFamily.METAL_FUSED_ELEMENTWISE_GRAPH, executable.loweringFamily());
 
         execution.execute(ExecutionMode.FORWARD);
 
@@ -677,7 +677,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalBackwardMatmulCanPrepareAndMatchCpuGradients() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -977,7 +977,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalLinearBiasTanhCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuInput = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{2, 3}, null, "cpuInput", DataType.FLOAT32);
@@ -1003,7 +1003,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -1014,7 +1014,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalPreparedExecutableReusesCompiledHandleForSameSubgraphSignature() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor a1 = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a1", DataType.FLOAT32);
@@ -1029,7 +1029,7 @@ public class PreparedExecutionBuildTest {
 
         PreparedExecution execution1 = CompiledGraph.compile(out1, OptimizerConfig.noOptimization())
                 .prepare(RuntimeConfig.inferenceDefaults());
-        PreparedAppleGpuExecutable executable1 = (PreparedAppleGpuExecutable) execution1.forwardSteps().stream()
+        PreparedMetalExecutable executable1 = (PreparedMetalExecutable) execution1.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow()
@@ -1048,7 +1048,7 @@ public class PreparedExecutionBuildTest {
 
         PreparedExecution execution2 = CompiledGraph.compile(out2, OptimizerConfig.noOptimization())
                 .prepare(RuntimeConfig.inferenceDefaults());
-        PreparedAppleGpuExecutable executable2 = (PreparedAppleGpuExecutable) execution2.forwardSteps().stream()
+        PreparedMetalExecutable executable2 = (PreparedMetalExecutable) execution2.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow()
@@ -1062,7 +1062,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulAddReluCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -1090,7 +1090,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -1119,7 +1119,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertNotNull(executable.bridgeExecutable());
     }
 
@@ -1164,7 +1164,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertNotNull(executable.bridgeExecutable());
     }
 
@@ -1191,7 +1191,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(2, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
     }
 
@@ -1215,7 +1215,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(1, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
     }
 
@@ -1240,7 +1240,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(2, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.hasScalarValue()).count());
     }
 
@@ -1267,7 +1267,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(1, executable.plan().matMulSpec().postOps().stream().filter(postOp -> postOp.type().binary()).count());
     }
 
@@ -1294,7 +1294,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(5, executable.plan().lowering().dagSpec().nodes().size());
         assertEquals(5, executable.plan().subgraph().orderedNodeIds().size());
     }
@@ -1326,7 +1326,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(7, executable.plan().lowering().dagSpec().nodes().size());
         assertTrue(execution.prepareTrace().backendSelection().selectedCount() >= 1);
     }
@@ -1357,7 +1357,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(1, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -1380,7 +1380,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -1405,7 +1405,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(4, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -1428,7 +1428,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -1455,7 +1455,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(5, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -1484,7 +1484,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(3, executable.plan().lowering().dagSpec().nodes().size());
         assertEquals(2, executable.plan().lowering().dagSpec().externalInputs().size());
     }
@@ -1525,7 +1525,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(4, executable.plan().lowering().dagSpec().nodes().size());
         assertEquals(4, executable.plan().lowering().dagSpec().externalInputs().size());
     }
@@ -1568,7 +1568,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(5, executable.plan().lowering().dagSpec().nodes().size());
     }
 
@@ -1616,7 +1616,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assertEquals(1, executable.plan().lowering().dagSpec().nodes().size());
         assertEquals(backend.accelerator.dag.AcceleratorDagNodeType.SDPA, executable.plan().lowering().dagSpec().nodes().getFirst().type());
     }
@@ -1700,7 +1700,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulAddTanhCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -1728,7 +1728,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 
@@ -1739,7 +1739,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulNegAbsSqrtInvCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -1769,7 +1769,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -1779,7 +1779,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulMulDivTanhCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -1811,7 +1811,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -1821,7 +1821,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulSubTanhCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -1849,7 +1849,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -1859,7 +1859,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulClampTanhCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -1887,7 +1887,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -1897,7 +1897,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulBiasAddThenGenericAddCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -1929,7 +1929,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -1939,7 +1939,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalBranchMergeDagCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -1970,7 +1970,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -1980,7 +1980,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMultiMergeDagCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -2015,7 +2015,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2025,7 +2025,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalReshapeDagCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuA", DataType.FLOAT32);
@@ -2051,7 +2051,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2061,7 +2061,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalPermuteDagCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuA", DataType.FLOAT32);
@@ -2087,7 +2087,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2097,7 +2097,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalExpandSqueezeDagCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cpuA", DataType.FLOAT32);
@@ -2127,7 +2127,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2137,7 +2137,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalAttentionLikeRank4SliceCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuQ = new Tensor(new float[]{
@@ -2175,7 +2175,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2185,7 +2185,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMaskedAttentionPreSoftmaxSliceCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuQ = new Tensor(new float[]{
@@ -2243,7 +2243,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2253,7 +2253,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMaskedAttentionSoftmaxSliceCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuQ = new Tensor(new float[]{
@@ -2313,7 +2313,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2323,7 +2323,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMaskedAttentionFullForwardSliceCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuQ = new Tensor(new float[]{
@@ -2394,7 +2394,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .findFirst()
                 .orElseThrow();
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuStep.metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuStep.metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeExecutable().available());
 
         execution.execute(ExecutionMode.FORWARD);
@@ -2404,7 +2404,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void gpuMetalMatmulAddExpCanExecuteThroughExplicitAppleShim() {
-        String explicitLib = System.getProperty("synaptik.apple.mps.lib");
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor cpuA = new Tensor(new float[]{0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f}, new int[]{2, 3}, null, "cpuA", DataType.FLOAT32);
@@ -2432,7 +2432,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
         assertEquals(1, gpuSteps.size());
-        PreparedAppleGpuExecutable executable = (PreparedAppleGpuExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
         assumeTrue(executable.bridgeContext().available());
         assumeTrue(executable.bridgeExecutable().available());
 

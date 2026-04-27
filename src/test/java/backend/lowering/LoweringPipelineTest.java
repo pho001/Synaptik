@@ -162,7 +162,7 @@ class LoweringPipelineTest {
                 ? null
                 : new LoweringResult(
                         new LoweredRegion(request.region().regionId(), request.region().target(), List.of(
-                                new LoweredExecutionUnit("gpu-unit", LoweringFamily.APPLE_GRAPH_REGION, List.of(2, 3))
+                                new LoweredExecutionUnit("gpu-unit", LoweringFamily.METAL_GRAPH_REGION, List.of(2, 3))
                         )),
                         List.of()
                 );
@@ -175,7 +175,7 @@ class LoweringPipelineTest {
         );
 
         assertEquals(1, lowered.lowered().loweredRegions().size());
-        assertEquals(LoweringFamily.APPLE_GRAPH_REGION, lowered.lowered().loweredRegions().getFirst().units().getFirst().loweringFamily());
+        assertEquals(LoweringFamily.METAL_GRAPH_REGION, lowered.lowered().loweredRegions().getFirst().units().getFirst().loweringFamily());
     }
 
     private static Partition partition(

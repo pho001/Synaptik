@@ -90,16 +90,16 @@ tasks.named('check') {
     dependsOn tasks.named('verifySourceTreeClean')
 }
 
-tasks.register('buildAppleMpsShim', Exec) {
+tasks.register('buildMetalMpsShim', Exec) {
     group = 'build setup'
-    description = 'Builds the local Apple MPS shim dylib for FFM loading on macOS.'
+    description = 'Builds the local Metal MPS shim dylib for FFM loading on macOS.'
     onlyIf {
         System.getProperty('os.name', '').toLowerCase().contains('mac')
     }
-    commandLine '/bin/zsh', "${project.projectDir}/scripts/build-apple-mps-shim.sh"
+    commandLine '/bin/zsh', "${project.projectDir}/scripts/build-metal-mps-shim.sh"
     doFirst {
         if (!System.getProperty('os.name', '').toLowerCase().contains('mac')) {
-            throw new GradleException('buildAppleMpsShim is supported only on macOS.')
+            throw new GradleException('buildMetalMpsShim is supported only on macOS.')
         }
     }
 }

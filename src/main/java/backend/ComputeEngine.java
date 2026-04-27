@@ -1,7 +1,7 @@
 package backend;
 
 import backend.accelerator.exec.PartitionExecutionRole;
-import backend.apple.AppleGpuBackend;
+import backend.metal.MetalBackend;
 import backend.cuda.CudaGpuBackend;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
@@ -12,7 +12,7 @@ public final class ComputeEngine {
     private static final CudaBackend CUDA_BACKEND = new CudaBackend();
     private static final CudaGpuBackend CUDA_GPU_BACKEND = new CudaGpuBackend();
     private static final OpenClBackend OPENCL_BACKEND = new OpenClBackend();
-    private static final AppleGpuBackend APPLE_GPU_BACKEND = new AppleGpuBackend();
+    private static final MetalBackend METAL_BACKEND = new MetalBackend();
 
     private ComputeEngine() {}
 
@@ -43,7 +43,7 @@ public final class ComputeEngine {
                 }
             }
             case GPU_OPENCL -> OPENCL_BACKEND.execute(node, metadata, context);
-            case GPU_METAL -> APPLE_GPU_BACKEND.execute(node, metadata, context);
+            case GPU_METAL -> METAL_BACKEND.execute(node, metadata, context);
             default -> throw new UnsupportedOperationException(
                     "Backend " + metadata.backend() + " is not available"
             );

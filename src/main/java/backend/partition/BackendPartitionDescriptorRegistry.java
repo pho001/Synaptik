@@ -1,7 +1,7 @@
 package backend.partition;
 
-import backend.apple.lowering.AppleGpuRegionLegalityAdapter;
-import backend.apple.lowering.AppleRegionLowerer;
+import backend.metal.lowering.MetalRegionLegalityAdapter;
+import backend.metal.lowering.MetalRegionLowerer;
 import backend.cpu.lowering.CpuRegionLowerer;
 import backend.cpu.partition.CpuRegionLegalityAdapter;
 import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
@@ -17,7 +17,7 @@ import java.util.function.Supplier;
 public final class BackendPartitionDescriptorRegistry {
     private static final BackendPartitionDescriptorRegistry DEFAULTS = new BackendPartitionDescriptorRegistry(List.of(
             descriptor(PartitionTarget.CPU, CpuRegionLegalityAdapter::new, List.of(CpuRegionLowerer::new)),
-            descriptor(PartitionTarget.GPU_METAL, AppleGpuRegionLegalityAdapter::new, List.of(AppleRegionLowerer::new)),
+            descriptor(PartitionTarget.GPU_METAL, MetalRegionLegalityAdapter::new, List.of(MetalRegionLowerer::new)),
             descriptor(PartitionTarget.GPU_CUDA, CudaGpuRegionLegalityAdapter::new, List.of(CudaRegionLowerer::new))
     ));
 

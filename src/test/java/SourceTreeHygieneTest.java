@@ -117,7 +117,7 @@ public class SourceTreeHygieneTest {
                     .flatMap(path -> {
                         try {
                             return Files.readAllLines(path).stream()
-                                    .filter(line -> line.contains("backend.apple.lowering")
+                                    .filter(line -> line.contains("backend.metal.lowering")
                                             || line.contains("backend.cuda.lowering")
                                             || line.contains("backend.cpu.partition"))
                                     .map(line -> path + ": " + line.trim());
@@ -346,7 +346,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void cpuNodePreparerDoesNotInlineLoweredFusedDescriptorSynthesis() throws IOException {
-        Path preparer = Path.of("src/main/java/backend/prepare/CpuNodePreparer.java");
+        Path preparer = Path.of("src/main/java/backend/cpu/prepare/CpuNodePreparer.java");
         String source = Files.readString(preparer);
         assertTrue(!source.contains("synthesizeFusedPreparation"), "Lowered fused descriptor construction belongs under backend.cpu.fused.plan.");
         assertTrue(!source.contains("FusedOperationFactory"), "CpuNodePreparer should consume backend CPU fused plan preparation, not build descriptors inline.");
@@ -393,7 +393,7 @@ public class SourceTreeHygieneTest {
                         "import backend.cpu.",
                         "import backend.metal.",
                         "import backend.cuda.",
-                        "import backend.apple.",
+                        "import backend.metal.",
                         "import backend.kernels."
                 )
         );
@@ -409,10 +409,10 @@ public class SourceTreeHygieneTest {
                         "import backend.cpu.kernels.",
                         "import backend.cuda.kernels.",
                         "import backend.opencl.kernels.",
-                        "import backend.apple.bridge.",
+                        "import backend.metal.bridge.",
                         "import backend.metal.bridge.",
                         "import backend.cuda.bridge.",
-                        "import backend.apple.exec.",
+                        "import backend.metal.exec.",
                         "import backend.metal.exec.",
                         "import backend.cuda.exec."
                 )
@@ -421,19 +421,13 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void backendPrepareConcretePreparerSetIsExplicitUntilMoveWave() throws IOException {
-        Set<String> knownConcretePreparers = Set.of(
-                "AppleGpuNodePreparer.java",
-                "CpuNodePreparer.java",
-                "CudaGpuNodePreparer.java"
-        );
+    void backendPrepareDoesNotOwnConcreteBackendPreparers() throws IOException {
         List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/prepare")).stream()
                 .map(path -> Path.of(path).getFileName().toString())
                 .filter(name -> name.endsWith("NodePreparer.java"))
-                .filter(name -> !knownConcretePreparers.contains(name))
                 .sorted()
                 .toList();
-        assertTrue(offenders.isEmpty(), () -> "New concrete backend preparers must not be added to generic backend.prepare: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "Concrete backend preparers belong under backend.<target>.prepare: " + offenders);
     }
 
     @Test
@@ -452,35 +446,33 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void appleNamedBackendTreeIsLimitedToKnownMetalMigrationFiles() throws IOException {
-        Set<String> knownMigrationFiles = Set.of(
-                "src/main/java/backend/apple/AppleGpuBackend.java",
-                "src/main/java/backend/apple/bridge/AppleMpsBridgeContext.java",
-                "src/main/java/backend/apple/bridge/AppleMpsBridgeExecutable.java",
-                "src/main/java/backend/apple/bridge/AppleMpsFfmBridge.java",
-                "src/main/java/backend/apple/bridge/AppleMpsGraphBridge.java",
-                "src/main/java/backend/apple/bridge/UnavailableAppleMpsGraphBridge.java",
-                "src/main/java/backend/apple/exec/PreparedAppleGpuExecutable.java",
-                "src/main/java/backend/apple/lowering/AppleGpuMatMulSpec.java",
-                "src/main/java/backend/apple/lowering/AppleGpuPartitionPlan.java",
-                "src/main/java/backend/apple/lowering/AppleGpuPartitionSupport.java",
-                "src/main/java/backend/apple/lowering/AppleGpuRegionLegalityAdapter.java",
-                "src/main/java/backend/apple/lowering/AppleGpuSubgraphLowerer.java",
-                "src/main/java/backend/apple/lowering/AppleGpuSubgraphLoweringResult.java",
-                "src/main/java/backend/apple/lowering/AppleGpuSubgraphSignature.java",
-                "src/main/java/backend/apple/lowering/AppleRegionLowerer.java",
-                "src/test/java/backend/apple/bridge/AppleMpsFfmBridgeTest.java",
-                "src/test/java/backend/apple/lowering/AppleRegionLowererTest.java"
-        );
+    void appleNamedBackendTreesAreRemoved() {
         List<String> offenders = javaFilesUnderRoots(List.of(
                         Path.of("src/main/java/backend/apple"),
                         Path.of("src/test/java/backend/apple")
-                )).stream()
-                .map(path -> path.replace('\\', '/'))
-                .filter(path -> !knownMigrationFiles.contains(path))
-                .sorted()
-                .toList();
-        assertTrue(offenders.isEmpty(), () -> "Apple-named backend tree is scheduled for Metal rename; do not add files there: " + offenders);
+                ));
+        assertTrue(offenders.isEmpty(), () -> "Apple-named backend trees must not exist after the Metal rename: " + offenders);
+    }
+
+    @Test
+    void backendSourceDoesNotUseRemovedAppleMigrationNames() throws IOException {
+        List<String> offenders = linesContainingAny(
+                List.of(Path.of("src/main/java"), Path.of("src/test/java")),
+                List.of(
+                        "AppleGpu",
+                        "AppleRegion",
+                        "AppleMps",
+                        "backend.apple",
+                        "APPLE_GRAPH_REGION",
+                        "APPLE_FUSED_ELEMENTWISE_GRAPH",
+                        "appleLoweredRegionForAnchor",
+                        "appleRegionForAnchor",
+                        "appleRegionsByAnchor",
+                        "synaptik.apple.mps.lib",
+                        "SYNAPTIK_APPLE_MPS_LIB"
+                )
+        );
+        assertTrue(offenders.isEmpty(), () -> "Removed Apple migration names remain in Java backend/test source: " + offenders);
     }
 
     private static void assertGraphPartitionBackendPackageAbsent(String packageName, String message) throws IOException {
@@ -544,6 +536,35 @@ public class SourceTreeHygieneTest {
             return paths
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> patterns.stream().anyMatch(line::contains))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+        }
+    }
+
+    private static List<String> linesContainingAny(List<Path> roots, List<String> patterns) throws IOException {
+        try (Stream<Path> paths = roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
                     .flatMap(path -> {
                         try {
                             return Files.readAllLines(path).stream()

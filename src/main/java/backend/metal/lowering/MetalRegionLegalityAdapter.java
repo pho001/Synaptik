@@ -1,53 +1,39 @@
-package backend.cuda.lowering;
+package backend.metal.lowering;
 
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
-import graph.CompiledNode;
-import graph.optimizer.partition.PartitionCandidate;
-import graph.optimizer.partition.PartitionPlan;
+import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import graph.optimizer.partition.PartitionPlanningContext;
+import graph.CompiledNode;
+import graph.optimizer.partition.PartitionPlan;
+import graph.optimizer.partition.RegionLegalityAdapter;
+import graph.optimizer.partition.PartitionCandidate;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValueRef;
-import graph.optimizer.partition.RegionLegalityAdapter;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
-import operations.Operation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter {
+public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
     private final AcceleratorSubgraphLowerer lowerer = new AcceleratorSubgraphLowerer();
 
     @Override
     public PartitionTarget target() {
-        return PartitionTarget.GPU_CUDA;
+        return PartitionTarget.GPU_METAL;
     }
 
     @Override
     public boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context) {
-        if (node == null
-                || node.backend() != backend.ComputeBackend.GPU_CUDA
-                || node.operation() == null
-                || node.inputIds().isEmpty()) {
-            return false;
-        }
-        if (node.backwardNode()) {
-            return switch (node.operation().opType()) {
-                case MATMUL, LINEAR, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD -> true;
-                default -> false;
-            };
-        }
-        return switch (node.operation().opType()) {
-            case MATMUL, LINEAR, ADD, SUB, MUL, DIV, RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, LOG, NEG, SQRT, INV, MUL_SCALAR, WHERE, SOFTMAX, CLAMP_MIN, CLAMP_MAX, RESHAPE, CONTIGUOUS, NOOP, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-            default -> false;
-        };
+        return MetalPartitionSupport.isPlannerSupported(node);
     }
 
     @Override
     public boolean canSeed(CompiledNode node, PartitionPlanningContext context) {
-        return isNodeSupported(node, context);
+        return MetalPartitionSupport.isPlannerSupported(node);
     }
 
     @Override
@@ -66,7 +52,7 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         if (producer.operation() == null) {
             return true;
         }
-        return !isNodeSupported(producer, context);
+        return !MetalPartitionSupport.isPlannerSupported(producer) || producer.backend() != target().backend();
     }
 
     @Override
@@ -83,9 +69,9 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         if (outputNodeIds.isEmpty()) {
             return null;
         }
-        int computeNodeId = orderedNodeIds.getFirst();
+        Integer computeNodeId = orderedNodeIds.getFirst();
         for (int nodeId : orderedNodeIds) {
-            if (containsMatMulFamily(context.compiledNode(nodeId))) {
+            if (MetalPartitionSupport.containsMatMulFamily(context.compiledNode(nodeId))) {
                 computeNodeId = nodeId;
                 break;
             }
@@ -112,7 +98,10 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
     }
 
     @Override
-    public PartitionPlan tryCreatePlan(PartitionCandidate candidate, PartitionPlanningContext context) {
+    public PartitionPlan tryCreatePlan(
+            PartitionCandidate candidate,
+            PartitionPlanningContext context
+    ) {
         if (candidate == null) {
             return null;
         }
@@ -123,16 +112,11 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
                 candidate.externalInputIds(),
                 candidate.outputNodeIds()
         );
-        var lowering = lowerer.tryLower(subgraph, context);
+        AcceleratorSubgraphLoweringResult lowering = lowerer.tryLower(subgraph, context);
         if (lowering == null) {
             return null;
         }
-        return new CudaGpuPartitionPlan(
-                candidate.anchorNodeId(),
-                subgraph,
-                lowering.dagSpec(),
-                lowering.estimatedWork()
-        );
+        return new MetalPartitionPlan(candidate.anchorNodeId(), subgraph, lowering);
     }
 
     private LinkedHashSet<Integer> determineOutputNodeIds(
@@ -182,18 +166,10 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         for (int nodeId : nodeIds) {
             CompiledNode node = context.compiledNode(nodeId);
             if (node == null || node.operation() == null) {
-                throw new IllegalStateException("Missing operation for CUDA subgraph nodeId=" + nodeId);
+                throw new IllegalStateException("Missing operation for Metal subgraph nodeId=" + nodeId);
             }
             out.add(new AcceleratorSubgraphOp(nodeId, node.operation().opType()));
         }
         return List.copyOf(out);
-    }
-
-    private boolean containsMatMulFamily(CompiledNode node) {
-        if (node == null || node.operation() == null) {
-            return false;
-        }
-        Operation.OpType opType = node.operation().opType();
-        return opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR;
     }
 }

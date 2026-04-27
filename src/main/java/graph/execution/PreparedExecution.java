@@ -267,14 +267,14 @@ public final class PreparedExecution {
             );
         }
 
-        if (metadata.acceleratorExecutable() instanceof backend.apple.exec.PreparedAppleGpuExecutable apple) {
-            attrs.put("appleBridgeAvailable", apple.bridge().isAvailable());
-            attrs.put("appleBridgeContextAvailable", apple.bridgeContext().available());
-            attrs.put("appleBridgeExecutableAvailable", apple.bridgeExecutable().available());
-            attrs.put("appleBridgeCacheHit", apple.bridgeExecutable().cacheHit());
-            attrs.put("appleSubgraphNodeCount", apple.plan().nodeIds().size());
-            attrs.put("appleSubgraphOps", apple.plan().subgraph().ops().stream().map(op -> op.opType().name()).toList());
-            attrs.put("appleEstimatedWork", apple.plan().estimatedWork());
+        if (metadata.acceleratorExecutable() instanceof backend.metal.exec.PreparedMetalExecutable metal) {
+            attrs.put("metalBridgeAvailable", metal.bridge().isAvailable());
+            attrs.put("metalBridgeContextAvailable", metal.bridgeContext().available());
+            attrs.put("metalBridgeExecutableAvailable", metal.bridgeExecutable().available());
+            attrs.put("metalBridgeCacheHit", metal.bridgeExecutable().cacheHit());
+            attrs.put("metalSubgraphNodeCount", metal.plan().nodeIds().size());
+            attrs.put("metalSubgraphOps", metal.plan().subgraph().ops().stream().map(op -> op.opType().name()).toList());
+            attrs.put("metalEstimatedWork", metal.plan().estimatedWork());
         }
 
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);

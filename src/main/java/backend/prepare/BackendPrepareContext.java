@@ -91,8 +91,8 @@ public final class BackendPrepareContext {
         return loweredRegionIndex.cpuUnitForAnchor(nodeId);
     }
 
-    public LoweredRegion appleLoweredRegionForAnchor(int nodeId) {
-        return loweredRegionIndex.appleRegionForAnchor(nodeId);
+    public LoweredRegion metalLoweredRegionForAnchor(int nodeId) {
+        return loweredRegionIndex.metalRegionForAnchor(nodeId);
     }
 
     public LoweredRegion cudaLoweredRegionForAnchor(int nodeId) {
