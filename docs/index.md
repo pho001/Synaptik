@@ -3,6 +3,8 @@
 
 Navigation: [README](../README.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Calibration & Autotune](calibration-autotune.md) | [Public API](public-api.md) | [Examples](examples.md)
 
+Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
+
 This directory is the implementation-grounded documentation set for Synaptik. It is written for maintainers and technically strong readers who want to understand both how to use the framework and how this kind of compiled tensor runtime works internally.
 
 ## Recommended Reading Paths

@@ -3,6 +3,8 @@
 
 Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Public API](public-api.md) | [Calibration & Autotune](calibration-autotune.md) | [Testing](testing.md)
 
+Chapters: [Running Examples](#running-examples) | [Broadcast Add And ReLU](#broadcast-add-and-relu) | [Reverse-Mode Autodiff](#reverse-mode-autodiff) | [Matrix Multiplication](#matrix-multiplication) | [Boolean Mask With `where`](#boolean-mask-with-where) | [Softmax](#softmax) | [Explicit Compile And Runtime Config](#explicit-compile-and-runtime-config) | [Reusing PreparedExecution](#reusing-preparedexecution) | [ComputeOptions With Explicit Defaults](#computeoptions-with-explicit-defaults) | [CLI Examples](#cli-examples) | [Verification Notes](#verification-notes)
+
 These examples are small Java snippets using the public `Tensor`, compile, and configuration APIs. They are written to be pasted into a small class in this repository or adapted into a test.
 
 ## Running Examples

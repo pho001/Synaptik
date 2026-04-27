@@ -3,6 +3,8 @@
 
 Navigation: [Index](index.md) | [Development](development.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Compute Flow](compute-flow.md) | [Troubleshooting](troubleshooting.md)
 
+Chapters: [Test Framework And Setup](#test-framework-and-setup) | [Test Organization](#test-organization) | [Exact Commands](#exact-commands) | [Full Suite Duration And Heap Behavior](#full-suite-duration-and-heap-behavior) | [Targeted Test Patterns](#targeted-test-patterns) | [Debug And Benchmark Tests](#debug-and-benchmark-tests) | [Native And Optional Backend Tests](#native-and-optional-backend-tests) | [Source Hygiene Tests](#source-hygiene-tests) | [How To Interpret Failures](#how-to-interpret-failures)
+
 Synaptik uses JUnit Jupiter through Gradle. Test configuration is in `build.gradle`, and tests live under `src/test/java`.
 
 ## Test Framework And Setup

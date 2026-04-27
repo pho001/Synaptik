@@ -3,6 +3,8 @@
 
 Navigation: [Index](index.md) | [Architecture](architecture.md) | [Modules](modules.md) | [Testing](testing.md) | [Configuration](configuration.md) | [Troubleshooting](troubleshooting.md)
 
+Chapters: [Local Setup](#local-setup) | [Repository Structure](#repository-structure) | [Coding Patterns](#coding-patterns) | [Adding Tensor Ops](#adding-tensor-ops) | [Adding Backend Kernels](#adding-backend-kernels) | [Adding Optimizer Rules](#adding-optimizer-rules) | [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families) | [Documentation Workflow](#documentation-workflow) | [Operational Risks](#operational-risks)
+
 Synaptik is a Java tensor and compiled-graph runtime. The public tensor API builds semantic graph nodes, the graph layer compiles and optimizes them, and backend packages prepare and execute concrete kernels.
 
 ## Local Setup

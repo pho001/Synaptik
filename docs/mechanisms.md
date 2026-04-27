@@ -3,6 +3,8 @@
 
 Navigation: [Index](index.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Tensor API](tensor-api.md) | [Architecture](architecture.md) | [Modules](modules.md)
 
+Chapters: [Graph Construction](#graph-construction) | [Broadcasting](#broadcasting) | [Autodiff / Backward Graph](#autodiff-backward-graph) | [Compile Pipeline](#compile-pipeline) | [Semantic Canonicalization](#semantic-canonicalization) | [Optimizer Stages: AR / CSE / PART / FUSE / MEM](#optimizer-stages-ar-cse-part-fuse-mem) | [Prepared Execution](#prepared-execution) | [Memory Planning / Runtime Binding](#memory-planning-runtime-binding) | [CPU Dispatch](#cpu-dispatch) | [Fused ASM Execution](#fused-asm-execution) | [Tuning / Calibration / Persistence](#tuning-calibration-persistence)
+
 This document explains the major mechanisms in Synaptik using the same structure for each one: problem, mental model, key concepts, where it lives, step-by-step, worked example, internals, edge cases, misconceptions, and related mechanisms.
 
 ## Graph Construction

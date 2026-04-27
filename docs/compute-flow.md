@@ -3,6 +3,8 @@
 
 Navigation: [Index](index.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Mechanisms](mechanisms.md) | [Troubleshooting](troubleshooting.md)
 
+Chapters: [Lifecycle Map](#lifecycle-map) | [Primary Artifacts](#primary-artifacts) | [Graph Building](#graph-building) | [Compile](#compile) | [Prepare](#prepare) | [Execution](#execution) | [Worked Example](#worked-example) | [Reuse Rules](#reuse-rules) | [Traces](#traces) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
+
 This guide follows a tensor graph from user code through graph construction, compilation, backend preparation, execution, memory binding, and traces.
 
 ## Table Of Contents

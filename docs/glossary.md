@@ -3,6 +3,8 @@
 
 Navigation: [Index](index.md) | [Framework Concepts](framework-concepts.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Calibration & Autotune](calibration-autotune.md)
 
+Chapters: [A](#a) | [B](#b) | [C](#c) | [D](#d) | [E](#e) | [F](#f) | [G](#g) | [L](#l) | [M](#m) | [O](#o) | [P](#p) | [R](#r) | [S](#s) | [T](#t) | [W](#w)
+
 Project-specific terms used in Synaptik, with source references.
 
 ## A

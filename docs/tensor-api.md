@@ -3,6 +3,8 @@
 
 Navigation: [Index](index.md) | [Public API](public-api.md) | [Examples](examples.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Troubleshooting](troubleshooting.md)
 
+Chapters: [API Surface And Conventions](#api-surface-and-conventions) | [Constructors, Storage, And Dtype](#constructors-storage-and-dtype) | [Metadata, Data Access, And Mutation](#metadata-data-access-and-mutation) | [Graph Lifecycle And Execution](#graph-lifecycle-and-execution) | [Operation Catalog](#operation-catalog) | [Layout And View Operations](#layout-and-view-operations) | [Binary Broadcasting And Scalar Arithmetic](#binary-broadcasting-and-scalar-arithmetic) | [Comparisons, Boolean Logic, And Selection](#comparisons-boolean-logic-and-selection) | [Indexing, Gather, Scatter, And Take Along Axis](#indexing-gather-scatter-and-take-along-axis) | [Unary Math](#unary-math) | [Reductions, Softmax, And LogSoftmax](#reductions-softmax-and-logsoftmax) | [Matrix, Linear, And Attention Operations](#matrix-linear-and-attention-operations) | [Convolution And Pooling](#convolution-and-pooling) | [Normalization](#normalization) | [Loss Functions](#loss-functions) | [Dtype, Shape, And Edge-Case Rules](#dtype-shape-and-edge-case-rules) | [Implementation Source Map](#implementation-source-map)
+
 This guide describes the public `tensor.Tensor` API as implemented in the Java source and exercised by the runtime tests. It focuses on how tensor objects are built, how graph operations are represented, what each public operation returns, and the gradient behavior that matters when composing models.
 
 ## Table Of Contents

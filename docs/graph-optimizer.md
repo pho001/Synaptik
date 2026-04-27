@@ -3,11 +3,15 @@
 
 Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Mechanisms](mechanisms.md) | [Configuration](configuration.md) | [Testing](testing.md)
 
+Chapters: [Mental Model](#mental-model) | [DAG And Graph Vocabulary](#dag-and-graph-vocabulary) | [Global Versus Partition-Scoped Work](#global-versus-partition-scoped-work) | [Compiler Boundary](#compiler-boundary) | [OptimizerConfig](#optimizerconfig) | [Stage Ordering](#stage-ordering) | [OptimizerState](#optimizerstate) | [OptimizerTrace](#optimizertrace) | [Stage AR: Rewrite and Lowering](#stage-ar-rewrite-and-lowering) | [Stage CSE: Common Subexpression Elimination](#stage-cse-common-subexpression-elimination) | [Stage PART: Partition Planning](#stage-part-partition-planning) | [Stage FUSE: Region Optimization and Fusion](#stage-fuse-region-optimization-and-fusion) | [Stage MEM: Memory and Lifetime Planning](#stage-mem-memory-and-lifetime-planning) | [How the Stages Work Together](#how-the-stages-work-together) | [Adding or Changing Optimizer Behavior](#adding-or-changing-optimizer-behavior)
+
 This guide explains the graph optimizer as a compile-time transformation pipeline over a cloned tensor DAG. It is written for contributors who need to reason about optimizer behavior, add rules, debug stage interactions, or understand why the default stage order is `AR -> CSE -> PART -> FUSE -> MEM`.
 
 ## Table of Contents
 
 - [Mental Model](#mental-model)
+- [DAG And Graph Vocabulary](#dag-and-graph-vocabulary)
+- [Global Versus Partition-Scoped Work](#global-versus-partition-scoped-work)
 - [Compiler Boundary](#compiler-boundary)
 - [OptimizerConfig](#optimizerconfig)
 - [Stage Ordering](#stage-ordering)
@@ -52,6 +56,104 @@ The optimizer owns graph structure and compile-time planning artifacts:
 It does not choose CPU vector width, worker count, BLAS thresholds, approximation mode, or machine code layout. Those choices belong to backend preparation and runtime configuration.
 
 Compared with naive execution, the naive path executes each graph node independently and allocates outputs according to the raw graph. The optimized path tries to reduce the number of semantic operations that survive, reduce repeated computation, group backend-friendly regions, and reuse storage where lifetimes permit.
+
+## DAG And Graph Vocabulary
+
+`DAG` means **directed acyclic graph**.
+
+In this project:
+
+- **Directed** means edges have a direction from producer to consumer. If `z = x.add(y)`, then `x -> z` and `y -> z`.
+- **Acyclic** means following producer/consumer edges cannot lead back to the same tensor. A tensor can depend on earlier tensors, but it cannot depend on itself through a cycle.
+- **Graph** means the set of tensor nodes reachable from the compiled output and, in training mode, from backward/gradient publication targets.
+
+A small expression:
+
+```java
+Tensor a = new Tensor(new double[]{1, 2}, new int[]{2}, null, "a", DataType.FLOAT64);
+Tensor b = new Tensor(new double[]{10, 20}, new int[]{2}, null, "b", DataType.FLOAT64);
+Tensor c = a.add(b);
+Tensor y = c.relu();
+```
+
+becomes this DAG:
+
+```mermaid
+flowchart LR
+    A["a leaf\n[1, 2]"] --> C["c = add(a, b)\n[11, 22]"]
+    B["b leaf\n[10, 20]"] --> C
+    C --> Y["y = relu(c)\n[11, 22]"]
+```
+
+The topological order is a legal execution/planning order where producers appear before consumers:
+
+```text
+node 0: a
+node 1: b
+node 2: c = add(a, b)
+node 3: y = relu(c)
+```
+
+Optimizer stages consume this topological order. A rewrite may remove `node 2`, replace `node 3`, or attach planning metadata, but it must preserve the acyclic producer-before-consumer invariant.
+
+Important vocabulary:
+
+| Term | Meaning in this codebase |
+| --- | --- |
+| Tensor node | A `Tensor` object in the compile-time snapshot. It may be a leaf or an operation result. |
+| Leaf | A tensor with `operation == null`, usually data, parameter, scalar, or target input. |
+| Operation node | A tensor with an `Operation`, such as `ADD`, `MATMUL`, `RESHAPE`, `SOFTMAX`, or `CONV2D`. |
+| Edge | A dependency from `prevTensors` input to the consumer tensor. |
+| Root / sink | A tensor that must remain observable, such as the forward output, a graph sink, or a gradient target. |
+| Topological closure | The reachable graph rebuilt from roots after rewrites remove dead nodes. |
+| Partition | A backend-targeted connected subset of compiled nodes created by `PART`. |
+| Optimized region | A `FUSE` artifact built from one partition, containing execution units and region values. |
+| Region value | A value produced inside an optimized region, classified as materialized, continuation, or virtual. |
+
+## Global Versus Partition-Scoped Work
+
+The most important architectural distinction is that optimizer stages do not all work at the same scope.
+
+| Stage / phase | Scope | What it reads | What it writes | Does it operate inside partitions? |
+| --- | --- | --- | --- | --- |
+| Semantic forward canonicalizer | Global forward graph before backward construction | User forward DAG | Canonicalized forward DAG | No. Partitions do not exist yet. |
+| `AR` | Global optimizer snapshot | Entire current tensor DAG | Rewritten graph | No. It rewrites graph nodes before partitioning. |
+| `CSE` | Global optimizer snapshot | Entire current tensor DAG | Duplicate-free graph | No. It merges duplicate expressions before partitioning. |
+| `PART` | Global planning pass | Final structural graph plus backend intents | `Partition` and `PartitionPlan` artifacts | It creates partitions; it does not execute inside them. |
+| `FUSE` | Per partition | `OptimizerState.partitions()` plus compiled node snapshot | `OptimizedRegion` artifacts | Yes. Each partition is optimized independently into execution units. |
+| `MEM` | Hybrid | Final graph plus optimized regions | `MemoryPlan`, region bindings, handoff requirements | Both. Tensor lifetimes are global; region value bindings are planned from optimized regions. |
+| Backend lowering / prepare | Per partition / per optimized region / per node | compile artifacts and runtime config | prepared execution steps | Yes. This is where backend-specific lowerers and fused plans become executable recipes. |
+| Execution | Prepared step order | prepared execution recipe | tensor storage values | It follows the prepared plan, not the raw optimizer stages. |
+
+Concrete implication:
+
+```text
+AR and CSE can see duplicates across the whole graph.
+FUSE cannot arbitrarily fuse across partition boundaries.
+MEM can see that a value produced in one region is consumed by another and creates a handoff requirement.
+```
+
+Example:
+
+```text
+node 0: x leaf
+node 1: w leaf
+node 2: b leaf
+node 3: matmul(x, w)
+node 4: add(node3, b)
+node 5: relu(node4)
+node 6: sum(node5)
+```
+
+A typical default pipeline can behave like this:
+
+```text
+AR    global:  matmul + bias -> linear(x, w, b)
+CSE   global:  remove duplicate global subexpressions if present
+PART  global:  create one CPU partition for [linear, relu, sum] or smaller legal regions
+FUSE  per partition: fuse relu with neighboring fusable elementwise nodes, but not through sum if it is a barrier
+MEM   hybrid:  plan tensor lifetimes globally and classify region values as materialized/continuation/virtual
+```
 
 ## Compiler Boundary
 
@@ -168,7 +270,7 @@ Do not confuse it with more specific trace models:
 - `RegionOptimizationTrace` is attached to optimized regions and execution units.
 - `MemoryPlan.explain()` renders memory planning details and summaries.
 
-Needs verification: if future rules start appending to `OptimizerTrace`, this guide should be updated with the event schema and expected stage ownership.
+If future rules start appending to `OptimizerTrace`, update this guide with the event schema and expected stage ownership. As of the current implementation, specific stage diagnostics live in partition, region, and memory artifacts rather than in the generic `OptimizerTrace` record.
 
 ## Stage AR: Rewrite and Lowering
 
@@ -307,6 +409,115 @@ and the masked variant using `where(mask, scores, maskFillScalar)`, then lowers 
 
 Conv2d lowering in [`Conv2dLoweringRewrite.java`](../src/main/java/graph/optimizer/rewrite/Conv2dLoweringRewrite.java) maps supported conv ops to explicit GEMM variants. `Conv2dLoweringMode.OFF` disables the pass, `ALWAYS` lowers every matched conv op, and `HEURISTIC` uses [`Conv2dLoweringHeuristics.java`](../src/main/java/graph/optimizer/rewrite/Conv2dLoweringHeuristics.java). Current heuristic requirements include rank-4 shapes, `groups == 1`, dilation of `1`, and either large pointwise projection or large standard 3x3 convolution shapes.
 
+### AR Lowering Catalog
+
+`AR` owns two related but distinct families:
+
+- **algebraic rewrites**, which simplify or canonicalize local expressions
+- **lowerings**, which recognize a larger graph shape and replace it with a more backend-friendly primitive
+
+The current lowering-oriented catalog is:
+
+| Delegate | Input pattern | Output representation | Why it matters |
+| --- | --- | --- | --- |
+| `PiecewiseLoweringRewrite` | `inv(add(1, exp(neg(x))))` or `inv(add(1, exp(mulScalar(x, -1))))` | `sigmoid(x)` | Turns imported decomposed sigmoid into a single semantic op. |
+| `PiecewiseLoweringRewrite` | `where(gt(x, 0), x, zeros_like(x))` | `relu(x)` | Converts common ReLU expansion into the optimized ReLU op. |
+| `PiecewiseLoweringRewrite` | `where(lt(x, t), t, x)` | `clampMin(x, t)` | Converts lower-bound clamp expressed as a branch. |
+| `PiecewiseLoweringRewrite` | `where(gt(x, t), t, x)` | `clampMax(x, t)` | Converts upper-bound clamp expressed as a branch. |
+| `LinearLoweringRewrite` | `add(matmul(input, weight), bias)` and commuted add form | `linear(input, weight, bias)` | Gives backends a dense linear primitive with explicit bias instead of separate matmul and broadcast add. |
+| `LossForwardLoweringRewrite` | `logSoftmax(logits).gather(target).neg()` plus optional `sum`/`mean` | `crossEntropyLossFromIndices(logits, target, classDim, reduction)` | Replaces a multi-node index cross-entropy expression with one loss primitive. |
+| `LossBackwardLoweringRewrite` | indexed cross-entropy gradient expression | `crossEntropyLossIndicesGrad` | Replaces a decomposed backward gradient with a dedicated primitive. |
+| `ReductionLoweringRewrite` | backward softmax gradient expression | `softmaxGrad` | Makes softmax backward explicit for backend lowering. |
+| `ReductionLoweringRewrite` | backward log-softmax gradient expression | `logSoftmaxGrad` | Makes log-softmax backward explicit for backend lowering. |
+| `AttentionLoweringRewrite` | `softmax((q.matmul(k.permute(...)) * scale)).matmul(v)` | `scaledDotProductAttention(q, k, v, options)` | Collapses attention score, softmax, and value projection into one attention primitive. |
+| `AttentionLoweringRewrite` | masked score expression using `where(mask, scores, maskFillScalar)` before softmax | masked `scaledDotProductAttention(...)` | Preserves mask semantics while giving the backend a single attention op. |
+| `AttentionBackwardLoweringRewrite` | query/key/value gradient fragments for lowered attention | `scaledDotProductAttentionBackward` variants | Gives backward preparation dedicated attention-gradient operations. |
+| `Conv2dLoweringRewrite` | supported `conv2d` forward op | `conv2dGemm` | Uses explicit GEMM-style conv lowering when policy allows it. |
+| `Conv2dLoweringRewrite` | supported conv2d input-gradient op | `conv2dBackwardInputGemm` | Uses GEMM-style backward-input lowering. |
+| `Conv2dLoweringRewrite` | supported conv2d weight-gradient op | `conv2dBackwardWeightGemm` | Uses GEMM-style backward-weight lowering. |
+
+Worked lowering example, linear:
+
+```java
+Tensor input = new Tensor(new double[]{
+        1, 2,
+        3, 4
+}, new int[]{2, 2}, null, "input", DataType.FLOAT64);
+// input = [
+//   [1, 2],
+//   [3, 4]
+// ]
+
+Tensor weight = new Tensor(new double[]{
+        10, 20,
+        30, 40
+}, new int[]{2, 2}, null, "weight", DataType.FLOAT64);
+// weight = [
+//   [10, 20],
+//   [30, 40]
+// ]
+
+Tensor bias = new Tensor(new double[]{1, 2}, new int[]{2}, null, "bias", DataType.FLOAT64);
+// bias = [1, 2]
+
+Tensor y = input.matmul(weight).add(bias);
+// before AR:
+// node A = matmul(input, weight)
+// node B = add(node A, bias)
+// A = [
+//   [70, 100],
+//   [150, 220]
+// ]
+// y = [
+//   [71, 102],
+//   [151, 222]
+// ]
+//
+// after AR:
+// node B = linear(input, weight, bias)
+// y = [
+//   [71, 102],
+//   [151, 222]
+// ]
+```
+
+Worked lowering example, indexed cross entropy:
+
+```java
+Tensor logits = new Tensor(new double[]{2, 0, 0}, new int[]{1, 3}, null, "logits", DataType.FLOAT64);
+// logits = [[2, 0, 0]]
+
+Tensor target = new Tensor(new int[]{0}, new int[]{1}, null, "target", DataType.INT32);
+// target = [0]
+
+Tensor loss = logits.logSoftmax(1).nllLossFromIndices(target, 1);
+// before AR:
+// node A = logSoftmax(logits, classDimension=1)
+// node B = gather(A, target, classDimension=1)
+// node C = neg(B)
+// node D = mean/sum depending on reduction shape
+//
+// after AR, when the pattern matches:
+// node D = crossEntropyLossFromIndices(logits, target, classDimension=1, reduction=MEAN)
+// softmax(logits) approximately = [[0.786986, 0.106507, 0.106507]]
+// loss approximately = [0.239545]
+```
+
+Worked lowering example, attention:
+
+```text
+Before AR:
+scores  = q.matmul(k.permute(...)).mul(scale)
+masked  = where(mask, scores, veryNegativeScalar)   // masked variant only
+weights = softmax(masked or scores, keyAxis)
+out     = weights.matmul(v)
+
+After AR:
+out = scaledDotProductAttention(q, k, v, mask, AttentionOptions)
+```
+
+The numerical equation is the same, but later stages see one attention semantic primitive rather than a chain of matmul, permute, multiply, optional where, softmax, and matmul.
+
 ### Edge Cases
 
 - `AlgebraicRewrite` skips tensors with `null` operation and tensors whose operation type is `FUSED`.
@@ -430,6 +641,119 @@ Strict versus aggressive behavior is controlled by `CseConfig.strictSafety()`:
 
 Important detail: dtype is not an explicit top-level field in the current CSE signature. If a future change depends on dtype-sensitive CSE separation, add tests before changing safety mode assumptions.
 
+### Signature Construction Deep Dive
+
+CSE works because a node can be represented as a stable structural key. The key is recursive: the signature of a node contains the signatures of its inputs.
+
+For this graph:
+
+```java
+Tensor a = new Tensor(new double[]{1, 2}, new int[]{2}, null, "a", DataType.FLOAT64);
+Tensor b = new Tensor(new double[]{10, 20}, new int[]{2}, null, "b", DataType.FLOAT64);
+Tensor y1 = a.add(b).relu();
+Tensor y2 = b.add(a).relu();
+Tensor out = y1.add(y2);
+```
+
+CSE sees something conceptually like:
+
+```text
+a leaf signature  = identity(a)
+b leaf signature  = identity(b)
+
+add(a, b):
+  opType      = ADD
+  parameters  = none
+  inputs      = sort([identity(a), identity(b)]) because ADD is commutative
+
+add(b, a):
+  opType      = ADD
+  parameters  = none
+  inputs      = sort([identity(b), identity(a)]) -> same ordered list
+
+relu(add(a,b)):
+  opType      = RELU
+  parameters  = none
+  inputs      = [signature(add(a,b))]
+
+relu(add(b,a)):
+  opType      = RELU
+  parameters  = none
+  inputs      = [signature(add(b,a))] -> same as relu(add(a,b))
+```
+
+After CSE, a possible graph is:
+
+```text
+node 0: a
+node 1: b
+node 2: add(a, b)
+node 3: relu(node 2)
+node 4: add(node 3, node 3)
+```
+
+The values stay the same:
+
+```text
+add(a, b) = [11, 22]
+relu(...) = [11, 22]
+out       = [22, 44]
+```
+
+The rule is deliberately not a mathematical theorem prover. For example:
+
+```text
+x.add(x)
+x.mul(2)
+```
+
+are numerically equal for normal floating values, but CSE will not merge them unless AR first rewrites one form into the other. CSE only sees structural equality of the current graph.
+
+### Parameter Keys
+
+Two operation nodes with the same op type can still be different if their parameters differ.
+
+Examples:
+
+| Expression A | Expression B | Same CSE signature? | Reason |
+| --- | --- | --- | --- |
+| `sum(x, 1, false)` | `sum(x, 1, true)` | No | `keepDims` is part of the reduction signature. |
+| `softmax(x, 1)` | `softmax(x, 0)` | No | Axis is part of the parameter key. |
+| `reshape(x, [2, 3])` | `reshape(x, [3, 2])` | No | Target shape is part of the key. |
+| `permute(x, [1, 0])` | `permute(x, [0, 1])` | No | Axis order is part of the key. |
+| `conv2d(... stride=1)` | `conv2d(... stride=2)` | No | Conv options are part of the key. |
+| `avgPool2d(... countIncludePad=false)` | `avgPool2d(... countIncludePad=true)` | No | Pool options are part of the key. |
+| `attention(scale=0.125, hasMask=false)` | `attention(scale=0.125, hasMask=true)` | No | Mask presence is part of the key. |
+
+This is why CSE can be global without being reckless: it only merges nodes when the current signature says the operation, parameters, phase/backward status, and inputs match under the selected safety mode.
+
+### Strict Versus Aggressive Example
+
+Strict CSE is used by training defaults because autograd and publication semantics are more sensitive.
+
+```text
+strict signature =
+  opType
+  backward flag
+  requiresGrad
+  resolved backend
+  output shape
+  operation parameters
+  input signatures
+```
+
+Aggressive CSE is used by inference defaults:
+
+```text
+aggressive signature =
+  opType
+  backward flag
+  operation parameters
+  input signatures
+```
+
+The aggressive mode can merge more expressions in inference because there are no gradient publication requirements. It still does not merge leaves by value except scalar non-grad constants.
+
 ### Edge Cases
 
 - Separate trainable leaves with identical values are not merged because trainable leaves are identity-based.
@@ -463,6 +787,8 @@ Backends need contiguous, legal regions of the graph to lower as a unit. Naive e
 
 It does not fuse elementwise code itself. It creates `Partition` artifacts for FUSE and backend selection.
 
+Scope: `PART` is a **global planning pass**. It scans the whole compiled graph and creates zero or more partitions. It does not run inside an existing partition because partitions are its output.
+
 ```mermaid
 flowchart LR
     A[CompiledNode list] --> B[Resolve target CPU/Metal/CUDA]
@@ -481,6 +807,47 @@ flowchart LR
 - `Partition`: accepted region with ordered node ids, values, internal edges, boundary edges, external inputs, output refs, and debug trace.
 - `PartitionPlan`: backend-specific attached plan with backend, anchor node, node ids, external inputs, produced outputs, and estimated work.
 - Required materialized values: forward output and gradient publication targets that must remain materialized at region boundaries.
+
+### Partition Anatomy
+
+A partition is not just a list of node ids. It records enough boundary information for later stages to reason about data movement and materialization.
+
+For this graph:
+
+```text
+node 0: x leaf
+node 1: w leaf
+node 2: b leaf
+node 3: matmul(x, w)
+node 4: add(node3, b)
+node 5: relu(node4)
+node 6: sum(node5)
+```
+
+A partition for nodes `[3, 4, 5]` has:
+
+```text
+orderedNodeIds:
+  [3, 4, 5]
+
+internalEdges:
+  3 -> 4
+  4 -> 5
+
+externalInputNodeIds:
+  [0, 1, 2]
+
+boundaryEdges:
+  0 -> 3   // x enters the partition
+  1 -> 3   // w enters the partition
+  2 -> 4   // b enters the partition
+  5 -> 6   // relu result leaves the partition
+
+outputValueRefs:
+  [node-5]
+```
+
+This distinction is what lets `FUSE` optimize only partition-owned nodes while `MEM` can still see values entering and leaving the region.
 
 ### Where It Lives
 
@@ -565,6 +932,68 @@ target = AUTO
 
 `PartitionPlanningSnapshotBuilder` repeats similar planning after `CompiledNode` snapshots are rebuilt in `GraphCompiler`. It stores compile artifacts such as partitions, attached backend plans, backend selection candidates, and `PartitionCompileTrace`.
 
+### Greedy Planner Deep Dive
+
+`GreedyMaxRegionPartitionPlanner` is the default planner. It is designed to build large legal regions without exploring an unbounded search space.
+
+For each compiled node in topological order:
+
+1. Skip the node if its backend does not match the target.
+2. Skip the node if it was already covered by an earlier accepted partition.
+3. Ask the target legality adapter whether this node can seed a partition.
+4. Absorb supported producer closure:
+   - If a producer is same-target and supported, pull it into the candidate.
+   - If a producer is not owned by the target, ask whether it can be used as an external input.
+   - If neither is true, reject the candidate.
+5. Ask the legality adapter to create a structural candidate.
+6. Ask the legality adapter to attach a backend plan.
+7. Expand through consumers:
+   - prefer merge-completing consumers first
+   - absorb producers needed by that consumer
+   - try to attach a backend plan again
+   - keep the larger accepted candidate when it remains legal
+8. Stop when the frontier is exhausted or a budget is reached.
+9. Emit the partition with decision trace metadata.
+
+The accepted partition is therefore the largest greedy legal region found from the start node, not necessarily the mathematically global optimum.
+
+### Scored Candidate Planner Deep Dive
+
+`ScoredCandidatePartitionPlanner` explores a candidate search space up to `maxVisitedCandidates`. It tracks:
+
+- best structural candidate
+- best accepted candidate
+- score from `AcceleratorPartitionScoreModel`
+- backend plan attachment result
+
+The score uses signals such as node count, internal edges, merge-node bonus, tail depth, external input penalty, and estimated work. A candidate still needs backend legality: a high score is not enough if the adapter cannot produce a valid `PartitionPlan`.
+
+### What Runs Inside A Partition Later
+
+`PART` itself does not execute anything inside the partition. It only records the region.
+
+Later phases use the partition like this:
+
+```text
+FUSE:
+  reads partition.orderedNodeIds
+  groups partition nodes into execution units
+  classifies partition values as materialized/continuation/virtual
+
+MEM:
+  reads optimized region values derived from partition values
+  plans storage/bindings/handoffs
+
+prepare/lowering:
+  consumes attached PartitionPlan and OptimizedRegion execution units
+  builds backend-specific prepared execution steps
+```
+
+So when debugging partition behavior, ask two separate questions:
+
+1. Did `PART` select the expected nodes and boundaries?
+2. Did later `FUSE`/backend preparation lower that partition into the expected executable shape?
+
 ### Edge Cases
 
 - A configured target of `NONE` or an auto-resolved target of `NONE` produces no partitions.
@@ -594,9 +1023,37 @@ Naive partitioned execution can still run each operation in a partition independ
 
 `FUSE` converts partitions into optimized regions and execution units.
 
+The practical reason is loop fusion. Without fusion, a chain of elementwise operations usually means several full passes over the same logical output shape:
+
+```text
+tmp0 = a + b       // loop over N elements, write tmp0[N]
+tmp1 = relu(tmp0) // loop over N elements, read tmp0[N], write tmp1[N]
+out  = tanh(tmp1) // loop over N elements, read tmp1[N], write out[N]
+```
+
+After fusion, the backend can often express the same computation as one loop:
+
+```text
+for i in 0..N:
+    out[i] = tanh(relu(a[i] + b[i]))
+```
+
+This removes intermediate materialization, reduces memory bandwidth, improves cache locality, and reduces launch/scheduling overhead. On CPU it also gives the runtime one larger unit to dispatch as scalar, vector, parallel, or parallel-vector work. On GPU it gives the accelerator bridge one subgraph/DAG to compile and submit instead of forcing every small elementwise operation through a separate boundary.
+
 ### Mental Model
 
 `FUSE` is region optimization, not direct tensor mutation. In the current implementation, [`RegionOptimizationRule`](../src/main/java/graph/optimizer/region/RegionOptimizationRule.java) does not replace graph nodes with `FUSED` tensor operations. It publishes `OptimizedRegion` artifacts that later preparation can lower into fused backend execution.
+
+Scope: `FUSE` is **partition-scoped**. `RegionOptimizationRule` loops over `OptimizerState.partitions()` and optimizes each partition independently. It can fuse a whole partition or a linear subchain inside a CPU partition, but it does not fuse across partition boundaries.
+
+There are two separate fusion layers:
+
+| Layer | What it produces | Where it runs | Why it exists |
+|---|---|---|---|
+| Graph optimizer `FUSE` stage | `OptimizedRegion` and `ExecutionUnit` metadata | Compile-time optimizer pipeline | Decides which partition-local nodes are one fused unit and which values are virtual/materialized/continuations. |
+| Backend preparation/runtime | Prepared CPU fused executable or prepared accelerator executable | `CompiledGraph.prepare(...)` and execution | Turns the optimizer artifact into real executable loops or accelerator graph work. |
+
+This separation is intentional. The optimizer should not know the current calibrated CPU vector width or whether a local Metal/CUDA bridge is available. It only describes legal region structure. The backend then uses the runtime profile and platform availability to decide how to execute that structure.
 
 ```mermaid
 flowchart TD
@@ -619,6 +1076,38 @@ flowchart TD
 - `ValueTransportKind.VIRTUAL`: value is internal and does not need storage.
 - `opType().isFusable()`: operation metadata used to decide fusable elementwise candidates.
 
+### Execution Unit Anatomy
+
+An `ExecutionUnit` is the bridge between partition planning and backend preparation.
+
+For a fused chain:
+
+```text
+node 3: mul(x, scale)
+node 4: add(node3, bias)
+node 5: relu(node4)
+```
+
+FUSE can publish:
+
+```text
+ExecutionUnit:
+  kind: FUSED_ELEMENTWISE
+  target: CPU
+  inputValueRefs:
+    [node-x, node-scale, node-bias]
+  outputValueRefs:
+    [node-5]
+  virtualOutputs:
+    [node-3, node-4]
+  materializedOutputs:
+    [node-5] if node-5 is required materialized
+  orderedNodeIds:
+    [3, 4, 5]
+```
+
+The important point is that node 3 and node 4 still exist in the semantic graph, but their region values may be virtual inside the fused unit. The backend can compute them as intermediate expression values instead of allocating normal tensor buffers for each.
+
 ### Where It Lives
 
 - [`config/optimizer/FuseConfig.java`](../src/main/java/config/optimizer/FuseConfig.java)
@@ -627,6 +1116,20 @@ flowchart TD
 - [`graph/optimizer/region/CpuRegionOptimizationPolicy.java`](../src/main/java/graph/optimizer/region/CpuRegionOptimizationPolicy.java)
 - [`graph/optimizer/region/GenericGpuRegionOptimizationPolicy.java`](../src/main/java/graph/optimizer/region/GenericGpuRegionOptimizationPolicy.java)
 - [`graph/optimizer/region/RegionOptimizationUnitSupport.java`](../src/main/java/graph/optimizer/region/RegionOptimizationUnitSupport.java)
+- CPU lowering and preparation:
+  - [`backend/cpu/lowering/CpuRegionLowerer.java`](../src/main/java/backend/cpu/lowering/CpuRegionLowerer.java)
+  - [`backend/cpu/prepare/CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java)
+  - [`backend/cpu/fused/plan/LoweredFusedOperationBuilder.java`](../src/main/java/backend/cpu/fused/plan/LoweredFusedOperationBuilder.java)
+  - [`backend/cpu/fused/plan/FusedExecutionPlan.java`](../src/main/java/backend/cpu/fused/plan/FusedExecutionPlan.java)
+  - [`backend/cpu/fused/asm/AsmPreparedFusedExecutableFactory.java`](../src/main/java/backend/cpu/fused/asm/AsmPreparedFusedExecutableFactory.java)
+  - [`backend/cpu/kernels/fused/plan/FusedDispatchPlanner.java`](../src/main/java/backend/cpu/kernels/fused/plan/FusedDispatchPlanner.java)
+  - [`backend/cpu/kernels/fused/FusedExecutor.java`](../src/main/java/backend/cpu/kernels/fused/FusedExecutor.java)
+- Accelerator lowering and preparation:
+  - [`backend/metal/lowering/MetalRegionLowerer.java`](../src/main/java/backend/metal/lowering/MetalRegionLowerer.java)
+  - [`backend/cuda/lowering/CudaRegionLowerer.java`](../src/main/java/backend/cuda/lowering/CudaRegionLowerer.java)
+  - [`backend/accelerator/lowering/AcceleratorSubgraphLowerer.java`](../src/main/java/backend/accelerator/lowering/AcceleratorSubgraphLowerer.java)
+  - [`backend/metal/prepare/MetalNodePreparer.java`](../src/main/java/backend/metal/prepare/MetalNodePreparer.java)
+  - [`backend/cuda/prepare/CudaGpuNodePreparer.java`](../src/main/java/backend/cuda/prepare/CudaGpuNodePreparer.java)
 - [`DefaultRegionOptimizerTest.java`](../src/test/java/graph/optimizer/region/DefaultRegionOptimizerTest.java)
 - [`OptimizerFuseTest.java`](../src/test/java/OptimizerFuseTest.java)
 
@@ -684,6 +1187,47 @@ orderedNodeIds: [2, 3, 4]
 
 Naive execution materializes `add`, then `relu`, then `tanh`. The optimized region can keep `add` and `relu` as virtual intermediate values inside the fused unit and materialize only the region output.
 
+### Why Fusion Helps
+
+Consider an output length of `N = 1_000_000` for:
+
+```text
+out = tanh(relu((a + b) * scale))
+```
+
+Without fusion, the backend may need four separate elementwise passes:
+
+```text
+tmp0[i] = a[i] + b[i]
+tmp1[i] = tmp0[i] * scale[i]
+tmp2[i] = relu(tmp1[i])
+out[i]  = tanh(tmp2[i])
+```
+
+That means:
+
+- four loop bodies
+- three intermediate tensors
+- repeated reads and writes of full-size arrays
+- multiple dispatch decisions
+- worse locality because values are stored to memory and loaded again instead of staying in registers
+
+With fusion, the execution unit can become one logical loop:
+
+```text
+out[i] = tanh(relu((a[i] + b[i]) * scale[i]))
+```
+
+The semantics are the same, but intermediate values can be stack/register temporaries. For CPU, this makes a single dispatch decision for the whole expression. For GPU, it lets a lowered accelerator DAG represent the chain as one compiled graph region, reducing the overhead of separate tiny accelerator submissions.
+
+Fusion is not universally profitable. It can be blocked or avoided when:
+
+- the chain contains non-fusable operations such as reductions, matmul, indexing, pooling, or layout transforms
+- there are multiple region outputs that must escape independently
+- an intermediate value must be materialized for another consumer
+- the expression contains strided/broadcast-heavy access where vectorization or accelerator lowering may be less attractive
+- backend/runtime capability checks reject the prepared fused path and fall back to safer execution
+
 ### Implementation Details
 
 `FuseConfig.trainingDefaults()`:
@@ -724,6 +1268,291 @@ CPU policy has an extra mixed-unit path. If the whole partition cannot fuse, it 
 
 Generic GPU policy is simpler: fuse the whole partition if possible, otherwise emit single-op units.
 
+### Backend Lowering: From FUSE Metadata To Real Execution
+
+The optimizer's `ExecutionUnitKind.FUSED_ELEMENTWISE` is not yet executable code. It becomes executable during backend lowering and preparation.
+
+```mermaid
+flowchart TD
+    Unit["ExecutionUnit: FUSED_ELEMENTWISE"]
+    Target{"Partition target"}
+    CpuLower["CpuRegionLowerer"]
+    CpuPrep["CpuNodePreparer"]
+    CpuPlan["FusedExecutionPlan"]
+    Asm["ASM PreparedFusedExecutable"]
+    GpuLower["Metal/CUDA RegionLowerer"]
+    Dag["AcceleratorDagSpec"]
+    Bridge["Metal/CUDA bridge compile_partition"]
+    Exec["PreparedExecution step"]
+
+    Unit --> Target
+    Target -->|CPU| CpuLower --> CpuPrep --> CpuPlan --> Asm --> Exec
+    Target -->|GPU_METAL/GPU_CUDA| GpuLower --> Dag --> Bridge --> Exec
+```
+
+For CPU, a fused unit is lowered to `LoweringFamily.FUSED_NATIVE`, then `LoweredFusedOperationBuilder` reconstructs the fused tensor cluster and creates a `FusedOperationPreparation`. `CpuNodePreparer` then builds a `FusedExecutionPlan` and asks `FusedExecutionBackendResolver` for a prepared executable. The current resolver uses the ASM backend.
+
+For Metal and CUDA, region lowerers classify a one-unit fused elementwise region as `METAL_FUSED_ELEMENTWISE_GRAPH` or `CUDA_FUSED_ELEMENTWISE_GRAPH`. The accelerator path uses `AcceleratorDagSpec` and the backend bridge to compile a graph-style executable for the whole lowered region. If the bridge is unavailable or input/output requirements are not met, prepared accelerator execution falls back to CPU fallback steps.
+
+### CPU Fused Execution: ASM Loop Generation
+
+CPU fused execution is where the loop-fusion benefit becomes concrete. The flow is:
+
+1. `CpuRegionLowerer` sees a `FUSED_ELEMENTWISE` execution unit and emits a lowered fused unit.
+2. `LoweredFusedOperationBuilder` collects the ordered cluster tensors and external inputs.
+3. `FusedOperationFactory` builds a `FusedExpressionPlan` describing nodes, input refs, output ref, precision mode, dispatch family, and scheduler signature.
+4. `FusedDispatchPlanner` resolves scalar/vector/parallel mode using calibrated runtime parameters from `CpuPlanningPolicy`.
+5. `CpuNodePreparer` creates a `FusedExecutionPlan` with compute contract, output length, vector min size, and ASM vector width.
+6. `AsmPreparedFusedExecutableFactory` generates bytecode for a class implementing `PreparedFusedExecutable`.
+7. `FusedExecutor` executes the generated scalar or vector range method, optionally split into parallel chunks.
+
+Important calibrated CPU parameters consumed here:
+
+| Runtime parameter | Used for | Meaning |
+|---|---|---|
+| `cpu.fusedCheapVectorMinSize` | `FusedDispatchPlanner` via `CpuPlanningPolicy.fusedDirectVectorMinSize(...)` | Minimum length before vector execution is allowed for cheap fused expressions. |
+| `cpu.fusedTranscendentalVectorMinSize` | Same path | Minimum length before vector execution is allowed for non-cheap/transcendental fused expressions. |
+| `cpu.fusedCheapParallelMinSize` | `FusedDispatchPlanner` | Minimum length before cheap fused expressions can run in parallel. |
+| `cpu.fusedTranscendentalParallelMinSize` | `FusedDispatchPlanner` | Minimum length before non-cheap/transcendental fused expressions can run in parallel. |
+| `cpu.fusedCheapContiguousAsmVectorWidth` | `CpuPlanningPolicy.resolvedFusedAsmVectorWidth(...)` | ASM vector width for cheap contiguous fused plans. |
+| `cpu.fusedCheapStridedAsmVectorWidth` | Same path | ASM vector width for cheap strided fused plans. |
+| `cpu.fusedNonCheapContiguousAsmVectorWidth` | Same path | ASM vector width for non-cheap contiguous fused plans. |
+| `cpu.fusedNonCheapStridedAsmVectorWidth` | Same path | ASM vector width for non-cheap strided fused plans. |
+| Scheduler chunk parameters | `FusedDispatchPlanner` and `ResolvedDispatchHints` | Chunk size, worker count, and common-pool preference for parallel fused execution. |
+
+The dispatch decision is value-level and runtime-profile-driven. Example:
+
+```text
+FusedOperation:
+  dispatchFamily = CHEAP_CONTIGUOUS
+  dispatchScale = 1
+  outputLength = 1_000_000
+
+Calibrated runtime:
+  cpu.fusedCheapVectorMinSize = 128
+  cpu.fusedCheapParallelMinSize = 4096
+  cpu.fusedCheapContiguousAsmVectorWidth = 8
+
+FusedDispatchPlanner:
+  asmVectorWidth = 8
+  vectorAllowed = 8 > 1 && 1_000_000 >= 128 = true
+  parallelAllowed = 1_000_000 >= 4096 = true
+  mode = PARALLEL_VECTOR
+```
+
+That means the generated executable can run a vector method over chunks. `FusedExecutor` computes chunk ranges and calls:
+
+```text
+executable.applyRangeVector(inputs, out, context, start, end, options)
+```
+
+For a small output:
+
+```text
+outputLength = 64
+vectorAllowed = 64 >= 128 = false
+parallelAllowed = 64 >= 4096 = false
+mode = SCALAR
+```
+
+The same fused expression still avoids intermediate tensors, but it executes with scalar range code because the calibrated thresholds say vector/parallel overhead is not worth it.
+
+The ASM generator emits two range entry points:
+
+| Method | Purpose |
+|---|---|
+| `applyRangeScalar(...)` | One scalar loop from `startInclusive` to `endExclusive`; evaluates every fused node in order and writes the final output. |
+| `applyRangeVector(...)` | Vector-width loop for the same fused expression; tail elements delegate back to scalar execution. |
+
+The generated class is cached by scheduler signature, precision mode, ASM vector width, and specialization kind. That prevents recompiling the same fused expression shape repeatedly.
+
+### CPU Fused Plan Families
+
+`FusedCostModel.resolveDispatchFamily(...)` classifies a fused expression into four families:
+
+| Family | Inputs/ops shape | Why it matters |
+|---|---|---|
+| `CHEAP_CONTIGUOUS` | Direct or offset-contiguous inputs and only cheap numeric ops. | Usually the best case for wide vector loops. |
+| `CHEAP_STRIDED` | Cheap numeric ops with strided or broadcasted access. | Addressing/broadcast overhead can dominate, so calibrated strided width may differ. |
+| `NON_CHEAP_CONTIGUOUS` | Contiguous access with expensive ops such as transcendental/math-heavy nodes. | Vectorization can still help, but operation cost changes thresholds. |
+| `NON_CHEAP_STRIDED` | Expensive or boolean/where-heavy expressions with strided/broadcasted access. | Highest-risk family; calibration can choose smaller widths or higher thresholds. |
+
+Example:
+
+```text
+cheap contiguous:
+  out = relu((a + b) * scale)
+  inputs = direct contiguous f32 arrays
+  ops = ADD, MUL, RELU
+  family = CHEAP_CONTIGUOUS
+
+non-cheap strided:
+  out = where(mask, tanh(view), fill)
+  inputs = bool mask, strided view, broadcast fill
+  ops = TANH, WHERE
+  family = NON_CHEAP_STRIDED
+```
+
+This is why calibration has separate fused-width families. A vector width that is good for `CHEAP_CONTIGUOUS` can be too aggressive for `NON_CHEAP_STRIDED`.
+
+### GPU Fused Execution: Accelerator DAG Lowering
+
+GPU fusion has a different goal from CPU ASM fusion. CPU fusion creates one generated Java bytecode loop. GPU fusion creates a lowered accelerator graph/DAG so the native accelerator bridge can compile and execute a region as one submitted graph.
+
+The graph optimizer marks a whole GPU partition as `FUSED_ELEMENTWISE` only when the entire partition is fusable. If not, `GenericGpuRegionOptimizationPolicy` emits single-op units. The GPU region lowerers then classify the region:
+
+| Target | Fused family | Non-fused family |
+|---|---|---|
+| Metal | `METAL_FUSED_ELEMENTWISE_GRAPH` | `METAL_GRAPH_REGION` |
+| CUDA | `CUDA_FUSED_ELEMENTWISE_GRAPH` | `CUDA_GRAPH_REGION` |
+
+The actual DAG is built earlier by `AcceleratorSubgraphLowerer`. It converts supported graph nodes into `AcceleratorDagNode` records with typed references to external inputs or prior node outputs.
+
+Example accelerator DAG for:
+
+```text
+out = tanh(relu(a + b))
+```
+
+```text
+externalInputs:
+  input 0 -> node a, shape [1024], dtype FLOAT32
+  input 1 -> node b, shape [1024], dtype FLOAT32
+
+nodes:
+  dag node 0: ADD  input0=external(0), input1=external(1)
+  dag node 1: RELU input0=nodeOutput(0)
+  dag node 2: TANH input0=nodeOutput(1)
+
+outputs:
+  node 2
+```
+
+The Metal/CUDA bridge receives arrays describing node types, input reference kinds and indices, scalar values, output ranks/shapes, and output node indices. The native side can compile that DAG into one accelerator executable for the region. From the Java side, execution is through `PreparedMetalExecutable` or `PreparedCudaExecutable`.
+
+GPU-specific constraints:
+
+- Current FFM bridge paths support `FLOAT32` and `BOOL` tensors for external inputs; outputs are `FLOAT32` in the bridge execution paths.
+- Inputs and outputs must satisfy backend-specific runtime requirements. Metal checks for contiguous tensors without storage offsets before using the bridge.
+- Metal avoids forward attention DAG bridge execution during backward-pass contexts in `PreparedMetalExecutable.shouldUseMetalBridge(...)`.
+- If the bridge, context, compiled executable, dtype, layout, or output requirements are not available, the prepared accelerator executable runs CPU fallback steps.
+- The optimizer does not choose GPU fusion in isolation. `PART` and accelerator planning determine whether a partition target is `GPU_METAL` or `GPU_CUDA`; `FUSE` only optimizes inside that selected partition boundary.
+
+Why this is still loop/submission fusion:
+
+```text
+naive accelerator execution:
+  submit ADD kernel/graph
+  materialize tmp0
+  submit RELU kernel/graph
+  materialize tmp1
+  submit TANH kernel/graph
+  materialize out
+
+fused accelerator DAG:
+  submit one compiled graph with ADD -> RELU -> TANH
+  materialize out
+```
+
+The CPU and GPU fused paths share the same optimizer concept, but the runtime realization is different: CPU emits Java bytecode loops; GPU compiles a backend graph region through the bridge.
+
+### Whole-Partition Fusion Versus CPU Mixed Units
+
+`RegionOptimizationUnitSupport.shouldFuseWholePartition(...)` is the common fast path. It requires:
+
+```text
+partition node count >= 2
+partition output count == 1
+target != NONE
+every node has an operation
+every opType().isFusable() == true
+```
+
+If that succeeds, the entire partition becomes one `FUSED_ELEMENTWISE` unit.
+
+If that fails:
+
+- `GenericGpuRegionOptimizationPolicy` emits one `SINGLE_OP` unit per node.
+- `CpuRegionOptimizationPolicy` tries a mixed strategy:
+  - scan nodes in partition order
+  - start a subchain at a fusable node
+  - extend while the next node is fusable and consumes the previous chain output
+  - fuse the subchain only when it has more than one node and exactly one published output
+  - otherwise emit a `SINGLE_OP` unit
+
+Concrete mixed example:
+
+```text
+node 0: x
+node 1: y
+node 2: add(x, y)        fusable
+node 3: relu(node2)      fusable
+node 4: sum(node3)       not fusable
+node 5: tanh(node4)      fusable, but single node after barrier
+```
+
+Possible CPU units:
+
+```text
+unit A: FUSED_ELEMENTWISE [2, 3]
+unit B: SINGLE_OP         [4]
+unit C: SINGLE_OP         [5]
+```
+
+The reduction is a fusion barrier because `SUM` is not marked fusable in `Operation.OpType`.
+
+### Fusable Operation Set
+
+FUSE relies on `Operation.OpType.isFusable()`. Current fusable op types include:
+
+```text
+ADD, SUB, MUL, DIV, MIN, MAX
+GT, GE, LT, LE, EQ, NE
+LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT
+WHERE
+NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH
+POW, SQRT, ABS, MUL_SCALAR
+RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID
+```
+
+Current non-fusable examples include:
+
+```text
+SUM, MEAN, REDUCE_MIN, REDUCE_MAX
+SOFTMAX, LOG_SOFTMAX
+MATMUL, LINEAR
+GATHER, SCATTER_ADD, TAKE_ALONG_AXIS
+SCALED_DOT_PRODUCT_ATTENTION
+CONV2D, POOL2D
+LAYOUT ops such as RESHAPE, PERMUTE, EXPAND, SELECT
+```
+
+This explains why `FUSE` can fuse a long elementwise activation chain but stops at reductions, indexing ops, matrix multiplication, convolution, pooling, and layout transforms.
+
+### Region Value Classification
+
+After execution units are built, `DefaultRegionOptimizer.toRegionValue(...)` classifies each partition value:
+
+| Transport kind | Meaning | Typical case |
+| --- | --- | --- |
+| `MATERIALIZED` | Must become normal storage. | Required forward output or gradient target. |
+| `CONTINUATION` | Produced by a unit and consumed later, or partition output not forced materialized. | Value passed from one unit to another or leaving a region. |
+| `VIRTUAL` | Internal to a fused unit; no normal storage required. | Intermediate `mul` inside `mul -> add -> relu`. |
+
+Example:
+
+```text
+partition nodes: [mul, add, relu]
+partition output: relu
+required materialized: relu
+
+mul  -> VIRTUAL
+add  -> VIRTUAL
+relu -> MATERIALIZED
+```
+
+If `relu` is not required materialized and is handed to another region, it can be `CONTINUATION` instead.
+
 ### Edge Cases
 
 - A partition with one node cannot become a whole-partition fused unit.
@@ -740,6 +1569,8 @@ Generic GPU policy is simpler: fuse the whole partition if possible, otherwise e
 - FUSE does not always create a `FUSED` operation in the tensor graph. In the current optimizer path, it creates optimized region metadata.
 - FUSE depends on PART. Without partitions, it publishes no optimized regions.
 - FUSE does not decide scalar versus vector CPU execution mode. Backend preparation handles that later.
+- FUSE does not read calibrated fused thresholds directly. CPU preparation reads those thresholds through `CpuPlanningPolicy` when it prepares `FusedExecutionPlan`.
+- GPU fused execution is not the same mechanism as CPU ASM generation. GPU lowering builds an accelerator DAG and the Metal/CUDA bridge compiles that graph region; CPU lowering generates JVM bytecode for scalar/vector range loops.
 - FUSE is not just for inference; current training defaults include FUSE, with more conservative training `FuseConfig`.
 
 ### Related Mechanisms
@@ -747,6 +1578,7 @@ Generic GPU policy is simpler: fuse the whole partition if possible, otherwise e
 - PART defines the region boundaries that FUSE optimizes.
 - MEM consumes region values and materialization decisions.
 - Backend CPU fused planning and code generation consume optimized execution units during preparation.
+- Metal/CUDA accelerator lowering consumes fused GPU regions and produces graph-region lowering families such as `METAL_FUSED_ELEMENTWISE_GRAPH` and `CUDA_FUSED_ELEMENTWISE_GRAPH`.
 
 ## Stage MEM: Memory and Lifetime Planning
 
@@ -764,6 +1596,8 @@ Naive execution can allocate a fresh buffer for every tensor output and every re
 - Which temporaries are eligible for slot reuse?
 - Which region values are materialized, continued, or virtual?
 - Which values must cross region boundaries?
+
+Scope: `MEM` is **hybrid**. Tensor storage-owner and lifetime analysis is global over the final topological graph. Region value planning is derived from `OptimizedRegion` artifacts, so it is partition/region-aware. This is the stage where global graph liveness and partition-local virtual/continuation values meet.
 
 ```mermaid
 flowchart TD
@@ -787,6 +1621,33 @@ flowchart TD
 - `StructuralMemoryView`: optimized region ids, materialized/continuation/virtual values, and cross-region flows.
 - `RegionMemoryBinding`: region value binding to a materialized or continuation slot, or no binding for virtual values.
 - `RuntimeMemoryBindingPolicy`: per-tensor policy that can skip region binding for workspace-sensitive operations.
+
+### Tensor-Level Versus Region-Level Memory
+
+MEM has two memory models that are connected but not identical.
+
+| Layer | Unit of planning | Examples | Why it exists |
+| --- | --- | --- | --- |
+| Tensor-level memory | Tensor storage owners in the final DAG | leaf buffers, temporary tensors, saved forward values, gradient targets | Needed for ordinary graph execution and global lifetimes. |
+| Region-level memory | `RegionValueRef` values inside optimized regions | virtual fused intermediates, continuation values, materialized region outputs | Needed because FUSE can make values that do not correspond to ordinary standalone tensor allocations. |
+
+Tensor-level example:
+
+```text
+t1 = add(a, b)
+t2 = relu(t1)
+t3 = mul(t2, c)
+```
+
+If `t1` dies before `t2` needs a buffer and sizes/dtypes match, MEM may reuse one slot for both.
+
+Region-level example:
+
+```text
+FUSED_ELEMENTWISE unit: add -> relu -> mul
+```
+
+The `add` and `relu` values may be `VIRTUAL`, which means no tensor slot is needed at all. Only the final region output may be materialized or continued.
 
 ### Where It Lives
 
@@ -895,6 +1756,146 @@ Region planning is integrated with optimized regions:
 - Published forward outputs and gradients extend lifetimes to the terminal publish step.
 
 `MemoryPlannerSummaryTest` verifies summary metrics and policy effects such as larger-buffer reuse and minimum reusable buffer size. `MemoryPlannerRegionViewTest` verifies structural region memory view, continuation values, cross-region flows, terminal gradient target lifetimes, BFLOAT16 structural plans, and virtual value allocation behavior.
+
+### Storage Owner Resolution
+
+MEM does not assume every tensor owns storage. It first resolves a storage owner for every tensor:
+
+```text
+NOOP       -> aliases input 0
+EXPAND     -> aliases input 0
+SELECT     -> aliases input 0
+PERMUTE    -> aliases input 0
+EXPAND_DIMS-> aliases input 0
+SQUEEZE    -> aliases input 0
+RESHAPE    -> aliases input 0 only when input is contiguous
+other ops  -> own storage
+```
+
+Example:
+
+```text
+node 0: x, shape [2, 3], strides [3, 1]
+node 1: p = x.permute(1, 0), shape [3, 2], strides [1, 3]
+node 2: c = p.contiguous(), shape [3, 2], strides [2, 1]
+```
+
+Memory ownership:
+
+```text
+x owns storage
+p aliases x because PERMUTE aliases input 0
+c owns storage because CONTIGUOUS materializes
+```
+
+This prevents the planner from allocating a useless buffer for `p`.
+
+### Lifetime And Slot Assignment Example
+
+Suppose the final graph order is:
+
+```text
+0: a leaf
+1: b leaf
+2: c leaf
+3: t1 = add(a, b)      flatSize=4, FLOAT32
+4: t2 = relu(t1)       flatSize=4, FLOAT32
+5: t3 = mul(t2, c)     flatSize=4, FLOAT32
+6: out = sum(t3)       flatSize=1, FLOAT32
+```
+
+Consumer/last-read analysis:
+
+```text
+t1 born at 3, last read at 4
+t2 born at 4, last read at 5
+t3 born at 5, last read at 6
+out has no consumers, lastRead = Integer.MAX_VALUE
+```
+
+Reusable intervals:
+
+```text
+t1: [3, 4], size 4, FLOAT32
+t2: [4, 5], size 4, FLOAT32
+t3: [5, 6], size 4, FLOAT32
+```
+
+The release rule frees a slot only when `lastReadIndex < nextBirthIndex`. Because `t1.lastReadIndex == t2.birthIndex`, `t1` and `t2` overlap at step `4` and cannot share the same slot under the current interval convention. `t1` can be reused by `t3` because `4 < 5`.
+
+Possible assignment:
+
+```text
+slot 0: t1, then t3
+slot 1: t2
+out: kept alive as terminal output, not reused as a temporary
+```
+
+This detail matters when interpreting reuse metrics: two values that look sequential in source code may still overlap at the exact graph index where one is consumed and the other is born.
+
+### Region Value Planning Example
+
+Given an optimized region:
+
+```text
+region cpu-2
+unit cpu-2-unit-0:
+  kind = FUSED_ELEMENTWISE
+  nodes = [2, 3, 4]
+  outputs = [node-4]
+  virtualOutputs = [node-2, node-3]
+  materializedOutputs = [node-4]
+```
+
+MEM builds a structural memory view:
+
+```text
+virtual:
+  node-2
+  node-3
+
+materialized:
+  node-4
+
+continuation:
+  none in this example
+```
+
+Bindings:
+
+```text
+node-2 -> RegionMemoryBindingKind.NONE
+node-3 -> RegionMemoryBindingKind.NONE
+node-4 -> RegionMemoryBindingKind.MATERIALIZED, bindingId = 0
+```
+
+If `node-4` is consumed by a later region and does not need immediate materialization, FUSE can classify it as `CONTINUATION`; MEM then creates a continuation binding and, if the consumer region differs from the producer region, a `RegionHandoffRequirement`.
+
+### Handoff Requirements
+
+Handoff requirements are generated when a region value produced in one optimized region is consumed in another optimized region.
+
+Conceptually:
+
+```text
+region A produces node-10 as CONTINUATION
+region B consumes node-10 as input
+```
+
+MEM records:
+
+```text
+RegionHandoffRequirement:
+  valueRef = node-10
+  producerRegionId = region A
+  producerUnitId = unit that produced node-10
+  consumerRegionId = region B
+  consumerUnitId = unit that consumes node-10
+  transportType = value type contract transport dtype
+  decision = CONTINUE or MATERIALIZE
+```
+
+This is what keeps partition-local optimization honest: FUSE may avoid ordinary materialization inside a region, but MEM still records what must be transported when values cross region boundaries.
 
 ### Edge Cases
 
