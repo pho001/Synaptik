@@ -7,6 +7,18 @@ Chapters: [Test Framework And Setup](#test-framework-and-setup) | [Test Organiza
 
 Synaptik uses JUnit Jupiter through Gradle. Test configuration is in `build.gradle`, and tests live under `src/test/java`.
 
+## Table Of Contents
+
+- [Test Framework And Setup](#test-framework-and-setup)
+- [Test Organization](#test-organization)
+- [Exact Commands](#exact-commands)
+- [Full Suite Duration And Heap Behavior](#full-suite-duration-and-heap-behavior)
+- [Targeted Test Patterns](#targeted-test-patterns)
+- [Debug And Benchmark Tests](#debug-and-benchmark-tests)
+- [Native And Optional Backend Tests](#native-and-optional-backend-tests)
+- [Source Hygiene Tests](#source-hygiene-tests)
+- [How To Interpret Failures](#how-to-interpret-failures)
+
 ## Test Framework And Setup
 
 Verified setup:

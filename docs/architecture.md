@@ -7,6 +7,23 @@ Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core
 
 Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. The fully implemented execution backend is CPU; Metal and CUDA have region lowering and executable scaffolding, while OpenCL currently exposes only a minimal no-op registry path.
 
+## Table Of Contents
+
+- [System Overview](#system-overview)
+- [Core Artifact Boundaries](#core-artifact-boundaries)
+- [Graph Construction](#graph-construction)
+- [Compile Pipeline](#compile-pipeline)
+- [Optimizer And Partitioning](#optimizer-and-partitioning)
+- [Prepare Pipeline](#prepare-pipeline)
+- [Execution Pipeline](#execution-pipeline)
+- [CPU Backend](#cpu-backend)
+- [Accelerator Scaffolding](#accelerator-scaffolding)
+- [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning)
+- [Memory And Layout Model](#memory-and-layout-model)
+- [Tracing And Observability](#tracing-and-observability)
+- [Numerics Harness](#numerics-harness)
+- [Verification Anchors](#verification-anchors)
+
 ## System Overview
 
 The primary input is a graph rooted at `tensor.Tensor`. Each graph node carries shape, dtype, storage/layout metadata, an optional `operations.Operation` descriptor, predecessor edges, and backward construction logic. The primary output is either published tensor data after forward execution or detached gradient tensors after forward/backward execution. The architecture is intentionally staged:

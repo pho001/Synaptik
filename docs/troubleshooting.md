@@ -7,6 +7,25 @@ Chapters: [Java Heap Space](#java-heap-space) | [Incubator Vector API](#incubato
 
 This document lists concrete Synaptik failure modes, where they usually come from, and the shortest verified fix path.
 
+## Table Of Contents
+
+- [Java Heap Space](#java-heap-space)
+- [Incubator Vector API](#incubator-vector-api)
+- [Missing Native Access](#missing-native-access)
+- [OpenBLAS Missing Or Unavailable](#openblas-missing-or-unavailable)
+- [Metal MPS Shim Missing](#metal-mps-shim-missing)
+- [CUDA Shim Missing](#cuda-shim-missing)
+- [Validation Mismatch In Benchmark Or Autotune](#validation-mismatch-in-benchmark-or-autotune)
+- [Shape And Broadcast Errors](#shape-and-broadcast-errors)
+- [Optimizer Rewrite Bugs](#optimizer-rewrite-bugs)
+- [Gradients Missing Or Wrong](#gradients-missing-or-wrong)
+- [Unsupported DType In A Kernel](#unsupported-dtype-in-a-kernel)
+- [CPU Kernel Resolution Failure](#cpu-kernel-resolution-failure)
+- [Performance Regressions](#performance-regressions)
+- [Generated Artifacts In Source Tree](#generated-artifacts-in-source-tree)
+- [Source Hygiene Architecture Failures](#source-hygiene-architecture-failures)
+- [Stale Or Missing Profile Artifacts](#stale-or-missing-profile-artifacts)
+
 ## Java Heap Space
 
 Symptom:

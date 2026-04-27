@@ -7,6 +7,13 @@ Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Ma
 
 This directory is the implementation-grounded documentation set for Synaptik. It is written for maintainers and technically strong readers who want to understand both how to use the framework and how this kind of compiled tensor runtime works internally.
 
+## Table Of Contents
+
+- [Recommended Reading Paths](#recommended-reading-paths)
+- [Document Map](#document-map)
+- [Source Documentation](#source-documentation)
+- [Verification Notes](#verification-notes)
+
 ## Recommended Reading Paths
 
 ### New maintainer path
@@ -20,9 +27,11 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 ### Tensor API user path
 
 1. [Tensor API Guide](tensor-api.md) - operation-level API explanations with concrete input/output examples and calculations.
-2. [Public API](public-api.md) - the externally usable Java surfaces and probably-internal implementation hooks.
-3. [Examples](examples.md) - executable-style snippets for tensor operations, compile/prepare/execute, and tuning flows.
-4. [Troubleshooting](troubleshooting.md) - common runtime, compile, dtype, backend, and tuning failures.
+2. [Tensor API: Compute Convenience API](tensor-api.md#compute-convenience-api) - how to call `compute()`, `compute(CompileMode)`, `compute(ComputeOptions)`, `compute(ExecutionProfile)`, and prepared execution.
+3. [Compute Flow: Tensor Compute API](compute-flow.md#tensor-compute-api) - what happens internally when `compute(...)` resolves a profile, compiles, prepares, executes, and optionally runs generic graph autotune.
+4. [Public API](public-api.md) - the externally usable Java surfaces and probably-internal implementation hooks.
+5. [Examples](examples.md) - executable-style snippets for tensor operations, compile/prepare/execute, and tuning flows.
+6. [Troubleshooting](troubleshooting.md) - common runtime, compile, dtype, backend, and tuning failures.
 
 ### Optimizer and runtime path
 
@@ -44,9 +53,9 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 |---|---|
 | [architecture.md](architecture.md) | High-level architecture, lifecycle boundaries, package responsibilities, backend dispatch, and extension points. |
 | [framework-concepts.md](framework-concepts.md) | First-principles mental models for tensors, semantic graphs, compiled graphs, prepared execution, backend policy, and tuning. |
-| [compute-flow.md](compute-flow.md) | Deep end-to-end walkthrough from graph building to execution, including traces and reuse rules. |
+| [compute-flow.md](compute-flow.md) | Deep end-to-end walkthrough from graph building to `Tensor.compute(...)`, compile, prepare, execution, traces, and reuse rules. |
 | [graph-optimizer.md](graph-optimizer.md) | Deep explanation of optimizer configuration, state, trace, and every optimizer stage. |
-| [tensor-api.md](tensor-api.md) | Detailed public Tensor API guide with signatures, edge cases, and value-level operation examples. |
+| [tensor-api.md](tensor-api.md) | Detailed public Tensor API guide with signatures, `compute(...)` options, edge cases, and value-level operation examples. |
 | [calibration-autotune.md](calibration-autotune.md) | Deep calibration/autotune guide covering families, parameters, candidate values, persistence, progress, and reports. |
 | [mechanisms.md](mechanisms.md) | Mechanism-oriented guide using a repeated problem/mental-model/walkthrough/example format. |
 | [modules.md](modules.md) | Source module map with responsibilities, inputs, outputs, dependencies, invariants, and failure modes. |

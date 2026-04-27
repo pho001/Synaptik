@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md) | [Public API](public-api.md) | [Examples](examples.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Troubleshooting](troubleshooting.md)
 
-Chapters: [API Surface And Conventions](#api-surface-and-conventions) | [Constructors, Storage, And Dtype](#constructors-storage-and-dtype) | [Metadata, Data Access, And Mutation](#metadata-data-access-and-mutation) | [Graph Lifecycle And Execution](#graph-lifecycle-and-execution) | [Operation Catalog](#operation-catalog) | [Layout And View Operations](#layout-and-view-operations) | [Binary Broadcasting And Scalar Arithmetic](#binary-broadcasting-and-scalar-arithmetic) | [Comparisons, Boolean Logic, And Selection](#comparisons-boolean-logic-and-selection) | [Indexing, Gather, Scatter, And Take Along Axis](#indexing-gather-scatter-and-take-along-axis) | [Unary Math](#unary-math) | [Reductions, Softmax, And LogSoftmax](#reductions-softmax-and-logsoftmax) | [Matrix, Linear, And Attention Operations](#matrix-linear-and-attention-operations) | [Convolution And Pooling](#convolution-and-pooling) | [Normalization](#normalization) | [Loss Functions](#loss-functions) | [Dtype, Shape, And Edge-Case Rules](#dtype-shape-and-edge-case-rules) | [Implementation Source Map](#implementation-source-map)
+Chapters: [API Surface And Conventions](#api-surface-and-conventions) | [Constructors, Storage, And Dtype](#constructors-storage-and-dtype) | [Metadata, Data Access, And Mutation](#metadata-data-access-and-mutation) | [Graph Lifecycle And Execution](#graph-lifecycle-and-execution) | [Compute Convenience API](#compute-convenience-api) | [Operation Catalog](#operation-catalog) | [Layout And View Operations](#layout-and-view-operations) | [Binary Broadcasting And Scalar Arithmetic](#binary-broadcasting-and-scalar-arithmetic) | [Comparisons, Boolean Logic, And Selection](#comparisons-boolean-logic-and-selection) | [Indexing, Gather, Scatter, And Take Along Axis](#indexing-gather-scatter-and-take-along-axis) | [Unary Math](#unary-math) | [Reductions, Softmax, And LogSoftmax](#reductions-softmax-and-logsoftmax) | [Matrix, Linear, And Attention Operations](#matrix-linear-and-attention-operations) | [Convolution And Pooling](#convolution-and-pooling) | [Normalization](#normalization) | [Loss Functions](#loss-functions) | [Dtype, Shape, And Edge-Case Rules](#dtype-shape-and-edge-case-rules) | [Implementation Source Map](#implementation-source-map)
 
 This guide describes the public `tensor.Tensor` API as implemented in the Java source and exercised by the runtime tests. It focuses on how tensor objects are built, how graph operations are represented, what each public operation returns, and the gradient behavior that matters when composing models.
 
@@ -13,6 +13,7 @@ This guide describes the public `tensor.Tensor` API as implemented in the Java s
 - [Constructors, Storage, And Dtype](#constructors-storage-and-dtype)
 - [Metadata, Data Access, And Mutation](#metadata-data-access-and-mutation)
 - [Graph Lifecycle And Execution](#graph-lifecycle-and-execution)
+- [Compute Convenience API](#compute-convenience-api)
 - [Operation Catalog](#operation-catalog)
 - [Layout And View Operations](#layout-and-view-operations)
 - [Binary Broadcasting And Scalar Arithmetic](#binary-broadcasting-and-scalar-arithmetic)
@@ -267,6 +268,408 @@ Tensor y = x.mul(x).sum();
 y.compute();
 // y = [13]
 ```
+
+## Compute Convenience API
+
+This section documents how to execute a graph rooted at a `Tensor`. The public methods live on `src/main/java/tensor/Tensor.java`; the behavior is implemented in `src/main/java/tensor/TensorExecutionSupport.java`.
+
+### Method catalog
+
+```java
+Tensor compute()
+Tensor compute(CompileMode compileMode)
+Tensor compute(ComputeOptions options)
+void compute(ExecutionProfile profile)
+void compute(PreparedExecution execution, ExecutionMode mode)
+```
+
+| Method | Use when | Returns | Main side effects |
+|---|---|---|---|
+| `compute()` | You want forward inference with default optimizer/runtime policy. | The same root tensor. | Executes the graph and publishes root data. |
+| `compute(CompileMode)` | You want to choose inference, training, or auto mode without constructing options. | The same root tensor. | Executes forward and, when applicable, backward. |
+| `compute(ComputeOptions)` | You need compile mode, generic graph autotune, optimizer override, or runtime override. | The same root tensor. | May run generic graph autotune; executes graph; may publish gradients. |
+| `compute(ExecutionProfile)` | You already have a complete profile. | `void` | Compiles/prepares/runs using the profile's optimizer, runtime, dtype, and mode. |
+| `compute(PreparedExecution, ExecutionMode)` | You already compiled and prepared the graph. | `void` | Executes the provided prepared artifact directly. |
+
+The return value of the first three overloads is not a new tensor. It is the receiver tensor after execution. That lets users write `Tensor y = expression.compute();` while preserving object identity.
+
+### `compute()`
+
+Purpose: run the root tensor in forward-only inference mode using inferred defaults.
+
+Signature:
+
+```java
+Tensor compute()
+```
+
+Equivalent behavior:
+
+```java
+root.compute(CompileMode.INFERENCE_ONLY)
+```
+
+Resolved defaults:
+
+| Setting | Value |
+|---|---|
+| `CompileMode` | `INFERENCE_ONLY` |
+| `ExecutionMode` | `FORWARD` |
+| `OptimizerConfig` | `OptimizerConfig.inferenceDefaults()` |
+| `RuntimeConfig` | `RuntimeConfig.inferenceDefaults()` |
+| `AutotunePolicy` | `NEVER` |
+
+Concrete example:
+
+```java
+Tensor x = new Tensor(
+        new double[]{1.0, 2.0, 3.0, 4.0},
+        new int[]{2, 2},
+        null,
+        "x",
+        DataType.FLOAT64
+);
+// x = [[1, 2],
+//      [3, 4]]
+
+Tensor y = x.add(10.0);
+// Formula: y = x + 10
+// Broadcasting stretches scalar 10 to:
+// [[10, 10],
+//  [10, 10]]
+// Expected y after compute:
+// [[11, 12],
+//  [13, 14]]
+
+Tensor returned = y.compute();
+// Compiles with CompileMode.INFERENCE_ONLY.
+// Prepares with RuntimeConfig.inferenceDefaults().
+// Executes with ExecutionMode.FORWARD.
+// returned == y.
+// y = [[11, 12],
+//      [13, 14]]
+```
+
+Gradient behavior:
+
+```java
+Tensor x = Tensor.scalar(2.0, DataType.FLOAT64);
+// x = 2
+
+x.setRequiresGrad(true);
+
+Tensor loss = x.mul(x);
+// loss = x^2 = 4
+// d(loss)/dx would be 2x = 4, but compute() is inference-only.
+
+loss.compute();
+// loss = 4
+// x.getGradient() == null
+```
+
+### `compute(CompileMode compileMode)`
+
+Purpose: choose the compile intent without constructing `ComputeOptions`.
+
+Signature:
+
+```java
+Tensor compute(CompileMode compileMode)
+```
+
+Valid values:
+
+| `CompileMode` | What it means | Default optimizer/runtime | Execution mode |
+|---|---|---|---|
+| `INFERENCE_ONLY` | Compile only the forward graph. | inference defaults | `FORWARD` |
+| `TRAINING` | Use training defaults and compile backward only when trainable leaf inputs exist. | training defaults | `FORWARD_BACKWARD` if trainable leaf exists, otherwise `FORWARD` |
+| `AUTO` | Inspect the graph. Use training path if trainable leaf inputs exist, otherwise inference path. | inferred from trainable leaves | `FORWARD_BACKWARD` if trainable leaf exists, otherwise `FORWARD` |
+
+Passing `null` behaves like `INFERENCE_ONLY`, because `ComputeOptions.compileMode(null)` resets to `INFERENCE_ONLY`.
+
+Training example with gradient:
+
+```java
+Tensor x = Tensor.scalar(3.0, DataType.FLOAT64);
+// x = 3
+
+x.setRequiresGrad(true);
+
+Tensor loss = x.mul(x).sum();
+// Formula: loss = sum(x * x)
+// loss = 9
+// d(loss)/dx = 2x = 6
+
+loss.compute(CompileMode.TRAINING);
+// Graph has trainable leaf x, so execution mode is FORWARD_BACKWARD.
+// loss = 9
+// x.gradient = 6
+```
+
+Auto example:
+
+```java
+Tensor x = Tensor.scalar(5.0, DataType.FLOAT64);
+// x = 5
+// x.requiresGrad is false by default.
+
+Tensor y = x.mul(2.0);
+// y = 10
+
+y.compute(CompileMode.AUTO);
+// AUTO sees no trainable leaf inputs.
+// It chooses inference defaults and FORWARD execution.
+// y = 10
+// x.gradient == null
+```
+
+Then with a trainable leaf:
+
+```java
+Tensor x = Tensor.scalar(5.0, DataType.FLOAT64);
+// x = 5
+
+x.setRequiresGrad(true);
+
+Tensor y = x.mul(2.0).sum();
+// y = 10
+// d(y)/dx = 2
+
+y.compute(CompileMode.AUTO);
+// AUTO sees trainable leaf x.
+// It chooses training defaults and FORWARD_BACKWARD execution.
+// y = 10
+// x.gradient = 2
+```
+
+### `compute(ComputeOptions options)`
+
+Purpose: customize the convenience execution path while still letting Synaptik construct the `ExecutionProfile`.
+
+Signature:
+
+```java
+Tensor compute(ComputeOptions options)
+```
+
+`options == null` is accepted and behaves like `new ComputeOptions()`, whose defaults are inference-only and no autotune.
+
+Available parameters:
+
+| Option | Type | Default | Meaning |
+|---|---|---|---|
+| `.compileMode(CompileMode)` | `AUTO`, `INFERENCE_ONLY`, `TRAINING` | `INFERENCE_ONLY` | Selects compile intent and default optimizer/runtime family. |
+| `.autotune(AutotunePolicy)` | `NEVER`, `IF_MISSING`, `FORCE` | `NEVER` | Controls generic graph autotune for this tensor graph. |
+| `.optimizer(OptimizerConfig)` | optimizer config | inferred from compile mode | Overrides optimizer policy in the generated execution profile. |
+| `.runtime(RuntimeConfig)` | runtime config | inferred from compile mode | Overrides backend/runtime policy in the generated execution profile. |
+
+Example with explicit defaults:
+
+```java
+Tensor x = new Tensor(
+        new double[]{1.0, -2.0, 3.0},
+        new int[]{3},
+        null,
+        "x",
+        DataType.FLOAT64
+);
+// x = [1, -2, 3]
+
+Tensor y = x.mul(3.0).relu();
+// Formula: y = relu(x * 3)
+// x * 3 = [3, -6, 9]
+// relu(x * 3) = [3, 0, 9]
+
+y.compute(new ComputeOptions()
+        .compileMode(CompileMode.INFERENCE_ONLY)
+        .autotune(AutotunePolicy.NEVER));
+// Explicitly says:
+// - compile only forward
+// - do not use generic graph autotune
+// - infer OptimizerConfig.inferenceDefaults()
+// - infer RuntimeConfig.inferenceDefaults()
+// y = [3, 0, 9]
+```
+
+Example with custom optimizer/runtime:
+
+```java
+Tensor a = new Tensor(
+        new double[]{1.0, 2.0},
+        new int[]{2},
+        null,
+        "a",
+        DataType.FLOAT64
+);
+// a = [1, 2]
+
+Tensor b = a.add(1.0);
+// b = [2, 3]
+
+b.compute(new ComputeOptions()
+        .compileMode(CompileMode.INFERENCE_ONLY)
+        .optimizer(OptimizerConfig.noOptimization())
+        .runtime(RuntimeConfig.noOptNoVecNoPar()));
+// OptimizerConfig.noOptimization() disables optimizer stages.
+// RuntimeConfig.noOptNoVecNoPar() disables practical vector/parallel/BLAS dispatch.
+// The value is unchanged by this policy choice:
+// b = [2, 3]
+```
+
+### `AutotunePolicy` in `ComputeOptions`
+
+The `ComputeOptions.autotune(...)` setting is graph-level convenience autotune for one tensor root. It is separate from platform calibration.
+
+| Policy | Behavior |
+|---|---|
+| `NEVER` | Execute the resolved profile directly. |
+| `IF_MISSING` | Reuse a matching generic best profile if one exists; otherwise run graph autotune once, persist the winner, then execute it. |
+| `FORCE` | Always run graph autotune before execution, persist the winner, then execute it if a winner is produced. |
+
+The generic path creates a `TensorRootWorkloadSpec` around the same root tensor and runs `GraphAutotuneMode.STANDARD` with balanced measurement/validation and `SearchPolicy(1, 1, 1, false)`.
+
+Artifacts are written under:
+
+```text
+build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/<dtype>-<mode>-best-profile.json
+build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/<dtype>-<mode>-history.jsonl
+```
+
+Example:
+
+```java
+Tensor a = new Tensor(
+        new double[]{1.0, 2.0, 3.0, 4.0},
+        new int[]{2, 2},
+        null,
+        "a",
+        DataType.FLOAT64
+);
+// a = [[1, 2],
+//      [3, 4]]
+
+Tensor c = a.matmul(a);
+// c = [[1*1 + 2*3, 1*2 + 2*4],
+//      [3*1 + 4*3, 3*2 + 4*4]]
+// c = [[7, 10],
+//      [15, 22]]
+
+c.compute(new ComputeOptions()
+        .compileMode(CompileMode.INFERENCE_ONLY)
+        .autotune(AutotunePolicy.IF_MISSING));
+// If the matching best profile exists, it is reused.
+// If it does not exist, Synaptik runs one STANDARD graph autotune pass,
+// writes build/tuning/tensor/... artifacts, and executes the best profile.
+// c = [[7, 10],
+//      [15, 22]]
+```
+
+Use `IF_MISSING` when the first run may be slower but later runs should reuse the cached generic profile. Use `FORCE` only when deliberately remeasuring a graph/profile/hardware combination.
+
+### `compute(ExecutionProfile profile)`
+
+Purpose: execute with a completely explicit profile.
+
+Signature:
+
+```java
+void compute(ExecutionProfile profile)
+```
+
+The profile supplies:
+
+| `ExecutionProfile` field | Used for |
+|---|---|
+| `dataType` | Profile identity and dtype contract. |
+| `mode` | Runtime execution mode: `FORWARD` or `FORWARD_BACKWARD`. |
+| `optimizer` | Compile-time optimizer config. |
+| `runtime` | Prepare-time runtime/backend config. |
+| `workload` | Profile metadata; not a separate execution graph. |
+
+`TensorExecutionSupport` derives compile mode from the profile mode:
+
+```text
+profile.mode() == FORWARD_BACKWARD -> CompileMode.TRAINING
+profile.mode() == FORWARD          -> CompileMode.INFERENCE_ONLY
+```
+
+Example:
+
+```java
+ExecutionProfile profile = new ExecutionProfile(
+        "manual-f64-forward",
+        "manual-f64-forward",
+        DataType.FLOAT64,
+        ExecutionMode.FORWARD,
+        OptimizerConfig.inferenceDefaults(),
+        RuntimeConfig.inferenceDefaults(),
+        WorkloadProfile.none()
+);
+
+Tensor x = Tensor.scalar(7.0, DataType.FLOAT64);
+Tensor y = x.add(5.0);
+// y = 12
+
+y.compute(profile);
+// Compiles using profile.optimizer().
+// Prepares using profile.runtime().
+// Executes using profile.mode() == FORWARD.
+// y = 12
+```
+
+Null profile behavior:
+
+```java
+y.compute((ExecutionProfile) null);
+// throws IllegalArgumentException("profile cannot be null")
+```
+
+### `compute(PreparedExecution execution, ExecutionMode mode)`
+
+Purpose: execute an already prepared artifact.
+
+Signature:
+
+```java
+void compute(PreparedExecution execution, ExecutionMode mode)
+```
+
+Example:
+
+```java
+Tensor x = Tensor.scalar(2.0, DataType.FLOAT64);
+x.setRequiresGrad(true);
+
+Tensor loss = x.mul(x);
+// loss = 4
+// d(loss)/dx = 4
+
+CompiledGraph compiled = loss.compile(CompileMode.TRAINING);
+PreparedExecution prepared = compiled.prepare(RuntimeConfig.trainingDefaults());
+
+loss.compute(prepared, ExecutionMode.FORWARD_BACKWARD);
+// Reuses the already prepared execution.
+// No new compile occurs here.
+// No new prepare occurs here.
+// loss = 4
+// x.gradient = 4
+```
+
+Important edge case:
+
+```java
+Tensor other = Tensor.scalar(100.0, DataType.FLOAT64);
+other.compute(prepared, ExecutionMode.FORWARD_BACKWARD);
+// The receiver `other` does not decide what runs.
+// The passed PreparedExecution owns the compiled graph.
+// This executes the graph represented by `prepared`, not a graph rooted at `other`.
+```
+
+Failure modes:
+
+- `execution == null` throws `IllegalArgumentException("execution cannot be null")`.
+- Requesting `ExecutionMode.FORWARD_BACKWARD` for a forward-only prepared execution throws from `PreparedExecution`.
+- Passing a prepared execution built for a stale or unrelated graph is a caller error; this overload assumes the caller manages the graph contract.
 
 ## Operation Catalog
 

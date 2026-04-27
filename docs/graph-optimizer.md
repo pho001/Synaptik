@@ -7,7 +7,7 @@ Chapters: [Mental Model](#mental-model) | [DAG And Graph Vocabulary](#dag-and-gr
 
 This guide explains the graph optimizer as a compile-time transformation pipeline over a cloned tensor DAG. It is written for contributors who need to reason about optimizer behavior, add rules, debug stage interactions, or understand why the default stage order is `AR -> CSE -> PART -> FUSE -> MEM`.
 
-## Table of Contents
+## Table Of Contents
 
 - [Mental Model](#mental-model)
 - [DAG And Graph Vocabulary](#dag-and-graph-vocabulary)

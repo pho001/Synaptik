@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Mechanisms](mechanisms.md) | [Troubleshooting](troubleshooting.md)
 
-Chapters: [Lifecycle Map](#lifecycle-map) | [Primary Artifacts](#primary-artifacts) | [Graph Building](#graph-building) | [Compile](#compile) | [Prepare](#prepare) | [Execution](#execution) | [Worked Example](#worked-example) | [Reuse Rules](#reuse-rules) | [Traces](#traces) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
+Chapters: [Lifecycle Map](#lifecycle-map) | [Primary Artifacts](#primary-artifacts) | [Artifact Lifetimes And Storage](#artifact-lifetimes-and-storage) | [Graph Building](#graph-building) | [Tensor Compute API](#tensor-compute-api) | [Compile](#compile) | [Prepare](#prepare) | [Execution](#execution) | [Runtime State And Tracking](#runtime-state-and-tracking) | [Worked Example](#worked-example) | [Reuse Rules](#reuse-rules) | [Traces](#traces) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
 This guide follows a tensor graph from user code through graph construction, compilation, backend preparation, execution, memory binding, and traces.
 
@@ -11,10 +11,13 @@ This guide follows a tensor graph from user code through graph construction, com
 
 - [Lifecycle Map](#lifecycle-map)
 - [Primary Artifacts](#primary-artifacts)
+- [Artifact Lifetimes And Storage](#artifact-lifetimes-and-storage)
 - [Graph Building](#graph-building)
+- [Tensor Compute API](#tensor-compute-api)
 - [Compile](#compile)
 - [Prepare](#prepare)
 - [Execution](#execution)
+- [Runtime State And Tracking](#runtime-state-and-tracking)
 - [Worked Example](#worked-example)
 - [Reuse Rules](#reuse-rules)
 - [Traces](#traces)
@@ -89,6 +92,142 @@ sequenceDiagram
 | Per-run state | `PreparedExecution.execute(...)` | [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/backend/runtime/ExecutionContext.java) | Runtime tensors, runtime input links, forked workspaces, prepared input tensors, runtime trace side channels | New for each execute call |
 | Backend dispatch | `ComputeEngine.compute(...)` | [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java), [`CpuBackend.java`](../src/main/java/backend/cpu/CpuBackend.java) | Backend selection at execution time from prepared metadata | Stateless dispatcher |
 
+## Artifact Lifetimes And Storage
+
+The compute flow has several kinds of "storage". Some are Java objects kept in memory, some are tensor data buffers, some are trace records returned to the caller, and one convenience path can write tuning profiles to disk. Keeping those categories separate prevents a common misunderstanding: `compute()` normally does not save a compiled graph or run trace to disk. It builds in-memory artifacts, executes them, and publishes values back into the semantic tensors.
+
+### Storage map
+
+| Thing | Stored where | Lifetime | Created by | Why it exists |
+|---|---|---|---|---|
+| Semantic graph | User-owned `Tensor` objects and their `prevTensors` links | Until user code drops references or mutates graph objects | Tensor constructors and operation methods | Represents the mathematical expression the user built. |
+| Leaf tensor data | Storage arrays inside user `Tensor` objects | User-controlled | Tensor constructors, `setData`, `copyDataFrom`, runtime publish | Provides inputs and receives output/gradient publications. |
+| Compile artifacts | Fields inside a `CompiledGraph` instance | As long as the `CompiledGraph` object is retained | `GraphCompiler.compile()` | Freezes graph topology, optimizer products, compiled nodes, partitions, memory plan, and gradient bindings. |
+| Prepare artifacts | Fields inside a `PreparedExecution` instance | As long as the `PreparedExecution` object is retained | `PreparedExecutionBuilder.prepare(...)` | Stores executable step order, backend metadata, prepared kernels/executables, workspaces templates, and prepare trace. |
+| Per-run tensors | `ExecutionState.runtimeTensorByNodeId` | One `execute(...)` call | `ExecutionState.create(...)` | Isolates runtime mutation from reusable prepared metadata. |
+| Per-run workspaces | Forked `CpuNodeWorkspace` objects in `ExecutionState` | One `execute(...)` call | `ExecutionState.create(...)` | Prevents repeated runs from sharing mutable workspace buffers. |
+| Memory-plan slot buffers | Local maps inside `RuntimeMemoryBinder.bind(...)`, then attached to runtime tensors | One `execute(...)` call | `RuntimeMemoryBinder` | Reuses storage across compatible optimized-region intermediates. |
+| Execution context side state | `ExecutionContext.runtimeStateIndex` and `convTraceIndex` | One `execute(...)` call | `ExecutionContext.fromRuntimeConfig(...)`, kernels | Lets kernels publish runtime state and trace metadata while the run is in progress. |
+| Compile/prepare/run traces | `CompileTrace`, `PrepareTrace`, `RunTrace` objects | Returned or accessible through graph/prepared objects | Compile, prepare, `executeTraced(...)` | Explains what happened without changing execution semantics. |
+| Generic tensor autotune profiles | Files under `build/tuning/tensor/...` | Until build directory is cleaned | `compute(new ComputeOptions().autotune(...))` | Caches graph-specific best profiles for convenience `compute(...)` autotune. |
+| Platform calibration profiles | Files under `profiles/platform/...` | User-managed | Calibration package, not normal compute | Stores reusable hardware/runtime defaults for tuning workflows. |
+
+### What is in memory only
+
+These objects are not automatically persisted:
+
+- `CompiledGraph`
+- `CompileArtifacts`
+- `PreparedExecution`
+- `ExecutionState`
+- `ExecutionContext`
+- `RunTrace`
+- runtime tensors and workspaces
+
+For example:
+
+```java
+Tensor x = Tensor.scalar(2.0, DataType.FLOAT64);
+Tensor y = x.mul(5.0);
+// y is a semantic graph node in memory.
+
+Tensor result = y.compute();
+// A CompiledGraph is created internally.
+// A PreparedExecution is created internally.
+// An ExecutionState is created for this run.
+// None of those objects are returned by compute().
+// None are written to disk.
+// result == y.
+// y = 10.
+```
+
+If the caller wants reusable compile/prepare artifacts, the caller must keep them explicitly:
+
+```java
+Tensor x = Tensor.scalar(2.0, DataType.FLOAT64);
+Tensor y = x.mul(5.0);
+// y = 10 after execution
+
+CompiledGraph compiled = y.compile(CompileMode.INFERENCE_ONLY);
+// compiled stores CompileArtifacts and CompileTrace in memory.
+
+PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
+// prepared stores executable steps, metadata, runtime config, and PrepareTrace in memory.
+
+prepared.execute(ExecutionMode.FORWARD);
+// execute creates a fresh ExecutionState for this call.
+// y is updated to 10 through syncRootData(...).
+```
+
+### What can be written to disk
+
+Normal `compute()` does not write files. The convenience autotune path can write graph-specific tuning artifacts when `AutotunePolicy.IF_MISSING` or `AutotunePolicy.FORCE` is used:
+
+```java
+Tensor y = x.matmul(x);
+
+y.compute(new ComputeOptions()
+        .compileMode(CompileMode.INFERENCE_ONLY)
+        .autotune(AutotunePolicy.IF_MISSING));
+// If no matching cached profile exists, this writes:
+// build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/f64-forward-best-profile.json
+// build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/f64-forward-history.jsonl
+```
+
+Those files are not compile artifacts. They are tuning records containing the best `ExecutionProfile` and measurement history for a generic tensor workload. On the next `IF_MISSING` run with the same hardware, graph signature, and seed profile signature, `FileBestProfileResolver` can reuse the persisted best profile before execution.
+
+Platform calibration writes to a different tree:
+
+```text
+profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/<mode>/profile.json
+```
+
+That path belongs to calibration and graph autotune workflows, not the default `Tensor.compute()` path. The default `compute()` path uses built-in inference/training defaults unless the caller passes explicit `ComputeOptions`, an `ExecutionProfile`, or a prepared artifact.
+
+### Why the runtime copies state into ExecutionState
+
+Prepared programs are reusable. Runtime tensors are not. If `PreparedExecution` kept mutable tensor buffers directly, two runs of the same prepared artifact could accidentally share intermediate state. Instead, every `execute(...)` call creates a new `ExecutionState`.
+
+Small example:
+
+```java
+Tensor x = Tensor.scalar(2.0, DataType.FLOAT64);
+Tensor y = x.mul(3.0);
+
+CompiledGraph compiled = y.compile(CompileMode.INFERENCE_ONLY);
+PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
+
+prepared.execute(ExecutionMode.FORWARD);
+// Run 1 creates ExecutionState #1.
+// Runtime leaf for x aliases x storage.
+// Runtime node for y computes 2 * 3 = 6.
+// syncRootData publishes y = 6.
+
+x.copyDataFrom(Tensor.scalar(4.0, DataType.FLOAT64));
+// The semantic input x now contains 4.
+
+prepared.execute(ExecutionMode.FORWARD);
+// Run 2 creates ExecutionState #2.
+// Runtime leaf for x aliases the current x storage, now 4.
+// Runtime node for y computes 4 * 3 = 12.
+// syncRootData publishes y = 12.
+```
+
+The prepared schedule is reused, but the runtime state is fresh. This is why repeated execution can be efficient without letting intermediate tensors leak between runs.
+
+### What each layer is responsible for
+
+| Layer | Responsibility | Not responsible for |
+|---|---|---|
+| `Tensor` | User-facing graph and data object. | Choosing backend kernels directly. |
+| `TensorExecutionSupport` | Resolve convenience defaults and profiles for `compute(...)`. | Owning long-lived runtime buffers. |
+| `CompiledGraph` | Hold compile artifacts and compile trace. | Runtime backend-specific execution state. |
+| `PreparedExecutionBuilder` | Convert compile artifacts plus runtime config into prepared executable steps. | Mutating user tensors. |
+| `PreparedExecution` | Execute prepared steps, publish root data, publish gradients, optionally return `RunTrace`. | Persisting traces to disk automatically. |
+| `ExecutionState` | Hold per-run runtime tensors, workspaces, prepared input tensors, and tensor-to-node mapping. | Surviving across runs. |
+| `ExecutionContext` | Provide kernels with runtime config flags, metadata lookup, runtime tensors, workspaces, and trace side channels. | Owning compile artifacts. |
+| `ComputeEngine` | Dispatch one prepared step to the selected backend. | Deciding graph optimization or memory planning. |
+
 ## Graph Building
 
 `Tensor` is both the user-visible value object and the semantic graph node. Leaf tensors have `operation == null`; derived tensors have an `operations.Operation` descriptor and a `prevTensors` list. `Tensor.topologicalSort()` delegates to `TensorGraphTraversal.topologicalSort(...)`, producing predecessors before consumers.
@@ -115,6 +254,366 @@ flowchart LR
 ```
 
 `Tensor.forwardOutput()` wraps the requested root in a system `NOOP` node labeled `System_Forward_Output`. `GraphCompiler` compiles from that wrapper so publishing the semantic root is consistent even after rewrites.
+
+## Tensor Compute API
+
+`Tensor.compute(...)` is the high-level execution surface. It is intentionally a convenience API over the same compile -> prepare -> execute pipeline described in this document. It does not use a separate eager interpreter.
+
+### What problem this solves
+
+Most user code wants to build a graph and immediately execute it:
+
+```java
+Tensor y = x.mul(2.0).add(1.0).compute();
+```
+
+Without `compute(...)`, every caller would need to manually choose an optimizer config, runtime config, execution mode, compile mode, and prepared execution object. The convenience API centralizes those defaults while still exposing escape hatches for advanced callers.
+
+### Where it lives in the code
+
+- Public methods: `src/main/java/tensor/Tensor.java`
+- Convenience execution logic: `src/main/java/tensor/TensorExecutionSupport.java`
+- Options: `src/main/java/tensor/ComputeOptions.java`
+- Compile intent: `src/main/java/tensor/CompileMode.java`
+- Autotune policy: `src/main/java/tensor/AutotunePolicy.java`
+- Low-level execution profile: `src/main/java/config/profile/ExecutionProfile.java`
+- Prepared execution: `src/main/java/graph/execution/PreparedExecution.java`
+
+### Public overloads
+
+| Method | Returns | Main purpose |
+|---|---|---|
+| `Tensor compute()` | same root tensor | Execute with default inference-only profile. |
+| `Tensor compute(CompileMode compileMode)` | same root tensor | Execute with inference/training/auto compile intent. |
+| `Tensor compute(ComputeOptions options)` | same root tensor | Execute with compile mode, autotune policy, optimizer override, and runtime override. |
+| `void compute(ExecutionProfile profile)` | nothing | Execute with a fully explicit optimizer/runtime/mode profile. |
+| `void compute(PreparedExecution execution, ExecutionMode mode)` | nothing | Execute a precompiled/prepared artifact directly. The receiver tensor is only a method host; the passed `PreparedExecution` owns the graph. |
+
+The three overloads returning `Tensor` return the same root object after execution. They mutate tensor data in the graph and, when backward execution is enabled, attach gradients to trainable leaf tensors.
+
+### Mental model
+
+```mermaid
+flowchart TD
+    Call["root.compute(...)"]
+    Options["Resolve ComputeOptions"]
+    Profile["Resolve ExecutionProfile"]
+    Autotune{"AutotunePolicy?"}
+    TunedProfile["Resolved or newly persisted best profile"]
+    Compile["CompiledGraph.compile(root, profile.optimizer, compileModeForProfile)"]
+    Prepare["compiled.prepare(profile.runtime)"]
+    Execute["prepared.execute(profile.mode)"]
+    Publish["Publish root values and gradients"]
+
+    Call --> Options --> Profile --> Autotune
+    Autotune -- NEVER --> Compile
+    Autotune -- IF_MISSING/FORCE --> TunedProfile --> Compile
+    Compile --> Prepare --> Execute --> Publish
+```
+
+`ComputeOptions` is not the runtime itself. It is a small builder that decides which `ExecutionProfile` to create. The resolved `ExecutionProfile` is what actually controls compile, prepare, and execute.
+
+### Default behavior
+
+`compute()` is exactly the safe inference shortcut:
+
+```java
+Tensor returned = root.compute();
+```
+
+Internally this calls:
+
+```java
+TensorExecutionSupport.compute(root, CompileMode.INFERENCE_ONLY)
+```
+
+Default profile resolution:
+
+| Field | Default for `compute()` |
+|---|---|
+| `CompileMode` | `INFERENCE_ONLY` |
+| `ExecutionMode` | `FORWARD` |
+| `OptimizerConfig` | `OptimizerConfig.inferenceDefaults()` |
+| `RuntimeConfig` | `RuntimeConfig.inferenceDefaults()` |
+| `AutotunePolicy` | `NEVER` |
+| Profile name | `tensor-compute-<dtype>-forward` |
+
+Concrete example:
+
+```java
+Tensor x = new Tensor(
+        new double[]{1.0, 2.0, 3.0, 4.0},
+        new int[]{2, 2},
+        null,
+        "x",
+        DataType.FLOAT64
+);
+// x = [[1, 2],
+//      [3, 4]]
+
+Tensor y = x.mul(2.0).add(1.0);
+// y is a graph node before compute.
+// Formula: y = x * 2 + 1
+// Expected result after compute:
+// y = [[3, 5],
+//      [7, 9]]
+
+Tensor returned = y.compute();
+// compileMode = INFERENCE_ONLY
+// optimizer   = OptimizerConfig.inferenceDefaults()
+// runtime     = RuntimeConfig.inferenceDefaults()
+// mode        = ExecutionMode.FORWARD
+// returned == y
+// y now contains [[3, 5],
+//                 [7, 9]]
+```
+
+### CompileMode behavior
+
+`CompileMode` answers one question: should the compiled artifact include backward graph support?
+
+| Compile mode | Optimizer/runtime defaults | Execution mode selected by `compute(...)` | Backward support |
+|---|---|---|---|
+| `INFERENCE_ONLY` | inference defaults | `FORWARD` | Never. |
+| `TRAINING` | training defaults | `FORWARD_BACKWARD` only when the graph has trainable leaf inputs; otherwise `FORWARD` | Only if at least one leaf tensor has `requiresGrad=true`. |
+| `AUTO` | training defaults if trainable leaves exist, otherwise inference defaults | `FORWARD_BACKWARD` if trainable leaves exist, otherwise `FORWARD` | Only if at least one leaf tensor has `requiresGrad=true`. |
+
+The trainable-leaf check is implemented by walking `tensor.forwardOutput().topologicalSort()` and looking for leaf nodes where `operation == null` and `requiresGrad == true`.
+
+Training example:
+
+```java
+Tensor x = new Tensor(
+        new double[]{3.0},
+        new int[]{1},
+        null,
+        "x",
+        DataType.FLOAT64
+);
+// x = [3]
+
+x.setRequiresGrad(true);
+// x is now a trainable leaf.
+
+Tensor loss = x.mul(x);
+// Formula: loss = x * x
+// Forward value: loss = [9]
+// Gradient formula: d(loss)/dx = 2x
+// Expected x gradient after backward: [6]
+
+loss.compute(CompileMode.TRAINING);
+// compileMode = TRAINING
+// graph has trainable leaf x
+// optimizer   = OptimizerConfig.trainingDefaults()
+// runtime     = RuntimeConfig.trainingDefaults()
+// mode        = ExecutionMode.FORWARD_BACKWARD
+// loss = [9]
+// x.gradient = [6]
+```
+
+`TRAINING` is an intent, not a command to invent gradients where there are no trainable leaves:
+
+```java
+Tensor x = Tensor.scalar(3.0, DataType.FLOAT64);
+// x.requiresGrad defaults to false.
+
+Tensor loss = x.mul(x);
+loss.compute(CompileMode.TRAINING);
+// compileMode = TRAINING
+// no trainable leaf inputs exist
+// mode = ExecutionMode.FORWARD
+// loss = [9]
+// no gradient is attached to x
+```
+
+`AUTO` is useful when library code does not know whether the caller marked inputs as trainable:
+
+```java
+Tensor maybeTrainable = Tensor.scalar(2.0, DataType.FLOAT64);
+maybeTrainable.setRequiresGrad(true);
+
+Tensor loss = maybeTrainable.mul(maybeTrainable).sum();
+loss.compute(CompileMode.AUTO);
+// Because a trainable leaf exists, AUTO behaves like TRAINING here.
+// loss = [4]
+// maybeTrainable.gradient = [4]
+```
+
+### ComputeOptions behavior
+
+`ComputeOptions` customizes profile resolution without forcing the caller to manually construct an `ExecutionProfile`.
+
+```java
+Tensor y = root.compute(new ComputeOptions()
+        .compileMode(CompileMode.AUTO)
+        .autotune(AutotunePolicy.NEVER)
+        .optimizer(OptimizerConfig.trainingDefaults())
+        .runtime(RuntimeConfig.trainingDefaults()));
+```
+
+Available options:
+
+| Option method | Type | Default | Meaning |
+|---|---|---|---|
+| `.compileMode(...)` | `CompileMode` | `INFERENCE_ONLY` | Selects inference/training/auto compile intent. Passing `null` resets to `INFERENCE_ONLY`. |
+| `.autotune(...)` | `AutotunePolicy` | `NEVER` | Decides whether the convenience path should use generic graph autotune before execution. Passing `null` resets to `NEVER`. |
+| `.optimizer(...)` | `OptimizerConfig` | inferred from compile mode | Overrides optimizer config in the generated `ExecutionProfile`. |
+| `.runtime(...)` | `RuntimeConfig` | inferred from compile mode | Overrides runtime config in the generated `ExecutionProfile`. |
+
+If `optimizer` or `runtime` is null, defaults are chosen from the effective compile mode:
+
+```text
+INFERENCE_ONLY -> OptimizerConfig.inferenceDefaults(), RuntimeConfig.inferenceDefaults()
+TRAINING       -> OptimizerConfig.trainingDefaults(),  RuntimeConfig.trainingDefaults()
+AUTO           -> training defaults if trainable leaves exist, otherwise inference defaults
+```
+
+Example with explicit no-optimization runtime:
+
+```java
+Tensor x = new Tensor(
+        new double[]{1.0, 2.0, 3.0},
+        new int[]{3},
+        null,
+        "x",
+        DataType.FLOAT64
+);
+// x = [1, 2, 3]
+
+Tensor y = x.add(10.0).relu();
+// Formula: y = relu(x + 10)
+// y = [11, 12, 13]
+
+y.compute(new ComputeOptions()
+        .compileMode(CompileMode.INFERENCE_ONLY)
+        .autotune(AutotunePolicy.NEVER)
+        .optimizer(OptimizerConfig.noOptimization())
+        .runtime(RuntimeConfig.noOptNoVecNoPar()));
+// compile stages are disabled by OptimizerConfig.noOptimization()
+// vectorization, BLAS, approximation, and parallel thresholds are effectively disabled by RuntimeConfig.noOptNoVecNoPar()
+// y still computes the same values: [11, 12, 13]
+```
+
+### AutotunePolicy behavior
+
+`AutotunePolicy` controls only the convenience `compute(ComputeOptions)` path. It is not the same as platform calibration and it does not tune hardware/runtime families.
+
+| Policy | Behavior |
+|---|---|
+| `NEVER` | Build the default or explicitly configured profile and execute it directly. No generic autotune and no `build/tuning/tensor/...` artifacts. |
+| `IF_MISSING` | Look for a cached generic best profile for the graph/profile/hardware. If found, execute it. If missing, run one standard graph-autotune pass, persist the winner, then execute the winner. |
+| `FORCE` | Always run one standard graph-autotune pass before execution, persist the winner, then execute the winner if available. |
+
+The generic tensor autotune path builds:
+
+```text
+GraphAutotuneMode.STANDARD
+TuningPreset.BALANCED.autotuneMeasurement()
+TuningPreset.BALANCED.autotuneValidation()
+SearchPolicy(1, 1, 1, false)
+```
+
+Persistence path:
+
+```text
+build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/<dtype>-<mode>-best-profile.json
+build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/<dtype>-<mode>-history.jsonl
+```
+
+Where:
+
+- `<platform-id>` comes from `HardwareFingerprint.capture()` and `PlatformCalibrationPaths.platformId(...)`.
+- `<graph-signature>` is a 24-character SHA-256 prefix derived from node order, op type, operation class, expression, dtype, shape, and input ids.
+- `<seed-signature>` is a 16-character SHA-256 prefix derived from the seed `ExecutionProfile` JSON.
+- `<dtype>-<mode>` is a variant such as `f64-forward` or `f64-forward-backward`.
+
+Example:
+
+```java
+Tensor x = new Tensor(
+        new double[]{1.0, 2.0, 3.0, 4.0},
+        new int[]{2, 2},
+        null,
+        "x",
+        DataType.FLOAT64
+);
+// x = [[1, 2],
+//      [3, 4]]
+
+Tensor y = x.matmul(x);
+// y = [[1*1 + 2*3, 1*2 + 2*4],
+//      [3*1 + 4*3, 3*2 + 4*4]]
+// y = [[7, 10],
+//      [15, 22]]
+
+y.compute(new ComputeOptions()
+        .compileMode(CompileMode.INFERENCE_ONLY)
+        .autotune(AutotunePolicy.IF_MISSING));
+// If a matching best profile already exists under build/tuning/tensor/..., it is reused.
+// Otherwise Synaptik runs one STANDARD graph autotune candidate for this graph,
+// writes best-profile/history artifacts, and then executes y.
+// y = [[7, 10],
+//      [15, 22]]
+```
+
+Use this path for local convenience experiments, not as a replacement for the platform calibration package. Platform calibration writes reusable runtime profiles under `profiles/platform/...`; generic tensor autotune writes graph-specific convenience artifacts under `build/tuning/tensor/...`.
+
+### Explicit ExecutionProfile
+
+`compute(ExecutionProfile profile)` is the escape hatch when the caller already knows the full profile:
+
+```java
+ExecutionProfile profile = new ExecutionProfile(
+        "manual-f64-training",
+        "manual-f64-training",
+        DataType.FLOAT64,
+        ExecutionMode.FORWARD_BACKWARD,
+        OptimizerConfig.trainingDefaults(),
+        RuntimeConfig.trainingDefaults(),
+        WorkloadProfile.none()
+);
+
+Tensor x = Tensor.scalar(4.0, DataType.FLOAT64);
+x.setRequiresGrad(true);
+
+Tensor loss = x.mul(x);
+// loss = x^2 = 16
+// d(loss)/dx = 2x = 8
+
+loss.compute(profile);
+// compile mode is derived from profile.mode():
+//   FORWARD_BACKWARD -> CompileMode.TRAINING
+// prepare uses profile.runtime()
+// execute uses profile.mode()
+// loss = [16]
+// x.gradient = [8]
+```
+
+This overload returns `void` because the caller is expected to already own the root tensor and profile. It throws `IllegalArgumentException` if `profile` is null.
+
+### PreparedExecution overload
+
+`compute(PreparedExecution execution, ExecutionMode mode)` is the most direct overload. It does not compile or prepare anything:
+
+```java
+CompiledGraph compiled = loss.compile(CompileMode.TRAINING);
+PreparedExecution prepared = compiled.prepare(RuntimeConfig.trainingDefaults());
+
+loss.compute(prepared, ExecutionMode.FORWARD_BACKWARD);
+// No compile happens here.
+// No prepare happens here.
+// The passed PreparedExecution runs in FORWARD_BACKWARD mode.
+```
+
+Important detail: the receiver tensor is not used to decide what executes. The method delegates to `TensorExecutionSupport.compute(execution, mode)`, which calls `execution.execute(mode)`. If the prepared execution belongs to another graph, that other graph runs.
+
+Use this overload only when:
+
+- You intentionally compiled/prepared a graph once and want to execute the prepared artifact.
+- You understand the prepared artifact's graph contract.
+- You pass an `ExecutionMode` that the prepared artifact supports.
+
+If `execution` is null, the method throws `IllegalArgumentException`. If `ExecutionMode.FORWARD_BACKWARD` is requested for a forward-only prepared execution, `PreparedExecution.execute(...)` throws an `IllegalStateException`.
 
 ## Compile
 
@@ -289,6 +788,354 @@ flowchart TD
 
 `CpuBackend.execute(...)` resolves runtime inputs by node id, applies the prepared CPU layout plan, chooses strided elementwise execution when planned, and dispatches to dtype-specific kernel methods.
 
+## Runtime State And Tracking
+
+Execution has two jobs at the same time:
+
+1. Run the prepared schedule.
+2. Track enough state to publish correct outputs, gradients, and traces without corrupting reusable compile/prepare artifacts.
+
+The important implementation detail is that tracking is split between `PreparedExecution`, `ExecutionState`, and `ExecutionContext`.
+
+### What PreparedExecution tracks
+
+`PreparedExecution` is the reusable executable program. It is constructed once by `PreparedExecutionBuilder.prepare(...)` and keeps:
+
+| Field | Meaning | Why it matters |
+|---|---|---|
+| `runtimeConfig` | Runtime/backend policy used during prepare. | Ensures execution context uses the same approximation flags and backend assumptions. |
+| `supportsBackward` | Whether the compiled artifact includes backward graph support. | Guards `ExecutionMode.FORWARD_BACKWARD`. |
+| `executionSteps` | All executable prepared steps, forward plus backward. | Used for full forward/backward execution. |
+| `forwardSteps` | Prepared steps with node id up to `forwardBoundaryNodeId`. | Used for forward-only execution. |
+| `backwardSteps` | Prepared steps after the forward boundary. | Kept for introspection and construction of `executionSteps`. |
+| `allNodes` | All compiled nodes, including leaves and partition interiors. | Used to create runtime tensors for every compiled node. |
+| `compiledGradients` | Map from original semantic tensors to compiled gradient bindings. | Used to publish detached gradients back to user tensors. |
+| `rootTensor` | User root tensor. | Used to publish final root data. |
+| `forwardOutputNode` | System forward-output wrapper node. | Used to find the actual runtime root. |
+| `forwardSeedGradient` | Binding for the root gradient seed. | Filled with ones before backward execution. |
+| `memoryPlan` | Compile-time memory plan, possibly from optimizer state. | Used by `RuntimeMemoryBinder` to alias compatible runtime buffers. |
+| `prepareTrace` | Prepare timing, step counts, backend selection trace. | Lets callers inspect preparation decisions. |
+| `metadataIndex` | Map from node id to prepared execution metadata. | Gives execution and tracing fast metadata lookup by compiled node id. |
+
+This is reusable state. It is safe to retain one `PreparedExecution` and call `execute(...)` repeatedly if the graph contract remains unchanged.
+
+### What ExecutionState tracks
+
+`ExecutionState` is created fresh inside every `PreparedExecution.executeInternal(...)` call:
+
+```java
+ExecutionState executionState = ExecutionState.create(
+        allNodes,
+        metadataIndex,
+        forwardOutputNode.id()
+);
+```
+
+It tracks four maps:
+
+| Map | Key | Value | Used by |
+|---|---|---|---|
+| `runtimeTensorByNodeId` | compiled node id | runtime `Tensor` | Kernels, root publishing, gradient publishing. |
+| `cpuWorkspaceByNodeId` | compiled node id | forked `CpuNodeWorkspace` | CPU kernels needing scratch or prepared state. |
+| `preparedInputTensorByKey` | `(nodeId, inputIndex)` | runtime tensor for a prepared input | CPU layout preparation and materialization paths. |
+| `runtimeNodeIdByTensor` | runtime tensor identity | compiled node id | Context lookup and trace metadata. |
+
+The runtime tensor map is the main execution memory. For every compiled node, `ExecutionState.create(...)` constructs a runtime tensor with the compiled shape, strides, storage offset, operation, label, and dtype:
+
+```text
+compiled node 0: label=a,   shape=[3], op=LEAF -> runtime tensor for node 0
+compiled node 1: label=b,   shape=[3], op=LEAF -> runtime tensor for node 1
+compiled node 2: label=+,   shape=[3], op=ADD  -> runtime tensor for node 2
+compiled node 3: label=sum, shape=[1], op=SUM  -> runtime tensor for node 3
+```
+
+Leaf handling is special:
+
+- Forward-side leaves alias current user tensor storage.
+- Backward-side leaves copy source data.
+
+This means forward inputs see the latest user-provided values at the beginning of each run:
+
+```java
+Tensor a = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "a", DataType.FLOAT64);
+Tensor y = a.mul(10.0);
+
+PreparedExecution prepared = y.compile(CompileMode.INFERENCE_ONLY)
+        .prepare(RuntimeConfig.inferenceDefaults());
+
+prepared.execute(ExecutionMode.FORWARD);
+// ExecutionState #1:
+// runtime node for leaf a aliases a storage: [1, 2]
+// y = [10, 20]
+
+a.copyDataFrom(new Tensor(new double[]{3.0, 4.0}, new int[]{2}, null, "a2", DataType.FLOAT64));
+// a storage now contains [3, 4]
+
+prepared.execute(ExecutionMode.FORWARD);
+// ExecutionState #2:
+// runtime node for leaf a aliases current a storage: [3, 4]
+// y = [30, 40]
+```
+
+### Runtime predecessor links
+
+After creating runtime tensors, `ExecutionState.create(...)` rewires their `prevTensors` using compiled input ids. This matters because kernels and backend plans should read runtime tensors, not stale semantic graph objects.
+
+For graph:
+
+```text
+a -> add -> relu
+b -> add
+```
+
+compiled ids might be:
+
+```text
+0 a
+1 b
+2 add inputIds=[0,1]
+3 relu inputIds=[2]
+```
+
+Runtime rewiring creates:
+
+```text
+runtime(2).prevTensors = [runtime(0), runtime(1)]
+runtime(3).prevTensors = [runtime(2)]
+```
+
+This is why execution can use immutable compiled ids as the stable contract even though each run has fresh mutable tensors.
+
+### What ExecutionContext tracks
+
+`ExecutionContext` is passed into every backend execution call:
+
+```java
+ExecutionContext context = ExecutionContext.fromRuntimeConfig(
+        runtimeConfig,
+        mode,
+        metadataIndex,
+        executionState
+);
+```
+
+It tracks:
+
+| Context state | Purpose |
+|---|---|
+| `mode` | Lets kernels know whether the run is forward-only or forward/backward. |
+| `useFastExpApprox` / `useFastTanhApprox` | Runtime approximation flags derived from `RuntimeConfig.approximation()` and whether backward is enabled. |
+| `metadataIndex` | Lets kernels/prepared operations look up metadata for compiled node ids. |
+| `executionState` | Lets kernels resolve runtime tensors, workspaces, and prepared input tensors. |
+| `runtimeStateIndex` | Per-run identity map from runtime tensor to arbitrary runtime state. |
+| `convTraceIndex` | Per-run map from node id to convolution trace metadata. |
+
+The `runtimeStateIndex` is a side channel for kernels that need to attach temporary state to a runtime tensor during a run. It is synchronized and identity-based, so it distinguishes tensor objects by identity rather than by value equality.
+
+The `convTraceIndex` is a trace side channel. Conv kernels can publish details such as lowering kind, BLAS provider, matrix dimensions, and number of BLAS/Java calls:
+
+```text
+nodeId=17
+conv trace:
+  executionKind=IM2COL_GEMM
+  lowered=true
+  blasUsed=true
+  blasProvider=OPENBLAS_FFM
+  m=128
+  n=3136
+  k=576
+  blasCalls=1
+  javaCalls=0
+```
+
+Later, when `PreparedExecution` builds an `ExecutionStepTrace`, it asks:
+
+```java
+ConvTraceMetadata trace = context.convTraceForNodeId(node.id());
+```
+
+and attaches the result to `StepExecutionMetadata`.
+
+### RuntimeMemoryBinder tracking
+
+`RuntimeMemoryBinder.bind(...)` applies compile-time memory planning to runtime tensors. It is deliberately conservative.
+
+Inputs:
+
+- `MemoryPlan memoryPlan`
+- `List<CompiledNode> compiledNodes`
+- fresh `ExecutionState`
+
+Local tracking maps:
+
+```text
+regionF64Slots: slot id -> double[] buffer
+regionF32Slots: slot id -> float[] buffer
+runtimeTensorBySemanticTensor: semantic Tensor identity -> runtime Tensor
+```
+
+The binder walks compiled nodes and decides whether a runtime tensor can share a memory slot:
+
+1. Skip if there is no memory plan.
+2. Skip leaves.
+3. Skip nodes whose memory binding policy disallows region binding.
+4. Preserve runtime alias views such as `NOOP`, `EXPAND`, `SELECT`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and contiguous `RESHAPE`.
+5. Look up the node's `RegionValueRef`.
+6. Look up the `RegionMemoryBinding`.
+7. Require a non-`NONE` binding kind.
+8. Require a slot id.
+9. Require slot use count >= 2.
+10. Require slot size to match the runtime tensor flat size.
+11. Bind only `FLOAT64` and `FLOAT32` buffers today.
+
+Illustrative example:
+
+```text
+optimized region:
+  n2 = a + b      shape=[1024], dtype=FLOAT64
+  n3 = relu(n2)   shape=[1024], dtype=FLOAT64
+  n4 = n3 * 0.5   shape=[1024], dtype=FLOAT64
+
+memory plan:
+  value n2 -> slot 0, size 1024
+  value n4 -> slot 0, size 1024
+  value n3 -> slot 1, size 1024
+
+runtime binding:
+  slot 0 -> one double[1024] reused by compatible lifetimes
+  slot 1 -> one double[1024]
+```
+
+The binder is not trying to optimize every tensor. It refuses unsafe cases. If dtype is `BFLOAT16`, `INT32`, or `BOOL`, the binder currently leaves the runtime tensor's storage alone.
+
+### Publishing root data
+
+After steps execute, `PreparedExecution.syncRootData(...)` publishes data back to the user-visible tensor graph.
+
+The publish path handles alias views carefully. If the root is an alias-like op, `resolveSemanticPublishTarget(...)` walks through source views so data is published to the semantic tensor that owns storage. Alias-like ops include:
+
+```text
+NOOP
+EXPAND
+SELECT
+PERMUTE
+EXPAND_DIMS
+SQUEEZE
+RESHAPE when input is contiguous
+```
+
+Example:
+
+```java
+Tensor base = new Tensor(
+        new double[]{1.0, 2.0, 3.0, 4.0},
+        new int[]{2, 2},
+        null,
+        "base",
+        DataType.FLOAT64
+);
+// base = [[1, 2],
+//         [3, 4]]
+
+Tensor view = base.reshape(4);
+// view is an alias-like reshape because base is contiguous.
+
+view.compute();
+// syncRootData resolves the semantic publish target through the alias chain.
+// repairSemanticAliasChain(...) restores alias storage relationships after execution.
+```
+
+If the runtime root tensor already shares storage with the publish target, `syncRootData(...)` does not copy data. Otherwise it copies runtime data back with `copyDataFrom(...)`.
+
+### Publishing gradients
+
+For `ExecutionMode.FORWARD_BACKWARD`, execution does three extra things:
+
+1. Seed the root gradient with ones.
+2. Execute both forward and backward steps.
+3. Publish compiled gradients back to source semantic tensors.
+
+Root seed example:
+
+```java
+Tensor x = Tensor.scalar(3.0, DataType.FLOAT64);
+x.setRequiresGrad(true);
+
+Tensor loss = x.mul(x).sum();
+// loss = x^2 = 9
+// Root gradient seed is d(loss)/d(loss) = 1.
+// Backward computes d(loss)/dx = 2x = 6.
+
+loss.compute(CompileMode.TRAINING);
+// seedRootGradient(...) fills the compiled root-gradient runtime tensor with 1.
+// publishCompiledGradients(...) writes a detached copy to x.gradient.
+// x.gradient = 6.
+```
+
+`publishCompiledGradients(...)` uses `compiledGradients`, a map from original source tensors to `CompiledGradientBinding`. Binding kinds:
+
+| Binding kind | Meaning | Publication behavior |
+|---|---|---|
+| `NodeBinding` | Gradient lives in a runtime compiled node. | Copy runtime tensor data into a detached gradient tensor. |
+| `ConstantBinding` | Gradient is a constant template. | Copy the constant template into a detached gradient tensor. |
+| Missing binding | No gradient for this source tensor. | Set source tensor gradient to `null`. |
+
+Gradients are detached copies. User code can inspect them after execution without depending on the per-run `ExecutionState`, which has already gone out of scope.
+
+### Execution trace construction
+
+When `executeTraced(...)` is used, `PreparedExecution` records one `ExecutionStepTrace` per executed prepared step. For each step it tracks:
+
+| Trace field | Source |
+|---|---|
+| `index` | Step order in the selected run. |
+| `label` | Compiled node label. |
+| `opType` | Execution operation type, using `metadata.executionOperation()` if prepare replaced the operation. |
+| `shape` | Compiled node shape. |
+| `dataType` | Compiled node dtype. |
+| `backend` | Prepared metadata backend. |
+| `kernel` | CPU kernel class name when present. |
+| `durationNs` | Per-step wall-clock duration from `System.nanoTime()`. |
+| `metadata.compute` | CPU compute/storage/accumulate/backend contract. |
+| `metadata.layout` | Storage offset, contiguity, strided path, target type. |
+| `metadata.dispatch` | Elementwise dispatch mode, vector width, workers, chunk sizes. |
+| `metadata.reduction` | Reduction mode, workers, chunk size, vector width, accuracy mode. |
+| `metadata.matMul` | BLAS flags, parallel flag, tiling, workers, work, micro-kernel. |
+| `metadata.conv` | Conv execution kind, lowering, BLAS provider, dimensions, call counts. |
+| `metadata.fused` | Fused precision, cost family, scheduler signature, backend, node/input counts. |
+| `metadata.attributes` | Accelerator details such as Metal bridge/cache/subgraph info. |
+
+Illustrative trace for a simple optimized `ADD -> RELU -> SUM` graph:
+
+```text
+RunTrace:
+  mode=FORWARD
+  steps:
+    0:
+      label=relu
+      opType=FUSED
+      backend=CPU
+      kernel=
+      metadata.fused:
+        dispatchFamily=cheap-contiguous
+        fusedNodeCount=2
+        fusedInputCount=2
+    1:
+      label=sum
+      opType=SUM
+      backend=CPU
+      kernel=CpuSumKernel
+      metadata.reduction:
+        mode=SCALAR or VECTOR/PARALLEL depending on runtime config and size
+    2:
+      label=System_Forward_Output
+      opType=NOOP
+      backend=CPU
+      kernel=CpuNoopKernel
+```
+
+The exact kernel and dispatch mode depend on dtype, shape, runtime config, and optimizer products.
+
 ## Worked Example
 
 Example graph:
@@ -407,6 +1254,163 @@ There are three trace layers:
 | `RunTrace` | `PreparedExecution.executeTraced(...)` | `mode`, `durationNs`, `ExecutionStepTrace` list |
 
 Each `ExecutionStepTrace` includes step index, label, op type, shape, dtype, selected backend, kernel class name, duration, and `StepExecutionMetadata`. Step metadata can include compute mode, layout path, dispatch hints, reduction hints, matmul hints, convolution hints, fused metadata, and accelerator attributes.
+
+Traces are observability objects, not persistent logs. The framework creates them and returns or exposes them through Java objects:
+
+| Trace | How to access | Persisted automatically? |
+|---|---|---|
+| `CompileTrace` | `compiled.compileTrace()` | No |
+| `PrepareTrace` | `prepared.prepareTrace()` | No |
+| `RunTrace` | return value of `prepared.executeTraced(...)` or `compiled.executeTraced(...)` | No |
+| `ExecutionTrace` | Can be assembled from compile/prepare/run traces by callers | No |
+
+Concrete trace capture:
+
+```java
+Tensor a = new Tensor(new double[]{1.0, -2.0, 3.0}, new int[]{3}, null, "a", DataType.FLOAT64);
+Tensor b = new Tensor(new double[]{0.5, 4.0, -5.0}, new int[]{3}, null, "b", DataType.FLOAT64);
+Tensor out = a.add(b).relu().sum();
+// out = sum(relu([1.5, 2.0, -2.0]))
+// out = 3.5
+
+CompiledGraph compiled = out.compile(CompileMode.INFERENCE_ONLY);
+CompileTrace compileTrace = compiled.compileTrace();
+// compileTrace.totalNodeCount() includes the System_Forward_Output wrapper.
+// compileTrace.supportsBackward() is false for INFERENCE_ONLY.
+// compileTrace.partitionPlanning() explains partition planner decisions.
+
+PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
+PrepareTrace prepareTrace = prepared.prepareTrace();
+// prepareTrace.forwardStepCount() tells how many executable forward steps were prepared.
+// prepareTrace.backendSelection() explains accelerator selection/rejection.
+
+RunTrace runTrace = prepared.executeTraced(ExecutionMode.FORWARD);
+// runTrace.durationNs() is total run duration.
+// runTrace.steps() contains one entry per executed prepared step.
+// out = 3.5 after execution.
+```
+
+### Compile trace
+
+`CompileTrace` answers: what did compilation produce?
+
+| Field | Meaning |
+|---|---|
+| `measured` | Whether this trace represents a real measured compile. |
+| `durationNs` | Wall-clock compile duration. |
+| `totalNodeCount` | Final compiled graph node count, including system wrapper and backward nodes when present. |
+| `forwardNodeCount` | Count of forward-side nodes. |
+| `supportsBackward` | Whether the compiled artifact can run `FORWARD_BACKWARD`. |
+| `partitionPlanning` | Partition-planning trace with candidate decisions. |
+
+Partition planning trace tracks:
+
+| Field | Meaning |
+|---|---|
+| `strategy` | Partition planner strategy, for example greedy max region. |
+| `target` | Partition target, such as CPU/accelerator target or none. |
+| `totalConsidered` | Number of candidate regions considered. |
+| `acceptedCount` | Number of accepted partition decisions. |
+| `rejectedCount` | Number of rejected partition decisions. |
+| `decisions` | Detailed `PartitionDecisionTrace` entries. |
+
+`PartitionDecisionTrace` explains why a candidate region was accepted or rejected:
+
+```text
+strategy=GREEDY_MAX_REGION
+target=METAL
+startNodeId=12
+accepted=false
+reason=unsupported-op
+nodeIds=[12, 13, 14]
+opTypes=[MATMUL, ADD, TANH]
+estimatedWork=1048576
+selectedScore=...
+structuralScore=...
+searchBudgetHit=false
+rejectedNodeId=14
+```
+
+This is useful when a graph did not produce the accelerator or fused region you expected.
+
+### Prepare trace
+
+`PrepareTrace` answers: how was the compiled graph turned into executable steps?
+
+| Field | Meaning |
+|---|---|
+| `measured` | Whether this trace represents a real measured prepare. |
+| `durationNs` | Wall-clock prepare duration. |
+| `forwardStepCount` | Number of prepared forward steps that will execute in `FORWARD` mode. |
+| `backwardStepCount` | Number of backward steps prepared for `FORWARD_BACKWARD` mode. |
+| `backendSelection` | Accelerator/backend selection decisions. |
+
+Backend selection trace tracks:
+
+| Field | Meaning |
+|---|---|
+| `totalCandidates` | Number of non-CPU backend candidates considered. |
+| `selectedCount` | Number of accepted backend plans. |
+| `rejectedCount` | Number of rejected candidates. |
+| `decisions` | Per-candidate selection decisions. |
+
+Example decision:
+
+```text
+anchorNodeId=27
+nodeIds=[22, 23, 24, 25, 26, 27]
+compatibleBackends=[GPU_METAL, CPU]
+selected=false
+selectedBackend=null
+reason=estimated-work-below-minimum
+estimatedWork=4096
+```
+
+This tells you the accelerator path was structurally possible but rejected because the runtime cost model decided the region was too small.
+
+### Run trace
+
+`RunTrace` answers: what actually ran this time?
+
+| Field | Meaning |
+|---|---|
+| `mode` | `FORWARD` or `FORWARD_BACKWARD`. |
+| `durationNs` | Total run duration. |
+| `steps` | Executed step trace list. |
+
+Each step trace can be read as: "for this compiled node, this prepared operation ran on this backend with these runtime hints."
+
+Example:
+
+```text
+ExecutionStepTrace:
+  index=0
+  label=relu
+  opType=FUSED
+  shape=[3]
+  dataType=FLOAT64
+  backend=CPU
+  kernel=
+  durationNs=42000
+  metadata:
+    compute:
+      mode=F64
+      storageType=FLOAT64
+      computeType=F64
+      backend=CPU_FUSED
+      accumulateType=F64
+    layout:
+      storageOffset=0
+      contiguous=true
+      stridedPath=false
+      targetType=FLOAT64
+    fused:
+      dispatchFamily=cheap-contiguous
+      fusedNodeCount=2
+      fusedInputCount=2
+```
+
+When a step is an accelerator anchor, the attributes map can include bridge and executable details, for example Metal bridge availability, context availability, executable availability, cache hit, subgraph node count, subgraph ops, and estimated work.
 
 Trace tests verify that:
 

@@ -7,6 +7,20 @@ Chapters: [Graph Construction](#graph-construction) | [Broadcasting](#broadcasti
 
 This document explains the major mechanisms in Synaptik using the same structure for each one: problem, mental model, key concepts, where it lives, step-by-step, worked example, internals, edge cases, misconceptions, and related mechanisms.
 
+## Table Of Contents
+
+- [Graph Construction](#graph-construction)
+- [Broadcasting](#broadcasting)
+- [Autodiff / Backward Graph](#autodiff-backward-graph)
+- [Compile Pipeline](#compile-pipeline)
+- [Semantic Canonicalization](#semantic-canonicalization)
+- [Optimizer Stages: AR / CSE / PART / FUSE / MEM](#optimizer-stages-ar-cse-part-fuse-mem)
+- [Prepared Execution](#prepared-execution)
+- [Memory Planning / Runtime Binding](#memory-planning-runtime-binding)
+- [CPU Dispatch](#cpu-dispatch)
+- [Fused ASM Execution](#fused-asm-execution)
+- [Tuning / Calibration / Persistence](#tuning-calibration-persistence)
+
 ## Graph Construction
 
 **Problem**

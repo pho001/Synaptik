@@ -7,6 +7,18 @@ Chapters: [Build Requirements](#build-requirements) | [OptimizerConfig](#optimiz
 
 This document covers build/runtime requirements, optimizer and runtime configuration, backend knobs, profile persistence, tuning/calibration artifacts, system properties, and CLI configuration behavior.
 
+## Table Of Contents
+
+- [Build Requirements](#build-requirements)
+- [OptimizerConfig](#optimizerconfig)
+- [RuntimeConfig](#runtimeconfig)
+- [Execution Profiles](#execution-profiles)
+- [Platform Runtime Profiles](#platform-runtime-profiles)
+- [Tuning And Calibration Persistence](#tuning-and-calibration-persistence)
+- [System Properties And Environment Variables](#system-properties-and-environment-variables)
+- [CLI Configuration Behavior](#cli-configuration-behavior)
+- [Verification Notes](#verification-notes)
+
 ## Build Requirements
 
 | Requirement | Value | Source |

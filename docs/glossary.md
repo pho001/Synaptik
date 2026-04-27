@@ -7,6 +7,24 @@ Chapters: [A](#a) | [B](#b) | [C](#c) | [D](#d) | [E](#e) | [F](#f) | [G](#g) | 
 
 Project-specific terms used in Synaptik, with source references.
 
+## Table Of Contents
+
+- [A](#a)
+- [B](#b)
+- [C](#c)
+- [D](#d)
+- [E](#e)
+- [F](#f)
+- [G](#g)
+- [L](#l)
+- [M](#m)
+- [O](#o)
+- [P](#p)
+- [R](#r)
+- [S](#s)
+- [T](#t)
+- [W](#w)
+
 ## A
 
 **Accelerator config**: Runtime policy for accelerator backends, held by `RuntimeConfig.accelerator()`. Source: [`RuntimeConfig.java`](../src/main/java/config/runtime/RuntimeConfig.java), [`AcceleratorConfig.java`](../src/main/java/config/runtime/AcceleratorConfig.java).

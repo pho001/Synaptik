@@ -7,6 +7,18 @@ Chapters: [Local Setup](#local-setup) | [Repository Structure](#repository-struc
 
 Synaptik is a Java tensor and compiled-graph runtime. The public tensor API builds semantic graph nodes, the graph layer compiles and optimizes them, and backend packages prepare and execute concrete kernels.
 
+## Table Of Contents
+
+- [Local Setup](#local-setup)
+- [Repository Structure](#repository-structure)
+- [Coding Patterns](#coding-patterns)
+- [Adding Tensor Ops](#adding-tensor-ops)
+- [Adding Backend Kernels](#adding-backend-kernels)
+- [Adding Optimizer Rules](#adding-optimizer-rules)
+- [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families)
+- [Documentation Workflow](#documentation-workflow)
+- [Operational Risks](#operational-risks)
+
 ## Local Setup
 
 Requirements verified from `build.gradle`, `settings.gradle`, and `gradle/wrapper/gradle-wrapper.properties`:

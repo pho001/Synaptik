@@ -20,6 +20,19 @@ flowchart TD
     I[Tuning and calibration] --> H
 ```
 
+## Table Of Contents
+
+- [Tensors As Graph Nodes](#tensors-as-graph-nodes)
+- [Operation Descriptors](#operation-descriptors)
+- [Storage And Layout](#storage-and-layout)
+- [Broadcasting](#broadcasting)
+- [Compile, Prepare, Execute](#compile-prepare-execute)
+- [Autodiff](#autodiff)
+- [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-and-optimizer-stages)
+- [Profiles](#profiles)
+- [Tuning, Calibration, And Persistence](#tuning-calibration-and-persistence)
+- [Common Mental Pitfalls](#common-mental-pitfalls)
+
 ## Tensors As Graph Nodes
 
 `tensor.Tensor` is both the public value object and the graph node type. A tensor carries shape, strides, storage offset, dtype, label, backing storage, predecessor tensors, an optional `Operation` descriptor, gradient state, backward builder state, and optional backend override. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java), [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/TensorPrimitiveBuilder.java).

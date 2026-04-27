@@ -7,6 +7,18 @@ Chapters: [Stability Map](#stability-map) | [Tensor](#tensor) | [ComputeOptions,
 
 This document describes the Java API surfaces that are usable from application code today and separates them from public Java types that are probably internal implementation hooks.
 
+## Table Of Contents
+
+- [Stability Map](#stability-map)
+- [Tensor](#tensor)
+- [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy)
+- [CompiledGraph](#compiledgraph)
+- [PreparedExecution](#preparedexecution)
+- [Configuration APIs](#configuration-apis)
+- [CLI Entry Point](#cli-entry-point)
+- [Probably Internal APIs](#probably-internal-apis)
+- [Verification Notes](#verification-notes)
+
 ## Stability Map
 
 | Status | API surface | Source path | Notes |
@@ -305,12 +317,27 @@ ComputeOptions runtime(RuntimeConfig runtime)
 
 Purpose: customize `Tensor.compute(ComputeOptions)` without manually building an `ExecutionProfile`.
 
+For the full execution walkthrough, including code examples with concrete values and comments, see [Tensor API: Compute Convenience API](tensor-api.md#compute-convenience-api) and [Compute Flow: Tensor Compute API](compute-flow.md#tensor-compute-api).
+
 Defaults:
 
 - `compileMode`: `INFERENCE_ONLY`
 - `autotunePolicy`: `NEVER`
 - `optimizer`: inferred from compile mode unless set
 - `runtime`: inferred from compile mode unless set
+
+Option behavior:
+
+| Option | Values | Meaning |
+|---|---|---|
+| `compileMode(CompileMode.INFERENCE_ONLY)` | forward-only | Uses inference optimizer/runtime defaults and executes `ExecutionMode.FORWARD`. |
+| `compileMode(CompileMode.TRAINING)` | training intent | Uses training optimizer/runtime defaults; executes `FORWARD_BACKWARD` only if trainable leaf tensors exist. |
+| `compileMode(CompileMode.AUTO)` | graph-sensitive | Chooses training behavior when a trainable leaf exists, otherwise inference behavior. |
+| `autotune(AutotunePolicy.NEVER)` | default | Executes the resolved profile directly. |
+| `autotune(AutotunePolicy.IF_MISSING)` | cache first | Reuses a matching generic best profile from `build/tuning/tensor/...` or runs one standard graph-autotune pass and persists the winner. |
+| `autotune(AutotunePolicy.FORCE)` | always measure | Reruns generic graph autotune before execution and persists the new evidence. |
+| `optimizer(OptimizerConfig)` | explicit config | Overrides the optimizer config in the generated execution profile. |
+| `runtime(RuntimeConfig)` | explicit config | Overrides the runtime config used during prepare. |
 
 Failure modes:
 
