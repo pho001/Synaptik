@@ -1,8 +1,8 @@
 package backend.cpu.prepare;
 
-import backend.CPUBackend;
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
+import backend.cpu.CpuBackend;
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.CpuNodeWorkspace;
@@ -81,7 +81,7 @@ public final class CpuNodePreparer {
                 fusedContract
         );
         ResolvedDispatchHints dispatchHintsOverride = preparedFusedDispatch.dispatchHints();
-        CpuNodeExecutionPlan cpuPlan = CPUBackend.buildExecutionPlan(
+        CpuNodeExecutionPlan cpuPlan = CpuBackend.buildExecutionPlan(
                 operation,
                 fusedPreparation.runtimeInputs(),
                 anchorNode.semanticTensor(),
@@ -150,7 +150,7 @@ public final class CpuNodePreparer {
             dispatchHintsOverride = preparedFusedDispatch.dispatchHints();
         }
 
-        CpuNodeExecutionPlan cpuPlan = CPUBackend.buildExecutionPlan(
+        CpuNodeExecutionPlan cpuPlan = CpuBackend.buildExecutionPlan(
                 operation,
                 node.inputTensors(),
                 node.semanticTensor(),

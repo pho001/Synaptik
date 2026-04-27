@@ -1,6 +1,6 @@
 package backend.accelerator.exec;
 
-import backend.CPUBackend;
+import backend.cpu.CpuBackend;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Objects;
 
 public final class PreparedAcceleratorExecutionSupport {
-    private static final CPUBackend CPU_BACKEND = new CPUBackend();
+    private static final CpuBackend CPU_BACKEND = new CpuBackend();
 
     private PreparedAcceleratorExecutionSupport() {
     }

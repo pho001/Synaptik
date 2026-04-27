@@ -1,14 +1,17 @@
 package backend;
 
 import backend.accelerator.exec.PartitionExecutionRole;
-import backend.metal.MetalBackend;
+import backend.cpu.CpuBackend;
+import backend.cuda.CudaBackend;
 import backend.cuda.CudaGpuBackend;
+import backend.metal.MetalBackend;
+import backend.opencl.OpenClBackend;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 
 public final class ComputeEngine {
-    private static final CPUBackend CPU_BACKEND = new CPUBackend();
+    private static final CpuBackend CPU_BACKEND = new CpuBackend();
     private static final CudaBackend CUDA_BACKEND = new CudaBackend();
     private static final CudaGpuBackend CUDA_GPU_BACKEND = new CudaGpuBackend();
     private static final OpenClBackend OPENCL_BACKEND = new OpenClBackend();

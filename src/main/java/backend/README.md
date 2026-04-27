@@ -48,8 +48,8 @@ Generic lowering contracts belong under `backend.lowering`.
 Generic prepare orchestration belongs under `backend.prepare`.
 Backend-specific registries and kernels belong under their backend root.
 
-Current root-level concrete classes such as `CPUBackend`, `CudaBackend`, `OpenClBackend`, `CpuLayoutPlan`, and `CpuPreparedInput` are migration leftovers scheduled for backend-root cleanup.
-Do not add root wrappers when moving them.
+Root-level concrete backend implementations and CPU-specific helper types have been removed.
+Do not add root wrappers for backend-specific implementation classes.
 
 ## Main Components
 
@@ -76,7 +76,7 @@ The normal execution path is:
 1. `PreparedExecution` iterates prepared steps
 2. each step calls `ComputeEngine.compute(compiledNode, metadata, context)`
 3. `ComputeEngine` switches on backend
-4. `CPUBackend.execute(...)` receives:
+4. `backend.cpu.CpuBackend.execute(...)` receives:
    - semantic node
    - compiled node snapshot
    - prepared metadata

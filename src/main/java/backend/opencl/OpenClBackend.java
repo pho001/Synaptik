@@ -1,16 +1,14 @@
-package backend;
+package backend.opencl;
 
 import backend.runtime.ExecutionContext;
+import backend.opencl.kernels.OpenClKernel;
+import backend.opencl.registry.OpenClKernelRegistry;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
-import operations.Operation;
 import tensor.Tensor;
-import backend.cuda.kernels.CudaKernel;
-import backend.cuda.registry.CudaKernelRegistry;
+import operations.Operation;
 
-import java.util.List;
-
-public final class CudaBackend {
+public class OpenClBackend {
     public void execute(
             CompiledNode node,
             CompiledNodeExecutionMetadata metadata,
@@ -20,18 +18,19 @@ public final class CudaBackend {
         if (op == null) {
             return;
         }
-        CudaKernel kernel = CudaKernelRegistry.resolve(op.opType());
+        OpenClKernel kernel = OpenClKernelRegistry.resolve(op.opType());
         if (kernel == null) {
             throw new UnsupportedOperationException(
-                    "Missing CUDA kernel for opType=" + op.opType() +
+                    "Missing OpenCL kernel for opType=" + op.opType() +
                             " (operation class: " + op.getClass().getName() + ")"
             );
         }
         Tensor runtimeTensor = context.runtimeTensorForNodeId(node.id());
-        List<Tensor> runtimeInputs = new java.util.ArrayList<>(node.inputIds().size());
+        java.util.List<Tensor> runtimeInputs = new java.util.ArrayList<>(node.inputIds().size());
         for (int inputNodeId : node.inputIds()) {
             runtimeInputs.add(context.runtimeTensorForNodeId(inputNodeId));
         }
         kernel.forward(op, runtimeInputs, runtimeTensor);
     }
+
 }

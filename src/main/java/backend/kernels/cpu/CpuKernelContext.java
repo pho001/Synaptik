@@ -1,6 +1,6 @@
 package backend.kernels.cpu;
 
-import backend.CpuLayoutPlan;
+import backend.cpu.plan.CpuLayoutPlan;
 import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
 import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;

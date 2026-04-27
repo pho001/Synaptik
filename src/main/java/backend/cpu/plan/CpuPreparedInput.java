@@ -1,4 +1,4 @@
-package backend;
+package backend.cpu.plan;
 
 import tensor.Tensor;
 import tensor.TensorRemap;

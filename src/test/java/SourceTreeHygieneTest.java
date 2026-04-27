@@ -362,16 +362,11 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void backendRootContainsOnlyFacadeAndKnownMigrationFiles() throws IOException {
+    void backendRootContainsOnlyFacadeFiles() throws IOException {
         Set<String> allowedRootFiles = Set.of(
                 "ApproxMode.java",
                 "ComputeBackend.java",
-                "ComputeEngine.java",
-                "CPUBackend.java",
-                "CudaBackend.java",
-                "OpenClBackend.java",
-                "CpuLayoutPlan.java",
-                "CpuPreparedInput.java"
+                "ComputeEngine.java"
         );
         try (Stream<Path> paths = Files.list(Path.of("src/main/java/backend"))) {
             List<String> offenders = paths

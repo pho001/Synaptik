@@ -2,7 +2,7 @@ package graph.execution;
 
 import backend.kernels.cpu.CpuNodeWorkspace;
 import graph.CompiledNode;
-import backend.CpuPreparedInput;
+import backend.cpu.plan.CpuPreparedInput;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 

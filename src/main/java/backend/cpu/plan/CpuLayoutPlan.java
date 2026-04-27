@@ -1,4 +1,4 @@
-package backend;
+package backend.cpu.plan;
 
 import backend.runtime.ExecutionContext;
 import backend.kernels.cpu.elementwise.strided.StridedLayoutDecision;

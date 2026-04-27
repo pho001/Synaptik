@@ -1,6 +1,6 @@
 package backend.kernels.cpu.plan;
 
-import backend.CpuLayoutPlan;
+import backend.cpu.plan.CpuLayoutPlan;
 import backend.kernels.cpu.CpuNodeExecutionPlan;
 import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
 import backend.kernels.cpu.elementwise.strided.StridedLayoutDecision;

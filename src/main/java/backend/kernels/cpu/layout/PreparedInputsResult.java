@@ -1,6 +1,6 @@
 package backend.kernels.cpu.layout;
 
-import backend.CpuPreparedInput;
+import backend.cpu.plan.CpuPreparedInput;
 import tensor.Tensor;
 
 import java.util.List;

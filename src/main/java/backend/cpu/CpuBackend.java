@@ -1,4 +1,4 @@
-package backend;
+package backend.cpu;
 
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.CpuKernelContext;
@@ -19,7 +19,7 @@ import tensor.Tensor;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class CPUBackend {
+public final class CpuBackend {
     public void execute(
             CompiledNode node,
             CompiledNodeExecutionMetadata metadata,
