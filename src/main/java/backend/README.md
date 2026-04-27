@@ -30,20 +30,42 @@ Related docs:
 - compile/prepare lifecycle: [../graph/README.md](../graph/README.md)
 - tuning and runtime knob ownership: [../tuning/README.md](../tuning/README.md)
 
+## Target Package Ownership
+
+The root `backend` package is a facade/API boundary only.
+It should contain backend-neutral contracts such as `ComputeEngine`, `ComputeBackend`, and shared execution modes.
+
+Concrete implementation belongs under backend-owned roots:
+
+- `backend.cpu`
+- `backend.metal`
+- `backend.cuda`
+- `backend.opencl`
+
+Shared accelerator-only artifacts belong under `backend.accelerator`.
+Generic backend selection belongs under `backend.select`.
+Generic lowering contracts belong under `backend.lowering`.
+Generic prepare orchestration belongs under `backend.prepare`.
+Backend-specific registries and kernels belong under their backend root.
+
+Current root-level concrete classes such as `CPUBackend`, `CudaBackend`, `OpenClBackend`, `CpuLayoutPlan`, and `CpuPreparedInput` are migration leftovers scheduled for backend-root cleanup.
+Do not add root wrappers when moving them.
+
 ## Main Components
 
 - backend dispatch facade:
   - [ComputeEngine.java](../backend/ComputeEngine.java)
   - [ComputeBackend.java](../backend/ComputeBackend.java)
 - concrete backends:
-  - [CPUBackend.java](../backend/CPUBackend.java)
-  - [CudaBackend.java](../backend/CudaBackend.java)
-  - [OpenClBackend.java](../backend/OpenClBackend.java)
+  - target: `backend.cpu.CpuBackend`
+  - target: `backend.metal.MetalBackend`
+  - target: `backend.cuda.CudaBackend`
+  - target: `backend.opencl.OpenClBackend`
 - backend prepare layer:
   - [prepare/BackendPrepareDispatcher.java](../backend/prepare/BackendPrepareDispatcher.java)
-  - [prepare/CpuNodePreparer.java](../backend/prepare/CpuNodePreparer.java)
+- backend-specific preparers live under backend roots
 - CPU kernel resolution:
-  - [registry/CpuKernelResolver.java](../backend/registry/CpuKernelResolver.java)
+  - target: `backend.cpu.registry.CpuKernelResolver`
 - runtime context:
   - [runtime/ExecutionContext.java](../backend/runtime/ExecutionContext.java)
 
@@ -87,8 +109,12 @@ Runtime execution should therefore be read as:
 
 ## CPU Package Shape
 
-The root `backend.kernels.cpu` package intentionally keeps shared contracts and planning pieces.
-The concrete execution code is split by family.
+The target CPU owner root is `backend.cpu`.
+CPU runtime kernels should live under `backend.cpu.kernels`.
+CPU fused planning/codegen/generated executable code remains under `backend.cpu.fused`.
+
+The current `backend.kernels.cpu` package is a migration root scheduled for consolidation into `backend.cpu.kernels`.
+Do not add new CPU runtime code under `backend.kernels.cpu`.
 
 Important subareas:
 
@@ -284,5 +310,7 @@ These backend rules are intentional:
 - runtime caches should not be written back into semantic tensors
 - planner decisions should be made during prepare whenever possible
 - tuning knobs should influence planners/config, not ad hoc executor branches
+- project-owned Metal code should use Metal names; Apple appears only when an error message names the external MPS/MPSGraph framework
+- old backend owner packages should be deleted after their migration wave, not kept as forwarding wrappers
 
 If execution code starts deciding graph-shape policy or recomputing compile-time dispatch boundaries, the design is drifting in the wrong direction.

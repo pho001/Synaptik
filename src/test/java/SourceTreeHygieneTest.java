@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -91,7 +92,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void graphPartitionPackageDoesNotOwnConcreteAppleBackendCode() throws IOException {
-        assertGraphPartitionBackendPackageAbsent("apple", "Apple backend partition code belongs under backend.apple.lowering");
+        assertGraphPartitionBackendPackageAbsent("apple", "Metal backend partition code belongs under backend.metal.lowering");
     }
 
     @Test
@@ -360,6 +361,128 @@ public class SourceTreeHygieneTest {
         assertTrue(source.contains("requireLoweringReadyOptimizerState"), "prepare must rely on CompileArtifacts lowering-ready contract.");
     }
 
+    @Test
+    void backendRootContainsOnlyFacadeAndKnownMigrationFiles() throws IOException {
+        Set<String> allowedRootFiles = Set.of(
+                "ApproxMode.java",
+                "ComputeBackend.java",
+                "ComputeEngine.java",
+                "CPUBackend.java",
+                "CudaBackend.java",
+                "OpenClBackend.java",
+                "CpuLayoutPlan.java",
+                "CpuPreparedInput.java"
+        );
+        try (Stream<Path> paths = Files.list(Path.of("src/main/java/backend"))) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> !allowedRootFiles.contains(name))
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "Root backend package must not gain concrete helpers or wrappers: " + offenders);
+        }
+    }
+
+    @Test
+    void backendLoweringPackageDoesNotImportConcreteBackends() throws IOException {
+        List<String> offenders = linesContainingAny(
+                Path.of("src/main/java/backend/lowering"),
+                List.of(
+                        "import backend.cpu.",
+                        "import backend.metal.",
+                        "import backend.cuda.",
+                        "import backend.apple.",
+                        "import backend.kernels."
+                )
+        );
+        assertTrue(offenders.isEmpty(), () -> "backend.lowering must stay backend-neutral: " + offenders);
+    }
+
+    @Test
+    void backendPartitionPackageDoesNotImportExecutionOrKernelDetails() throws IOException {
+        List<String> offenders = linesContainingAny(
+                Path.of("src/main/java/backend/partition"),
+                List.of(
+                        "import backend.kernels.",
+                        "import backend.cpu.kernels.",
+                        "import backend.cuda.kernels.",
+                        "import backend.opencl.kernels.",
+                        "import backend.apple.bridge.",
+                        "import backend.metal.bridge.",
+                        "import backend.cuda.bridge.",
+                        "import backend.apple.exec.",
+                        "import backend.metal.exec.",
+                        "import backend.cuda.exec."
+                )
+        );
+        assertTrue(offenders.isEmpty(), () -> "backend.partition must compose descriptors, not own execution policy: " + offenders);
+    }
+
+    @Test
+    void backendPrepareConcretePreparerSetIsExplicitUntilMoveWave() throws IOException {
+        Set<String> knownConcretePreparers = Set.of(
+                "AppleGpuNodePreparer.java",
+                "CpuNodePreparer.java",
+                "CudaGpuNodePreparer.java"
+        );
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/prepare")).stream()
+                .map(path -> Path.of(path).getFileName().toString())
+                .filter(name -> name.endsWith("NodePreparer.java"))
+                .filter(name -> !knownConcretePreparers.contains(name))
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "New concrete backend preparers must not be added to generic backend.prepare: " + offenders);
+    }
+
+    @Test
+    void backendRegistryContainsOnlyKnownMigrationRegistries() throws IOException {
+        Set<String> knownMigrationRegistries = Set.of(
+                "CpuKernelResolver.java",
+                "CudaKernelRegistry.java",
+                "OpenClKernelRegistry.java"
+        );
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/registry")).stream()
+                .map(path -> Path.of(path).getFileName().toString())
+                .filter(name -> !knownMigrationRegistries.contains(name))
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Generic backend.registry is scheduled for deletion; do not add new registries there: " + offenders);
+    }
+
+    @Test
+    void appleNamedBackendTreeIsLimitedToKnownMetalMigrationFiles() throws IOException {
+        Set<String> knownMigrationFiles = Set.of(
+                "src/main/java/backend/apple/AppleGpuBackend.java",
+                "src/main/java/backend/apple/bridge/AppleMpsBridgeContext.java",
+                "src/main/java/backend/apple/bridge/AppleMpsBridgeExecutable.java",
+                "src/main/java/backend/apple/bridge/AppleMpsFfmBridge.java",
+                "src/main/java/backend/apple/bridge/AppleMpsGraphBridge.java",
+                "src/main/java/backend/apple/bridge/UnavailableAppleMpsGraphBridge.java",
+                "src/main/java/backend/apple/exec/PreparedAppleGpuExecutable.java",
+                "src/main/java/backend/apple/lowering/AppleGpuMatMulSpec.java",
+                "src/main/java/backend/apple/lowering/AppleGpuPartitionPlan.java",
+                "src/main/java/backend/apple/lowering/AppleGpuPartitionSupport.java",
+                "src/main/java/backend/apple/lowering/AppleGpuRegionLegalityAdapter.java",
+                "src/main/java/backend/apple/lowering/AppleGpuSubgraphLowerer.java",
+                "src/main/java/backend/apple/lowering/AppleGpuSubgraphLoweringResult.java",
+                "src/main/java/backend/apple/lowering/AppleGpuSubgraphSignature.java",
+                "src/main/java/backend/apple/lowering/AppleRegionLowerer.java",
+                "src/test/java/backend/apple/bridge/AppleMpsFfmBridgeTest.java",
+                "src/test/java/backend/apple/lowering/AppleRegionLowererTest.java"
+        );
+        List<String> offenders = javaFilesUnderRoots(List.of(
+                        Path.of("src/main/java/backend/apple"),
+                        Path.of("src/test/java/backend/apple")
+                )).stream()
+                .map(path -> path.replace('\\', '/'))
+                .filter(path -> !knownMigrationFiles.contains(path))
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Apple-named backend tree is scheduled for Metal rename; do not add files there: " + offenders);
+    }
+
     private static void assertGraphPartitionBackendPackageAbsent(String packageName, String message) throws IOException {
         List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
         try (Stream<Path> paths = roots.stream()
@@ -391,6 +514,45 @@ public class SourceTreeHygieneTest {
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".java"))
                     .map(Path::toString)
+                    .sorted()
+                    .toList();
+        }
+    }
+
+    private static List<String> javaFilesUnderRoots(List<Path> roots) {
+        return roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .filter(Files::isRegularFile)
+                .filter(path -> path.toString().endsWith(".java"))
+                .map(Path::toString)
+                .sorted()
+                .toList();
+    }
+
+    private static List<String> linesContainingAny(Path root, List<String> patterns) throws IOException {
+        if (!Files.exists(root)) {
+            return List.of();
+        }
+        try (Stream<Path> paths = Files.walk(root)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> patterns.stream().anyMatch(line::contains))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
                     .sorted()
                     .toList();
         }
