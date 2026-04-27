@@ -451,6 +451,40 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void metalAndCudaPackagesExposeExpectedCoreShape() {
+        List<Path> requiredDirs = List.of(
+                Path.of("src/main/java/backend/metal/bridge"),
+                Path.of("src/main/java/backend/metal/exec"),
+                Path.of("src/main/java/backend/metal/lowering"),
+                Path.of("src/main/java/backend/metal/prepare"),
+                Path.of("src/main/java/backend/cuda/bridge"),
+                Path.of("src/main/java/backend/cuda/exec"),
+                Path.of("src/main/java/backend/cuda/lowering"),
+                Path.of("src/main/java/backend/cuda/prepare"),
+                Path.of("src/main/java/backend/cuda/registry"),
+                Path.of("src/main/java/backend/cuda/kernels")
+        );
+        List<String> missing = requiredDirs.stream()
+                .filter(path -> !Files.isDirectory(path))
+                .map(Path::toString)
+                .sorted()
+                .toList();
+        assertTrue(missing.isEmpty(), () -> "Metal/CUDA backend package shape is incomplete: " + missing);
+    }
+
+    @Test
+    void metalAndCudaBridgePackagesDoNotImportPrepareInternals() throws IOException {
+        List<String> offenders = linesContainingAny(
+                List.of(
+                        Path.of("src/main/java/backend/metal/bridge"),
+                        Path.of("src/main/java/backend/cuda/bridge")
+                ),
+                List.of("import backend.prepare.")
+        );
+        assertTrue(offenders.isEmpty(), () -> "Bridge packages must not depend on generic prepare internals: " + offenders);
+    }
+
+    @Test
     void appleNamedBackendTreesAreRemoved() {
         List<String> offenders = javaFilesUnderRoots(List.of(
                         Path.of("src/main/java/backend/apple"),
