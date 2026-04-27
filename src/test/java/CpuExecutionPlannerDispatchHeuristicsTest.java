@@ -1,9 +1,9 @@
-import backend.kernels.cpu.CpuAccumulateDType;
-import backend.kernels.cpu.CpuComputeDType;
-import backend.kernels.cpu.CpuExecutionBackend;
-import backend.kernels.cpu.CpuExecutionMode;
-import backend.kernels.cpu.ResolvedCpuComputeContract;
-import backend.kernels.cpu.plan.CpuExecutionPlanner;
+import backend.cpu.kernels.CpuAccumulateDType;
+import backend.cpu.kernels.CpuComputeDType;
+import backend.cpu.kernels.CpuExecutionBackend;
+import backend.cpu.kernels.CpuExecutionMode;
+import backend.cpu.kernels.ResolvedCpuComputeContract;
+import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import config.backend.CpuKernelConfig;
 import backend.cpu.fused.codegen.FusedAccessKind;
 import backend.cpu.fused.codegen.FusedExpressionPlan;

@@ -1,0 +1,228 @@
+package backend.cpu.kernels.linalg.attention.plan;
+
+import backend.cpu.kernels.CpuAccumulateDType;
+import backend.cpu.kernels.CpuComputeDType;
+import backend.cpu.kernels.CpuExecutionBackend;
+import backend.cpu.kernels.linalg.attention.plan.ResolvedAttentionHints;
+import backend.cpu.kernels.ResolvedCpuComputeContract;
+import backend.cpu.kernels.linalg.matmul.plan.ResolvedMatMulHints;
+import backend.cpu.kernels.linalg.attention.plan.ResolvedScaledDotProductAttentionPlan;
+import backend.cpu.kernels.linalg.matmul.plan.MatMulPlanner;
+import backend.cpu.kernels.reduction.plan.ReductionPlanner;
+import config.runtime.BlasConfig;
+import operations.Operation;
+import operations.linalg.scaledDotProductAttention;
+import tensor.DataType;
+import tensor.Tensor;
+
+import java.util.Arrays;
+import java.util.List;
+
+public final class ScaledDotProductAttentionPlanner {
+    private final ReductionPlanner reductionPlanner;
+    private final MatMulPlanner matMulPlanner;
+
+    public ScaledDotProductAttentionPlanner(ReductionPlanner reductionPlanner, MatMulPlanner matMulPlanner) {
+        this.reductionPlanner = reductionPlanner;
+        this.matMulPlanner = matMulPlanner;
+    }
+
+    public ResolvedScaledDotProductAttentionPlan resolve(
+            Operation op,
+            List<Tensor> inputs,
+            Tensor node,
+            BlasConfig blasConfig
+    ) {
+        if (op == null || node == null || blasConfig == null) {
+            return null;
+        }
+        return switch (op.opType()) {
+            case SCALED_DOT_PRODUCT_ATTENTION -> resolveForward(inputs, node);
+            case SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> resolveBackward(inputs, node, blasConfig);
+            default -> null;
+        };
+    }
+
+    private ResolvedScaledDotProductAttentionPlan resolveForward(List<Tensor> inputs, Tensor node) {
+        if (inputs == null || inputs.size() < 3) {
+            return null;
+        }
+        Tensor query = inputs.get(0);
+        Tensor key = inputs.get(1);
+        if (query == null || key == null) {
+            return null;
+        }
+        int[] outShape = node.getShapeUnsafe();
+        int batchCount = attentionBatchCount(outShape);
+        int queryLen = outShape[outShape.length - 2];
+        int keyLen = key.getShapeUnsafe()[key.getShapeUnsafe().length - 2];
+        int depth = query.getShapeUnsafe()[query.getShapeUnsafe().length - 1];
+        int valueDim = outShape[outShape.length - 1];
+        ResolvedAttentionHints directHints = reductionPlanner.resolveAttentionHints(
+                batchCount * queryLen,
+                Math.max(1, keyLen * (depth + valueDim)),
+                Math.max(depth, valueDim),
+                attentionComputeContract(node.getDataType())
+        );
+        return new ResolvedScaledDotProductAttentionPlan(directHints, null, null, null, null, null);
+    }
+
+    private ResolvedScaledDotProductAttentionPlan resolveBackward(
+            List<Tensor> inputs,
+            Tensor node,
+            BlasConfig blasConfig
+    ) {
+        if (inputs == null || inputs.size() < 2) {
+            return null;
+        }
+        Tensor attentionOut = inputs.get(0);
+        Tensor outGrad = inputs.get(1);
+        if (attentionOut == null || outGrad == null) {
+            return null;
+        }
+        if (!(attentionOut.getOperation() instanceof scaledDotProductAttention)) {
+            return null;
+        }
+        List<Tensor> attentionInputs = attentionOut.getPrevTensors();
+        if (attentionInputs == null || attentionInputs.size() < 3) {
+            return null;
+        }
+        Tensor query = attentionInputs.get(0);
+        Tensor key = attentionInputs.get(1);
+        Tensor value = attentionInputs.get(2);
+        if (query == null || key == null || value == null) {
+            return null;
+        }
+
+        DataType dataType = node.getDataType();
+        int[] attentionOutShape = attentionOut.getShapeUnsafe();
+        int[] weightsShape = attentionScoreShape(query.getShapeUnsafe(), key.getShapeUnsafe());
+        int[] queryGradShape = attentionRawQueryGradShape(attentionOutShape, query.getShapeUnsafe());
+        int[] keyGradShape = attentionRawKeyGradShape(attentionOutShape, key.getShapeUnsafe());
+        int[] valueGradShape = attentionRawValueGradShape(attentionOutShape, value.getShapeUnsafe());
+
+        int rowLength = weightsShape[weightsShape.length - 1];
+        int rowCount = attentionProduct(weightsShape) / Math.max(1, rowLength);
+        ResolvedAttentionHints softmaxGradHints = reductionPlanner.resolveAttentionHints(
+                rowCount,
+                rowLength,
+                rowLength,
+                attentionComputeContract(dataType)
+        );
+
+        ResolvedMatMulHints queryGradHints = matMulPlanner.resolveAttention(
+                weightsShape,
+                true,
+                key.getShapeUnsafe(),
+                key.isContiguous(),
+                queryGradShape,
+                dataType,
+                true,
+                blasConfig
+        );
+        ResolvedMatMulHints dWeightsHints = matMulPlanner.resolveAttentionJava(
+                outGrad.getShapeUnsafe(),
+                attentionTransposedShape(value.getShapeUnsafe()),
+                weightsShape,
+                dataType
+        );
+        ResolvedMatMulHints valueGradHints = matMulPlanner.resolveAttentionJava(
+                attentionTransposedShape(weightsShape),
+                outGrad.getShapeUnsafe(),
+                valueGradShape,
+                dataType
+        );
+        ResolvedMatMulHints keyGradHints = matMulPlanner.resolveAttentionJava(
+                attentionTransposedShape(weightsShape),
+                query.getShapeUnsafe(),
+                keyGradShape,
+                dataType
+        );
+
+        return new ResolvedScaledDotProductAttentionPlan(
+                null,
+                softmaxGradHints,
+                queryGradHints,
+                dWeightsHints,
+                valueGradHints,
+                keyGradHints
+        );
+    }
+
+    private ResolvedCpuComputeContract attentionComputeContract(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT64 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F64, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
+            case FLOAT32, BFLOAT16 -> new ResolvedCpuComputeContract(dataType, CpuComputeDType.F32, CpuExecutionBackend.CPU_REDUCTION, CpuAccumulateDType.F64);
+            case INT32, BOOL -> throw new IllegalArgumentException("Attention compute contract requires floating dtype.");
+        };
+    }
+
+    private static int[] attentionTransposedShape(int[] shape) {
+        int[] out = shape.clone();
+        int tmp = out[out.length - 1];
+        out[out.length - 1] = out[out.length - 2];
+        out[out.length - 2] = tmp;
+        return out;
+    }
+
+    private static int[] attentionScoreShape(int[] queryShape, int[] keyShape) {
+        int[] qBatch = Arrays.copyOf(queryShape, queryShape.length - 2);
+        int[] kBatch = Arrays.copyOf(keyShape, keyShape.length - 2);
+        int[] outBatch = broadcastLeadingShape(qBatch, kBatch);
+        int[] out = Arrays.copyOf(outBatch, outBatch.length + 2);
+        out[outBatch.length] = queryShape[queryShape.length - 2];
+        out[outBatch.length + 1] = keyShape[keyShape.length - 2];
+        return out;
+    }
+
+    private static int[] attentionRawQueryGradShape(int[] outShape, int[] queryShape) {
+        int[] out = outShape.clone();
+        out[out.length - 2] = queryShape[queryShape.length - 2];
+        out[out.length - 1] = queryShape[queryShape.length - 1];
+        return out;
+    }
+
+    private static int[] attentionRawKeyGradShape(int[] outShape, int[] keyShape) {
+        int[] out = outShape.clone();
+        out[out.length - 2] = keyShape[keyShape.length - 2];
+        out[out.length - 1] = keyShape[keyShape.length - 1];
+        return out;
+    }
+
+    private static int[] attentionRawValueGradShape(int[] outShape, int[] valueShape) {
+        int[] out = outShape.clone();
+        out[out.length - 2] = valueShape[valueShape.length - 2];
+        out[out.length - 1] = valueShape[valueShape.length - 1];
+        return out;
+    }
+
+    private static int[] broadcastLeadingShape(int[] first, int[] second) {
+        int rank = Math.max(first.length, second.length);
+        int[] out = new int[rank];
+        for (int i = 0; i < rank; i++) {
+            int a = i < rank - first.length ? 1 : first[i - (rank - first.length)];
+            int b = i < rank - second.length ? 1 : second[i - (rank - second.length)];
+            if (a != b && a != 1 && b != 1) {
+                throw new IllegalArgumentException("attention batch dimensions are not broadcast-compatible.");
+            }
+            out[i] = Math.max(a, b);
+        }
+        return out;
+    }
+
+    private static int attentionBatchCount(int[] shape) {
+        int count = 1;
+        for (int i = 0; i < shape.length - 2; i++) {
+            count *= shape[i];
+        }
+        return count;
+    }
+
+    private static int attentionProduct(int[] shape) {
+        int size = 1;
+        for (int dim : shape) {
+            size *= dim;
+        }
+        return size;
+    }
+}

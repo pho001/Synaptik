@@ -400,7 +400,7 @@ final class FusedAsmSupport {
                 mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
                 mv.visitMethodInsn(
                         INVOKEVIRTUAL,
-                        "backend/kernels/cpu/fused/FusedExecutionOptions",
+                        "backend/cpu/kernels/fused/FusedExecutionOptions",
                         expOp ? "useFastExpApprox" : "useFastTanhApprox",
                         "()Z",
                         false
@@ -417,7 +417,7 @@ final class FusedAsmSupport {
             mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
             mv.visitMethodInsn(
                     INVOKEVIRTUAL,
-                    "backend/kernels/cpu/fused/FusedExecutionOptions",
+                    "backend/cpu/kernels/fused/FusedExecutionOptions",
                     expOp ? "useFastExpApprox" : "useFastTanhApprox",
                     "()Z",
                     false

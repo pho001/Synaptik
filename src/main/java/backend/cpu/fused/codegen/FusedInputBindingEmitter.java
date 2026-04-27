@@ -37,7 +37,7 @@ public final class FusedInputBindingEmitter {
                 mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
                 mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
                 mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFlatDataSize", "()I", false);
-                mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/CpuKernelContext", "inputFloatContinuation", "(II)[F", false);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/CpuKernelContext", "inputFloatContinuation", "(II)[F", false);
             } else {
                 mv.visitInsn(ACONST_NULL);
             }
@@ -95,7 +95,7 @@ public final class FusedInputBindingEmitter {
                 mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
                 mv.visitTypeInsn(CHECKCAST, "tensor/Tensor");
                 mv.visitMethodInsn(INVOKEVIRTUAL, "tensor/Tensor", "getFlatDataSize", "()I", false);
-                mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/CpuKernelContext", "inputFloatContinuation", "(II)[F", false);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/CpuKernelContext", "inputFloatContinuation", "(II)[F", false);
             } else {
                 mv.visitInsn(ACONST_NULL);
             }

@@ -1,4 +1,4 @@
-import backend.kernels.cpu.CpuDTypeOps;
+import backend.cpu.kernels.CpuDTypeOps;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.runtime.RuntimeConfig;

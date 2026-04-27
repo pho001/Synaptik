@@ -1,6 +1,6 @@
 package tensor;
 
-import backend.kernels.cpu.CpuDTypeOps;
+import backend.cpu.kernels.CpuDTypeOps;
 
 import java.util.ArrayList;
 import java.util.Arrays;

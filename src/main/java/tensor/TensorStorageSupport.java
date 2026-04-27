@@ -1,6 +1,6 @@
 package tensor;
 
-import backend.kernels.cpu.CpuDTypeOps;
+import backend.cpu.kernels.CpuDTypeOps;
 
 final class TensorStorageSupport {
     private TensorStorageSupport() {

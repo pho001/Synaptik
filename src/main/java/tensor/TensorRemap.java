@@ -1,6 +1,6 @@
 package tensor;
 
-import backend.kernels.cpu.CpuThreadPool;
+import backend.cpu.kernels.CpuThreadPool;
 
 import java.util.Arrays;
 

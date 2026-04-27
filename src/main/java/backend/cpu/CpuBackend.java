@@ -1,12 +1,12 @@
 package backend.cpu;
 
-import backend.kernels.cpu.CpuKernel;
-import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.CpuNodeExecutionPlan;
-import backend.kernels.cpu.elementwise.plan.ResolvedDispatchHints;
-import backend.kernels.cpu.elementwise.strided.CpuStridedElementWise;
-import backend.kernels.cpu.plan.CpuExecutionPlanner;
-import backend.kernels.cpu.plan.CpuPlanAssembler;
+import backend.cpu.kernels.CpuKernel;
+import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.kernels.elementwise.plan.ResolvedDispatchHints;
+import backend.cpu.kernels.elementwise.strided.CpuStridedElementWise;
+import backend.cpu.kernels.plan.CpuExecutionPlanner;
+import backend.cpu.kernels.plan.CpuPlanAssembler;
 import backend.runtime.ExecutionContext;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;

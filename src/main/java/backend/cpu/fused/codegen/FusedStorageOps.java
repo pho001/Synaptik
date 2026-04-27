@@ -1,6 +1,6 @@
 package backend.cpu.fused.codegen;
 
-import backend.kernels.cpu.CpuDTypeOps;
+import backend.cpu.kernels.CpuDTypeOps;
 import tensor.Tensor;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;

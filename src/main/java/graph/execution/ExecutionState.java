@@ -1,6 +1,6 @@
 package graph.execution;
 
-import backend.kernels.cpu.CpuNodeWorkspace;
+import backend.cpu.kernels.CpuNodeWorkspace;
 import graph.CompiledNode;
 import backend.cpu.plan.CpuPreparedInput;
 import tensor.Tensor;

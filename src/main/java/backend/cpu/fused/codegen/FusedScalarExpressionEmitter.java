@@ -82,11 +82,11 @@ public final class FusedScalarExpressionEmitter {
             case EXP:
                 if (precisionMode == backend.cpu.fused.codegen.FusedDTypeOps.MODE_F32) {
                     mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/fused/FusedExecutionOptions", "useFastExpApprox", "()Z", false);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/fused/FusedExecutionOptions", "useFastExpApprox", "()Z", false);
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/codegen/FusedScalarOps", "expF32", "(FZ)F", false);
                 } else {
                     mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/fused/FusedExecutionOptions", "useFastExpApprox", "()Z", false);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/fused/FusedExecutionOptions", "useFastExpApprox", "()Z", false);
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/codegen/FusedScalarOps", "expF64", "(DZ)D", false);
                 }
                 break;
@@ -100,11 +100,11 @@ public final class FusedScalarExpressionEmitter {
             case TANH:
                 if (precisionMode == backend.cpu.fused.codegen.FusedDTypeOps.MODE_F32) {
                     mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/fused/FusedExecutionOptions", "useFastTanhApprox", "()Z", false);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/fused/FusedExecutionOptions", "useFastTanhApprox", "()Z", false);
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/codegen/FusedScalarOps", "tanhF32", "(FZ)F", false);
                 } else {
                     mv.visitVarInsn(ALOAD, sm.get(SlotKey.FUSED_OPTIONS));
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/kernels/cpu/fused/FusedExecutionOptions", "useFastTanhApprox", "()Z", false);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "backend/cpu/kernels/fused/FusedExecutionOptions", "useFastTanhApprox", "()Z", false);
                     mv.visitMethodInsn(INVOKESTATIC, "backend/cpu/fused/codegen/FusedScalarOps", "tanhF64", "(DZ)D", false);
                 }
                 break;

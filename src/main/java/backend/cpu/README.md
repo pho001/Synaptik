@@ -16,5 +16,5 @@ Target layout:
 - `backend.cpu.fused` prepares generated or planned fused execution artifacts.
 - `backend.cpu.kernels.fused` executes direct runtime fused kernels.
 
-Root-level CPU classes in `backend` and the old `backend.kernels.cpu` tree are migration leftovers scheduled for cleanup in phase 39.
+Root-level CPU classes in `backend` and the old split CPU kernel tree have been removed.
 Do not add new CPU implementation code outside `backend.cpu`.

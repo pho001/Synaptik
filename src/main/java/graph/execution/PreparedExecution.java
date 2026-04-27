@@ -2,7 +2,7 @@ package graph.execution;
 
 import backend.ComputeEngine;
 import backend.cpu.fused.plan.FusedOperation;
-import backend.kernels.cpu.CpuDTypeOps;
+import backend.cpu.kernels.CpuDTypeOps;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;

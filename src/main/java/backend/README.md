@@ -113,8 +113,8 @@ The target CPU owner root is `backend.cpu`.
 CPU runtime kernels should live under `backend.cpu.kernels`.
 CPU fused planning/codegen/generated executable code remains under `backend.cpu.fused`.
 
-The current `backend.kernels.cpu` package is a migration root scheduled for consolidation into `backend.cpu.kernels`.
-Do not add new CPU runtime code under `backend.kernels.cpu`.
+The legacy split CPU kernel root has been removed.
+Do not add CPU runtime code outside `backend.cpu.kernels`.
 
 Important subareas:
 

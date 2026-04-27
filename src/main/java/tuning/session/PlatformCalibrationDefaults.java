@@ -1,7 +1,7 @@
 package tuning.session;
 
 import backend.blas.BlasProvider;
-import backend.kernels.cpu.plan.CpuExecutionPlanner;
+import backend.cpu.kernels.plan.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;
 import backend.cpu.fused.optimize.FusedDispatchFamily;

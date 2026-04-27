@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.cpu.prepare.CpuNodePreparer;
-import backend.kernels.cpu.CpuNodeExecutionPlan;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;

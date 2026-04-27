@@ -3,9 +3,9 @@ package graph.execution;
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
-import backend.kernels.cpu.CpuKernel;
-import backend.kernels.cpu.CpuNodeExecutionPlan;
-import backend.kernels.cpu.CpuNodeWorkspace;
+import backend.cpu.kernels.CpuKernel;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import operations.Operation;
 

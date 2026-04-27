@@ -1,9 +1,9 @@
 package backend.cpu.plan;
 
 import backend.runtime.ExecutionContext;
-import backend.kernels.cpu.elementwise.strided.StridedLayoutDecision;
-import backend.kernels.cpu.layout.plan.ResolvedBroadcastPlan;
-import backend.kernels.cpu.layout.plan.ResolvedWhereBroadcastPlan;
+import backend.cpu.kernels.elementwise.strided.StridedLayoutDecision;
+import backend.cpu.kernels.layout.plan.ResolvedBroadcastPlan;
+import backend.cpu.kernels.layout.plan.ResolvedWhereBroadcastPlan;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorRemap;

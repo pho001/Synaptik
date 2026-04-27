@@ -1,6 +1,6 @@
 package backend.cpu.fused.asm;
 
-import backend.kernels.cpu.fused.FusedExecutionProfiler;
+import backend.cpu.kernels.fused.FusedExecutionProfiler;
 import backend.cpu.fused.codegen.FusedAsmSpecializationKind;
 import backend.cpu.fused.codegen.FusedAsmSpecializationMatcher;
 import backend.cpu.fused.codegen.FusedKernelGeneratorRouter;

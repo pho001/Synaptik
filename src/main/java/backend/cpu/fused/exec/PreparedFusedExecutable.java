@@ -1,7 +1,7 @@
 package backend.cpu.fused.exec;
 
-import backend.kernels.cpu.CpuKernelContext;
-import backend.kernels.cpu.fused.FusedExecutionOptions;
+import backend.cpu.kernels.CpuKernelContext;
+import backend.cpu.kernels.fused.FusedExecutionOptions;
 import tensor.Tensor;
 
 import java.util.List;

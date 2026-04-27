@@ -441,6 +441,18 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void cpuKernelsLiveUnderCpuBackendRoot() throws IOException {
+        List<String> oldRootFiles = javaFilesUnder(Path.of("src/main/java/backend/" + "kernels/cpu"));
+        assertTrue(oldRootFiles.isEmpty(), () -> "CPU kernels belong under backend.cpu.kernels: " + oldRootFiles);
+
+        List<String> oldPackageReferences = linesContainingAny(
+                List.of(Path.of("src/main/java"), Path.of("src/test/java")),
+                List.of("backend." + "kernels.cpu", "backend/" + "kernels/cpu")
+        );
+        assertTrue(oldPackageReferences.isEmpty(), () -> "Legacy CPU kernel package references remain: " + oldPackageReferences);
+    }
+
+    @Test
     void genericBackendSelectionDoesNotLiveUnderAcceleratorPackage() throws IOException {
         List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/accelerator/select")).stream()
                 .map(path -> Path.of(path).getFileName().toString())
@@ -498,17 +510,17 @@ public class SourceTreeHygieneTest {
         List<String> offenders = linesContainingAny(
                 List.of(Path.of("src/main/java"), Path.of("src/test/java")),
                 List.of(
-                        "AppleGpu",
-                        "AppleRegion",
-                        "AppleMps",
-                        "backend.apple",
-                        "APPLE_GRAPH_REGION",
-                        "APPLE_FUSED_ELEMENTWISE_GRAPH",
-                        "appleLoweredRegionForAnchor",
-                        "appleRegionForAnchor",
-                        "appleRegionsByAnchor",
-                        "synaptik.apple.mps.lib",
-                        "SYNAPTIK_APPLE_MPS_LIB"
+                        "Apple" + "Gpu",
+                        "Apple" + "Region",
+                        "Apple" + "Mps",
+                        "backend." + "apple",
+                        "APPLE" + "_GRAPH_REGION",
+                        "APPLE" + "_FUSED_ELEMENTWISE_GRAPH",
+                        "apple" + "LoweredRegionForAnchor",
+                        "apple" + "RegionForAnchor",
+                        "apple" + "RegionsByAnchor",
+                        "synaptik." + "apple.mps.lib",
+                        "SYNAPTIK_" + "APPLE_MPS_LIB"
                 )
         );
         assertTrue(offenders.isEmpty(), () -> "Removed Apple migration names remain in Java backend/test source: " + offenders);

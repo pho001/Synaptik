@@ -1,6 +1,6 @@
 package debug;
 
-import backend.kernels.cpu.CpuExecutionMode;
+import backend.cpu.kernels.CpuExecutionMode;
 import backend.ApproxMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
@@ -130,7 +130,7 @@ final class FusedParallelVectorDumpTest {
                 fused.getPlan().inputCount(),
                 dataType == DataType.BFLOAT16
                         ? "BF16 generated class now emits a real Vector API range loop using FloatVector lanes plus BF16 storage conversion helpers."
-                        : "F32/F64 generated class contains a real Vector API range loop; parallel scheduling happens in backend.kernels.cpu.fused.FusedExecutor."
+                        : "F32/F64 generated class contains a real Vector API range loop; parallel scheduling happens in backend.cpu.kernels.fused.FusedExecutor."
         );
 
         Path metadataPath = OUTPUT_DIR.resolve(binaryName.replace('.', '/') + ".metadata.txt");

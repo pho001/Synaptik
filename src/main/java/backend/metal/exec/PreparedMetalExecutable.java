@@ -4,7 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
-import backend.kernels.cpu.CpuNodeExecutionPlan;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
 import backend.metal.bridge.MetalMpsGraphBridge;

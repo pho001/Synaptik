@@ -89,7 +89,7 @@ public final class ExecutionContext {
         return executionState.runtimeTensorForNodeId(nodeId);
     }
 
-    public backend.kernels.cpu.CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
+    public backend.cpu.kernels.CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
         if (executionState == null) {
             return null;
         }

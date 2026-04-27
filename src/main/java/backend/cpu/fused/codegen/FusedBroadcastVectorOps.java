@@ -54,7 +54,7 @@ public final class FusedBroadcastVectorOps {
     public static Object loadVectorBF16(FusedBroadcastCursor cursor, short[] input, int width) {
         VectorSpecies<Float> species = speciesF32(width);
         if (cursor.isScalarBroadcast()) {
-            return FloatVector.broadcast(species, backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(input[cursor.idx()]));
+            return FloatVector.broadcast(species, backend.cpu.kernels.CpuDTypeOps.fromBFloat16Bits(input[cursor.idx()]));
         }
         float[] scratch = new float[species.length()];
         if (cursor.staysWithinInnermostDimension(species.length())) {
@@ -62,18 +62,18 @@ public final class FusedBroadcastVectorOps {
             int laneStride = cursor.innermostLaneStride();
             cursor.advance(species.length());
             if (laneStride == 0) {
-                return FloatVector.broadcast(species, backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(input[base]));
+                return FloatVector.broadcast(species, backend.cpu.kernels.CpuDTypeOps.fromBFloat16Bits(input[base]));
             }
             if (laneStride == 1) {
                 for (int lane = 0; lane < species.length(); lane++) {
-                    scratch[lane] = backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(input[base + lane]);
+                    scratch[lane] = backend.cpu.kernels.CpuDTypeOps.fromBFloat16Bits(input[base + lane]);
                 }
                 return FloatVector.fromArray(species, scratch, 0);
             }
         }
         int[] idx = cursor.nextIndices(species.length());
         for (int lane = 0; lane < species.length(); lane++) {
-            scratch[lane] = backend.kernels.cpu.CpuDTypeOps.fromBFloat16Bits(input[idx[lane]]);
+            scratch[lane] = backend.cpu.kernels.CpuDTypeOps.fromBFloat16Bits(input[idx[lane]]);
         }
         return FloatVector.fromArray(species, scratch, 0);
     }

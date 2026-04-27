@@ -1,6 +1,6 @@
 package backend.cpu.fused.plan;
 
-import backend.kernels.cpu.ResolvedCpuComputeContract;
+import backend.cpu.kernels.ResolvedCpuComputeContract;
 
 import java.util.Objects;
 
