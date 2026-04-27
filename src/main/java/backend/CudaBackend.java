@@ -5,8 +5,8 @@ import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import operations.Operation;
 import tensor.Tensor;
-import backend.kernels.cuda.CudaKernel;
-import backend.registry.CudaKernelRegistry;
+import backend.cuda.kernels.CudaKernel;
+import backend.cuda.registry.CudaKernelRegistry;
 
 import java.util.List;
 

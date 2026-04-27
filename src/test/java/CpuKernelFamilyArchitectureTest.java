@@ -1,5 +1,5 @@
 import backend.kernels.cpu.CpuKernel;
-import backend.registry.CpuKernelResolver;
+import backend.cpu.registry.CpuKernelResolver;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 

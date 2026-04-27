@@ -1,4 +1,4 @@
-package backend.kernels.opencl;
+package backend.opencl.kernels;
 
 import operations.Operation;
 import tensor.Tensor;

@@ -1,7 +1,7 @@
-package backend.registry;
+package backend.opencl.registry;
 
-import backend.kernels.opencl.OpenClKernel;
-import backend.kernels.opencl.OpenClNoopKernel;
+import backend.opencl.kernels.OpenClKernel;
+import backend.opencl.kernels.OpenClNoopKernel;
 import operations.Operation;
 
 import java.util.EnumMap;

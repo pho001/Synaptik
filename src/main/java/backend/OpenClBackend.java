@@ -1,8 +1,8 @@
 package backend;
 
 import backend.runtime.ExecutionContext;
-import backend.kernels.opencl.OpenClKernel;
-import backend.registry.OpenClKernelRegistry;
+import backend.opencl.kernels.OpenClKernel;
+import backend.opencl.registry.OpenClKernelRegistry;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import tensor.Tensor;

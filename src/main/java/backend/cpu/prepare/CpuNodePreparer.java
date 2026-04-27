@@ -13,7 +13,7 @@ import backend.kernels.cpu.plan.CpuExecutionPlanner;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
-import backend.registry.CpuKernelResolver;
+import backend.cpu.registry.CpuKernelResolver;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import backend.cpu.fused.exec.FusedExecutionBackendResolver;

@@ -1,7 +1,7 @@
-package backend.registry;
+package backend.cuda.registry;
 
-import backend.kernels.cuda.CudaKernel;
-import backend.kernels.cuda.CudaNoopKernel;
+import backend.cuda.kernels.CudaKernel;
+import backend.cuda.kernels.CudaNoopKernel;
 import operations.Operation;
 
 import java.util.EnumMap;

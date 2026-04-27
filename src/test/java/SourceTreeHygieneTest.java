@@ -431,18 +431,18 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void backendRegistryContainsOnlyKnownMigrationRegistries() throws IOException {
-        Set<String> knownMigrationRegistries = Set.of(
-                "CpuKernelResolver.java",
-                "CudaKernelRegistry.java",
-                "OpenClKernelRegistry.java"
-        );
-        List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/registry")).stream()
-                .map(path -> Path.of(path).getFileName().toString())
-                .filter(name -> !knownMigrationRegistries.contains(name))
-                .sorted()
-                .toList();
-        assertTrue(offenders.isEmpty(), () -> "Generic backend.registry is scheduled for deletion; do not add new registries there: " + offenders);
+    void backendRegistryPackageIsRemoved() throws IOException {
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/registry"));
+        assertTrue(offenders.isEmpty(), () -> "Backend-specific registries belong under backend.<target>.registry: " + offenders);
+    }
+
+    @Test
+    void cudaAndOpenClKernelsLiveUnderBackendRoots() throws IOException {
+        List<String> offenders = javaFilesUnderRoots(List.of(
+                Path.of("src/main/java/backend/kernels/cuda"),
+                Path.of("src/main/java/backend/kernels/opencl")
+        ));
+        assertTrue(offenders.isEmpty(), () -> "CUDA/OpenCL kernels belong under backend.<target>.kernels: " + offenders);
     }
 
     @Test

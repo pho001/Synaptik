@@ -1,4 +1,4 @@
-package backend.registry;
+package backend.cpu.registry;
 
 import backend.kernels.cpu.CpuKernel;
 import backend.kernels.cpu.elementwise.binary.*;

@@ -1,4 +1,4 @@
-package backend.kernels.cuda;
+package backend.cuda.kernels;
 
 import operations.Operation;
 import tensor.Tensor;
