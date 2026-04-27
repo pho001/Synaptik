@@ -2,16 +2,16 @@ import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
-import tuning.session.PlatformCalibrationProgressEvent;
-import tuning.session.PlatformCalibrationProgressPhase;
-import tuning.session.PlatformCalibrationRequest;
-import tuning.session.PlatformCalibrationSession;
-import tuning.session.PlatformCalibrationStep;
-import tuning.session.PlatformCalibrationFamily;
-import tuning.session.PlatformCalibrationScorePolicy;
-import tuning.session.PlatformRuntimeProfileGridCandidateSpace;
-import tuning.session.PlatformRuntimeProfileMutators;
-import tuning.session.TuningPreset;
+import tuning.calibration.progress.PlatformCalibrationProgressEvent;
+import tuning.calibration.progress.PlatformCalibrationProgressPhase;
+import tuning.calibration.PlatformCalibrationRequest;
+import tuning.calibration.PlatformCalibrationSession;
+import tuning.calibration.PlatformCalibrationStep;
+import tuning.calibration.family.CalibrationFamilyId;
+import tuning.calibration.PlatformCalibrationScorePolicy;
+import tuning.calibration.runtime.PlatformRuntimeProfileGridCandidateSpace;
+import tuning.calibration.runtime.PlatformRuntimeProfileMutators;
+import tuning.preset.TuningPreset;
 import tuning.workload.CalibrationWorkloads;
 
 import java.nio.file.Files;
@@ -40,12 +40,12 @@ public class PlatformCalibrationProgressListenerTest {
                 List.of(
                         new PlatformCalibrationStep(
                                 "matmul-step",
-                                PlatformCalibrationFamily.MATMUL,
+                                CalibrationFamilyId.MATMUL,
                                 List.of(CalibrationWorkloads.matmulSquare("matmul_step", 16)),
                                 TuningPreset.QUICK,
                                 profile -> new PlatformRuntimeProfileGridCandidateSpace(
                                         profile,
-                                        List.of(PlatformRuntimeProfileMutators.blasThreads(List.of(0)))
+                                        List.of(PlatformRuntimeProfileMutators.matmulParallelThresholds(List.of(100_000)))
                                 ),
                                 PlatformCalibrationScorePolicy.averageMedianMs()
                         )

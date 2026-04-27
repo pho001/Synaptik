@@ -1,7 +1,7 @@
 package tuning.store;
 
-import tuning.report.BenchmarkReport;
-import tuning.report.BenchmarkSuiteReport;
+import tuning.benchmark.report.BenchmarkReport;
+import tuning.benchmark.report.BenchmarkSuiteReport;
 
 import java.nio.file.Path;
 

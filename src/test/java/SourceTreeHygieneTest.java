@@ -222,6 +222,57 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void tuningProductionPackagesDoNotUseLegacySessionOrReportBuckets() throws IOException {
+        List<String> legacyDirs = List.of(
+                        Path.of("src/main/java/tuning/session"),
+                        Path.of("src/main/java/tuning/report")
+                ).stream()
+                .filter(Files::exists)
+                .flatMap(path -> {
+                    try {
+                        return javaFilesUnder(path).stream();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .sorted()
+                .toList();
+        assertTrue(legacyDirs.isEmpty(), () -> "Legacy tuning package directories still contain Java files: " + legacyDirs);
+
+        List<String> offenders = linesContainingAny(
+                List.of(Path.of("src/main/java")),
+                List.of("package tuning.session;", "import tuning.session.", "package tuning.report;", "import tuning.report.")
+        );
+        assertTrue(offenders.isEmpty(), () -> "Production code still references legacy tuning packages: " + offenders);
+    }
+
+    @Test
+    void calibrationDoesNotExposeRemovedFamiliesOrMigrationFallbacks() throws IOException {
+        List<String> offenders = sourceLinesContaining(
+                List.of(Path.of("src/main/java/tuning"), Path.of("README.md")),
+                List.of(
+                        "PlatformCalibrationFamily",
+                        "FUSED_ARITHMETIC",
+                        "FUSED_THRESHOLDS",
+                        "CONV2D_GEMM_DISPATCH_F64",
+                        "CONV2D_GEMM_DISPATCH_F32",
+                        "CONV2D_GEMM_DISPATCH_BF16",
+                        "NUMERICS",
+                        "ACCELERATOR_METAL_SELECTION",
+                        "build/platform-calibration",
+                        "CalibrationFamilyTarget",
+                        "PlatformCalibrationRunner",
+                        "runtime.blas.minWork",
+                        "cpu.materialization.cheap",
+                        "cpu.materialization.where",
+                        "numericsStep",
+                        "PlatformRuntimeProfileMutators.blasThreads"
+                )
+        );
+        assertTrue(offenders.isEmpty(), () -> "Removed calibration surfaces remain: " + offenders);
+    }
+
+    @Test
     void graphPackageDoesNotOwnCpuFusedOptimizationPolicy() throws IOException {
         List<String> offenders = javaFilesUnder(Path.of("src/main/java/graph/optimizer/fusion"));
         assertTrue(offenders.isEmpty(), () -> "CPU fused optimization policy belongs under backend.cpu.fused.optimize: " + offenders);
@@ -526,6 +577,30 @@ public class SourceTreeHygieneTest {
         assertTrue(offenders.isEmpty(), () -> "Removed Apple migration names remain in Java backend/test source: " + offenders);
     }
 
+    @Test
+    void graphAutotuneCandidatePackageDoesNotImportRuntimeOrBackendConfig() throws IOException {
+        List<String> offenders = linesContainingAny(
+                Path.of("src/main/java/tuning/candidate/graph"),
+                List.of(
+                        "import config.runtime.",
+                        "import config.backend."
+                )
+        );
+        assertTrue(offenders.isEmpty(), () -> "Graph autotune candidates must not import runtime/backend config: " + offenders);
+    }
+
+    @Test
+    void productionAutotuneDoesNotReferenceStageOrderCandidateSpace() throws IOException {
+        Path main = Path.of("src/main/java/synaptik/app/Main.java");
+        String source = Files.readString(main);
+        assertTrue(!Files.exists(Path.of("src/main/java/tuning/candidate/ProfileMutators.java")), "Old mixed ProfileMutators surface must not remain.");
+        assertTrue(!source.contains("ProfileMutators"), "Production CLI autotune must not use explicit profile mutators.");
+        assertTrue(!source.contains("stageCandidateSpace"), "Production CLI autotune must not use stage candidate space.");
+        assertTrue(!source.contains("constrainedStageOrderSpace"), "Production CLI autotune must not use stage-order mutators.");
+        assertTrue(!source.contains("stageOrders("), "Production CLI autotune must not use stage-order mutators.");
+        assertTrue(!source.contains("benchmark-stage-space"), "Removed stage-space CLI command must not remain.");
+    }
+
     private static void assertGraphPartitionBackendPackageAbsent(String packageName, String message) throws IOException {
         List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
         try (Stream<Path> paths = roots.stream()
@@ -615,6 +690,37 @@ public class SourceTreeHygieneTest {
             return paths
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> patterns.stream().anyMatch(line::contains))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+        }
+    }
+
+    private static List<String> sourceLinesContaining(List<Path> roots, List<String> patterns) throws IOException {
+        try (Stream<Path> paths = roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.isRegularFile(root) ? Stream.of(root) : Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String value = path.toString();
+                        return value.endsWith(".java") || value.endsWith(".md");
+                    })
                     .filter(path -> !path.getFileName().toString().equals("SourceTreeHygieneTest.java"))
                     .flatMap(path -> {
                         try {

@@ -3,10 +3,10 @@ import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.candidate.ListCandidateSpace;
-import tuning.session.BenchmarkEntry;
-import tuning.session.TuningDefaults;
-import tuning.session.TuningPreset;
-import tuning.session.WorkloadPresetFamily;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.autotune.TuningDefaults;
+import tuning.preset.TuningPreset;
+import tuning.autotune.WorkloadPresetFamily;
 import tuning.validate.ValidationToleranceProfile;
 
 import java.util.List;

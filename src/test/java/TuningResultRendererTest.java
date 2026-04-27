@@ -2,11 +2,11 @@ import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
-import tuning.report.BenchmarkCandidateReport;
-import tuning.report.JsonTuningResultRenderer;
-import tuning.report.TextTuningResultRenderer;
-import tuning.report.TuningSummary;
-import tuning.session.TuningResult;
+import tuning.benchmark.report.BenchmarkCandidateReport;
+import tuning.autotune.report.JsonTuningResultRenderer;
+import tuning.autotune.report.TextTuningResultRenderer;
+import tuning.autotune.report.TuningSummary;
+import tuning.autotune.TuningResult;
 
 import java.util.List;
 

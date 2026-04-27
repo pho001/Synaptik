@@ -1,9 +1,9 @@
 package tuning.etalon;
 
-import tuning.report.JsonBenchmarkSuiteReportRenderer;
-import tuning.report.TextBenchmarkSuiteReportRenderer;
-import tuning.session.BenchmarkSuiteSession;
-import tuning.session.TuningPreset;
+import tuning.benchmark.report.JsonBenchmarkSuiteReportRenderer;
+import tuning.benchmark.report.TextBenchmarkSuiteReportRenderer;
+import tuning.benchmark.BenchmarkSuiteSession;
+import tuning.preset.TuningPreset;
 import tuning.store.JsonFileBenchmarkReportStore;
 
 import java.nio.file.Path;

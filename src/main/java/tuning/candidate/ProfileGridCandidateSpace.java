@@ -70,7 +70,7 @@ public final class ProfileGridCandidateSpace implements RefinableCandidateSpace 
         Objects.requireNonNull(candidate, "candidate cannot be null");
         Objects.requireNonNull(workload, "workload cannot be null");
         List<Candidate> neighbors = new ArrayList<>();
-        String self = CandidateFingerprint.of(candidate);
+        String self = ExecutableProfileFingerprint.of(candidate);
         java.util.LinkedHashMap<String, Candidate> dedup = new java.util.LinkedHashMap<>();
         for (ExecutionProfileMutator mutator : mutators) {
             List<ExecutionProfileVariant> variants = mutator.variants(candidate.profile(), workload);
@@ -79,7 +79,7 @@ public final class ProfileGridCandidateSpace implements RefinableCandidateSpace 
             }
             for (ExecutionProfileVariant variant : variants) {
                 Candidate next = new Candidate(variant.suffix(), variant.profile());
-                String fp = CandidateFingerprint.of(next);
+                String fp = ExecutableProfileFingerprint.of(next);
                 if (self.equals(fp)) {
                     continue;
                 }

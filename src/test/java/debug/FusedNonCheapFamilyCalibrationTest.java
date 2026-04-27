@@ -11,19 +11,19 @@ import config.profile.PlatformRuntimeProfileIO;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tuning.report.TextBenchmarkReportRenderer;
-import tuning.report.TextBenchmarkSuiteReportRenderer;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSession;
-import tuning.session.BenchmarkSuiteRequest;
-import tuning.session.BenchmarkSuiteSession;
-import tuning.session.PlatformCalibrationDefaults;
-import tuning.session.PlatformCalibrationScore;
-import tuning.session.PlatformCalibrationStep;
-import tuning.session.RuntimeProfileCandidate;
-import tuning.store.PlatformCalibrationLayout;
-import tuning.store.PlatformCalibrationPaths;
+import tuning.benchmark.report.TextBenchmarkReportRenderer;
+import tuning.benchmark.report.TextBenchmarkSuiteReportRenderer;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSession;
+import tuning.benchmark.BenchmarkSuiteRequest;
+import tuning.benchmark.BenchmarkSuiteSession;
+import tuning.calibration.PlatformCalibrationDefaults;
+import tuning.calibration.PlatformCalibrationScore;
+import tuning.calibration.PlatformCalibrationStep;
+import tuning.calibration.runtime.RuntimeProfileCandidate;
+import tuning.calibration.store.PlatformCalibrationLayout;
+import tuning.calibration.store.PlatformCalibrationPaths;
 import tuning.workload.CalibrationWorkloads;
 import tuning.workload.WorkloadSpec;
 
@@ -57,7 +57,7 @@ final class FusedNonCheapFamilyCalibrationTest {
                 "FUSED_NON_CHEAP_CONTIGUOUS_CALIBRATION",
                 PlatformCalibrationDefaults.fusedNonCheapContiguousStep(
                         "fused_noncheap_contiguous_family",
-                        tuning.session.TuningPreset.BALANCED,
+                        tuning.preset.TuningPreset.BALANCED,
                         DataType.FLOAT32
                 ),
                 current,
@@ -68,7 +68,7 @@ final class FusedNonCheapFamilyCalibrationTest {
                 "FUSED_NON_CHEAP_STRIDED_CALIBRATION",
                 PlatformCalibrationDefaults.fusedNonCheapStridedStep(
                         "fused_noncheap_strided_family",
-                        tuning.session.TuningPreset.BALANCED,
+                        tuning.preset.TuningPreset.BALANCED,
                         DataType.FLOAT32
                 ),
                 current,
@@ -172,7 +172,7 @@ final class FusedNonCheapFamilyCalibrationTest {
                 ),
                 MEASUREMENT,
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         );
 
         var report = BenchmarkSession.create(request).run();
@@ -183,7 +183,7 @@ final class FusedNonCheapFamilyCalibrationTest {
     private static PlatformCalibrationScore candidateScore(
             String candidateName,
             PlatformCalibrationStep step,
-            tuning.report.BenchmarkSuiteReport suiteReport
+            tuning.benchmark.report.BenchmarkSuiteReport suiteReport
     ) {
         PlatformCalibrationScore score = step.scorePolicy().score(candidateName, suiteReport);
         if (!score.valid()) {

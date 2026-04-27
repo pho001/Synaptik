@@ -4,15 +4,15 @@ import config.profile.PlatformRuntimeProfileIO;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
-import tuning.session.PlatformCalibrationFamily;
-import tuning.session.PlatformCalibrationDefaults;
-import tuning.session.PlatformCalibrationRequest;
-import tuning.session.PlatformCalibrationScorePolicy;
-import tuning.session.PlatformCalibrationSession;
-import tuning.session.PlatformCalibrationStep;
-import tuning.session.PlatformRuntimeProfileGridCandidateSpace;
-import tuning.session.PlatformRuntimeProfileMutators;
-import tuning.session.TuningPreset;
+import tuning.calibration.family.CalibrationFamilyId;
+import tuning.calibration.PlatformCalibrationDefaults;
+import tuning.calibration.PlatformCalibrationRequest;
+import tuning.calibration.PlatformCalibrationScorePolicy;
+import tuning.calibration.PlatformCalibrationSession;
+import tuning.calibration.PlatformCalibrationStep;
+import tuning.calibration.runtime.PlatformRuntimeProfileGridCandidateSpace;
+import tuning.calibration.runtime.PlatformRuntimeProfileMutators;
+import tuning.preset.TuningPreset;
 import tuning.workload.CalibrationWorkloads;
 
 import java.nio.file.Files;
@@ -44,13 +44,13 @@ public class PlatformCalibrationSessionTest {
                 List.of(
                         new PlatformCalibrationStep(
                                 "matmul-step",
-                                PlatformCalibrationFamily.MATMUL,
+                                CalibrationFamilyId.MATMUL,
                                 List.of(CalibrationWorkloads.matmulSquare("matmul_step", 16)),
                                 TuningPreset.QUICK,
                                 base -> new PlatformRuntimeProfileGridCandidateSpace(
                                         base,
                                         List.of(
-                                                PlatformRuntimeProfileMutators.blasThreads(List.of(0))
+                                                PlatformRuntimeProfileMutators.matmulParallelThresholds(List.of(100_000))
                                         )
                                 ),
                                 PlatformCalibrationScorePolicy.averageMedianMs()
@@ -154,7 +154,7 @@ public class PlatformCalibrationSessionTest {
     }
 
     @Test
-    void float32DefaultsIncludeAcceleratorMetalSelectionStepButFloat64DefaultsDoNot() {
+    void defaultCalibrationDoesNotIncludeAcceleratorMetalSelectionStep() {
         ExecutionProfile float32Seed = new ExecutionProfile(
                 "seed-f32",
                 "seed-f32",
@@ -177,8 +177,8 @@ public class PlatformCalibrationSessionTest {
         var float32Request = PlatformCalibrationDefaults.quickInference("platform", float32Seed, Path.of("build", "tmp", "float32-calibration.json"));
         var float64Request = PlatformCalibrationDefaults.quickInference("platform", float64Seed, Path.of("build", "tmp", "float64-calibration.json"));
 
-        assertTrue(float32Request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ACCELERATOR_METAL_SELECTION));
-        assertFalse(float64Request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ACCELERATOR_METAL_SELECTION));
+        assertFalse(float32Request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.METAL_SELECTION));
+        assertFalse(float64Request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.METAL_SELECTION));
     }
 
     private static ExecutionProfile defaultSeed() {

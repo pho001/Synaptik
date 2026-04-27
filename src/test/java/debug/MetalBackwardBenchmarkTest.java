@@ -10,10 +10,10 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tuning.report.TextBenchmarkReportRenderer;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSession;
+import tuning.benchmark.report.TextBenchmarkReportRenderer;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSession;
 import tuning.validate.ValidationPolicy;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadEnvironment;
@@ -71,7 +71,7 @@ final class MetalBackwardBenchmarkTest {
                 ),
                 MEASUREMENT,
                 ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         );
 
         var report = BenchmarkSession.create(request).run();

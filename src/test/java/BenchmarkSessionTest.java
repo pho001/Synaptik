@@ -4,12 +4,12 @@ import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tuning.report.BenchmarkReport;
-import tuning.report.JsonBenchmarkReportRenderer;
-import tuning.report.TextBenchmarkReportRenderer;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSession;
+import tuning.benchmark.report.BenchmarkReport;
+import tuning.benchmark.report.JsonBenchmarkReportRenderer;
+import tuning.benchmark.report.TextBenchmarkReportRenderer;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSession;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
@@ -53,7 +53,7 @@ public class BenchmarkSessionTest {
                 List.of(candidate),
                 new tuning.measure.MeasurementPolicy(1, 2, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         );
 
         BenchmarkReport report = BenchmarkSession.create(request).run();
@@ -96,7 +96,7 @@ public class BenchmarkSessionTest {
                 List.of(baseline, tuned),
                 new tuning.measure.MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         )).run();
 
         assertTrue(report.baseline().isPresent());
@@ -130,7 +130,7 @@ public class BenchmarkSessionTest {
                 List.of(candidate),
                 new tuning.measure.MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         )).run();
 
         String rendered = TextBenchmarkReportRenderer.render(report);
@@ -169,7 +169,7 @@ public class BenchmarkSessionTest {
                 List.of(candidate),
                 new tuning.measure.MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         )).run();
 
         String json = JsonBenchmarkReportRenderer.render(report);
@@ -198,12 +198,12 @@ public class BenchmarkSessionTest {
         BenchmarkReport report = BenchmarkReport.of(
                 "manual_report",
                 List.of(
-                        tuning.report.BenchmarkCandidateReport.failure(
+                        tuning.benchmark.report.BenchmarkCandidateReport.failure(
                                 baseline,
                                 tuning.validate.ValidationResult.failure("boom"),
                                 "boom"
                         ),
-                        tuning.report.BenchmarkCandidateReport.success(
+                        tuning.benchmark.report.BenchmarkCandidateReport.success(
                                 candidate,
                                 tuning.validate.ValidationResult.skipped(),
                                 new tuning.measure.MeasurementResult(

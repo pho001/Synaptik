@@ -1,6 +1,6 @@
 package tuning.search;
 
-import tuning.report.BenchmarkCandidateReport;
+import tuning.benchmark.report.BenchmarkCandidateReport;
 
 public final class ZeroBoundModel implements CandidateBoundModel {
     @Override

@@ -1,0 +1,13 @@
+package tuning.autotune;
+
+public enum AutotuneProgressPhase {
+    STARTED,
+    SEARCH_BATCH,
+    CANDIDATE_VALIDATING,
+    CANDIDATE_INVALID,
+    CANDIDATE_MEASURING,
+    CANDIDATE_MEASURED,
+    CANDIDATE_FAILED,
+    ROUND_COMPLETED,
+    COMPLETED
+}

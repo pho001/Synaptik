@@ -5,9 +5,9 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.candidate.Candidate;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSession;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSession;
 import tuning.validate.DefaultValidationEngine;
 import tuning.validate.TensorSnapshot;
 import tuning.validate.ValidationPolicy;
@@ -143,7 +143,7 @@ public class ValidationEngineTest {
                 List.of(BenchmarkEntry.candidate(candidate.name(), candidate.profile())),
                 tuning.measure.MeasurementPolicy.defaults(),
                 ValidationPolicy.defaults(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         )).run();
 
         assertEquals(1, report.candidates().size());

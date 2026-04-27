@@ -12,19 +12,19 @@ import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tuning.report.TextBenchmarkReportRenderer;
-import tuning.report.TextBenchmarkSuiteReportRenderer;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSession;
-import tuning.session.BenchmarkSuiteRequest;
-import tuning.session.BenchmarkSuiteSession;
-import tuning.session.PlatformCalibrationDefaults;
-import tuning.session.PlatformCalibrationScore;
-import tuning.session.PlatformCalibrationStep;
-import tuning.session.RuntimeProfileCandidate;
-import tuning.store.PlatformCalibrationLayout;
-import tuning.store.PlatformCalibrationPaths;
+import tuning.benchmark.report.TextBenchmarkReportRenderer;
+import tuning.benchmark.report.TextBenchmarkSuiteReportRenderer;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSession;
+import tuning.benchmark.BenchmarkSuiteRequest;
+import tuning.benchmark.BenchmarkSuiteSession;
+import tuning.calibration.PlatformCalibrationDefaults;
+import tuning.calibration.PlatformCalibrationScore;
+import tuning.calibration.PlatformCalibrationStep;
+import tuning.calibration.runtime.RuntimeProfileCandidate;
+import tuning.calibration.store.PlatformCalibrationLayout;
+import tuning.calibration.store.PlatformCalibrationPaths;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 
@@ -59,7 +59,7 @@ final class AttentionMatMulFamilyCalibrationTest {
         );
         PlatformRuntimeProfile current = PlatformRuntimeProfileIO.loadOrDefault(layout.profilePath(), fallback);
 
-        PlatformCalibrationStep step = PlatformCalibrationDefaults.attentionMatmulStep("attention_matmul_family", tuning.session.TuningPreset.BALANCED);
+        PlatformCalibrationStep step = PlatformCalibrationDefaults.attentionMatmulStep("attention_matmul_family", tuning.preset.TuningPreset.BALANCED);
         List<RuntimeProfileCandidate> generated = step.candidateSpaceFactory().create(current).generate(step.workloads().get(0));
         List<BenchmarkEntry> calibrationEntries = generated.stream()
                 .map(candidate -> BenchmarkEntry.candidate(
@@ -120,7 +120,7 @@ final class AttentionMatMulFamilyCalibrationTest {
                 ),
                 MEASUREMENT,
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         );
         var benchmarkReport = BenchmarkSession.create(benchmarkRequest).run();
         System.out.println("ATTENTION_AFTER_ATTENTION_MATMUL_CALIBRATION");
@@ -130,7 +130,7 @@ final class AttentionMatMulFamilyCalibrationTest {
     private static PlatformCalibrationScore candidateScore(
             String candidateName,
             PlatformCalibrationStep step,
-            tuning.report.BenchmarkSuiteReport suiteReport
+            tuning.benchmark.report.BenchmarkSuiteReport suiteReport
     ) {
         PlatformCalibrationScore score = step.scorePolicy().score(candidateName, suiteReport);
         if (!score.valid()) {

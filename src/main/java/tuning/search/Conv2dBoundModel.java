@@ -1,6 +1,6 @@
 package tuning.search;
 
-import tuning.report.BenchmarkCandidateReport;
+import tuning.benchmark.report.BenchmarkCandidateReport;
 
 public final class Conv2dBoundModel implements CandidateBoundModel {
     @Override

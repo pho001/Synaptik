@@ -6,7 +6,7 @@ import tuning.candidate.Candidate;
 import tuning.candidate.CandidateFingerprint;
 import tuning.candidate.ListCandidateSpace;
 import tuning.candidate.ProfileGridCandidateSpace;
-import tuning.candidate.ProfileMutators;
+import tuning.candidate.explicit.ExplicitProfileMutators;
 import tuning.search.BestFirstTreeSearchStrategy;
 import tuning.search.BranchAndBoundSearchStrategy;
 import tuning.search.MedianSteadyStateScoreModel;
@@ -20,7 +20,7 @@ import tuning.search.RefinementSearchStrategy;
 import tuning.search.SearchContext;
 import tuning.search.TextSearchTreeReportRenderer;
 import tuning.search.TreeBeamSearchStrategy;
-import tuning.session.AutotuneRequest;
+import tuning.autotune.AutotuneRequest;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 
@@ -76,7 +76,7 @@ public class SearchStrategiesTest {
         );
         var space = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                List.of(ExplicitProfileMutators.conv2dLoweringModes(List.of(
                         config.optimizer.Conv2dLoweringMode.HEURISTIC,
                         config.optimizer.Conv2dLoweringMode.OFF,
                         config.optimizer.Conv2dLoweringMode.ALWAYS
@@ -96,7 +96,7 @@ public class SearchStrategiesTest {
         assertEquals(1, initial.selectedCandidates().size());
 
         var measured = java.util.List.of(
-                tuning.report.BenchmarkCandidateReport.success(
+                tuning.benchmark.report.BenchmarkCandidateReport.success(
                         initial.selectedCandidates().getFirst(),
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
@@ -138,7 +138,7 @@ public class SearchStrategiesTest {
         );
         var space = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                List.of(ExplicitProfileMutators.conv2dLoweringModes(List.of(
                         config.optimizer.Conv2dLoweringMode.HEURISTIC,
                         config.optimizer.Conv2dLoweringMode.OFF,
                         config.optimizer.Conv2dLoweringMode.ALWAYS
@@ -159,7 +159,7 @@ public class SearchStrategiesTest {
         assertEquals(1, strategy.snapshot().nodes().size());
 
         var measured = java.util.List.of(
-                tuning.report.BenchmarkCandidateReport.success(
+                tuning.benchmark.report.BenchmarkCandidateReport.success(
                         initial.selectedCandidates().getFirst(),
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
@@ -201,7 +201,7 @@ public class SearchStrategiesTest {
         );
         var space = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                List.of(ExplicitProfileMutators.conv2dLoweringModes(List.of(
                         config.optimizer.Conv2dLoweringMode.HEURISTIC,
                         config.optimizer.Conv2dLoweringMode.OFF
                 )))
@@ -245,7 +245,7 @@ public class SearchStrategiesTest {
         );
         var space = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                List.of(ExplicitProfileMutators.conv2dLoweringModes(List.of(
                         config.optimizer.Conv2dLoweringMode.HEURISTIC,
                         config.optimizer.Conv2dLoweringMode.OFF,
                         config.optimizer.Conv2dLoweringMode.ALWAYS
@@ -300,7 +300,7 @@ public class SearchStrategiesTest {
         );
         var space = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                List.of(ExplicitProfileMutators.conv2dLoweringModes(List.of(
                         config.optimizer.Conv2dLoweringMode.HEURISTIC,
                         config.optimizer.Conv2dLoweringMode.OFF,
                         config.optimizer.Conv2dLoweringMode.ALWAYS
@@ -425,8 +425,8 @@ public class SearchStrategiesTest {
         );
     }
 
-    private static tuning.report.BenchmarkCandidateReport report(Candidate candidate, double medianMs) {
-        return tuning.report.BenchmarkCandidateReport.success(
+    private static tuning.benchmark.report.BenchmarkCandidateReport report(Candidate candidate, double medianMs) {
+        return tuning.benchmark.report.BenchmarkCandidateReport.success(
                 candidate,
                 tuning.validate.ValidationResult.skipped(),
                 new tuning.measure.MeasurementResult(

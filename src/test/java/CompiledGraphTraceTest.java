@@ -77,7 +77,7 @@ public class CompiledGraphTraceTest {
                 WorkloadProfile.none()
         );
 
-        tuning.session.TuningResult result = tuning.session.AutotuneSession.create(new tuning.session.AutotuneRequest(
+        tuning.autotune.TuningResult result = tuning.autotune.AutotuneSession.create(new tuning.autotune.AutotuneRequest(
                 new tuning.workload.TensorRootWorkloadSpec(
                         "delegate_workload",
                         tuning.workload.WorkloadKind.GENERIC,

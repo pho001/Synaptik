@@ -12,10 +12,10 @@ import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;
 import tuning.measure.MeasurementPolicy;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkSuiteRequest;
-import tuning.session.TuningDefaults;
-import tuning.session.TuningPreset;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkSuiteRequest;
+import tuning.autotune.TuningDefaults;
+import tuning.preset.TuningPreset;
 import tuning.workload.StandardWorkloads;
 import tuning.workload.WorkloadSpec;
 

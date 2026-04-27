@@ -12,12 +12,12 @@ import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import tuning.report.TextBenchmarkReportRenderer;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSession;
-import tuning.store.PlatformCalibrationLayout;
-import tuning.store.PlatformCalibrationPaths;
+import tuning.benchmark.report.TextBenchmarkReportRenderer;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSession;
+import tuning.calibration.store.PlatformCalibrationLayout;
+import tuning.calibration.store.PlatformCalibrationPaths;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 
@@ -77,7 +77,7 @@ final class AttentionCurrentProfileBenchmarkTest {
                 ),
                 MEASUREMENT,
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         );
 
         var report = BenchmarkSession.create(request).run();

@@ -5,12 +5,12 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.measure.MeasurementPolicy;
-import tuning.report.BenchmarkSuiteReport;
-import tuning.report.JsonBenchmarkSuiteReportRenderer;
-import tuning.report.TextBenchmarkSuiteReportRenderer;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkSuiteRequest;
-import tuning.session.BenchmarkSuiteSession;
+import tuning.benchmark.report.BenchmarkSuiteReport;
+import tuning.benchmark.report.JsonBenchmarkSuiteReportRenderer;
+import tuning.benchmark.report.TextBenchmarkSuiteReportRenderer;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkSuiteRequest;
+import tuning.benchmark.BenchmarkSuiteSession;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadCatalog;
 import tuning.workload.WorkloadKind;
@@ -54,7 +54,7 @@ public class BenchmarkSuiteSessionTest {
                 List.of(baseline),
                 new MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         );
 
         BenchmarkSuiteReport report = BenchmarkSuiteSession.create(request).run();
@@ -98,7 +98,7 @@ public class BenchmarkSuiteSessionTest {
                         List.of(candidate),
                         new MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                         tuning.validate.ValidationPolicy.disabled(),
-                        tuning.report.ReportPolicy.defaults()
+                        tuning.reporting.ReportPolicy.defaults()
                 )
         ).run();
 
@@ -141,7 +141,7 @@ public class BenchmarkSuiteSessionTest {
                         List.of(candidate),
                         new MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                         tuning.validate.ValidationPolicy.disabled(),
-                        tuning.report.ReportPolicy.defaults()
+                        tuning.reporting.ReportPolicy.defaults()
                 )
         ).run();
 
@@ -180,7 +180,7 @@ public class BenchmarkSuiteSessionTest {
                 List.of(candidate),
                 new MeasurementPolicy(0, 1, 1, true, true, true, true, false),
                 tuning.validate.ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         )).run();
 
         assertEquals(1, report.workloadReports().getFirst().candidates().size());

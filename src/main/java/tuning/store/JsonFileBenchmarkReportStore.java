@@ -1,9 +1,9 @@
 package tuning.store;
 
-import tuning.report.BenchmarkReport;
-import tuning.report.BenchmarkSuiteReport;
-import tuning.report.JsonBenchmarkReportRenderer;
-import tuning.report.JsonBenchmarkSuiteReportRenderer;
+import tuning.benchmark.report.BenchmarkReport;
+import tuning.benchmark.report.BenchmarkSuiteReport;
+import tuning.benchmark.report.JsonBenchmarkReportRenderer;
+import tuning.benchmark.report.JsonBenchmarkSuiteReportRenderer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

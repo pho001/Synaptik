@@ -21,7 +21,8 @@ Current public matmul-related runtime knobs include:
 - `runtime.blas.matmulMinWork`
 - `runtime.blas.f32RequireMgeK`
 - `runtime.blas.f32MaxNOverK`
-- `runtime.blas.threads`
+- `runtime.blas.f32WideRequireMgeK`
+- `runtime.blas.f32WideMaxNOverK`
 - `cpu.matMulParallelMinSize`
 - `cpu.matMulTileM`
 - `cpu.matMulTileN`
@@ -31,15 +32,14 @@ Current public matmul-related runtime knobs include:
 - `cpu.attentionMatMulTileN`
 - `cpu.attentionMatMulTileK`
 - `cpu.attentionMatMulMicroKernel`
-- `cpu.attentionMatMulPolicy`
 
 Important current behavior:
 
 - `runtime.blas.threads` is canonicalized to `0`
 - `0` means provider-managed auto behavior
-- Synaptik does not maintain a separate global BLAS thread policy at runtime
+- Synaptik does not calibrate provider thread counts while this canonicalization exists
 
-### `CONV2D_GEMM_DISPATCH_*`
+### `CONV2D_GEMM_DISPATCH`
 
 Current conv2d dispatch knobs:
 
@@ -54,7 +54,7 @@ Current conv2d dispatch knobs:
 
 These affect lowered GEMM conv2d nodes, not the semantic decision to lower conv2d in the optimizer.
 
-### `FUSED_THRESHOLDS`
+### `FUSED_DISPATCH`
 
 - `cpu.fusedCheapVectorMinSize`
 - `cpu.fusedTranscendentalVectorMinSize`
@@ -108,28 +108,35 @@ These affect non-fused elementwise planning.
 ### `MATERIALIZATION`
 
 - `cpu.contiguousMaterializeThreshold`
-
-### `NUMERICS`
-
-- `runtime.approximation.approxMode`
-- `runtime.approximation.forceExactTranscendentals`
+- `cpu.cheapF64MaterializeThreshold`
+- `cpu.cheapF32MaterializeThreshold`
+- `cpu.cheapBF16MaterializeThreshold`
+- `cpu.whereMaterializeThreshold`
 
 ## Graph Policy Knobs
 
-These are graph-side knobs rather than platform-runtime knobs:
+These are graph-side configuration fields. They are not automatically production autotune knobs.
+
+Current standard production graph autotune exposes only:
+
+- `graphPolicy=current`
+
+The following graph-resident fields are research-only or excluded from standard graph autotune:
 
 - `optimizer.stageOrder`
-- `optimizer.rewrite.*`
-- `optimizer.cse.*`
-- `optimizer.fuse.*`
-- `optimizer.memory.*`
-
-Important examples:
-
+  - optimizer pipeline contract, not a tuning axis
 - `optimizer.rewrite.conv2dLowering.mode`
-- piecewise lowering flags
-- CSE strict vs aggressive safety
-- fusion score thresholds and max cluster size
+  - GEMM/BLAS/runtime-family proxy
+- `optimizer.fuse.*`
+  - persisted fields, but current production region optimization does not consume their scoring values
+- `optimizer.partition.*`
+  - accelerator/backend partition scoring and target policy
+- `optimizer.cse.strictSafety`
+  - research-only safety/correctness policy
+- `optimizer.rewrite.piecewiseLowering.*`
+  - research-only import/manual-graph canonicalization policy
+- `optimizer.memory.*`
+  - research-only at most; size/reuse fields are memory-system proxies
 
 ## Current Standard Calibration Ranges
 
@@ -319,10 +326,4 @@ This knob exists in the public config/profile surface for compatibility and expl
 - store only `0`
 - treat `0` as auto/provider-managed
 
-So documentation should not claim that Synaptik actively orchestrates provider thread counts at runtime.
-
-### `FUSED_ARITHMETIC`
-
-An enum value exists for this family, but standard presets do not currently expose a normal calibration step for it.
-
-Treat it as reserved surface, not as an actively tuned standard family.
+So documentation should not claim that calibration actively orchestrates provider thread counts at runtime.

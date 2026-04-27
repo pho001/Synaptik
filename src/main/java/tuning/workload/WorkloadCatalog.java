@@ -1,12 +1,12 @@
 package tuning.workload;
 
 import tuning.measure.MeasurementPolicy;
-import tuning.report.ReportPolicy;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSuiteRequest;
-import tuning.session.TuningDefaults;
-import tuning.session.TuningPreset;
+import tuning.reporting.ReportPolicy;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSuiteRequest;
+import tuning.autotune.TuningDefaults;
+import tuning.preset.TuningPreset;
 import tuning.validate.ValidationPolicy;
 
 import java.util.ArrayList;

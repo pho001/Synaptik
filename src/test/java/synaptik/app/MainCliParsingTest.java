@@ -1,77 +1,105 @@
 package synaptik.app;
 
+import backend.runtime.ExecutionMode;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tuning.measure.MeasurementPolicy;
-import tuning.session.TuningPreset;
+import tuning.calibration.family.CalibrationFamilyId;
+import tuning.calibration.run.CalibrationCommand;
+import tuning.calibration.run.CalibrationScope;
+import tuning.calibration.run.CalibrationSuite;
+import tuning.preset.TuningPreset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MainCliParsingTest {
 
     @Test
-    void calibrateWithoutFamilyOrMeasurementUsesDefaults() {
-        Main.CalibrationCliOptions options = Main.parseCalibrationOptions(new String[]{"calibrate", "f64"});
+    void calibrateParsesSingleFamilyCommand() {
+        CalibrationCommand command = CalibrationCommand.parse(new String[]{
+                "calibrate", "--dtype", "f64", "--family", "conv2d-gemm-dispatch"
+        });
 
-        assertNull(options.family());
-        assertNull(options.measurement());
+        assertEquals(CalibrationScope.SINGLE_FAMILY, command.scope());
+        assertEquals(DataType.FLOAT64, command.dataTypes().getFirst());
+        assertEquals(CalibrationFamilyId.CONV2D_GEMM_DISPATCH, command.family());
+        assertEquals(ExecutionMode.FORWARD_BACKWARD, command.mode());
     }
 
     @Test
-    void calibrateParsesFamilyOnly() {
-        Main.CalibrationCliOptions options = Main.parseCalibrationOptions(new String[]{"calibrate", "f64", "conv2d"});
+    void calibrateParsesAllDtypesAndMeasurementOverride() {
+        CalibrationCommand command = CalibrationCommand.parse(new String[]{
+                "calibrate",
+                "--dtypes", "all",
+                "--families", "all",
+                "--preset", "quick",
+                "--measurement", "30:100:2",
+                "--progress", "lines",
+                "--color", "never"
+        });
 
-        assertEquals(Main.CalibrationFamilyTarget.CONV2D, options.family());
-        assertNull(options.measurement());
+        assertEquals(CalibrationScope.ALL_FAMILIES, command.scope());
+        assertEquals(3, command.dataTypes().size());
+        assertEquals(TuningPreset.QUICK, command.preset());
+        assertEquals(30, command.measurement().warmupIters());
+        assertEquals(100, command.measurement().measureIters());
+        assertEquals(2, command.measurement().repeats());
+        assertEquals(1, command.passCount());
     }
 
     @Test
-    void calibrateParsesFamilyAndMeasurementOverride() {
-        Main.CalibrationCliOptions options = Main.parseCalibrationOptions(
-                new String[]{"calibrate", "f64", "conv2d", "30", "100", "2"}
+    void calibrateParsesOneFamilyAcrossAllDtypes() {
+        CalibrationCommand command = CalibrationCommand.parse(new String[]{
+                "calibrate", "--dtypes", "all", "--family", "matmul"
+        });
+
+        assertEquals(CalibrationScope.SINGLE_FAMILY, command.scope());
+        assertEquals(3, command.dataTypes().size());
+        assertEquals(CalibrationFamilyId.MATMUL, command.family());
+        assertEquals(1, command.passCount());
+    }
+
+    @Test
+    void balancedAllFamilyCommandUsesTwoPasses() {
+        CalibrationCommand command = CalibrationCommand.parse(new String[]{
+                "calibrate", "--dtype", "bf16", "--families", "all"
+        });
+
+        assertEquals(2, command.passCount());
+    }
+
+    @Test
+    void calibrateRejectsOldPositionalSyntax() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> CalibrationCommand.parse(new String[]{"calibrate", "f64", "conv2d"})
         );
-
-        assertEquals(Main.CalibrationFamilyTarget.CONV2D, options.family());
-        MeasurementPolicy measurement = options.measurement();
-        assertEquals(30, measurement.warmupIters());
-        assertEquals(100, measurement.measureIters());
-        assertEquals(2, measurement.repeats());
-    }
-
-    @Test
-    void calibrateParsesMeasurementWithoutFamily() {
-        Main.CalibrationCliOptions options = Main.parseCalibrationOptions(
-                new String[]{"calibrate", "f32", "30", "100", "2"}
-        );
-
-        assertNull(options.family());
-        MeasurementPolicy measurement = options.measurement();
-        assertEquals(30, measurement.warmupIters());
-        assertEquals(100, measurement.measureIters());
-        assertEquals(2, measurement.repeats());
     }
 
     @Test
     void calibrateRejectsUnknownFamily() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> Main.parseCalibrationOptions(new String[]{"calibrate", "f64", "fused-arithmetic"})
+                () -> CalibrationCommand.parse(new String[]{"calibrate", "--dtype", "f64", "--family", "fused-arithmetic"})
         );
     }
 
     @Test
-    void calibrateRejectsMalformedArgumentCount() {
+    void calibrateRejectsNonCalibrationDtypes() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> Main.parseCalibrationOptions(new String[]{"calibrate", "f64", "conv2d", "30", "100"})
+                () -> CalibrationCommand.parse(new String[]{"calibrate", "--dtype", "int32", "--family", "matmul"})
         );
     }
 
     @Test
-    void materializationFamilyCreatesBothGenericAndWhereSteps() {
-        var steps = Main.CalibrationFamilyTarget.MATERIALIZATION.createSteps("mat", TuningPreset.BALANCED, DataType.FLOAT64);
+    void materializationFamilyCreatesGenericAndWhereSteps() {
+        var steps = CalibrationSuite.stepsFor(
+                CalibrationFamilyId.MATERIALIZATION,
+                "mat",
+                TuningPreset.BALANCED,
+                DataType.FLOAT64
+        );
 
         assertEquals(2, steps.size());
         assertEquals("mat", steps.get(0).name());

@@ -4,15 +4,15 @@ import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
-import tuning.report.JsonPlatformCalibrationResultRenderer;
-import tuning.report.TextPlatformCalibrationResultRenderer;
-import tuning.report.BenchmarkSuiteReport;
-import tuning.session.PlatformCalibrationCandidateSummary;
-import tuning.session.PlatformCalibrationFamily;
-import tuning.session.PlatformCalibrationScore;
-import tuning.session.PlatformCalibrationResult;
-import tuning.session.PlatformCalibrationStepResult;
-import tuning.store.PlatformCalibrationSaveHelper;
+import tuning.calibration.report.JsonPlatformCalibrationResultRenderer;
+import tuning.calibration.report.TextPlatformCalibrationResultRenderer;
+import tuning.benchmark.report.BenchmarkSuiteReport;
+import tuning.calibration.PlatformCalibrationCandidateSummary;
+import tuning.calibration.family.CalibrationFamilyId;
+import tuning.calibration.PlatformCalibrationScore;
+import tuning.calibration.PlatformCalibrationResult;
+import tuning.calibration.PlatformCalibrationStepResult;
+import tuning.calibration.store.PlatformCalibrationSaveHelper;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,7 +50,7 @@ public class PlatformCalibrationReportStoreTest {
                 runtimeProfile,
                 List.of(new PlatformCalibrationStepResult(
                         "step",
-                        PlatformCalibrationFamily.MATMUL,
+                        CalibrationFamilyId.MATMUL,
                         runtimeProfile,
                         new BenchmarkSuiteReport(OffsetDateTime.now(), List.of()),
                         List.of(new PlatformCalibrationCandidateSummary(

@@ -1,9 +1,9 @@
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import tuning.etalon.FrameworkEtalon;
-import tuning.report.BenchmarkCandidateReport;
-import tuning.report.BenchmarkSuiteReport;
-import tuning.session.BenchmarkSuiteSession;
+import tuning.benchmark.report.BenchmarkCandidateReport;
+import tuning.benchmark.report.BenchmarkSuiteReport;
+import tuning.benchmark.BenchmarkSuiteSession;
 import tuning.store.JsonFileBenchmarkReportStore;
 
 import java.io.IOException;

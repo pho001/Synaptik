@@ -12,7 +12,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tuning.store.HardwareFingerprint;
 import tuning.store.JsonFileBestProfileStore;
-import tuning.store.PlatformCalibrationPaths;
+import tuning.calibration.store.PlatformCalibrationPaths;
 import tuning.workload.StandardWorkloads;
 import tuning.workload.WorkloadEnvironment;
 import tuning.workload.WorkloadInstance;

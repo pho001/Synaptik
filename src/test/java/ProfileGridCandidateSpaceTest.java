@@ -4,9 +4,9 @@ import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.candidate.ProfileGridCandidateSpace;
-import tuning.candidate.ProfileMutators;
-import tuning.session.PlatformRuntimeProfileGridCandidateSpace;
-import tuning.session.PlatformRuntimeProfileMutators;
+import tuning.candidate.explicit.ExplicitProfileMutators;
+import tuning.calibration.runtime.PlatformRuntimeProfileGridCandidateSpace;
+import tuning.calibration.runtime.PlatformRuntimeProfileMutators;
 import tuning.workload.StandardWorkloads;
 
 import java.util.List;
@@ -30,11 +30,11 @@ public class ProfileGridCandidateSpaceTest {
         ProfileGridCandidateSpace space = new ProfileGridCandidateSpace(
                 base,
                 List.of(
-                        ProfileMutators.conv2dLoweringModes(List.of(
+                        ExplicitProfileMutators.conv2dLoweringModes(List.of(
                                 config.optimizer.Conv2dLoweringMode.HEURISTIC,
                                 config.optimizer.Conv2dLoweringMode.OFF
                         )),
-                        ProfileMutators.blasThreads(List.of(0, 1, 2))
+                        ExplicitProfileMutators.blasThreads(List.of(0, 1, 2))
                 )
         );
 
@@ -75,7 +75,7 @@ public class ProfileGridCandidateSpaceTest {
 
         ProfileGridCandidateSpace space = new ProfileGridCandidateSpace(
                 base,
-                ProfileMutators.transformerHotPathMutators()
+                ExplicitProfileMutators.transformerHotPathMutators()
         );
 
         var candidates = space.generate(StandardWorkloads.transformerHotPath("transformer_hot_path"));
@@ -98,21 +98,21 @@ public class ProfileGridCandidateSpaceTest {
                 WorkloadProfile.none()
         );
 
-        var mlpCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.mlpWorkloadMutators())
+        var mlpCandidates = new ProfileGridCandidateSpace(base, ExplicitProfileMutators.mlpWorkloadMutators())
                 .generate(StandardWorkloads.mlpClassification("mlp_test", 8, 16, 24, 12, 4, tensor.loss.LossReduction.MEAN));
-        var normCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.normalizationWorkloadMutators())
+        var normCandidates = new ProfileGridCandidateSpace(base, ExplicitProfileMutators.normalizationWorkloadMutators())
                 .generate(StandardWorkloads.normalization(
                         "norm_test",
                         tuning.workload.NormalizationWorkloadSpec.NormalizationKind.LAYER_NORM,
                         2, 16, 4, 1, 1e-5
                 ));
-        var lossCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.lossWorkloadMutators())
+        var lossCandidates = new ProfileGridCandidateSpace(base, ExplicitProfileMutators.lossWorkloadMutators())
                 .generate(StandardWorkloads.indexedLoss(
                         "loss_test",
                         tuning.workload.LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES,
                         4, 8, tensor.loss.LossReduction.MEAN
                 ));
-        var genericCandidates = new ProfileGridCandidateSpace(base, ProfileMutators.genericWorkloadMutators())
+        var genericCandidates = new ProfileGridCandidateSpace(base, ExplicitProfileMutators.genericWorkloadMutators())
                 .generate(new tuning.workload.TensorRootWorkloadSpec(
                         "generic",
                         tuning.workload.WorkloadKind.GENERIC,
@@ -139,7 +139,7 @@ public class ProfileGridCandidateSpaceTest {
 
         var candidates = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.advancedSchedulerPolicies(
+                List.of(ExplicitProfileMutators.advancedSchedulerPolicies(
                         List.of(4, 6),
                         List.of(2),
                         List.of(1),
@@ -168,7 +168,7 @@ public class ProfileGridCandidateSpaceTest {
 
         var candidates = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.matmulBlasShapeHeuristics(
+                List.of(ExplicitProfileMutators.matmulBlasShapeHeuristics(
                         List.of(true, false),
                         List.of(2.0, 4.0)
                 ))
@@ -192,7 +192,7 @@ public class ProfileGridCandidateSpaceTest {
 
         var candidates = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.parallelThresholds(
+                List.of(ExplicitProfileMutators.parallelThresholds(
                         List.of(4_096, 16_384),
                         List.of(2_048),
                         List.of(8_192)
@@ -233,13 +233,13 @@ public class ProfileGridCandidateSpaceTest {
                                 List.of(true),
                                 List.of(0L, 1024L)
                         ),
-                        PlatformRuntimeProfileMutators.blasThreads(List.of(0))
+                        PlatformRuntimeProfileMutators.matmulParallelThresholds(List.of(100_000))
                 )
         ).generate(StandardWorkloads.matmul("matmul", 1, 64, 64, 64));
 
         assertEquals(4, candidates.size());
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("metalSelection=true/true/1024")));
-        assertTrue(candidates.stream().allMatch(c -> c.name().contains("blasThreads=AUTO")));
+        assertTrue(candidates.stream().allMatch(c -> c.name().contains("matmulParallel=")));
         assertTrue(candidates.stream().anyMatch(c -> c.runtimeProfile().accelerator().metal().enabled()));
         assertTrue(candidates.stream().anyMatch(c -> !c.runtimeProfile().accelerator().metal().enabled()));
         assertTrue(candidates.stream().allMatch(c -> c.runtimeProfile().accelerator().metal().requireRuntimeAvailability()));
@@ -261,11 +261,11 @@ public class ProfileGridCandidateSpaceTest {
         ProfileGridCandidateSpace space = new ProfileGridCandidateSpace(
                 base,
                 List.of(
-                        ProfileMutators.matmulBlasProviders(
+                        ExplicitProfileMutators.matmulBlasProviders(
                                 List.of(backend.blas.BlasProvider.NONE, backend.blas.BlasProvider.OPENBLAS_FFM),
                                 List.of(1_000_000L, 2_000_000L)
                         ),
-                        ProfileMutators.attentionMatMulPolicies(List.of(
+                        ExplicitProfileMutators.attentionMatMulPolicies(List.of(
                                 config.backend.AttentionMatMulPolicy.AUTO,
                                 config.backend.AttentionMatMulPolicy.FORCE_ON
                         ))
@@ -281,52 +281,4 @@ public class ProfileGridCandidateSpaceTest {
         assertEquals(1, candidates.size());
     }
 
-    @Test
-    void fullStageOrderSpaceEnumeratesAllPermutationsAndSubsets() {
-        assertTrue(ProfileMutators.allStageOrders().size() > 0);
-        assertEquals(ProfileMutators.allStageOrders().size() - 1, ProfileMutators.allNonEmptyStageOrders().size());
-        assertTrue(ProfileMutators.allConstrainedStageOrders().size() > 0);
-        assertTrue(ProfileMutators.allConstrainedStageOrders().size() <= ProfileMutators.allStageOrders().size());
-        assertTrue(ProfileMutators.allConstrainedStageOrders().stream().allMatch(order ->
-                order.isEmpty() || !order.contains(config.optimizer.OptimizerStage.MEM)
-                        || order.getLast() == config.optimizer.OptimizerStage.MEM
-        ));
-        assertTrue(ProfileMutators.allStageOrders().stream().allMatch(order ->
-                !order.contains(config.optimizer.OptimizerStage.FUSE)
-                        || order.contains(config.optimizer.OptimizerStage.PART)
-        ));
-    }
-
-    @Test
-    void stageOrderMutatorRewritesOptimizerStageOrder() {
-        ExecutionProfile base = new ExecutionProfile(
-                "stage-grid",
-                "stage-grid",
-                tensor.DataType.FLOAT64,
-                ExecutionMode.FORWARD,
-                config.optimizer.OptimizerConfig.inferenceDefaults(),
-                config.runtime.RuntimeConfig.inferenceDefaults(),
-                WorkloadProfile.none()
-        );
-
-        ProfileGridCandidateSpace space = new ProfileGridCandidateSpace(
-                base,
-                List.of(ProfileMutators.stageOrders(List.of(
-                        List.of(config.optimizer.OptimizerStage.AR, config.optimizer.OptimizerStage.PART, config.optimizer.OptimizerStage.FUSE, config.optimizer.OptimizerStage.MEM),
-                        List.of(config.optimizer.OptimizerStage.CSE)
-                )))
-        );
-
-        var candidates = space.generate(new tuning.workload.TensorRootWorkloadSpec(
-                "generic",
-                tuning.workload.WorkloadKind.GENERIC,
-                environment -> tensor.Tensor.scalar(1.0)
-        ));
-
-        assertEquals(2, candidates.size());
-        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("stageOrder=AR-PART-FUSE-MEM")));
-        assertTrue(candidates.stream().anyMatch(c -> c.profile().optimizer().stageOrder().equals(
-                List.of(config.optimizer.OptimizerStage.CSE)
-        )));
-    }
 }

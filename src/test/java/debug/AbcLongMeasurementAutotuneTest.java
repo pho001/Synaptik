@@ -10,23 +10,20 @@ import config.profile.PlatformRuntimeProfileIO;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tuning.candidate.ProfileGridCandidateSpace;
-import tuning.candidate.ProfileMutators;
+import tuning.autotune.GraphAutotuneMode;
+import tuning.autotune.GraphAutotuneRequest;
 import tuning.measure.MeasurementPolicy;
-import tuning.report.TextTuningResultRenderer;
-import tuning.search.ExhaustiveSearchStrategy;
-import tuning.session.AutotuneRequest;
-import tuning.session.AutotuneSession;
-import tuning.session.TuningPreset;
+import tuning.autotune.report.TextTuningResultRenderer;
+import tuning.search.SearchPolicy;
+import tuning.autotune.AutotuneSession;
+import tuning.preset.TuningPreset;
 import tuning.store.JsonFileBestProfileStore;
 import tuning.store.JsonFileTuningHistoryStore;
 import tuning.store.PersistencePolicy;
-import tuning.store.PlatformCalibrationPaths;
+import tuning.calibration.store.PlatformCalibrationPaths;
 import tuning.workload.StandardWorkloads;
 
 import java.nio.file.Path;
-import java.util.List;
-
 final class AbcLongMeasurementAutotuneTest {
     private static final MeasurementPolicy MEASUREMENT = new MeasurementPolicy(
             30,
@@ -56,20 +53,24 @@ final class AbcLongMeasurementAutotuneTest {
 
     private static void run(DataType dataType, String dtypeId) {
         ExecutionProfile seed = calibratedAbcSeed(dataType, dtypeId);
-        var request = AutotuneRequest.fromSeedExecutionProfile(
+        var request = new GraphAutotuneRequest(
                 StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_" + dtypeId),
-                seed,
-                new ProfileGridCandidateSpace(seed, List.of(ProfileMutators.constrainedStageOrderSpace())),
+                seed.profileName(),
+                seed.dataType(),
+                seed.mode(),
+                GraphExecutionPolicy.fromExecutionProfile(seed),
+                PlatformRuntimeProfile.fromExecutionProfile(seed.profileName(), seed.profileName(), "ABC_LONG", seed),
+                GraphAutotuneMode.STANDARD,
                 MEASUREMENT,
                 TuningPreset.BALANCED.autotuneValidation(),
-                TuningPreset.BALANCED.autotuneSearch(),
+                new SearchPolicy(1, 1, 1, false),
                 tuningPersistence(dtypeId),
                 null
-        );
+        ).toAutotuneRequest();
 
         var result = AutotuneSession.create(
                 request,
-                new ExhaustiveSearchStrategy(),
+                new tuning.search.SingleCandidateSearchStrategy(),
                 new tuning.measure.DefaultMeasurementEngine(),
                 new tuning.validate.DefaultValidationEngine(),
                 new JsonFileBestProfileStore(),

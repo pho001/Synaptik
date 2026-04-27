@@ -18,6 +18,7 @@ public final class FileBestProfileResolver implements BestProfileResolver {
         return store.load(path)
                 .filter(record -> record.hardware().key().equals(hardware.key()))
                 .filter(record -> record.workload().key().equals(workload.key()))
+                .filter(BestProfileRecord::productionEligible)
                 .map(BestProfileRecord::profile);
     }
 }

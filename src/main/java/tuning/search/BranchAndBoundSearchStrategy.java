@@ -1,9 +1,9 @@
 package tuning.search;
 
 import tuning.candidate.Candidate;
-import tuning.candidate.CandidateFingerprint;
+import tuning.candidate.ExecutableProfileFingerprint;
 import tuning.candidate.RefinableCandidateSpace;
-import tuning.report.BenchmarkCandidateReport;
+import tuning.benchmark.report.BenchmarkCandidateReport;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -57,7 +57,7 @@ public final class BranchAndBoundSearchStrategy extends AbstractTreeSearchStrate
 
         Map<String, BenchmarkCandidateReport> reportsByFp = new LinkedHashMap<>();
         for (BenchmarkCandidateReport report : evaluatedSoFar) {
-            reportsByFp.put(CandidateFingerprint.of(report.candidate()), report);
+            reportsByFp.put(ExecutableProfileFingerprint.of(report.candidate()), report);
         }
 
         double bestScore = evaluatedSoFar.stream()
@@ -92,10 +92,10 @@ public final class BranchAndBoundSearchStrategy extends AbstractTreeSearchStrate
         List<String> nextFrontier = new ArrayList<>();
         for (BenchmarkCandidateReport report : expandable) {
             Candidate seed = report.candidate();
-            String parentFp = CandidateFingerprint.of(seed);
+            String parentFp = ExecutableProfileFingerprint.of(seed);
             int accepted = 0;
             for (Candidate neighbor : refinable.neighbors(seed, context.request().workload())) {
-                String fp = CandidateFingerprint.of(neighbor);
+                String fp = ExecutableProfileFingerprint.of(neighbor);
                 if (seenFingerprints.contains(fp) || next.containsKey(fp)) {
                     continue;
                 }

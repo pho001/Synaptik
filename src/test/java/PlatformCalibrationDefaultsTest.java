@@ -3,9 +3,9 @@ import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
-import tuning.session.PlatformCalibrationDefaults;
-import tuning.session.PlatformCalibrationFamily;
-import tuning.session.TuningPreset;
+import tuning.calibration.PlatformCalibrationDefaults;
+import tuning.calibration.family.CalibrationFamilyId;
+import tuning.preset.TuningPreset;
 
 import java.nio.file.Path;
 import java.util.Set;
@@ -36,26 +36,26 @@ public class PlatformCalibrationDefaultsTest {
 
         assertEquals("test-platform", request.platformId());
         assertFalse(request.steps().isEmpty());
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_JAVA));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_STRIDED));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_NON_CHEAP_CONTIGUOUS));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_NON_CHEAP_STRIDED));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ELEMENTWISE_DISPATCH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.SCHEDULER));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATERIALIZATION));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.ATTENTION_MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.CONV2D_GEMM_DISPATCH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_DISPATCH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_CHEAP_STRIDED_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_NON_CHEAP_STRIDED_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.ELEMENTWISE_DISPATCH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.SCHEDULER));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATERIALIZATION));
     }
 
     @Test
     void helperStepFactoriesUseRequestedPreset() {
         var step = PlatformCalibrationDefaults.matmulJavaStep("matmul", TuningPreset.THOROUGH);
         assertEquals(TuningPreset.THOROUGH, step.preset());
-        assertEquals(PlatformCalibrationFamily.MATMUL_JAVA, step.family());
+        assertEquals(CalibrationFamilyId.MATMUL, step.family());
     }
 
     @Test
@@ -76,25 +76,25 @@ public class PlatformCalibrationDefaultsTest {
                 Path.of("build", "test-platform-profile.json")
         );
 
-        assertEquals(17, request.steps().size());
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_JAVA));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ATTENTION_MATMUL));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.CONV2D_GEMM_DISPATCH_F64));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_THRESHOLDS));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_CONTIGUOUS));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_CHEAP_STRIDED));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_NON_CHEAP_CONTIGUOUS));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.FUSED_NON_CHEAP_STRIDED));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.ELEMENTWISE_DISPATCH));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.REDUCTION));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.SCHEDULER));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.MATERIALIZATION));
-        assertTrue(request.steps().stream().anyMatch(step -> step.family() == PlatformCalibrationFamily.NUMERICS));
+        assertEquals(16, request.steps().size());
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.ATTENTION_MATMUL));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.CONV2D_GEMM_DISPATCH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_DISPATCH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_CHEAP_STRIDED_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.FUSED_NON_CHEAP_STRIDED_WIDTH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.ELEMENTWISE_DISPATCH));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.REDUCTION));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.SCHEDULER));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATERIALIZATION));
+        assertTrue(request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.MATERIALIZATION));
         assertEquals(
                 2L,
-                request.steps().stream().filter(step -> step.family() == PlatformCalibrationFamily.MATERIALIZATION).count()
+                request.steps().stream().filter(step -> step.family() == CalibrationFamilyId.MATERIALIZATION).count()
         );
     }
 
@@ -266,7 +266,7 @@ public class PlatformCalibrationDefaultsTest {
 
         var candidates = step.candidateSpaceFactory().create(base).generate(step.workloads().getFirst());
 
-        assertEquals(PlatformCalibrationFamily.MATMUL_BLAS_DISPATCH_WIDE, step.family());
+        assertEquals(CalibrationFamilyId.MATMUL, step.family());
         assertTrue(step.workloads().size() >= 4);
         assertTrue(step.workloads().stream().allMatch(workload -> workload.name().contains("wide")));
         assertEquals("weightedGeometricMeanWithWorstBucketPenalty", step.scorePolicy().metricName());

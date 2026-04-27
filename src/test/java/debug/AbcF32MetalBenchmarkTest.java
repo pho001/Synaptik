@@ -7,13 +7,13 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import tuning.report.TextBenchmarkReportRenderer;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSession;
+import tuning.benchmark.report.TextBenchmarkReportRenderer;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSession;
 import tuning.store.HardwareFingerprint;
 import tuning.store.JsonFileBestProfileStore;
-import tuning.store.PlatformCalibrationPaths;
+import tuning.calibration.store.PlatformCalibrationPaths;
 import tuning.validate.ValidationPolicy;
 import tuning.validate.ValidationReference;
 import tuning.workload.TensorRootWorkloadSpec;
@@ -63,7 +63,7 @@ final class AbcF32MetalBenchmarkTest {
                 ),
                 MEASUREMENT,
                 ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         );
 
         var report = BenchmarkSession.create(request).run();

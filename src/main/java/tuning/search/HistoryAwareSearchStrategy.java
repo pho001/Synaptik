@@ -2,8 +2,8 @@ package tuning.search;
 
 import config.profile.ExecutionProfile;
 import tuning.candidate.Candidate;
-import tuning.candidate.CandidateFingerprint;
 import tuning.candidate.CandidateSpace;
+import tuning.candidate.ExecutableProfileFingerprint;
 import tuning.candidate.ListCandidateSpace;
 import tuning.store.BestProfileResolver;
 import tuning.store.HardwareFingerprint;
@@ -59,24 +59,30 @@ public final class HistoryAwareSearchStrategy implements SearchStrategy {
         );
         Map<String, Candidate> byFingerprint = new LinkedHashMap<>();
         for (Candidate candidate : generated) {
-            byFingerprint.putIfAbsent(CandidateFingerprint.of(candidate), candidate);
+            byFingerprint.putIfAbsent(ExecutableProfileFingerprint.of(candidate), candidate);
         }
 
         List<Candidate> ordered = new ArrayList<>();
 
         bestProfileResolver.resolve(bestProfilePath, hardware, workload).ifPresent(profile -> {
-            String fp = CandidateFingerprint.of(profile);
+            String fp = ExecutableProfileFingerprint.of(profile);
             Candidate candidate = byFingerprint.get(fp);
+            if (candidate == null) {
+                candidate = generated.stream()
+                        .filter(current -> current.name().equals(profile.candidateName())
+                                || current.profile().candidateName().equals(profile.candidateName()))
+                        .findFirst()
+                        .orElse(null);
+            }
             if (candidate != null) {
                 ordered.add(candidate);
-            } else {
-                ordered.add(new Candidate(profile.candidateName(), profile));
             }
         });
 
         List<TuningHistoryEntry> history = historyPath == null ? List.of() : historyStore.loadAll(historyPath).stream()
                 .filter(entry -> entry.hardware().key().equals(hardware.key()))
                 .filter(entry -> entry.workload().key().equals(workload.key()))
+                .filter(TuningHistoryEntry::productionEligible)
                 .sorted(Comparator.comparingDouble(TuningHistoryEntry::score))
                 .toList();
 
@@ -88,15 +94,15 @@ public final class HistoryAwareSearchStrategy implements SearchStrategy {
             if (!entry.valid() && context.request().search().allowPruning()) {
                 continue;
             }
-            if (ordered.stream().anyMatch(existing -> CandidateFingerprint.of(existing).equals(entry.fingerprint()))) {
+            if (ordered.stream().anyMatch(existing -> ExecutableProfileFingerprint.of(existing).equals(entry.fingerprint()))) {
                 continue;
             }
             ordered.add(candidate);
         }
 
         for (Candidate candidate : generated) {
-            String fp = CandidateFingerprint.of(candidate);
-            if (ordered.stream().anyMatch(existing -> CandidateFingerprint.of(existing).equals(fp))) {
+            String fp = ExecutableProfileFingerprint.of(candidate);
+            if (ordered.stream().anyMatch(existing -> ExecutableProfileFingerprint.of(existing).equals(fp))) {
                 continue;
             }
             boolean invalidHistory = history.stream().anyMatch(entry -> entry.fingerprint().equals(fp) && !entry.valid());
@@ -121,7 +127,7 @@ public final class HistoryAwareSearchStrategy implements SearchStrategy {
     @Override
     public SearchResult refine(
             SearchContext context,
-            List<tuning.report.BenchmarkCandidateReport> evaluatedSoFar,
+            List<tuning.benchmark.report.BenchmarkCandidateReport> evaluatedSoFar,
             int round,
             Set<String> seenFingerprints
     ) {

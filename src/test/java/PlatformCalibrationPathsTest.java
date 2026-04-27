@@ -3,8 +3,8 @@ import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
 import tuning.store.HardwareFingerprint;
-import tuning.store.PlatformCalibrationLayout;
-import tuning.store.PlatformCalibrationPaths;
+import tuning.calibration.store.PlatformCalibrationLayout;
+import tuning.calibration.store.PlatformCalibrationPaths;
 
 import java.nio.file.Path;
 

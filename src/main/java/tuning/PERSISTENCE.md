@@ -80,15 +80,32 @@ For workload `abc`:
 - `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json`
 - `profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl`
 
-## Legacy Compatibility Layouts
+Best-profile and history records include structured autotune metadata:
 
-The code can still read older fallback paths under `build/...`, such as:
+- autotune kind
+- graph autotune mode
+- candidate kind
+- candidate-space metadata
+- runtime profile id
+- production eligibility
 
-- `build/platform-calibration/...`
-- `build/tuning/best-profiles/...`
-- `build/tuning/history/...`
+Production best-profile lookup should treat research-only candidates as opt-in artifacts, not default production winners.
 
-These are compatibility/migration paths, not the preferred long-term layout.
+Executable-profile fingerprints and structured candidate identity are separate concepts:
+
+- executable fingerprints identify the runnable `ExecutionProfile` used for deduplication and history lookup
+- candidate identity additionally includes candidate kind and metadata for explanation and research/prod separation
+
+## Canonical Calibration Layout
+
+Platform calibration writes append-only schema-v2 artifacts under:
+
+- `profiles/platform/<platform-id>/calibration/schema-v2/runs/<run-id>/...`
+- `profiles/platform/<platform-id>/calibration/schema-v2/history/<dtype>/<mode>/<family-id>.jsonl`
+- `profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/<mode>/profile.json`
+
+Reports and history are diagnostic artifacts. Runtime loading uses only the latest profile.
+Legacy calibration fallback reads under `build/...` have been removed.
 
 ## Generic Tensor Convenience Autotune Paths
 

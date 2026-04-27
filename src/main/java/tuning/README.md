@@ -29,21 +29,27 @@ Benchmark compares an explicit list of candidates.
 Typical use:
 
 - compare baseline vs optimized profile
-- compare stage-order variants
+- compare explicit candidate variants
 - inspect regressions with trace detail
 
 Benchmark does not search the space automatically.
 
 ### 2. Per-graph autotune
 
-Autotune searches for a better `ExecutionProfile` for one concrete workload.
+Autotune evaluates candidate `ExecutionProfile` objects for one concrete workload.
 
 Typical use:
 
-- start from a calibrated or hand-built seed profile
-- generate candidate profiles
+- start from explicit graph policy plus calibrated runtime profile
+- generate candidate profiles from a typed candidate space
 - validate and measure them
 - persist the winner and search history
+
+Current production graph autotune intentionally starts with one standard candidate:
+
+- `graphPolicy=current`
+
+Research graph variants are explicit opt-in and are not production best-profile candidates by default.
 
 ### 3. Platform calibration
 
@@ -135,14 +141,14 @@ For the main CLI flow:
 
 1. calibrate platform runtime profile
 2. assemble an execution profile seed from calibrated runtime + graph policy
-3. autotune graph-level candidates for a workload
+3. run graph autotune for the workload
 4. benchmark the winner against the baseline
 
 That means:
 
 - calibration and autotune are not the same thing
 - calibration mostly answers runtime questions
-- autotune mostly answers graph-policy questions
+- standard graph autotune currently validates and persists the current graph policy boundary
 
 ## Example: Workload-Specific Autotune
 
@@ -151,8 +157,8 @@ Suppose the workload is the built-in `abc_sequence_matmul_f64`.
 Autotune flow:
 
 1. load calibrated runtime defaults for `FLOAT64` forward/backward
-2. create a seed `ExecutionProfile`
-3. generate candidate variants, for example different stage orders
+2. combine calibrated runtime defaults with the current graph policy
+3. generate the standard `graphPolicy=current` candidate
 4. validate correctness
 5. measure compile / prepare / traced run / steady-state
 6. persist:
@@ -201,16 +207,10 @@ The CLI currently exposes family-specific calibration steps such as:
 - `fused-cheap-contiguous`
 - `fused-cheap-strided`
 - `fused-noncheap-contiguous`
-- `fused-noncheap-strided`
-- `elementwise`
+- `fused-noncheap-strided-width`
+- `elementwise-dispatch`
 - `reduction`
 - `attention-thresholds`
 - `scheduler`
 - `materialization`
-- `numerics`
-
-One enum value still exists only as reserved surface, not as a standard preset step:
-
-- `FUSED_ARITHMETIC`
-
-That should be documented as enum presence, not as an actively used standard calibration family.
+- `metal-selection` only as explicit accelerator opt-in

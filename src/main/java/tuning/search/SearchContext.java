@@ -1,7 +1,7 @@
 package tuning.search;
 
 import tuning.candidate.CandidateSpace;
-import tuning.session.AutotuneRequest;
+import tuning.autotune.AutotuneRequest;
 
 public record SearchContext(
         AutotuneRequest request,

@@ -229,7 +229,7 @@ This convenience flow can reuse or create a generic best profile for the current
 Current generic tensor autotune behavior:
 
 - it builds a generic tensor workload rooted at the current tensor
-- it searches constrained optimizer stage-order variants
+- it evaluates the standard `graphPolicy=current` candidate
 - it persists winners under `build/tuning/tensor/<platform-id>/<graph-signature>/<seed-signature>/...`
 
 That generic path is different from the main CLI autotune flow described below, which is workload-specific and versioned under `profiles/platform/...`.
@@ -282,7 +282,7 @@ Supported commands:
 ./gradlew run --args="calibrate f64 conv2d 30 100 2"
 ./gradlew run --args="autotune f64"
 ./gradlew run --args="benchmark-winner f64"
-./gradlew run --args="benchmark-stage-space f64"
+./gradlew run --args="benchmark-graph-space f64"
 ```
 
 Meaning:
@@ -296,11 +296,12 @@ Meaning:
   - optionally for a single family
   - optionally with explicit measurement override `warmup measure repeats`
 - `autotune`
-  - runs graph-level autotune for the `abc_sequence_matmul_<dtype>` workload
+  - runs standard graph autotune for the `abc_sequence_matmul_<dtype>` workload
+  - standard graph autotune currently evaluates `graphPolicy=current`
 - `benchmark-winner`
   - compares the stored winner against the no-opt baseline
-- `benchmark-stage-space`
-  - compares explicit stage-order candidates against the baseline
+- `benchmark-graph-space`
+  - compares the standard graph candidate against the baseline
 
 Supported CLI dtypes:
 
@@ -308,23 +309,23 @@ Supported CLI dtypes:
 - `f32`
 - `bf16`
 
-Supported calibration family tokens are resolved from `Main.CalibrationFamilyTarget`.
+Supported calibration family tokens are resolved from `CalibrationFamilyRegistry`.
 Current public family names include:
 
 - `matmul`
 - `attention-matmul`
-- `conv2d`
-- `fused-thresholds`
-- `fused-cheap-contiguous`
-- `fused-cheap-strided`
-- `fused-noncheap-contiguous`
-- `fused-noncheap-strided`
-- `elementwise`
+- `conv2d-gemm-dispatch`
+- `fused-dispatch`
+- `fused-cheap-contiguous-width`
+- `fused-cheap-strided-width`
+- `fused-noncheap-contiguous-width`
+- `fused-noncheap-strided-width`
+- `elementwise-dispatch`
 - `reduction`
 - `attention-thresholds`
 - `scheduler`
 - `materialization`
-- `numerics`
+- `metal-selection` only when explicitly requested with `--include-accelerators`
 
 ## Persistence Layout
 
@@ -335,7 +336,10 @@ profiles/
   platform/
     <platform-id>/
       calibration/
-      reports/
+        schema-v2/
+          latest/
+          history/
+          runs/
       tuning/
         abc/
 ```
@@ -343,16 +347,17 @@ profiles/
 Typical files:
 
 - calibration profile:
-  - `profiles/platform/<platform-id>/calibration/<dtype>-forward_backward.json`
-- calibration reports:
-  - `profiles/platform/<platform-id>/reports/calibration-<dtype>-forward_backward.json`
-  - `profiles/platform/<platform-id>/reports/calibration-<dtype>-forward_backward.txt`
+  - `profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/<mode>/profile.json`
+- calibration history:
+  - `profiles/platform/<platform-id>/calibration/schema-v2/history/<dtype>/<mode>/<family-id>.jsonl`
+- calibration run artifacts:
+  - `profiles/platform/<platform-id>/calibration/schema-v2/runs/<run-id>/...`
 - workload-specific autotune winner:
   - `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json`
 - workload-specific autotune history:
   - `profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl`
 
-Legacy `build/...` locations are still readable as migration fallbacks, but they are not the preferred source of truth anymore.
+Legacy `build/...` calibration locations are no longer used as runtime fallbacks.
 
 ## Numerics Harness
 

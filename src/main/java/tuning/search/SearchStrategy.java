@@ -1,6 +1,6 @@
 package tuning.search;
 
-import tuning.report.BenchmarkCandidateReport;
+import tuning.benchmark.report.BenchmarkCandidateReport;
 
 import java.util.List;
 import java.util.Set;

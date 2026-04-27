@@ -5,19 +5,22 @@ import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileIO;
+import config.profile.GraphExecutionPolicy;
+import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
-import tuning.candidate.ProfileGridCandidateSpace;
-import tuning.candidate.ProfileMutators;
-import tuning.session.AutotuneSession;
-import tuning.session.TuningDefaults;
+import tuning.autotune.GraphAutotuneMode;
+import tuning.autotune.GraphAutotuneRequest;
+import tuning.autotune.AutotuneSession;
+import tuning.search.SearchPolicy;
+import tuning.preset.TuningPreset;
 import tuning.store.FileBestProfileResolver;
 import tuning.store.HardwareFingerprint;
 import tuning.store.JsonFileBestProfileStore;
 import tuning.store.PersistencePolicy;
-import tuning.store.PlatformCalibrationPaths;
+import tuning.calibration.store.PlatformCalibrationPaths;
 import tuning.store.WorkloadFingerprint;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadEnvironment;
@@ -113,11 +116,20 @@ final class TensorExecutionSupport {
         }
 
         PersistencePolicy persistence = new PersistencePolicy(true, true, bestProfilePath, historyPath);
-        ProfileGridCandidateSpace candidateSpace = new ProfileGridCandidateSpace(
-                seed,
-                java.util.List.of(ProfileMutators.constrainedStageOrderSpace())
-        );
-        var request = TuningDefaults.balancedAutotune(workload, seed, candidateSpace, persistence);
+        var request = new GraphAutotuneRequest(
+                workload,
+                seed.profileName(),
+                seed.dataType(),
+                seed.mode(),
+                GraphExecutionPolicy.fromExecutionProfile(seed),
+                PlatformRuntimeProfile.fromExecutionProfile(seed.profileName(), hardware.key(), "TENSOR_SEED", seed),
+                GraphAutotuneMode.STANDARD,
+                TuningPreset.BALANCED.autotuneMeasurement(),
+                TuningPreset.BALANCED.autotuneValidation(),
+                new SearchPolicy(1, 1, 1, false),
+                persistence,
+                null
+        ).toAutotuneRequest();
         var result = AutotuneSession.create(request).run();
         if (result.bestProfile() != null) {
             return result.bestProfile();

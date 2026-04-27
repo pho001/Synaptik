@@ -14,10 +14,10 @@ import config.runtime.FusedPrimaryBackend;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tuning.report.TextBenchmarkReportRenderer;
-import tuning.session.BenchmarkEntry;
-import tuning.session.BenchmarkRequest;
-import tuning.session.BenchmarkSession;
+import tuning.benchmark.report.TextBenchmarkReportRenderer;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkRequest;
+import tuning.benchmark.BenchmarkSession;
 import tuning.validate.ValidationPolicy;
 import tuning.workload.StandardWorkloads;
 
@@ -37,7 +37,7 @@ final class TransformerFusedProfileComparisonTest {
                 ),
                 COMPARISON_MEASUREMENT,
                 ValidationPolicy.disabled(),
-                tuning.report.ReportPolicy.defaults()
+                tuning.reporting.ReportPolicy.defaults()
         );
 
         var report = BenchmarkSession.create(request).run();

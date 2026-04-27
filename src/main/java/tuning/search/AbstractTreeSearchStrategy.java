@@ -1,7 +1,7 @@
 package tuning.search;
 
 import tuning.candidate.Candidate;
-import tuning.candidate.CandidateFingerprint;
+import tuning.candidate.ExecutableProfileFingerprint;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -44,7 +44,7 @@ abstract class AbstractTreeSearchStrategy implements SearchStrategy, SearchTreeI
         List<String> frontier = new ArrayList<>(seeds == null ? 0 : seeds.size());
         if (seeds != null) {
             for (Candidate candidate : seeds) {
-                String fp = CandidateFingerprint.of(candidate);
+                String fp = ExecutableProfileFingerprint.of(candidate);
                 frontier.add(fp);
                 nodesByFingerprint.put(fp, new SearchTreeNode(
                         fp,
@@ -59,7 +59,7 @@ abstract class AbstractTreeSearchStrategy implements SearchStrategy, SearchTreeI
     }
 
     protected void registerChild(Candidate child, String parentFingerprint, int round) {
-        String fp = CandidateFingerprint.of(child);
+        String fp = ExecutableProfileFingerprint.of(child);
         SearchTreeNode parent = nodesByFingerprint.get(parentFingerprint);
         nodesByFingerprint.putIfAbsent(fp, new SearchTreeNode(
                 fp,

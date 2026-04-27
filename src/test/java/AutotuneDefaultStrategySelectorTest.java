@@ -5,9 +5,9 @@ import org.junit.jupiter.api.Test;
 import tuning.candidate.Candidate;
 import tuning.candidate.ListCandidateSpace;
 import tuning.candidate.ProfileGridCandidateSpace;
-import tuning.candidate.ProfileMutators;
-import tuning.session.AutotuneDefaultStrategySelector;
-import tuning.session.AutotuneRequest;
+import tuning.candidate.explicit.ExplicitProfileMutators;
+import tuning.autotune.AutotuneDefaultStrategySelector;
+import tuning.autotune.AutotuneRequest;
 
 import java.util.List;
 
@@ -33,11 +33,29 @@ public class AutotuneDefaultStrategySelectorTest {
     }
 
     @Test
+    void selectorUsesSingleCandidateStrategyForOneCandidateSpace() {
+        var request = new AutotuneRequest(
+                new tuning.workload.TensorRootWorkloadSpec(
+                        "single",
+                        tuning.workload.WorkloadKind.GENERIC,
+                        environment -> tensor.Tensor.scalar(1.0)
+                ),
+                new ListCandidateSpace(List.of(candidate("only"))),
+                tuning.measure.MeasurementPolicy.defaults(),
+                tuning.validate.ValidationPolicy.disabled(),
+                new tuning.search.SearchPolicy(1, 1, 1, false),
+                tuning.store.PersistencePolicy.disabled()
+        );
+
+        assertEquals("SingleCandidateSearchStrategy", AutotuneDefaultStrategySelector.select(request).getClass().getSimpleName());
+    }
+
+    @Test
     void selectorUsesTreeBeamForModerateRefinableSpace() {
         var base = profile("base");
         var space = new ProfileGridCandidateSpace(
                 base,
-                List.of(ProfileMutators.conv2dLoweringModes(List.of(
+                List.of(ExplicitProfileMutators.conv2dLoweringModes(List.of(
                         config.optimizer.Conv2dLoweringMode.HEURISTIC,
                         config.optimizer.Conv2dLoweringMode.OFF,
                         config.optimizer.Conv2dLoweringMode.ALWAYS
@@ -84,7 +102,7 @@ public class AutotuneDefaultStrategySelectorTest {
         );
         var space = new ProfileGridCandidateSpace(
                 base,
-                tuning.candidate.ProfileMutators.transformerHotPathMutators()
+                ExplicitProfileMutators.transformerHotPathMutators()
         );
         var request = new AutotuneRequest(
                 tuning.workload.StandardWorkloads.transformerHotPath("transformer_hot_path"),

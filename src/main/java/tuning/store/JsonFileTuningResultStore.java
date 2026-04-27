@@ -1,7 +1,7 @@
 package tuning.store;
 
-import tuning.report.JsonTuningResultRenderer;
-import tuning.session.TuningResult;
+import tuning.autotune.report.JsonTuningResultRenderer;
+import tuning.autotune.TuningResult;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

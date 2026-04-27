@@ -1,6 +1,6 @@
 package tuning.search;
 
-import tuning.report.BenchmarkCandidateReport;
+import tuning.benchmark.report.BenchmarkCandidateReport;
 import tuning.workload.WorkloadKind;
 
 public final class WorkloadAwareBoundModel implements CandidateBoundModel {

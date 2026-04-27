@@ -74,8 +74,11 @@ The correct assembly point for a final executable profile is:
 This boundary matters because:
 
 - calibration mutates `PlatformRuntimeProfile`
-- graph autotune compares `ExecutionProfile`
+- graph autotune assembles and evaluates explicit `ExecutionProfile` candidates
 - runtime executes `ExecutionProfile`
+
+Current standard graph autotune intentionally exposes only `graphPolicy=current`.
+Graph-resident fields such as stage order, conv2d lowering, fusion scoring, and partition scoring are not standard graph autotune axes.
 
 ## Workflow Ownership
 
@@ -163,32 +166,28 @@ If runtime thresholds were pushed into optimizer stages, the architecture would 
 
 ## Current Family Surface
 
-The calibration enum currently contains:
+The calibration registry currently exposes these production family ids:
 
 - `MATMUL`
 - `ATTENTION_MATMUL`
-- `FUSED_THRESHOLDS`
-- `FUSED_CHEAP_CONTIGUOUS`
-- `FUSED_CHEAP_STRIDED`
-- `FUSED_NON_CHEAP_CONTIGUOUS`
-- `FUSED_NON_CHEAP_STRIDED`
-- `FUSED_ARITHMETIC`
+- `CONV2D_GEMM_DISPATCH`
+- `FUSED_DISPATCH`
+- `FUSED_CHEAP_CONTIGUOUS_WIDTH`
+- `FUSED_CHEAP_STRIDED_WIDTH`
+- `FUSED_NON_CHEAP_CONTIGUOUS_WIDTH`
+- `FUSED_NON_CHEAP_STRIDED_WIDTH`
 - `ELEMENTWISE_DISPATCH`
 - `REDUCTION`
 - `ATTENTION_THRESHOLDS`
 - `SCHEDULER`
 - `MATERIALIZATION`
-- `CONV2D_GEMM_DISPATCH_F64`
-- `CONV2D_GEMM_DISPATCH_F32`
-- `CONV2D_GEMM_DISPATCH_BF16`
-- `NUMERICS`
+- `METAL_SELECTION` as explicit accelerator opt-in only
 
 Important current reality:
 
-- `FUSED_ARITHMETIC` exists in the enum
-- standard `PlatformCalibrationDefaults` do not currently expose it as a normal preset step
-
-So documentation should describe it as reserved/not-in-standard-presets, not as a commonly run family.
+- conv2d dispatch is one dtype-aware family, not three public dtype-specific ids
+- numerical policy is not a timing-selected calibration family
+- Metal selection is never part of default CPU calibration
 
 ## BLAS Thread Policy
 

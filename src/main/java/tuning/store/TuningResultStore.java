@@ -1,6 +1,6 @@
 package tuning.store;
 
-import tuning.session.TuningResult;
+import tuning.autotune.TuningResult;
 
 import java.nio.file.Path;
 

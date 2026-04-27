@@ -109,8 +109,8 @@ Best when:
 
 Example:
 
-- 6 explicit stage-order candidates
-- measure all 6
+- the standard graph autotune space has only `graphPolicy=current`
+- measure the single candidate directly
 - choose the best median
 
 ### History-aware search
@@ -122,8 +122,9 @@ Best when:
 
 Example:
 
-- a previous run suggests `AR,CSE,FUSE,MEM` and `AR,CSE,MEM` are historically strong
-- history-aware ordering tries those first instead of random or lexical order
+- a previous production run has structured metadata for valid candidates
+- history-aware ordering can prefer matching production-eligible candidates first
+- research-only candidates are ignored by default production lookup
 
 ### Beam/tree search
 

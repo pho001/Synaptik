@@ -1,6 +1,6 @@
 import org.junit.jupiter.api.Test;
 import tuning.etalon.FrameworkEtalon;
-import tuning.session.TuningPreset;
+import tuning.preset.TuningPreset;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
