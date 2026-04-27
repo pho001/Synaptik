@@ -40,6 +40,8 @@ tasks.withType(Test).configureEach {
     def configuredTestHeap = System.getProperty('synaptik.testMaxHeap')
     if (configuredTestHeap != null && !configuredTestHeap.isBlank()) {
         maxHeapSize = configuredTestHeap
+    } else {
+        maxHeapSize = '2g'
     }
 }
 

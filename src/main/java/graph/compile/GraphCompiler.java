@@ -121,7 +121,7 @@ public final class GraphCompiler {
                     if (forwardEndIndex == -1) {
                         throw new IllegalStateException("Forward output node not found in inference finalGraph.");
                     }
-                    sourceTensors.put(requireForwardRoot(), rootTensor);
+                    mapComputedForwardRootForPublish(sourceTensors);
                     rebuildCompiledNodeSnapshot(sourceTensors);
                     forwardSeedGradient = GradientBindingCollector.captureForwardSeedGradient(
                             requireForwardRoot(),
@@ -154,7 +154,7 @@ public final class GraphCompiler {
                 if (forwardEndIndex == -1) {
                     throw new IllegalStateException("Forward output node not found in finalGraph.");
                 }
-                sourceTensors.put(requireForwardRoot(), rootTensor);
+                mapComputedForwardRootForPublish(sourceTensors);
                 rebuildCompiledNodeSnapshot(sourceTensors);
                 compiledGradients = GradientBindingCollector.captureCompiledGradients(
                         finalGraph,
@@ -343,6 +343,13 @@ public final class GraphCompiler {
                 throw new IllegalStateException("System forward output must have exactly one input.");
             }
             return inputs.get(0);
+        }
+
+        private void mapComputedForwardRootForPublish(Map<Tensor, Tensor> sourceTensors) {
+            Tensor actualForwardRoot = requireForwardRoot();
+            if (actualForwardRoot.getOperation() != null) {
+                sourceTensors.put(actualForwardRoot, rootTensor);
+            }
         }
     }
 }

@@ -69,8 +69,8 @@ public final class DefaultValidationEngine implements ValidationEngine {
             SnapshotValidationReference reference,
             ValidationPolicy policy
     ) {
-        execute(executionRoot, candidateProfile);
         Tensor candidateValidationRoot = candidateValidationTarget.resolve(executionRoot);
+        execute(candidateValidationRoot, candidateProfile);
 
         LinkedHashMap<String, Double> metrics = new LinkedHashMap<>();
         ValidationResult outputResult = compareTensor(
@@ -108,13 +108,13 @@ public final class DefaultValidationEngine implements ValidationEngine {
             BaselineProfileValidationReference reference,
             ValidationPolicy policy
     ) {
-        execute(candidateRoot, candidateProfile);
         Tensor candidateValidationRoot = candidateValidationTarget.resolve(candidateRoot);
+        execute(candidateValidationRoot, candidateProfile);
 
         WorkloadInstance baselineWorkload = workloadSpec.instantiate(new WorkloadEnvironment(reference.baselineProfile()));
         Tensor baselineRoot = baselineWorkload.root();
-        execute(baselineRoot, reference.baselineProfile());
         Tensor baselineValidationRoot = baselineWorkload.validationTarget().resolve(baselineRoot);
+        execute(baselineValidationRoot, reference.baselineProfile());
 
         LinkedHashMap<String, Double> metrics = new LinkedHashMap<>();
         ValidationResult outputResult = compareTensor(

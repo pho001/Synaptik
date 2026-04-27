@@ -2,6 +2,7 @@ import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
+import tuning.autotune.TuningDefaults;
 import tuning.benchmark.BenchmarkEntry;
 import tuning.preset.TuningPreset;
 import tuning.validate.ValidationReferenceKind;
@@ -137,7 +138,7 @@ public class StandardWorkloadsTest {
         var request = StandardWorkloads.benchmark("matmul_small", java.util.List.of(candidate), TuningPreset.BALANCED);
 
         assertEquals("matmul_small", request.workload().name());
-        assertEquals(2, request.measurement().warmupIters());
+        assertEquals(TuningDefaults.balancedMeasurement().warmupIters(), request.measurement().warmupIters());
         assertEquals(1, request.entries().size());
     }
 

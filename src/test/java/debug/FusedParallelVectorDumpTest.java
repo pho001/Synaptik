@@ -19,8 +19,8 @@ import graph.execution.PreparedNodeExecution;
 import backend.cpu.fused.plan.FusedOperation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
-import tuning.workload.StandardWorkloads;
-import tuning.workload.WorkloadEnvironment;
+import tensor.Tensor;
+import tensor.TensorDataFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -49,32 +49,30 @@ final class FusedParallelVectorDumpTest {
                 "fused-dump-" + dataType.name().toLowerCase(),
                 "fused-dump-" + dataType.name().toLowerCase(),
                 dataType,
-                backend.runtime.ExecutionMode.FORWARD_BACKWARD,
-                OptimizerConfig.trainingDefaults().withStageOrder(List.of(OptimizerStage.PART, OptimizerStage.FUSE)),
+                backend.runtime.ExecutionMode.FORWARD,
+                OptimizerConfig.inferenceDefaults().withStageOrder(List.of(OptimizerStage.PART, OptimizerStage.FUSE, OptimizerStage.MEM)),
                 runtimeForDump(),
                 WorkloadProfile.none()
         );
 
-        var workload = StandardWorkloads
-                .abcSequenceMatmul("abc_sequence_matmul_dump_" + dataType.name().toLowerCase(), 64, 10_000)
-                .instantiate(new WorkloadEnvironment(profile));
+        Tensor root = fusedDumpRoot(dataType, 131_072);
 
-        PreparedExecution prepared = CompiledGraph.compile(workload.root(), profile.optimizer()).prepare(profile.runtime());
+        PreparedExecution prepared = CompiledGraph.compile(root, profile.optimizer()).prepare(profile.runtime());
 
         String fusedStepsSummary = prepared.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() instanceof FusedOperation)
+                .filter(step -> step.executionOperation() instanceof FusedOperation)
                 .map(step -> {
                     var hints = step.metadata().cpuPlan() == null ? null : step.metadata().cpuPlan().dispatchHints();
                     return step.node().getLabel()
                             + " mode=" + (hints == null ? "null" : hints.mode())
                             + " vectorWidth=" + (hints == null ? -1 : hints.vectorWidth())
                             + " workers=" + (hints == null ? -1 : hints.plannedWorkers())
-                            + " expr=" + step.node().getOperation().getExpression();
+                            + " expr=" + step.executionOperation().getExpression();
                 })
                 .collect(Collectors.joining("\n"));
 
         PreparedNodeExecution selected = prepared.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() instanceof FusedOperation)
+                .filter(step -> step.executionOperation() instanceof FusedOperation)
                 .filter(step -> step.metadata().cpuPlan() != null)
                 .filter(step -> step.metadata().cpuPlan().dispatchHints() != null)
                 .filter(step -> step.metadata().cpuPlan().dispatchHints().parallel())
@@ -84,7 +82,7 @@ final class FusedParallelVectorDumpTest {
 
         assertNotNull(selected.metadata().fusedExecutable(), "Prepared fused executable must be present");
 
-        FusedOperation fused = (FusedOperation) selected.node().getOperation();
+        FusedOperation fused = (FusedOperation) selected.executionOperation();
         var hints = selected.metadata().cpuPlan().dispatchHints();
         assertTrue(hints.mode() == CpuExecutionMode.PARALLEL_VECTOR || hints.mode() == CpuExecutionMode.VECTOR,
                 "Expected vector-capable fused dispatch mode");
@@ -135,6 +133,21 @@ final class FusedParallelVectorDumpTest {
 
         Path metadataPath = OUTPUT_DIR.resolve(binaryName.replace('.', '/') + ".metadata.txt");
         Files.writeString(metadataPath, metadata, StandardCharsets.UTF_8);
+    }
+
+    private static Tensor fusedDumpRoot(DataType dataType, int size) {
+        Tensor a = TensorDataFactory.shapedTensor("dumpA", buildInput(size, 0.11), false, dataType, size);
+        Tensor b = TensorDataFactory.shapedTensor("dumpB", buildInput(size, -0.07), false, dataType, size);
+        Tensor c = TensorDataFactory.shapedTensor("dumpC", buildInput(size, 0.03), false, dataType, size);
+        return a.add(b).mul(c).add(a.mul(0.25)).max(b).min(c).sigmoid();
+    }
+
+    private static double[] buildInput(int size, double phase) {
+        double[] values = new double[size];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = Math.sin(i * 0.013 + phase) * 0.75 + Math.cos(i * 0.007 - phase) * 0.25 + 1.25;
+        }
+        return values;
     }
 
     private static RuntimeConfig runtimeForDump() {

@@ -74,7 +74,7 @@ final class MinMaxGradExecutor {
 
     private static double gradValue(double av, double bv, double gv, boolean forFirstInput, boolean isMax) {
         if (av == bv) {
-            return forFirstInput ? 0.0d : gv;
+            return gv * 0.5d;
         }
         boolean firstWins = isMax ? (av > bv) : (av < bv);
         return forFirstInput == firstWins ? gv : 0.0d;
