@@ -86,7 +86,7 @@ Run one default-package test class:
 Run one package-qualified test class:
 
 ```bash
-./gradlew test --no-daemon --tests synaptik.app.MainCliParsingTest
+./gradlew test --no-daemon --tests synaptik.app.TuningCliParsingTest
 ```
 
 Run one debug benchmark test:
@@ -163,7 +163,7 @@ Use these after changing specific areas:
 | Backend boundaries | `./gradlew test --no-daemon --tests SourceTreeHygieneTest --tests backend.ComputeBackendTest` |
 | CPU planning | `./gradlew test --no-daemon --tests CpuExecutionPlannerDispatchHeuristicsTest --tests backend.cpu.kernels.ElementwiseDispatchPlanningTest --tests backend.cpu.kernels.FusedDispatchPlanningTest` |
 | Tuning/calibration | `./gradlew test --no-daemon --tests CalibrationFamilyRegistryTest --tests PlatformCalibrationDefaultsTest --tests TuningStoreTest --tests tuning.integration.SessionWorkloadIsolationTest` |
-| CLI parsing | `./gradlew test --no-daemon --tests synaptik.app.MainCliParsingTest --tests AppEntryPointTest` |
+| CLI parsing | `./gradlew test --no-daemon --tests synaptik.app.TuningCliParsingTest --tests AppEntryPointTest` |
 
 Gradle accepts multiple `--tests` filters in one command, as shown above.
 

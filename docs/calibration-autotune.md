@@ -112,7 +112,7 @@ The assembled `ExecutionProfile` is what `DefaultMeasurementEngine` measures. Th
 
 ```mermaid
 sequenceDiagram
-    participant CLI as synaptik.app.Main
+    participant CLI as synaptik.app.TuningCli
     participant Cal as CalibrationRunner
     participant Session as PlatformCalibrationSession
     participant Store as CalibrationRunStore
@@ -298,7 +298,9 @@ If a research run measures:
 
 ## CLI Entry Points
 
-The main application entry point is `src/main/java/synaptik/app/Main.java`.
+The tuning CLI entry point is `src/main/java/synaptik/app/TuningCli.java`. The
+`src/main/java/synaptik/app/Main.java` entry point demonstrates programmatic calibration and
+benchmarking without CLI parsing.
 
 ```bash
 ./gradlew run --args="full <f64|f32|bf16>"
@@ -326,7 +328,8 @@ Calibration-specific options are parsed by `CalibrationCommand`:
 | `--output-root` | Path | Root for calibration artifacts. Default is `profiles`. |
 | `--include-accelerators` | Flag | Adds accelerator opt-in families such as `metal-selection`. |
 
-Production CLI graph autotune uses `GraphAutotuneMode.STANDARD`. Research graph policy candidates exist in code, but `Main.java` does not expose a stable command-line switch for research graph autotune. Treat research runs as programmatic or test/tooling-level usage unless a future CLI command is added.
+Production CLI graph autotune defaults to `GraphAutotuneMode.STANDARD`. `TuningCli` also exposes
+`--graph-mode research` for explicit research-mode runs.
 
 ## Scenario Catalog And Configuration
 
@@ -344,16 +347,19 @@ The code deliberately keeps those concerns separate. Calibration is configured b
 
 | Scenario | CLI entry | Main code path | Configuration object | Measures | Persists |
 |---|---|---|---|---|---|
-| Full local iteration | `full <dtype>` or no args for `full f64` | `Main.runFull(...)` | Internally builds `CalibrationCommand`, `GraphAutotuneRequest`, then `BenchmarkRequest` | Balanced all-family calibration, standard ABC graph autotune, winner benchmark | Calibration latest profile, ABC best profile, ABC history |
+| Full local iteration | `full <dtype>` or no args for `full f64` | `TuningCli.runFull(...)` | Internally builds `CalibrationCommand`, `GraphAutotuneRequest`, then `BenchmarkRequest` | Balanced all-family calibration, standard ABC graph autotune, winner benchmark | Calibration latest profile, ABC best profile, ABC history |
 | Single-family calibration | `calibrate --dtype f64 --family matmul` | `CalibrationCommand.parse(...)` then `CalibrationRunner.create().run(...)` | `CalibrationCommand` | Runtime candidates owned by one calibration family | Calibration run artifacts and latest profile for the dtype/mode |
 | All-family calibration | `calibrate --dtype f64 --families all` | Same as above | `CalibrationCommand` | Standard family suite in registry order | Calibration run artifacts, family history, latest profile |
 | All-dtype calibration | `calibrate --dtypes all --families all` | Same as above | `CalibrationCommand` | Standard family suite for `FLOAT64`, `FLOAT32`, and `BFLOAT16` | Separate latest profile per dtype/mode |
-| Standard graph autotune | `autotune f64` | `Main.runAutotune(...)` | `GraphAutotuneRequest` | `graphPolicy=current` for ABC workload with calibrated runtime profile | `profiles/platform/<platform-id>/tuning/abc/f64-best-profile.json` and `f64-history.jsonl` |
-| Winner benchmark | `benchmark-winner f64` | `Main.runWinnerBenchmark(...)` | `BenchmarkRequest` from `TuningDefaults.benchmark(...)` | Baseline profile versus saved ABC best profile | No best-profile update; prints benchmark report |
-| Graph-space benchmark | `benchmark-graph-space f64` | `Main.runGraphSpaceBenchmark(...)` | `BenchmarkRequest` with entries from `GraphAutotuneCandidateSpace` | Baseline plus standard graph candidate space | No best-profile update; prints benchmark report |
+| Standard graph autotune | `autotune f64` | `TuningCli.runAutotune(...)` | `GraphAutotuneRequest` | `graphPolicy=current` for ABC workload with calibrated runtime profile | `profiles/platform/<platform-id>/tuning/abc/f64-best-profile.json` and `f64-history.jsonl` |
+| Winner benchmark | `benchmark-winner f64` | `TuningCli.runWinnerBenchmark(...)` | `BenchmarkRequest` from `TuningDefaults.benchmark(...)` | Baseline profile versus saved ABC best profile | No best-profile update; prints benchmark report |
+| Graph-space benchmark | `benchmark-graph-space f64` | `TuningCli.runGraphSpaceBenchmark(...)` | `BenchmarkRequest` with entries from `GraphAutotuneCandidateSpace` | Baseline plus standard graph candidate space | No best-profile update; prints benchmark report |
 | Programmatic custom workload | No direct CLI command | Caller builds request in Java | `TensorRootWorkloadSpec`, `GraphAutotuneRequest`, `BenchmarkRequest`, or `CalibrationCommand` | Whatever workload and candidate set the caller supplies | Depends on supplied `PersistencePolicy` or calibration output root |
 
-`benchmark-graph-space` is easy to misread. In the current `Main.java`, it creates `GraphAutotuneCandidateSpace(..., GraphAutotuneMode.STANDARD)`, so it benchmarks `graphPolicy=current`, not the research variants. Research variants exist in `GraphPolicyMutators.research(...)`, but they are programmatic at the time this document was verified.
+`benchmark-graph-space` is easy to misread. In the default `TuningCli` path it creates
+`GraphAutotuneCandidateSpace(..., GraphAutotuneMode.STANDARD)`, so it benchmarks
+`graphPolicy=current`, not the research variants. Pass `--graph-mode research` for the research
+candidate space.
 
 ### CLI launch examples
 
@@ -439,13 +445,13 @@ Prerequisite:
 ./gradlew run --args="calibrate --dtype f64 --families all"
 ```
 
-`Main.loadCalibrationProfile(...)` expects a latest calibration profile under the current platform id:
+`TuningCli.loadCalibrationProfile(...)` expects a latest calibration profile under the current platform id:
 
 ```text
 profiles/platform/<platform-id>/calibration/schema-v2/latest/f64/forward-backward/profile.json
 ```
 
-The exact `<platform-id>` is derived from `HardwareFingerprint.capture()` and `PlatformCalibrationPaths.platformId(...)`. If the profile is missing, `Main.loadCalibrationProfile(...)` throws an `IllegalStateException` telling the user to run calibration first.
+The exact `<platform-id>` is derived from `HardwareFingerprint.capture()` and `PlatformCalibrationPaths.platformId(...)`. If the profile is missing, `TuningCli.loadCalibrationProfile(...)` throws an `IllegalStateException` telling the user to run calibration first.
 
 ```bash
 # Compare no-optimization baseline with the persisted ABC winner.
@@ -478,7 +484,8 @@ mode=FORWARD_BACKWARD
 ./gradlew run --args="benchmark-graph-space f64"
 ```
 
-This currently measures the baseline plus the standard graph candidate `graphPolicy=current`. It does not measure `cse=strict`, `cse=aggressive`, `piecewise=canonical`, or memory research candidates because `Main.runGraphSpaceBenchmark(...)` uses `GraphAutotuneMode.STANDARD`.
+This measures the baseline plus the standard graph candidate `graphPolicy=current` by default. Use
+`--graph-mode research` when invoking `TuningCli` to include the research graph candidate space.
 
 ### Calibration command option catalog
 
@@ -673,7 +680,7 @@ var graphRequest = new GraphAutotuneRequest(
 var result = AutotuneSession.create(graphRequest.toAutotuneRequest()).run();
 ```
 
-The actual `Main.runAutotune(...)` uses `SingleCandidateSearchStrategy` explicitly because standard graph autotune currently emits one candidate:
+The actual `TuningCli.runAutotune(...)` uses `SingleCandidateSearchStrategy` explicitly when standard graph autotune emits one candidate:
 
 ```text
 candidate.name=graphPolicy=current
@@ -730,7 +737,7 @@ Research candidates are useful for experiments and regression investigation. The
 
 ### Benchmark scenario configuration
 
-Benchmarks compare named `BenchmarkEntry` objects over one workload. `Main.runWinnerBenchmark(...)` constructs a baseline and a persisted winner:
+Benchmarks compare named `BenchmarkEntry` objects over one workload. `TuningCli.runWinnerBenchmark(...)` constructs a baseline and a persisted winner:
 
 ```java
 ExecutionProfile baseline = new ExecutionProfile(
@@ -916,7 +923,7 @@ Artifact root:
 /tmp/synaptik-profiles/platform/<platform-id>/calibration/schema-v2/
 ```
 
-Graph autotune CLI persistence is not currently configurable from command-line flags. `Main.tuningPersistence(...)` writes ABC results to:
+Graph autotune CLI persistence is not currently configurable from command-line flags. `TuningCli.tuningPersistence(...)` writes ABC results to:
 
 ```text
 profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json
@@ -953,7 +960,7 @@ Set `PersistencePolicy.disabled()` for throwaway experiments.
 
 | Mistake | What happens | Correct approach |
 |---|---|---|
-| Running `autotune f64` before calibration | `Main.loadCalibrationProfile(...)` throws because latest calibration profile is missing. | Run `calibrate --dtype f64 --families all` first. |
+| Running `autotune f64` before calibration | `TuningCli.loadCalibrationProfile(...)` throws because latest calibration profile is missing. | Run `calibrate --dtype f64 --families all` first. |
 | Using `--dtypes f64` | `CalibrationCommand.parse(...)` rejects it because `--dtypes` only supports `all`. | Use `--dtype f64`. |
 | Mixing `--family matmul` and `--families all` | Parser rejects the combination. | Choose exactly one family selector. |
 | Expecting `benchmark-graph-space` to run research variants | Current CLI uses `GraphAutotuneMode.STANDARD`. | Use programmatic `GraphAutotuneMode.RESEARCH`. |
@@ -980,27 +987,27 @@ The proposed API should optimize for these properties:
 | Dot-oriented ergonomics | Common tuning flows read left-to-right as chained method calls. | Users should not have to remember long record constructors for everyday scenarios. |
 | Explicit workflow boundaries | Calibration, graph autotune, and benchmark have separate entry points. | Calibration tunes runtime/hardware-sensitive knobs; graph autotune tunes graph policy; benchmark only compares profiles. |
 | Staged validation | `.run()` becomes available only after required choices are made. | This prevents invalid combinations such as "calibration without dtype" or "autotune without workload". |
-| Current defaults preserved | Shortcuts expand to the same defaults as `Main.java`, `TuningPreset`, and current request constructors. | Ergonomics should not change performance behavior silently. |
+| Current defaults preserved | Shortcuts expand to the same defaults as `TuningCli.java`, `TuningPreset`, and current request constructors. | Ergonomics should not change performance behavior silently. |
 | Escape hatches | Advanced callers can still pass explicit `MeasurementPolicy`, `ValidationPolicy`, `SearchPolicy`, `PersistencePolicy`, runtime profiles, graph policies, and listeners. | The fluent layer should be convenient, not restrictive. |
 | No compatibility layer clutter | The fluent API should build current request objects directly. | Keeps the design clean and avoids parallel configuration models. |
 
 ### Package and entry point
 
-Proposed package layout:
+Implemented fluent API files:
 
 ```text
+src/main/java/tuning/api/Synaptik.java
 src/main/java/tuning/api/SynaptikTuning.java
 src/main/java/tuning/api/CalibrationDsl.java
-src/main/java/tuning/api/GraphAutotuneDsl.java
 src/main/java/tuning/api/BenchmarkDsl.java
-src/main/java/tuning/api/BenchmarkSuiteDsl.java
-src/main/java/tuning/api/ProfileSources.java
-src/main/java/tuning/api/ProfileSinks.java
-src/main/java/tuning/api/WorkloadShortcuts.java
-src/main/java/tuning/api/TuningRunOptions.java
 ```
 
-The top-level entry point can live either under `tuning.api` or under a higher-level facade such as `synaptik.Synaptik`. The user-facing shape should be:
+The top-level entry point is `tuning.api.Synaptik`. The current implementation covers calibration
+and explicit benchmark requests. Graph autotune and benchmark-suite fluent builders are still
+documented as intended extension points below; their low-level APIs remain available through
+`GraphAutotuneRequest`, `AutotuneSession`, `BenchmarkSuiteRequest`, and `BenchmarkSuiteSession`.
+
+The user-facing calibration shape is:
 
 ```java
 Synaptik.tuning()
@@ -1011,7 +1018,7 @@ Synaptik.tuning()
         .run();
 ```
 
-Minimal top-level facade:
+Implemented top-level facade:
 
 ```java
 public final class Synaptik {
@@ -1024,18 +1031,13 @@ public final class Synaptik {
 }
 ```
 
-`SynaptikTuning` should expose only workflow entry points and safe shortcuts:
+`SynaptikTuning` exposes workflow entry points and safe shortcuts:
 
 ```java
 public final class SynaptikTuning {
-    public CalibrationDsl.Start calibration();
-    public GraphAutotuneDsl.Start autotune();
-    public BenchmarkDsl.Start benchmark();
-    public BenchmarkSuiteDsl.Start benchmarkSuite();
-
-    public CalibrationDsl.DTypeSelected calibrate(DataType dtype);
-    public GraphAutotuneDsl.DTypeSelected autotuneGraph(DataType dtype);
-    public BenchmarkDsl.DTypeSelected benchmarkWinner(DataType dtype);
+    public CalibrationDsl calibration();
+    public BenchmarkDsl benchmark();
+    public CalibrationDsl calibrate(DataType dtype);
 }
 ```
 
@@ -1075,13 +1077,12 @@ Canonical all-family calibration:
 ```java
 List<PlatformCalibrationResult> results = Synaptik.tuning()
         .calibration()
-        .dtype(DataType.FLOAT64)
-        .allFamilies()
+        .dtypes().single(DataType.FLOAT64)
+        .families().all()
         .balanced()
-        .mode(ExecutionMode.FORWARD_BACKWARD)
-        .progress()
-        .live()
-        .colorAuto()
+        .mode().training()
+        .progress().live()
+        .color().auto()
         .outputRoot(Path.of("profiles"))
         .run();
 ```
@@ -1114,8 +1115,7 @@ Synaptik.tuning()
         .family(CalibrationFamilyId.MATMUL)
         .quick()
         .forward()
-        .progress()
-        .lines()
+        .progress().lines()
         .colorNever()
         .run();
 ```
@@ -1332,7 +1332,7 @@ Graph autotune configuration catalog:
 | `.training()` / `.forwardBackward()` | no args | n/a | `executionMode=FORWARD_BACKWARD` | Training alias. |
 | `.graphPolicy(GraphExecutionPolicy)` | explicit policy | `GraphExecutionPolicy.trainingDefaults()` for training shortcuts | `graphPolicy` | This is the only policy graph autotune should vary. |
 | `.runtime().profile(PlatformRuntimeProfile)` | explicit runtime profile | none | `runtimeProfile` | Best for tests or custom profile loading. |
-| `.runtime().fromLatestCalibration(Path root)` | output root such as `profiles` | none | load `latest/<dtype>/<mode>/profile.json` | Should use the same platform id derivation as `Main.loadCalibrationProfile(...)`. |
+| `.runtime().fromLatestCalibration(Path root)` | output root such as `profiles` | none | load `latest/<dtype>/<mode>/profile.json` | Should use the same platform id derivation as `TuningCli.loadCalibrationProfile(...)`. |
 | `.runtime().fromLatestCalibration()` | no args | `profiles` | same as above | Convenience default root. |
 | `.standard()` | no args | `STANDARD` | `mode=GraphAutotuneMode.STANDARD` | Generates production candidate `graphPolicy=current`. |
 | `.research()` | no args | n/a | `mode=GraphAutotuneMode.RESEARCH` | Generates CSE, piecewise, and memory research variants. |
@@ -1351,7 +1351,7 @@ Graph autotune configuration catalog:
 | `.persist().to(Path best, Path history)` | two paths | disabled | `PersistencePolicy(true, true, best, history)` | Explicit artifact paths. |
 | `.persist().bestOnly(Path best)` | one path | disabled | `persistBestProfile=true`, `persistHistory=false` | Optional convenience if implemented. |
 | `.persist().historyOnly(Path history)` | one path | disabled | `persistBestProfile=false`, `persistHistory=true` | Optional convenience if implemented. |
-| `.persist().defaultPlatformTuning("abc")` | namespace string | current ABC default for shortcuts | current `profiles/platform/<platform-id>/tuning/<namespace>/<dtype>-...` | Mirrors `Main.tuningPersistence(...)`. |
+| `.persist().defaultPlatformTuning("abc")` | namespace string | current ABC default for shortcuts | current `profiles/platform/<platform-id>/tuning/<namespace>/<dtype>-...` | Mirrors `TuningCli.tuningPersistence(...)`. |
 | `.progress(AutotuneProgressListener)` | listener | no-op | `progressListener` | Escape hatch. |
 | `.progress().lines()` | no args | no-op in current CLI | `LoggingAutotuneProgressListener.defaults()` | If exposed, gives line-oriented autotune events. |
 | `.sessionFactory(...)` | custom executor factory | default session | executor | Test hook for injecting measurement/validation/store components. |
@@ -1402,10 +1402,10 @@ BenchmarkReport report = Synaptik.tuning()
         .benchmark()
         .workload(StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_f64"))
         .balanced()
+        .report().hotStepLimit(5).includeTrace().includeFailedCandidates().done()
         .compare()
-        .baseline("baseline-no-opt", Profiles.noOptTraining(DataType.FLOAT64))
-        .candidate("best-profile")
-        .fromBestProfile(Path.of("profiles/platform/<platform-id>/tuning/abc/f64-best-profile.json"))
+        .baseline("baseline-no-opt", baselineProfile)
+        .candidate("best-profile", winnerProfile)
         .run();
 ```
 
@@ -1451,28 +1451,37 @@ Synaptik.tuning()
         .run();
 ```
 
-Benchmark configuration catalog:
+Implemented benchmark configuration catalog:
 
 | Fluent method | Accepted values | Default | Maps to | Notes |
 |---|---|---:|---|---|
 | `.workload(WorkloadSpec)` | explicit workload | none | `BenchmarkRequest.workload` | Primary path. |
 | `.workload("matmul_small")` | standard workload catalog name | none | catalog lookup | Convenience for `StandardWorkloads.defaultCatalog()`. |
-| `.abcBlasBenchmark()` | no args | none | ABC workload helper | Same workload shape as CLI ABC flows. |
+| `.abcBlasBenchmark(String)` | workload name | none | ABC workload helper | Same workload shape as CLI ABC flows. |
 | `.preset(TuningPreset)` | `QUICK`, `BALANCED`, `THOROUGH` | `QUICK` in `TuningDefaults.benchmark(...)` if null, but fluent shortcuts should usually choose `BALANCED` explicitly | measurement/validation/report policies | Prefer explicit preset in public examples. |
 | `.quick()` | no args | n/a | quick benchmark policies | Convenience alias. |
 | `.balanced()` | no args | n/a | balanced benchmark policies | Convenience alias. |
 | `.thorough()` | no args | n/a | thorough benchmark policies | Convenience alias. |
 | `.measurement(MeasurementPolicy)` | explicit policy | preset policy | `BenchmarkRequest.measurement` | Advanced override. |
 | `.validation(ValidationPolicy)` | explicit policy | preset policy | `BenchmarkRequest.validation` | Advanced override. |
-| `.reportPolicy(ReportPolicy)` | explicit policy | `ReportPolicy.defaults()` | `BenchmarkRequest.reportPolicy` | Controls report behavior if exposed. |
+| `.report()` | no args | preset report policy | grouped report selector | Opens dot-style report configuration. |
+| `.report(ReportPolicy)` | explicit policy | preset report policy | `BenchmarkRequest.report` | Direct advanced override. |
+| `.report().defaults()` | no args | n/a | `ReportPolicy.defaults()` | Uses the repository default report policy. |
+| `.report().compact()` | no args | n/a | `ReportPolicy(0, false, true)` | Omits hot-step and trace detail. |
+| `.report().detailed()` | no args | n/a | `ReportPolicy.defaults()` | Explicit readable alias for default detailed reporting. |
+| `.report().hotStepLimit(int)` | non-negative integer | current policy value | `ReportPolicy.hotStepLimit` | Can be chained with `.includeTrace()` and `.done()`. |
+| `.report().includeTrace()` / `.excludeTrace()` | no args | current policy value | `ReportPolicy.includeTrace` | Controls trace detail in rendered reports. |
+| `.report().includeFailedCandidates()` / `.excludeFailedCandidates()` | no args | current policy value | `ReportPolicy.includeFailedCandidates` | Controls whether failed candidates are retained in reports. |
+| `.report().done()` | no args | n/a | returns to `BenchmarkDsl` | Use after field-by-field report configuration. |
 | `.compare()` | no args | none | entry builder | Starts benchmark entry collection. |
 | `.baseline(String, ExecutionProfile)` | entry name and profile | none | `BenchmarkEntry.baseline(...)` | Baseline is excluded from best-candidate selection. |
 | `.candidate(String, ExecutionProfile)` | entry name and profile | none | `BenchmarkEntry.candidate(...)` | Candidate participates in best-candidate selection. |
-| `.candidate(String).fromBestProfile(Path)` | path | none | load best profile then candidate entry | Convenience for persisted autotune winners. |
-| `.candidate(String).fromExecutionProfile(ExecutionProfile)` | profile | none | candidate entry | Direct object path. |
-| `.againstNoOptBaseline()` | no args | none | baseline profile helper | Should create `OptimizerConfig.noOptimization()` plus `RuntimeConfig.noOptNoVecNoPar()` for selected dtype/mode. |
 | `.run()` | no args | n/a | `BenchmarkSession.create(request).run()` | Returns `BenchmarkReport`. |
 | `.toRequest()` | no args | n/a | `BenchmarkRequest` | Test and inspection hook. |
+
+Planned but not yet implemented benchmark conveniences include `.fromBestProfile(Path)`,
+`.fromDefaultBestProfile(...)`, and `.againstNoOptBaseline()`. Current code should load/create
+`ExecutionProfile` instances explicitly and pass them to `.baseline(...)` or `.candidate(...)`.
 
 Validation rules:
 
@@ -1744,7 +1753,7 @@ The important invariant is that the fluent layer stays boring internally. It sho
 | `BALANCED` | `warmup=4`, `measure=8`, `repeats=3`, compile/prepare/cold/steady measured, no step trace | dtype-aware balanced tolerances, no gradient match | `maxCandidates=32`, `beamWidth=4`, `maxRounds=4`, pruning enabled | 2 for all-family calibration, 1 for single-family calibration |
 | `THOROUGH` | `warmup=4`, `measure=16`, `repeats=5`, compile/prepare/cold/steady measured, step trace captured | dtype-aware thorough tolerances, gradient match required | `maxCandidates=96`, `beamWidth=8`, `maxRounds=6`, pruning enabled | 2 for all-family calibration, 1 for single-family calibration |
 
-Calibration uses the preset's benchmark measurement and validation policies. Graph autotune uses the preset's autotune measurement and validation policies. In `Main.runAutotune`, the ABC graph autotune command uses `TuningPreset.BALANCED` and overrides search to `SearchPolicy(1, 1, 1, false)` because standard graph autotune has one production candidate.
+Calibration uses the preset's benchmark measurement and validation policies. Graph autotune uses the preset's autotune measurement and validation policies. In `TuningCli.runAutotune`, the ABC graph autotune command uses `TuningPreset.BALANCED` and overrides search to `SearchPolicy(1, 1, 1, false)` when standard graph autotune has one production candidate.
 
 ## Measurement Policy
 
@@ -2981,7 +2990,7 @@ Autotune report renderers are available in code:
 - `TextTuningResultDiffRenderer`
 - `JsonTuningResultDiffRenderer`
 
-The ABC CLI prints the text tuning result to stdout and writes best-profile/history artifacts through the stores. It does not write a separate tuning report file in `Main.runAutotune`.
+The ABC CLI prints the text tuning result to stdout and writes best-profile/history artifacts through the stores. It does not write a separate tuning report file in `TuningCli.runAutotune`.
 
 Benchmark report renderers are separate:
 
@@ -3068,7 +3077,7 @@ That evaluates only:
 graphPolicy=current
 ```
 
-A research run must currently be built programmatically because `Main.java` does not parse a research-mode autotune command. The important pieces are:
+A research run can be invoked through `TuningCli` with `--graph-mode research`; the important pieces are:
 
 ```java
 var request = new GraphAutotuneRequest(
@@ -3131,8 +3140,8 @@ If persistence is enabled, `DefaultAutotuneSession` can write a best-profile rec
 | Unsupported dtype | `CalibrationCommand` allows only `f64`, `f32`, and `bf16`; `metal-selection` supports only `FLOAT32`. | Select a supported dtype or omit accelerator family. |
 | Metal unavailable | `CalibrationSuite` checks Metal runtime availability before creating `METAL_SELECTION`. | Run without `--include-accelerators` or configure a machine/runtime with Metal support. |
 | Candidate changes an unowned knob | `CalibrationFamilyRegistry.validateCandidateChanges` rejects off-family knob assignments. | Fix the mutator or registry ownership before running the family. |
-| Missing calibration profile before autotune | `Main.loadCalibrationProfile` expects latest schema-v2 profile under `profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/forward-backward/profile.json`. | Run calibration first for that dtype and mode. |
-| Missing best profile before winner benchmark | `Main.loadWinnerProfile` expects `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json`. | Run `autotune <dtype>` first. |
+| Missing calibration profile before autotune | `TuningCli.loadCalibrationProfile` expects latest schema-v2 profile under `profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/forward-backward/profile.json`. | Run calibration first for that dtype and mode. |
+| Missing best profile before winner benchmark | `TuningCli.loadWinnerProfile` expects `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json`. | Run `autotune <dtype>` first. |
 | Validation mismatch | `DefaultValidationEngine` detects dtype, shape, output, or gradient mismatch. | Inspect validation target/reference and candidate policy; use thorough mode only when gradients are expected. |
 | Candidate exception during validation or measurement | Sessions catch exceptions and record candidate failure. | Check candidate runtime/profile compatibility and workload construction. |
 | Search budget truncates research candidates | `ExhaustiveSearchStrategy` limits selection to `SearchPolicy.maxCandidates`. | Set `maxCandidates` at least to the generated candidate count for full research coverage. |
@@ -3144,7 +3153,7 @@ Key implementation files:
 
 | Area | Files |
 |---|---|
-| CLI | `src/main/java/synaptik/app/Main.java`, `src/main/java/tuning/calibration/run/CalibrationCommand.java`, `src/main/java/tuning/calibration/run/CalibrationRunner.java` |
+| CLI | `src/main/java/synaptik/app/TuningCli.java`, `src/main/java/synaptik/app/Main.java`, `src/main/java/tuning/calibration/run/CalibrationCommand.java`, `src/main/java/tuning/calibration/run/CalibrationRunner.java` |
 | Calibration registry and suite | `src/main/java/tuning/calibration/family/CalibrationFamilyRegistry.java`, `src/main/java/tuning/calibration/run/CalibrationSuite.java`, `src/main/java/tuning/calibration/PlatformCalibrationDefaults.java` |
 | Runtime candidate generation | `src/main/java/tuning/calibration/runtime/PlatformRuntimeProfileGridCandidateSpace.java`, `src/main/java/tuning/calibration/runtime/PlatformRuntimeProfileMutators.java`, `src/main/java/tuning/calibration/runtime/RuntimeProfileCandidate.java` |
 | Graph candidate generation | `src/main/java/tuning/candidate/graph/GraphAutotuneParameter.java`, `src/main/java/tuning/candidate/graph/GraphPolicyMutators.java`, `src/main/java/tuning/candidate/graph/GraphAutotuneCandidateSpace.java`, `src/main/java/tuning/candidate/graph/GraphPolicyCandidateAssembler.java` |

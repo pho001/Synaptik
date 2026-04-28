@@ -27,7 +27,7 @@ This document covers build/runtime requirements, optimizer and runtime configura
 | Gradle wrapper | Use bundled `./gradlew` or `gradlew.bat` | `gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.properties` |
 | Java modules | `jdk.incubator.vector` | Added for compile, test, and JavaExec tasks in `build.gradle` |
 | Native access | `--enable-native-access=ALL-UNNAMED` | Added for test, run, and application default JVM args |
-| Main class | `synaptik.app.Main` | `build.gradle` `application.mainClass` |
+| Main class | `synaptik.app.TuningCli` | `build.gradle` `application.mainClass` |
 
 Core commands:
 
@@ -465,7 +465,7 @@ Normalization lowercases values, trims surrounding whitespace, and replaces spac
 
 ### CLI Autotune Layout
 
-**Source:** `src/main/java/synaptik/app/Main.java`
+**Source:** `src/main/java/synaptik/app/TuningCli.java`
 
 CLI autotune for the built-in ABC workload writes:
 
@@ -595,9 +595,9 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 
 ## CLI Configuration Behavior
 
-**Source:** `src/main/java/synaptik/app/Main.java` and `src/main/java/tuning/calibration/run/CalibrationCommand.java`
+**Source:** `src/main/java/synaptik/app/TuningCli.java` and `src/main/java/tuning/calibration/run/CalibrationCommand.java`
 
-Commands accepted by `Main`:
+Commands accepted by `TuningCli`:
 
 ```bash
 ./gradlew run

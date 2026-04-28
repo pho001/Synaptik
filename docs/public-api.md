@@ -32,7 +32,9 @@ This document describes the Java API surfaces that are usable from application c
 | Public | `config.optimizer.*` | `src/main/java/config/optimizer/*.java` | Optimizer stage and rewrite/fusion/memory/partition configuration records. |
 | Public | `config.runtime.*` | `src/main/java/config/runtime/*.java` | Runtime backend, BLAS, approximation, fused, and accelerator configuration records. |
 | Public | `config.profile.*` | `src/main/java/config/profile/*.java` | Persistable execution and platform runtime profile records plus profile IO. |
-| Public | `synaptik.app.Main` | `src/main/java/synaptik/app/Main.java` | Gradle application CLI entry point. |
+| Public | `tuning.api.*` | `src/main/java/tuning/api/*.java` | Fluent Java API for calibration and explicit benchmark workflows. |
+| Public | `synaptik.app.TuningCli` | `src/main/java/synaptik/app/TuningCli.java` | Gradle application CLI entry point for tuning workflows. |
+| Public | `synaptik.app.Main` | `src/main/java/synaptik/app/Main.java` | Programmatic calibration and benchmark entry point using regular Java calls. |
 | Probably internal | `tensor.TensorOps`, `tensor.TensorPrimitiveBuilder`, `tensor.TensorStorage*`, `tensor.TensorInternalAccess` | `src/main/java/tensor/*.java` | Public or package-visible support for operation construction and storage plumbing; prefer `Tensor` methods. |
 | Probably internal | `backend.ComputeEngine`, backend kernel classes, backend bridge classes | `src/main/java/backend/**/*.java` | Runtime dispatch and kernel implementation details. |
 | Probably internal | Most `tuning.*` candidate/search/measurement classes | `src/main/java/tuning/**/*.java` | Useful for extending the tuning system, but not the shortest supported application API. Prefer CLI/profile APIs first. |
@@ -619,9 +621,57 @@ Performance notes:
 - `PlatformRuntimeProfile.toRuntimeConfig()` maps persisted thresholds and backend choices back into runtime config for prepared execution.
 - `MatmulPlatformProfile` and `BlasConfig` currently normalize `blasThreads` to `0`.
 
+## Tuning Fluent API
+
+**Source:** `src/main/java/tuning/api/*.java`
+
+Purpose: configure calibration and explicit benchmark workflows from Java code without parsing CLI
+tokens.
+
+Primary entry point:
+
+```java
+Synaptik.tuning()
+```
+
+Implemented workflows:
+
+- `Synaptik.tuning().calibration()` builds a `CalibrationCommand` and runs it with `CalibrationRunner`.
+- `Synaptik.tuning().benchmark()` builds a `BenchmarkRequest` and runs it with `BenchmarkSession`.
+
+Concrete calibration example:
+
+```java
+List<PlatformCalibrationResult> results = Synaptik.tuning()
+        .calibration()
+        .dtypes().single(DataType.FLOAT64)
+        .families().all()
+        .quick()
+        .mode().training()
+        .measurement().iterations(1, 3, 1)
+        .progress().lines()
+        .color().auto()
+        .outputRoot(Path.of("profiles"))
+        .run();
+```
+
+Concrete benchmark example:
+
+```java
+BenchmarkReport report = Synaptik.tuning()
+        .benchmark()
+        .workload(workload)
+        .quick()
+        .report().hotStepLimit(5).includeTrace().done()
+        .compare()
+        .baseline("baseline-no-opt", baselineProfile)
+        .candidate("calibrated-runtime", calibratedProfile)
+        .run();
+```
+
 ## CLI Entry Point
 
-**Source:** `src/main/java/synaptik/app/Main.java`
+**Source:** `src/main/java/synaptik/app/TuningCli.java`
 
 Purpose: run calibration, graph autotune, and benchmark flows from Gradle.
 
@@ -631,7 +681,7 @@ Signatures:
 public static void main(String[] args)
 ```
 
-Supported commands from `Main.java`:
+Supported commands from `TuningCli.java`:
 
 ```bash
 ./gradlew run
@@ -646,7 +696,7 @@ Supported commands from `Main.java`:
 
 Parameters:
 
-- Dtypes accepted by `Main`: `f64`, `f32`, `bf16`.
+- Dtypes accepted by `TuningCli`: `f64`, `f32`, `bf16`.
 - Calibration options are parsed by `CalibrationCommand` and include `--preset`, `--mode`, `--measurement warmup:measure:repeats`, `--color`, `--progress`, `--output-root`, and `--include-accelerators`.
 
 Failures:

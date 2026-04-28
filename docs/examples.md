@@ -335,7 +335,8 @@ Expected output:
 
 ## CLI Examples
 
-The Gradle application entry point is `synaptik.app.Main`.
+The Gradle application entry point is `synaptik.app.TuningCli`. `synaptik.app.Main` is a
+programmatic example that configures calibration and benchmarking through `tuning.api.Synaptik`.
 
 Print usage for an unknown command:
 

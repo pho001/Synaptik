@@ -422,9 +422,11 @@ Current tuning docs under `src/main/java/tuning` provide deeper detail:
 
 Main path:
 
+- `src/main/java/synaptik/app/TuningCli.java`
 - `src/main/java/synaptik/app/Main.java`
 
-The CLI exposes the main tuning workflow:
+`TuningCli` exposes the command-line tuning workflow. `Main` shows the same calibration and benchmark
+components configured directly from Java through `tuning.api.Synaptik`:
 
 ```bash
 ./gradlew run --args="full f64"
@@ -434,7 +436,18 @@ The CLI exposes the main tuning workflow:
 ./gradlew run --args="benchmark-graph-space f64"
 ```
 
-Supported dtype tokens in `Main.DTypeTarget` are:
+Programmatic equivalent:
+
+```java
+Synaptik.tuning()
+        .calibration()
+        .dtypes().single(DataType.FLOAT64)
+        .families().all()
+        .quick()
+        .run();
+```
+
+Supported dtype tokens in `TuningCli.DTypeTarget` are:
 
 - `f64`
 - `f32`
