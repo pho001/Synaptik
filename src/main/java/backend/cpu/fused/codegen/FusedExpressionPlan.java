@@ -3,6 +3,9 @@ package backend.cpu.fused.codegen;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Internal lowered expression graph for fused CPU code generation.
+ */
 public record FusedExpressionPlan(
         List<FusedNodePlan> nodes,
         List<FusedExternalInputPlan> inputs,

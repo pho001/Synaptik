@@ -14,23 +14,49 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+/**
+ * User-facing diagnostics harness for running two execution profiles against identical numeric workloads.
+ */
 public final class NumericsHarness {
+    /**
+     * Mutable harness configuration populated by callers or system-property-backed CLI defaults.
+     */
     public static final class Config {
+        /** Floating-point data type used to construct harness tensors. */
         public DataType dtype = DataType.FLOAT32;
+        /** Number of scalar elements in the optimizer-like workload inputs. */
         public int size = 200_000;
+        /** Number of repeated arithmetic blocks in the optimizer-like workload. */
         public int graphBlocks = 6;
+        /** First broadcast batch dimension. */
         public int b0 = 128;
+        /** Second broadcast batch dimension. */
         public int b1 = 8;
+        /** Broadcast feature dimension. */
         public int f = 128;
+        /** Seed used to generate deterministic inputs for both candidates. */
         public long seed = 42L;
     }
 
     private final Config config;
 
+    /**
+     * Creates a harness with caller-supplied diagnostics configuration.
+     *
+     * @param config workload and dtype configuration
+     */
     public NumericsHarness(Config config) {
         this.config = config;
     }
 
+    /**
+     * Runs both candidates on identical inputs and returns a user-facing diagnostics report.
+     *
+     * @param a baseline execution profile
+     * @param b execution profile compared against the baseline
+     * @param policy policy used to classify aggregate drift
+     * @return numeric drift report for the candidate pair
+     */
     public NumericsReport run(ExecutionProfile a, ExecutionProfile b, NumericsPolicy policy) {
         InputSet input = new InputSet(config.size, config.seed);
         OutputSet outA = runCandidate(a, input);
@@ -57,6 +83,13 @@ public final class NumericsHarness {
         );
     }
 
+    /**
+     * Builds an execution profile for a named candidate and optimizer stage list.
+     *
+     * @param name display and candidate name
+     * @param stages optimizer stage order
+     * @return execution profile using training defaults and harness dtype
+     */
     public ExecutionProfile profile(String name, List<OptimizerStage> stages) {
         OptimizerConfig defaults = OptimizerConfig.trainingDefaults();
         return new ExecutionProfile(
@@ -141,6 +174,12 @@ public final class NumericsHarness {
         }
     }
 
+    /**
+     * Parses a CLI stage specification such as {@code NONE}, {@code AR}, or {@code AR,CSE}.
+     *
+     * @param stageSpec comma- or plus-separated optimizer stage names
+     * @return parsed optimizer stages, or an empty list for {@code null}, blank, or {@code NONE}
+     */
     public static List<OptimizerStage> parseStages(String stageSpec) {
         String spec = stageSpec == null ? "" : stageSpec.trim();
         if (spec.isEmpty() || "NONE".equalsIgnoreCase(spec)) {

@@ -13,6 +13,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Greedy planner that expands each seed into the largest legal contiguous-ish backend region it can find.
+ *
+ * <p>The planner iterates graph nodes in order, skips nodes already covered by accepted partitions, grows through
+ * supported consumers while respecting backend legality, and records a {@link PartitionDecisionTrace} for every seed it
+ * considers. It favors fast deterministic planning over exhaustive candidate search.
+ */
 public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
     private record AttemptResult(
             Partition partition,
@@ -34,6 +41,12 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
     ) {
     }
 
+    /**
+     * Plans greedy maximum regions for the request target.
+     *
+     * @param request planning request
+     * @return accepted partitions, attached backend plans, and trace decisions
+     */
     @Override
     public PartitionPlanningResult plan(PartitionPlanningRequest request) {
         if (request == null || request.target().isNone()) {

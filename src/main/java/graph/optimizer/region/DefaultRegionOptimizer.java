@@ -8,14 +8,29 @@ import graph.optimizer.partition.PartitionValueRef;
 
 import java.util.List;
 
+/**
+ * Default partition-to-region optimizer.
+ *
+ * <p>The optimizer delegates execution unit selection to a target-specific policy, then derives region values and their
+ * transport kinds from partition outputs, required materialization, and unit-to-unit value flow.
+ */
 public final class DefaultRegionOptimizer implements RegionOptimizer {
     private final RegionOptimizationPolicy cpuPolicy;
     private final RegionOptimizationPolicy genericPolicy;
 
+    /**
+     * Creates an optimizer with built-in CPU and generic accelerator policies.
+     */
     public DefaultRegionOptimizer() {
         this(new CpuRegionOptimizationPolicy(), new GenericGpuRegionOptimizationPolicy());
     }
 
+    /**
+     * Creates an optimizer with explicit policies.
+     *
+     * @param cpuPolicy policy for CPU partitions, or {@code null} for the default CPU policy
+     * @param genericPolicy policy for non-CPU partitions, or {@code null} for the generic accelerator policy
+     */
     public DefaultRegionOptimizer(
             RegionOptimizationPolicy cpuPolicy,
             RegionOptimizationPolicy genericPolicy
@@ -24,6 +39,13 @@ public final class DefaultRegionOptimizer implements RegionOptimizer {
         this.genericPolicy = genericPolicy == null ? new GenericGpuRegionOptimizationPolicy() : genericPolicy;
     }
 
+    /**
+     * Converts a partition to an optimized region.
+     *
+     * @param partition accepted partition
+     * @param context compiled node and fusion context
+     * @return optimized region with execution units and value transport metadata
+     */
     @Override
     public OptimizedRegion optimize(Partition partition, RegionOptimizationContext context) {
         if (partition == null) {
@@ -39,7 +61,12 @@ public final class DefaultRegionOptimizer implements RegionOptimizer {
                 .toList();
 
         RegionOptimizationTrace trace = new RegionOptimizationTrace(
-                List.of("units=" + units.size(), "target=" + partition.target().name())
+                List.of(
+                        "units=" + units.size(),
+                        "target=" + partition.target().name(),
+                        "regionKind=" + partition.regionKind().name(),
+                        "plannerStrategy=" + partition.plannerStrategy().name()
+                )
         );
 
         return new OptimizedRegion(

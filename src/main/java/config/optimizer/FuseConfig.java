@@ -1,5 +1,20 @@
 package config.optimizer;
 
+/**
+ * Scoring and safety configuration for region fusion.
+ *
+ * <p>Fusion groups compatible operations into larger execution units. The score parameters trade off
+ * loop-combining benefit against extra inputs, shared expensive nodes, and graph complexity. All numeric
+ * score parameters must be finite and non-negative.</p>
+ *
+ * @param maxClusterNodes maximum number of nodes in one fused cluster
+ * @param scoreThreshold minimum score required to accept a fusion candidate
+ * @param internalEdgeBonus bonus for edges internal to the candidate
+ * @param externalInputPenalty penalty for extra external inputs
+ * @param sharedExpensivePenalty penalty for consuming nodes that are expensive and shared elsewhere
+ * @param nonCheapBonus bonus for fusing non-cheap operations where loop reduction matters more
+ * @param preserveSharedExpensiveNodes whether shared expensive nodes should remain outside fused regions
+ */
 public record FuseConfig(
         int maxClusterNodes,
         double scoreThreshold,
@@ -45,6 +60,9 @@ public record FuseConfig(
         }
     }
 
+    /**
+     * @return conservative fusion defaults for training graphs
+     */
     public static FuseConfig trainingDefaults() {
         return new FuseConfig(
                 64,
@@ -57,6 +75,9 @@ public record FuseConfig(
         );
     }
 
+    /**
+     * @return more permissive fusion defaults for inference graphs
+     */
     public static FuseConfig inferenceDefaults() {
         return new FuseConfig(
                 96,
@@ -69,6 +90,9 @@ public record FuseConfig(
         );
     }
 
+    /**
+     * @return alias for inference defaults used by performance profiles
+     */
     public static FuseConfig inferencePerfDefaults() {
         return inferenceDefaults();
     }

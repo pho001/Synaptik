@@ -11,12 +11,24 @@ import config.backend.KernelTuningConfig;
 import config.backend.OpenClKernelConfig;
 import config.backend.SumAccuracyMode;
 import config.optimizer.AlgebraicRewriteConfig;
+import config.optimizer.AcceleratorRegionPolicy;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
+import config.optimizer.CpuFusionCheapProducerPolicy;
+import config.optimizer.CpuFusionConfig;
+import config.optimizer.CpuFusionFanoutPolicy;
+import config.optimizer.CpuFusionLayoutPolicy;
+import config.optimizer.CpuFusionMode;
+import config.optimizer.CpuRegionBoundaryPolicy;
+import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuRegionFanoutPolicy;
+import config.optimizer.CpuRegionPolicy;
 import config.optimizer.CseConfig;
 import config.optimizer.FuseConfig;
 import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
+import config.optimizer.OffloadConfig;
+import config.optimizer.OffloadPolicy;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.optimizer.PartitionConfig;
@@ -139,13 +151,46 @@ public final class ExecutionProfileIO {
                     findEnum(json, "partitionPlannerStrategy", defaultPartition.plannerStrategy(), PartitionPlannerStrategy.class),
                     findEnum(json, "partitionAcceleratorTarget", defaultPartition.target(), PartitionTarget.class)
             );
+            OffloadConfig defaultOffload = defaultProfile.optimizer().offload();
+            OffloadConfig offload = new OffloadConfig(
+                    findEnum(json, "offloadPolicy", defaultOffload.policy(), OffloadPolicy.class),
+                    findEnum(
+                            json,
+                            "acceleratorRegionPolicy",
+                            defaultOffload.acceleratorRegionPolicy(),
+                            AcceleratorRegionPolicy.class
+                    )
+            );
+            CpuRegionConfig defaultCpuRegion = defaultProfile.optimizer().cpuRegion();
+            CpuRegionConfig cpuRegion = new CpuRegionConfig(
+                    findEnum(json, "cpuRegionPolicy", defaultCpuRegion.policy(), CpuRegionPolicy.class),
+                    findInt(json, "cpuRegionMaxRegionNodes", defaultCpuRegion.maxRegionNodes()),
+                    findEnum(json, "cpuRegionFanoutPolicy", defaultCpuRegion.fanoutPolicy(), CpuRegionFanoutPolicy.class),
+                    findEnum(json, "cpuRegionBoundaryPolicy", defaultCpuRegion.boundaryPolicy(), CpuRegionBoundaryPolicy.class)
+            );
+            CpuFusionConfig defaultCpuFusion = defaultProfile.optimizer().cpuFusion();
+            CpuFusionConfig cpuFusion = new CpuFusionConfig(
+                    findEnum(json, "cpuFusionMode", defaultCpuFusion.mode(), CpuFusionMode.class),
+                    findInt(json, "cpuFusionMaxChainNodes", defaultCpuFusion.maxChainNodes()),
+                    findEnum(json, "cpuFusionFanoutPolicy", defaultCpuFusion.fanoutPolicy(), CpuFusionFanoutPolicy.class),
+                    findEnum(json, "cpuFusionLayoutPolicy", defaultCpuFusion.layoutPolicy(), CpuFusionLayoutPolicy.class),
+                    findEnum(
+                            json,
+                            "cpuFusionCheapProducerPolicy",
+                            defaultCpuFusion.cheapProducerPolicy(),
+                            CpuFusionCheapProducerPolicy.class
+                    )
+            );
             OptimizerConfig optimizer = new OptimizerConfig(
                     stageOrder,
                     rewrite,
                     strictSafety ? CseConfig.strictDefaults() : CseConfig.aggressiveDefaults(),
                     fuse,
                     memory,
-                    partition
+                    partition,
+                    offload,
+                    cpuRegion,
+                    cpuFusion
             );
 
             KernelTuningConfig defaultKernel = defaultProfile.runtime().kernel();
@@ -439,6 +484,23 @@ public final class ExecutionProfileIO {
                 "      \"partitionWorkWeight\": " + optimizer.partition().workWeight() + ",\n" +
                 "      \"partitionPlannerStrategy\": \"" + optimizer.partition().plannerStrategy().name() + "\",\n" +
                 "      \"partitionAcceleratorTarget\": \"" + optimizer.partition().target().name() + "\"\n" +
+                "    },\n" +
+                "    \"offload\": {\n" +
+                "      \"offloadPolicy\": \"" + optimizer.offload().policy().name() + "\",\n" +
+                "      \"acceleratorRegionPolicy\": \"" + optimizer.offload().acceleratorRegionPolicy().name() + "\"\n" +
+                "    },\n" +
+                "    \"cpuRegion\": {\n" +
+                "      \"cpuRegionPolicy\": \"" + optimizer.cpuRegion().policy().name() + "\",\n" +
+                "      \"cpuRegionMaxRegionNodes\": " + optimizer.cpuRegion().maxRegionNodes() + ",\n" +
+                "      \"cpuRegionFanoutPolicy\": \"" + optimizer.cpuRegion().fanoutPolicy().name() + "\",\n" +
+                "      \"cpuRegionBoundaryPolicy\": \"" + optimizer.cpuRegion().boundaryPolicy().name() + "\"\n" +
+                "    },\n" +
+                "    \"cpuFusion\": {\n" +
+                "      \"cpuFusionMode\": \"" + optimizer.cpuFusion().mode().name() + "\",\n" +
+                "      \"cpuFusionMaxChainNodes\": " + optimizer.cpuFusion().maxChainNodes() + ",\n" +
+                "      \"cpuFusionFanoutPolicy\": \"" + optimizer.cpuFusion().fanoutPolicy().name() + "\",\n" +
+                "      \"cpuFusionLayoutPolicy\": \"" + optimizer.cpuFusion().layoutPolicy().name() + "\",\n" +
+                "      \"cpuFusionCheapProducerPolicy\": \"" + optimizer.cpuFusion().cheapProducerPolicy().name() + "\"\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"runtime\": {\n" +

@@ -16,6 +16,53 @@ import tuning.workload.WorkloadSpec;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Immutable request for one autotune run over a concrete {@link WorkloadSpec}.
+ *
+ * <p>This is the generic autotune contract used by {@link AutotuneSession}. It
+ * evaluates candidates supplied by {@link #candidateSpace()} and selects the
+ * fastest valid profile according to {@link #measurement()}, {@link #validation()},
+ * and {@link #search()}. Benchmark sessions do not create candidates; graph
+ * autotune adapts this request through {@link GraphAutotuneRequest}; platform
+ * calibration uses {@code tuning.calibration.PlatformCalibrationRequest} because
+ * it mutates runtime-platform knobs across ordered calibration families.</p>
+ *
+ * <p>The request is thread-safe after construction if the supplied candidate
+ * space, policies, workload, and listener are themselves safe to share. The
+ * default file-backed persistence used by sessions performs side effects only
+ * when {@link #persistence()} enables paths.</p>
+ *
+ * <p>Example:</p>
+ * <pre>{@code
+ * AutotuneRequest request = new AutotuneRequest(
+ *         workload,
+ *         "matmul-tune",
+ *         DataType.FLOAT32,
+ *         ExecutionMode.CPU,
+ *         graphPolicy,
+ *         runtimeProfile,
+ *         candidateSpace,
+ *         MeasurementPolicy.defaults(),
+ *         ValidationPolicy.balancedDTypeAware(false),
+ *         new SearchPolicy(64, 8, 4, true),
+ *         PersistencePolicy.disabled(),
+ *         AutotuneProgressListener.noop());
+ * TuningResult result = AutotuneSession.create(request).run();
+ * }</pre>
+ *
+ * @param workload workload factory to instantiate for each candidate; required
+ * @param profileName logical profile namespace; blank values become {@code "autotune"}
+ * @param dataType tensor dtype used by assembled candidate profiles; required
+ * @param executionMode execution mode used by assembled candidate profiles; required
+ * @param graphPolicy graph optimizer/execution policy shared by generated profiles; required
+ * @param runtimeProfile platform runtime profile shared by generated profiles; required
+ * @param candidateSpace candidate generator searched by the session; required
+ * @param measurement measurement controls; {@code null} means {@link MeasurementPolicy#defaults()}
+ * @param validation validation controls; {@code null} means validation is disabled
+ * @param search search limits and pruning controls; {@code null} uses a balanced default
+ * @param persistence optional best-profile/history persistence; {@code null} disables persistence
+ * @param progressListener optional progress sink; {@code null} becomes a no-op listener
+ */
 public record AutotuneRequest(
         WorkloadSpec workload,
         String profileName,
@@ -234,6 +281,14 @@ public record AutotuneRequest(
         );
     }
 
+    /**
+     * Assembles an {@link ExecutionProfile} from the request's current graph and
+     * runtime policies without consulting the candidate space.
+     *
+     * @param candidateName candidate label to embed in the assembled profile
+     * @return execution profile carrying this request's dtype, mode, graph policy,
+     * and runtime profile
+     */
     public ExecutionProfile assembleCurrentProfile(String candidateName) {
         return ExecutionProfileAssembler.assemble(
                 profileName,

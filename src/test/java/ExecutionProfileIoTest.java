@@ -8,12 +8,24 @@ import config.backend.OpenClKernelConfig;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.optimizer.AlgebraicRewriteConfig;
+import config.optimizer.AcceleratorRegionPolicy;
 import config.optimizer.CseConfig;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
+import config.optimizer.CpuFusionCheapProducerPolicy;
+import config.optimizer.CpuFusionConfig;
+import config.optimizer.CpuFusionFanoutPolicy;
+import config.optimizer.CpuFusionLayoutPolicy;
+import config.optimizer.CpuFusionMode;
+import config.optimizer.CpuRegionBoundaryPolicy;
+import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuRegionFanoutPolicy;
+import config.optimizer.CpuRegionPolicy;
 import config.optimizer.FuseConfig;
 import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
+import config.optimizer.OffloadConfig;
+import config.optimizer.OffloadPolicy;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.optimizer.PartitionConfig;
@@ -58,7 +70,24 @@ public class ExecutionProfileIoTest {
                         CseConfig.aggressiveDefaults(),
                         FuseConfig.inferenceDefaults(),
                         new MemoryConfig(false, false, true, 8),
-                        new PartitionConfig(9, 77, 11.0, 22.0, 33.0, 44.0, 55.0, 66.0)
+                        new PartitionConfig(9, 77, 11.0, 22.0, 33.0, 44.0, 55.0, 66.0),
+                        new OffloadConfig(
+                                OffloadPolicy.ACCELERATOR_IF_PROFITABLE,
+                                AcceleratorRegionPolicy.SCORED_PROFITABLE_REGIONS
+                        ),
+                        new CpuRegionConfig(
+                                CpuRegionPolicy.AGGRESSIVE_CPU_REGIONS,
+                                123,
+                                CpuRegionFanoutPolicy.INCLUDE_AND_SPLIT_EXECUTION_UNITS,
+                                CpuRegionBoundaryPolicy.INCLUDE_SAFE_LAYOUT_PASSTHROUGH
+                        ),
+                        new CpuFusionConfig(
+                                CpuFusionMode.LOCAL_AGGRESSIVE,
+                                31,
+                                CpuFusionFanoutPolicy.MATERIALIZE_AND_CONTINUE,
+                                CpuFusionLayoutPolicy.ALIAS_VIEW_PASSTHROUGH,
+                                CpuFusionCheapProducerPolicy.INLINE_CHEAP_SHARED
+                        )
                 ),
                 new RuntimeConfig(
                         new KernelTuningConfig(
@@ -100,6 +129,9 @@ public class ExecutionProfileIoTest {
         assertFalse(actual.optimizer().cse().strictSafety());
         assertEquals(expected.optimizer().memory(), actual.optimizer().memory());
         assertEquals(expected.optimizer().partition(), actual.optimizer().partition());
+        assertEquals(expected.optimizer().offload(), actual.optimizer().offload());
+        assertEquals(expected.optimizer().cpuRegion(), actual.optimizer().cpuRegion());
+        assertEquals(expected.optimizer().cpuFusion(), actual.optimizer().cpuFusion());
         assertEquals(expected.runtime().kernel().cpu().cheapVectorMinSize(), actual.runtime().kernel().cpu().cheapVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().transcendentalVectorMinSize(), actual.runtime().kernel().cpu().transcendentalVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().reductionVectorMinSize(), actual.runtime().kernel().cpu().reductionVectorMinSize());

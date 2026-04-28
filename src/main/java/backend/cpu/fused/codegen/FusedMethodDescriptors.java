@@ -1,5 +1,8 @@
 package backend.cpu.fused.codegen;
 
+/**
+ * Internal JVM descriptors shared by fused ASM emitters.
+ */
 public final class FusedMethodDescriptors {
     private FusedMethodDescriptors() {}
 

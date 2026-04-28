@@ -13,29 +13,43 @@ import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Partition legality adapter for Metal accelerator graph regions.
+ */
 public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
     private final AcceleratorSubgraphLowerer lowerer = new AcceleratorSubgraphLowerer();
 
+    /**
+     * Returns the Metal partition target.
+     */
     @Override
     public PartitionTarget target() {
         return PartitionTarget.GPU_METAL;
     }
 
+    /**
+     * Returns whether a compiled node can be represented in the Metal accelerator DAG.
+     */
     @Override
     public boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context) {
-        return MetalPartitionSupport.isPlannerSupported(node);
+        return MetalPartitionSupport.isPlannerSupported(node, context);
     }
 
+    /**
+     * Returns whether the node can seed a Metal partition candidate.
+     */
     @Override
     public boolean canSeed(CompiledNode node, PartitionPlanningContext context) {
-        return MetalPartitionSupport.isPlannerSupported(node);
+        return MetalPartitionSupport.isPlannerSupported(node, context);
     }
 
+    /**
+     * Returns whether a producer outside the selected Metal candidate may be read as an external input.
+     */
     @Override
     public boolean canUseAsExternalInput(
             CompiledNode producer,
@@ -49,12 +63,51 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
         if (selectedNodeIds.contains(producer.id())) {
             return true;
         }
-        if (producer.operation() == null) {
-            return true;
+        if (sameTargetSupportedProducer(producer, consumer, context)) {
+            return false;
         }
-        return !MetalPartitionSupport.isPlannerSupported(producer) || producer.backend() != target().backend();
+        return externalInputRolesAreSupported(producer, consumer);
     }
 
+    private boolean sameTargetSupportedProducer(CompiledNode producer, CompiledNode consumer, PartitionPlanningContext context) {
+        if (isForwardAttentionInputToBackwardAttention(producer, consumer)) {
+            return false;
+        }
+        return producer != null
+                && producer.operation() != null
+                && producer.backend() == target().backend()
+                && MetalPartitionSupport.isPlannerSupported(producer, context);
+    }
+
+    private boolean isForwardAttentionInputToBackwardAttention(CompiledNode producer, CompiledNode consumer) {
+        return producer != null
+                && producer.operation() != null
+                && producer.operation().opType() == operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION
+                && consumer != null
+                && consumer.operation() != null
+                && consumer.operation().opType() == operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD;
+    }
+
+    private boolean externalInputRolesAreSupported(CompiledNode producer, CompiledNode consumer) {
+        if (producer == null || consumer == null) {
+            return false;
+        }
+        boolean matched = false;
+        List<Integer> inputIds = consumer.inputIds();
+        for (int i = 0; i < inputIds.size(); i++) {
+            if (inputIds.get(i) == producer.id()) {
+                matched = true;
+                if (!MetalPartitionSupport.isExternalInputSupported(producer, consumer, i)) {
+                    return false;
+                }
+            }
+        }
+        return matched;
+    }
+
+    /**
+     * Builds a structurally valid Metal partition candidate from selected node ids.
+     */
     @Override
     public PartitionCandidate tryCreateStructuralCandidate(
             Set<Integer> selectedNodeIds,
@@ -65,6 +118,11 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
             return null;
         }
         List<Integer> orderedNodeIds = selectedNodeIds.stream().sorted().toList();
+        for (int nodeId : orderedNodeIds) {
+            if (!MetalPartitionSupport.isPlannerSupported(context.compiledNode(nodeId), context)) {
+                return null;
+            }
+        }
         LinkedHashSet<Integer> outputNodeIds = determineOutputNodeIds(selectedNodeIds, orderedNodeIds, context, requiredMaterializedValueRefs);
         if (outputNodeIds.isEmpty()) {
             return null;
@@ -86,7 +144,9 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
         }
         LinkedHashSet<Integer> externalInputIds = new LinkedHashSet<>();
         for (int nodeId : orderedNodeIds) {
-            collectExternalInputs(context.compiledNode(nodeId), selectedNodeIds, externalInputIds);
+            if (!collectExternalInputs(context.compiledNode(nodeId), selectedNodeIds, externalInputIds, context)) {
+                return null;
+            }
         }
         return new PartitionCandidate(
                 computeNodeId,
@@ -97,6 +157,9 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
         );
     }
 
+    /**
+     * Lowers a Metal candidate into a concrete Metal partition plan.
+     */
     @Override
     public PartitionPlan tryCreatePlan(
             PartitionCandidate candidate,
@@ -150,15 +213,30 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
         return outputs;
     }
 
-    private void collectExternalInputs(CompiledNode node, Set<Integer> candidateNodeIds, Set<Integer> externalInputIds) {
+    private boolean collectExternalInputs(
+            CompiledNode node,
+            Set<Integer> candidateNodeIds,
+            Set<Integer> externalInputIds,
+            PartitionPlanningContext context
+    ) {
         if (node == null) {
-            return;
+            return false;
         }
-        for (int inputId : node.inputIds()) {
+        List<Integer> inputIds = node.inputIds();
+        for (int i = 0; i < inputIds.size(); i++) {
+            int inputId = inputIds.get(i);
             if (!candidateNodeIds.contains(inputId)) {
+                CompiledNode producer = context.compiledNode(inputId);
+                if (sameTargetSupportedProducer(producer, node, context)) {
+                    return false;
+                }
+                if (!MetalPartitionSupport.isExternalInputSupported(producer, node, i)) {
+                    return false;
+                }
                 externalInputIds.add(inputId);
             }
         }
+        return true;
     }
 
     private List<AcceleratorSubgraphOp> toSubgraphOps(List<Integer> nodeIds, PartitionPlanningContext context) {

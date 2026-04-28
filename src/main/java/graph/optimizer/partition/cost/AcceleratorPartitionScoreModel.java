@@ -2,10 +2,23 @@ package graph.optimizer.partition.cost;
 
 import config.optimizer.PartitionConfig;
 
+/**
+ * Scoring helpers for accelerator-oriented partition search.
+ *
+ * <p>Structural score rewards larger, internally connected regions and penalizes boundary inputs. Accepted score adds
+ * backend work estimates so planners can prefer candidates that amortize launch or transfer costs.
+ */
 public final class AcceleratorPartitionScoreModel {
     private AcceleratorPartitionScoreModel() {
     }
 
+    /**
+     * Scores candidate structure without backend work estimates.
+     *
+     * @param metrics candidate structural metrics
+     * @param policy score weights and search limits
+     * @return score, or negative infinity when inputs are missing
+     */
     public static double structuralScore(CandidateMetrics metrics, PlannerPolicy policy) {
         if (metrics == null || policy == null) {
             return Double.NEGATIVE_INFINITY;
@@ -17,6 +30,14 @@ public final class AcceleratorPartitionScoreModel {
                 - metrics.externalInputCount() * policy.externalInputPenalty();
     }
 
+    /**
+     * Scores an accepted lowered candidate with backend work estimates.
+     *
+     * @param metrics candidate structural metrics
+     * @param estimatedWork backend work estimate
+     * @param policy score weights and search limits
+     * @return score, or negative infinity when candidate data is not usable
+     */
     public static double acceptedScore(CandidateMetrics metrics, long estimatedWork, PlannerPolicy policy) {
         if (metrics == null || policy == null || estimatedWork <= 0L) {
             return Double.NEGATIVE_INFINITY;
@@ -24,6 +45,15 @@ public final class AcceleratorPartitionScoreModel {
         return structuralScore(metrics, policy) + estimatedWork * policy.workWeight();
     }
 
+    /**
+     * Structural metrics used by partition scoring.
+     *
+     * @param nodeCount selected node count
+     * @param internalEdgeCount edges entirely inside the candidate
+     * @param externalInputCount inputs crossing into the candidate
+     * @param mergeNodeCount selected nodes with multiple selected inputs
+     * @param tailDepth length of the candidate tail
+     */
     public record CandidateMetrics(
             int nodeCount,
             int internalEdgeCount,
@@ -40,6 +70,18 @@ public final class AcceleratorPartitionScoreModel {
         }
     }
 
+    /**
+     * Search limits and score weights for partition planning.
+     *
+     * @param maxSearchNodes maximum nodes to include while expanding a candidate
+     * @param maxVisitedCandidates maximum candidates to visit during scored search
+     * @param nodeWeight score weight per selected node
+     * @param internalEdgeWeight score weight per internal edge
+     * @param mergeNodeBonus score bonus for merge-heavy regions
+     * @param tailDepthWeight score weight for tail depth
+     * @param externalInputPenalty score penalty per external input
+     * @param workWeight score weight for estimated backend work
+     */
     public record PlannerPolicy(
             int maxSearchNodes,
             int maxVisitedCandidates,
@@ -55,6 +97,11 @@ public final class AcceleratorPartitionScoreModel {
             maxVisitedCandidates = Math.max(1, maxVisitedCandidates);
         }
 
+        /**
+         * Returns default scorer policy.
+         *
+         * @return default policy
+         */
         public static PlannerPolicy defaults() {
             return new PlannerPolicy(
                     16,
@@ -68,6 +115,12 @@ public final class AcceleratorPartitionScoreModel {
             );
         }
 
+        /**
+         * Builds a scorer policy from partition configuration.
+         *
+         * @param config partition configuration, or {@code null} for defaults
+         * @return scorer policy
+         */
         public static PlannerPolicy fromConfig(PartitionConfig config) {
             PartitionConfig resolved = config == null ? PartitionConfig.defaults() : config;
             return new PlannerPolicy(

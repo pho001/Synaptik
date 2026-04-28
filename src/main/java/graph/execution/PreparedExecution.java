@@ -30,6 +30,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Runtime plan produced from {@link graph.compile.CompileArtifacts}.
+ *
+ * <p>Preparation resolves compile-time nodes to concrete execution operations, CPU kernels, backend metadata, memory
+ * binding policy, and ordered forward/backward step lists for one {@link RuntimeConfig}. The prepared object is an
+ * immutable description of how to run; each execution creates a fresh {@link ExecutionState}.
+ *
+ * <p>Running a prepared execution has side effects on the graph's tensors: output storage is synchronized back to the
+ * source root tensor, backward mode seeds the root gradient, and compiled gradient bindings publish computed gradients.
+ * Concurrent calls against shared source tensors or shared backend workspaces are not supported.
+ */
 public final class PreparedExecution {
     private final RuntimeConfig runtimeConfig;
     private final boolean supportsBackward;
@@ -45,6 +56,22 @@ public final class PreparedExecution {
     private final PrepareTrace prepareTrace;
     private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
 
+    /**
+     * Creates a prepared execution from already lowered step metadata.
+     *
+     * @param runtimeConfig runtime configuration used to select kernels and execution metadata
+     * @param supportsBackward whether backward steps are available
+     * @param executionSteps full ordered step list used by forward-backward execution
+     * @param forwardSteps forward-only step list
+     * @param backwardSteps backward-only step list
+     * @param allNodes all compiled nodes in graph order
+     * @param compiledGradients gradient publication bindings
+     * @param rootTensor source root tensor to synchronize after execution
+     * @param forwardOutputNode compiled node that holds the forward result
+     * @param forwardSeedGradient binding used to seed backward execution
+     * @param memoryPlan memory reuse and region binding plan, possibly {@code null}
+     * @param prepareTrace preparation diagnostics and timing metadata
+     */
     public PreparedExecution(
             RuntimeConfig runtimeConfig,
             boolean supportsBackward,
@@ -74,34 +101,79 @@ public final class PreparedExecution {
         this.metadataIndex = buildMetadataIndex(this.executionSteps);
     }
 
+    /**
+     * Returns the runtime configuration used to prepare this plan.
+     *
+     * @return runtime configuration
+     */
     public RuntimeConfig runtimeConfig() {
         return runtimeConfig;
     }
 
+    /**
+     * Returns whether this plan contains backward work.
+     *
+     * @return {@code true} when {@link ExecutionMode#FORWARD_BACKWARD} is valid
+     */
     public boolean supportsBackward() {
         return supportsBackward;
     }
 
+    /**
+     * Returns immutable forward execution steps.
+     *
+     * @return forward step list
+     */
     public List<PreparedNodeExecution> forwardSteps() {
         return forwardSteps;
     }
 
+    /**
+     * Returns immutable backward execution steps.
+     *
+     * @return backward step list, empty for inference-only plans
+     */
     public List<PreparedNodeExecution> backwardSteps() {
         return backwardSteps;
     }
 
+    /**
+     * Returns the full execution sequence used for forward-backward mode.
+     *
+     * @return immutable full step list
+     */
     public List<PreparedNodeExecution> executionSteps() {
         return executionSteps;
     }
 
+    /**
+     * Returns preparation timing and backend-selection metadata.
+     *
+     * @return prepare trace
+     */
     public PrepareTrace prepareTrace() {
         return prepareTrace;
     }
 
+    /**
+     * Executes this prepared plan without collecting per-step trace metadata.
+     *
+     * @param mode execution mode to run
+     * @throws NullPointerException if {@code mode} is {@code null}
+     * @throws IllegalStateException if backward execution is requested but this plan has no backward steps
+     */
     public void execute(ExecutionMode mode) {
         executeInternal(mode, false);
     }
 
+    /**
+     * Executes this prepared plan and returns run-level diagnostics.
+     *
+     * @param mode execution mode to run
+     * @return run trace containing duration and per-step metadata
+     * @throws NullPointerException if {@code mode} is {@code null}
+     * @throws IllegalStateException if backward execution is requested but this plan has no backward steps
+     */
     public RunTrace executeTraced(ExecutionMode mode) {
         return executeInternal(mode, true);
     }
@@ -130,6 +202,11 @@ public final class PreparedExecution {
         return new RunTrace(mode, System.nanoTime() - runStart, steps == null ? List.of() : steps);
     }
 
+    /**
+     * Convenience wrapper for {@link #execute(ExecutionMode)} in forward-backward mode.
+     *
+     * <p>If the plan has no backward steps, this method prints an informational message and returns without mutation.
+     */
     public void backward() {
         if (!supportsBackward) {
             System.out.println("Info: No gradients to compute.");

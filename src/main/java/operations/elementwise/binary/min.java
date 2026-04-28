@@ -3,17 +3,39 @@ package operations.elementwise.binary;
 import operations.Operation;
 import tensor.BroadcastPlan;
 
+/**
+ * Selects the elementwise minimum of two tensors.
+ *
+ * <p>Operands use standard tensor broadcasting when a {@link BroadcastPlan}
+ * is supplied; otherwise inputs are expected to already share the same output
+ * shape. Arithmetic result dtype is resolved by the surrounding tensor/backend
+ * contract.</p>
+ */
 public final class min implements Operation {
     private final BroadcastPlan broadcastPlan;
 
+    /**
+     * Creates an unplanned elementwise {@code min} descriptor.
+     */
     public min() {
         this(null);
     }
 
+    /**
+     * Creates an elementwise {@code min} descriptor with an optional broadcast plan.
+     *
+     * @param broadcastPlan precomputed broadcast metadata, or {@code null} when
+     *        no explicit plan is attached
+     */
     public min(BroadcastPlan broadcastPlan) {
         this.broadcastPlan = broadcastPlan;
     }
 
+    /**
+     * Returns the broadcast metadata attached to this descriptor.
+     *
+     * @return broadcast plan, or {@code null} for unplanned same-shape execution
+     */
     public BroadcastPlan getBroadcastPlan() {
         return broadcastPlan;
     }

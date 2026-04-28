@@ -7,11 +7,35 @@ import tuning.benchmark.report.BenchmarkSuiteReport;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Scores runtime-profile candidates from a calibration benchmark suite.
+ *
+ * <p>Lower scores are better. Implementations must be deterministic for a given
+ * report because the calibration session uses the minimum valid score to select
+ * the runtime profile promoted to the next step. Policies should return
+ * {@link PlatformCalibrationScore#invalid(String)} instead of throwing for
+ * candidate-local failures so other candidates can still be considered.</p>
+ */
 public interface PlatformCalibrationScorePolicy {
+    /**
+     * Scores one candidate across the supplied suite report.
+     *
+     * @param candidateName candidate id as it appears in benchmark reports
+     * @param report suite report for the current calibration step
+     * @return valid or invalid score; lower valid scores win
+     */
     PlatformCalibrationScore score(String candidateName, BenchmarkSuiteReport report);
 
+    /**
+     * @return stable metric name for reports
+     */
     String metricName();
 
+    /**
+     * Scores by arithmetic mean of successful median latencies across workloads.
+     *
+     * @return score policy where lower average median milliseconds win
+     */
     static PlatformCalibrationScorePolicy averageMedianMs() {
         return new PlatformCalibrationScorePolicy() {
             @Override
@@ -57,6 +81,12 @@ public interface PlatformCalibrationScorePolicy {
         };
     }
 
+    /**
+     * Scores by geometric mean plus a penalty for the worst workload bucket.
+     *
+     * @param alpha multiplier applied to the worst-bucket median latency
+     * @return score policy where lower penalized scores win
+     */
     static PlatformCalibrationScorePolicy weightedGeometricMeanWithWorstBucketPenalty(double alpha) {
         return new PlatformCalibrationScorePolicy() {
             @Override

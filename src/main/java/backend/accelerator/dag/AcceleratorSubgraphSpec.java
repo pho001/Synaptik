@@ -2,6 +2,15 @@ package backend.accelerator.dag;
 
 import java.util.List;
 
+/**
+ * Candidate accelerator subgraph before it is lowered into a backend DAG.
+ *
+ * @param computeNodeId entry or anchor node for the candidate partition
+ * @param orderedNodeIds topological node ids covered by the candidate
+ * @param ops operation summary aligned with {@code orderedNodeIds}
+ * @param externalInputNodeIds node ids read from outside the candidate
+ * @param outputNodeIds node ids produced as partition outputs
+ */
 public record AcceleratorSubgraphSpec(
         int computeNodeId,
         List<Integer> orderedNodeIds,

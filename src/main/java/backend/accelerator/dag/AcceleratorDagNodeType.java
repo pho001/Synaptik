@@ -1,5 +1,8 @@
 package backend.accelerator.dag;
 
+/**
+ * Native ABI operation codes for lowered accelerator DAG nodes.
+ */
 public enum AcceleratorDagNodeType {
     MATMUL(1),
     LINEAR(2),
@@ -43,6 +46,9 @@ public enum AcceleratorDagNodeType {
         this.abiCode = abiCode;
     }
 
+    /**
+     * Returns the integer operation code consumed by native CUDA and Metal shims.
+     */
     public int abiCode() {
         return abiCode;
     }

@@ -15,10 +15,28 @@ import tensor.options.AttentionOptions;
 
 import java.util.List;
 
+/**
+ * Scaled dot-product attention operations.
+ *
+ * <p>Query, key, and value tensors must be floating numeric tensors whose last
+ * dimensions satisfy the attention contract resolved by {@link AttentionSpec}.
+ * Optional masks are BOOL tensors broadcastable to score shape. Methods build
+ * graph tensors and do not mutate inputs.</p>
+ */
 public final class TensorAttentionOps {
     private TensorAttentionOps() {
     }
 
+    /**
+     * Computes scaled dot-product attention without an explicit mask.
+     *
+     * @param query query tensor; must be non-null and floating numeric
+     * @param key key tensor; must be non-null and floating numeric
+     * @param value value tensor; must be non-null and floating numeric
+     * @param options attention options; must be non-null
+     * @return attention output tensor
+     * @throws IllegalArgumentException if ranks, dimensions, dtypes, or options are invalid
+     */
     public static Tensor scaledDotProductAttention(
             Tensor query,
             Tensor key,
@@ -28,6 +46,20 @@ public final class TensorAttentionOps {
         return scaledDotProductAttention(query, key, value, null, options);
     }
 
+    /**
+     * Computes scaled dot-product attention with an optional boolean mask.
+     *
+     * <p>When {@code options.causal()} is true, a causal mask is combined with
+     * the supplied mask using logical AND before attention scores are evaluated.</p>
+     *
+     * @param query query tensor; must be non-null and floating numeric
+     * @param key key tensor; must be non-null and floating numeric
+     * @param value value tensor; must be non-null and floating numeric
+     * @param mask optional BOOL mask broadcastable to score shape; null means unmasked
+     * @param options attention options; must be non-null
+     * @return attention output tensor
+     * @throws IllegalArgumentException if ranks, dimensions, dtypes, mask shape, or options are invalid
+     */
     public static Tensor scaledDotProductAttention(
             Tensor query,
             Tensor key,

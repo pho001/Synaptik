@@ -2,6 +2,14 @@ package graph.optimizer.memory;
 
 import config.optimizer.MemoryConfig;
 
+/**
+ * Policy knobs for tensor storage reuse.
+ *
+ * @param separateForwardBackwardPools whether forward and backward reusable intervals use separate slot pools
+ * @param allowCrossPhaseReuse whether backward work may reuse forward slots
+ * @param allowLargerBufferReuse whether a slot may serve a smaller reusable interval
+ * @param minReusableBufferSize minimum element count eligible for reuse
+ */
 public record MemoryPlannerPolicy(
         boolean separateForwardBackwardPools,
         boolean allowCrossPhaseReuse,
@@ -17,6 +25,11 @@ public record MemoryPlannerPolicy(
         }
     }
 
+    /**
+     * Returns the default conservative memory reuse policy.
+     *
+     * @return default policy
+     */
     public static MemoryPlannerPolicy defaults() {
         return new MemoryPlannerPolicy(
                 true,
@@ -26,6 +39,12 @@ public record MemoryPlannerPolicy(
         );
     }
 
+    /**
+     * Converts optimizer memory configuration to planner policy.
+     *
+     * @param config memory configuration, or {@code null} for defaults
+     * @return planner policy
+     */
     public static MemoryPlannerPolicy fromConfig(MemoryConfig config) {
         if (config == null) {
             return defaults();

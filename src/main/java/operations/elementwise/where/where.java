@@ -1,6 +1,13 @@
 package operations.elementwise.where;
 import operations.Operation;
 
+/**
+ * Selects elements from two value tensors according to a boolean condition.
+ *
+ * <p>The condition and value operands are broadcast by the surrounding tensor
+ * operation before execution; the result has the broadcasted value dtype and
+ * shape.</p>
+ */
 public final class where implements Operation {
     @Override
     public OpType opType() {

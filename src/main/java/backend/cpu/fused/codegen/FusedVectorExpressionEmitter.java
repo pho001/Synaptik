@@ -3,6 +3,9 @@ package backend.cpu.fused.codegen;
 import org.objectweb.asm.MethodVisitor;
 import utils.SlotManager;
 
+/**
+ * Internal ASM emitter for vector expression evaluation in generated fused kernels.
+ */
 public final class FusedVectorExpressionEmitter {
     private FusedVectorExpressionEmitter() {}
 

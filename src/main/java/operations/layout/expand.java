@@ -3,13 +3,29 @@ import operations.Operation;
 
 import java.util.Arrays;
 
+/**
+ * Broadcasts a tensor view to a target shape.
+ *
+ * <p>The descriptor stores a defensive copy of the supplied shape metadata so
+ * callers cannot mutate graph semantics after construction.</p>
+ */
 public final class expand implements Operation {
     private final int[] targetShape;
 
+    /**
+     * Creates a layout descriptor.
+     *
+     * @param targetShape target broadcast shape, or {@code null} when deferred to the tensor front end
+     */
     public expand(int[] targetShape) {
         this.targetShape = targetShape == null ? null : targetShape.clone();
     }
 
+    /**
+     * Returns a defensive copy of the stored layout metadata.
+     *
+     * @return target broadcast shape, or {@code null} when deferred to the tensor front end
+     */
     public int[] getTargetShape() {
         return targetShape == null ? null : targetShape.clone();
     }

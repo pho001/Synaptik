@@ -1,5 +1,6 @@
 package graph.optimizer.region;
 
+import config.optimizer.CpuFusionMode;
 import graph.CompiledNode;
 import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionValueRef;
@@ -8,10 +9,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * CPU region policy that fuses fully fusable partitions or shorter fusable subchains.
+ */
 public final class CpuRegionOptimizationPolicy implements RegionOptimizationPolicy {
+    /**
+     * Builds CPU execution units for a partition.
+     *
+     * @param partition accepted partition
+     * @param context region optimization context
+     * @return fused or single-operation units
+     */
     @Override
     public List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
-        if (RegionOptimizationUnitSupport.shouldFuseWholePartition(partition, context)) {
+        if (context.cpuFusionConfig().mode() == CpuFusionMode.OFF) {
+            return RegionOptimizationUnitSupport.buildSingleOpUnits(partition, context);
+        }
+        if (partition.orderedNodeIds().size() <= context.cpuFusionConfig().maxChainNodes()
+                && RegionOptimizationUnitSupport.shouldFuseWholePartition(partition, context)) {
             return List.of(RegionOptimizationUnitSupport.buildFusedUnit(partition));
         }
         return buildMixedCpuUnits(partition, context);
@@ -34,7 +49,7 @@ public final class CpuRegionOptimizationPolicy implements RegionOptimizationPoli
             List<Integer> chain = new ArrayList<>();
             chain.add(nodeId);
             int cursor = index + 1;
-            while (cursor < ordered.size()) {
+            while (cursor < ordered.size() && chain.size() < context.cpuFusionConfig().maxChainNodes()) {
                 int candidateId = ordered.get(cursor);
                 CompiledNode candidate = context.compiledNode(candidateId);
                 if (!RegionOptimizationUnitSupport.isSubchainFusable(candidate)

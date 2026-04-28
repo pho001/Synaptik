@@ -16,15 +16,42 @@ import tensor.TensorPrimitiveBuilder;
 
 import java.util.List;
 
+/**
+ * Layout and shape transformation operations.
+ *
+ * <p>Most methods return storage views when the requested transformation can be
+ * represented with shape, stride, and storage-offset metadata. They do not copy
+ * unless the transformation requires a contiguous physical layout. Returned
+ * views share mutable storage with their input.</p>
+ */
 public final class TensorLayoutOps {
     private TensorLayoutOps() {
     }
 
+    /**
+     * Materializes a tensor in contiguous row-major storage order.
+     *
+     * @param input tensor to copy or normalize; must be non-null
+     * @return tensor with the same shape and dtype in contiguous layout
+     */
     public static Tensor contiguous(Tensor input) {
         Operation op = new contiguous();
         return TensorPrimitiveBuilder.unary(input, input.getShape(), op, "contiguous", input.getDataType());
     }
 
+    /**
+     * Reshapes a tensor without changing logical element order.
+     *
+     * <p>One requested dimension may be {@code -1} to infer its size. Contiguous
+     * inputs produce a view; non-contiguous inputs produce a tensor operation that
+     * materializes the requested layout during execution.</p>
+     *
+     * @param input tensor to reshape; must be non-null
+     * @param requestedShape target shape; product must match input flat size
+     * @return tensor with the requested shape
+     * @throws IllegalArgumentException if the shape is null, invalid, or changes
+     *                                  the number of logical elements
+     */
     public static Tensor reshape(Tensor input, int[] requestedShape) {
         int[] newShape = TensorLayoutTransform.inferReshape(input.getShape(), requestedShape);
         Operation op = new reshape(newShape);
@@ -49,6 +76,14 @@ public final class TensorLayoutOps {
         return out;
     }
 
+    /**
+     * Broadcasts singleton dimensions to a larger shape using zero strides.
+     *
+     * @param input tensor to broadcast; must be non-null
+     * @param requestedShape target shape, with broadcast-compatible dimensions
+     * @return read-only broadcast view sharing storage with {@code input}
+     * @throws IllegalArgumentException if dimensions are not broadcast-compatible
+     */
     public static Tensor expand(Tensor input, int[] requestedShape) {
         int[] targetShape = TensorLayoutTransform.inferExpandShape(input.getShape(), requestedShape);
         int[] targetStrides = LayoutSupport.buildExpandedStrides(input.getShapeUnsafe(), input.getStridesUnsafe(), targetShape);
@@ -72,6 +107,14 @@ public final class TensorLayoutOps {
         return out;
     }
 
+    /**
+     * Reorders axes by returning a strided view.
+     *
+     * @param input tensor to permute; must be non-null
+     * @param axes permutation of all axes; negative axes are normalized
+     * @return view with shape and strides reordered by {@code axes}
+     * @throws IllegalArgumentException if axes are missing, duplicated, or out of range
+     */
     public static Tensor permute(Tensor input, int[] axes) {
         int rank = input.getShape().length;
         int[] normalizedAxes = TensorLayoutTransform.normalizeAxes(rank, axes);
@@ -105,6 +148,14 @@ public final class TensorLayoutOps {
         return out;
     }
 
+    /**
+     * Inserts a size-1 dimension.
+     *
+     * @param input source tensor; must be non-null
+     * @param axis insertion position in {@code [0, rank]}; negative axes are normalized
+     * @return view with rank increased by one
+     * @throws IllegalArgumentException if {@code axis} is outside the valid insertion range
+     */
     public static Tensor expandDims(Tensor input, int axis) {
         int rank = input.getShape().length;
         int normalizedAxis = TensorLayoutTransform.normalizeInsertAxis(axis, rank);
@@ -142,6 +193,14 @@ public final class TensorLayoutOps {
         return out;
     }
 
+    /**
+     * Removes a size-1 dimension.
+     *
+     * @param input source tensor; must be non-null
+     * @param axis axis to remove; negative axes are normalized
+     * @return view with rank decreased by one
+     * @throws IllegalArgumentException if {@code axis} is invalid or the selected dimension is not 1
+     */
     public static Tensor squeeze(Tensor input, int axis) {
         int rank = input.getShape().length;
         int normalizedAxis = TensorLayoutTransform.normalizeAxis(axis, rank);

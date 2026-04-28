@@ -11,9 +11,15 @@ import tensor.Tensor;
 
 import java.util.List;
 
+/**
+ * Factory for converting a fused tensor cluster into a fused operation descriptor.
+ */
 public final class FusedOperationFactory {
     private FusedOperationFactory() {}
 
+    /**
+     * Builds a fused operation and its runtime input bindings from a tensor cluster.
+     */
     public static Result create(
             List<Tensor> cluster,
             Tensor root,
@@ -50,6 +56,12 @@ public final class FusedOperationFactory {
         return java.util.List.copyOf(resolved);
     }
 
+    /**
+     * Factory result containing the descriptor and runtime input list.
+     *
+     * @param operation fused operation descriptor
+     * @param runtimeInputs backing tensors needed by the executable
+     */
     public record Result(
             FusedOperation operation,
             List<Tensor> runtimeInputs

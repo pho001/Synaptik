@@ -4,6 +4,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Provenance and eligibility metadata attached to a tuning candidate.
+ *
+ * <p>Metadata is persisted with best-profile and history records so downstream
+ * tools can distinguish generic, graph-standard, graph-research, and future
+ * candidate spaces. Instances are immutable and safe to share.</p>
+ *
+ * @param candidateSpaceId stable candidate-space identifier
+ * @param candidateSpaceVersion candidate-space schema or generator version
+ * @param parameterFamily parameter family being varied
+ * @param parameterVariant concrete variant name
+ * @param graphAutotuneMode graph autotune mode, when applicable
+ * @param runtimeFrozen whether the runtime profile was intentionally held fixed
+ * @param graphPolicyMutated whether graph policy differs from the seed
+ * @param productionEligible whether the candidate may be promoted automatically
+ * @param attributes additional string metadata
+ */
 public record CandidateMetadata(
         String candidateSpaceId,
         String candidateSpaceVersion,

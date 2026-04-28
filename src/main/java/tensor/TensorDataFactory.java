@@ -1,9 +1,23 @@
 package tensor;
 
+/**
+ * Convenience constructors for common tensor data patterns.
+ *
+ * <p>Factory methods allocate new tensors and do not retain mutable input arrays
+ * unless documented otherwise. Returned tensors are not synchronized.</p>
+ */
 public final class TensorDataFactory {
     private TensorDataFactory() {
     }
 
+    /**
+     * Creates a rank-1 scalar tensor with one element.
+     *
+     * @param value scalar value; must be integral when {@code dataType} is {@link DataType#INT32}
+     * @param dataType dtype of the returned tensor; must be non-null
+     * @return tensor with shape {@code [1]} and label {@code scalar_const}
+     * @throws IllegalArgumentException if an INT32 scalar is requested with a non-integral value
+     */
     public static Tensor scalar(double value, DataType dataType) {
         if (dataType == DataType.INT32) {
             long integral = Math.round(value);
@@ -15,6 +29,12 @@ public final class TensorDataFactory {
         return new Tensor(new double[]{value}, new int[]{1}, new int[]{1}, null, "scalar_const", dataType);
     }
 
+    /**
+     * Creates a tensor filled with ones matching another tensor's shape and dtype.
+     *
+     * @param other tensor whose shape and dtype are copied; must be non-null
+     * @return new tensor labeled {@code ones_like}
+     */
     public static Tensor onesLike(Tensor other) {
         int size = other.getFlatDataSize();
         int[] shape = other.getShape().clone();
@@ -28,6 +48,12 @@ public final class TensorDataFactory {
         return new Tensor(data, shape, null, "ones_like", other.getDataType());
     }
 
+    /**
+     * Creates a tensor filled with zeros matching another tensor's shape and dtype.
+     *
+     * @param other tensor whose shape and dtype are copied; must be non-null
+     * @return new tensor labeled {@code zeros_like}
+     */
     public static Tensor zerosLike(Tensor other) {
         int size = other.getFlatDataSize();
         int[] shape = other.getShape().clone();
@@ -37,6 +63,16 @@ public final class TensorDataFactory {
         return new Tensor(new double[size], shape, null, "zeros_like", other.getDataType());
     }
 
+    /**
+     * Creates a rank-1 tensor from a copied double array.
+     *
+     * @param label tensor label, may be null
+     * @param data source values; must be non-null
+     * @param requiresGrad whether the result should participate in gradient accumulation
+     * @param dataType dtype used to store the values; must be a numeric floating dtype
+     * @return tensor with shape {@code [data.length]}
+     * @throws IllegalArgumentException if {@code data} is null
+     */
     public static Tensor flatTensor(String label, double[] data, boolean requiresGrad, DataType dataType) {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
@@ -44,6 +80,18 @@ public final class TensorDataFactory {
         return shapedTensor(label, data, requiresGrad, dataType, data.length);
     }
 
+    /**
+     * Creates a shaped tensor from a copied double array.
+     *
+     * @param label tensor label, may be null
+     * @param data source values; must be non-null and match the product of {@code shape}
+     * @param requiresGrad whether the result should participate in gradient accumulation
+     * @param dataType dtype used to store the values
+     * @param shape non-empty tensor shape
+     * @return tensor with the requested shape
+     * @throws IllegalArgumentException if {@code data} is null, {@code shape} is null/empty,
+     *                                  or the data length does not match the shape size
+     */
     public static Tensor shapedTensor(String label, double[] data, boolean requiresGrad, DataType dataType, int... shape) {
         if (data == null) {
             throw new IllegalArgumentException("data cannot be null");
@@ -57,6 +105,17 @@ public final class TensorDataFactory {
         return tensor;
     }
 
+    /**
+     * Creates a shaped tensor from the prefix of a source array.
+     *
+     * @param label tensor label used in diagnostics, may be null
+     * @param data source values; must contain at least the requested flat size
+     * @param requiresGrad whether the result should participate in gradient accumulation
+     * @param dataType dtype used to store the values
+     * @param shape non-empty tensor shape
+     * @return tensor filled from {@code data[0..flatSize)}
+     * @throws IllegalArgumentException if data is null/too small or shape is invalid
+     */
     public static Tensor prefixTensorStrict(
             String label,
             double[] data,
@@ -75,6 +134,17 @@ public final class TensorDataFactory {
         return shapedTensor(label, sliced, requiresGrad, dataType, shape);
     }
 
+    /**
+     * Creates a shaped tensor by taking or repeating source values as needed.
+     *
+     * @param label tensor label used in diagnostics, may be null
+     * @param data source values; must be non-null and non-empty
+     * @param requiresGrad whether the result should participate in gradient accumulation
+     * @param dataType dtype used to store the values
+     * @param shape non-empty tensor shape
+     * @return tensor filled from the source prefix, wrapping cyclically when the source is shorter
+     * @throws IllegalArgumentException if data is null/empty or shape is invalid
+     */
     public static Tensor prefixTensorWrap(
             String label,
             double[] data,

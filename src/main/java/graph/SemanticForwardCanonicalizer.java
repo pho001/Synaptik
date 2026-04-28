@@ -24,16 +24,32 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Forward-only compile phase that rebuilds semantic-safe canonical forms without mutating the
- * original user graph. The result is still a Tensor-level graph with valid backward lambdas.
+ * Forward-only compile phase that rebuilds semantic-safe canonical forms without mutating the original user graph.
+ *
+ * <p>The canonicalizer runs before backward graph construction. It creates replacement tensors for forward expressions
+ * that are safe to lower semantically, preserving a source-tensor map so later compile artifacts can publish data and
+ * gradients back to user-visible tensors. The result is still a tensor-level graph with valid backward lambdas.
  */
 public final class SemanticForwardCanonicalizer {
     private final RewriteConfig config;
 
+    /**
+     * Creates a canonicalizer.
+     *
+     * @param config rewrite configuration, or {@code null} for defaults
+     */
     public SemanticForwardCanonicalizer(RewriteConfig config) {
         this.config = config == null ? RewriteConfig.defaults() : config;
     }
 
+    /**
+     * Canonicalizes the forward graph while preserving the original forward root mapping.
+     *
+     * @param forwardGraph original forward graph in topological order
+     * @param forwardOutput semantic forward output
+     * @param originalForwardRoot user-visible root tensor that should receive published data
+     * @return canonical graph, canonical forward output, and source tensor mappings
+     */
     public Result canonicalize(List<Tensor> forwardGraph, Tensor forwardOutput, Tensor originalForwardRoot) {
         Objects.requireNonNull(forwardGraph, "forwardGraph cannot be null");
         Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");

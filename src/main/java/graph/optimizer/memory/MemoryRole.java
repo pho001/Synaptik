@@ -1,5 +1,8 @@
 package graph.optimizer.memory;
 
+/**
+ * Role assigned to a tensor storage owner during memory planning.
+ */
 public enum MemoryRole {
     LEAF,
     FORWARD_TEMP,

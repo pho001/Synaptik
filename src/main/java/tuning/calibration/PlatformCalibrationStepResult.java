@@ -8,6 +8,20 @@ import tuning.calibration.family.CalibrationFamilyId;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Result for one platform calibration step.
+ *
+ * @param name step name
+ * @param family calibrated family
+ * @param seedRuntimeProfile runtime profile supplied to the step
+ * @param benchmarkReport benchmark suite report for all step workloads/candidates
+ * @param candidateSummaries scored candidate summaries
+ * @param winner selected candidate summary
+ * @param selectedRuntimeProfile runtime profile promoted to the next step
+ * @param selectedExecutionProfile full execution profile assembled for the winner
+ * @param selectedScore score assigned to the winner
+ * @param scoreMetric metric name reported by the score policy
+ */
 public record PlatformCalibrationStepResult(
         String name,
         CalibrationFamilyId family,

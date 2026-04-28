@@ -25,7 +25,6 @@ import operations.reduction.reduceMinGrad;
 import operations.reduction.logSoftmaxGrad;
 import operations.reduction.softmax;
 import operations.reduction.softmaxGrad;
-import operations.elementwise.where.where;
 import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
 import tensor.DataType;
@@ -35,7 +34,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Lowers a partition-planner accelerator candidate into the backend-neutral DAG ABI.
+ *
+ * <p>This is internal lowering SPI shared by CUDA and Metal. It returns {@code null}
+ * when a candidate cannot be represented by the native graph bridge contract.</p>
+ */
 public final class AcceleratorSubgraphLowerer {
+    /**
+     * Attempts to lower a candidate subgraph into an accelerator DAG.
+     *
+     * @param subgraph candidate partition produced by accelerator legality planning
+     * @param context compiled graph lookup used to inspect shapes, dtypes, and inputs
+     * @return lowered DAG result, or {@code null} when the candidate is unsupported
+     */
     public AcceleratorSubgraphLoweringResult tryLower(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().isEmpty()) {
             return null;
@@ -303,22 +315,13 @@ public final class AcceleratorSubgraphLowerer {
         }
 
         CompiledNode maskedOrScaled = context.compiledNode(softmaxNode.inputIds().getFirst());
-        CompiledNode maskNode = null;
         CompiledNode scoreNode = maskedOrScaled;
-        if (maskedOrScaled != null && maskedOrScaled.operation() instanceof where) {
-            if (maskedOrScaled.inputIds().size() != 3) {
-                return null;
-            }
-            maskNode = context.compiledNode(maskedOrScaled.inputIds().getFirst());
-            scoreNode = context.compiledNode(maskedOrScaled.inputIds().get(1));
-            CompiledNode fillNode = context.compiledNode(maskedOrScaled.inputIds().get(2));
-            if (maskNode == null
-                    || maskNode.dataType() != DataType.BOOL
-                    || fillNode == null
-                    || fillNode.operation() != null
-                    || fillNode.flatDataSize() != 1) {
-                return null;
-            }
+        if (maskedOrScaled != null
+                && maskedOrScaled.operation() != null
+                && maskedOrScaled.operation().opType() == Operation.OpType.WHERE) {
+            // MPSGraph SDPA expects a floating mask tensor on verified macOS runtimes, while
+            // Synaptik attention masks are BOOL. Keep masked attention as a generic DAG.
+            return null;
         }
         if (scoreNode == null || scoreNode.operation() == null || scoreNode.operation().opType() != Operation.OpType.MUL_SCALAR) {
             return null;
@@ -353,11 +356,6 @@ public final class AcceleratorSubgraphLowerer {
         externalInputs.add(new AcceleratorDagInput(queryNode.id(), java.util.Arrays.stream(queryNode.shape()).boxed().toList(), queryNode.dataType()));
         externalInputs.add(new AcceleratorDagInput(keyNode.id(), java.util.Arrays.stream(keyNode.shape()).boxed().toList(), keyNode.dataType()));
         externalInputs.add(new AcceleratorDagInput(valueNode.id(), java.util.Arrays.stream(valueNode.shape()).boxed().toList(), valueNode.dataType()));
-        AcceleratorDagValueRef maskRef = AcceleratorDagValueRef.none();
-        if (maskNode != null) {
-            externalInputs.add(new AcceleratorDagInput(maskNode.id(), java.util.Arrays.stream(maskNode.shape()).boxed().toList(), maskNode.dataType()));
-            maskRef = AcceleratorDagValueRef.externalInput(3);
-        }
 
         AcceleratorDagNode sdpaNode = new AcceleratorDagNode(
                 outputNode.id(),
@@ -365,7 +363,7 @@ public final class AcceleratorSubgraphLowerer {
                 AcceleratorDagValueRef.externalInput(0),
                 AcceleratorDagValueRef.externalInput(1),
                 AcceleratorDagValueRef.externalInput(2),
-                maskRef,
+                AcceleratorDagValueRef.none(),
                 Float.floatToIntBits(mulScalarOp.getScalarF32()),
                 outputShape.length,
                 outputShape[0],
@@ -516,6 +514,7 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_MAX_GRAD -> node.operation() instanceof reduceMaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case MIN_GRAD -> node.operation() instanceof minGrad op ? (op.isForFirstInput() ? 1 : 0) : Integer.MIN_VALUE;
             case MAX_GRAD -> node.operation() instanceof maxGrad op ? (op.isForFirstInput() ? 1 : 0) : Integer.MIN_VALUE;
+            case SCALED_DOT_PRODUCT_ATTENTION -> node.operation() instanceof scaledDotProductAttention op ? Float.floatToIntBits((float) op.getScale()) : Integer.MIN_VALUE;
             case PERMUTE -> encodePermuteMode(node);
             case EXPAND_DIMS -> node.operation() instanceof expandDims op ? op.getAxis() : Integer.MIN_VALUE;
             case SQUEEZE -> node.operation() instanceof squeeze op ? op.getAxis() : Integer.MIN_VALUE;

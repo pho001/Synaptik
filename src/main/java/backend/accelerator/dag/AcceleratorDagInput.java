@@ -5,6 +5,13 @@ import tensor.DataType;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * External runtime tensor consumed by an accelerator DAG.
+ *
+ * @param nodeId compiled-node id used to resolve the runtime tensor
+ * @param shape tensor shape exposed to the native bridge
+ * @param dataType tensor element type exposed to the native bridge
+ */
 public record AcceleratorDagInput(
         int nodeId,
         List<Integer> shape,

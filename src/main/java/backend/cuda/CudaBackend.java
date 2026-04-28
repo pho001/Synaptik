@@ -10,7 +10,16 @@ import backend.cuda.registry.CudaKernelRegistry;
 
 import java.util.List;
 
+/**
+ * Legacy CUDA kernel dispatcher for per-node execution.
+ *
+ * <p>Partitioned CUDA graph execution uses {@link CudaGpuBackend}; this class is
+ * retained for direct kernel registry based execution.</p>
+ */
 public final class CudaBackend {
+    /**
+     * Executes a single compiled node through the CUDA kernel registry.
+     */
     public void execute(
             CompiledNode node,
             CompiledNodeExecutionMetadata metadata,

@@ -10,14 +10,44 @@ import tensor.options.Conv2dOptions;
 
 import java.util.List;
 
+/**
+ * NCHW 2-D convolution operations.
+ *
+ * <p>Inputs, weights, and optional bias must be floating numeric tensors. The
+ * operation supports grouped convolution as configured by {@link Conv2dOptions}
+ * and builds differentiable graph tensors without mutating inputs.</p>
+ */
 public final class TensorConvOps {
     private TensorConvOps() {
     }
 
+    /**
+     * Applies 2-D convolution without bias.
+     *
+     * @param input rank-4 input tensor with shape {@code [N, C_in, H, W]}
+     * @param weight rank-4 weight tensor with shape
+     *               {@code [C_out, C_in / groups, kernelH, kernelW]}
+     * @param options convolution options; must be non-null
+     * @return output tensor with shape {@code [N, C_out, outH, outW]}
+     * @throws IllegalArgumentException if tensors/options are null, non-floating,
+     *                                  rank-incompatible, or channel/group constraints fail
+     */
     public static Tensor conv2d(Tensor input, Tensor weight, Conv2dOptions options) {
         return conv2d(input, weight, null, options);
     }
 
+    /**
+     * Applies 2-D convolution with optional bias.
+     *
+     * @param input rank-4 input tensor with shape {@code [N, C_in, H, W]}
+     * @param weight rank-4 weight tensor with shape
+     *               {@code [C_out, C_in / groups, kernelH, kernelW]}
+     * @param bias optional rank-1 bias tensor with shape {@code [C_out]}; may be null
+     * @param options convolution options; must be non-null
+     * @return output tensor with shape {@code [N, C_out, outH, outW]}
+     * @throws IllegalArgumentException if required tensors/options are null,
+     *                                  dtypes/ranks/shapes are invalid, or output size is invalid
+     */
     public static Tensor conv2d(Tensor input, Tensor weight, Tensor bias, Conv2dOptions options) {
         if (input == null || weight == null) {
             throw new IllegalArgumentException("conv2d input and weight cannot be null");

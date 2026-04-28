@@ -4,6 +4,22 @@ import backend.blas.BlasProvider;
 
 import java.util.Objects;
 
+/**
+ * Runtime BLAS dispatch policy for matrix multiplication.
+ *
+ * <p>The config records the provider, minimum work threshold, shape filters for FLOAT32 dispatch, debug
+ * flag, and requested thread count. The current implementation normalizes {@code threads} to
+ * {@link #DEFAULT_THREADS}, so calibration must not treat BLAS thread count as an active tuning knob.</p>
+ *
+ * @param provider BLAS provider; {@code null} becomes {@link BlasProvider#NONE}
+ * @param matmulMinWork minimum estimated matmul work before BLAS is eligible
+ * @param f32RequireMgeK whether regular FLOAT32 BLAS dispatch requires {@code M >= K}
+ * @param f32MaxNOverK maximum {@code N / K} ratio for regular FLOAT32 BLAS dispatch
+ * @param f32WideRequireMgeK whether wide FLOAT32 BLAS dispatch requires {@code M >= K}
+ * @param f32WideMaxNOverK maximum {@code N / K} ratio for wide FLOAT32 BLAS dispatch
+ * @param debug whether BLAS dispatch should emit debug diagnostics
+ * @param threads requested BLAS thread count; normalized to {@link #DEFAULT_THREADS}
+ */
 public record BlasConfig(
         BlasProvider provider,
         long matmulMinWork,
@@ -60,6 +76,11 @@ public record BlasConfig(
         this(provider, matmulMinWork, f32RequireMgeK, f32MaxNOverK, f32RequireMgeK, f32MaxNOverK, debug, DEFAULT_THREADS);
     }
 
+    /**
+     * Returns a config that disables BLAS dispatch while retaining default shape thresholds.
+     *
+     * @return BLAS-disabled runtime config
+     */
     public static BlasConfig disabled() {
         return new BlasConfig(
                 BlasProvider.NONE,

@@ -1,5 +1,14 @@
 package graph.execution.trace;
 
+/**
+ * Compute precision and backend metadata for a step.
+ *
+ * @param mode execution mode or precision mode label
+ * @param storageType dtype used for storage
+ * @param computeType dtype used for computation
+ * @param backend backend name
+ * @param accumulateType dtype used for accumulation
+ */
 public record ComputeTraceMetadata(
         String mode,
         String storageType,

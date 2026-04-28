@@ -1,5 +1,16 @@
 package config.backend;
 
+/**
+ * CPU kernel tuning configuration used by runtime dispatch.
+ *
+ * <p>This class groups the calibrated thresholds that decide when CPU kernels use scalar loops,
+ * vector loops, parallel execution, BLAS-backed matmul, fused generated ASM loops, materialization, and
+ * attention-specific matmul settings. Values are normalized defensively: thresholds are clamped to
+ * positive or zero ranges as appropriate, and fused ASM widths are rounded into supported buckets.</p>
+ *
+ * <p>The object is immutable and thread-safe as a value object. It does not allocate buffers or start
+ * worker threads by itself; it is read by backend planning and execution code.</p>
+ */
 public final class CpuKernelConfig {
     private static final int DEFAULT_VECTOR_MIN_SIZE = 1_024;
     private static final int DEFAULT_PARALLEL_MIN_SIZE = 100_000;
@@ -63,6 +74,14 @@ public final class CpuKernelConfig {
     private final CpuMatMulMicroKernel matMulMicroKernel;
     private final CpuMatMulMicroKernel attentionMatMulMicroKernel;
 
+    /**
+     * Creates a compact CPU kernel config with default vector and parallel thresholds.
+     *
+     * @param loopUnrollFactor scalar loop unroll factor
+     * @param matMulTileM CPU matmul tile size in M dimension
+     * @param matMulTileN CPU matmul tile size in N dimension
+     * @param matMulTileK CPU matmul tile size in K dimension
+     */
     public CpuKernelConfig(int loopUnrollFactor, int matMulTileM, int matMulTileN, int matMulTileK) {
         this(loopUnrollFactor, matMulTileM, matMulTileN, matMulTileK, DEFAULT_VECTOR_MIN_SIZE, DEFAULT_PARALLEL_MIN_SIZE);
     }
@@ -840,26 +859,89 @@ public final class CpuKernelConfig {
                 : attentionMatMulMicroKernel;
     }
 
+    /**
+     * @return scalar loop unroll factor used by CPU kernels
+     */
     public int loopUnrollFactor() { return loopUnrollFactor; }
+    /**
+     * @return regular matmul tile size in M dimension
+     */
     public int matMulTileM() { return matMulTileM; }
+    /**
+     * @return regular matmul tile size in N dimension
+     */
     public int matMulTileN() { return matMulTileN; }
+    /**
+     * @return regular matmul tile size in K dimension
+     */
     public int matMulTileK() { return matMulTileK; }
+    /**
+     * @return attention matmul tile size in M dimension
+     */
     public int attentionMatMulTileM() { return attentionMatMulTileM; }
+    /**
+     * @return attention matmul tile size in N dimension
+     */
     public int attentionMatMulTileN() { return attentionMatMulTileN; }
+    /**
+     * @return attention matmul tile size in K dimension
+     */
     public int attentionMatMulTileK() { return attentionMatMulTileK; }
+    /**
+     * @return minimum element count before vectorizing cheap elementwise kernels
+     */
     public int cheapVectorMinSize() { return cheapVectorMinSize; }
+    /**
+     * @return minimum element count before vectorizing transcendental kernels
+     */
     public int transcendentalVectorMinSize() { return transcendentalVectorMinSize; }
+    /**
+     * @return minimum element count before vectorizing cheap fused kernels
+     */
     public int fusedCheapVectorMinSize() { return fusedCheapVectorMinSize; }
+    /**
+     * @return minimum element count before vectorizing transcendental fused kernels
+     */
     public int fusedTranscendentalVectorMinSize() { return fusedTranscendentalVectorMinSize; }
+    /**
+     * @return minimum element count before vectorizing reductions
+     */
     public int reductionVectorMinSize() { return reductionVectorMinSize; }
+    /**
+     * @return minimum element count before vectorizing attention reductions
+     */
     public int attentionVectorMinSize() { return attentionVectorMinSize; }
+    /**
+     * @return minimum element count before parallelizing cheap elementwise kernels
+     */
     public int cheapParallelMinSize() { return cheapParallelMinSize; }
+    /**
+     * @return minimum element count before parallelizing transcendental kernels
+     */
     public int transcendentalParallelMinSize() { return transcendentalParallelMinSize; }
+    /**
+     * @return minimum element count before parallelizing cheap fused kernels
+     */
     public int fusedCheapParallelMinSize() { return fusedCheapParallelMinSize; }
+    /**
+     * @return minimum element count before parallelizing transcendental fused kernels
+     */
     public int fusedTranscendentalParallelMinSize() { return fusedTranscendentalParallelMinSize; }
+    /**
+     * @return minimum element count before parallelizing reductions
+     */
     public int reductionParallelMinSize() { return reductionParallelMinSize; }
+    /**
+     * @return minimum element count before parallelizing attention reductions
+     */
     public int attentionParallelMinSize() { return attentionParallelMinSize; }
+    /**
+     * @return legacy cheap parallel threshold alias
+     */
     public int parallelMinSize() { return cheapParallelMinSize; }
+    /**
+     * @return minimum matmul work before CPU parallel matmul is eligible
+     */
     public int matMulParallelMinSize() { return matMulParallelMinSize; }
     public int contiguousMaterializeThreshold() { return contiguousMaterializeThreshold; }
     public int cheapF64MaterializeThreshold() { return cheapF64MaterializeThreshold; }

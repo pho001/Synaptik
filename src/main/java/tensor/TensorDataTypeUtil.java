@@ -1,8 +1,19 @@
 package tensor;
 
+/**
+ * Dtype resolution helpers used by public tensor operations.
+ */
 public final class TensorDataTypeUtil {
     private TensorDataTypeUtil() {}
 
+    /**
+     * Promotes two floating dtypes to the result dtype used by binary operations.
+     *
+     * @param left left dtype; must be FLOAT64, FLOAT32, or BFLOAT16
+     * @param right right dtype; must be FLOAT64, FLOAT32, or BFLOAT16
+     * @return widest supported floating dtype, preferring FLOAT64 then FLOAT32 then BFLOAT16
+     * @throws IllegalArgumentException if either dtype is BOOL or INT32
+     */
     public static DataType promote(DataType left, DataType right) {
         if (left == DataType.BOOL || right == DataType.BOOL || left == DataType.INT32 || right == DataType.INT32) {
             throw new IllegalArgumentException("Only floating numeric dtypes are supported by numeric promotion.");
@@ -12,10 +23,24 @@ public final class TensorDataTypeUtil {
         return DataType.BFLOAT16;
     }
 
+    /**
+     * Resolves the promoted dtype for a binary operation.
+     *
+     * @param first first tensor; must be non-null and floating
+     * @param second second tensor; must be non-null and floating
+     * @return promoted floating dtype
+     */
     public static DataType binary(Tensor first, Tensor second) {
         return promote(first.getDataType(), second.getDataType());
     }
 
+    /**
+     * Resolves the output dtype for a unary floating operation.
+     *
+     * @param input input tensor; must be non-null and floating
+     * @return input dtype
+     * @throws IllegalArgumentException if the input dtype is BOOL or INT32
+     */
     public static DataType unary(Tensor input) {
         if (input.getDataType() == DataType.BOOL || input.getDataType() == DataType.INT32) {
             throw new IllegalArgumentException("Only floating numeric dtypes are supported by numeric unary dtype resolution.");

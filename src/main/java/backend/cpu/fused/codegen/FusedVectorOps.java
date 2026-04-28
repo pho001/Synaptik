@@ -10,6 +10,9 @@ import utils.FastTranscendentals;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 
+/**
+ * Internal vector arithmetic helpers invoked by generated fused kernels.
+ */
 public final class FusedVectorOps {
     private static final VectorSpecies<Double> DOUBLE_SPECIES = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;

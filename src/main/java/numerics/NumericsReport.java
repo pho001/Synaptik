@@ -2,18 +2,34 @@ package numerics;
 
 import java.util.Locale;
 
+/**
+ * User-facing diagnostics report comparing two execution-profile candidates on the numerics harness.
+ */
 public final class NumericsReport {
+    /** Scenario name used to identify the benchmark-like workload. */
     public final String scenarioName;
+    /** Display name of the baseline candidate. */
     public final String candidateAName;
+    /** Display name of the candidate being compared against the baseline. */
     public final String candidateBName;
+    /** Output signal drift metrics. */
     public final NumericsMetrics.SignalMetrics out;
+    /** Gradient drift metrics for input A. */
     public final NumericsMetrics.SignalMetrics gradA;
+    /** Gradient drift metrics for input B. */
     public final NumericsMetrics.SignalMetrics gradB;
+    /** Gradient drift metrics for input C. */
     public final NumericsMetrics.SignalMetrics gradC;
+    /** Broadcast workload output drift metrics. */
     public final NumericsMetrics.SignalMetrics broadcast;
+    /** Aggregate drift metrics across all report signals. */
     public final NumericsMetrics.AggregateMetrics aggregate;
+    /** Policy verdict assigned to the aggregate metrics. */
     public final NumericsPolicy.Verdict verdict;
 
+    /**
+     * Creates a complete numerics diagnostics report.
+     */
     public NumericsReport(
             String scenarioName,
             String candidateAName,
@@ -38,6 +54,11 @@ public final class NumericsReport {
         this.verdict = verdict;
     }
 
+    /**
+     * Formats this report as stable, human-readable diagnostic text for CLI and logs.
+     *
+     * @return multi-line report string
+     */
     public String toPrettyString() {
         StringBuilder sb = new StringBuilder(1024);
         sb.append("Numerics Report\n");
@@ -71,4 +92,3 @@ public final class NumericsReport {
         return String.format(Locale.US, "%.3e", v);
     }
 }
-

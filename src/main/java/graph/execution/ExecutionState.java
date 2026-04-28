@@ -15,7 +15,7 @@ import java.util.Objects;
 /**
  * Per-run mutable execution state.
  *
- * Prepared programs keep immutable compile/prepare metadata. Every execute call materializes its own
+ * <p>Prepared programs keep immutable compile/prepare metadata. Every execute call materializes its own
  * runtime tensor bindings and workspaces here so runs do not share mutable graph state.
  */
 public final class ExecutionState {
@@ -39,6 +39,14 @@ public final class ExecutionState {
         this.runtimeNodeIdByTensor = Map.copyOf(runtimeNodeIdByTensor);
     }
 
+    /**
+     * Creates per-run runtime tensors, prepared input buffers, and CPU workspaces.
+     *
+     * @param compiledNodes compiled node snapshots in graph order
+     * @param metadataIndex prepared execution metadata keyed by node id
+     * @param forwardBoundaryNodeId last forward node id, used to decide leaf aliasing versus copying
+     * @return mutable execution state for one run
+     */
     public static ExecutionState create(
             List<CompiledNode> compiledNodes,
             Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
@@ -114,6 +122,12 @@ public final class ExecutionState {
         return new ExecutionState(runtimeTensors, workspaces, preparedInputs, runtimeNodeIds);
     }
 
+    /**
+     * Returns the runtime tensor for a compiled node.
+     *
+     * @param nodeId compiled node id
+     * @return runtime tensor
+     */
     public Tensor runtimeTensorForNodeId(int nodeId) {
         Tensor tensor = runtimeTensorByNodeId.get(nodeId);
         if (tensor == null) {
@@ -122,10 +136,23 @@ public final class ExecutionState {
         return tensor;
     }
 
+    /**
+     * Returns the CPU workspace fork for a compiled node.
+     *
+     * @param nodeId compiled node id
+     * @return CPU workspace, or {@code null} when the node does not use one
+     */
     public CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
         return cpuWorkspaceByNodeId.get(nodeId);
     }
 
+    /**
+     * Returns a prepared runtime input tensor for a node input.
+     *
+     * @param nodeId compiled node id
+     * @param inputIndex input index
+     * @return prepared runtime tensor
+     */
     public Tensor preparedInputTensorFor(int nodeId, int inputIndex) {
         Tensor tensor = preparedInputTensorByKey.get(new PreparedInputKey(nodeId, inputIndex));
         if (tensor == null) {
@@ -134,6 +161,12 @@ public final class ExecutionState {
         return tensor;
     }
 
+    /**
+     * Looks up the compiled node id for a runtime tensor.
+     *
+     * @param tensor runtime tensor
+     * @return node id, or {@code null} when the tensor is unknown
+     */
     public Integer nodeIdForRuntimeTensor(Tensor tensor) {
         return tensor == null ? null : runtimeNodeIdByTensor.get(tensor);
     }

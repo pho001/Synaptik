@@ -5,6 +5,9 @@ import org.objectweb.asm.MethodVisitor;
 
 import static org.objectweb.asm.Opcodes.*;
 
+/**
+ * Internal ASM emitter for generated fused executable constructors.
+ */
 public final class FusedConstructorEmitter {
     private FusedConstructorEmitter() {}
 

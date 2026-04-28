@@ -14,7 +14,7 @@ import java.util.Objects;
 /**
  * Immutable compile-time snapshot of a semantic tensor node.
  *
- * The semantic tensor reference remains available as a runtime value/storage handle and for debug
+ * <p>The semantic tensor reference remains available as a runtime value/storage handle and for debug
  * introspection, but graph topology and node metadata are captured here so prepared execution does
  * not depend on live mutable Tensor structure.
  */
@@ -75,10 +75,23 @@ public final class CompiledNode {
         this.label = label == null ? "" : label;
     }
 
+    /**
+     * Captures compiled node snapshots for an ordered graph.
+     *
+     * @param orderedGraph tensors in topological order
+     * @return immutable compiled node snapshots
+     */
     public static List<CompiledNode> snapshot(List<Tensor> orderedGraph) {
         return snapshot(orderedGraph, Map.of());
     }
 
+    /**
+     * Captures compiled node snapshots with optional source tensor remapping.
+     *
+     * @param orderedGraph tensors in topological order
+     * @param sourceTensors mapping from semantic tensors to user-visible source tensors
+     * @return immutable compiled node snapshots
+     */
     public static List<CompiledNode> snapshot(List<Tensor> orderedGraph, Map<Tensor, Tensor> sourceTensors) {
         if (orderedGraph == null || orderedGraph.isEmpty()) {
             return List.of();

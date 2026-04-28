@@ -3,6 +3,23 @@ package config.optimizer;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionPlannerStrategy;
 
+/**
+ * Search and scoring configuration for backend partition planning.
+ *
+ * <p>Partition planning chooses candidate regions for CPU or accelerator execution. The weights shape
+ * the score model used by planner strategies. Search limits are normalized to at least one.</p>
+ *
+ * @param maxSearchNodes maximum nodes considered in one search expansion
+ * @param maxVisitedCandidates maximum candidate partitions visited
+ * @param nodeWeight per-node score weight
+ * @param internalEdgeWeight score weight for edges inside a partition
+ * @param mergeNodeBonus score bonus for merging nodes into a region
+ * @param tailDepthWeight score weight for region tail depth
+ * @param externalInputPenalty score penalty for external inputs
+ * @param workWeight score weight for estimated work
+ * @param plannerStrategy partition planner strategy; {@code null} uses greedy max-region
+ * @param target preferred partition target; {@code null} uses auto
+ */
 public record PartitionConfig(
         int maxSearchNodes,
         int maxVisitedCandidates,
@@ -46,6 +63,9 @@ public record PartitionConfig(
         );
     }
 
+    /**
+     * @return default partition planner configuration
+     */
     public static PartitionConfig defaults() {
         return new PartitionConfig(
                 16,
@@ -61,6 +81,12 @@ public record PartitionConfig(
         );
     }
 
+    /**
+     * Returns a copy targeting a specific backend family.
+     *
+     * @param newTarget replacement target; {@code null} uses auto
+     * @return updated partition config
+     */
     public PartitionConfig withTarget(PartitionTarget newTarget) {
         return new PartitionConfig(
                 maxSearchNodes,

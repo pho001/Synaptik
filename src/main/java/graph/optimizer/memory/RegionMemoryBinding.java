@@ -5,6 +5,16 @@ import tensor.DataType;
 
 import java.util.Objects;
 
+/**
+ * Runtime memory binding selected for a region value.
+ *
+ * @param valueRef region value reference
+ * @param kind binding kind
+ * @param bindingId slot or continuation id, absent for {@link RegionMemoryBindingKind#NONE}
+ * @param storageType dtype used for storage
+ * @param transportType dtype used for region handoff
+ * @param requiresAllocation whether runtime binding must allocate storage
+ */
 public record RegionMemoryBinding(
         RegionValueRef valueRef,
         RegionMemoryBindingKind kind,
@@ -26,6 +36,11 @@ public record RegionMemoryBinding(
         }
     }
 
+    /**
+     * Returns whether this binding carries a binding id.
+     *
+     * @return {@code true} when {@code bindingId} is non-null
+     */
     public boolean hasBindingId() {
         return bindingId != null;
     }

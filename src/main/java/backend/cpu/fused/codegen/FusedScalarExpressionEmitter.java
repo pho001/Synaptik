@@ -7,6 +7,9 @@ import utils.SlotManager;
 
 import static org.objectweb.asm.Opcodes.*;
 
+/**
+ * Internal ASM emitter for scalar expression evaluation in generated fused kernels.
+ */
 public final class FusedScalarExpressionEmitter {
     private FusedScalarExpressionEmitter() {}
 

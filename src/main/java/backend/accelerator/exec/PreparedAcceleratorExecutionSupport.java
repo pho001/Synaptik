@@ -10,12 +10,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Shared internal SPI for prepared accelerator executables.
+ *
+ * <p>The helpers centralize runtime tensor resolution and CPU fallback execution so
+ * native CUDA and Metal bridges expose the same availability behavior.</p>
+ */
 public final class PreparedAcceleratorExecutionSupport {
     private static final CpuBackend CPU_BACKEND = new CpuBackend();
 
     private PreparedAcceleratorExecutionSupport() {
     }
 
+    /**
+     * CPU-prepared step used when an accelerator bridge is unavailable at execution time.
+     *
+     * @param node compiled node to execute on the CPU backend
+     * @param metadata CPU execution metadata prepared for the node
+     */
     public record CpuFallbackStep(CompiledNode node, CompiledNodeExecutionMetadata metadata) {
         public CpuFallbackStep {
             Objects.requireNonNull(node, "node cannot be null");
@@ -23,10 +35,16 @@ public final class PreparedAcceleratorExecutionSupport {
         }
     }
 
+    /**
+     * Returns whether all native bridge layers needed for execution are usable.
+     */
     public static boolean bridgeReady(boolean bridgeAvailable, boolean contextAvailable, boolean executableAvailable) {
         return bridgeAvailable && contextAvailable && executableAvailable;
     }
 
+    /**
+     * Resolves runtime tensors by compiled-node id in list order.
+     */
     public static List<Tensor> resolveRuntimeTensors(List<Integer> nodeIds, ExecutionContext context) {
         if (nodeIds == null || nodeIds.isEmpty()) {
             return List.of();
@@ -38,6 +56,9 @@ public final class PreparedAcceleratorExecutionSupport {
         return List.copyOf(out);
     }
 
+    /**
+     * Resolves the runtime input tensors for a compiled node.
+     */
     public static List<Tensor> resolveRuntimeInputs(CompiledNode node, ExecutionContext context) {
         if (node == null || node.inputIds().isEmpty()) {
             return List.of();
@@ -45,6 +66,9 @@ public final class PreparedAcceleratorExecutionSupport {
         return resolveRuntimeTensors(node.inputIds(), context);
     }
 
+    /**
+     * Executes precomputed CPU fallback steps in partition order.
+     */
     public static void executeCpuFallback(List<CpuFallbackStep> steps, ExecutionContext context) {
         if (steps == null) {
             return;

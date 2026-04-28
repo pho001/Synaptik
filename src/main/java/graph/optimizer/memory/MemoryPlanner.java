@@ -24,18 +24,51 @@ import java.util.Set;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 
+/**
+ * Computes tensor and region memory reuse plans for optimized graphs.
+ *
+ * <p>The planner analyzes tensor storage ownership, last-read lifetimes, saved forward values, gradient targets, and
+ * optimized region value flow. It assigns reusable storage owners to slots when policy allows reuse and also derives
+ * region handoff requirements for materialized and continuation values.
+ *
+ * <p>This class is stateless and thread-safe as long as the input graph and optimizer state are not mutated
+ * concurrently while planning.
+ */
 public final class MemoryPlanner {
     private MemoryPlanner() {
     }
 
+    /**
+     * Plans memory with the default policy.
+     *
+     * @param sortedGraph tensors in topological execution order
+     * @return memory plan for tensor lifetimes and reusable slots
+     */
     public static MemoryPlan plan(List<Tensor> sortedGraph) {
         return plan(sortedGraph, MemoryPlannerPolicy.defaults());
     }
 
+    /**
+     * Plans tensor memory without region optimization artifacts.
+     *
+     * @param sortedGraph tensors in topological execution order
+     * @param policy memory reuse policy
+     * @return memory plan for tensor lifetimes and reusable slots
+     */
     public static MemoryPlan plan(List<Tensor> sortedGraph, MemoryPlannerPolicy policy) {
         return plan(sortedGraph, RegionValuePlanningArtifacts.empty(), policy);
     }
 
+    /**
+     * Plans memory using full optimizer state.
+     *
+     * <p>When optimized regions are present, the returned plan includes structural memory view, region value lifetimes,
+     * materialization decisions, region slot assignment, and handoff requirements in addition to tensor slot reuse.
+     *
+     * @param state optimizer state after region optimization
+     * @param policy memory reuse policy
+     * @return memory plan for runtime binding
+     */
     public static MemoryPlan plan(OptimizerState state, MemoryPlannerPolicy policy) {
         Objects.requireNonNull(state, "state cannot be null");
         RegionValuePlanningArtifacts artifacts = buildRegionValuePlanningArtifacts(state);

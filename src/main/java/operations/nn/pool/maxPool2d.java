@@ -3,9 +3,21 @@ import operations.Operation;
 
 import tensor.options.Pool2dOptions;
 
+/**
+ * Describes NCHW 2-D maximum pooling.
+ *
+ * <p>{@link Pool2dOptions} supplies kernel, stride, padding, and average-count
+ * semantics. The descriptor does not own tensor storage.</p>
+ */
 public final class maxPool2d implements Operation {
     private final Pool2dOptions options;
 
+    /**
+     * Creates a pooling descriptor.
+     *
+     * @param options non-null pooling window and stride options
+     * @throws IllegalArgumentException if {@code options} is {@code null}
+     */
     public maxPool2d(Pool2dOptions options) {
         if (options == null) {
             throw new IllegalArgumentException("options cannot be null");
@@ -13,6 +25,11 @@ public final class maxPool2d implements Operation {
         this.options = options;
     }
 
+    /**
+     * Returns the pooling options.
+     *
+     * @return non-null kernel, stride, padding, and count settings
+     */
     public Pool2dOptions getOptions() {
         return options;
     }

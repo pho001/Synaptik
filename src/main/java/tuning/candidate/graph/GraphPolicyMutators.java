@@ -1,7 +1,10 @@
 package tuning.candidate.graph;
 
 import config.optimizer.CseConfig;
+import config.optimizer.CpuFusionConfig;
+import config.optimizer.CpuRegionConfig;
 import config.optimizer.MemoryConfig;
+import config.optimizer.OffloadConfig;
 import config.optimizer.PiecewiseLoweringConfig;
 import config.profile.GraphExecutionPolicy;
 
@@ -26,11 +29,54 @@ public final class GraphPolicyMutators {
 
     public static List<GraphPolicyVariant> standard(GraphExecutionPolicy base) {
         Objects.requireNonNull(base, "base cannot be null");
-        return List.of(new GraphPolicyVariant(
-                "graphPolicy=current",
-                GraphAutotuneParameter.CURRENT_GRAPH_POLICY,
-                base
-        ));
+        var optimizer = base.optimizer();
+        return List.of(
+                new GraphPolicyVariant(
+                        "graphPolicy=current",
+                        GraphAutotuneParameter.CURRENT_GRAPH_POLICY,
+                        base
+                ),
+                new GraphPolicyVariant(
+                        "offload=cpu-only+cpuRegion=natural+cpuFusion=balanced",
+                        GraphAutotuneParameter.CPU_REGION_POLICY,
+                        GraphExecutionPolicy.of(optimizer
+                                .withOffload(OffloadConfig.defaults())
+                                .withCpuRegion(CpuRegionConfig.defaults())
+                                .withCpuFusion(CpuFusionConfig.defaults()))
+                ),
+                new GraphPolicyVariant(
+                        "offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced",
+                        GraphAutotuneParameter.CPU_REGION_POLICY,
+                        GraphExecutionPolicy.of(optimizer
+                                .withOffload(OffloadConfig.defaults())
+                                .withCpuRegion(CpuRegionConfig.elementwiseIslands())
+                                .withCpuFusion(CpuFusionConfig.defaults()))
+                ),
+                new GraphPolicyVariant(
+                        "offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive",
+                        GraphAutotuneParameter.CPU_FUSION_POLICY,
+                        GraphExecutionPolicy.of(optimizer
+                                .withOffload(OffloadConfig.defaults())
+                                .withCpuRegion(CpuRegionConfig.defaults())
+                                .withCpuFusion(CpuFusionConfig.aggressive()))
+                ),
+                new GraphPolicyVariant(
+                        "offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced",
+                        GraphAutotuneParameter.OFFLOAD_POLICY,
+                        GraphExecutionPolicy.of(optimizer
+                                .withOffload(OffloadConfig.acceleratorGreedy())
+                                .withCpuRegion(CpuRegionConfig.defaults())
+                                .withCpuFusion(CpuFusionConfig.defaults()))
+                ),
+                new GraphPolicyVariant(
+                        "offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced",
+                        GraphAutotuneParameter.ACCELERATOR_REGION_POLICY,
+                        GraphExecutionPolicy.of(optimizer
+                                .withOffload(OffloadConfig.acceleratorScored())
+                                .withCpuRegion(CpuRegionConfig.defaults())
+                                .withCpuFusion(CpuFusionConfig.defaults()))
+                )
+        );
     }
 
     public static List<GraphPolicyVariant> research(GraphExecutionPolicy base) {
@@ -39,47 +85,61 @@ public final class GraphPolicyMutators {
         return List.of(
                 new GraphPolicyVariant(
                         "cse=strict",
-                        GraphAutotuneParameter.CSE_STRICT_SAFETY,
+                        GraphAutotuneParameter.RESEARCH_CSE_POLICY,
                         GraphExecutionPolicy.of(optimizer.withCse(CseConfig.strictDefaults()))
                 ),
                 new GraphPolicyVariant(
                         "cse=aggressive",
-                        GraphAutotuneParameter.CSE_STRICT_SAFETY,
+                        GraphAutotuneParameter.RESEARCH_CSE_POLICY,
                         GraphExecutionPolicy.of(optimizer.withCse(CseConfig.aggressiveDefaults()))
                 ),
                 new GraphPolicyVariant(
                         "piecewise=current",
-                        GraphAutotuneParameter.PIECEWISE_LOWERING,
+                        GraphAutotuneParameter.RESEARCH_PIECEWISE_LOWERING,
                         base
                 ),
                 new GraphPolicyVariant(
                         "piecewise=off",
-                        GraphAutotuneParameter.PIECEWISE_LOWERING,
+                        GraphAutotuneParameter.RESEARCH_PIECEWISE_LOWERING,
                         GraphExecutionPolicy.of(optimizer.withRewrite(
                                 optimizer.rewrite().withPiecewiseLowering(PiecewiseLoweringConfig.defaults())
                         ))
                 ),
                 new GraphPolicyVariant(
                         "piecewise=canonical",
-                        GraphAutotuneParameter.PIECEWISE_LOWERING,
+                        GraphAutotuneParameter.RESEARCH_PIECEWISE_LOWERING,
                         GraphExecutionPolicy.of(optimizer.withRewrite(
                                 optimizer.rewrite().withPiecewiseLowering(PiecewiseLoweringConfig.aggressiveDefaults())
                         ))
                 ),
                 new GraphPolicyVariant(
                         "memory=current",
-                        GraphAutotuneParameter.MEMORY_LIFETIME,
+                        GraphAutotuneParameter.RESEARCH_MEMORY_LIFETIME,
                         base
                 ),
                 new GraphPolicyVariant(
                         "memory=phase-isolated",
-                        GraphAutotuneParameter.MEMORY_LIFETIME,
+                        GraphAutotuneParameter.RESEARCH_MEMORY_LIFETIME,
                         GraphExecutionPolicy.of(optimizer.withMemory(new MemoryConfig(true, false, false, 1)))
                 ),
                 new GraphPolicyVariant(
                         "memory=cross-phase-lifetime",
-                        GraphAutotuneParameter.MEMORY_LIFETIME,
+                        GraphAutotuneParameter.RESEARCH_MEMORY_LIFETIME,
                         GraphExecutionPolicy.of(optimizer.withMemory(new MemoryConfig(false, true, false, 1)))
+                ),
+                new GraphPolicyVariant(
+                        "research:cpuRegion=off+cpuFusion=off",
+                        GraphAutotuneParameter.CPU_REGION_POLICY,
+                        GraphExecutionPolicy.of(optimizer
+                                .withCpuRegion(CpuRegionConfig.off())
+                                .withCpuFusion(CpuFusionConfig.off()))
+                ),
+                new GraphPolicyVariant(
+                        "research:cpuRegion=aggressive+cpuFusion=aggressive",
+                        GraphAutotuneParameter.CPU_REGION_POLICY,
+                        GraphExecutionPolicy.of(optimizer
+                                .withCpuRegion(CpuRegionConfig.aggressive())
+                                .withCpuFusion(CpuFusionConfig.aggressive()))
                 )
         );
     }

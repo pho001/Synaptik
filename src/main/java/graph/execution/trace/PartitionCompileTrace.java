@@ -5,6 +5,16 @@ import graph.optimizer.partition.PartitionPlannerStrategy;
 
 import java.util.List;
 
+/**
+ * Partition planning diagnostics captured during compilation.
+ *
+ * @param strategy planner strategy used
+ * @param target partition target
+ * @param totalConsidered number of candidate starts considered
+ * @param acceptedCount number of accepted partitions
+ * @param rejectedCount number of rejected candidates
+ * @param decisions detailed partition decisions
+ */
 public record PartitionCompileTrace(
         PartitionPlannerStrategy strategy,
         PartitionTarget target,
@@ -22,6 +32,11 @@ public record PartitionCompileTrace(
         decisions = List.copyOf(decisions == null ? List.of() : decisions);
     }
 
+    /**
+     * Returns an empty partition compile trace.
+     *
+     * @return empty trace
+     */
     public static PartitionCompileTrace empty() {
         return new PartitionCompileTrace(
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,

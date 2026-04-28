@@ -11,7 +11,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Base class for one-node-at-a-time tensor rewrites.
+ *
+ * <p>The template method rewrites inputs through prior replacements, delegates the local decision to
+ * {@link #rewriteTensor(Tensor)}, preserves backward markings, fixes gradient references, and rebuilds the observable
+ * closure by default. Subclasses only decide whether a tensor should be replaced.
+ */
 abstract class AbstractRewriteRule implements OptimizationRule {
+    /**
+     * Applies the rewrite to every tensor in topological order.
+     *
+     * @param state optimizer state to rewrite
+     * @return state with rewritten graph and downstream optimizer products cleared
+     */
     @Override
     public final OptimizerState apply(OptimizerState state) {
         List<Tensor> sortedGraph = state.graph();
@@ -53,9 +66,20 @@ abstract class AbstractRewriteRule implements OptimizationRule {
         return state.withGraph(rebuilt, resolvedForwardOutput == null ? state.forwardOutput() : resolvedForwardOutput);
     }
 
+    /**
+     * Controls whether the optimized graph should be rebuilt from observable roots after local rewrites.
+     *
+     * @return {@code true} to remove unreachable intermediates after replacement
+     */
     protected boolean rebuildClosure() {
         return true;
     }
 
+    /**
+     * Rewrites a single tensor after its inputs have already been rewritten.
+     *
+     * @param tensor tensor to inspect
+     * @return either {@code tensor} to keep it or a replacement tensor with equivalent semantics
+     */
     protected abstract Tensor rewriteTensor(Tensor tensor);
 }

@@ -312,7 +312,7 @@ public final class TuningCli {
 
     private static SearchPolicy searchPolicy(GraphAutotuneMode graphMode, TuningPreset preset) {
         if (graphMode == GraphAutotuneMode.STANDARD) {
-            return new SearchPolicy(1, 1, 1, false);
+            return new SearchPolicy(16, 4, 1, false);
         }
         return preset.autotuneSearch();
     }

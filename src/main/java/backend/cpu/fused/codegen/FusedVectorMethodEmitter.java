@@ -9,6 +9,9 @@ import utils.SlotManager;
 import static backend.cpu.fused.codegen.FusedMethodDescriptors.RANGE_METHOD_DESC;
 import static org.objectweb.asm.Opcodes.*;
 
+/**
+ * Internal ASM emitter for the vector execution method of generated fused kernels.
+ */
 public final class FusedVectorMethodEmitter {
     private FusedVectorMethodEmitter() {}
 

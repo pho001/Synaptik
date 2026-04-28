@@ -13,13 +13,24 @@ import tensor.Tensor;
 
 import java.util.List;
 
+/**
+ * Lowers convolution operations to GEMM-backed convolution operations according to configured heuristics.
+ */
 public class Conv2dLoweringRewrite extends AbstractRewriteRule {
     private final Conv2dLoweringConfig config;
 
+    /**
+     * Creates a convolution lowering rewrite with default configuration.
+     */
     public Conv2dLoweringRewrite() {
         this(Conv2dLoweringConfig.defaults());
     }
 
+    /**
+     * Creates a convolution lowering rewrite.
+     *
+     * @param config lowering configuration, or {@code null} for defaults
+     */
     public Conv2dLoweringRewrite(Conv2dLoweringConfig config) {
         this.config = config == null ? Conv2dLoweringConfig.defaults() : config;
     }

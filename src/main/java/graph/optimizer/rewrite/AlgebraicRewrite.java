@@ -4,6 +4,13 @@ import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
 
+/**
+ * Algebraic rewrite pass for local arithmetic simplifications.
+ *
+ * <p>The pass replaces recognized algebraic forms with cheaper equivalent tensor expressions while preserving gradient
+ * and backend intent metadata through the base rewrite contract. Individual transforms can be disabled with
+ * {@code cg.optimizer.ar.*} system properties.
+ */
 public class AlgebraicRewrite extends AbstractRewriteRule {
     private static final boolean DISABLE_ALL_TRANSFORMS =
             Boolean.parseBoolean(System.getProperty("cg.optimizer.ar.disableAllTransforms", "false"));

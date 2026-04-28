@@ -7,7 +7,13 @@ import tensor.Tensor;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Internal precision resolver for fused CPU expression generation.
+ */
 public final class FusedPrecisionResolver {
+    /**
+     * Resolves the generated-code precision mode for a fused cluster.
+     */
     public static int resolve(List<Tensor> cluster, Tensor root, List<Tensor> externalInputsInOrder) {
         DataType target = null;
 

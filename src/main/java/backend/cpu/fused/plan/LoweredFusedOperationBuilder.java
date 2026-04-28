@@ -10,10 +10,16 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
 
+/**
+ * Builds the lowered artifact used to prepare fused CPU execution units.
+ */
 public final class LoweredFusedOperationBuilder {
     private LoweredFusedOperationBuilder() {
     }
 
+    /**
+     * Returns an existing fused artifact or builds one from the lowered unit node order.
+     */
     public static FusedOperationPreparation build(
             LoweredExecutionUnit loweredUnit,
             IntFunction<CompiledNode> compiledNodeResolver
@@ -25,6 +31,9 @@ public final class LoweredFusedOperationBuilder {
         return build(loweredUnit.orderedNodeIds(), compiledNodeResolver);
     }
 
+    /**
+     * Builds a fused artifact from ordered node ids and a compiled-node resolver.
+     */
     public static FusedOperationPreparation build(
             List<Integer> orderedNodeIds,
             IntFunction<CompiledNode> compiledNodeResolver

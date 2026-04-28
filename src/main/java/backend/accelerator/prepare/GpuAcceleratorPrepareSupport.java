@@ -15,10 +15,25 @@ import graph.optimizer.partition.PartitionPlan;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Shared internal SPI for preparing accelerator partitions.
+ *
+ * <p>CUDA and Metal preparers use these helpers to validate lowered artifacts,
+ * assign partition roles, and precompute CPU fallback metadata for every covered
+ * node.</p>
+ */
 public final class GpuAcceleratorPrepareSupport {
     private GpuAcceleratorPrepareSupport() {
     }
 
+    /**
+     * Prepared CPU fallback material for an accelerator partition.
+     *
+     * @param preparedSteps CPU steps in partition order
+     * @param computeNode first partition node used by some bridge input rewrites
+     * @param computeCpuMetadata CPU metadata for the compute node
+     * @param anchorCpuMetadata CPU metadata for the partition anchor node
+     */
     public record CpuFallbackPreparation(
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> preparedSteps,
             CompiledNode computeNode,
@@ -27,10 +42,16 @@ public final class GpuAcceleratorPrepareSupport {
     ) {
     }
 
+    /**
+     * Creates metadata for a node covered by an accelerator partition.
+     */
     public static CompiledNodeExecutionMetadata interiorMetadata(ComputeBackend backend, PartitionExecutionRole role) {
         return new CompiledNodeExecutionMetadata(backend, null, null, null, null, null, role);
     }
 
+    /**
+     * Requires a lowered region to be present for an accelerator anchor node.
+     */
     public static LoweredRegion requireLoweredRegion(LoweredRegion loweredRegion, String backendName, int anchorNodeId) {
         if (loweredRegion == null) {
             throw new IllegalStateException("Missing " + backendName + " lowered region for anchor node " + anchorNodeId);
@@ -38,6 +59,9 @@ public final class GpuAcceleratorPrepareSupport {
         return loweredRegion;
     }
 
+    /**
+     * Resolves the lowering family from a region, using the supplied fallback when none is present.
+     */
     public static LoweringFamily resolveLoweringFamily(LoweredRegion loweredRegion, LoweringFamily fallback) {
         if (loweredRegion == null || loweredRegion.units().isEmpty()) {
             return fallback;
@@ -45,6 +69,9 @@ public final class GpuAcceleratorPrepareSupport {
         return loweredRegion.units().getFirst().loweringFamily();
     }
 
+    /**
+     * Casts a generic partition plan to the backend-specific plan type required by a preparer.
+     */
     public static <P extends PartitionPlan> P requirePlan(
             PartitionPlan genericPlan,
             Class<P> planType,
@@ -57,6 +84,9 @@ public final class GpuAcceleratorPrepareSupport {
         return planType.cast(genericPlan);
     }
 
+    /**
+     * Prepares CPU execution metadata that can replay a partition when native acceleration is unavailable.
+     */
     public static CpuFallbackPreparation prepareCpuFallback(
             PartitionPlan plan,
             BackendPrepareContext context,

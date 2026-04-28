@@ -1,5 +1,8 @@
 package backend.accelerator.dag;
 
+/**
+ * Native ABI operation codes for post operations fused onto matmul plans.
+ */
 public enum AcceleratorPostOpType {
     RELU(1, false),
     TANH(2, false),
@@ -26,10 +29,16 @@ public enum AcceleratorPostOpType {
         this.binary = binary;
     }
 
+    /**
+     * Returns the integer operation code consumed by native accelerator shims.
+     */
     public int abiCode() {
         return abiCode;
     }
 
+    /**
+     * Returns whether this post operation consumes an additional input tensor.
+     */
     public boolean binary() {
         return binary;
     }

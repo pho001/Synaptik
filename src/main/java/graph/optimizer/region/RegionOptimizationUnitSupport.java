@@ -98,7 +98,7 @@ final class RegionOptimizationUnitSupport {
         List<RegionValueRef> virtualOutputs = materialized.contains(selfRef) || continuationOutput ? List.of() : outputRefs;
         return new ExecutionUnit(
                 partition.partitionId() + "-unit-" + nodeId,
-                ExecutionUnitKind.SINGLE_OP,
+                ExecutionUnitKind.UNIT_KERNEL,
                 partition.target(),
                 inputRefs,
                 outputRefs,

@@ -5,7 +5,13 @@ import tensor.Tensor;
 
 import java.util.List;
 
+/**
+ * CUDA fallback registry kernel for NOOP copy semantics.
+ */
 public class CudaNoopKernel implements CudaKernel {
+    /**
+     * Copies the first input into the output tensor when both expose double-array storage.
+     */
     @Override
     public void forward(Operation op, List<Tensor> inputs, Tensor node) {
         if (inputs == null || inputs.isEmpty()) return;

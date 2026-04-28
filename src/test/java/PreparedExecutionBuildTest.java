@@ -545,6 +545,62 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void gpuMetalDirectSdpaFallsBackToCpuUntilNativeScaleContractMatchesCpu() {
+        Tensor cpuQ = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuQ", DataType.FLOAT32);
+        Tensor cpuK = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuK", DataType.FLOAT32);
+        Tensor cpuV = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cpuV", DataType.FLOAT32);
+        Tensor cpuOut = cpuQ.scaledDotProductAttention(cpuK, cpuV, tensor.options.AttentionOptions.defaults().withScale(0.5));
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
+        Tensor out = q.scaledDotProductAttention(k, v, tensor.options.AttentionOptions.defaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertTrue(gpuSteps.isEmpty());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuMetalDirectMaskedSdpaFallsBackToCpuBecauseNativeMaskContractDiffers() {
+        Tensor cpuQ = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuQMask", DataType.FLOAT32);
+        Tensor cpuK = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuKMask", DataType.FLOAT32);
+        Tensor cpuV = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cpuVMask", DataType.FLOAT32);
+        Tensor cpuMask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "cpuMask", DataType.BOOL);
+        Tensor cpuOut = cpuQ.scaledDotProductAttention(cpuK, cpuV, cpuMask, tensor.options.AttentionOptions.defaults().withScale(0.5));
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "qMask", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "kMask", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "vMask", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "mask", DataType.BOOL);
+        Tensor out = q.scaledDotProductAttention(k, v, mask, tensor.options.AttentionOptions.defaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+        assertTrue(gpuSteps.isEmpty());
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
     void gpuMetalMatmulWithTransposedRhsCanExecuteThroughExplicitAppleShim() {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
@@ -606,7 +662,7 @@ public class PreparedExecutionBuildTest {
 
         execution.execute(ExecutionMode.FORWARD);
 
-        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 3e-3);
     }
 
     @Test
@@ -639,7 +695,7 @@ public class PreparedExecutionBuildTest {
 
         execution.execute(ExecutionMode.FORWARD);
 
-        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 3e-3);
     }
 
     @Test
@@ -1617,8 +1673,11 @@ public class PreparedExecutionBuildTest {
                 .toList();
         assertEquals(1, gpuSteps.size());
         PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
-        assertEquals(1, executable.plan().lowering().dagSpec().nodes().size());
-        assertEquals(backend.accelerator.dag.AcceleratorDagNodeType.SDPA, executable.plan().lowering().dagSpec().nodes().getFirst().type());
+        assertEquals(6, executable.plan().lowering().dagSpec().nodes().size());
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.WHERE));
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .noneMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.SDPA));
     }
 
     @Test

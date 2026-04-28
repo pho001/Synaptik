@@ -1,6 +1,17 @@
 package operations;
 
+/**
+ * Immutable descriptor for a tensor graph operation.
+ *
+ * <p>Operation instances carry semantic metadata such as the operation kind,
+ * display expression, and any shape, broadcast, or gradient parameters needed by
+ * compilation and execution. Implementations are expected to be side-effect
+ * free and must not own tensor storage.</p>
+ */
 public interface Operation {
+    /**
+     * Broad execution category used by optimizers and backend selection.
+     */
     enum OpArityClass {
         ELEMENT_WISE,
         REDUCTION,
@@ -9,6 +20,10 @@ public interface Operation {
         SPECIAL,
         FUSED
     };
+    /**
+     * Stable operation identifier used throughout graph construction,
+     * optimization, lowering, and backend dispatch.
+     */
     enum OpType {
         ADD(OpArityClass.ELEMENT_WISE, true),
         SUB(OpArityClass.ELEMENT_WISE, true),
@@ -101,19 +116,48 @@ public interface Operation {
             this.fusable = fusable;
         }
 
+        /**
+         * Returns the broad execution category for this operation type.
+         *
+         * @return operation category used for optimization and dispatch policy
+         */
         public OpArityClass category() {
             return category;
         }
 
+        /**
+         * Indicates whether operations of this type are eligible for generic
+         * elementwise fusion.
+         *
+         * @return {@code true} when the type can participate in elementwise
+         *         fusion
+         */
         public boolean isFusable() {
             return fusable;
         }
     }
 
+    /**
+     * Returns the stable operation type for this descriptor.
+     *
+     * @return operation type used by optimizers and backend dispatch
+     */
     OpType opType();
 
+    /**
+     * Returns a short symbolic expression used in graph dumps and diagnostics.
+     *
+     * @return human-readable operation expression
+     */
     String getExpression();
 
+    /**
+     * Indicates whether this operation is cheap enough for optimizers to
+     * duplicate or inline when profitable.
+     *
+     * @return {@code true} for inexpensive scalar or simple elementwise
+     *         descriptors; {@code false} by default
+     */
     default boolean isCheap() { return false; }
 
 }

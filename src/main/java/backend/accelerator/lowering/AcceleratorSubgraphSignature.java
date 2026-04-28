@@ -10,6 +10,20 @@ import operations.Operation;
 
 import java.util.List;
 
+/**
+ * Cache key for native accelerator executables.
+ *
+ * <p>The signature captures operation kinds, external-input shape/type contracts,
+ * lowered DAG node shapes, and output ids while avoiding bridge handles and runtime
+ * tensor objects.</p>
+ *
+ * @param ops source operation kinds in subgraph order
+ * @param externalInputShapes dtype and shape descriptors for external inputs
+ * @param dagNodeTypes lowered DAG node kinds
+ * @param dagNodeShapes lowered DAG output shape descriptors
+ * @param postOps cache-stable matmul post-op signatures
+ * @param outputNodeIds compiled-node ids produced by the partition
+ */
 public record AcceleratorSubgraphSignature(
         List<Operation.OpType> ops,
         List<String> externalInputShapes,
@@ -27,6 +41,9 @@ public record AcceleratorSubgraphSignature(
         outputNodeIds = List.copyOf(outputNodeIds == null ? List.of() : outputNodeIds);
     }
 
+    /**
+     * Builds the cache signature for a lowered Metal partition plan.
+     */
     public static AcceleratorSubgraphSignature from(MetalPartitionPlan plan) {
         List<Operation.OpType> ops = plan.subgraph().ops().stream()
                 .map(AcceleratorSubgraphOp::opType)

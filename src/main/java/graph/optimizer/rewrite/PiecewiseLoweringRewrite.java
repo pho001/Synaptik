@@ -9,12 +9,18 @@ import java.util.List;
 
 /**
  * Optional canonicalization pass for externally imported or manually decomposed graphs.
- * Internal Tensor builders should prefer creating the specialized surface op directly
+ *
+ * <p>Internal Tensor builders should prefer creating the specialized surface op directly
  * instead of relying on this rewrite as a repair step.
  */
 public final class PiecewiseLoweringRewrite extends AbstractRewriteRule {
     private final PiecewiseLoweringConfig config;
 
+    /**
+     * Creates a piecewise lowering rewrite.
+     *
+     * @param config piecewise lowering configuration, or {@code null} for defaults
+     */
     public PiecewiseLoweringRewrite(PiecewiseLoweringConfig config) {
         this.config = config == null ? PiecewiseLoweringConfig.defaults() : config;
     }

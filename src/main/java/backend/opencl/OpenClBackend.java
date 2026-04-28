@@ -8,7 +8,13 @@ import graph.execution.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
 import operations.Operation;
 
+/**
+ * Legacy OpenCL kernel dispatcher for per-node execution.
+ */
 public class OpenClBackend {
+    /**
+     * Executes a single compiled node through the OpenCL kernel registry.
+     */
     public void execute(
             CompiledNode node,
             CompiledNodeExecutionMetadata metadata,

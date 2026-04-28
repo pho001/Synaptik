@@ -7,6 +7,24 @@ import config.backend.SumAccuracyMode;
 
 import java.util.Objects;
 
+/**
+ * Runtime/backend policy used when prepared graph steps execute.
+ *
+ * <p>This value controls hardware-facing execution choices: CPU kernel thresholds, approximation
+ * policy, BLAS and conv2d dispatch, fused execution backend, and accelerator availability. It is
+ * deliberately separate from graph optimizer policy. A runnable {@link config.profile.ExecutionProfile}
+ * combines this runtime config with a graph optimizer config.</p>
+ *
+ * <p>The record is immutable. Constructors normalize {@code null} optional components to defaults, but
+ * the CPU/kernel configuration is required because execution cannot choose kernels without it.</p>
+ *
+ * @param kernel CPU/CUDA/OpenCL kernel tuning configuration; must not be {@code null}
+ * @param approximation numerical approximation policy; {@code null} uses defaults
+ * @param blas BLAS dispatch policy; {@code null} disables BLAS
+ * @param conv2d conv2d GEMM dispatch policy; {@code null} derives from BLAS config
+ * @param fused fused execution backend policy; {@code null} uses training defaults
+ * @param accelerator accelerator backend policy; {@code null} uses training defaults
+ */
 public record RuntimeConfig(
         KernelTuningConfig kernel,
         ApproximationConfig approximation,
@@ -24,6 +42,13 @@ public record RuntimeConfig(
         accelerator = accelerator == null ? AcceleratorConfig.defaultsTraining() : accelerator;
     }
 
+    /**
+     * Creates a runtime config using conv2d, fused, and accelerator defaults.
+     *
+     * @param kernel kernel tuning configuration
+     * @param approximation approximation policy
+     * @param blas BLAS policy
+     */
     public RuntimeConfig(
             KernelTuningConfig kernel,
             ApproximationConfig approximation,
@@ -148,6 +173,11 @@ public record RuntimeConfig(
         );
     }
 
+    /**
+     * Returns the default runtime policy for training-capable execution.
+     *
+     * @return runtime defaults for forward/backward mode
+     */
     public static RuntimeConfig trainingDefaults() {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsTraining(),
@@ -159,6 +189,11 @@ public record RuntimeConfig(
         );
     }
 
+    /**
+     * Returns the default runtime policy for forward-only inference execution.
+     *
+     * @return runtime defaults for inference mode
+     */
     public static RuntimeConfig inferenceDefaults() {
         return new RuntimeConfig(
                 KernelTuningConfig.defaultsInference(),
@@ -170,6 +205,16 @@ public record RuntimeConfig(
         );
     }
 
+    /**
+     * Returns a deliberately conservative runtime baseline with no BLAS, no vector path, and no
+     * parallel dispatch under practical workload sizes.
+     *
+     * <p>This is used for benchmark comparisons where the graph optimizer baseline also disables graph
+     * optimization. The thresholds are set extremely high so vector/parallel branches are effectively
+     * unreachable for normal tests, while scalar execution remains functional.</p>
+     *
+     * @return runtime baseline for performance comparison
+     */
     public static RuntimeConfig noOptNoVecNoPar() {
         CpuKernelConfig cpuNoVecNoPar = new CpuKernelConfig(
                 1,                  // loopUnrollFactor
@@ -207,10 +252,21 @@ public record RuntimeConfig(
         return runtime;
     }
 
+    /**
+     * Returns the CPU kernel tuning section.
+     *
+     * @return CPU kernel configuration from {@link #kernel()}
+     */
     public CpuKernelConfig cpuKernelConfig() {
         return kernel.cpu();
     }
 
+    /**
+     * Returns a copy with a different accelerator policy.
+     *
+     * @param newAccelerator replacement accelerator config; {@code null} uses training defaults
+     * @return runtime config with the same kernel, approximation, BLAS, conv2d, and fused settings
+     */
     public RuntimeConfig withAccelerator(AcceleratorConfig newAccelerator) {
         return new RuntimeConfig(kernel, approximation, blas, conv2d, fused, newAccelerator);
     }

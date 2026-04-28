@@ -10,7 +10,13 @@ import tensor.Tensor;
 
 import java.util.List;
 
+/**
+ * Internal cost heuristics for fused CPU planning and dispatch.
+ */
 public class FusedCostModel {
+    /**
+     * Classifies a fused plan by operation cost and access contiguity.
+     */
     public static FusedDispatchFamily resolveDispatchFamily(FusedExpressionPlan plan) {
         if (plan == null || plan.nodes().isEmpty()) {
             return FusedDispatchFamily.NON_CHEAP_STRIDED;
@@ -23,6 +29,9 @@ public class FusedCostModel {
         return contiguous ? FusedDispatchFamily.NON_CHEAP_CONTIGUOUS : FusedDispatchFamily.NON_CHEAP_STRIDED;
     }
 
+    /**
+     * Resolves the legacy low-cost hint from a tensor cluster.
+     */
     public static boolean resolveLowCostHint(List<Tensor> cluster) {
         if (cluster == null || cluster.isEmpty()) {
             return false;
@@ -47,10 +56,16 @@ public class FusedCostModel {
         return true;
     }
 
+    /**
+     * Resolves the low-cost hint from a lowered expression plan.
+     */
     public static boolean resolveLowCostHint(FusedExpressionPlan plan) {
         return resolveDispatchFamily(plan) == FusedDispatchFamily.CHEAP_CONTIGUOUS;
     }
 
+    /**
+     * Estimates legacy dispatch complexity from a tensor cluster.
+     */
     public static int estimateDispatchComplexity(List<Tensor> cluster) {
         if (cluster == null || cluster.isEmpty()) {
             return 1;
@@ -66,6 +81,9 @@ public class FusedCostModel {
 
     }
 
+    /**
+     * Estimates dispatch complexity from a lowered expression plan.
+     */
     public static int estimateDispatchComplexity(FusedExpressionPlan plan) {
         if (plan == null || plan.nodes().isEmpty()) {
             return 1;
@@ -97,11 +115,17 @@ public class FusedCostModel {
         return Math.max(1, total);
     }
 
+    /**
+     * Maps dispatch complexity into a bounded scheduler scale.
+     */
     public static int resolveDispatchScale(int dispatchComplexity) {
         int normalized = (Math.max(1, dispatchComplexity) + 7) / 8;
         return Math.max(1, Math.min(8, normalized));
     }
 
+    /**
+     * Estimates the extra access cost introduced by non-direct fused inputs.
+     */
     public static double estimateFusionAccessPenalty(FusedExpressionPlan plan) {
         if (plan == null || plan.inputs().isEmpty()) {
             return 0.0d;
@@ -119,6 +143,9 @@ public class FusedCostModel {
         return total;
     }
 
+    /**
+     * Returns whether a small affine plan should avoid fusion because broadcast overhead dominates.
+     */
     public static boolean rejectBroadcastHeavySmallAffinePlan(FusedExpressionPlan plan) {
         if (plan == null || plan.nodes().isEmpty()) {
             return false;

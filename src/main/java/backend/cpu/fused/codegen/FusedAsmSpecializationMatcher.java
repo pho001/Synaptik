@@ -3,6 +3,9 @@ package backend.cpu.fused.codegen;
 import operations.Operation;
 import tensor.DataType;
 
+/**
+ * Internal matcher that selects specialized fused ASM generation paths.
+ */
 public final class FusedAsmSpecializationMatcher {
     private FusedAsmSpecializationMatcher() {}
 

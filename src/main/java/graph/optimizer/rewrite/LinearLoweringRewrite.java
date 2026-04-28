@@ -8,6 +8,9 @@ import tensor.Tensor;
 
 import java.util.List;
 
+/**
+ * Lowers {@code matmul + bias} patterns to the specialized linear operation.
+ */
 public class LinearLoweringRewrite extends AbstractRewriteRule {
     @Override
     protected Tensor rewriteTensor(Tensor tensor) {

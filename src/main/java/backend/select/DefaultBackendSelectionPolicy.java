@@ -13,7 +13,21 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Default backend selection policy used by prepared execution building.
+ *
+ * <p>The policy filters optimizer-produced backend candidates by compatibility, runtime accelerator
+ * enablement, runtime availability requirements, and cost-model acceptance. Every accepted or rejected
+ * candidate contributes a decision to the returned trace.</p>
+ */
 public final class DefaultBackendSelectionPolicy implements BackendSelectionPolicy {
+    /**
+     * Selects backend plans using runtime accelerator policy and the accelerator cost model.
+     *
+     * @param candidates candidate partitions from graph optimization; {@code null} yields an empty result
+     * @param runtimeConfig runtime policy; when {@code null}, backend enablement checks are skipped
+     * @return selected plans and decision trace
+     */
     @Override
     public BackendSelectionResult select(
             List<BackendCandidatePartition> candidates,

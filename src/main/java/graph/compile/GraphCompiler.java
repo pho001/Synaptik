@@ -2,6 +2,12 @@ package graph.compile;
 
 import backend.partition.BackendPartitionDescriptorRegistry;
 import backend.runtime.ExecutionMode;
+import config.optimizer.CpuFusionConfig;
+import config.optimizer.CpuRegionConfig;
+import config.optimizer.FuseConfig;
+import config.optimizer.MemoryConfig;
+import config.optimizer.OffloadConfig;
+import config.optimizer.OptimizerConfig;
 import config.optimizer.PartitionConfig;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
@@ -30,14 +36,70 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Builds compile artifacts for a tensor graph.
+ *
+ * <p>A compiler session captures the semantic forward graph, optionally canonicalizes it, builds backward targets when
+ * the selected {@link CompileMode} requires gradients, applies optimizer rules, snapshots compiled nodes, plans backend
+ * partitions, and produces the memory plan used during preparation. Each call to {@link #compile()} creates a fresh
+ * session and fresh artifacts; the compiler object itself only stores construction-time configuration.
+ *
+ * <p>The compiler is not designed for concurrent calls against mutable source tensors. The returned artifacts are
+ * immutable views, but compilation reads and updates graph metadata such as gradient bindings and backend intent.
+ */
 public final class GraphCompiler {
     private final Tensor rootTensor;
     private final SemanticForwardCanonicalizer forwardCanonicalizer;
     private final GraphOptimizer optimizer;
     private final PartitionConfig partitionConfig;
+    private final OffloadConfig offloadConfig;
+    private final CpuRegionConfig cpuRegionConfig;
+    private final FuseConfig fuseConfig;
+    private final CpuFusionConfig cpuFusionConfig;
+    private final MemoryConfig memoryConfig;
     private final BackendPartitionDescriptorRegistry backendPartitionDescriptors;
     private final CompileMode compileMode;
 
+    /**
+     * Creates a compiler using the default backend partition descriptor registry.
+     *
+     * @param rootTensor output tensor that anchors the graph
+     * @param forwardCanonicalizer optional semantic forward canonicalizer; {@code null} disables this stage
+     * @param optimizer optimizer pipeline applied after graph construction
+     * @param optimizerConfig graph optimizer policy configuration, or {@code null} for defaults
+     * @param compileMode requested compile mode, or {@code null} for {@link CompileMode#AUTO}
+     */
+    public GraphCompiler(
+            Tensor rootTensor,
+            SemanticForwardCanonicalizer forwardCanonicalizer,
+            GraphOptimizer optimizer,
+            OptimizerConfig optimizerConfig,
+            CompileMode compileMode
+    ) {
+        this(
+                rootTensor,
+                forwardCanonicalizer,
+                optimizer,
+                optimizerConfig == null ? PartitionConfig.defaults() : optimizerConfig.partition(),
+                optimizerConfig == null ? OffloadConfig.defaults() : optimizerConfig.offload(),
+                optimizerConfig == null ? CpuRegionConfig.defaults() : optimizerConfig.cpuRegion(),
+                optimizerConfig == null ? FuseConfig.inferenceDefaults() : optimizerConfig.fuse(),
+                optimizerConfig == null ? CpuFusionConfig.defaults() : optimizerConfig.cpuFusion(),
+                optimizerConfig == null ? MemoryConfig.defaults() : optimizerConfig.memory(),
+                compileMode,
+                BackendPartitionDescriptorRegistry.defaults()
+        );
+    }
+
+    /**
+     * Creates a compiler using the default graph policy configuration.
+     *
+     * @param rootTensor output tensor that anchors the graph
+     * @param forwardCanonicalizer optional semantic forward canonicalizer; {@code null} disables this stage
+     * @param optimizer optimizer pipeline applied after graph construction
+     * @param partitionConfig backend partition planning configuration, or {@code null} for defaults
+     * @param compileMode requested compile mode, or {@code null} for {@link CompileMode#AUTO}
+     */
     public GraphCompiler(
             Tensor rootTensor,
             SemanticForwardCanonicalizer forwardCanonicalizer,
@@ -45,9 +107,32 @@ public final class GraphCompiler {
             PartitionConfig partitionConfig,
             CompileMode compileMode
     ) {
-        this(rootTensor, forwardCanonicalizer, optimizer, partitionConfig, compileMode, BackendPartitionDescriptorRegistry.defaults());
+        this(
+                rootTensor,
+                forwardCanonicalizer,
+                optimizer,
+                partitionConfig,
+                OffloadConfig.defaults(),
+                CpuRegionConfig.defaults(),
+                FuseConfig.inferenceDefaults(),
+                CpuFusionConfig.defaults(),
+                MemoryConfig.defaults(),
+                compileMode,
+                BackendPartitionDescriptorRegistry.defaults()
+        );
     }
 
+    /**
+     * Creates a compiler with an explicit backend partition descriptor registry.
+     *
+     * @param rootTensor output tensor that anchors the graph
+     * @param forwardCanonicalizer optional semantic forward canonicalizer; {@code null} disables this stage
+     * @param optimizer optimizer pipeline applied after graph construction
+     * @param partitionConfig backend partition planning configuration, or {@code null} for defaults
+     * @param compileMode requested compile mode, or {@code null} for {@link CompileMode#AUTO}
+     * @param backendPartitionDescriptors registry used to resolve backend legality and lowering plans
+     * @throws NullPointerException if {@code rootTensor} or {@code optimizer} is {@code null}
+     */
     public GraphCompiler(
             Tensor rootTensor,
             SemanticForwardCanonicalizer forwardCanonicalizer,
@@ -56,16 +141,73 @@ public final class GraphCompiler {
             CompileMode compileMode,
             BackendPartitionDescriptorRegistry backendPartitionDescriptors
     ) {
+        this(
+                rootTensor,
+                forwardCanonicalizer,
+                optimizer,
+                partitionConfig,
+                OffloadConfig.defaults(),
+                CpuRegionConfig.defaults(),
+                FuseConfig.inferenceDefaults(),
+                CpuFusionConfig.defaults(),
+                MemoryConfig.defaults(),
+                compileMode,
+                backendPartitionDescriptors
+        );
+    }
+
+    /**
+     * Creates a compiler with explicit graph policy and backend descriptor configuration.
+     *
+     * @param rootTensor output tensor that anchors the graph
+     * @param forwardCanonicalizer optional semantic forward canonicalizer; {@code null} disables this stage
+     * @param optimizer optimizer pipeline applied after graph construction
+     * @param partitionConfig shared partition planning limits, or {@code null} for defaults
+     * @param offloadConfig accelerator/offload policy, or {@code null} for defaults
+     * @param cpuRegionConfig CPU execution region policy, or {@code null} for defaults
+     * @param fuseConfig region fusion config, or {@code null} for inference defaults
+     * @param cpuFusionConfig CPU fused-loop policy, or {@code null} for defaults
+     * @param memoryConfig memory planner policy, or {@code null} for defaults
+     * @param compileMode requested compile mode, or {@code null} for {@link CompileMode#AUTO}
+     * @param backendPartitionDescriptors registry used to resolve backend legality and lowering plans
+     * @throws NullPointerException if {@code rootTensor} or {@code optimizer} is {@code null}
+     */
+    public GraphCompiler(
+            Tensor rootTensor,
+            SemanticForwardCanonicalizer forwardCanonicalizer,
+            GraphOptimizer optimizer,
+            PartitionConfig partitionConfig,
+            OffloadConfig offloadConfig,
+            CpuRegionConfig cpuRegionConfig,
+            FuseConfig fuseConfig,
+            CpuFusionConfig cpuFusionConfig,
+            MemoryConfig memoryConfig,
+            CompileMode compileMode,
+            BackendPartitionDescriptorRegistry backendPartitionDescriptors
+    ) {
         this.rootTensor = Objects.requireNonNull(rootTensor, "rootTensor cannot be null");
         this.forwardCanonicalizer = forwardCanonicalizer;
         this.optimizer = Objects.requireNonNull(optimizer, "optimizer cannot be null");
         this.partitionConfig = partitionConfig == null ? PartitionConfig.defaults() : partitionConfig;
+        this.offloadConfig = offloadConfig == null ? OffloadConfig.defaults() : offloadConfig;
+        this.cpuRegionConfig = cpuRegionConfig == null ? CpuRegionConfig.defaults() : cpuRegionConfig;
+        this.fuseConfig = fuseConfig == null ? FuseConfig.inferenceDefaults() : fuseConfig;
+        this.cpuFusionConfig = cpuFusionConfig == null ? CpuFusionConfig.defaults() : cpuFusionConfig;
+        this.memoryConfig = memoryConfig == null ? MemoryConfig.defaults() : memoryConfig;
         this.compileMode = compileMode == null ? CompileMode.AUTO : compileMode;
         this.backendPartitionDescriptors = backendPartitionDescriptors == null
                 ? BackendPartitionDescriptorRegistry.defaults()
                 : backendPartitionDescriptors;
     }
 
+    /**
+     * Runs a full compile session.
+     *
+     * <p>The result contains both the immutable artifact bundle and timing/count metadata. Compile tracing stops at the
+     * artifact boundary; kernel selection and execution timing are recorded later during preparation and execution.
+     *
+     * @return compile result for the latest graph state
+     */
     public Result compile() {
         long t0 = System.nanoTime();
         Session session = new Session();
@@ -81,6 +223,13 @@ public final class GraphCompiler {
         return new Result(artifacts, trace);
     }
 
+    /**
+     * Pair of compile artifacts and the trace that describes the compile session.
+     *
+     * @param artifacts immutable artifact bundle produced by compilation
+     * @param trace compile timing and node-count metadata; {@link CompileTrace#skipped()} is substituted for
+     *              {@code null}
+     */
     public record Result(CompileArtifacts artifacts, CompileTrace trace) {
         public Result {
             artifacts = Objects.requireNonNull(artifacts, "artifacts cannot be null");
@@ -276,6 +425,8 @@ public final class GraphCompiler {
         private void rebuildPartitionPlanningSnapshot() {
             PartitionPlanningSnapshotBuilder.Snapshot snapshot = PartitionPlanningSnapshotBuilder.build(
                     partitionConfig,
+                    offloadConfig,
+                    cpuRegionConfig,
                     compiledSupportsBackward,
                     compiledNodes,
                     compiledForwardOutput,
@@ -302,9 +453,8 @@ public final class GraphCompiler {
                             partition,
                             new RegionOptimizationContext(
                                     compiledNodes,
-                                    compiledSupportsBackward
-                                            ? config.optimizer.FuseConfig.trainingDefaults()
-                                            : config.optimizer.FuseConfig.inferenceDefaults()
+                                    fuseConfig,
+                                    cpuFusionConfig
                             )
                     ))
                     .toList();
@@ -321,7 +471,7 @@ public final class GraphCompiler {
                     .withOptimizedRegions(optimizedRegions);
             compiledOptimizerState = loweringReady.withMemoryPlan(MemoryPlanner.plan(
                     loweringReady,
-                    MemoryPlannerPolicy.defaults()
+                    MemoryPlannerPolicy.fromConfig(memoryConfig)
             ));
             compiledMemoryPlan = compiledOptimizerState.memoryPlan();
         }

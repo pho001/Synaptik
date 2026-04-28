@@ -15,19 +15,35 @@ import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.optimizer.partition.PartitionPlan;
 
+/**
+ * Prepares compiled nodes for Metal partition execution.
+ *
+ * <p>Anchor nodes receive a {@link PreparedMetalExecutable}; interior nodes are
+ * marked as covered by the partition, and non-partition nodes fall back to CPU
+ * preparation.</p>
+ */
 public final class MetalNodePreparer {
     private final CpuNodePreparer cpuPreparer;
     private final MetalMpsGraphBridge bridge;
 
+    /**
+     * Creates a preparer using the default FFM Metal bridge.
+     */
     public MetalNodePreparer(CpuNodePreparer cpuPreparer) {
         this(cpuPreparer, new MetalMpsFfmBridge());
     }
 
+    /**
+     * Creates a preparer with an explicit Metal bridge implementation.
+     */
     public MetalNodePreparer(CpuNodePreparer cpuPreparer, MetalMpsGraphBridge bridge) {
         this.cpuPreparer = cpuPreparer;
         this.bridge = bridge;
     }
 
+    /**
+     * Prepares execution metadata for a node according to its Metal partition role.
+     */
     public CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         PartitionExecutionRole role = context.partitionRoleFor(node.id());
         if (role == PartitionExecutionRole.INTERIOR) {

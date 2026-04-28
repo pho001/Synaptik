@@ -1,5 +1,8 @@
 package backend.cpu.fused.optimize;
 
+/**
+ * Cost and access family assigned to a fused expression for scheduling.
+ */
 public enum FusedDispatchFamily {
     CHEAP_CONTIGUOUS(true, true, "cheap-contiguous"),
     CHEAP_STRIDED(true, false, "cheap-strided"),
@@ -16,14 +19,23 @@ public enum FusedDispatchFamily {
         this.id = id;
     }
 
+    /**
+     * Returns whether the family contains only cheap operations.
+     */
     public boolean cheap() {
         return cheap;
     }
 
+    /**
+     * Returns whether the family uses direct or offset contiguous inputs only.
+     */
     public boolean contiguous() {
         return contiguous;
     }
 
+    /**
+     * Returns the stable diagnostic id for the family.
+     */
     public String id() {
         return id;
     }

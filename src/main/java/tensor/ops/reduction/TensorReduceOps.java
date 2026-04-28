@@ -16,14 +16,38 @@ import tensor.TensorInternalAccess;
 import tensor.TensorLayoutTransform;
 import tensor.TensorPrimitiveBuilder;
 
+/**
+ * Reductions and axis-wise normalization-style tensor operations.
+ *
+ * <p>Floating reductions are differentiable and require floating numeric input.
+ * Boolean reductions require {@link DataType#BOOL} input and do not propagate
+ * gradients. Methods build graph tensors and do not mutate input storage.</p>
+ */
 public final class TensorReduceOps {
     private TensorReduceOps() {
     }
 
+    /**
+     * Sums along one dimension and removes that dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @return sum tensor with reduced shape
+     * @throws IllegalArgumentException if input dtype is not floating or the axis is invalid
+     */
     public static Tensor sum(Tensor input, int dimension) {
         return sum(input, dimension, false);
     }
 
+    /**
+     * Sums along one dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param keepDims true to retain the reduced axis with size 1
+     * @return sum tensor
+     * @throws IllegalArgumentException if input dtype is not floating or the axis is invalid
+     */
     public static Tensor sum(Tensor input, int dimension, boolean keepDims) {
         ReductionSupport.requireFloatingInput(input, "sum");
         int[] shape = input.getShape();
@@ -42,6 +66,13 @@ public final class TensorReduceOps {
         return out;
     }
 
+    /**
+     * Sums all elements into a shape {@code [1]} tensor.
+     *
+     * @param input floating tensor; must be non-null
+     * @return scalar-like tensor containing the total sum
+     * @throws IllegalArgumentException if input dtype is not floating
+     */
     public static Tensor sumAll(Tensor input) {
         ReductionSupport.requireFloatingInput(input, "sum");
         Tensor out = TensorPrimitiveBuilder.unary(input, new int[]{1}, new sum(-1), "sum", input.getDataType());
@@ -55,10 +86,27 @@ public final class TensorReduceOps {
         return out;
     }
 
+    /**
+     * Averages along one dimension and removes that dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @return mean tensor with reduced shape
+     * @throws IllegalArgumentException if input dtype is not floating or the axis is invalid
+     */
     public static Tensor mean(Tensor input, int dimension) {
         return mean(input, dimension, false);
     }
 
+    /**
+     * Averages along one dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param keepDims true to retain the reduced axis with size 1
+     * @return mean tensor
+     * @throws IllegalArgumentException if input dtype is not floating or the axis is invalid
+     */
     public static Tensor mean(Tensor input, int dimension, boolean keepDims) {
         ReductionSupport.requireFloatingInput(input, "mean");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
@@ -81,6 +129,13 @@ public final class TensorReduceOps {
         return out;
     }
 
+    /**
+     * Averages all elements into a shape {@code [1]} tensor.
+     *
+     * @param input floating tensor; must be non-null
+     * @return scalar-like tensor containing the mean
+     * @throws IllegalArgumentException if input dtype is not floating
+     */
     public static Tensor meanAll(Tensor input) {
         ReductionSupport.requireFloatingInput(input, "mean");
         Tensor out = TensorPrimitiveBuilder.unary(input, new int[]{1}, new mean(-1), "mean", input.getDataType());
@@ -95,6 +150,14 @@ public final class TensorReduceOps {
         return out;
     }
 
+    /**
+     * Applies softmax along one dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis over which probabilities sum to 1; negative axes are normalized
+     * @return shape-preserving softmax tensor
+     * @throws IllegalArgumentException if input dtype is not floating or the axis is invalid
+     */
     public static Tensor softmax(Tensor input, int dimension) {
         ReductionSupport.requireFloatingInput(input, "softmax");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
@@ -118,6 +181,14 @@ public final class TensorReduceOps {
         return out;
     }
 
+    /**
+     * Applies log-softmax along one dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis over which log probabilities are normalized; negative axes are normalized
+     * @return shape-preserving log-softmax tensor
+     * @throws IllegalArgumentException if input dtype is not floating or the axis is invalid
+     */
     public static Tensor logSoftmax(Tensor input, int dimension) {
         ReductionSupport.requireFloatingInput(input, "logSoftmax");
         int normalizedDimension = TensorLayoutTransform.normalizeAxis(dimension, input.getShape().length);
@@ -142,54 +213,144 @@ public final class TensorReduceOps {
         return out;
     }
 
+    /**
+     * Finds the minimum along one dimension and removes that dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @return reduced minimum tensor
+     */
     public static Tensor min(Tensor input, int dimension) {
         ReductionSupport.requireFloatingInput(input, "min");
         return min(input, dimension, false);
     }
 
+    /**
+     * Finds the minimum along one dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param keepDims true to retain the reduced axis with size 1
+     * @return reduced minimum tensor
+     */
     public static Tensor min(Tensor input, int dimension, boolean keepDims) {
         return reduceMinMax(input, dimension, keepDims, false);
     }
 
+    /**
+     * Finds the minimum over all elements.
+     *
+     * @param input floating tensor; must be non-null
+     * @return shape {@code [1]} tensor containing the minimum
+     */
     public static Tensor minAll(Tensor input) {
         ReductionSupport.requireFloatingInput(input, "min");
         return reduceMinMaxAll(input, false);
     }
 
+    /**
+     * Finds the maximum along one dimension and removes that dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @return reduced maximum tensor
+     */
     public static Tensor max(Tensor input, int dimension) {
         ReductionSupport.requireFloatingInput(input, "max");
         return max(input, dimension, false);
     }
 
+    /**
+     * Finds the maximum along one dimension.
+     *
+     * @param input floating tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param keepDims true to retain the reduced axis with size 1
+     * @return reduced maximum tensor
+     */
     public static Tensor max(Tensor input, int dimension, boolean keepDims) {
         return reduceMinMax(input, dimension, keepDims, true);
     }
 
+    /**
+     * Finds the maximum over all elements.
+     *
+     * @param input floating tensor; must be non-null
+     * @return shape {@code [1]} tensor containing the maximum
+     */
     public static Tensor maxAll(Tensor input) {
         ReductionSupport.requireFloatingInput(input, "max");
         return reduceMinMaxAll(input, true);
     }
 
+    /**
+     * Computes logical AND over one dimension and removes that dimension.
+     *
+     * @param input BOOL tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @return boolean tensor containing per-slice all results
+     * @throws IllegalArgumentException if input is not BOOL or the axis is invalid
+     */
     public static Tensor all(Tensor input, int dimension) {
         return all(input, dimension, false);
     }
 
+    /**
+     * Computes logical AND over one dimension.
+     *
+     * @param input BOOL tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param keepDims true to retain the reduced axis with size 1
+     * @return boolean tensor containing per-slice all results
+     * @throws IllegalArgumentException if input is not BOOL or the axis is invalid
+     */
     public static Tensor all(Tensor input, int dimension, boolean keepDims) {
         return reduceBool(input, dimension, keepDims, true);
     }
 
+    /**
+     * Computes logical AND over all elements.
+     *
+     * @param input BOOL tensor; must be non-null
+     * @return shape {@code [1]} BOOL tensor
+     * @throws IllegalArgumentException if input is not BOOL
+     */
     public static Tensor allAll(Tensor input) {
         return reduceBoolAll(input, true);
     }
 
+    /**
+     * Computes logical OR over one dimension and removes that dimension.
+     *
+     * @param input BOOL tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @return boolean tensor containing per-slice any results
+     * @throws IllegalArgumentException if input is not BOOL or the axis is invalid
+     */
     public static Tensor any(Tensor input, int dimension) {
         return any(input, dimension, false);
     }
 
+    /**
+     * Computes logical OR over one dimension.
+     *
+     * @param input BOOL tensor; must be non-null
+     * @param dimension axis to reduce; negative axes are normalized
+     * @param keepDims true to retain the reduced axis with size 1
+     * @return boolean tensor containing per-slice any results
+     * @throws IllegalArgumentException if input is not BOOL or the axis is invalid
+     */
     public static Tensor any(Tensor input, int dimension, boolean keepDims) {
         return reduceBool(input, dimension, keepDims, false);
     }
 
+    /**
+     * Computes logical OR over all elements.
+     *
+     * @param input BOOL tensor; must be non-null
+     * @return shape {@code [1]} BOOL tensor
+     * @throws IllegalArgumentException if input is not BOOL
+     */
     public static Tensor anyAll(Tensor input) {
         return reduceBoolAll(input, false);
     }

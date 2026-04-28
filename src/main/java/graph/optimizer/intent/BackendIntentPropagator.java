@@ -9,10 +9,22 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Utilities for preserving accelerator backend intent across rewrites and backward closures.
+ *
+ * <p>The methods mutate tensor backend metadata. They are intended for compile-time optimizer use, not concurrent graph
+ * mutation.
+ */
 public final class BackendIntentPropagator {
     private BackendIntentPropagator() {
     }
 
+    /**
+     * Copies accelerator backend intent from a source tensor to a target tensor.
+     *
+     * @param target tensor to update
+     * @param source tensor whose backend intent should be preserved
+     */
     public static void preserve(Tensor target, Tensor source) {
         if (target == null || source == null) {
             return;
@@ -20,6 +32,12 @@ public final class BackendIntentPropagator {
         preserve(target, source.resolveBackend());
     }
 
+    /**
+     * Preserves an accelerator backend on a target tensor.
+     *
+     * @param target tensor to update
+     * @param backend backend to preserve
+     */
     public static void preserve(Tensor target, ComputeBackend backend) {
         if (target == null || !isAcceleratorBackend(backend)) {
             return;
@@ -27,6 +45,11 @@ public final class BackendIntentPropagator {
         TensorInternalAccess.setBackend(target, backend);
     }
 
+    /**
+     * Propagates accelerator backend intent backward through supported producer closures.
+     *
+     * @param graph graph in topological order
+     */
     public static void propagateBackwardClosure(List<Tensor> graph) {
         if (graph == null || graph.isEmpty()) {
             return;

@@ -5,6 +5,9 @@ import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorSpecies;
 
+/**
+ * Internal vector load helpers for broadcasted fused inputs.
+ */
 public final class FusedBroadcastVectorOps {
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Double> F64 = DoubleVector.SPECIES_PREFERRED;

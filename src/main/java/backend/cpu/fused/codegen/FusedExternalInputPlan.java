@@ -5,6 +5,9 @@ import tensor.DataType;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Internal access plan for one runtime input of a fused expression.
+ */
 public record FusedExternalInputPlan(
         int inputIndex,
         DataType dataType,

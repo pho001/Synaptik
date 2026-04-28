@@ -7,6 +7,19 @@ import tuning.workload.WorkloadSpec;
 
 import java.util.List;
 
+/**
+ * Immutable request for benchmarking the same entries across multiple workloads.
+ *
+ * <p>The suite session runs a regular {@link BenchmarkRequest} for each workload
+ * and aggregates the reports. It does not search candidate spaces, update
+ * runtime profiles, or write artifacts by itself.</p>
+ *
+ * @param workloads workloads to run; {@code null} becomes empty
+ * @param entries profiles to measure against each workload; {@code null} becomes empty
+ * @param measurement measurement controls; {@code null} means defaults
+ * @param validation validation controls; {@code null} disables validation
+ * @param report report rendering policy; {@code null} means defaults
+ */
 public record BenchmarkSuiteRequest(
         List<WorkloadSpec> workloads,
         List<BenchmarkEntry> entries,

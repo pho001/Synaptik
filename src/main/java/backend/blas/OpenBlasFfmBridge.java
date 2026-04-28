@@ -13,22 +13,44 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
+/**
+ * OpenBLAS CBLAS bridge backed by the Java Foreign Function and Memory API.
+ *
+ * <p>The bridge discovers native symbols once at class initialization. Dispatch
+ * methods throw when OpenBLAS or the requested GEMM symbol is unavailable, so
+ * callers should check {@link #isAvailable()} before routing work here.</p>
+ */
 public final class OpenBlasFfmBridge {
+    /**
+     * CBLAS enum value for row-major input buffers.
+     */
     public static final int CBLAS_ROW_MAJOR = 101;
+    /**
+     * CBLAS enum value for non-transposed operands.
+     */
     public static final int CBLAS_NO_TRANS = 111;
 
     private static final State STATE = init();
 
     private OpenBlasFfmBridge() {}
 
+    /**
+     * Returns whether the OpenBLAS CBLAS symbols required by this bridge were found.
+     */
     public static boolean isAvailable() {
         return STATE.available;
     }
 
+    /**
+     * Returns the native discovery failure reason, or an empty string when available.
+     */
     public static String unavailableReason() {
         return STATE.reason;
     }
 
+    /**
+     * Invokes row-major f32 GEMM with non-transposed operands starting at array offset zero.
+     */
     public static void sgemmRowMajorNoTrans(
             int m,
             int n,
@@ -70,6 +92,9 @@ public final class OpenBlasFfmBridge {
         }
     }
 
+    /**
+     * Invokes row-major f32 GEMM with non-transposed operands and explicit array offsets.
+     */
     public static void sgemmRowMajorNoTransOffsets(
             int m,
             int n,
@@ -114,6 +139,9 @@ public final class OpenBlasFfmBridge {
         }
     }
 
+    /**
+     * Invokes row-major f64 GEMM with non-transposed operands starting at array offset zero.
+     */
     public static void dgemmRowMajorNoTrans(
             int m,
             int n,
@@ -155,6 +183,9 @@ public final class OpenBlasFfmBridge {
         }
     }
 
+    /**
+     * Invokes row-major f64 GEMM with non-transposed operands and explicit array offsets.
+     */
     public static void dgemmRowMajorNoTransOffsets(
             int m,
             int n,
@@ -199,6 +230,9 @@ public final class OpenBlasFfmBridge {
         }
     }
 
+    /**
+     * Invokes row-major BF16 GEMM with f32 accumulation starting at array offset zero.
+     */
     public static void sbgemmRowMajorNoTrans(
             int m,
             int n,
@@ -240,6 +274,9 @@ public final class OpenBlasFfmBridge {
         }
     }
 
+    /**
+     * Invokes row-major BF16 GEMM with f32 accumulation and explicit array offsets.
+     */
     public static void sbgemmRowMajorNoTransOffsets(
             int m,
             int n,

@@ -8,6 +8,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * Normalized workload identity used to scope persisted tuning results.
+ *
+ * @param name workload name
+ * @param kind workload kind
+ * @param dataType execution dtype
+ * @param mode execution mode
+ * @param attributes sorted workload attributes
+ */
 public record WorkloadFingerprint(
         String name,
         String kind,
@@ -23,6 +32,14 @@ public record WorkloadFingerprint(
         attributes = attributes == null ? Map.of() : Map.copyOf(new TreeMap<>(attributes));
     }
 
+    /**
+     * Builds a workload fingerprint from workload metadata and profile context.
+     *
+     * @param workload workload specification, if available
+     * @param metadata workload metadata, if available
+     * @param profile execution profile, if available
+     * @return workload fingerprint
+     */
     public static WorkloadFingerprint of(WorkloadSpec workload, WorkloadMetadata metadata, ExecutionProfile profile) {
         return new WorkloadFingerprint(
                 workload == null ? (metadata == null ? "workload" : metadata.name()) : workload.name(),
@@ -33,6 +50,12 @@ public record WorkloadFingerprint(
         );
     }
 
+    /**
+     * Parses a fingerprint key previously produced by {@link #key()}.
+     *
+     * @param key serialized key
+     * @return parsed workload fingerprint
+     */
     public static WorkloadFingerprint fromKey(String key) {
         if (key == null || key.isBlank()) {
             return new WorkloadFingerprint("workload", "GENERIC", "UNKNOWN", "FORWARD", Map.of());
@@ -60,6 +83,9 @@ public record WorkloadFingerprint(
         return new WorkloadFingerprint(name, kind, dataType, mode, attrs);
     }
 
+    /**
+     * @return stable key suitable for persistence lookups
+     */
     public String key() {
         StringBuilder sb = new StringBuilder();
         sb.append("name=").append(name)
@@ -72,6 +98,9 @@ public record WorkloadFingerprint(
         return sb.toString();
     }
 
+    /**
+     * @return map representation for JSON-like stores
+     */
     public Map<String, Object> toMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("name", name);

@@ -15,10 +15,27 @@ import tensor.TensorDataTypeUtil;
 import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 
+/**
+ * Differentiable elementwise binary operations for floating tensors.
+ *
+ * <p>All public methods require non-null floating numeric inputs that are
+ * broadcast-compatible. They return a new graph tensor, except for algebraic
+ * identity shortcuts that may return an existing input tensor. Input storage is
+ * not mutated.</p>
+ */
 public final class TensorBinaryOps {
     private TensorBinaryOps() {
     }
 
+    /**
+     * Adds two tensors elementwise with NumPy-style broadcasting.
+     *
+     * @param first left operand; must be non-null and floating numeric
+     * @param second right operand; must be non-null and floating numeric
+     * @return broadcasted sum tensor with promoted floating dtype
+     * @throws NullPointerException if either input is null
+     * @throws IllegalArgumentException if inputs are non-floating or not broadcast-compatible
+     */
     public static Tensor add(Tensor first, Tensor second) {
         if (isScalarConstant(first, 0.0d)) {
             return second;
@@ -46,6 +63,15 @@ public final class TensorBinaryOps {
         return out;
     }
 
+    /**
+     * Subtracts one tensor from another elementwise with broadcasting.
+     *
+     * @param first minuend; must be non-null and floating numeric
+     * @param second subtrahend; must be non-null and floating numeric
+     * @return broadcasted difference tensor with promoted floating dtype
+     * @throws NullPointerException if either input is null
+     * @throws IllegalArgumentException if inputs are non-floating or not broadcast-compatible
+     */
     public static Tensor sub(Tensor first, Tensor second) {
         if (isScalarConstant(second, 0.0d)) {
             return first;
@@ -73,6 +99,15 @@ public final class TensorBinaryOps {
         return out;
     }
 
+    /**
+     * Multiplies two tensors elementwise with broadcasting.
+     *
+     * @param first left operand; must be non-null and floating numeric
+     * @param second right operand; must be non-null and floating numeric
+     * @return broadcasted product tensor with promoted floating dtype
+     * @throws NullPointerException if either input is null
+     * @throws IllegalArgumentException if inputs are non-floating or not broadcast-compatible
+     */
     public static Tensor mul(Tensor first, Tensor second) {
         if (isScalarConstant(first, 0.0d)) {
             return second.mul(0.0d);
@@ -112,6 +147,15 @@ public final class TensorBinaryOps {
         return out;
     }
 
+    /**
+     * Divides one tensor by another elementwise with broadcasting.
+     *
+     * @param first numerator; must be non-null and floating numeric
+     * @param second denominator; must be non-null and floating numeric
+     * @return broadcasted quotient tensor with promoted floating dtype
+     * @throws NullPointerException if either input is null
+     * @throws IllegalArgumentException if inputs are non-floating or not broadcast-compatible
+     */
     public static Tensor div(Tensor first, Tensor second) {
         if (isScalarConstant(first, 1.0d)) {
             return second.inv();
@@ -160,6 +204,15 @@ public final class TensorBinaryOps {
                 && Double.compare(tensor.scalarAsDouble(), 0.0d) != 0;
     }
 
+    /**
+     * Computes the elementwise minimum of two tensors with broadcasting.
+     *
+     * @param first left operand; must be non-null and floating numeric
+     * @param second right operand; must be non-null and floating numeric
+     * @return broadcasted elementwise minimum with promoted floating dtype
+     * @throws NullPointerException if either input is null
+     * @throws IllegalArgumentException if inputs are non-floating or not broadcast-compatible
+     */
     public static Tensor min(Tensor first, Tensor second) {
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new min(plan);
@@ -200,6 +253,15 @@ public final class TensorBinaryOps {
         return out;
     }
 
+    /**
+     * Computes the elementwise maximum of two tensors with broadcasting.
+     *
+     * @param first left operand; must be non-null and floating numeric
+     * @param second right operand; must be non-null and floating numeric
+     * @return broadcasted elementwise maximum with promoted floating dtype
+     * @throws NullPointerException if either input is null
+     * @throws IllegalArgumentException if inputs are non-floating or not broadcast-compatible
+     */
     public static Tensor max(Tensor first, Tensor second) {
         BroadcastPlan plan = TensorBroadcastOps.planBinary(first, second);
         Operation op = new max(plan);

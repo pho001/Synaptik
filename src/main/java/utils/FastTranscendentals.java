@@ -1,5 +1,8 @@
 package utils;
 
+/**
+ * Internal math helper providing fast approximate transcendental functions for generated kernels.
+ */
 public final class FastTranscendentals {
     private static final boolean FORCE_EXACT_TRANSCENDENTALS =
             Boolean.parseBoolean(System.getProperty("cg.math.forceExactTranscendentals", "false"));
@@ -12,6 +15,12 @@ public final class FastTranscendentals {
 
     private FastTranscendentals() {}
 
+    /**
+     * Approximates {@code exp(x)} for float kernels, or delegates to {@link Math#exp(double)} when exact mode is forced.
+     *
+     * @param x input value
+     * @return approximate float exponential
+     */
     public static float fastExpF32(float x) {
         if (FORCE_EXACT_TRANSCENDENTALS) {
             return (float) Math.exp(x);
@@ -29,6 +38,12 @@ public final class FastTranscendentals {
         return Float.intBitsToFloat(bits);
     }
 
+    /**
+     * Approximates {@code exp(x)} for double kernels, or delegates to {@link Math#exp(double)} when exact mode is forced.
+     *
+     * @param x input value
+     * @return approximate double exponential
+     */
     public static double fastExpF64(double x) {
         if (FORCE_EXACT_TRANSCENDENTALS) {
             return Math.exp(x);
@@ -46,6 +61,12 @@ public final class FastTranscendentals {
         return Double.longBitsToDouble(bits << 32);
     }
 
+    /**
+     * Approximates {@code tanh(x)} for float kernels, or delegates to {@link Math#tanh(double)} when exact mode is forced.
+     *
+     * @param x input value
+     * @return approximate float hyperbolic tangent
+     */
     public static float fastTanhF32(float x) {
         if (FORCE_EXACT_TRANSCENDENTALS) {
             return (float) Math.tanh(x);
@@ -58,6 +79,12 @@ public final class FastTranscendentals {
         return x * (27.0f + x2) / (27.0f + 9.0f * x2);
     }
 
+    /**
+     * Approximates {@code tanh(x)} for double kernels, or delegates to {@link Math#tanh(double)} when exact mode is forced.
+     *
+     * @param x input value
+     * @return approximate double hyperbolic tangent
+     */
     public static double fastTanhF64(double x) {
         if (FORCE_EXACT_TRANSCENDENTALS) {
             return Math.tanh(x);

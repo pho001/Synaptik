@@ -71,7 +71,7 @@ class DefaultRegionOptimizerTest {
         OptimizedRegion region = optimizer.optimize(partition, new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults()));
 
         assertEquals(2, region.executionUnits().size());
-        assertTrue(region.executionUnits().stream().allMatch(unit -> unit.kind() == ExecutionUnitKind.SINGLE_OP));
+        assertTrue(region.executionUnits().stream().allMatch(unit -> unit.kind() == ExecutionUnitKind.UNIT_KERNEL));
     }
 
     @Test

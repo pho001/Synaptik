@@ -14,6 +14,30 @@ import tensor.DataType;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 
+/**
+ * Calibrated hardware/runtime profile for one platform, dtype, and execution mode.
+ *
+ * <p>This profile is the output of platform calibration. It stores runtime thresholds and backend
+ * dispatch choices that depend on the current machine, such as matmul/conv2d BLAS thresholds,
+ * fused-kernel vector and parallel thresholds, scheduler chunking, materialization thresholds, numeric
+ * approximation policy, and accelerator availability policy. Graph autotune consumes this object as a
+ * frozen runtime input and varies only {@link GraphExecutionPolicy}.</p>
+ *
+ * <p>The profile can be converted back to {@link RuntimeConfig} before execution. The conversion keeps
+ * graph policy separate: it does not decide optimizer stage order, CSE mode, partitioning, or memory
+ * planning.</p>
+ *
+ * @param metadata platform id, hardware key, schema versions, dtype, and execution mode
+ * @param matmul calibrated matmul and attention-matmul runtime settings
+ * @param conv2d calibrated conv2d GEMM dispatch settings; {@code null} derives defaults from matmul
+ * @param fused calibrated fused elementwise dispatch and generated-ASM vector width settings
+ * @param elementwiseDispatch calibrated non-fused elementwise dispatch thresholds
+ * @param reduction calibrated reduction and attention-reduction thresholds
+ * @param scheduler calibrated CPU chunking policy
+ * @param materialization calibrated layout/materialization thresholds
+ * @param numerics numerical approximation policy copied into runtime config
+ * @param accelerator accelerator backend selection policy; {@code null} uses defaults
+ */
 public record PlatformRuntimeProfile(
         PlatformProfileMetadata metadata,
         MatmulPlatformProfile matmul,
@@ -39,6 +63,19 @@ public record PlatformRuntimeProfile(
         accelerator = accelerator == null ? AcceleratorPlatformProfile.defaults() : accelerator;
     }
 
+    /**
+     * Creates a platform profile with default accelerator policy.
+     *
+     * @param metadata platform metadata
+     * @param matmul matmul runtime settings
+     * @param conv2d conv2d runtime settings
+     * @param fused fused runtime settings
+     * @param elementwiseDispatch non-fused elementwise dispatch settings
+     * @param reduction reduction settings
+     * @param scheduler scheduling settings
+     * @param materialization materialization settings
+     * @param numerics numerical approximation policy
+     */
     public PlatformRuntimeProfile(
             PlatformProfileMetadata metadata,
             MatmulPlatformProfile matmul,
@@ -64,6 +101,21 @@ public record PlatformRuntimeProfile(
         );
     }
 
+    /**
+     * Creates a platform profile that derives conv2d settings from matmul settings.
+     *
+     * <p>This overload exists for older profile assembly paths. New calibration code should prefer the
+     * overload that supplies an explicit {@link Conv2dPlatformProfile}.</p>
+     *
+     * @param metadata platform metadata
+     * @param matmul matmul runtime settings
+     * @param fused fused runtime settings
+     * @param elementwiseDispatch non-fused elementwise dispatch settings
+     * @param reduction reduction settings
+     * @param scheduler scheduling settings
+     * @param materialization materialization settings
+     * @param numerics numerical approximation policy
+     */
     public PlatformRuntimeProfile(
             PlatformProfileMetadata metadata,
             MatmulPlatformProfile matmul,
@@ -88,6 +140,19 @@ public record PlatformRuntimeProfile(
         );
     }
 
+    /**
+     * Extracts a platform runtime profile from a complete execution profile.
+     *
+     * <p>This is used as a seed when no persisted calibration profile exists. It copies runtime
+     * settings from {@code profile.runtime()} and records the supplied platform metadata. The resulting
+     * value is a runtime profile only; graph optimizer settings from the profile are not stored here.</p>
+     *
+     * @param platformProfileId stable platform profile id, usually derived from hardware fingerprint
+     * @param hardwareKey hardware fingerprint key
+     * @param calibrationPreset name of the preset or seed source
+     * @param profile source execution profile; must not be {@code null}
+     * @return runtime-only platform profile derived from {@code profile.runtime()}
+     */
     public static PlatformRuntimeProfile fromExecutionProfile(
             String platformProfileId,
             String hardwareKey,
@@ -185,6 +250,16 @@ public record PlatformRuntimeProfile(
         );
     }
 
+    /**
+     * Converts this calibrated profile into the runtime configuration consumed by graph execution.
+     *
+     * <p>The returned config contains backend thresholds, BLAS/conv2d dispatch settings, fused runtime
+     * policy, numerical approximation policy, and accelerator settings. It does not contain graph
+     * optimizer policy; combine it with a {@link GraphExecutionPolicy} through an
+     * {@link ExecutionProfile} when building runnable candidates.</p>
+     *
+     * @return runtime configuration equivalent to this platform profile
+     */
     public RuntimeConfig toRuntimeConfig() {
         CpuKernelConfig cpu = new CpuKernelConfig(
                 matmul.loopUnrollFactor(),
@@ -262,6 +337,11 @@ public record PlatformRuntimeProfile(
         );
     }
 
+    /**
+     * Returns the dtype for which this platform profile was calibrated.
+     *
+     * @return calibrated data type from profile metadata
+     */
     public DataType dataType() {
         return metadata.dataType();
     }

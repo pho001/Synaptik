@@ -7,10 +7,26 @@ import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 import tensor.options.Pool2dOptions;
 
+/**
+ * NCHW 2-D pooling operations.
+ *
+ * <p>Pooling requires rank-4 floating input tensors. Outputs are differentiable
+ * with respect to the input where the underlying pooling rule defines a
+ * gradient. Inputs are not mutated.</p>
+ */
 public final class TensorPoolOps {
     private TensorPoolOps() {
     }
 
+    /**
+     * Applies max pooling over spatial dimensions.
+     *
+     * @param input rank-4 input tensor with shape {@code [N, C, H, W]}
+     * @param options pooling options; must be non-null
+     * @return pooled tensor with shape {@code [N, C, outH, outW]}
+     * @throws IllegalArgumentException if input/options are null, input is not a
+     *                                  rank-4 floating tensor, or window geometry is invalid
+     */
     public static Tensor maxPool2d(Tensor input, Pool2dOptions options) {
         PoolSupport.validateInput(input, options, "maxPool2d");
         int[] inputShape = input.getShapeUnsafe();
@@ -45,6 +61,15 @@ public final class TensorPoolOps {
         return out;
     }
 
+    /**
+     * Applies average pooling over spatial dimensions.
+     *
+     * @param input rank-4 input tensor with shape {@code [N, C, H, W]}
+     * @param options pooling options; must be non-null
+     * @return pooled tensor with shape {@code [N, C, outH, outW]}
+     * @throws IllegalArgumentException if input/options are null, input is not a
+     *                                  rank-4 floating tensor, or window geometry is invalid
+     */
     public static Tensor avgPool2d(Tensor input, Pool2dOptions options) {
         PoolSupport.validateInput(input, options, "avgPool2d");
         int[] inputShape = input.getShapeUnsafe();

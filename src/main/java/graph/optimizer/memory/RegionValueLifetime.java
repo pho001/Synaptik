@@ -8,6 +8,20 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Lifetime of a region value across optimized execution units.
+ *
+ * @param valueRef region value reference
+ * @param birthStep unit step where the value is produced
+ * @param lastUseStep last unit or graph step that consumes the value
+ * @param elementCount value size in elements
+ * @param decision materialization decision
+ * @param typeContract dtype contract for storage and transport
+ * @param producerRegionId producing region id
+ * @param producerUnitId producing unit id
+ * @param consumerRegionIds consuming region ids
+ * @param consumerUnitIds consuming unit ids
+ */
 public record RegionValueLifetime(
         RegionValueRef valueRef,
         int birthStep,
@@ -31,6 +45,11 @@ public record RegionValueLifetime(
         consumerUnitIds = List.copyOf(consumerUnitIds == null ? List.of() : new LinkedHashSet<>(consumerUnitIds));
     }
 
+    /**
+     * Returns whether this value crosses from one region to another.
+     *
+     * @return {@code true} when any consumer region differs from the producer region
+     */
     public boolean isCrossRegion() {
         if (producerRegionId == null || producerRegionId.isBlank()) {
             return false;

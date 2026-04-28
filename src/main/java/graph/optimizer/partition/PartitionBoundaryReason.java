@@ -1,5 +1,8 @@
 package graph.optimizer.partition;
 
+/**
+ * Normalized reason why partition growth stopped or a candidate was rejected.
+ */
 public enum PartitionBoundaryReason {
     NONE,
     COVERED_BY_EARLIER_PARTITION,
@@ -15,6 +18,12 @@ public enum PartitionBoundaryReason {
     BUDGET_STOP,
     UNKNOWN;
 
+    /**
+     * Converts planner trace text to an enum value.
+     *
+     * @param reason planner reason string
+     * @return normalized boundary reason
+     */
     public static PartitionBoundaryReason fromReason(String reason) {
         if (reason == null || reason.isBlank()) {
             return NONE;

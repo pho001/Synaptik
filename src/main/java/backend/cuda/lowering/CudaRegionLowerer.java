@@ -13,7 +13,13 @@ import graph.optimizer.region.ExecutionUnitKind;
 
 import java.util.List;
 
+/**
+ * Region lowerer that marks selected CUDA partitions for graph execution.
+ */
 public final class CudaRegionLowerer implements RegionLowerer {
+    /**
+     * Lowers a CUDA-targeted partition region when a CUDA partition plan is attached.
+     */
     @Override
     public LoweringResult lower(LoweringRequest request) {
         if (request == null || request.region().target() != PartitionTarget.GPU_CUDA) {

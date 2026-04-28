@@ -10,6 +10,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
+/**
+ * Immutable memory planning result consumed by runtime preparation and binding.
+ *
+ * <p>The plan has two layers:
+ * <ul>
+ *     <li>Tensor-level lifetimes and reusable slots for storage owners in the compiled graph.</li>
+ *     <li>Region-level value lifetimes, materialization decisions, slot assignments, and handoff requirements derived
+ *     from optimized regions.</li>
+ * </ul>
+ *
+ * <p>The plan is read-only. Runtime binding may allocate or reuse buffers according to this metadata, but should not
+ * mutate the plan itself.
+ */
 public final class MemoryPlan {
     private final Map<Tensor, NodeLifetime> lifetimes;
     private final Map<Tensor, ReusableInterval> reusableIntervals;
@@ -28,6 +41,25 @@ public final class MemoryPlan {
     private final List<RegionHandoffRequirement> handoffRequirements;
     private final Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies;
 
+    /**
+     * Creates a memory plan.
+     *
+     * @param lifetimes tensor lifetimes keyed by tensor identity
+     * @param reusableIntervals reusable storage intervals keyed by storage owner
+     * @param slotByOwner slot id assigned to each reusable storage owner
+     * @param slotSizes element size for each tensor-level slot
+     * @param policy policy used to build the plan
+     * @param summary summary metrics
+     * @param structuralView region structural memory view
+     * @param regionValueLifetimes lifetimes for region values
+     * @param materializationPlan materialization decisions for region values
+     * @param regionMemoryBindings memory binding decisions for region values
+     * @param regionSlotByValueRef region slot id by value ref
+     * @param regionSlotSizes element size for each region slot
+     * @param tensorToRegionValueRef mapping from semantic tensor to region value ref
+     * @param handoffRequirements region value handoff requirements
+     * @param runtimeBindingPolicies per-tensor runtime binding policy
+     */
     public MemoryPlan(
             Map<Tensor, NodeLifetime> lifetimes,
             Map<Tensor, ReusableInterval> reusableIntervals,
@@ -63,6 +95,13 @@ public final class MemoryPlan {
         this.runtimeBindingPolicies = Map.copyOf(Objects.requireNonNull(runtimeBindingPolicies, "runtimeBindingPolicies cannot be null"));
     }
 
+    /**
+     * Returns lifetime metadata for a tensor.
+     *
+     * @param tensor tensor to look up
+     * @return node lifetime
+     * @throws IllegalArgumentException if the tensor is absent from the plan
+     */
     public NodeLifetime lifetimeOf(Tensor tensor) {
         NodeLifetime lifetime = lifetimes.get(tensor);
         if (lifetime == null) {
@@ -71,14 +110,32 @@ public final class MemoryPlan {
         return lifetime;
     }
 
+    /**
+     * Returns the tensor that owns storage for {@code tensor}.
+     *
+     * @param tensor tensor to inspect
+     * @return storage owner tensor
+     */
     public Tensor storageOwnerOf(Tensor tensor) {
         return lifetimeOf(tensor).storageOwner();
     }
 
+    /**
+     * Returns the last graph index that reads a tensor's storage owner.
+     *
+     * @param tensor tensor to inspect
+     * @return last read index, or {@link Integer#MAX_VALUE} for externally observable values
+     */
     public int lastReadIndexOf(Tensor tensor) {
         return lifetimeOf(tensor).lastReadIndex();
     }
 
+    /**
+     * Returns whether a tensor is a reusable storage owner.
+     *
+     * @param tensor tensor to inspect
+     * @return {@code true} when the tensor owns storage and has a reusable interval
+     */
     public boolean isReusableOwner(Tensor tensor) {
         NodeLifetime lifetime = lifetimeOf(tensor);
         if (lifetime.storageOwner() != tensor) {
@@ -87,11 +144,23 @@ public final class MemoryPlan {
         return reusableIntervals.containsKey(tensor);
     }
 
+    /**
+     * Returns tensor-level slot id for a tensor's storage owner.
+     *
+     * @param tensor tensor to inspect
+     * @return slot id, or {@code null} when no reusable slot was assigned
+     */
     public Integer slotIdOf(Tensor tensor) {
         Tensor owner = storageOwnerOf(tensor);
         return slotByOwner.get(owner);
     }
 
+    /**
+     * Returns tensor-level slot size.
+     *
+     * @param slotId slot id
+     * @return slot size in elements
+     */
     public int slotSize(int slotId) {
         Integer size = slotSizes.get(slotId);
         if (size == null) {
@@ -100,18 +169,39 @@ public final class MemoryPlan {
         return size;
     }
 
+    /**
+     * Returns the policy used to build this plan.
+     *
+     * @return memory planner policy
+     */
     public MemoryPlannerPolicy policy() {
         return policy;
     }
 
+    /**
+     * Returns summary metrics for this plan.
+     *
+     * @return memory plan summary
+     */
     public MemoryPlanSummary summary() {
         return summary;
     }
 
+    /**
+     * Returns structural region memory flow.
+     *
+     * @return structural memory view
+     */
     public StructuralMemoryView structuralView() {
         return structuralView;
     }
 
+    /**
+     * Returns lifetime metadata for a region value.
+     *
+     * @param valueRef region value reference
+     * @return region value lifetime
+     */
     public RegionValueLifetime regionValueLifetimeOf(RegionValueRef valueRef) {
         RegionValueLifetime lifetime = regionValueLifetimes.get(valueRef);
         if (lifetime == null) {
@@ -120,6 +210,12 @@ public final class MemoryPlan {
         return lifetime;
     }
 
+    /**
+     * Returns materialization metadata for a region value.
+     *
+     * @param valueRef region value reference
+     * @return materialization plan entry
+     */
     public MaterializationPlanEntry materializationPlanOf(RegionValueRef valueRef) {
         MaterializationPlanEntry entry = materializationPlan.get(valueRef);
         if (entry == null) {
@@ -128,6 +224,12 @@ public final class MemoryPlan {
         return entry;
     }
 
+    /**
+     * Returns memory binding metadata for a region value.
+     *
+     * @param valueRef region value reference
+     * @return region memory binding
+     */
     public RegionMemoryBinding regionMemoryBindingOf(RegionValueRef valueRef) {
         RegionMemoryBinding binding = regionMemoryBindings.get(valueRef);
         if (binding == null) {
@@ -136,26 +238,59 @@ public final class MemoryPlan {
         return binding;
     }
 
+    /**
+     * Returns all region value lifetimes.
+     *
+     * @return immutable lifetime map
+     */
     public Map<RegionValueRef, RegionValueLifetime> regionValueLifetimes() {
         return regionValueLifetimes;
     }
 
+    /**
+     * Returns all materialization plan entries.
+     *
+     * @return immutable materialization map
+     */
     public Map<RegionValueRef, MaterializationPlanEntry> materializationPlan() {
         return materializationPlan;
     }
 
+    /**
+     * Returns all region memory bindings.
+     *
+     * @return immutable binding map
+     */
     public Map<RegionValueRef, RegionMemoryBinding> regionMemoryBindings() {
         return regionMemoryBindings;
     }
 
+    /**
+     * Returns the region slot id for a value.
+     *
+     * @param valueRef region value reference
+     * @return slot id, or {@code null} when the value has no region slot
+     */
     public Integer regionSlotIdOf(RegionValueRef valueRef) {
         return regionSlotByValueRef.get(valueRef);
     }
 
+    /**
+     * Returns how many region values use a slot.
+     *
+     * @param slotId region slot id
+     * @return use count
+     */
     public int regionSlotUseCount(int slotId) {
         return regionSlotUseCounts.getOrDefault(slotId, 0);
     }
 
+    /**
+     * Returns region slot size.
+     *
+     * @param slotId region slot id
+     * @return slot size in elements
+     */
     public int regionSlotSize(int slotId) {
         Integer size = regionSlotSizes.get(slotId);
         if (size == null) {
@@ -164,10 +299,20 @@ public final class MemoryPlan {
         return size;
     }
 
+    /**
+     * Returns region slot assignments by value.
+     *
+     * @return immutable region slot map
+     */
     public Map<RegionValueRef, Integer> regionSlotByValueRef() {
         return regionSlotByValueRef;
     }
 
+    /**
+     * Returns region slot sizes.
+     *
+     * @return immutable region slot size map
+     */
     public Map<Integer, Integer> regionSlotSizes() {
         return regionSlotSizes;
     }
@@ -182,10 +327,24 @@ public final class MemoryPlan {
         return counts;
     }
 
+    /**
+     * Returns region value reference associated with a tensor.
+     *
+     * @param tensor semantic tensor
+     * @return region value ref, or {@code null} when the tensor is not region-owned
+     */
     public RegionValueRef regionValueRefOf(Tensor tensor) {
         return tensorToRegionValueRef.get(tensor);
     }
 
+    /**
+     * Returns the runtime slot id for a tensor.
+     *
+     * <p>Region slots take precedence when a tensor maps to a region value; otherwise the tensor-level slot is used.
+     *
+     * @param tensor tensor to inspect
+     * @return runtime slot id, or {@code null} if no slot is assigned
+     */
     public Integer runtimeSlotIdOf(Tensor tensor) {
         RegionValueRef regionValueRef = regionValueRefOf(tensor);
         if (regionValueRef != null) {
@@ -197,6 +356,12 @@ public final class MemoryPlan {
         return slotIdOf(tensor);
     }
 
+    /**
+     * Returns the runtime slot size for a tensor.
+     *
+     * @param tensor tensor to inspect
+     * @return slot size in elements
+     */
     public int runtimeSlotSizeOf(Tensor tensor) {
         Integer runtimeSlotId = runtimeSlotIdOf(tensor);
         if (runtimeSlotId == null) {
@@ -209,26 +374,57 @@ public final class MemoryPlan {
         return slotSize(runtimeSlotId);
     }
 
+    /**
+     * Returns region handoff requirements.
+     *
+     * @return immutable handoff list
+     */
     public List<RegionHandoffRequirement> handoffRequirements() {
         return handoffRequirements;
     }
 
+    /**
+     * Returns runtime binding policy for a tensor.
+     *
+     * @param tensor tensor to inspect
+     * @return binding policy, defaulting to region binding allowed
+     */
     public RuntimeMemoryBindingPolicy runtimeBindingPolicyOf(Tensor tensor) {
         return runtimeBindingPolicies.getOrDefault(tensor, RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED);
     }
 
+    /**
+     * Returns all runtime binding policies.
+     *
+     * @return immutable policy map
+     */
     public Map<Tensor, RuntimeMemoryBindingPolicy> runtimeBindingPolicies() {
         return runtimeBindingPolicies;
     }
 
+    /**
+     * Returns tensor-level slot assignments by storage owner.
+     *
+     * @return immutable slot map
+     */
     public Map<Tensor, Integer> slotByOwner() {
         return slotByOwner;
     }
 
+    /**
+     * Returns tensor-level slot sizes.
+     *
+     * @return immutable slot size map
+     */
     public Map<Integer, Integer> slotSizes() {
         return slotSizes;
     }
 
+    /**
+     * Returns a human-readable explanation of this plan.
+     *
+     * @return multi-section explanation string
+     */
     public String explain() {
         StringBuilder sb = new StringBuilder();
         appendSummary(sb);

@@ -5,6 +5,14 @@ import graph.optimizer.region.OptimizedRegion;
 
 import java.util.Objects;
 
+/**
+ * Inputs required to lower one optimized region into backend executable artifacts.
+ *
+ * @param region optimized region to lower; must not be {@code null}
+ * @param memoryPlan finalized memory plan; must not be {@code null}
+ * @param capabilities available backend capabilities; {@code null} becomes no capabilities
+ * @param context runtime/partition context; {@code null} becomes an empty context
+ */
 public record LoweringRequest(
         OptimizedRegion region,
         MemoryPlan memoryPlan,

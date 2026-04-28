@@ -7,13 +7,34 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Runs registered backend lowerers over optimized regions after partition/fusion/memory planning.
+ *
+ * <p>Lowering is a prepare-time bridge between graph optimization and backend execution. It receives an
+ * optimizer state with finalized memory planning, invokes backend-specific {@link RegionLowerer}s for
+ * each optimized region, and returns lowering artifacts plus a simple trace.</p>
+ */
 public final class LoweringPipeline {
     private final List<RegionLowerer> lowerers;
 
+    /**
+     * Creates a lowering pipeline.
+     *
+     * @param lowerers lowerers tried in order for each optimized region; {@code null} becomes empty
+     */
     public LoweringPipeline(List<RegionLowerer> lowerers) {
         this.lowerers = List.copyOf(lowerers == null ? List.of() : lowerers);
     }
 
+    /**
+     * Lowers optimized regions into backend artifacts.
+     *
+     * @param optimized optimizer state after partition/fusion/memory planning
+     * @param capabilities backend capabilities available for this prepare step
+     * @param context lowering context containing runtime config and selected partition plans
+     * @return lowering state containing artifacts and trace
+     * @throws IllegalStateException if the optimizer state has no finalized memory plan
+     */
     public LoweringState lower(
             OptimizerState optimized,
             BackendCapabilities capabilities,

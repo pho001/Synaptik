@@ -2,6 +2,9 @@ package backend.cpu.fused.codegen;
 
 import utils.FastTranscendentals;
 
+/**
+ * Internal scalar math helpers invoked by generated fused kernels.
+ */
 public final class FusedScalarOps {
     private FusedScalarOps() {}
 

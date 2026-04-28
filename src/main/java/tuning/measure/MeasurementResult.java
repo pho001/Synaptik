@@ -2,6 +2,13 @@ package tuning.measure;
 
 import graph.execution.trace.ExecutionTrace;
 
+/**
+ * Measurement output for one candidate workload execution.
+ *
+ * @param policy policy used for the measurement
+ * @param trace compile/prepare/run traces included by the policy
+ * @param steadyStateStats aggregate latency statistics in milliseconds
+ */
 public record MeasurementResult(
         MeasurementPolicy policy,
         ExecutionTrace trace,

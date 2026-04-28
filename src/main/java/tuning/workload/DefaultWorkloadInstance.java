@@ -6,6 +6,14 @@ import tuning.validate.ValidationTarget;
 
 import java.util.Objects;
 
+/**
+ * Default immutable {@link WorkloadInstance} implementation.
+ *
+ * @param root executable root tensor
+ * @param validationTarget target selected for validation; {@code null} means root
+ * @param reference validation reference; {@code null} means none
+ * @param metadata workload metadata; {@code null} is derived from the root label
+ */
 public record DefaultWorkloadInstance(
         Tensor root,
         ValidationTarget validationTarget,
@@ -19,6 +27,13 @@ public record DefaultWorkloadInstance(
         metadata = metadata == null ? WorkloadMetadata.of(root.getLabel(), WorkloadKind.GENERIC) : metadata;
     }
 
+    /**
+     * Creates a workload instance that validates the root tensor.
+     *
+     * @param root executable root tensor
+     * @param reference validation reference
+     * @param metadata workload metadata
+     */
     public DefaultWorkloadInstance(
             Tensor root,
             ValidationReference reference,

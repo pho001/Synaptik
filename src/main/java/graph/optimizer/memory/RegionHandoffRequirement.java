@@ -6,6 +6,17 @@ import tensor.DataType;
 
 import java.util.Objects;
 
+/**
+ * Requirement for moving a region value from a producer unit to a consumer unit.
+ *
+ * @param valueRef region value reference
+ * @param producerRegionId producer region id
+ * @param producerUnitId producer execution unit id
+ * @param consumerRegionId consumer region id
+ * @param consumerUnitId consumer execution unit id
+ * @param transportType dtype used across the handoff
+ * @param decision materialization decision for the handoff value
+ */
 public record RegionHandoffRequirement(
         RegionValueRef valueRef,
         String producerRegionId,

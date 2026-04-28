@@ -4,9 +4,20 @@ import graph.CompiledNode;
 
 import java.util.Set;
 
+/**
+ * Null-object legality adapter for targets that have no region lowerer.
+ *
+ * <p>Every support and lowering check rejects the candidate, allowing planners to run without special casing missing
+ * backend support.
+ */
 public final class UnsupportedRegionLegalityAdapter implements RegionLegalityAdapter {
     private final PartitionTarget target;
 
+    /**
+     * Creates an adapter for an unsupported target.
+     *
+     * @param target target to report from {@link #target()}
+     */
     public UnsupportedRegionLegalityAdapter(PartitionTarget target) {
         this.target = target == null ? PartitionTarget.NONE : target;
     }

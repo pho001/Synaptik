@@ -2,12 +2,17 @@ package graph.compile;
 
 import backend.ComputeBackend;
 import backend.partition.BackendPartitionDescriptorRegistry;
+import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuRegionPolicy;
+import config.optimizer.OffloadConfig;
+import config.optimizer.OffloadPolicy;
 import config.optimizer.PartitionConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGradientBinding;
 import graph.CompiledNode;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.optimizer.partition.BackendCandidatePartition;
+import graph.optimizer.partition.CpuNaturalExecutionRegionPlanner;
 import graph.optimizer.partition.GreedyMaxRegionPartitionPlanner;
 import graph.optimizer.partition.Partition;
 import graph.optimizer.partition.PartitionPlan;
@@ -26,10 +31,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Builds a partition planning snapshot from compiled nodes.
+ *
+ * <p>This helper mirrors the partition optimizer stage at the compile artifact boundary so preparation can inspect
+ * accepted partitions, backend plans, accelerator candidates, and partition trace metadata without re-running the full
+ * optimizer pipeline.
+ */
 public final class PartitionPlanningSnapshotBuilder {
     private PartitionPlanningSnapshotBuilder() {
     }
 
+    /**
+     * Immutable partition planning snapshot.
+     *
+     * @param partitions accepted partitions
+     * @param backendPlans attached backend plans
+     * @param backendSelectionCandidates non-CPU candidates available for backend selection
+     * @param trace partition planning trace
+     */
     public record Snapshot(
             List<Partition> partitions,
             List<PartitionPlan> backendPlans,
@@ -43,11 +63,26 @@ public final class PartitionPlanningSnapshotBuilder {
             trace = trace == null ? PartitionCompileTrace.empty() : trace;
         }
 
+        /**
+         * Returns an empty snapshot.
+         *
+         * @return empty snapshot
+         */
         public static Snapshot empty() {
             return new Snapshot(List.of(), List.of(), List.of(), PartitionCompileTrace.empty());
         }
     }
 
+    /**
+     * Builds a snapshot with the default backend partition descriptor registry.
+     *
+     * @param partitionConfig partition configuration
+     * @param supportsBackward whether the compiled graph contains backward work
+     * @param compiledNodes compiled node snapshots
+     * @param forwardOutput compiled forward output node
+     * @param gradientBindings gradient publication bindings
+     * @return partition planning snapshot
+     */
     public static Snapshot build(
             PartitionConfig partitionConfig,
             boolean supportsBackward,
@@ -57,6 +92,8 @@ public final class PartitionPlanningSnapshotBuilder {
     ) {
         return build(
                 partitionConfig,
+                OffloadConfig.defaults(),
+                CpuRegionConfig.defaults(),
                 supportsBackward,
                 compiledNodes,
                 forwardOutput,
@@ -65,8 +102,54 @@ public final class PartitionPlanningSnapshotBuilder {
         );
     }
 
+    /**
+     * Builds a snapshot with an explicit backend partition descriptor registry.
+     *
+     * @param partitionConfig partition configuration
+     * @param supportsBackward whether the compiled graph contains backward work
+     * @param compiledNodes compiled node snapshots
+     * @param forwardOutput compiled forward output node
+     * @param gradientBindings gradient publication bindings
+     * @param backendPartitionDescriptors backend descriptor registry
+     * @return partition planning snapshot
+     */
     public static Snapshot build(
             PartitionConfig partitionConfig,
+            boolean supportsBackward,
+            List<CompiledNode> compiledNodes,
+            CompiledNode forwardOutput,
+            Map<?, CompiledGradientBinding> gradientBindings,
+            BackendPartitionDescriptorRegistry backendPartitionDescriptors
+    ) {
+        return build(
+                partitionConfig,
+                OffloadConfig.defaults(),
+                CpuRegionConfig.defaults(),
+                supportsBackward,
+                compiledNodes,
+                forwardOutput,
+                gradientBindings,
+                backendPartitionDescriptors
+        );
+    }
+
+    /**
+     * Builds a snapshot with explicit graph region/offload policies.
+     *
+     * @param partitionConfig shared partition search configuration
+     * @param offloadConfig accelerator/offload policy
+     * @param cpuRegionConfig CPU execution region policy
+     * @param supportsBackward whether the compiled graph contains backward work
+     * @param compiledNodes compiled node snapshots
+     * @param forwardOutput compiled forward output node
+     * @param gradientBindings gradient publication bindings
+     * @param backendPartitionDescriptors backend descriptor registry
+     * @return partition planning snapshot
+     */
+    public static Snapshot build(
+            PartitionConfig partitionConfig,
+            OffloadConfig offloadConfig,
+            CpuRegionConfig cpuRegionConfig,
             boolean supportsBackward,
             List<CompiledNode> compiledNodes,
             CompiledNode forwardOutput,
@@ -81,8 +164,10 @@ public final class PartitionPlanningSnapshotBuilder {
                 ? BackendPartitionDescriptorRegistry.defaults()
                 : backendPartitionDescriptors;
         PartitionConfig resolvedConfig = partitionConfig == null ? PartitionConfig.defaults() : partitionConfig;
-        PartitionTarget target = resolvePartitionTarget(resolvedConfig, nodes);
-        if (target.isNone()) {
+        OffloadConfig resolvedOffload = offloadConfig == null ? OffloadConfig.defaults() : offloadConfig;
+        CpuRegionConfig resolvedCpuRegion = cpuRegionConfig == null ? CpuRegionConfig.defaults() : cpuRegionConfig;
+        List<PlanningJob> jobs = resolvePlanningJobs(resolvedConfig, resolvedOffload, resolvedCpuRegion, nodes);
+        if (jobs.isEmpty()) {
             return Snapshot.empty();
         }
 
@@ -92,21 +177,173 @@ public final class PartitionPlanningSnapshotBuilder {
                 nodes,
                 buildConsumerMap(nodes)
         );
-        PartitionPlanningResult planning = selectPlanner(resolvedConfig.plannerStrategy()).plan(
-                new PartitionPlanningRequest(
-                        resolvedConfig.plannerStrategy(),
-                        target,
-                        planningContext,
-                        graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(resolvedConfig),
-                        descriptors.legalityAdapterFor(target),
-                        requiredMaterializedValueRefs(forwardOutput, gradientBindings)
-                )
+        List<Partition> partitions = new ArrayList<>();
+        java.util.LinkedHashMap<String, PartitionPlan> plansByPartitionId = new java.util.LinkedHashMap<>();
+        List<PartitionCompileTrace> traces = new ArrayList<>();
+        Set<PartitionValueRef> requiredMaterialized = requiredMaterializedValueRefs(forwardOutput, gradientBindings);
+        for (PlanningJob job : jobs) {
+            PartitionPlanningResult planning = selectPlanner(job.strategy()).plan(
+                    new PartitionPlanningRequest(
+                            job.strategy(),
+                            job.target(),
+                            planningContext,
+                            job.policy(),
+                            descriptors.legalityAdapterFor(job.target()),
+                            requiredMaterialized,
+                            job.cpuRegionConfig()
+                    )
+            );
+            partitions.addAll(planning.partitions());
+            plansByPartitionId.putAll(planning.plansByPartitionId());
+            traces.add(planning.trace());
+        }
+        PartitionPlanningResult planning = new PartitionPlanningResult(
+                partitions,
+                plansByPartitionId,
+                mergeTrace(jobs, traces)
         );
         return new Snapshot(
                 planning.partitions(),
                 planning.attachedPlans(),
                 backendSelectionCandidates(planning),
                 planning.trace()
+        );
+    }
+
+    private record PlanningJob(
+            PartitionTarget target,
+            PartitionPlannerStrategy strategy,
+            graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy policy,
+            CpuRegionConfig cpuRegionConfig
+    ) {
+    }
+
+    private static List<PlanningJob> resolvePlanningJobs(
+            PartitionConfig config,
+            OffloadConfig offloadConfig,
+            CpuRegionConfig cpuRegionConfig,
+            List<CompiledNode> nodes
+    ) {
+        PartitionTarget configured = config.target();
+        if (configured != null && !configured.isAuto()) {
+            if (configured.isNone()) {
+                return List.of();
+            }
+            return List.of(new PlanningJob(
+                    configured,
+                    configured == PartitionTarget.CPU
+                            ? PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION
+                            : config.plannerStrategy(),
+                    plannerPolicyFor(config, configured == PartitionTarget.CPU ? cpuRegionConfig : null),
+                    configured == PartitionTarget.CPU ? cpuRegionConfig : CpuRegionConfig.defaults()
+            ));
+        }
+        boolean cpuSeen = false;
+        boolean metalSeen = false;
+        boolean cudaSeen = false;
+        for (CompiledNode node : nodes) {
+            PartitionTarget target = PartitionTarget.fromBackend(node.backend());
+            if (target == PartitionTarget.CPU) {
+                cpuSeen = true;
+            } else if (target == PartitionTarget.GPU_METAL) {
+                metalSeen = true;
+            } else if (target == PartitionTarget.GPU_CUDA) {
+                cudaSeen = true;
+            }
+        }
+        List<PlanningJob> jobs = new ArrayList<>();
+        if (offloadConfig.policy() == OffloadPolicy.ACCELERATOR_IF_PROFITABLE || metalSeen || cudaSeen) {
+            PartitionPlannerStrategy acceleratorStrategy = acceleratorStrategy(offloadConfig);
+            if (acceleratorStrategy == null && (metalSeen || cudaSeen)) {
+                acceleratorStrategy = config.plannerStrategy();
+            }
+            if (acceleratorStrategy != null) {
+                var policy = graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(config);
+                if (metalSeen) {
+                    jobs.add(new PlanningJob(
+                            PartitionTarget.GPU_METAL,
+                            acceleratorStrategy,
+                            policy,
+                            CpuRegionConfig.defaults()
+                    ));
+                }
+                if (cudaSeen) {
+                    jobs.add(new PlanningJob(
+                            PartitionTarget.GPU_CUDA,
+                            acceleratorStrategy,
+                            policy,
+                            CpuRegionConfig.defaults()
+                    ));
+                }
+            }
+        }
+        if (cpuSeen && cpuRegionConfig.policy() != CpuRegionPolicy.OFF) {
+            jobs.add(new PlanningJob(
+                    PartitionTarget.CPU,
+                    PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION,
+                    plannerPolicyFor(config, cpuRegionConfig),
+                    cpuRegionConfig
+            ));
+        }
+        return List.copyOf(jobs);
+    }
+
+    private static PartitionPlannerStrategy acceleratorStrategy(OffloadConfig offloadConfig) {
+        return switch (offloadConfig.acceleratorRegionPolicy()) {
+            case OFF -> null;
+            case GREEDY_CLOSED_REGIONS -> PartitionPlannerStrategy.GREEDY_MAX_REGION;
+            case SCORED_PROFITABLE_REGIONS -> PartitionPlannerStrategy.SCORED_CANDIDATE_SEARCH;
+        };
+    }
+
+    private static graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy plannerPolicyFor(
+            PartitionConfig config,
+            CpuRegionConfig cpuRegionConfig
+    ) {
+        var base = graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(config);
+        if (cpuRegionConfig == null) {
+            return base;
+        }
+        return new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy(
+                cpuRegionConfig.maxRegionNodes(),
+                base.maxVisitedCandidates(),
+                base.nodeWeight(),
+                base.internalEdgeWeight(),
+                base.mergeNodeBonus(),
+                base.tailDepthWeight(),
+                base.externalInputPenalty(),
+                base.workWeight()
+        );
+    }
+
+    private static PartitionCompileTrace mergeTrace(List<PlanningJob> jobs, List<PartitionCompileTrace> traces) {
+        if (traces.isEmpty()) {
+            return PartitionCompileTrace.empty();
+        }
+        if (traces.size() == 1) {
+            return traces.getFirst();
+        }
+        List<graph.execution.trace.PartitionDecisionTrace> decisions = new ArrayList<>();
+        int considered = 0;
+        int accepted = 0;
+        int rejected = 0;
+        for (PartitionCompileTrace trace : traces) {
+            if (trace == null) {
+                continue;
+            }
+            considered += trace.totalConsidered();
+            accepted += trace.acceptedCount();
+            rejected += trace.rejectedCount();
+            decisions.addAll(trace.decisions());
+        }
+        PlanningJob first = jobs.getFirst();
+        return new PartitionCompileTrace(
+                first.strategy(),
+                first.target(),
+                considered,
+                accepted,
+                rejected,
+                decisions
         );
     }
 
@@ -141,29 +378,12 @@ public final class PartitionPlanningSnapshotBuilder {
         return Set.copyOf(required);
     }
 
-    private static PartitionTarget resolvePartitionTarget(PartitionConfig config, List<CompiledNode> nodes) {
-        PartitionTarget configured = config.target();
-        if (configured != null && !configured.isAuto()) {
-            return configured;
-        }
-        boolean cpuSeen = false;
-        for (CompiledNode node : nodes) {
-            PartitionTarget target = PartitionTarget.fromBackend(node.backend());
-            if (target == PartitionTarget.GPU_METAL || target == PartitionTarget.GPU_CUDA) {
-                return target;
-            }
-            if (target == PartitionTarget.CPU) {
-                cpuSeen = true;
-            }
-        }
-        return cpuSeen ? PartitionTarget.CPU : PartitionTarget.NONE;
-    }
-
     private static PartitionPlanner selectPlanner(PartitionPlannerStrategy strategy) {
         PartitionPlannerStrategy resolved = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : strategy;
         return switch (resolved) {
             case GREEDY_MAX_REGION -> new GreedyMaxRegionPartitionPlanner();
             case SCORED_CANDIDATE_SEARCH -> new graph.optimizer.partition.ScoredCandidatePartitionPlanner();
+            case CPU_NATURAL_EXECUTION_REGION -> new CpuNaturalExecutionRegionPlanner();
         };
     }
 

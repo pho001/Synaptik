@@ -2,6 +2,9 @@ package backend.cpu.fused.codegen;
 
 import utils.FastTranscendentals;
 
+/**
+ * Internal dtype-aware scalar math helpers invoked by generated fused kernels.
+ */
 public final class FusedDTypeOps {
     public static final int MODE_F64 = 0;
     public static final int MODE_F32 = 1;

@@ -17,14 +17,23 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Partition legality adapter for CUDA accelerator graph regions.
+ */
 public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter {
     private final AcceleratorSubgraphLowerer lowerer = new AcceleratorSubgraphLowerer();
 
+    /**
+     * Returns the CUDA partition target.
+     */
     @Override
     public PartitionTarget target() {
         return PartitionTarget.GPU_CUDA;
     }
 
+    /**
+     * Returns whether a compiled node can be represented in the CUDA accelerator DAG.
+     */
     @Override
     public boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context) {
         if (node == null
@@ -45,11 +54,17 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         };
     }
 
+    /**
+     * Returns whether the node can seed a CUDA partition candidate.
+     */
     @Override
     public boolean canSeed(CompiledNode node, PartitionPlanningContext context) {
         return isNodeSupported(node, context);
     }
 
+    /**
+     * Returns whether a producer outside the selected CUDA candidate may be read as an external input.
+     */
     @Override
     public boolean canUseAsExternalInput(
             CompiledNode producer,
@@ -69,6 +84,9 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         return !isNodeSupported(producer, context);
     }
 
+    /**
+     * Builds a structurally valid CUDA partition candidate from selected node ids.
+     */
     @Override
     public PartitionCandidate tryCreateStructuralCandidate(
             Set<Integer> selectedNodeIds,
@@ -111,6 +129,9 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         );
     }
 
+    /**
+     * Lowers a CUDA candidate into a concrete CUDA partition plan.
+     */
     @Override
     public PartitionPlan tryCreatePlan(PartitionCandidate candidate, PartitionPlanningContext context) {
         if (candidate == null) {

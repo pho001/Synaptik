@@ -2,6 +2,14 @@ package graph.optimizer.region;
 
 import tensor.DataType;
 
+/**
+ * Data type contract for a value as it moves through region planning.
+ *
+ * @param logicalType semantic tensor type
+ * @param storageType type used for stored buffers
+ * @param computeType type used for computation
+ * @param transportType type used when crossing region boundaries
+ */
 public record ValueTypeContract(
         DataType logicalType,
         DataType storageType,
@@ -14,6 +22,12 @@ public record ValueTypeContract(
         }
     }
 
+    /**
+     * Creates a contract where all type roles use the same dtype.
+     *
+     * @param dataType dtype to use for all roles
+     * @return type contract
+     */
     public static ValueTypeContract same(DataType dataType) {
         return new ValueTypeContract(dataType, dataType, dataType, dataType);
     }

@@ -2,10 +2,21 @@ package tensor.factory;
 
 import java.lang.reflect.Array;
 
+/**
+ * Reflection helpers for constructing tensors from rectangular Java arrays.
+ */
 public final class TensorArrayData {
     private TensorArrayData() {
     }
 
+    /**
+     * Infers the shape of a nested rectangular array from its first element on each level.
+     *
+     * @param multiDimArray array object; must be non-null and non-empty at every nested level
+     * @return inferred dimension sizes
+     * @throws IllegalArgumentException if {@code multiDimArray} is not an array
+     * @throws ArrayIndexOutOfBoundsException if any nested array level is empty
+     */
     public static int[] inferShape(Object multiDimArray) {
         int[] dims = new int[getDepth(multiDimArray)];
         Object currentArray = multiDimArray;
@@ -20,6 +31,14 @@ public final class TensorArrayData {
         return dims;
     }
 
+    /**
+     * Flattens nested double-array data into row-major order.
+     *
+     * @param multiDimArray nested data array; leaves must be {@code double[]}
+     * @param flatSize expected number of output elements
+     * @return newly allocated flat double array
+     * @throws IllegalArgumentException if leaves are not double arrays or nested objects
+     */
     public static double[] flattenToDouble(Object multiDimArray, int flatSize) {
         double[] flatArray = new double[flatSize];
         fillFlatArray(multiDimArray, flatArray, 0);

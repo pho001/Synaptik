@@ -14,6 +14,14 @@ import tuning.workload.WorkloadSpec;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Candidate space used by graph autotune.
+ *
+ * <p>Generated candidates all share the supplied dtype, execution mode, and
+ * platform runtime profile. Only the graph execution policy varies. Standard
+ * mode emits production-eligible candidates; research mode emits exploratory
+ * metadata so persistence consumers can distinguish them.</p>
+ */
 public final class GraphAutotuneCandidateSpace implements CandidateSpace {
     private final String profileName;
     private final DataType dataType;
@@ -22,6 +30,16 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
     private final GraphExecutionPolicy graphPolicy;
     private final GraphAutotuneMode mode;
 
+    /**
+     * Creates a graph autotune candidate space.
+     *
+     * @param profileName profile namespace for generated execution profiles
+     * @param dataType dtype for generated execution profiles
+     * @param executionMode execution mode for generated execution profiles
+     * @param runtimeProfile fixed runtime profile
+     * @param graphPolicy seed graph policy to vary
+     * @param mode graph autotune mode
+     */
     public GraphAutotuneCandidateSpace(
             String profileName,
             DataType dataType,
@@ -38,6 +56,14 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
         this.mode = mode == null ? GraphAutotuneMode.STANDARD : mode;
     }
 
+    /**
+     * Generates graph-policy candidates. The current implementation does not
+     * inspect the workload, but the parameter is retained for the candidate-space
+     * contract.
+     *
+     * @param workload workload being tuned
+     * @return graph-policy candidates for this mode
+     */
     @Override
     public List<Candidate> generate(WorkloadSpec workload) {
         List<GraphPolicyMutators.GraphPolicyVariant> variants = mode == GraphAutotuneMode.RESEARCH
@@ -63,11 +89,17 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                         variant.name(),
                         !variant.policy().equals(graphPolicy)
                 );
+        var optimizer = variant.policy().optimizer();
         return new Candidate(
                 variant.name(),
                 profile,
                 standard ? CandidateKind.GRAPH_STANDARD : CandidateKind.GRAPH_RESEARCH,
                 metadata.withAttribute("graphParameter", variant.parameter().name())
+                        .withAttribute("offloadPolicy", optimizer.offload().policy().name())
+                        .withAttribute("acceleratorRegionPolicy", optimizer.offload().acceleratorRegionPolicy().name())
+                        .withAttribute("cpuRegionPolicy", optimizer.cpuRegion().policy().name())
+                        .withAttribute("cpuFusionPolicy", optimizer.cpuFusion().mode().name())
+                        .withAttribute("productionEligible", Boolean.toString(standard))
         );
     }
 }

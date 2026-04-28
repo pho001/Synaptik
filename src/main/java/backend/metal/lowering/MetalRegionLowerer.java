@@ -14,7 +14,13 @@ import graph.optimizer.region.ExecutionUnitKind;
 
 import java.util.List;
 
+/**
+ * Region lowerer that marks selected Metal partitions for graph execution.
+ */
 public final class MetalRegionLowerer implements RegionLowerer {
+    /**
+     * Lowers a Metal-targeted partition region when a Metal partition plan is attached.
+     */
     @Override
     public LoweringResult lower(LoweringRequest request) {
         if (request == null || request.region().target() != PartitionTarget.GPU_METAL) {

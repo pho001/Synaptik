@@ -7,10 +7,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Candidate space that applies a sequence of {@link ExecutionProfileMutator}
+ * instances to a base execution profile.
+ *
+ * <p>The space is immutable after construction and safe to share if the mutators
+ * are safe to share. Candidate generation is deterministic for deterministic
+ * mutators. Refinement neighbors are deduplicated by executable profile
+ * fingerprint.</p>
+ */
 public final class ProfileGridCandidateSpace implements RefinableCandidateSpace {
     private final ExecutionProfile baseProfile;
     private final List<ExecutionProfileMutator> mutators;
 
+    /**
+     * Creates a grid candidate space.
+     *
+     * @param baseProfile seed profile for all generated variants
+     * @param mutators ordered mutators applied to build the grid; {@code null}
+     * becomes empty
+     */
     public ProfileGridCandidateSpace(
             ExecutionProfile baseProfile,
             List<ExecutionProfileMutator> mutators
@@ -19,11 +35,20 @@ public final class ProfileGridCandidateSpace implements RefinableCandidateSpace 
         this.mutators = mutators == null ? List.of() : List.copyOf(mutators);
     }
 
+    /**
+     * @return seed profile used by this grid
+     */
     public ExecutionProfile baseProfile() {
         return baseProfile;
     }
 
     @Override
+    /**
+     * Generates the full profile grid for a workload.
+     *
+     * @param workload workload being tuned
+     * @return immutable list of generated candidates
+     */
     public List<Candidate> generate(WorkloadSpec workload) {
         Objects.requireNonNull(workload, "workload cannot be null");
         List<ExecutionProfileVariant> current = List.of(new ExecutionProfileVariant(baseProfile.candidateName(), baseProfile));
@@ -66,6 +91,13 @@ public final class ProfileGridCandidateSpace implements RefinableCandidateSpace 
     }
 
     @Override
+    /**
+     * Generates one-mutator variants around an evaluated candidate.
+     *
+     * @param candidate evaluated candidate
+     * @param workload workload being tuned
+     * @return immutable list of deduplicated neighbors
+     */
     public List<Candidate> neighbors(Candidate candidate, WorkloadSpec workload) {
         Objects.requireNonNull(candidate, "candidate cannot be null");
         Objects.requireNonNull(workload, "workload cannot be null");

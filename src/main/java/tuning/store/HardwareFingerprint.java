@@ -4,6 +4,15 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Normalized hardware identity used to scope persisted tuning results.
+ *
+ * @param os normalized operating system name
+ * @param arch normalized CPU architecture
+ * @param vm normalized JVM name
+ * @param vendor normalized JVM vendor
+ * @param cores available processor count
+ */
 public record HardwareFingerprint(
         String os,
         String arch,
@@ -19,6 +28,11 @@ public record HardwareFingerprint(
         cores = Math.max(1, cores);
     }
 
+    /**
+     * Captures the current JVM process hardware/runtime fingerprint.
+     *
+     * @return current hardware fingerprint
+     */
     public static HardwareFingerprint capture() {
         return new HardwareFingerprint(
                 System.getProperty("os.name", "unknown"),
@@ -29,6 +43,12 @@ public record HardwareFingerprint(
         );
     }
 
+    /**
+     * Parses a fingerprint key previously produced by {@link #key()}.
+     *
+     * @param key serialized key
+     * @return parsed fingerprint, or current capture for blank keys
+     */
     public static HardwareFingerprint fromKey(String key) {
         if (key == null || key.isBlank()) {
             return capture();
@@ -43,10 +63,16 @@ public record HardwareFingerprint(
         );
     }
 
+    /**
+     * @return stable key suitable for simple persistence lookups
+     */
     public String key() {
         return "os=" + os + "|arch=" + arch + "|vm=" + vm + "|vendor=" + vendor + "|cores=" + cores;
     }
 
+    /**
+     * @return map representation for reports and JSON stores
+     */
     public Map<String, Object> attributes() {
         Map<String, Object> attrs = new LinkedHashMap<>();
         attrs.put("os", os);

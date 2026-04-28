@@ -1,6 +1,9 @@
 package backend.cpu.fused.codegen;
 import org.objectweb.asm.ClassWriter;
 
+/**
+ * Internal dispatcher for emitting fused operation bytecode.
+ */
 public final class FusedOperationGenerator {
     private FusedOperationGenerator() {}
 

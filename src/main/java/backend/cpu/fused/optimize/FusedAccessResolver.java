@@ -6,10 +6,16 @@ import tensor.Tensor;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Internal resolver for absorbable access transforms on fused external inputs.
+ */
 public final class FusedAccessResolver {
     private FusedAccessResolver() {
     }
 
+    /**
+     * Resolves the backing tensor for an exposed fused input.
+     */
     public static ResolvedInput resolve(Tensor externalInput) {
         Objects.requireNonNull(externalInput, "externalInput cannot be null");
         Tensor current = externalInput;
@@ -32,6 +38,9 @@ public final class FusedAccessResolver {
         return new ResolvedInput(externalInput, current, absorbedDepth);
     }
 
+    /**
+     * Returns whether an operation can be absorbed into fused input addressing.
+     */
     public static boolean isAbsorbableAccessTransform(Operation operation) {
         if (operation == null || operation.opType() == null) {
             return false;
@@ -42,6 +51,13 @@ public final class FusedAccessResolver {
         };
     }
 
+    /**
+     * Result of resolving a fused external input through absorbable access transforms.
+     *
+     * @param exposedTensor tensor visible to the fused expression
+     * @param backingTensor tensor whose storage should be passed at runtime
+     * @param absorbedDepth number of absorbed access-transform nodes
+     */
     public record ResolvedInput(
             Tensor exposedTensor,
             Tensor backingTensor,
@@ -55,6 +71,9 @@ public final class FusedAccessResolver {
             }
         }
 
+        /**
+         * Returns whether at least one access-transform node was absorbed.
+         */
         public boolean absorbedAccessChain() {
             return absorbedDepth > 0;
         }

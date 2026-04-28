@@ -2,6 +2,9 @@ package backend.cpu.fused.codegen;
 
 import java.util.Objects;
 
+/**
+ * Internal code-generation context shared by fused ASM emitters.
+ */
 public record FusedGenerationContext(
         String internalClassName,
         int precisionMode,

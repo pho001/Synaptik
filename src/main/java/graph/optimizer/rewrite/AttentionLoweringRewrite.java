@@ -12,6 +12,9 @@ import tensor.options.AttentionOptions;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Lowers canonical scaled-dot-product attention decompositions to the specialized attention operation.
+ */
 public final class AttentionLoweringRewrite extends AbstractRewriteRule {
     @Override
     protected Tensor rewriteTensor(Tensor tensor) {

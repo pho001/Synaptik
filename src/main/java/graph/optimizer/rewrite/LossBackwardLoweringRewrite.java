@@ -10,6 +10,9 @@ import tensor.Tensor;
 
 import java.util.List;
 
+/**
+ * Lowers backward loss patterns to specialized loss-gradient operations.
+ */
 public final class LossBackwardLoweringRewrite extends AbstractRewriteRule {
     @Override
     protected Tensor rewriteTensor(Tensor tensor) {

@@ -1,16 +1,35 @@
 package backend;
 
+/**
+ * Backend family selected for a compiled execution node or partition.
+ *
+ * <p>The enum is used in optimizer partition planning, backend selection, prepare-time metadata, and
+ * runtime dispatch. GPU values describe the intended accelerator family; runtime availability is checked
+ * separately through backend selection and accelerator configuration.</p>
+ */
 public enum ComputeBackend {
-    CPU,          // Backend for CPU computations
-    GPU_CUDA,     // Backend for GPU computations using CUDA
-    GPU_OPENCL,   // Backend for GPU computations using OpenCL
-    GPU_METAL;    // Backend for GPU computations using Metal runtime
+    /**
+     * CPU execution backend.
+     */
+    CPU,
+    /**
+     * CUDA GPU backend.
+     */
+    GPU_CUDA,
+    /**
+     * OpenCL GPU backend.
+     */
+    GPU_OPENCL,
+    /**
+     * Metal GPU backend.
+     */
+    GPU_METAL;
 
     /**
-     * Optional: You can add methods or properties to the enum if needed.
-     * For example, you might want to provide a description or some metadata.
+     * Returns a human-readable backend description.
+     *
+     * @return short description suitable for diagnostics
      */
-
     public String getDescription() {
         switch (this) {
             case CPU:

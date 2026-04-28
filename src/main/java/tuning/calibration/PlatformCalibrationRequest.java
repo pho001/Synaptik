@@ -12,6 +12,47 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Immutable request for platform runtime calibration.
+ *
+ * <p>Platform calibration learns runtime-platform defaults, such as dispatch
+ * thresholds or kernel choices, by executing ordered {@link PlatformCalibrationStep}
+ * families. Unlike benchmark requests, it generates runtime-profile candidates;
+ * unlike graph autotune, it keeps the graph policy fixed and mutates/selects
+ * {@link PlatformRuntimeProfile} candidates. Each step starts from the profile
+ * selected by the previous step.</p>
+ *
+ * <p>The session writes the final runtime profile only when
+ * {@link #outputProfilePath()} is non-null. Progress listeners are called
+ * synchronously from the calibration run thread.</p>
+ *
+ * <p>Example:</p>
+ * <pre>{@code
+ * PlatformCalibrationRequest request = new PlatformCalibrationRequest(
+ *         "apple-m2",
+ *         "cpu-f32",
+ *         DataType.FLOAT32,
+ *         ExecutionMode.CPU,
+ *         graphPolicy,
+ *         seedRuntimeProfile,
+ *         PlatformCalibrationDefaults.defaultSteps(TuningPreset.BALANCED),
+ *         Path.of("profiles/apple-m2-f32.json"),
+ *         MeasurementPolicy.defaults(),
+ *         PlatformCalibrationProgressListener.noop());
+ * PlatformCalibrationResult result = PlatformCalibrationSession.create(request).run();
+ * }</pre>
+ *
+ * @param platformId stable platform identifier; blank values become {@code "platform"}
+ * @param profileName profile namespace; blank values become {@code platformId}
+ * @param dataType dtype for execution profiles assembled during calibration; required
+ * @param executionMode execution mode for assembled profiles; required
+ * @param graphPolicy fixed graph policy used during calibration; required
+ * @param seedRuntimeProfile initial runtime profile to refine; required
+ * @param steps ordered calibration steps; {@code null} becomes empty
+ * @param outputProfilePath optional path for saving the selected final runtime profile
+ * @param measurement optional measurement override for all steps; {@code null} uses step presets
+ * @param progressListener optional progress sink; {@code null} becomes no-op
+ */
 public record PlatformCalibrationRequest(
         String platformId,
         String profileName,
@@ -60,6 +101,19 @@ public record PlatformCalibrationRequest(
         );
     }
 
+    /**
+     * Creates a calibration request from a legacy full execution profile.
+     *
+     * <p>The graph policy and runtime profile are extracted from the seed profile.
+     * New callers should prefer the canonical constructor so graph policy and
+     * platform runtime profile are explicit.</p>
+     *
+     * @param platformId platform identifier
+     * @param seedProfile execution profile to split into graph/runtime parts
+     * @param steps ordered calibration steps
+     * @param outputProfilePath optional save path for the final runtime profile
+     * @return calibration request
+     */
     public static PlatformCalibrationRequest fromSeedExecutionProfile(
             String platformId,
             ExecutionProfile seedProfile,
@@ -86,6 +140,17 @@ public record PlatformCalibrationRequest(
         );
     }
 
+    /**
+     * Creates a calibration request from a legacy full execution profile with a
+     * measurement-policy override.
+     *
+     * @param platformId platform identifier
+     * @param seedProfile execution profile to split into graph/runtime parts
+     * @param steps ordered calibration steps
+     * @param outputProfilePath optional save path for the final runtime profile
+     * @param measurement measurement policy used for every step when non-null
+     * @return calibration request
+     */
     public static PlatformCalibrationRequest fromSeedExecutionProfile(
             String platformId,
             ExecutionProfile seedProfile,

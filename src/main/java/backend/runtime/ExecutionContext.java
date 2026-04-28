@@ -11,6 +11,17 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Per-run runtime context passed to backend kernels.
+ *
+ * <p>The context exposes execution mode, approximation decisions, prepared metadata, runtime tensor
+ * lookup, per-node workspaces, and small backend-specific state maps. It is created for a prepared
+ * execution run and should not be treated as a global singleton.</p>
+ *
+ * <p>The runtime-state and conv-trace maps are synchronized because individual backend helpers can
+ * publish state while executing. The graph execution scheduler still owns the higher-level ordering and
+ * lifetime of tensors and workspaces.</p>
+ */
 public final class ExecutionContext {
     private final ExecutionMode mode;
     private final boolean useFastExpApprox;
@@ -20,6 +31,13 @@ public final class ExecutionContext {
     private final Map<Tensor, Object> runtimeStateIndex;
     private final Map<Integer, ConvTraceMetadata> convTraceIndex;
 
+    /**
+     * Creates a standalone context without prepared execution state.
+     *
+     * @param mode execution mode
+     * @param useFastExpApprox whether exp may use fast approximation
+     * @param useFastTanhApprox whether tanh may use fast approximation
+     */
     public ExecutionContext(ExecutionMode mode, boolean useFastExpApprox, boolean useFastTanhApprox) {
         this(mode, useFastExpApprox, useFastTanhApprox, Map.of(), null);
     }
@@ -40,10 +58,26 @@ public final class ExecutionContext {
         this.useFastTanhApprox = useFastTanhApprox;
     }
 
+    /**
+     * Creates a context from runtime config without prepared metadata or per-run execution state.
+     *
+     * @param runtimeConfig runtime config used to resolve approximation flags
+     * @param mode execution mode
+     * @return execution context
+     */
     public static ExecutionContext fromRuntimeConfig(RuntimeConfig runtimeConfig, ExecutionMode mode) {
         return fromRuntimeConfig(runtimeConfig, mode, Map.of(), null);
     }
 
+    /**
+     * Creates a context from runtime config and prepared execution state.
+     *
+     * @param runtimeConfig runtime config used to resolve approximation flags
+     * @param mode execution mode
+     * @param metadataIndex prepared metadata indexed by compiled node id
+     * @param executionState per-run tensor/workspace state; may be {@code null} for limited contexts
+     * @return execution context
+     */
     public static ExecutionContext fromRuntimeConfig(
             RuntimeConfig runtimeConfig,
             ExecutionMode mode,
@@ -62,10 +96,16 @@ public final class ExecutionContext {
         );
     }
 
+    /**
+     * @return current execution mode
+     */
     public ExecutionMode mode() {
         return mode;
     }
 
+    /**
+     * @return {@code true} when the current run includes backward execution
+     */
     public boolean runsBackwardPass() {
         return mode == ExecutionMode.FORWARD_BACKWARD;
     }
@@ -82,6 +122,13 @@ public final class ExecutionContext {
         return metadataIndex.get(nodeId);
     }
 
+    /**
+     * Returns the runtime tensor allocated for a compiled node id.
+     *
+     * @param nodeId compiled node id
+     * @return runtime tensor for the node
+     * @throws IllegalStateException if this context was created without per-run execution state
+     */
     public Tensor runtimeTensorForNodeId(int nodeId) {
         if (executionState == null) {
             throw new IllegalStateException("ExecutionContext does not carry per-run ExecutionState.");
@@ -110,12 +157,25 @@ public final class ExecutionContext {
         return executionState.nodeIdForRuntimeTensor(tensor);
     }
 
+    /**
+     * Reads backend-specific state attached to a tensor.
+     *
+     * @param tensor tensor identity used as key
+     * @param type expected state type
+     * @return state cast to {@code type}, or {@code null} when no state of that type exists
+     */
     public <T> T runtimeStateFor(Tensor tensor, Class<T> type) {
         Objects.requireNonNull(type, "type cannot be null");
         Object state = runtimeStateIndex.get(tensor);
         return type.isInstance(state) ? type.cast(state) : null;
     }
 
+    /**
+     * Publishes backend-specific state for a tensor.
+     *
+     * @param tensor tensor identity used as key; must not be {@code null}
+     * @param runtimeState state object, or {@code null} to remove the mapping
+     */
     public void putRuntimeState(Tensor tensor, Object runtimeState) {
         Objects.requireNonNull(tensor, "tensor cannot be null");
         if (runtimeState == null) {

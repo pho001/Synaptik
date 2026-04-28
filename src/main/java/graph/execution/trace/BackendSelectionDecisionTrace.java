@@ -4,6 +4,17 @@ import backend.ComputeBackend;
 
 import java.util.List;
 
+/**
+ * Decision for one backend selection candidate.
+ *
+ * @param anchorNodeId candidate anchor node id
+ * @param nodeIds node ids covered by the candidate
+ * @param compatibleBackends backends compatible with the candidate
+ * @param selected whether the candidate was selected
+ * @param selectedBackend backend chosen for execution, if selected
+ * @param reason diagnostic reason
+ * @param estimatedWork backend work estimate
+ */
 public record BackendSelectionDecisionTrace(
         int anchorNodeId,
         List<Integer> nodeIds,

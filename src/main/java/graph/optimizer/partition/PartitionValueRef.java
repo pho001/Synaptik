@@ -1,5 +1,10 @@
 package graph.optimizer.partition;
 
+/**
+ * Stable reference to a graph value at a partition boundary.
+ *
+ * @param producerNodeId node id that produces the referenced value
+ */
 public record PartitionValueRef(
         int producerNodeId
 ) {
@@ -9,6 +14,12 @@ public record PartitionValueRef(
         }
     }
 
+    /**
+     * Creates a value reference for a producer node.
+     *
+     * @param producerNodeId producer node id
+     * @return value reference
+     */
     public static PartitionValueRef ofNode(int producerNodeId) {
         return new PartitionValueRef(producerNodeId);
     }

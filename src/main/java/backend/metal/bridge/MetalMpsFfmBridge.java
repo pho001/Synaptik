@@ -1,11 +1,11 @@
 package backend.metal.bridge;
 
+import backend.metal.MetalMpsCapabilities;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.lowering.AcceleratorSubgraphSignature;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagSpec;
-import tensor.DataType;
 import tensor.Tensor;
 
 import java.lang.foreign.Arena;
@@ -23,21 +23,38 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
+/**
+ * Metal MPSGraph bridge backed by the Java Foreign Function and Memory API.
+ *
+ * <p>Availability is discovered once at class initialization by looking up the
+ * native shim symbols. Compilation caches native executables by lowered subgraph
+ * signature; bridge failures are surfaced as unavailable records so callers can
+ * fall back to CPU execution.</p>
+ */
 public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
     private static final State STATE = init();
     private static final ConcurrentMap<AcceleratorSubgraphSignature, MemorySegment> EXECUTABLE_CACHE = new ConcurrentHashMap<>();
     private static volatile MetalMpsBridgeContext SHARED_CONTEXT;
 
+    /**
+     * Returns whether the Metal shim symbols required for bridge discovery were found.
+     */
     @Override
     public boolean isAvailable() {
         return STATE.available;
     }
 
+    /**
+     * Returns the bridge discovery failure reason, or an empty string when available.
+     */
     @Override
     public String unavailableReason() {
-        return STATE.reason;
+        return STATE.reason == null ? "" : STATE.reason;
     }
 
+    /**
+     * Creates or returns the shared Metal context; failures return an unavailable context.
+     */
     @Override
     public MetalMpsBridgeContext createContext() {
         MetalMpsBridgeContext cached = SHARED_CONTEXT;
@@ -63,6 +80,9 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         }
     }
 
+    /**
+     * Compiles a lowered Metal partition through the MPS shim and executable cache.
+     */
     @Override
     public MetalMpsBridgeExecutable compile(MetalMpsBridgeContext bridgeContext, MetalPartitionPlan plan) {
         if (!STATE.available) {
@@ -94,7 +114,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         for (int i = 0; i < externalInputCount; i++) {
                             AcceleratorDagInput input = dagSpec.externalInputs().get(i);
                             externalInputRanks[i] = input.shape().size();
-                            externalInputDTypes[i] = metalDataTypeCode(input.dataType());
+                            externalInputDTypes[i] = MetalMpsCapabilities.abiDataTypeCode(input.dataType());
                             externalInputDim0[i] = input.shape().getFirst();
                             externalInputDim1[i] = input.shape().size() >= 2 ? input.shape().get(1) : 1;
                             externalInputDim2[i] = input.shape().size() >= 3 ? input.shape().get(2) : 1;
@@ -252,6 +272,9 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         }
     }
 
+    /**
+     * Releases a non-shared native context when the shim exposes a destroy function.
+     */
     @Override
     public void destroyContext(MetalMpsBridgeContext bridgeContext) {
         if (bridgeContext == SHARED_CONTEXT) {
@@ -266,11 +289,17 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         }
     }
 
+    /**
+     * Keeps cached native executables alive for reuse within the shared bridge context.
+     */
     @Override
     public void destroyExecutable(MetalMpsBridgeExecutable executable) {
         // Executables are cached by subgraph signature and reused within the shared bridge context.
     }
 
+    /**
+     * Executes a compiled Metal DAG and copies native output buffers back into runtime tensors.
+     */
     @Override
     public void execute(
             MetalMpsBridgeContext bridgeContext,
@@ -303,13 +332,11 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     throw new UnsupportedOperationException("Metal MPS FFM bridge received null external input.");
                 }
                 MemorySegment dataSeg;
-                if (tensor.getDataType() == DataType.FLOAT32 && tensor.getFloat32Data() != null) {
-                    dataSeg = arena.allocateFrom(JAVA_FLOAT, tensor.getFloat32Data());
-                } else if (tensor.getDataType() == DataType.BOOL && tensor.getBoolData() != null) {
-                    dataSeg = arena.allocateFrom(JAVA_BYTE, tensor.getBoolData());
-                } else {
-                    throw new UnsupportedOperationException("Metal MPS FFM bridge currently supports only FLOAT32/BOOL external inputs.");
-                }
+                dataSeg = switch (tensor.getDataType()) {
+                    case FLOAT32 -> arena.allocateFrom(JAVA_FLOAT, tensor.getFloat32Data());
+                    case BOOL -> arena.allocateFrom(JAVA_BYTE, tensor.getBoolData());
+                    default -> throw new UnsupportedOperationException(MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType()));
+                };
                 externalInputSegs.setAtIndex(ADDRESS, i, dataSeg);
             }
             MemorySegment outputSegs = arena.allocate(ADDRESS, resolvedOutputs.size());
@@ -453,14 +480,6 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             return SymbolLookup.libraryLookup(envLib.trim(), arena);
         }
         return SymbolLookup.libraryLookup("synaptik_apple_mps", arena);
-    }
-
-    private static int metalDataTypeCode(DataType dataType) {
-        return switch (dataType) {
-            case FLOAT32 -> 1;
-            case BOOL -> 2;
-            default -> throw new IllegalArgumentException("Metal DAG bridge currently supports FLOAT32/BOOL external inputs, got " + dataType);
-        };
     }
 
     private static String cStringOrDefault(MemorySegment ptr, String fallback) {

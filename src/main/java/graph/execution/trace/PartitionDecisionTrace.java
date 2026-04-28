@@ -5,6 +5,24 @@ import graph.optimizer.partition.PartitionPlannerStrategy;
 
 import java.util.List;
 
+/**
+ * Diagnostic decision for a partition candidate or seed.
+ *
+ * @param strategy planner strategy used
+ * @param target partition target
+ * @param startNodeId seed node id
+ * @param accepted whether the candidate was accepted
+ * @param reason diagnostic reason for acceptance or rejection
+ * @param nodeIds node ids selected by the accepted candidate or attempted seed
+ * @param structuralNodeIds node ids in the best structural candidate
+ * @param opTypes operation names represented by the candidate
+ * @param estimatedWork backend work estimate
+ * @param selectedScore accepted candidate score
+ * @param structuralScore best structural candidate score
+ * @param exploredCandidates number of candidates explored
+ * @param searchBudgetHit whether planner search limits were reached
+ * @param rejectedNodeId node id that caused rejection, or {@code -1}
+ */
 public record PartitionDecisionTrace(
         PartitionPlannerStrategy strategy,
         PartitionTarget target,

@@ -15,6 +15,9 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Internal builder that lowers a tensor cluster into a fused expression plan.
+ */
 public final class FusedPlanBuilder {
     private FusedPlanBuilder() {}
 

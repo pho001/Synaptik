@@ -10,6 +10,9 @@ import tensor.loss.LossReduction;
 
 import java.util.List;
 
+/**
+ * Lowers forward loss patterns to specialized loss operations.
+ */
 public final class LossForwardLoweringRewrite extends AbstractRewriteRule {
     @Override
     protected Tensor rewriteTensor(Tensor tensor) {

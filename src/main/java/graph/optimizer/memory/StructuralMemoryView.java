@@ -5,6 +5,15 @@ import graph.optimizer.region.RegionValueRef;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Structural view of region value memory flow.
+ *
+ * @param optimizedRegionIds optimized region ids in order
+ * @param materializedValues region values that require storage
+ * @param continuationValues region values continued between execution units
+ * @param virtualValues region values represented without storage
+ * @param valueFlows producer and consumer flow for region values
+ */
 public record StructuralMemoryView(
         List<String> optimizedRegionIds,
         List<RegionValueRef> materializedValues,
@@ -20,6 +29,14 @@ public record StructuralMemoryView(
         valueFlows = List.copyOf(valueFlows == null ? List.of() : valueFlows);
     }
 
+    /**
+     * Creates a structural view without explicit value-flow records.
+     *
+     * @param optimizedRegionIds optimized region ids
+     * @param materializedValues materialized values
+     * @param continuationValues continuation values
+     * @param virtualValues virtual values
+     */
     public StructuralMemoryView(
             List<String> optimizedRegionIds,
             List<RegionValueRef> materializedValues,
@@ -29,6 +46,12 @@ public record StructuralMemoryView(
         this(optimizedRegionIds, materializedValues, continuationValues, virtualValues, List.of());
     }
 
+    /**
+     * Finds flow metadata for a region value.
+     *
+     * @param valueRef region value reference
+     * @return matching flow, or {@code null} when absent
+     */
     public StructuralValueFlow flowOf(RegionValueRef valueRef) {
         Objects.requireNonNull(valueRef, "valueRef cannot be null");
         for (StructuralValueFlow flow : valueFlows) {
@@ -39,6 +62,11 @@ public record StructuralMemoryView(
         return null;
     }
 
+    /**
+     * Counts values consumed by a different region than their producer.
+     *
+     * @return cross-region dependency count
+     */
     public int crossRegionDependencyCount() {
         int count = 0;
         for (StructuralValueFlow flow : valueFlows) {
@@ -49,6 +77,11 @@ public record StructuralMemoryView(
         return count;
     }
 
+    /**
+     * Returns an empty structural memory view.
+     *
+     * @return empty view
+     */
     public static StructuralMemoryView empty() {
         return new StructuralMemoryView(List.of(), List.of(), List.of(), List.of(), List.of());
     }

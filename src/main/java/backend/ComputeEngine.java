@@ -10,6 +10,17 @@ import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 
+/**
+ * Runtime dispatcher from prepared node metadata to the concrete backend implementation.
+ *
+ * <p>Prepared execution calls this class for each executable step. The method inspects
+ * {@link CompiledNodeExecutionMetadata#backend()} and delegates to CPU, CUDA, OpenCL, or Metal backend
+ * implementations. Nodes marked as partition interiors are skipped because their work is owned by the
+ * partition anchor step.</p>
+ *
+ * <p>The engine stores backend singletons and has no per-run mutable state. Per-run state is carried by
+ * {@link ExecutionContext}.</p>
+ */
 public final class ComputeEngine {
     private static final CpuBackend CPU_BACKEND = new CpuBackend();
     private static final CudaBackend CUDA_BACKEND = new CudaBackend();
@@ -19,6 +30,15 @@ public final class ComputeEngine {
 
     private ComputeEngine() {}
 
+    /**
+     * Executes one prepared graph node or partition anchor.
+     *
+     * @param node compiled node to execute; must not be {@code null}
+     * @param metadata prepare-time execution metadata; must not be {@code null}
+     * @param context per-run execution context and runtime state; must not be {@code null}
+     * @throws IllegalArgumentException if any argument is {@code null}
+     * @throws UnsupportedOperationException if the selected backend has no runtime implementation
+     */
     public static void compute(
             CompiledNode node,
             CompiledNodeExecutionMetadata metadata,

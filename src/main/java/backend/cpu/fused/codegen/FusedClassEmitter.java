@@ -4,6 +4,9 @@ import org.objectweb.asm.ClassWriter;
 
 import static org.objectweb.asm.Opcodes.*;
 
+/**
+ * Internal ASM emitter for the generated fused executable class shell.
+ */
 public final class FusedClassEmitter {
     private FusedClassEmitter() {}
 

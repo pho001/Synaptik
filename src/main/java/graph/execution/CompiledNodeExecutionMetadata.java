@@ -12,6 +12,19 @@ import operations.Operation;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Prepare-time execution metadata for a compiled node.
+ *
+ * @param backend backend selected for execution
+ * @param cpuKernel CPU kernel selected for the node, when applicable
+ * @param cpuPlan CPU execution plan, when applicable
+ * @param fusedExecutable prepared fused executable, when applicable
+ * @param cpuWorkspace CPU workspace template, when applicable
+ * @param acceleratorExecutable prepared accelerator executable, when applicable
+ * @param executionOperation operation to execute instead of the compiled semantic operation, when present
+ * @param executionInputNodeIds node ids to use as execution inputs
+ * @param partitionRole role of this node in partitioned execution
+ */
 public record CompiledNodeExecutionMetadata(
         ComputeBackend backend,
         CpuKernel cpuKernel,
@@ -29,6 +42,17 @@ public record CompiledNodeExecutionMetadata(
         partitionRole = partitionRole == null ? PartitionExecutionRole.NONE : partitionRole;
     }
 
+    /**
+     * Creates metadata for a node whose execution operation and input ids match compile-time defaults.
+     *
+     * @param backend backend selected for execution
+     * @param cpuKernel CPU kernel selected for the node, when applicable
+     * @param cpuPlan CPU execution plan, when applicable
+     * @param fusedExecutable prepared fused executable, when applicable
+     * @param cpuWorkspace CPU workspace template, when applicable
+     * @param acceleratorExecutable prepared accelerator executable, when applicable
+     * @param partitionRole role of this node in partitioned execution
+     */
     public CompiledNodeExecutionMetadata(
             ComputeBackend backend,
             CpuKernel cpuKernel,

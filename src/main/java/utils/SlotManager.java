@@ -3,17 +3,31 @@ import org.objectweb.asm.MethodVisitor;
 
 import java.util.*;
 
+/**
+ * Internal bytecode-generation helper that allocates JVM local-variable slots for generated kernels.
+ */
 public class SlotManager {
 
     private int nextSlot = 1;
     private final Map<SlotKey, SlotInfo> allSlots = new LinkedHashMap<>();
 
+    /**
+     * Defines a single local slot for a key.
+     *
+     * @param key slot key to allocate
+     */
     public void define(SlotKey key) {
         checkNotDefined(key);
         allSlots.put(key, new SlotInfo(nextSlot));
         nextSlot += key.type.slotSize;
     }
 
+    /**
+     * Defines a fixed-size group of local slots for a repeated key.
+     *
+     * @param key slot key to allocate
+     * @param count number of local slots in the group
+     */
     public void defineGroup(SlotKey key, int count) {
         checkNotDefined(key);
         List<Integer> group = new ArrayList<>(count);
@@ -24,11 +38,23 @@ public class SlotManager {
         allSlots.put(key, new SlotInfo(group));
     }
 
+    /**
+     * Reports whether a key was allocated as a group.
+     *
+     * @param key slot key to inspect
+     * @return true when the key maps to multiple slots
+     */
     public boolean isGroup(SlotKey key) {
         SlotInfo info = allSlots.get(key);
         return info != null && info.isGroup();
     }
 
+    /**
+     * Returns the single local slot for a key.
+     *
+     * @param key slot key to resolve
+     * @return local-variable slot index
+     */
     public int get(SlotKey key) {
         SlotInfo info = allSlots.get(key);
         if (info == null || info.isGroup()) {
@@ -37,6 +63,12 @@ public class SlotManager {
         return info.getSlot();
     }
 
+    /**
+     * Returns all local slots allocated for a grouped key.
+     *
+     * @param key grouped slot key to resolve
+     * @return local-variable slot indexes for the group
+     */
     public List<Integer> getGroup(SlotKey key) {
         SlotInfo info = allSlots.get(key);
         if (info == null) {
@@ -45,6 +77,11 @@ public class SlotManager {
         return info.getSlots();
     }
 
+    /**
+     * Returns the next unallocated local slot index.
+     *
+     * @return exclusive upper bound of allocated local slots
+     */
     public int getMaxSlot() {
         return nextSlot;
     }
@@ -77,4 +114,3 @@ public class SlotManager {
 
 
 }
-

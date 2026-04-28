@@ -12,6 +12,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Candidate-search planner that scores structural regions before accepting a backend plan.
+ *
+ * <p>Compared with {@link GreedyMaxRegionPartitionPlanner}, this planner explores more candidate shapes and uses
+ * {@link AcceleratorPartitionScoreModel} to balance node count, internal edges, external inputs, tail depth, and backend
+ * work estimates. Search limits are supplied by the request policy and reported in partition trace metadata.
+ */
 public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
     private record AttemptResult(
             Partition partition,
@@ -31,6 +38,12 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
     ) {
     }
 
+    /**
+     * Plans scored candidate regions for the request target.
+     *
+     * @param request planning request
+     * @return accepted partitions, attached backend plans, and trace decisions
+     */
     @Override
     public PartitionPlanningResult plan(PartitionPlanningRequest request) {
         if (request == null || request.target().isNone()) {

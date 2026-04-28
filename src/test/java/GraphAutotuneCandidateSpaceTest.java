@@ -10,12 +10,11 @@ import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GraphAutotuneCandidateSpaceTest {
     @Test
-    void standardModeGeneratesOnlyCurrentGraphPolicyCandidate() {
+    void standardModeGeneratesProductionGraphPolicyCandidates() {
         var seed = seedProfile();
         var space = new GraphAutotuneCandidateSpace(
                 "graph-standard",
@@ -28,17 +27,17 @@ public class GraphAutotuneCandidateSpaceTest {
 
         var candidates = space.generate(workload());
 
-        assertEquals(1, candidates.size());
-        var candidate = candidates.getFirst();
-        assertEquals("graphPolicy=current", candidate.name());
-        assertEquals(CandidateKind.GRAPH_STANDARD, candidate.kind());
-        assertTrue(candidate.metadata().runtimeFrozen());
-        assertFalse(candidate.metadata().graphPolicyMutated());
-        assertTrue(candidate.metadata().productionEligible());
+        assertTrue(candidates.size() > 1);
+        assertTrue(candidates.stream().anyMatch(candidate -> candidate.name().equals("graphPolicy=current")));
+        assertTrue(candidates.stream().allMatch(candidate -> candidate.kind() == CandidateKind.GRAPH_STANDARD));
+        assertTrue(candidates.stream().allMatch(candidate -> candidate.metadata().runtimeFrozen()));
+        assertTrue(candidates.stream().allMatch(candidate -> candidate.metadata().productionEligible()));
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                "CPU_REGION_POLICY".equals(candidate.metadata().attributes().get("graphParameter"))));
     }
 
     @Test
-    void standardModeDoesNotMutateRuntimeOrOptimizerConfig() {
+    void standardModeDoesNotMutateRuntimeConfig() {
         var seed = seedProfile();
         var runtime = PlatformRuntimeProfile.fromExecutionProfile("platform", "hardware", "TEST", seed);
         var policy = GraphExecutionPolicy.fromExecutionProfile(seed);
@@ -49,7 +48,10 @@ public class GraphAutotuneCandidateSpaceTest {
                 runtime,
                 policy,
                 GraphAutotuneMode.STANDARD
-        ).generate(workload()).getFirst();
+        ).generate(workload()).stream()
+                .filter(generated -> generated.name().equals("graphPolicy=current"))
+                .findFirst()
+                .orElseThrow();
 
         var expectedRuntime = runtime.toRuntimeConfig();
         assertEquals(expectedRuntime.blas(), candidate.profile().runtime().blas());
@@ -83,7 +85,6 @@ public class GraphAutotuneCandidateSpaceTest {
                 .allMatch(candidate -> !candidate.metadata().graphPolicyMutated()));
         assertTrue(candidates.stream().noneMatch(candidate -> candidate.name().contains("stageOrder")));
         assertTrue(candidates.stream().noneMatch(candidate -> candidate.name().contains("conv2dLowering")));
-        assertTrue(candidates.stream().noneMatch(candidate -> candidate.name().contains("partition")));
     }
 
     private static config.profile.ExecutionProfile seedProfile() {

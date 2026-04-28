@@ -6,6 +6,9 @@ import utils.SlotManager;
 
 import static org.objectweb.asm.Opcodes.*;
 
+/**
+ * Internal ASM emitter for binding fused output tensor storage.
+ */
 public final class FusedOutputBindingEmitter {
     private FusedOutputBindingEmitter() {}
 

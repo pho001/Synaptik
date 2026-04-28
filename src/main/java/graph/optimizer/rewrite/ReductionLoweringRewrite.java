@@ -13,6 +13,9 @@ import tensor.Tensor;
 
 import java.util.List;
 
+/**
+ * Lowers decomposed reduction backward patterns to specialized reduction-gradient operations.
+ */
 public final class ReductionLoweringRewrite extends AbstractRewriteRule {
     @Override
     protected Tensor rewriteTensor(Tensor tensor) {

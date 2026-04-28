@@ -7,6 +7,9 @@ import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorSpecies;
 
+/**
+ * Internal runtime helper methods invoked by generated fused kernels for tensor storage access.
+ */
 public final class FusedStorageOps {
     private static final VectorSpecies<Double> DOUBLE_SPECIES = DoubleVector.SPECIES_PREFERRED;
     private static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;

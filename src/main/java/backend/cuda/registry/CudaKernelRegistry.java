@@ -7,6 +7,9 @@ import operations.Operation;
 import java.util.EnumMap;
 import java.util.Map;
 
+/**
+ * Registry of legacy per-node CUDA kernels.
+ */
 public final class CudaKernelRegistry {
     private static final Map<Operation.OpType, CudaKernel> KERNELS = new EnumMap<>(Operation.OpType.class);
 
@@ -16,6 +19,9 @@ public final class CudaKernelRegistry {
 
     private CudaKernelRegistry() {}
 
+    /**
+     * Returns the registered CUDA kernel for an operation type, or {@code null}.
+     */
     public static CudaKernel resolve(Operation.OpType type) {
         return KERNELS.get(type);
     }

@@ -10,9 +10,13 @@ import java.util.ArrayList;
 import static org.objectweb.asm.Opcodes.*;
 
 
+/**
+ * Internal bytecode-generation descriptor for a node's value, gradient, operands, and operation.
+ */
 public class NodeInfo {
     SlotKey valuesArraySlot;
     boolean isIntermediateValue;        //result je vzdycky olozen v poli. Muze byt intermediates
+    /** True when this descriptor represents the final cluster output rather than an intermediate. */
     public boolean isFinalOutput;
     int clusterIndex;
     SlotKey gradientSlot;
@@ -74,40 +78,94 @@ public class NodeInfo {
 
 
 
+    /**
+     * Creates a descriptor for the final output of the last cluster.
+     *
+     * @param clusterIndex cluster-local node index
+     * @param sm local slot manager
+     * @return final-output node descriptor
+     */
     public static NodeInfo fromLastClusterInput(int clusterIndex,SlotManager sm) {
         return new NodeInfo(clusterIndex,sm);
     }
 
+    /**
+     * Creates a descriptor for a reduced intermediate input inside a cluster.
+     *
+     * @param clusterIndex cluster-local node index
+     * @param sm local slot manager
+     * @param reducedIndex index inside the reduced intermediate layout
+     * @param reducedCount number of reduced values stored per loop position
+     * @return intermediate node descriptor
+     */
     public static NodeInfo fromInnerClusterInput(int clusterIndex,SlotManager sm, int reducedIndex, int reducedCount) {
         return new NodeInfo(clusterIndex,sm,reducedIndex,reducedCount);
     }
 
+    /**
+     * Creates a descriptor for an intermediate input addressed directly by cluster index.
+     *
+     * @param clusterIndex cluster-local node index
+     * @param sm local slot manager
+     * @return intermediate node descriptor
+     */
     public static NodeInfo fromInnerClusterInput(int clusterIndex,SlotManager sm) {
         return new NodeInfo(clusterIndex,sm,SlotKey.CLUSTER_INTERMEDIATES,SlotKey.CLUSTER_INNER_GRAD_VALUES);
     }
 
 
+    /**
+     * Returns the local slot holding this node's value storage.
+     *
+     * @return value local slot
+     */
     public int getValuesSlot() {
         return valuesSlotIndex;
     }
 
+    /**
+     * Returns the local slot holding this node's gradient storage.
+     *
+     * @return gradient local slot
+     */
     public int getGradientSlot() {
         return gradientSlotIndex;
     }
+
+    /**
+     * Reports whether this node is the final cluster output.
+     *
+     * @return true for final output descriptors
+     */
     public boolean isFinalOutput() {
         return isFinalOutput;
     }
 
+    /**
+     * Returns operand descriptors consumed by this node's operation.
+     *
+     * @return mutable operand descriptor list
+     */
     public ArrayList<OperatorInfo> getOperators(){
         return operators;
     }
 
+    /**
+     * Replaces operand descriptors for this node's operation.
+     *
+     * @param operators operand descriptors; at most two are supported
+     */
     public void setOperators(ArrayList<OperatorInfo> operators){
         if (operators.size()>2)
             throw new RuntimeException("Maximum of two operands is supported.");
         this.operators=operators;
     }
 
+    /**
+     * Adds one operand descriptor to this node's operation.
+     *
+     * @param operator operand descriptor to append
+     */
     public void addOperator(OperatorInfo operator){
         if (operators == null) {
             operators = new ArrayList<>();
@@ -118,6 +176,12 @@ public class NodeInfo {
         operators.add(operator);
     }
 
+    /**
+     * Emits bytecode that pushes an operand gradient onto the JVM operand stack.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     * @param op operand whose gradient should be loaded
+     */
     public void emitOperatorGradOnStack(MethodVisitor mv,OperatorInfo op){
         if (op == null) {
             throw new NullPointerException("Operator is null");
@@ -142,6 +206,12 @@ public class NodeInfo {
 
 
     }
+
+    /**
+     * Emits bytecode that pushes the first operand's gradient onto the JVM operand stack.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void emitFirstOperatorGradOnStack(MethodVisitor mv){
         if (operators == null || operators.isEmpty()) {
             throw new IllegalStateException("Operator list is empty");
@@ -153,6 +223,12 @@ public class NodeInfo {
         }
         emitOperatorGradOnStack(mv,op);
     }
+
+    /**
+     * Emits bytecode that pushes the second operand's gradient onto the JVM operand stack.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void emitSecondOperatorGradOnStack(MethodVisitor mv){
         if (operators == null || operators.isEmpty()) {
             throw new IllegalStateException("Operator list is empty");
@@ -166,6 +242,12 @@ public class NodeInfo {
         emitOperatorGradOnStack(mv,op);
     }
 
+    /**
+     * Emits bytecode that stores the top-of-stack gradient into an operand's gradient location.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     * @param op operand whose gradient should be stored
+     */
     public void emitStoreOperatorGrad(MethodVisitor mv, OperatorInfo op){
         if (op == null) {
             throw new NullPointerException("Operator is null");
@@ -189,6 +271,11 @@ public class NodeInfo {
         }
     }
 
+    /**
+     * Emits bytecode that stores the top-of-stack gradient into the first operand's gradient location.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void emitStoreFirstOperatorGrad(MethodVisitor mv){
         if (operators == null || operators.isEmpty()) {
             throw new IllegalStateException("Operator list is empty");
@@ -202,6 +289,11 @@ public class NodeInfo {
         emitStoreOperatorGrad(mv,op);
     }
 
+    /**
+     * Emits bytecode that stores the top-of-stack gradient into the second operand's gradient location.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void emitStoreSecondOperatorGrad(MethodVisitor mv){
         if (operators == null || operators.isEmpty()) {
             throw new IllegalStateException("Operator list is empty");
@@ -219,6 +311,12 @@ public class NodeInfo {
 
 
 
+    /**
+     * Emits bytecode that pushes an operand value onto the JVM operand stack.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     * @param op operand whose value should be loaded
+     */
     public void emitOperatorValueOnStack(MethodVisitor mv, OperatorInfo op){
         if (op == null) {
             throw new NullPointerException("Operator is null");
@@ -252,6 +350,11 @@ public class NodeInfo {
 
     }
 
+    /**
+     * Emits bytecode that pushes the first operand value onto the JVM operand stack.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void emitFirstOperatorValueOnStack(MethodVisitor mv){
         if (operators == null || operators.isEmpty()) {
             throw new IllegalStateException("Operator list is empty");
@@ -264,6 +367,11 @@ public class NodeInfo {
         emitOperatorValueOnStack(mv,op);
     }
 
+    /**
+     * Emits bytecode that pushes the second operand value onto the JVM operand stack.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void emitSecondOperatorValueOnStack(MethodVisitor mv){
         if (operators == null || operators.isEmpty()) {
             throw new IllegalStateException("Operator list is empty");
@@ -276,6 +384,11 @@ public class NodeInfo {
         emitOperatorValueOnStack(mv,op);
     }
 
+    /**
+     * Emits bytecode that pushes this node's gradient onto the JVM operand stack.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void emitGradientOnStack(MethodVisitor mv){
         SlotKey.Type type=this.gradientSlot.type;
         switch (type){
@@ -296,6 +409,11 @@ public class NodeInfo {
 
     }
 
+    /**
+     * Emits bytecode that pushes this node's value onto the JVM operand stack.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void emitValueOnStack(MethodVisitor mv){
         if (this.isFinalOutput){
             mv.visitVarInsn(ALOAD, this.valuesSlotIndex);
@@ -326,24 +444,52 @@ public class NodeInfo {
         }
     }
 
+    /**
+     * Emits bytecode that stores the top double value into a temporary local register.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     * @param register temporary register key
+     */
     public void storeCache(MethodVisitor mv, SlotKey register){
         int slot=sm.get(register);
         mv.visitVarInsn(DSTORE, slot);
     }
 
+    /**
+     * Emits bytecode that loads a double value from a temporary local register.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     * @param register temporary register key
+     */
     public void loadCache(MethodVisitor mv, SlotKey register){
         int slot=sm.get(register);
         mv.visitVarInsn(DLOAD, slot);
     }
 
+    /**
+     * Assigns the operation implemented by this node.
+     *
+     * @param op operation represented by this descriptor
+     */
     public void setOperation(Operation op){
         this.operation=op;
     }
 
+    /**
+     * Returns the operation implemented by this node.
+     *
+     * @return operation represented by this descriptor
+     */
     public Operation getOperation(){
         return operation;
     }
 
+    /**
+     * Emits bytecode that pushes an operand value using the current intermediate layout.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     * @param op operand whose value should be loaded
+     */
     public void emitOperatorValOnStack(MethodVisitor mv,OperatorInfo op){
         // operator muze byt bud vnejsi vstup nebo intermediate. Intermediate muze byt ve forme 1d pole,
         // kde budu muset dopocitat linearni index nebo proste pole.
@@ -384,6 +530,11 @@ public class NodeInfo {
 
     }
 
+    /**
+     * Emits scalar forward bytecode for this node's configured operation.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void performForwardOperation(MethodVisitor mv){
         if (valuesArraySlot.type== SlotKey.Type.DOUBLE_ARRAY){
             mv.visitVarInsn(ALOAD, this.valuesSlotIndex);
@@ -444,6 +595,11 @@ public class NodeInfo {
 
     }
 
+    /**
+     * Emits vector forward bytecode for this node's configured operation.
+     *
+     * @param mv ASM method visitor receiving bytecode
+     */
     public void performForwardVectorOperation(MethodVisitor mv){
         if (valuesArraySlot.type== SlotKey.Type.DOUBLE_ARRAY){
             mv.visitVarInsn(ALOAD, this.valuesSlotIndex);

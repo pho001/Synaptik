@@ -2,6 +2,9 @@ package operations.layout;
 
 import operations.Operation;
 
+/**
+ * Represents an identity operation that preserves shape, dtype, and values.
+ */
 public final class noop implements Operation {
     @Override
     public OpType opType() {

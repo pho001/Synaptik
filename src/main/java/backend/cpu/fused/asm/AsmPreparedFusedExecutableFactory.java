@@ -14,12 +14,22 @@ import java.lang.reflect.Constructor;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Compiles and caches generated ASM fused executables.
+ *
+ * <p>This is internal SPI for the fused CPU backend. Generated classes implement
+ * {@link PreparedFusedExecutable} and are cached by scheduler signature,
+ * precision mode, vector width, and specialization kind.</p>
+ */
 public final class AsmPreparedFusedExecutableFactory {
     private static final AtomicInteger CLASS_COUNTER = new AtomicInteger();
 
     private final ConcurrentHashMap<FusedKernelCacheKey, Constructor<? extends PreparedFusedExecutable>> cache =
             new ConcurrentHashMap<>();
 
+    /**
+     * Creates a prepared executable, compiling and caching the generated class if needed.
+     */
     public PreparedFusedExecutable create(FusedExecutionPlan plan) {
         if (plan == null) {
             throw new IllegalArgumentException("plan cannot be null");

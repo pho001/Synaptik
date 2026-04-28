@@ -92,16 +92,50 @@ tasks.named('check') {
     dependsOn tasks.named('verifySourceTreeClean')
 }
 
+def isMacOs = {
+    System.getProperty('os.name', '').toLowerCase().contains('mac')
+}
+def metalMpsShimLib = layout.buildDirectory.file('native/apple/libsynaptik_apple_mps.dylib')
+
 tasks.register('buildMetalMpsShim', Exec) {
     group = 'build setup'
     description = 'Builds the local Metal MPS shim dylib for FFM loading on macOS.'
     onlyIf {
-        System.getProperty('os.name', '').toLowerCase().contains('mac')
+        isMacOs()
     }
     commandLine '/bin/zsh', "${project.projectDir}/scripts/build-metal-mps-shim.sh"
     doFirst {
-        if (!System.getProperty('os.name', '').toLowerCase().contains('mac')) {
+        if (!isMacOs()) {
             throw new GradleException('buildMetalMpsShim is supported only on macOS.')
         }
+    }
+}
+
+tasks.register('nativeBuild') {
+    group = 'build setup'
+    description = 'Builds optional native components for the current platform.'
+    onlyIf {
+        isMacOs()
+    }
+    dependsOn tasks.named('buildMetalMpsShim')
+}
+
+tasks.register('metalTest', Test) {
+    group = 'verification'
+    description = 'Builds the Metal MPS shim and runs Metal/MPS-specific tests.'
+    onlyIf {
+        isMacOs()
+    }
+    dependsOn tasks.named('buildMetalMpsShim')
+    shouldRunAfter tasks.named('test')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    doFirst {
+        systemProperty 'synaptik.metal.mps.lib', metalMpsShimLib.get().asFile.absolutePath
+    }
+    filter {
+        includeTestsMatching 'backend.metal.*'
+        includeTestsMatching 'PreparedExecutionBuildTest.gpuMetal*'
+        includeTestsMatching '*Metal*Sdpa*'
     }
 }

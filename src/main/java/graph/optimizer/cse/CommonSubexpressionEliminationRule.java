@@ -65,17 +65,48 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Eliminates duplicate pure subexpressions by structural signature.
+ *
+ * <p>The rule walks the graph in topological order, rewrites each node's inputs through already discovered
+ * replacements, and maps structurally equivalent nodes to the first node with the same signature. It rebuilds the
+ * observable closure from the original graph sinks so removed nodes disappear from the optimized graph while the
+ * semantic forward output and published gradient bindings remain reachable.
+ *
+ * <p>Safety boundaries are deliberately conservative: leaf tensors, noop/fused nodes, random/dropout-like operations,
+ * and unsupported parameterized operations are not merged. In strict mode, signature keys also include gradient
+ * requirement, backend, and shape so aliases only occur when execution-relevant metadata matches.
+ *
+ * <p>This rule mutates graph edge metadata while applying replacements and is intended for single-threaded optimizer
+ * execution.
+ */
 public class CommonSubexpressionEliminationRule implements OptimizationRule {
     private final CseConfig config;
 
+    /**
+     * Creates a CSE rule.
+     *
+     * @param config CSE behavior and safety configuration
+     */
     public CommonSubexpressionEliminationRule(CseConfig config) {
         this.config = Objects.requireNonNull(config, "config cannot be null");
     }
 
+    /**
+     * Returns the CSE configuration used by this rule.
+     *
+     * @return CSE configuration
+     */
     public CseConfig config() {
         return config;
     }
 
+    /**
+     * Applies structural common subexpression elimination.
+     *
+     * @param state optimizer state containing a topologically sorted graph
+     * @return state with replacement graph and stale downstream optimizer products cleared
+     */
     @Override
     public OptimizerState apply(OptimizerState state) {
         List<Tensor> sortedGraph = state.graph();

@@ -1,9 +1,20 @@
 package operations.reduction;
 import operations.Operation;
 
+/**
+ * Normalizes values with softmax along one dimension.
+ *
+ * <p>The descriptor records only the normalized axis; the paired tensor shapes
+ * and any saved forward values are supplied by graph edges.</p>
+ */
 public final class softmax implements Operation {
     private final int dimension;
 
+    /**
+     * Creates a softmax probabilities descriptor.
+     *
+     * @param dimension dimension along which the operation is applied
+     */
     public softmax(int dimension) {
         this.dimension = dimension;
     }
@@ -18,6 +29,11 @@ public final class softmax implements Operation {
         return "softmax";
     }
 
+    /**
+     * Returns the operation dimension.
+     *
+     * @return dimension along which this descriptor operates
+     */
     public int getDimension() {
         return dimension;
     }

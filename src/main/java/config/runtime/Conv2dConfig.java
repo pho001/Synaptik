@@ -5,6 +5,22 @@ import tensor.DataType;
 
 import java.util.Objects;
 
+/**
+ * Runtime BLAS/GEMM dispatch policy for conv2d lowering.
+ *
+ * <p>Conv2d uses dtype-specific thresholds because F64, F32, and BF16 have different crossover points
+ * and BLAS constraints. Unsupported non-floating dtypes return conservative values from helper methods
+ * so dispatch will not accidentally choose a BLAS conv2d path.</p>
+ *
+ * @param provider BLAS provider for conv2d GEMM dispatch
+ * @param f64MinWork minimum F64 work before BLAS is eligible
+ * @param f32MinWork minimum F32 work before BLAS is eligible
+ * @param f32RequireMgeK whether F32 dispatch requires {@code M >= K}
+ * @param f32MaxNOverK maximum {@code N / K} ratio for F32 dispatch
+ * @param bf16MinWork minimum BF16 work before BLAS is eligible
+ * @param bf16RequireMgeK whether BF16 dispatch requires {@code M >= K}
+ * @param bf16MaxNOverK maximum {@code N / K} ratio for BF16 dispatch
+ */
 public record Conv2dConfig(
         BlasProvider provider,
         long f64MinWork,
@@ -32,6 +48,11 @@ public record Conv2dConfig(
         bf16MaxNOverK = bf16MaxNOverK > 0.0d ? bf16MaxNOverK : DEFAULT_BF16_MAX_N_OVER_K;
     }
 
+    /**
+     * Returns a conv2d config with BLAS provider disabled.
+     *
+     * @return BLAS-disabled conv2d config
+     */
     public static Conv2dConfig disabled() {
         return new Conv2dConfig(
                 BlasProvider.NONE,
@@ -45,6 +66,12 @@ public record Conv2dConfig(
         );
     }
 
+    /**
+     * Seeds conv2d dispatch thresholds from the general matmul BLAS config.
+     *
+     * @param blas BLAS config; {@code null} disables conv2d BLAS dispatch
+     * @return conv2d config using the BLAS provider and thresholds as fallback values
+     */
     public static Conv2dConfig fromBlasConfig(BlasConfig blas) {
         if (blas == null) {
             return disabled();
@@ -61,6 +88,12 @@ public record Conv2dConfig(
         );
     }
 
+    /**
+     * Returns the dtype-specific minimum work threshold.
+     *
+     * @param dataType dtype to inspect
+     * @return configured threshold, or {@link Long#MAX_VALUE} for unsupported dtypes
+     */
     public long minWork(DataType dataType) {
         return switch (dataType) {
             case FLOAT64 -> f64MinWork;
@@ -70,6 +103,12 @@ public record Conv2dConfig(
         };
     }
 
+    /**
+     * Returns whether the dtype-specific dispatch requires {@code M >= K}.
+     *
+     * @param dataType dtype to inspect
+     * @return dtype-specific shape guard, or {@code false} for dtypes without such guard
+     */
     public boolean requireMgeK(DataType dataType) {
         return switch (dataType) {
             case FLOAT32 -> f32RequireMgeK;
@@ -78,6 +117,12 @@ public record Conv2dConfig(
         };
     }
 
+    /**
+     * Returns the dtype-specific maximum {@code N / K} ratio.
+     *
+     * @param dataType dtype to inspect
+     * @return configured ratio, or positive infinity for dtypes without a ratio guard
+     */
     public double maxNOverK(DataType dataType) {
         return switch (dataType) {
             case FLOAT32 -> f32MaxNOverK;

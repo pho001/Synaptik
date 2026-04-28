@@ -27,6 +27,9 @@ import static org.objectweb.asm.Opcodes.LOR;
 import static org.objectweb.asm.Opcodes.LSTORE;
 import static org.objectweb.asm.Opcodes.RETURN;
 
+/**
+ * Internal ASM emitter for specialized vector fused-kernel fast paths.
+ */
 public final class FusedSpecializedVectorMethodEmitter {
     private static final int MASK_ARRAY_SLOT = 7;
     private static final int FILL_ARRAY_SLOT = 8;

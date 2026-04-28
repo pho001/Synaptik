@@ -347,17 +347,24 @@ void *synaptik_apple_mps_compile_partition_f32(
                 case 32: {
                     if (input1 == nil || input2 == nil) return NULL;
                     BOOL forFirstInput = SynaptikDecodeIntScalar(node_scalar_values, i) != 0;
-                    MPSGraphTensor *predicate = node_types[i] == 31
+                    MPSGraphTensor *strictFirst = node_types[i] == 31
                             ? [graph lessThanWithPrimaryTensor:input0 secondaryTensor:input1 name:@"min_grad_predicate"]
                             : [graph greaterThanWithPrimaryTensor:input0 secondaryTensor:input1 name:@"max_grad_predicate"];
-                    if (predicate == nil) return NULL;
+                    MPSGraphTensor *strictSecond = node_types[i] == 31
+                            ? [graph greaterThanWithPrimaryTensor:input0 secondaryTensor:input1 name:@"min_grad_second_predicate"]
+                            : [graph lessThanWithPrimaryTensor:input0 secondaryTensor:input1 name:@"max_grad_second_predicate"];
+                    MPSGraphTensor *equal = [graph equalWithPrimaryTensor:input0 secondaryTensor:input1 name:@"minmax_grad_equal"];
+                    if (strictFirst == nil || strictSecond == nil || equal == nil) return NULL;
                     MPSGraphTensor *zero = [graph constantWithScalar:0.0 dataType:MPSDataTypeFloat32];
+                    MPSGraphTensor *half = [graph constantWithScalar:0.5 dataType:MPSDataTypeFloat32];
                     if (zero == nil) return NULL;
-                    if (forFirstInput) {
-                        outTensor = [graph selectWithPredicateTensor:predicate truePredicateTensor:input2 falsePredicateTensor:zero name:@"minmax_grad_first"];
-                    } else {
-                        outTensor = [graph selectWithPredicateTensor:predicate truePredicateTensor:zero falsePredicateTensor:input2 name:@"minmax_grad_second"];
-                    }
+                    if (half == nil) return NULL;
+                    MPSGraphTensor *halfGrad = [graph multiplicationWithPrimaryTensor:input2 secondaryTensor:half name:@"minmax_grad_half"];
+                    if (halfGrad == nil) return NULL;
+                    MPSGraphTensor *strictPredicate = forFirstInput ? strictFirst : strictSecond;
+                    MPSGraphTensor *strictOut = [graph selectWithPredicateTensor:strictPredicate truePredicateTensor:input2 falsePredicateTensor:zero name:@"minmax_grad_strict"];
+                    if (strictOut == nil) return NULL;
+                    outTensor = [graph selectWithPredicateTensor:equal truePredicateTensor:halfGrad falsePredicateTensor:strictOut name:@"minmax_grad_out"];
                     break;
                 }
                 case 33:

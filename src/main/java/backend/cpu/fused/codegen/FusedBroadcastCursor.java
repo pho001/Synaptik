@@ -1,5 +1,8 @@
 package backend.cpu.fused.codegen;
 
+/**
+ * Runtime cursor used by generated fused kernels for broadcasted strided inputs.
+ */
 public final class FusedBroadcastCursor {
     private final int[] coords;
     private final int[] outShape;

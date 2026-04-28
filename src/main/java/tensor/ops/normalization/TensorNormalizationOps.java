@@ -8,10 +8,29 @@ import tensor.TensorInternalAccess;
 import tensor.TensorLayoutTransform;
 import tensor.TensorPrimitiveBuilder;
 
+/**
+ * Differentiable normalization layers for floating tensors.
+ *
+ * <p>All public operations require floating numeric inputs and positive
+ * epsilon values. Parameter tensors are not mutated; gradients are accumulated
+ * through the generated tensor graph when required.</p>
+ */
 public final class TensorNormalizationOps {
     private TensorNormalizationOps() {
     }
 
+    /**
+     * Applies batch normalization using mean and variance computed from {@code input}.
+     *
+     * @param input floating input tensor with at least two axes
+     * @param gamma rank-1 scale parameter shaped {@code [channels]}
+     * @param beta rank-1 bias parameter shaped {@code [channels]}
+     * @param channelDimension channel axis; negative axes are normalized
+     * @param epsilon positive value added to variance for numerical stability
+     * @return normalized tensor with the same shape as {@code input}
+     * @throws IllegalArgumentException if inputs are null/non-floating, parameter
+     *                                  shapes are invalid, axis is invalid, or epsilon is non-positive
+     */
     public static Tensor batchNorm(
             Tensor input,
             Tensor gamma,
@@ -41,6 +60,20 @@ public final class TensorNormalizationOps {
         return out;
     }
 
+    /**
+     * Applies batch normalization using supplied running statistics.
+     *
+     * @param input floating input tensor
+     * @param gamma rank-1 scale parameter shaped {@code [channels]}
+     * @param beta rank-1 bias parameter shaped {@code [channels]}
+     * @param mean rank-1 mean tensor shaped {@code [channels]}
+     * @param variance rank-1 variance tensor shaped {@code [channels]}
+     * @param channelDimension channel axis; negative axes are normalized
+     * @param epsilon positive value added to variance for numerical stability
+     * @return normalized tensor with the same shape as {@code input}
+     * @throws IllegalArgumentException if inputs are null/non-floating, parameter
+     *                                  shapes are invalid, axis is invalid, or epsilon is non-positive
+     */
     public static Tensor batchNorm(
             Tensor input,
             Tensor gamma,
@@ -70,6 +103,17 @@ public final class TensorNormalizationOps {
         return out;
     }
 
+    /**
+     * Applies layer normalization over the trailing dimensions represented by {@code gamma}.
+     *
+     * @param input floating input tensor
+     * @param gamma scale parameter whose shape must match the normalized trailing axes
+     * @param beta bias parameter with the same shape as {@code gamma}
+     * @param epsilon positive value added to variance for numerical stability
+     * @return normalized tensor with the same shape as {@code input}
+     * @throws IllegalArgumentException if inputs are null/non-floating, parameter
+     *                                  shapes do not match the input tail, or epsilon is non-positive
+     */
     public static Tensor layerNorm(
             Tensor input,
             Tensor gamma,
@@ -133,6 +177,16 @@ public final class TensorNormalizationOps {
         return out;
     }
 
+    /**
+     * Applies RMS normalization over the trailing dimensions represented by {@code gamma}.
+     *
+     * @param input floating input tensor
+     * @param gamma scale parameter whose shape must match the normalized trailing axes
+     * @param epsilon positive value added for numerical stability
+     * @return normalized tensor with the same shape as {@code input}
+     * @throws IllegalArgumentException if inputs are null/non-floating, parameter
+     *                                  shape does not match the input tail, or epsilon is non-positive
+     */
     public static Tensor rmsNorm(
             Tensor input,
             Tensor gamma,

@@ -7,7 +7,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Internal helper for collecting external tensors consumed by a fused cluster.
+ */
 public class FusedExternalInputCollector{
+    /**
+     * Returns parent tensors used by the cluster but not included in the cluster itself.
+     */
     public static List<Tensor> collect(List<Tensor> cluster) {
         Set<Tensor> clusterSet = new LinkedHashSet<>(cluster);
         Set<Tensor> external = new LinkedHashSet<>();
@@ -27,4 +33,3 @@ public class FusedExternalInputCollector{
         return new ArrayList<>(external);
     }
 }
-

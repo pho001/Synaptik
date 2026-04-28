@@ -3,9 +3,17 @@ package numerics;
 import config.profile.ExecutionProfile;
 import tensor.DataType;
 
+/**
+ * User-facing command-line entry point for numerics diagnostics.
+ */
 public final class NumericsCli {
     private NumericsCli() {}
 
+    /**
+     * Runs the numerics harness using {@code numerics.*} system properties.
+     *
+     * @param args ignored command-line arguments
+     */
     public static void main(String[] args) {
         NumericsHarness.Config cfg = new NumericsHarness.Config();
         cfg.dtype = resolveDtype();

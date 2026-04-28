@@ -9,7 +9,25 @@ import tuning.workload.WorkloadInstance;
 
 import java.util.Arrays;
 
+/**
+ * Default measurement engine backed by {@link CompiledGraph}.
+ *
+ * <p>The engine is stateless and safe to share between sessions. Each
+ * {@link #measure(Candidate, WorkloadInstance, MeasurementPolicy)} call compiles
+ * the workload root with the candidate optimizer, prepares execution with the
+ * candidate runtime profile, optionally records traces, and samples steady-state
+ * execution time with {@link System#nanoTime()}.</p>
+ */
 public final class DefaultMeasurementEngine implements MeasurementEngine {
+    /**
+     * Measures one candidate/workload pair.
+     *
+     * @param candidate candidate execution profile
+     * @param workload instantiated workload graph
+     * @param policy measurement controls
+     * @return traces and steady-state latency statistics
+     * @throws IllegalArgumentException if any argument is {@code null}
+     */
     @Override
     public MeasurementResult measure(Candidate candidate, WorkloadInstance workload, MeasurementPolicy policy) {
         if (candidate == null) {

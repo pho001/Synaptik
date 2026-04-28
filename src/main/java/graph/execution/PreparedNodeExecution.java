@@ -6,6 +6,12 @@ import tensor.Tensor;
 
 import java.util.Objects;
 
+/**
+ * Prepared execution step for one compiled node.
+ *
+ * @param compiledNode compile-time node snapshot
+ * @param metadata runtime execution metadata selected during preparation
+ */
 public record PreparedNodeExecution(
         CompiledNode compiledNode,
         CompiledNodeExecutionMetadata metadata
@@ -15,10 +21,20 @@ public record PreparedNodeExecution(
         Objects.requireNonNull(metadata, "metadata cannot be null");
     }
 
+    /**
+     * Returns the semantic tensor represented by this step.
+     *
+     * @return semantic tensor
+     */
     public Tensor node() {
         return compiledNode.semanticTensor();
     }
 
+    /**
+     * Returns the operation that will execute for this step.
+     *
+     * @return prepared execution operation when present, otherwise the compiled node operation
+     */
     public Operation executionOperation() {
         return metadata.executionOperation() != null ? metadata.executionOperation() : compiledNode.operation();
     }

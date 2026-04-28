@@ -11,6 +11,9 @@ import java.util.List;
 
 import static org.objectweb.asm.Opcodes.*;
 
+/**
+ * Internal ASM emitter for loading fused runtime inputs into generated method slots.
+ */
 public final class FusedInputBindingEmitter {
     private FusedInputBindingEmitter() {}
 

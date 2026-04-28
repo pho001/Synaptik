@@ -20,6 +20,15 @@ import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
 
+/**
+ * Static facade for tensor operations.
+ *
+ * <p>This class delegates to the operation-specific implementations under
+ * {@code tensor.ops.*}. It exists for callers that prefer static functions over
+ * instance methods on {@link Tensor}. Method contracts, dtype restrictions,
+ * broadcasting rules, autograd behavior, and invalid-input behavior match the
+ * corresponding {@link Tensor} instance method and concrete operation class.</p>
+ */
 public final class TensorOps {
     private TensorOps() {}
 

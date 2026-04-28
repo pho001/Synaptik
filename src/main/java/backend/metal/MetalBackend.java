@@ -5,7 +5,13 @@ import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 
+/**
+ * Metal partition backend that delegates to prepared accelerator executables.
+ */
 public final class MetalBackend {
+    /**
+     * Executes the prepared Metal partition attached to the node metadata.
+     */
     public void execute(
             CompiledNode node,
             CompiledNodeExecutionMetadata metadata,

@@ -7,6 +7,16 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Producer and consumer flow for one region value.
+ *
+ * @param valueRef region value reference
+ * @param decision materialization decision
+ * @param producerRegionId producing region id
+ * @param producerUnitId producing unit id
+ * @param consumerRegionIds consuming region ids
+ * @param consumerUnitIds consuming unit ids
+ */
 public record StructuralValueFlow(
         RegionValueRef valueRef,
         MaterializationDecision decision,
@@ -22,6 +32,11 @@ public record StructuralValueFlow(
         consumerUnitIds = List.copyOf(consumerUnitIds == null ? List.of() : new LinkedHashSet<>(consumerUnitIds));
     }
 
+    /**
+     * Returns whether any consumer is in a different region from the producer.
+     *
+     * @return {@code true} for cross-region flow
+     */
     public boolean hasCrossRegionConsumer() {
         if (producerRegionId == null || producerRegionId.isBlank()) {
             return false;

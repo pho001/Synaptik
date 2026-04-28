@@ -19,20 +19,37 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
+/**
+ * CUDA graph bridge backed by the Java Foreign Function and Memory API.
+ *
+ * <p>Availability is discovered once at class initialization by looking up the
+ * native shim symbols. Missing libraries, missing ABI functions, and native
+ * failures are reported through unavailable context/executable records so callers
+ * can fall back to CPU execution.</p>
+ */
 public final class CudaFfmBridge implements CudaGraphBridge {
     private static final State STATE = init();
     private static volatile CudaBridgeContext SHARED_CONTEXT;
 
+    /**
+     * Returns whether the CUDA shim symbols required for bridge discovery were found.
+     */
     @Override
     public boolean isAvailable() {
         return STATE.available;
     }
 
+    /**
+     * Returns the bridge discovery failure reason, or an empty string when available.
+     */
     @Override
     public String unavailableReason() {
         return STATE.reason;
     }
 
+    /**
+     * Creates or returns the shared CUDA context; failures return an unavailable context.
+     */
     @Override
     public CudaBridgeContext createContext() {
         CudaBridgeContext cached = SHARED_CONTEXT;
@@ -58,6 +75,9 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         }
     }
 
+    /**
+     * Compiles a lowered accelerator DAG through the CUDA shim.
+     */
     @Override
     public CudaBridgeExecutable compile(CudaBridgeContext bridgeContext, AcceleratorDagSpec dagSpec) {
         if (!STATE.available) {
@@ -169,6 +189,9 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         }
     }
 
+    /**
+     * Executes a compiled CUDA DAG and copies native output buffers back into runtime tensors.
+     */
     @Override
     public void execute(
             CudaBridgeContext bridgeContext,
@@ -242,6 +265,9 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         }
     }
 
+    /**
+     * Releases a non-shared native context when the shim exposes a destroy function.
+     */
     @Override
     public void destroyContext(CudaBridgeContext bridgeContext) {
         if (bridgeContext == SHARED_CONTEXT) {
@@ -256,6 +282,9 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         }
     }
 
+    /**
+     * Releases a native executable when the shim exposes a destroy function.
+     */
     @Override
     public void destroyExecutable(CudaBridgeExecutable executable) {
         if (!STATE.available || STATE.destroyExecutableFn == null || executable == null || !executable.available()) {

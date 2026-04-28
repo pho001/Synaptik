@@ -6,6 +6,9 @@ import tensor.DataType;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Internal expression-plan node consumed by fused CPU code generation.
+ */
 public record FusedNodePlan(
         int index,
         Operation.OpType opType,

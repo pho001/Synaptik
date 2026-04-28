@@ -7,6 +7,9 @@ import operations.Operation;
 import java.util.EnumMap;
 import java.util.Map;
 
+/**
+ * Registry of legacy per-node OpenCL kernels.
+ */
 public final class OpenClKernelRegistry {
     private static final Map<Operation.OpType, OpenClKernel> KERNELS = new EnumMap<>(Operation.OpType.class);
 
@@ -16,6 +19,9 @@ public final class OpenClKernelRegistry {
 
     private OpenClKernelRegistry() {}
 
+    /**
+     * Returns the registered OpenCL kernel for an operation type, or {@code null}.
+     */
     public static OpenClKernel resolve(Operation.OpType type) {
         return KERNELS.get(type);
     }

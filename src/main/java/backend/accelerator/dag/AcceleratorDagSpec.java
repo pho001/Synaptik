@@ -2,6 +2,14 @@ package backend.accelerator.dag;
 
 import java.util.List;
 
+/**
+ * Lowered accelerator DAG passed to native graph bridges.
+ *
+ * @param externalInputs runtime graph values consumed by the DAG
+ * @param nodes topologically ordered lowered accelerator nodes
+ * @param outputNodeIndices indices into {@code nodes} that produce partition outputs
+ * @param outputNodeIds compiled-node ids corresponding to partition outputs
+ */
 public record AcceleratorDagSpec(
         List<AcceleratorDagInput> externalInputs,
         List<AcceleratorDagNode> nodes,

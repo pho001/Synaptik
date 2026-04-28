@@ -2,10 +2,16 @@ package numerics;
 
 import tensor.Tensor;
 
+/**
+ * Internal helper that builds deterministic workloads used only by the numerics diagnostics harness.
+ */
 final class NumericsGraphFactory {
     private NumericsGraphFactory() {
     }
 
+    /**
+     * Builds a mixed arithmetic and linear graph for optimizer-drift diagnostics.
+     */
     static Tensor buildOptimizerLikeGraph(
             Tensor a,
             Tensor b,
@@ -34,6 +40,9 @@ final class NumericsGraphFactory {
         return x.mul(x).add(b.mul(0.01)).add(linearScalar);
     }
 
+    /**
+     * Builds a small broadcast-heavy graph for shape and layout numerics diagnostics.
+     */
     static Tensor buildBroadcastGraph(Tensor a, Tensor b, Tensor c) {
         return a.add(b).mul(c).add(a).sigmoid();
     }

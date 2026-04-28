@@ -9,18 +9,49 @@ import tensor.Tensor;
 import tensor.TensorBroadcastOps;
 import tensor.TensorPrimitiveBuilder;
 
+/**
+ * Logical operations for {@link DataType#BOOL} tensors.
+ *
+ * <p>Binary logical operations broadcast their inputs and return non-gradient
+ * boolean tensors. Inputs are validated as boolean tensors and are not mutated.</p>
+ */
 public final class TensorBoolOps {
     private TensorBoolOps() {
     }
 
+    /**
+     * Computes elementwise logical AND with broadcasting.
+     *
+     * @param first left boolean tensor; must be non-null
+     * @param second right boolean tensor; must be non-null
+     * @return broadcasted boolean result
+     * @throws NullPointerException if either input is null
+     * @throws IllegalArgumentException if an input is non-boolean or not broadcast-compatible
+     */
     public static Tensor logicalAnd(Tensor first, Tensor second) {
         return binaryBool(first, second, new logicalAnd(TensorBroadcastOps.planBinary(first, second)), "logical_and");
     }
 
+    /**
+     * Computes elementwise logical OR with broadcasting.
+     *
+     * @param first left boolean tensor; must be non-null
+     * @param second right boolean tensor; must be non-null
+     * @return broadcasted boolean result
+     * @throws NullPointerException if either input is null
+     * @throws IllegalArgumentException if an input is non-boolean or not broadcast-compatible
+     */
     public static Tensor logicalOr(Tensor first, Tensor second) {
         return binaryBool(first, second, new logicalOr(TensorBroadcastOps.planBinary(first, second)), "logical_or");
     }
 
+    /**
+     * Computes elementwise logical NOT.
+     *
+     * @param input boolean tensor; must be non-null
+     * @return boolean tensor with the same shape as {@code input}
+     * @throws IllegalArgumentException if {@code input} is null or not BOOL
+     */
     public static Tensor logicalNot(Tensor input) {
         if (input == null) {
             throw new IllegalArgumentException("logicalNot input cannot be null");

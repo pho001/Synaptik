@@ -3,10 +3,25 @@ import operations.Operation;
 
 import tensor.options.Conv2dOptions;
 
+/**
+ * Describes direct NCHW 2-D convolution backward computation for the weight gradient.
+ *
+ * <p>The descriptor stores the rank-4 output shape of the requested gradient so
+ * kernels can reconstruct the full tensor even when convolution parameters
+ * make the shape ambiguous.</p>
+ */
 public final class conv2dBackwardWeight implements Operation {
     private final Conv2dOptions options;
     private final int[] weightShape;
 
+    /**
+     * Creates a convolution backward descriptor.
+     *
+     * @param options non-null convolution shape options from the forward pass
+     * @param weightShape rank-4 shape of the requested weight gradient
+     * @throws IllegalArgumentException if options are null or the shape is not
+     *        rank 4
+     */
     public conv2dBackwardWeight(Conv2dOptions options, int[] weightShape) {
         if (options == null) {
             throw new IllegalArgumentException("options cannot be null");
@@ -18,10 +33,20 @@ public final class conv2dBackwardWeight implements Operation {
         this.weightShape = weightShape.clone();
     }
 
+    /**
+     * Returns the convolution options from the paired forward operation.
+     *
+     * @return non-null stride, padding, dilation, and group settings
+     */
     public Conv2dOptions getOptions() {
         return options;
     }
 
+    /**
+     * Returns a defensive copy of the requested weight gradient shape.
+     *
+     * @return rank-4 NCHW shape
+     */
     public int[] getWeightShape() {
         return weightShape.clone();
     }

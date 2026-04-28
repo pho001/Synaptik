@@ -6,7 +6,13 @@ import tensor.Tensor;
 
 import java.util.List;
 
+/**
+ * Internal signature builder for fused scheduler and generated-kernel cache keys.
+ */
 public class FusedSignatureBuilder {
+    /**
+     * Builds a legacy scheduler signature from a tensor cluster.
+     */
     public static String buildSchedulerSignature(List<Tensor> cluster, int precisionMode) {
         StringBuilder sb = new StringBuilder(128);
         sb.append("fused:pm=").append(precisionMode).append('|');
@@ -21,6 +27,9 @@ public class FusedSignatureBuilder {
         return sb.toString();
     }
 
+    /**
+     * Builds a stable signature from the lowered fused expression plan.
+     */
     public static String buildFromPlan(FusedExpressionPlan plan, int precisionMode) {
         StringBuilder sb = new StringBuilder(128);
         sb.append("fused:pm=").append(precisionMode).append('|');

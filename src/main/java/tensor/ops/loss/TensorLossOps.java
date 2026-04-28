@@ -13,10 +13,28 @@ import tensor.loss.LossReduction;
 
 import java.util.Arrays;
 
+/**
+ * Differentiable loss functions for floating tensors.
+ *
+ * <p>Class-probability targets use the same shape as the logits/log-probability
+ * tensor. Index targets use the input shape with the class axis removed and may
+ * be supplied as numeric integral tensors. Methods return graph tensors and do
+ * not mutate inputs.</p>
+ */
 public final class TensorLossOps {
     private TensorLossOps() {
     }
 
+    /**
+     * Computes negative log-likelihood loss from log-probabilities and dense targets.
+     *
+     * @param logProbs floating log-probability tensor; must be non-null
+     * @param targets floating dense target tensor with the same shape as {@code logProbs}
+     * @param classDimension class axis; negative axes are normalized
+     * @return shape {@code [1]} mean loss tensor
+     * @throws IllegalArgumentException if inputs are null, non-floating, shape-mismatched,
+     *                                  or the class axis is invalid
+     */
     public static Tensor nllLoss(Tensor logProbs, Tensor targets, int classDimension) {
         if (logProbs == null || targets == null) {
             throw new IllegalArgumentException("nllLoss inputs cannot be null");
@@ -61,6 +79,16 @@ public final class TensorLossOps {
         return out;
     }
 
+    /**
+     * Computes cross-entropy loss from logits and dense targets.
+     *
+     * @param logits floating logits tensor; must be non-null
+     * @param targets floating dense target tensor with the same shape as {@code logits}
+     * @param classDimension class axis; negative axes are normalized
+     * @return shape {@code [1]} mean loss tensor
+     * @throws IllegalArgumentException if inputs are null, non-floating, shape-mismatched,
+     *                                  or the class axis is invalid
+     */
     public static Tensor crossEntropyLoss(Tensor logits, Tensor targets, int classDimension) {
         if (logits == null || targets == null) {
             throw new IllegalArgumentException("crossEntropyLoss inputs cannot be null");
@@ -107,14 +135,45 @@ public final class TensorLossOps {
         return out;
     }
 
+    /**
+     * Computes mean NLL loss from integer-like class indices.
+     *
+     * @param logProbs floating log-probability tensor
+     * @param targetIndices numeric integral indices shaped like {@code logProbs} without the class axis
+     * @param classDimension class axis; negative axes are normalized
+     * @return shape {@code [1]} mean loss tensor
+     */
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension) {
         return nllLossFromIndices(logProbs, targetIndices, classDimension, LossReduction.MEAN);
     }
 
+    /**
+     * Computes weighted NLL loss from integer-like class indices.
+     *
+     * @param logProbs floating log-probability tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param classWeights rank-1 floating tensor with one weight per class
+     * @param reduction reduction mode; must be non-null
+     * @return loss tensor with shape determined by {@code reduction}
+     * @throws IllegalArgumentException if inputs are null, dtypes/shapes are invalid,
+     *                                  or reduction is null
+     */
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
         return nllLossFromIndices(logProbs, targetIndices, classDimension, classWeights, null, reduction);
     }
 
+    /**
+     * Computes NLL loss from integer-like class indices.
+     *
+     * @param logProbs floating log-probability tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param reduction reduction mode; must be non-null
+     * @return loss tensor with shape determined by {@code reduction}
+     * @throws IllegalArgumentException if inputs are null, dtypes/shapes are invalid,
+     *                                  or reduction is null
+     */
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, LossReduction reduction) {
         if (logProbs == null || targetIndices == null) {
             throw new IllegalArgumentException("nllLossFromIndices inputs cannot be null");
@@ -133,14 +192,44 @@ public final class TensorLossOps {
         return LossSupport.applyLossReduction(perSampleLoss, null, reduction);
     }
 
+    /**
+     * Computes mean NLL loss while ignoring one target index value.
+     *
+     * @param logProbs floating log-probability tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param ignoreIndex target value excluded from the loss and mean denominator
+     * @return shape {@code [1]} mean loss tensor
+     */
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex) {
         return nllLossFromIndices(logProbs, targetIndices, classDimension, ignoreIndex, LossReduction.MEAN);
     }
 
+    /**
+     * Computes weighted NLL loss while ignoring one target index value.
+     *
+     * @param logProbs floating log-probability tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param ignoreIndex target value excluded from the loss and reduction weights
+     * @param classWeights rank-1 floating tensor with one weight per class
+     * @param reduction reduction mode; must be non-null
+     * @return loss tensor with shape determined by {@code reduction}
+     */
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
         return nllLossFromIndices(logProbs, targetIndices, classDimension, classWeights, Integer.valueOf(ignoreIndex), reduction);
     }
 
+    /**
+     * Computes NLL loss while ignoring one target index value.
+     *
+     * @param logProbs floating log-probability tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param ignoreIndex target value excluded from the loss and reduction weights
+     * @param reduction reduction mode; must be non-null
+     * @return loss tensor with shape determined by {@code reduction}
+     */
     public static Tensor nllLossFromIndices(Tensor logProbs, Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
         if (logProbs == null || targetIndices == null) {
             throw new IllegalArgumentException("nllLossFromIndices inputs cannot be null");
@@ -164,14 +253,45 @@ public final class TensorLossOps {
         return LossSupport.applyLossReduction(maskedLoss, validMaskNumeric, reduction);
     }
 
+    /**
+     * Computes mean cross-entropy loss from logits and integer-like class indices.
+     *
+     * @param logits floating logits tensor
+     * @param targetIndices numeric integral indices shaped like {@code logits} without the class axis
+     * @param classDimension class axis; negative axes are normalized
+     * @return shape {@code [1]} mean loss tensor
+     */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension) {
         return crossEntropyLossFromIndices(logits, targetIndices, classDimension, LossReduction.MEAN);
     }
 
+    /**
+     * Computes weighted cross-entropy loss from logits and integer-like targets.
+     *
+     * @param logits floating logits tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param classWeights rank-1 floating tensor with one weight per class
+     * @param reduction reduction mode; must be non-null
+     * @return loss tensor with shape determined by {@code reduction}
+     * @throws IllegalArgumentException if inputs are null, dtypes/shapes are invalid,
+     *                                  or reduction is null
+     */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, Tensor classWeights, LossReduction reduction) {
         return crossEntropyLossFromIndices(logits, targetIndices, classDimension, classWeights, null, reduction);
     }
 
+    /**
+     * Computes cross-entropy loss from logits and integer-like targets.
+     *
+     * @param logits floating logits tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param reduction reduction mode; must be non-null
+     * @return loss tensor with shape determined by {@code reduction}
+     * @throws IllegalArgumentException if inputs are null, dtypes/shapes are invalid,
+     *                                  or reduction is null
+     */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, LossReduction reduction) {
         if (logits == null || targetIndices == null) {
             throw new IllegalArgumentException("crossEntropyLossFromIndices inputs cannot be null");
@@ -189,14 +309,44 @@ public final class TensorLossOps {
         return crossEntropyLossFromIndicesPrimitive(logits, targetIndices, normalizedClassDimension, reduction, null);
     }
 
+    /**
+     * Computes mean cross-entropy loss while ignoring one target index value.
+     *
+     * @param logits floating logits tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param ignoreIndex target value excluded from the loss and mean denominator
+     * @return shape {@code [1]} mean loss tensor
+     */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex) {
         return crossEntropyLossFromIndices(logits, targetIndices, classDimension, ignoreIndex, LossReduction.MEAN);
     }
 
+    /**
+     * Computes weighted cross-entropy loss while ignoring one target index value.
+     *
+     * @param logits floating logits tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param ignoreIndex target value excluded from the loss and reduction weights
+     * @param classWeights rank-1 floating tensor with one weight per class
+     * @param reduction reduction mode; must be non-null
+     * @return loss tensor with shape determined by {@code reduction}
+     */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex, Tensor classWeights, LossReduction reduction) {
         return crossEntropyLossFromIndices(logits, targetIndices, classDimension, classWeights, Integer.valueOf(ignoreIndex), reduction);
     }
 
+    /**
+     * Computes cross-entropy loss while ignoring one target index value.
+     *
+     * @param logits floating logits tensor
+     * @param targetIndices numeric integral target indices
+     * @param classDimension class axis; negative axes are normalized
+     * @param ignoreIndex target value excluded from the loss and reduction weights
+     * @param reduction reduction mode; must be non-null
+     * @return loss tensor with shape determined by {@code reduction}
+     */
     public static Tensor crossEntropyLossFromIndices(Tensor logits, Tensor targetIndices, int classDimension, int ignoreIndex, LossReduction reduction) {
         if (logits == null || targetIndices == null) {
             throw new IllegalArgumentException("crossEntropyLossFromIndices inputs cannot be null");
