@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Public API](public-api.md) | [Calibration & Autotune](calibration-autotune.md) | [Testing](testing.md)
 
-Chapters: [Running Examples](#running-examples) | [Broadcast Add And ReLU](#broadcast-add-and-relu) | [Reverse-Mode Autodiff](#reverse-mode-autodiff) | [Matrix Multiplication](#matrix-multiplication) | [Boolean Mask With `where`](#boolean-mask-with-where) | [Softmax](#softmax) | [Explicit Compile And Runtime Config](#explicit-compile-and-runtime-config) | [Reusing PreparedExecution](#reusing-preparedexecution) | [ComputeOptions With Explicit Defaults](#computeoptions-with-explicit-defaults) | [CLI Examples](#cli-examples) | [Verification Notes](#verification-notes)
+Chapters: [Running Examples](#running-examples) | [Broadcast Add And ReLU](#broadcast-add-and-relu) | [Reverse-Mode Autodiff](#reverse-mode-autodiff) | [Matrix Multiplication](#matrix-multiplication) | [Boolean Mask With `where`](#boolean-mask-with-where) | [Softmax](#softmax) | [Explicit Compile And Runtime Config](#explicit-compile-and-runtime-config) | [Reusing PreparedExecution](#reusing-preparedexecution) | [ComputeOptions With Explicit Defaults](#computeoptions-with-explicit-defaults) | [Programmatic Tuning API](#programmatic-tuning-api) | [CLI Examples](#cli-examples) | [Verification Notes](#verification-notes)
 
 These examples are small Java snippets using the public `Tensor`, compile, and configuration APIs. They are written to be pasted into a small class in this repository or adapted into a test.
 
@@ -18,6 +18,7 @@ These examples are small Java snippets using the public `Tensor`, compile, and c
 - [Explicit Compile And Runtime Config](#explicit-compile-and-runtime-config)
 - [Reusing PreparedExecution](#reusing-preparedexecution)
 - [ComputeOptions With Explicit Defaults](#computeoptions-with-explicit-defaults)
+- [Programmatic Tuning API](#programmatic-tuning-api)
 - [CLI Examples](#cli-examples)
 - [Verification Notes](#verification-notes)
 
@@ -331,6 +332,73 @@ Expected output:
 
 ```text
 6.0
+```
+
+## Programmatic Tuning API
+
+Use `synaptik.app.TuningCli` for shell-driven calibration and benchmark runs. Use
+`tuning.api.Synaptik` when an application wants regular Java configuration with dot-style builders.
+The same low-level objects are produced either way.
+
+```java
+List<PlatformCalibrationResult> results = Synaptik.tuning()
+        .calibration()
+        .dtypes().single(DataType.FLOAT64)
+        .families().all()
+        .quick()
+        .mode().training()
+        .measurement().iterations(1, 3, 1)
+        .progress().lines()
+        .color().auto()
+        .outputRoot(Path.of("profiles"))
+        .run();
+
+PlatformRuntimeProfile calibratedRuntime = results.getLast().finalRuntimeProfile();
+
+ExecutionProfile baseline = Synaptik.tuning()
+        .profile()
+        .name("example-baseline-no-opt-f64")
+        .candidate("baseline-no-opt")
+        .dtype(DataType.FLOAT64)
+        .mode().training()
+        .optimizer().noOptimization()
+        .runtime().noOptNoVecNoPar()
+        .build();
+
+ExecutionProfile calibrated = Synaptik.tuning()
+        .profile()
+        .name("example-calibrated-runtime-f64")
+        .candidate("calibrated-runtime")
+        .dtype(DataType.FLOAT64)
+        .mode().training()
+        .optimizer().trainingDefaults()
+        .runtime().fromPlatformProfile(calibratedRuntime)
+        .build();
+
+WorkloadSpec workload = StandardWorkloads.abcSequenceMatmulBlasBenchmark(
+        "example_abc_sequence_matmul_f64"
+);
+
+BenchmarkReport report = Synaptik.tuning()
+        .benchmark()
+        .workload(workload)
+        .quick()
+        .report()
+                .hotStepLimit(5)
+                .includeTrace()
+                .includeFailedCandidates()
+                .done()
+        .compare()
+        .baseline("baseline-no-opt", baseline)
+        .candidate("calibrated-runtime", calibrated)
+        .run();
+
+System.out.println(TextBenchmarkReportRenderer.render(report));
+
+// baseline.optimizer() = OptimizerConfig.noOptimization()
+// baseline.runtime() = RuntimeConfig.noOptNoVecNoPar()
+// calibrated.optimizer() = OptimizerConfig.trainingDefaults()
+// calibrated.runtime() = calibratedRuntime.toRuntimeConfig()
 ```
 
 ## CLI Examples

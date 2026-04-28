@@ -1,10 +1,7 @@
 package synaptik.app;
 
-import backend.runtime.ExecutionMode;
-import config.optimizer.OptimizerConfig;
 import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfile;
-import config.runtime.RuntimeConfig;
 import tensor.DataType;
 import tuning.api.Synaptik;
 import tuning.benchmark.report.BenchmarkReport;
@@ -29,7 +26,6 @@ import java.util.List;
 public final class Main {
     private static final Path PROFILE_ROOT = Path.of("profiles");
     private static final DataType DTYPE = DataType.FLOAT64;
-    private static final ExecutionMode MODE = ExecutionMode.FORWARD_BACKWARD;
     private static final TuningPreset PRESET = TuningPreset.QUICK;
 
     private Main() {
@@ -63,28 +59,34 @@ public final class Main {
         WorkloadSpec workload = StandardWorkloads.abcSequenceMatmulBlasBenchmark(
                 "main_abc_sequence_matmul_" + dtypeId
         );
-        ExecutionProfile baseline = new ExecutionProfile(
-                "main-baseline-no-opt-" + dtypeId,
-                "baseline-no-opt",
-                dtype,
-                MODE,
-                OptimizerConfig.noOptimization(),
-                RuntimeConfig.noOptNoVecNoPar()
-        );
-        ExecutionProfile calibrated = new ExecutionProfile(
-                "main-calibrated-runtime-" + dtypeId,
-                "calibrated-runtime",
-                dtype,
-                MODE,
-                OptimizerConfig.trainingDefaults(),
-                calibratedRuntime.toRuntimeConfig()
-        );
+        ExecutionProfile baseline = Synaptik.tuning()
+                .profile()
+                .name("main-baseline-no-opt-" + dtypeId)
+                .candidate("baseline-no-opt")
+                .dtype(dtype)
+                .mode().training()
+                .optimizer().noOptimization()
+                .runtime().noOptNoVecNoPar()
+                .build();
+        ExecutionProfile calibrated = Synaptik.tuning()
+                .profile()
+                .name("main-calibrated-runtime-" + dtypeId)
+                .candidate("calibrated-runtime")
+                .dtype(dtype)
+                .mode().training()
+                .optimizer().trainingDefaults()
+                .runtime().fromPlatformProfile(calibratedRuntime)
+                .build();
 
         return Synaptik.tuning()
                 .benchmark()
                 .workload(workload)
                 .quick()
-                .report().hotStepLimit(5).includeTrace().includeFailedCandidates().done()
+                .report()
+                        .hotStepLimit(5)
+                        .includeTrace()
+                        .includeFailedCandidates()
+                        .done()
                 .compare()
                 .baseline("baseline-no-opt", baseline)
                 .candidate("calibrated-runtime", calibrated)

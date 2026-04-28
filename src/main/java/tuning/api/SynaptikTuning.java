@@ -3,7 +3,7 @@ package tuning.api;
 import tensor.DataType;
 
 /**
- * Entry point for ergonomic calibration, benchmark, and future tuning workflows.
+ * Entry point for ergonomic calibration, benchmark, profile-building, and future tuning workflows.
  *
  * <p>Instances are lightweight and stateless. Each workflow method returns a fresh mutable builder;
  * builders are intended for single-threaded request assembly and one execution.</p>
@@ -37,6 +37,20 @@ public final class SynaptikTuning {
      */
     public BenchmarkDsl benchmark() {
         return new BenchmarkDsl();
+    }
+
+    /**
+     * Starts an execution-profile builder.
+     *
+     * <p>The returned builder creates immutable {@link config.profile.ExecutionProfile} records used
+     * by benchmark, autotune, compile, prepare, and explicit tensor compute flows. It is intended for
+     * readable Java configuration such as {@code Synaptik.tuning().profile().dtype(...).runtime()...}
+     * instead of repeated long record constructors.</p>
+     *
+     * @return execution profile builder
+     */
+    public ExecutionProfileDsl profile() {
+        return new ExecutionProfileDsl();
     }
 
     /**

@@ -62,7 +62,7 @@ The main code is under `src/main/java`:
 | `src/main/java/backend/cuda` | CUDA bridge/lowering/prepare scaffolding |
 | `src/main/java/config` | Runtime, optimizer, backend, and profile configuration records |
 | `src/main/java/tuning` | Benchmark, calibration, autotune, workload, persistence, and reporting code |
-| `src/main/java/tuning/api` | Fluent Java API over calibration and benchmark request/session flows |
+| `src/main/java/tuning/api` | Fluent Java API over calibration, execution-profile construction, benchmark request/session flows, and benchmark report policy |
 | `src/main/java/numerics` | Numerics comparison CLI and harness |
 | `src/main/java/synaptik/app/TuningCli.java` | Tuning CLI entry point |
 | `src/main/java/synaptik/app/Main.java` | Programmatic calibration and benchmark example using regular Java calls |

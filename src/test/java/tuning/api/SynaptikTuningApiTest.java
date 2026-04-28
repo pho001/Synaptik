@@ -3,6 +3,7 @@ package tuning.api;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.profile.ExecutionProfile;
+import config.profile.PlatformRuntimeProfile;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -85,6 +86,89 @@ class SynaptikTuningApiTest {
         assertThrows(
                 IllegalStateException.class,
                 () -> Synaptik.tuning().benchmark().toRequest()
+        );
+    }
+
+    @Test
+    void profileDslBuildsNoOptimizationBaseline() {
+        ExecutionProfile profile = Synaptik.tuning()
+                .profile()
+                .name("main-baseline-no-opt-f64")
+                .candidate("baseline-no-opt")
+                .dtype(DataType.FLOAT64)
+                .mode().training()
+                .optimizer().noOptimization()
+                .runtime().noOptNoVecNoPar()
+                .build();
+
+        assertEquals("main-baseline-no-opt-f64", profile.profileName());
+        assertEquals("baseline-no-opt", profile.candidateName());
+        assertEquals(DataType.FLOAT64, profile.dataType());
+        assertEquals(ExecutionMode.FORWARD_BACKWARD, profile.mode());
+        assertEquals(OptimizerConfig.noOptimization(), profile.optimizer());
+        RuntimeConfig expectedRuntime = RuntimeConfig.noOptNoVecNoPar();
+        assertEquals(expectedRuntime.blas().provider(), profile.runtime().blas().provider());
+        assertEquals(expectedRuntime.kernel().cpu().loopUnrollFactor(), profile.runtime().kernel().cpu().loopUnrollFactor());
+        assertEquals(expectedRuntime.kernel().cpu().cheapVectorMinSize(), profile.runtime().kernel().cpu().cheapVectorMinSize());
+        assertEquals(expectedRuntime.kernel().cpu().cheapParallelMinSize(), profile.runtime().kernel().cpu().cheapParallelMinSize());
+    }
+
+    @Test
+    void profileDslBuildsProfileFromCalibratedRuntime() {
+        ExecutionProfile seed = profile("seed", DataType.FLOAT32, RuntimeConfig.trainingDefaults());
+        PlatformRuntimeProfile runtimeProfile = PlatformRuntimeProfile.fromExecutionProfile(
+                "test-platform",
+                "test-hardware",
+                "quick",
+                seed
+        );
+
+        ExecutionProfile profile = Synaptik.tuning()
+                .profile()
+                .name("main-calibrated-runtime-f32")
+                .candidate("calibrated-runtime")
+                .dtype(DataType.FLOAT32)
+                .mode().training()
+                .optimizer().trainingDefaults()
+                .runtime().fromPlatformProfile(runtimeProfile)
+                .toExecutionProfile();
+
+        assertEquals("main-calibrated-runtime-f32", profile.profileName());
+        assertEquals("calibrated-runtime", profile.candidateName());
+        assertEquals(DataType.FLOAT32, profile.dataType());
+        assertEquals(OptimizerConfig.trainingDefaults(), profile.optimizer());
+        RuntimeConfig expectedRuntime = runtimeProfile.toRuntimeConfig();
+        assertEquals(expectedRuntime.blas().provider(), profile.runtime().blas().provider());
+        assertEquals(expectedRuntime.kernel().cpu().matMulTileM(), profile.runtime().kernel().cpu().matMulTileM());
+        assertEquals(expectedRuntime.kernel().cpu().fusedCheapVectorMinSize(), profile.runtime().kernel().cpu().fusedCheapVectorMinSize());
+        assertEquals(expectedRuntime.kernel().cpu().reductionVectorMinSize(), profile.runtime().kernel().cpu().reductionVectorMinSize());
+    }
+
+    @Test
+    void profileDslRequiresDtypeOptimizerAndRuntime() {
+        assertThrows(
+                IllegalStateException.class,
+                () -> Synaptik.tuning()
+                        .profile()
+                        .optimizer().trainingDefaults()
+                        .runtime().trainingDefaults()
+                        .build()
+        );
+        assertThrows(
+                IllegalStateException.class,
+                () -> Synaptik.tuning()
+                        .profile()
+                        .dtype(DataType.FLOAT64)
+                        .runtime().trainingDefaults()
+                        .build()
+        );
+        assertThrows(
+                IllegalStateException.class,
+                () -> Synaptik.tuning()
+                        .profile()
+                        .dtype(DataType.FLOAT64)
+                        .optimizer().trainingDefaults()
+                        .build()
         );
     }
 

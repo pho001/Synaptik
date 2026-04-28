@@ -425,8 +425,9 @@ Main path:
 - `src/main/java/synaptik/app/TuningCli.java`
 - `src/main/java/synaptik/app/Main.java`
 
-`TuningCli` exposes the command-line tuning workflow. `Main` shows the same calibration and benchmark
-components configured directly from Java through `tuning.api.Synaptik`:
+`TuningCli` exposes the command-line tuning workflow. `Main` shows the same calibration,
+execution-profile, benchmark, and report components configured directly from Java through
+`tuning.api.Synaptik`:
 
 ```bash
 ./gradlew run --args="full f64"
@@ -439,12 +440,24 @@ components configured directly from Java through `tuning.api.Synaptik`:
 Programmatic equivalent:
 
 ```java
-Synaptik.tuning()
+List<PlatformCalibrationResult> results = Synaptik.tuning()
         .calibration()
         .dtypes().single(DataType.FLOAT64)
         .families().all()
         .quick()
         .run();
+
+PlatformRuntimeProfile calibratedRuntime = results.getLast().finalRuntimeProfile();
+
+ExecutionProfile calibratedProfile = Synaptik.tuning()
+        .profile()
+        .name("main-calibrated-runtime-f64")
+        .candidate("calibrated-runtime")
+        .dtype(DataType.FLOAT64)
+        .mode().training()
+        .optimizer().trainingDefaults()
+        .runtime().fromPlatformProfile(calibratedRuntime)
+        .build();
 ```
 
 Supported dtype tokens in `TuningCli.DTypeTarget` are:

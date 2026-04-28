@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Examples](examples.md) | [Configuration](configuration.md) | [Compute Flow](compute-flow.md) | [Troubleshooting](troubleshooting.md)
 
-Chapters: [Stability Map](#stability-map) | [Tensor](#tensor) | [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy) | [CompiledGraph](#compiledgraph) | [PreparedExecution](#preparedexecution) | [Configuration APIs](#configuration-apis) | [CLI Entry Point](#cli-entry-point) | [Probably Internal APIs](#probably-internal-apis) | [Verification Notes](#verification-notes)
+Chapters: [Stability Map](#stability-map) | [Tensor](#tensor) | [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy) | [CompiledGraph](#compiledgraph) | [PreparedExecution](#preparedexecution) | [Configuration APIs](#configuration-apis) | [Tuning Fluent API](#tuning-fluent-api) | [CLI Entry Point](#cli-entry-point) | [Probably Internal APIs](#probably-internal-apis) | [Verification Notes](#verification-notes)
 
 This document describes the Java API surfaces that are usable from application code today and separates them from public Java types that are probably internal implementation hooks.
 
@@ -15,6 +15,7 @@ This document describes the Java API surfaces that are usable from application c
 - [CompiledGraph](#compiledgraph)
 - [PreparedExecution](#preparedexecution)
 - [Configuration APIs](#configuration-apis)
+- [Tuning Fluent API](#tuning-fluent-api)
 - [CLI Entry Point](#cli-entry-point)
 - [Probably Internal APIs](#probably-internal-apis)
 - [Verification Notes](#verification-notes)
@@ -32,7 +33,7 @@ This document describes the Java API surfaces that are usable from application c
 | Public | `config.optimizer.*` | `src/main/java/config/optimizer/*.java` | Optimizer stage and rewrite/fusion/memory/partition configuration records. |
 | Public | `config.runtime.*` | `src/main/java/config/runtime/*.java` | Runtime backend, BLAS, approximation, fused, and accelerator configuration records. |
 | Public | `config.profile.*` | `src/main/java/config/profile/*.java` | Persistable execution and platform runtime profile records plus profile IO. |
-| Public | `tuning.api.*` | `src/main/java/tuning/api/*.java` | Fluent Java API for calibration and explicit benchmark workflows. |
+| Public | `tuning.api.*` | `src/main/java/tuning/api/*.java` | Fluent Java API for calibration, execution-profile construction, benchmark workflows, and report policy configuration. |
 | Public | `synaptik.app.TuningCli` | `src/main/java/synaptik/app/TuningCli.java` | Gradle application CLI entry point for tuning workflows. |
 | Public | `synaptik.app.Main` | `src/main/java/synaptik/app/Main.java` | Programmatic calibration and benchmark entry point using regular Java calls. |
 | Probably internal | `tensor.TensorOps`, `tensor.TensorPrimitiveBuilder`, `tensor.TensorStorage*`, `tensor.TensorInternalAccess` | `src/main/java/tensor/*.java` | Public or package-visible support for operation construction and storage plumbing; prefer `Tensor` methods. |
@@ -625,8 +626,8 @@ Performance notes:
 
 **Source:** `src/main/java/tuning/api/*.java`
 
-Purpose: configure calibration and explicit benchmark workflows from Java code without parsing CLI
-tokens.
+Purpose: configure calibration, execution profiles, benchmark workflows, and benchmark report policy
+from Java code without parsing CLI tokens or repeating long record constructors.
 
 Primary entry point:
 
@@ -637,6 +638,7 @@ Synaptik.tuning()
 Implemented workflows:
 
 - `Synaptik.tuning().calibration()` builds a `CalibrationCommand` and runs it with `CalibrationRunner`.
+- `Synaptik.tuning().profile()` builds an immutable `ExecutionProfile`.
 - `Synaptik.tuning().benchmark()` builds a `BenchmarkRequest` and runs it with `BenchmarkSession`.
 
 Concrete calibration example:
@@ -658,16 +660,72 @@ List<PlatformCalibrationResult> results = Synaptik.tuning()
 Concrete benchmark example:
 
 ```java
+ExecutionProfile baselineProfile = Synaptik.tuning()
+        .profile()
+        .name("main-baseline-no-opt-f64")
+        .candidate("baseline-no-opt")
+        .dtype(DataType.FLOAT64)
+        .mode().training()
+        .optimizer().noOptimization()
+        .runtime().noOptNoVecNoPar()
+        .build();
+
+ExecutionProfile calibratedProfile = Synaptik.tuning()
+        .profile()
+        .name("main-calibrated-runtime-f64")
+        .candidate("calibrated-runtime")
+        .dtype(DataType.FLOAT64)
+        .mode().training()
+        .optimizer().trainingDefaults()
+        .runtime().fromPlatformProfile(calibratedRuntime)
+        .build();
+
 BenchmarkReport report = Synaptik.tuning()
         .benchmark()
         .workload(workload)
         .quick()
-        .report().hotStepLimit(5).includeTrace().done()
+        .report()
+                .hotStepLimit(5)
+                .includeTrace()
+                .includeFailedCandidates()
+                .done()
         .compare()
         .baseline("baseline-no-opt", baselineProfile)
         .candidate("calibrated-runtime", calibratedProfile)
         .run();
+
+// baselineProfile.runtime() = RuntimeConfig.noOptNoVecNoPar()
+// calibratedProfile.runtime() = calibratedRuntime.toRuntimeConfig()
 ```
+
+Execution-profile builder catalog:
+
+| API | Purpose | Required? | Output |
+|---|---|---:|---|
+| `.name(String)` | Sets `ExecutionProfile.profileName`; null becomes `"default"` inside the record. | No | Parent builder |
+| `.candidate(String)` | Sets benchmark/autotune candidate display name; blank/null falls back to profile name. | No | Parent builder |
+| `.dtype(DataType)` | Selects dtype for the runnable profile. | Yes | Parent builder |
+| `.mode().forward()` | Selects `ExecutionMode.FORWARD`. | No | Parent builder |
+| `.mode().training()` / `.mode().forwardBackward()` | Selects `ExecutionMode.FORWARD_BACKWARD`. | No | Parent builder |
+| `.optimizer().noOptimization()` | Uses `OptimizerConfig.noOptimization()` for baseline comparison. | Yes, unless explicit optimizer is supplied | Parent builder |
+| `.optimizer().inferenceDefaults()` | Uses inference optimizer defaults. | Yes, unless explicit optimizer is supplied | Parent builder |
+| `.optimizer().trainingDefaults()` | Uses training optimizer defaults. | Yes, unless explicit optimizer is supplied | Parent builder |
+| `.optimizer(OptimizerConfig)` / `.optimizer().config(...)` | Uses an explicit optimizer config. | Yes, unless selector is used | Parent builder |
+| `.runtime().noOptNoVecNoPar()` | Uses the conservative runtime baseline with practical vector/parallel/BLAS paths disabled. | Yes, unless explicit runtime is supplied | Parent builder |
+| `.runtime().inferenceDefaults()` | Uses inference runtime defaults. | Yes, unless explicit runtime is supplied | Parent builder |
+| `.runtime().trainingDefaults()` | Uses training runtime defaults. | Yes, unless explicit runtime is supplied | Parent builder |
+| `.runtime().fromPlatformProfile(PlatformRuntimeProfile)` | Converts a calibrated platform profile through `toRuntimeConfig()`. | Yes, unless explicit runtime is supplied | Parent builder |
+| `.runtime(RuntimeConfig)` / `.runtime().config(...)` | Uses an explicit runtime config. | Yes, unless selector is used | Parent builder |
+| `.workload(WorkloadProfile)` | Adds optional workload metadata; null becomes `WorkloadProfile.none()`. | No | Parent builder |
+| `.build()` / `.toExecutionProfile()` | Creates the immutable `ExecutionProfile`. | n/a | `ExecutionProfile` |
+
+Failure modes:
+
+- `.build()` throws `IllegalStateException` if dtype, optimizer, or runtime has not been selected.
+- `.dtype(null)`, `.optimizer(null)`, `.runtime(null)`, and
+  `.runtime().fromPlatformProfile(null)` throw `NullPointerException`.
+- The builder is mutable and intended for one thread while assembling one profile; the built
+  `ExecutionProfile` is immutable.
 
 ## CLI Entry Point
 

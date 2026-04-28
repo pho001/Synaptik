@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md) | [Configuration](configuration.md) | [Testing](testing.md) | [Examples](examples.md) | [Graph Optimizer](graph-optimizer.md) | [Compute Flow](compute-flow.md)
 
-Chapters: [Core Distinction](#core-distinction) | [Runtime And Graph Artifacts](#runtime-and-graph-artifacts) | [End-To-End Flow](#end-to-end-flow) | [Detailed Calibration Lifecycle](#detailed-calibration-lifecycle) | [Detailed Graph Autotune Lifecycle](#detailed-graph-autotune-lifecycle) | [CLI Entry Points](#cli-entry-points) | [Scenario Catalog And Configuration](#scenario-catalog-and-configuration) | [Ergonomic Fluent API Proposal](#ergonomic-fluent-api-proposal) | [Presets](#presets) | [Measurement Policy](#measurement-policy) | [Validation Policy](#validation-policy) | [Calibration Families](#calibration-families) | [Graph Autotune Parameters](#graph-autotune-parameters) | [Search Strategy](#search-strategy) | [Persistence And History Layout](#persistence-and-history-layout) | [Progress Rendering](#progress-rendering) | [Reports](#reports) | [Worked Example: Matmul Calibration](#worked-example-matmul-calibration) | [Worked Example: Graph Autotune Research Run](#worked-example-graph-autotune-research-run) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
+Chapters: [Core Distinction](#core-distinction) | [Runtime And Graph Artifacts](#runtime-and-graph-artifacts) | [End-To-End Flow](#end-to-end-flow) | [Detailed Calibration Lifecycle](#detailed-calibration-lifecycle) | [Detailed Graph Autotune Lifecycle](#detailed-graph-autotune-lifecycle) | [CLI Entry Points](#cli-entry-points) | [Scenario Catalog And Configuration](#scenario-catalog-and-configuration) | [Ergonomic Fluent API](#ergonomic-fluent-api) | [Presets](#presets) | [Measurement Policy](#measurement-policy) | [Validation Policy](#validation-policy) | [Calibration Families](#calibration-families) | [Graph Autotune Parameters](#graph-autotune-parameters) | [Search Strategy](#search-strategy) | [Persistence And History Layout](#persistence-and-history-layout) | [Progress Rendering](#progress-rendering) | [Reports](#reports) | [Worked Example: Matmul Calibration](#worked-example-matmul-calibration) | [Worked Example: Graph Autotune Research Run](#worked-example-graph-autotune-research-run) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
 This guide explains how Synaptik tunes runtime behavior for a hardware/JDK platform and how it explores graph policy variants for one workload.
 
@@ -16,7 +16,7 @@ This guide explains how Synaptik tunes runtime behavior for a hardware/JDK platf
 - [Detailed Graph Autotune Lifecycle](#detailed-graph-autotune-lifecycle)
 - [CLI Entry Points](#cli-entry-points)
 - [Scenario Catalog And Configuration](#scenario-catalog-and-configuration)
-- [Ergonomic Fluent API Proposal](#ergonomic-fluent-api-proposal)
+- [Ergonomic Fluent API](#ergonomic-fluent-api)
 - [Presets](#presets)
 - [Measurement Policy](#measurement-policy)
 - [Validation Policy](#validation-policy)
@@ -967,20 +967,27 @@ Set `PersistencePolicy.disabled()` for throwaway experiments.
 | Expecting accelerator calibration by default | `CalibrationFamilyRegistry.standardSuite()` omits accelerator opt-in families. | Pass `--include-accelerators`; currently `metal-selection` is `FLOAT32` only. |
 | Treating a research graph winner as a platform default | Research candidates are workload-specific graph policy experiments. | Keep platform runtime defaults in calibration; persist production best profiles only through standard graph autotune. |
 
-## Ergonomic Fluent API Proposal
+## Ergonomic Fluent API
 
-This section documents the proposed public fluent API for tuning. It is a design contract for a future API layer, not a claim that the `tuning.api.*` classes already exist in the current source tree. The current implementation exposes lower-level records and sessions:
+This section documents the public fluent API for tuning. The implemented layer is intentionally thin:
+it builds the same command, request, profile, and policy objects used by the lower-level calibration,
+benchmark, and execution paths. It does not introduce a second tuning engine and it does not hide the
+architectural boundary between runtime calibration, graph autotune, and benchmark comparison.
 
-- Calibration: `CalibrationCommand` -> `CalibrationRunner.create().run(command)`
-- Graph autotune: `GraphAutotuneRequest` -> `AutotuneSession.create(request.toAutotuneRequest()).run()`
-- Benchmark: `BenchmarkRequest` -> `BenchmarkSession.create(request).run()`
-- Benchmark suite: `BenchmarkSuiteRequest` -> `BenchmarkSuiteSession.create(request).run()`
+The current implementation includes:
 
-The fluent API should be a thin facade over those types. It should not introduce a second tuning engine, and it should not blur the architectural boundary between calibration, graph autotune, and benchmark comparison.
+- Calibration fluent API: `CalibrationDsl` -> `CalibrationCommand` -> `CalibrationRunner.create().run(command)`
+- Execution-profile fluent API: `ExecutionProfileDsl` -> immutable `ExecutionProfile`
+- Benchmark fluent API: `BenchmarkDsl` -> `BenchmarkRequest` -> `BenchmarkSession.create(request).run()`
+- Benchmark report fluent API: `BenchmarkDsl.report()` -> immutable `ReportPolicy`
+
+Graph autotune and benchmark-suite fluent builders are still planned extension points. Their
+low-level APIs remain available through `GraphAutotuneRequest`, `AutotuneSession`,
+`BenchmarkSuiteRequest`, and `BenchmarkSuiteSession`.
 
 ### Design goals
 
-The proposed API should optimize for these properties:
+The API optimizes for these properties:
 
 | Goal | Meaning | Why it matters |
 |---|---|---|
@@ -999,13 +1006,15 @@ Implemented fluent API files:
 src/main/java/tuning/api/Synaptik.java
 src/main/java/tuning/api/SynaptikTuning.java
 src/main/java/tuning/api/CalibrationDsl.java
+src/main/java/tuning/api/ExecutionProfileDsl.java
 src/main/java/tuning/api/BenchmarkDsl.java
 ```
 
 The top-level entry point is `tuning.api.Synaptik`. The current implementation covers calibration
-and explicit benchmark requests. Graph autotune and benchmark-suite fluent builders are still
-documented as intended extension points below; their low-level APIs remain available through
-`GraphAutotuneRequest`, `AutotuneSession`, `BenchmarkSuiteRequest`, and `BenchmarkSuiteSession`.
+execution-profile construction, explicit benchmark requests, and benchmark report policy
+configuration. Graph autotune and benchmark-suite fluent builders are documented below as intended
+extension points; their low-level APIs remain available through `GraphAutotuneRequest`,
+`AutotuneSession`, `BenchmarkSuiteRequest`, and `BenchmarkSuiteSession`.
 
 The user-facing calibration shape is:
 
@@ -1036,6 +1045,7 @@ public final class Synaptik {
 ```java
 public final class SynaptikTuning {
     public CalibrationDsl calibration();
+    public ExecutionProfileDsl profile();
     public BenchmarkDsl benchmark();
     public CalibrationDsl calibrate(DataType dtype);
 }
@@ -1064,11 +1074,106 @@ Mapping:
 | Fluent workflow | Existing object built at `.run()` | Existing executor | Return type |
 |---|---|---|---|
 | `calibration()` | `CalibrationCommand` | `CalibrationRunner.create().run(...)` | `List<PlatformCalibrationResult>` |
+| `profile()` | `ExecutionProfile` | none; builder returns value object | `ExecutionProfile` |
 | `autotune().graph()` | `GraphAutotuneRequest` then `AutotuneRequest` | `AutotuneSession.create(...).run()` | `TuningResult` |
 | `benchmark()` | `BenchmarkRequest` | `BenchmarkSession.create(...).run()` | `BenchmarkReport` |
 | `benchmarkSuite()` | `BenchmarkSuiteRequest` | `BenchmarkSuiteSession.create(...).run()` | `BenchmarkSuiteReport` |
 
 This means reports, validation behavior, measurement behavior, persistence format, and runtime execution paths remain the same as today.
+
+### Execution profile fluent API
+
+`ExecutionProfileDsl` is the dot-style replacement for repeatedly writing long
+`new ExecutionProfile(...)` constructor calls in application code. It does not replace the
+`ExecutionProfile` record. The builder collects readable choices and produces the same immutable
+record consumed by `Tensor.compute(ExecutionProfile)`, `CompiledGraph.prepare(...)`, benchmark
+entries, and autotune candidates.
+
+Mental model:
+
+```mermaid
+flowchart LR
+    Name["name/candidate"]
+    DType["dtype"]
+    Mode["mode"]
+    Opt["optimizer policy"]
+    Runtime["runtime policy"]
+    Builder["ExecutionProfileDsl"]
+    Profile["ExecutionProfile"]
+
+    Name --> Builder
+    DType --> Builder
+    Mode --> Builder
+    Opt --> Builder
+    Runtime --> Builder
+    Builder --> Profile
+```
+
+Baseline profile with graph optimization, vectorization, parallelism, and BLAS effectively disabled:
+
+```java
+ExecutionProfile baseline = Synaptik.tuning()
+        .profile()
+        .name("main-baseline-no-opt-f64")
+        .candidate("baseline-no-opt")
+        .dtype(DataType.FLOAT64)
+        .mode().training()
+        .optimizer().noOptimization()
+        .runtime().noOptNoVecNoPar()
+        .build();
+
+// baseline.profileName() = "main-baseline-no-opt-f64"
+// baseline.candidateName() = "baseline-no-opt"
+// baseline.dataType() = FLOAT64
+// baseline.mode() = FORWARD_BACKWARD
+// baseline.optimizer() = OptimizerConfig.noOptimization()
+// baseline.runtime() = RuntimeConfig.noOptNoVecNoPar()
+```
+
+Calibrated runtime profile using graph optimizer training defaults:
+
+```java
+PlatformRuntimeProfile calibratedRuntime = results.getLast().finalRuntimeProfile();
+
+ExecutionProfile calibrated = Synaptik.tuning()
+        .profile()
+        .name("main-calibrated-runtime-f64")
+        .candidate("calibrated-runtime")
+        .dtype(DataType.FLOAT64)
+        .mode().training()
+        .optimizer().trainingDefaults()
+        .runtime().fromPlatformProfile(calibratedRuntime)
+        .build();
+
+// calibrated.optimizer() = OptimizerConfig.trainingDefaults()
+// calibrated.runtime() = calibratedRuntime.toRuntimeConfig()
+```
+
+Configuration catalog:
+
+| Fluent method | Accepted values | Default | Maps to | Notes |
+|---|---|---:|---|---|
+| `.name(String)` | any string, including null | `"default"` | `ExecutionProfile.profileName` | `ExecutionProfile` normalizes null to `"default"`. |
+| `.candidate(String)` | any string, including blank/null | profile name | `ExecutionProfile.candidateName` | Blank and null candidate names fall back to profile name. |
+| `.dtype(DataType)` | non-null dtype | none | `ExecutionProfile.dataType` | Required before `.build()`. |
+| `.mode().forward()` | no args | `FORWARD_BACKWARD` | `ExecutionMode.FORWARD` | Forward-only profile, usually inference. |
+| `.mode().forwardBackward()` | no args | `FORWARD_BACKWARD` | `ExecutionMode.FORWARD_BACKWARD` | Explicit training-capable mode. |
+| `.mode().training()` | no args | `FORWARD_BACKWARD` | `ExecutionMode.FORWARD_BACKWARD` | Readable alias for forward/backward. |
+| `.mode(ExecutionMode)` | explicit mode, null allowed | `FORWARD_BACKWARD` | `ExecutionProfile.mode` | Null falls back to forward/backward. |
+| `.optimizer().noOptimization()` | no args | none | `OptimizerConfig.noOptimization()` | Use for baseline comparisons. Required unless `.optimizer(...)` is used. |
+| `.optimizer().inferenceDefaults()` | no args | none | `OptimizerConfig.inferenceDefaults()` | Uses inference optimizer defaults. |
+| `.optimizer().trainingDefaults()` | no args | none | `OptimizerConfig.trainingDefaults()` | Uses training optimizer defaults. |
+| `.optimizer(OptimizerConfig)` / `.optimizer().config(...)` | non-null config | none | `ExecutionProfile.optimizer` | Advanced escape hatch. |
+| `.runtime().noOptNoVecNoPar()` | no args | none | `RuntimeConfig.noOptNoVecNoPar()` | Conservative scalar-ish baseline for comparison. |
+| `.runtime().inferenceDefaults()` | no args | none | `RuntimeConfig.inferenceDefaults()` | Built-in inference runtime defaults. |
+| `.runtime().trainingDefaults()` | no args | none | `RuntimeConfig.trainingDefaults()` | Built-in training runtime defaults. |
+| `.runtime().fromPlatformProfile(PlatformRuntimeProfile)` | non-null profile | none | `profile.toRuntimeConfig()` | Main path after calibration. |
+| `.runtime(RuntimeConfig)` / `.runtime().config(...)` | non-null config | none | `ExecutionProfile.runtime` | Advanced escape hatch. |
+| `.workload(WorkloadProfile)` | profile descriptor or null | `WorkloadProfile.none()` | `ExecutionProfile.workload` | Optional metadata for specialized tuning decisions. |
+| `.build()` / `.toExecutionProfile()` | no args | n/a | `new ExecutionProfile(...)` | Throws if dtype, optimizer, or runtime was not selected. |
+
+The builder itself is mutable and not thread-safe. That is deliberate: it is a short-lived assembly
+object for one profile. The output record is immutable and is the only value passed into execution.
 
 ### Calibration fluent API
 
@@ -1692,12 +1797,13 @@ Return values should be the existing result types where possible:
 | `benchmark(). ... .run()` | `BenchmarkReport` |
 | `benchmarkSuite(). ... .run()` | `BenchmarkSuiteReport` |
 
-### Implementation notes for the future API
+### Implementation notes for remaining fluent API work
 
-The clean implementation strategy is:
+The implemented calibration, execution-profile, benchmark, and report-policy builders already follow
+this strategy. Remaining graph-autotune and benchmark-suite builders should keep the same rules:
 
 1. Add `tuning.api` builders with private mutable builder state.
-2. Keep current records immutable.
+2. Keep current records immutable, including `ExecutionProfile`.
 3. Validate required staged fields before building current request objects.
 4. Provide `toCommand()` / `toGraphRequest()` / `toRequest()` methods for tests.
 5. Make `.run()` call the existing runner/session.
