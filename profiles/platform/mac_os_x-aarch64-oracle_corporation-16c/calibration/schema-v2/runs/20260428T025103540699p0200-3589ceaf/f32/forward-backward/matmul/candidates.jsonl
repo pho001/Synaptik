@@ -1,0 +1,6 @@
+{"family":"matmul","candidateId":"base+matmulWideShape=false/4.0","valid":true,"score":4.277842212961147}
+{"family":"matmul","candidateId":"base+matmulWideShape=false/6.0","valid":true,"score":4.2636337823568375}
+{"family":"matmul","candidateId":"base+matmulWideShape=false/8.0","valid":true,"score":4.310157425129407}
+{"family":"matmul","candidateId":"base+matmulWideShape=true/4.0","valid":true,"score":4.298840955174839}
+{"family":"matmul","candidateId":"base+matmulWideShape=true/6.0","valid":true,"score":4.326705415850012}
+{"family":"matmul","candidateId":"base+matmulWideShape=true/8.0","valid":true,"score":4.297059292665471}

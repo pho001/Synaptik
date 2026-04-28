@@ -1,0 +1,4 @@
+{"family":"fused-cheap-contiguous-width","candidateId":"base+fusedAsmVectorWidth[cheap-contiguous]=1","valid":true,"score":0.86909375}
+{"family":"fused-cheap-contiguous-width","candidateId":"base+fusedAsmVectorWidth[cheap-contiguous]=2","valid":true,"score":0.86988025}
+{"family":"fused-cheap-contiguous-width","candidateId":"base+fusedAsmVectorWidth[cheap-contiguous]=4","valid":true,"score":0.879786375}
+{"family":"fused-cheap-contiguous-width","candidateId":"base+fusedAsmVectorWidth[cheap-contiguous]=8","valid":true,"score":0.8860365}

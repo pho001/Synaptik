@@ -1,15 +1,21 @@
 {
-  "score": 13.65532813,
-  "updatedAt": "2026-04-21T10:06:42.179235+02:00",
+  "score": 43.06958500,
+  "updatedAt": "2026-04-28T14:04:15.776251+02:00",
   "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
-  "workloadKey": "name=abc_sequence_matmul_bf16|kind=ABC_SEQUENCE_MATMUL|dtype=BFLOAT16|mode=FORWARD_BACKWARD|batch=256|features=2048",
+  "workloadKey": "name=abc_sequence_matmul_bf16|kind=ABC_SEQUENCE_MATMUL|dtype=BFLOAT16|mode=FORWARD_BACKWARD|features=2048|batch=256",
+  "autotuneKind": "autotune",
+  "graphAutotuneMode": "",
+  "candidateKind": "GENERIC",
+  "runtimeProfileId": "abc-bf16-calibrated",
+  "productionEligible": true,
+  "candidateMetadata": {"candidateSpaceVersion": "1", "productionEligible": "true", "graphPolicyMutated": "false", "candidateSpaceId": "generic", "parameterFamily": "generic", "parameterVariant": "candidate", "runtimeFrozen": "false", "graphAutotuneMode": ""},
   "profile": {
       "profileName": "abc-bf16-calibrated",
-      "candidateName": "abc-bf16-calibrated+stageOrder=FUSE-CSE-AR:abc-bf16-calibrated",
+      "candidateName": "graphPolicy=current",
       "dataType": "BFLOAT16",
       "mode": "FORWARD_BACKWARD",
       "optimizer": {
-        "stageOrder": ["FUSE", "CSE", "AR"],
+        "stageOrder": ["AR", "CSE", "PART", "FUSE", "MEM"],
         "rewrite": {
           "algebraicEnabled": true,
           "linearLoweringEnabled": true,
@@ -37,6 +43,35 @@
           "allowCrossPhaseReuse": false,
           "allowLargerBufferReuse": false,
           "minReusableBufferSize": 1
+        },
+        "partition": {
+          "partitionMaxSearchNodes": 16,
+          "partitionMaxVisitedCandidates": 512,
+          "partitionNodeWeight": 1000.0,
+          "partitionInternalEdgeWeight": 120.0,
+          "partitionMergeNodeBonus": 450.0,
+          "partitionTailDepthWeight": 80.0,
+          "partitionExternalInputPenalty": 60.0,
+          "partitionWorkWeight": 1.0,
+          "partitionPlannerStrategy": "GREEDY_MAX_REGION",
+          "partitionAcceleratorTarget": "AUTO"
+        },
+        "offload": {
+          "offloadPolicy": "CPU_ONLY",
+          "acceleratorRegionPolicy": "OFF"
+        },
+        "cpuRegion": {
+          "cpuRegionPolicy": "NATURAL_CPU_REGIONS",
+          "cpuRegionMaxRegionNodes": 64,
+          "cpuRegionFanoutPolicy": "MATERIALIZE_AT_FANOUT",
+          "cpuRegionBoundaryPolicy": "INCLUDE_UNIT_BOUNDARIES"
+        },
+        "cpuFusion": {
+          "cpuFusionMode": "LOCAL_BALANCED",
+          "cpuFusionMaxChainNodes": 16,
+          "cpuFusionFanoutPolicy": "STOP_AT_FANOUT",
+          "cpuFusionLayoutPolicy": "BOUNDARY",
+          "cpuFusionCheapProducerPolicy": "INLINE_IF_SINGLE_USE"
         }
       },
       "runtime": {
@@ -48,11 +83,11 @@
           "cpu": {
             "cpuLoopUnrollFactor": 1,
             "cpuMatMulTileM": 16,
-            "cpuMatMulTileN": 128,
-            "cpuMatMulTileK": 64,
+            "cpuMatMulTileN": 0,
+            "cpuMatMulTileK": 0,
             "cpuAttentionMatMulTileM": 16,
-            "cpuAttentionMatMulTileN": 128,
-            "cpuAttentionMatMulTileK": 64,
+            "cpuAttentionMatMulTileN": 0,
+            "cpuAttentionMatMulTileK": 0,
             "cpuCheapVectorMinSize": 1024,
             "cpuTranscendentalVectorMinSize": 1024,
             "cpuFusedCheapVectorMinSize": 1024,
@@ -65,7 +100,7 @@
             "cpuFusedTranscendentalParallelMinSize": 100000,
             "cpuReductionParallelMinSize": 100000,
             "cpuAttentionParallelMinSize": 100000,
-            "cpuMatMulParallelMinSize": 100000,
+            "cpuMatMulParallelMinSize": 2000000,
             "cpuContiguousMaterializeThreshold": 1000000000,
             "cpuCheapF64MaterializeThreshold": 1000000000,
             "cpuCheapF32MaterializeThreshold": 1000000000,
@@ -81,10 +116,10 @@
             "cpuFusedCheapContiguousAsmVectorWidth": 1,
             "cpuFusedCheapStridedAsmVectorWidth": 1,
             "cpuFusedNonCheapContiguousAsmVectorWidth": 1,
-            "cpuFusedNonCheapStridedAsmVectorWidth": 1,
+            "cpuFusedNonCheapStridedAsmVectorWidth": 4,
             "cpuSumAccuracyMode": "FAST",
             "cpuAttentionMatMulPolicy": "AUTO",
-            "cpuMatMulMicroKernel": "BF16_4X2",
+            "cpuMatMulMicroKernel": "AUTO",
             "cpuAttentionMatMulMicroKernel": "AUTO"
           },
           "cuda": {
@@ -123,6 +158,17 @@
         "fused": {
           "fusedPrimaryBackend": "ASM",
           "fusedAllowBackendFallback": true
+        },
+        "accelerator": {
+          "cudaEnabled": true,
+          "cudaRequireRuntimeAvailability": false,
+          "cudaMinimumEstimatedWork": 0,
+          "openclEnabled": true,
+          "openclRequireRuntimeAvailability": false,
+          "openclMinimumEstimatedWork": 0,
+          "metalEnabled": true,
+          "metalRequireRuntimeAvailability": false,
+          "metalMinimumEstimatedWork": 0
         },
         "workload": {
           "kind": "NONE",

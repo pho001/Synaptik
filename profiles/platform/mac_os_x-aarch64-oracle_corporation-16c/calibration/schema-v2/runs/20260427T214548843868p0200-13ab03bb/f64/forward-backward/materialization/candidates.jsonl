@@ -1,0 +1,3 @@
+{"family":"materialization","candidateId":"base+where-materialization=1048576","valid":true,"score":7.972802124999999}
+{"family":"materialization","candidateId":"base+where-materialization=262144","valid":true,"score":7.804177062499999}
+{"family":"materialization","candidateId":"base+where-materialization=524288","valid":true,"score":8.0113176875}

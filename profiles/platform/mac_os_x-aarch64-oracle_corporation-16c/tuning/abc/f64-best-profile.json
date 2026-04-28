@@ -1,15 +1,21 @@
 {
-  "score": 10.26703750,
-  "updatedAt": "2026-04-19T15:47:25.155519+02:00",
+  "score": 14.49523208,
+  "updatedAt": "2026-04-28T14:04:20.954252+02:00",
   "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
   "workloadKey": "name=abc_sequence_matmul_f64|kind=ABC_SEQUENCE_MATMUL|dtype=FLOAT64|mode=FORWARD_BACKWARD|features=2048|batch=256",
+  "autotuneKind": "autotune",
+  "graphAutotuneMode": "",
+  "candidateKind": "GENERIC",
+  "runtimeProfileId": "abc-f64-calibrated",
+  "productionEligible": true,
+  "candidateMetadata": {"candidateSpaceVersion": "1", "productionEligible": "true", "graphPolicyMutated": "false", "candidateSpaceId": "generic", "parameterFamily": "generic", "parameterVariant": "candidate", "runtimeFrozen": "false", "graphAutotuneMode": ""},
   "profile": {
       "profileName": "abc-f64-calibrated",
-      "candidateName": "abc-f64-calibrated+stageOrder=AR-CSE-FUSE:abc-f64-calibrated",
+      "candidateName": "graphPolicy=current",
       "dataType": "FLOAT64",
       "mode": "FORWARD_BACKWARD",
       "optimizer": {
-        "stageOrder": ["AR", "CSE", "FUSE"],
+        "stageOrder": ["AR", "CSE", "PART", "FUSE", "MEM"],
         "rewrite": {
           "algebraicEnabled": true,
           "linearLoweringEnabled": true,
@@ -37,6 +43,35 @@
           "allowCrossPhaseReuse": false,
           "allowLargerBufferReuse": false,
           "minReusableBufferSize": 1
+        },
+        "partition": {
+          "partitionMaxSearchNodes": 16,
+          "partitionMaxVisitedCandidates": 512,
+          "partitionNodeWeight": 1000.0,
+          "partitionInternalEdgeWeight": 120.0,
+          "partitionMergeNodeBonus": 450.0,
+          "partitionTailDepthWeight": 80.0,
+          "partitionExternalInputPenalty": 60.0,
+          "partitionWorkWeight": 1.0,
+          "partitionPlannerStrategy": "GREEDY_MAX_REGION",
+          "partitionAcceleratorTarget": "AUTO"
+        },
+        "offload": {
+          "offloadPolicy": "CPU_ONLY",
+          "acceleratorRegionPolicy": "OFF"
+        },
+        "cpuRegion": {
+          "cpuRegionPolicy": "NATURAL_CPU_REGIONS",
+          "cpuRegionMaxRegionNodes": 64,
+          "cpuRegionFanoutPolicy": "MATERIALIZE_AT_FANOUT",
+          "cpuRegionBoundaryPolicy": "INCLUDE_UNIT_BOUNDARIES"
+        },
+        "cpuFusion": {
+          "cpuFusionMode": "LOCAL_BALANCED",
+          "cpuFusionMaxChainNodes": 16,
+          "cpuFusionFanoutPolicy": "STOP_AT_FANOUT",
+          "cpuFusionLayoutPolicy": "BOUNDARY",
+          "cpuFusionCheapProducerPolicy": "INLINE_IF_SINGLE_USE"
         }
       },
       "runtime": {
@@ -67,6 +102,10 @@
             "cpuAttentionParallelMinSize": 16384,
             "cpuMatMulParallelMinSize": 500000,
             "cpuContiguousMaterializeThreshold": 262144,
+            "cpuCheapF64MaterializeThreshold": 1000000000,
+            "cpuCheapF32MaterializeThreshold": 1000000000,
+            "cpuCheapBF16MaterializeThreshold": 1000000000,
+            "cpuWhereMaterializeThreshold": 1000000000,
             "cpuLowCostTargetChunksPerWorker": 4,
             "cpuMediumCostTargetChunksPerWorker": 1,
             "cpuHighCostTargetChunksPerWorker": 2,
@@ -101,6 +140,8 @@
           "matmulMinWork": 4000000,
           "f32RequireMgeK": false,
           "f32MaxNOverK": 2.0,
+          "f32WideRequireMgeK": true,
+          "f32WideMaxNOverK": 3.0,
           "debug": false,
           "threads": 0
         },
@@ -117,6 +158,17 @@
         "fused": {
           "fusedPrimaryBackend": "ASM",
           "fusedAllowBackendFallback": true
+        },
+        "accelerator": {
+          "cudaEnabled": true,
+          "cudaRequireRuntimeAvailability": false,
+          "cudaMinimumEstimatedWork": 0,
+          "openclEnabled": true,
+          "openclRequireRuntimeAvailability": false,
+          "openclMinimumEstimatedWork": 0,
+          "metalEnabled": true,
+          "metalRequireRuntimeAvailability": false,
+          "metalMinimumEstimatedWork": 0
         },
         "workload": {
           "kind": "NONE",

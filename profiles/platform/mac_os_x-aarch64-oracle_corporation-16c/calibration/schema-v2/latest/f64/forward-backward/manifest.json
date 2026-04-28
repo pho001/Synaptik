@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "schema-v2",
+  "runId": "20260427T214548843868p0200-13ab03bb",
+  "status": "completed",
+  "dtype": "f64",
+  "mode": "forward_backward",
+  "familyIds": ["scheduler", "matmul", "attention-matmul", "conv2d-gemm-dispatch", "elementwise-dispatch", "fused-dispatch", "fused-cheap-contiguous-width", "fused-cheap-strided-width", "fused-noncheap-contiguous-width", "fused-noncheap-strided-width", "reduction", "attention-thresholds", "materialization"],
+  "passCount": 2,
+  "selectedProfilePath": "profiles/platform/mac_os_x-aarch64-oracle_corporation-16c/calibration/schema-v2/latest/f64/forward-backward/profile.json"
+}

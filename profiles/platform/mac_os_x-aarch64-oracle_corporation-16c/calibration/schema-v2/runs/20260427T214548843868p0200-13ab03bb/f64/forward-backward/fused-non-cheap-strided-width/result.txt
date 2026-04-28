@@ -1,0 +1,36 @@
+Platform Calibration Result
+platformId=mac_os_x-aarch64-oracle_corporation-16c
+createdAt=2026-04-27T21:57:27.949328+02:00
+persisted=false
+outputProfilePath=n/a
+profileName=platform-f64-forward-backward-calibration
+dataType=FLOAT64
+mode=FORWARD_BACKWARD
+seedRuntimeProfile=mac_os_x-aarch64-oracle_corporation-16c
+finalRuntimeProfile=mac_os_x-aarch64-oracle_corporation-16c
+
+Hardware
+os=mac_os_x
+arch=aarch64
+vm=openjdk_64-bit_server_vm
+vendor=oracle_corporation
+cores=16
+
+Steps
+name                   family             seedRuntime        selectedExec       score        metric            
+calib-f64-scheduler-p2 SCHEDULER          mac_os_x-aarch64-oracle_corporation-16c base+scheduler=3/1/2 1.907632     averageMedianMs   
+calib-f64-matmul-p2-java MATMUL             mac_os_x-aarch64-oracle_corporation-16c base+matmulMicroKernel=F64_2X2+matmulTiles=32x64x64+matmulParallel=2000000 3.932631     averageMedianMs   
+calib-f64-matmul-p2-blas MATMUL             mac_os_x-aarch64-oracle_corporation-16c base+blasProvider=OPENBLAS_FFM:minWork=4000000+matmulShape=false/3.0 0.557405     averageMedianMs   
+calib-f64-matmul-p2-blas-wide MATMUL             mac_os_x-aarch64-oracle_corporation-16c base+matmulWideShape=true/8.0 5.142555     weightedGeometricMeanWithWorstBucketPenalty
+calib-f64-attention-matmul-p2 ATTENTION_MATMUL   mac_os_x-aarch64-oracle_corporation-16c base+attentionMatmulMicroKernel=F64_2X2+attentionMatmulTiles=32x128x64 3.714470     weightedGeometricMeanWithWorstBucketPenalty
+calib-f64-conv2d-gemm-dispatch-p2 CONV2D_GEMM_DISPATCH mac_os_x-aarch64-oracle_corporation-16c base+conv2dBlasProvider=OPENBLAS_FFM:minWork=250000 67.749361    weightedGeometricMeanWithWorstBucketPenalty
+calib-f64-elementwise-dispatch-p2 ELEMENTWISE_DISPATCH mac_os_x-aarch64-oracle_corporation-16c base+elementwiseDispatch=512/64/65536/8192 1.897826     averageMedianMs   
+calib-f64-fused-dispatch-p2 FUSED_DISPATCH     mac_os_x-aarch64-oracle_corporation-16c base+fusedDispatch=256/16/4096/8192 0.933042     averageMedianMs   
+calib-f64-fused-cheap-contiguous-width-p2 FUSED_CHEAP_CONTIGUOUS_WIDTH mac_os_x-aarch64-oracle_corporation-16c base+fusedAsmVectorWidth[cheap-contiguous]=1 0.892953     averageMedianMs   
+calib-f64-fused-cheap-strided-width-p2 FUSED_CHEAP_STRIDED_WIDTH mac_os_x-aarch64-oracle_corporation-16c base+fusedAsmVectorWidth[cheap-strided]=2 1.324948     averageMedianMs   
+calib-f64-fused-noncheap-contiguous-width-p2 FUSED_NON_CHEAP_CONTIGUOUS_WIDTH mac_os_x-aarch64-oracle_corporation-16c base+fusedAsmVectorWidth[noncheap-contiguous]=2 1.105198     averageMedianMs   
+calib-f64-fused-noncheap-strided-width-p2 FUSED_NON_CHEAP_STRIDED_WIDTH mac_os_x-aarch64-oracle_corporation-16c base+fusedAsmVectorWidth[noncheap-strided]=2 5.265318     averageMedianMs   
+calib-f64-reduction-p2 REDUCTION          mac_os_x-aarch64-oracle_corporation-16c base+reductionThresholds=2048/16384 0.355867     averageMedianMs   
+calib-f64-attention-thresholds-p2 ATTENTION_THRESHOLDS mac_os_x-aarch64-oracle_corporation-16c base+attentionThresholds=512/16384 3.737662     weightedGeometricMeanWithWorstBucketPenalty
+calib-f64-materialization-p2 MATERIALIZATION    mac_os_x-aarch64-oracle_corporation-16c base+contiguous-materialization=131072+materialization=1048576 5.204581     averageMedianMs   
+calib-f64-materialization-p2-where MATERIALIZATION    mac_os_x-aarch64-oracle_corporation-16c base+where-materialization=262144 7.804177     averageMedianMs   
