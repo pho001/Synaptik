@@ -286,6 +286,31 @@ Accelerator support is present but not equivalent to the CPU backend.
 
 Needs verification: native Metal/CUDA runtime availability depends on machine-specific bridge loading and external native libraries, which cannot be proven from Java source alone. The source-level integration points are `backend.metal.bridge.*`, `backend.cuda.bridge.*`, and `backend.accelerator.select.AcceleratorRuntimeAvailability`.
 
+### Metal MPS Capability Boundary
+
+The current Metal path is intentionally narrower than the full tensor dtype model. `src/main/java/backend/metal/MetalMpsCapabilities.java` centralizes the Java-side contract for the native MPS bridge:
+
+- compute and output tensors must be `FLOAT32`
+- ordinary external data inputs must be `FLOAT32`
+- `BOOL` external inputs are legal only in predicate roles, currently `WHERE` input 0
+- `FLOAT64`, `BFLOAT16`, and `INT32` are not legal Metal compute/output dtypes in the current `_f32` ABI
+
+That boundary is checked in two places for different reasons. `MetalRegionLegalityAdapter` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal region for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
+
+Direct forward `SCALED_DOT_PRODUCT_ATTENTION` is not currently selected for Metal partitions. The lowerer can encode the operation scale into the accelerator DAG scalar bits, but native verification showed that the MPSGraph SDPA scale contract does not match the framework's CPU semantics for the tested call shape. Until that contract is resolved, direct SDPA remains CPU/fallback. The same caution applies to masks: masked `where(mask, scores, fill) -> softmax -> matmul` is left as a generic DAG instead of being converted to native `SDPA` with a bool mask, because the verified MPSGraph SDPA mask operand expects a floating mask tensor.
+
+### Metal MPS Copy Chain
+
+The current Metal bridge is not zero-copy. A float32 Metal execution moves data through these ownership domains:
+
+1. Java `float[]` or `byte[]` tensor storage is copied into a confined FFM arena in `MetalMpsFfmBridge.execute(...)`.
+2. The Objective-C shim creates Metal buffers from those bytes.
+3. MPSGraph executes into native output buffers owned by the bridge call.
+4. Java copies the native output memory back into the destination tensor `float[]`.
+5. The tensor marks its data view stale so later Java reads see the updated storage state.
+
+This design keeps CPU fallback and Java tensor ownership simple, but it means Metal execution currently pays host copy costs around the native call. A true zero-copy path would need a larger storage design: native-backed `TensorStorage`, explicit `MTLBuffer` ownership/lifetime, synchronization rules between Metal writes and Java reads, fallback materialization back to CPU-visible arrays, and tracing/memory accounting for off-heap buffers. The current architecture chooses correctness and predictable fallback over a partial second memory model.
+
 ## Configuration, Profiles, And Tuning
 
 Configuration is split by lifecycle ownership:

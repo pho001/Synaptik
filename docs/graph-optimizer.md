@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Mechanisms](mechanisms.md) | [Configuration](configuration.md) | [Testing](testing.md)
 
-Chapters: [Mental Model](#mental-model) | [DAG And Graph Vocabulary](#dag-and-graph-vocabulary) | [Global Versus Partition-Scoped Work](#global-versus-partition-scoped-work) | [Compiler Boundary](#compiler-boundary) | [OptimizerConfig](#optimizerconfig) | [Stage Ordering](#stage-ordering) | [OptimizerState](#optimizerstate) | [OptimizerTrace](#optimizertrace) | [Stage AR: Rewrite and Lowering](#stage-ar-rewrite-and-lowering) | [Stage CSE: Common Subexpression Elimination](#stage-cse-common-subexpression-elimination) | [Stage PART: Partition Planning](#stage-part-partition-planning) | [Stage FUSE: Region Optimization and Fusion](#stage-fuse-region-optimization-and-fusion) | [Stage MEM: Memory and Lifetime Planning](#stage-mem-memory-and-lifetime-planning) | [How the Stages Work Together](#how-the-stages-work-together) | [Adding or Changing Optimizer Behavior](#adding-or-changing-optimizer-behavior)
+Chapters: [Mental Model](#mental-model) | [DAG And Graph Vocabulary](#dag-and-graph-vocabulary) | [Global Versus Partition-Scoped Work](#global-versus-partition-scoped-work) | [Compiler Boundary](#compiler-boundary) | [OptimizerConfig](#optimizerconfig) | [Graph Region Policy Layers](#graph-region-policy-layers) | [Stage Ordering](#stage-ordering) | [OptimizerState](#optimizerstate) | [OptimizerTrace](#optimizertrace) | [Stage AR: Rewrite and Lowering](#stage-ar-rewrite-and-lowering) | [Stage CSE: Common Subexpression Elimination](#stage-cse-common-subexpression-elimination) | [Stage PART: Partition Planning](#stage-part-partition-planning) | [Stage FUSE: Region Optimization and Fusion](#stage-fuse-region-optimization-and-fusion) | [Stage MEM: Memory and Lifetime Planning](#stage-mem-memory-and-lifetime-planning) | [How the Stages Work Together](#how-the-stages-work-together) | [Adding or Changing Optimizer Behavior](#adding-or-changing-optimizer-behavior)
 
 This guide explains the graph optimizer as a compile-time transformation pipeline over a cloned tensor DAG. It is written for contributors who need to reason about optimizer behavior, add rules, debug stage interactions, or understand why the default stage order is `AR -> CSE -> PART -> FUSE -> MEM`.
 
@@ -14,6 +14,7 @@ This guide explains the graph optimizer as a compile-time transformation pipelin
 - [Global Versus Partition-Scoped Work](#global-versus-partition-scoped-work)
 - [Compiler Boundary](#compiler-boundary)
 - [OptimizerConfig](#optimizerconfig)
+- [Graph Region Policy Layers](#graph-region-policy-layers)
 - [Stage Ordering](#stage-ordering)
 - [OptimizerState](#optimizerstate)
 - [OptimizerTrace](#optimizertrace)
@@ -49,7 +50,7 @@ The optimizer owns graph structure and compile-time planning artifacts:
 - replacing an algebraic expression with an equivalent simpler expression
 - lowering a recognizable pattern into a specialized operation
 - merging duplicate subgraphs
-- identifying backend partitions
+- planning accelerator ownership regions and CPU execution regions
 - creating optimized region execution units
 - planning storage reuse and region handoff memory
 
@@ -106,7 +107,7 @@ Important vocabulary:
 | Edge | A dependency from `prevTensors` input to the consumer tensor. |
 | Root / sink | A tensor that must remain observable, such as the forward output, a graph sink, or a gradient target. |
 | Topological closure | The reachable graph rebuilt from roots after rewrites remove dead nodes. |
-| Partition | A backend-targeted connected subset of compiled nodes created by `PART`. |
+| Partition | A planned execution region created by `PART`. A partition can mean an accelerator ownership region or a CPU natural execution region depending on `ExecutionRegionKind`. |
 | Optimized region | A `FUSE` artifact built from one partition, containing execution units and region values. |
 | Region value | A value produced inside an optimized region, classified as materialized, continuation, or virtual. |
 
@@ -119,7 +120,7 @@ The most important architectural distinction is that optimizer stages do not all
 | Semantic forward canonicalizer | Global forward graph before backward construction | User forward DAG | Canonicalized forward DAG | No. Partitions do not exist yet. |
 | `AR` | Global optimizer snapshot | Entire current tensor DAG | Rewritten graph | No. It rewrites graph nodes before partitioning. |
 | `CSE` | Global optimizer snapshot | Entire current tensor DAG | Duplicate-free graph | No. It merges duplicate expressions before partitioning. |
-| `PART` | Global planning pass | Final structural graph plus backend intents | `Partition` and `PartitionPlan` artifacts | It creates partitions; it does not execute inside them. |
+| `PART` | Global planning pass | Final structural graph, backend intents, offload policy, and CPU region policy | `Partition`, `PartitionPlan`, and execution-region-kind artifacts | It creates accelerator ownership regions and CPU natural execution regions; it does not execute inside them. |
 | `FUSE` | Per partition | `OptimizerState.partitions()` plus compiled node snapshot | `OptimizedRegion` artifacts | Yes. Each partition is optimized independently into execution units. |
 | `MEM` | Hybrid | Final graph plus optimized regions | `MemoryPlan`, region bindings, handoff requirements | Both. Tensor lifetimes are global; region value bindings are planned from optimized regions. |
 | Backend lowering / prepare | Per partition / per optimized region / per node | compile artifacts and runtime config | prepared execution steps | Yes. This is where backend-specific lowerers and fused plans become executable recipes. |
@@ -185,15 +186,18 @@ flowchart LR
 | `cse` | CSE safety mode. |
 | `fuse` | Region optimization and fusion policy. |
 | `memory` | Memory reuse policy. |
-| `partition` | Partition planner search, scoring, strategy, and target settings. |
+| `partition` | Shared partition planner search, scoring, legacy explicit target, and accelerator strategy settings. |
+| `offload` | Graph-level accelerator/offload policy. It decides whether accelerator ownership regions are even considered in `AUTO` planning. |
+| `cpuRegion` | CPU natural execution region policy. It decides whether CPU nodes are grouped into natural regions and how wide those regions may be. |
+| `cpuFusion` | CPU fused-loop policy used by `FUSE` when converting CPU execution regions into concrete execution units. |
 
 Current presets:
 
 | Preset | Stage order | Notable settings |
 | --- | --- | --- |
 | `OptimizerConfig.noOptimization()` | empty | Strict CSE, training fuse defaults, memory defaults, but no stages run. |
-| `OptimizerConfig.trainingDefaults()` | `AR, CSE, PART, FUSE, MEM` | Strict CSE, training fuse defaults. |
-| `OptimizerConfig.inferenceDefaults()` | `AR, CSE, PART, FUSE, MEM` | Aggressive CSE, inference fuse defaults. |
+| `OptimizerConfig.trainingDefaults()` | `AR, CSE, PART, FUSE, MEM` | Strict CSE, training fuse defaults, `OffloadConfig.defaults()`, `CpuRegionConfig.defaults()`, `CpuFusionConfig.defaults()`. |
+| `OptimizerConfig.inferenceDefaults()` | `AR, CSE, PART, FUSE, MEM` | Aggressive CSE, inference fuse defaults, `OffloadConfig.defaults()`, `CpuRegionConfig.defaults()`, `CpuFusionConfig.defaults()`. |
 
 The factory mapping lives in [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java):
 
@@ -201,11 +205,200 @@ The factory mapping lives in [`OptimizerFactory.java`](../src/main/java/graph/op
 | --- | --- |
 | `AR` | `RewriteRule(config.rewrite())` |
 | `CSE` | `CommonSubexpressionEliminationRule(config.cse())` |
-| `PART` | `PartitionIntentRule(config.partition())` |
-| `FUSE` | `RegionOptimizationRule(config.fuse())` |
+| `PART` | `PartitionIntentRule(config.partition(), config.offload(), config.cpuRegion())` |
+| `FUSE` | `RegionOptimizationRule(config.fuse(), config.cpuFusion())` |
 | `MEM` | `MemoryOptimizerRule(MemoryPlannerPolicy.fromConfig(config.memory()))` |
 
 `GraphOptimizer` is single-pass. [`GraphOptimizerSinglePassTest.java`](../src/test/java/graph/optimizer/GraphOptimizerSinglePassTest.java) verifies that configured rules are applied exactly once in list order.
+
+## Graph Region Policy Layers
+
+The current optimizer separates graph-region decisions into a shared partition budget plus three graph policy layers: offload, CPU region planning, and CPU fusion. This is the most important change from the older mental model where `PartitionConfig.target()` and `PartitionPlannerStrategy` carried too much meaning by themselves.
+
+```mermaid
+flowchart TD
+    OptimizerConfig --> PartitionConfig["PartitionConfig\nshared budgets and scores"]
+    OptimizerConfig --> OffloadConfig["OffloadConfig\naccelerator ownership"]
+    OptimizerConfig --> CpuRegionConfig["CpuRegionConfig\nCPU natural regions"]
+    OptimizerConfig --> CpuFusionConfig["CpuFusionConfig\nCPU fused loops"]
+
+    PartitionConfig --> PART
+    OffloadConfig --> PART
+    CpuRegionConfig --> PART
+    CpuFusionConfig --> FUSE
+
+    PART["PART\nPartitionIntentRule"] --> Accel["accelerator ownership regions"]
+    PART --> Cpu["CPU execution regions"]
+    Cpu --> FUSE["FUSE\nRegionOptimizationRule"]
+    FUSE --> Units["ExecutionUnit list"]
+```
+
+### Why The Split Exists
+
+Accelerator and CPU regions solve different problems:
+
+| Region kind | Created by | Meaning | Typical planner | Why it exists |
+| --- | --- | --- | --- | --- |
+| `ACCELERATOR_OWNERSHIP` | `PART` for Metal/CUDA targets | A backend owns execution of the selected nodes as an accelerator subgraph. | `GREEDY_MAX_REGION` or `SCORED_CANDIDATE_SEARCH` | Avoid tiny accelerator submissions and preserve backend legality for a whole accelerator DAG. |
+| `CPU_EXECUTION` | `PART` for CPU target | CPU nodes are grouped into a natural execution region that may later split into fused loops and unit kernels. | `CPU_NATURAL_EXECUTION_REGION` | Give FUSE/MEM a coherent CPU region without forcing accelerator-style closed-region legality. |
+
+The older "partition equals execution unit" interpretation is now wrong. A partition is a **region ownership/planning artifact**. `FUSE` decides concrete `ExecutionUnit` shapes inside that region.
+
+Example:
+
+```text
+node 3: matmul(x, w)      non-fusable unit kernel
+node 4: add(node3, b)     fusable elementwise
+node 5: relu(node4)       fusable elementwise
+node 6: sum(node5)        reduction unit kernel
+```
+
+CPU `PART` may put `[3, 4, 5, 6]` into one natural CPU execution region. `FUSE` can then produce:
+
+```text
+unit A: UNIT_KERNEL         [3]       // matmul
+unit B: FUSED_ELEMENTWISE   [4, 5]    // add + relu loop fusion
+unit C: UNIT_KERNEL         [6]       // sum
+```
+
+That is the intended separation:
+
+```text
+PART says: these nodes belong to one CPU scheduling/memory region.
+FUSE says: these specific operations become fused loops or unit kernels.
+```
+
+### OffloadConfig
+
+[`OffloadConfig`](../src/main/java/config/optimizer/OffloadConfig.java) controls whether `AUTO` planning may create accelerator ownership regions when the compiled graph already contains Metal or CUDA backend intent.
+
+| Field | Values | Current behavior |
+| --- | --- | --- |
+| `policy` | `CPU_ONLY`, `ACCELERATOR_IF_PROFITABLE` | `CPU_ONLY` prevents proactive accelerator offload for CPU-only graphs. Existing Metal/CUDA backend intent may still be planned as accelerator regions. `ACCELERATOR_IF_PROFITABLE` allows Metal/CUDA jobs when accelerator backend intent is present. It does not invent accelerator backend intent for an all-CPU graph. |
+| `acceleratorRegionPolicy` | `OFF`, `GREEDY_CLOSED_REGIONS`, `SCORED_PROFITABLE_REGIONS` | Selects the accelerator planner strategy. `OFF` creates no accelerator jobs. |
+
+Convenience presets:
+
+| Method | Result |
+| --- | --- |
+| `OffloadConfig.defaults()` | `CPU_ONLY + OFF` |
+| `OffloadConfig.acceleratorGreedy()` | `ACCELERATOR_IF_PROFITABLE + GREEDY_CLOSED_REGIONS` |
+| `OffloadConfig.acceleratorScored()` | `ACCELERATOR_IF_PROFITABLE + SCORED_PROFITABLE_REGIONS` |
+
+Important implementation detail: `OffloadConfig` normalizes impossible combinations. If `policy == CPU_ONLY`, `acceleratorRegionPolicy` becomes `OFF` even if a caller passes a different accelerator policy. That keeps "CPU-only" unambiguous.
+
+### AcceleratorRegionPolicy
+
+[`AcceleratorRegionPolicy`](../src/main/java/config/optimizer/AcceleratorRegionPolicy.java) maps directly to planner strategy:
+
+| Policy | Planner strategy | Mental model |
+| --- | --- | --- |
+| `OFF` | no accelerator planner job | Do not create accelerator ownership regions. |
+| `GREEDY_CLOSED_REGIONS` | `GREEDY_MAX_REGION` | Start from a legal accelerator seed and greedily close over supported producer/consumer structure while legality holds. |
+| `SCORED_PROFITABLE_REGIONS` | `SCORED_CANDIDATE_SEARCH` | Explore candidate regions up to the configured budget and select the best accepted candidate by score. |
+
+The word "closed" matters for accelerators. Metal/CUDA region adapters generally avoid treating a same-target supported producer as an external input, because splitting such a producer outside the region can create an unnecessary backend boundary or an unsupported external-input role. That is different from CPU natural planning, where a supported producer may be a materialized input or a unit boundary.
+
+### CpuRegionConfig
+
+[`CpuRegionConfig`](../src/main/java/config/optimizer/CpuRegionConfig.java) controls CPU natural execution-region construction.
+
+| Field | Values | Current behavior |
+| --- | --- | --- |
+| `policy` | `OFF`, `ELEMENTWISE_ISLANDS`, `NATURAL_CPU_REGIONS`, `AGGRESSIVE_CPU_REGIONS` | `OFF` disables CPU region jobs. `ELEMENTWISE_ISLANDS` keeps CPU regions to fusable elementwise ops. `NATURAL_CPU_REGIONS` and `AGGRESSIVE_CPU_REGIONS` allow all structurally supported CPU ops. |
+| `maxRegionNodes` | positive integer | Caps the number of nodes selected by `CpuNaturalExecutionRegionPlanner`. Values below `1` are normalized to `1`. |
+| `fanoutPolicy` | `MATERIALIZE_AT_FANOUT`, `INCLUDE_CHEAP_ELEMENTWISE_BRANCHES`, `INCLUDE_AND_SPLIT_EXECUTION_UNITS` | Stored on the config and exposed to graph profiles. The current `CpuNaturalExecutionRegionPlanner` does not branch on this field yet; fanout is handled by structural candidate output detection and later unit splitting. |
+| `boundaryPolicy` | `ELEMENTWISE_ONLY`, `INCLUDE_UNIT_BOUNDARIES`, `INCLUDE_SAFE_LAYOUT_PASSTHROUGH` | `ELEMENTWISE_ONLY` limits regions to `opType().isFusable()`. `INCLUDE_UNIT_BOUNDARIES` and `INCLUDE_SAFE_LAYOUT_PASSTHROUGH` currently both allow all CPU structurally supported ops. |
+
+Convenience presets:
+
+| Method | Policy shape |
+| --- | --- |
+| `CpuRegionConfig.defaults()` | `NATURAL_CPU_REGIONS`, `maxRegionNodes=64`, materialize fanout, include unit boundaries |
+| `CpuRegionConfig.off()` | disables CPU regions |
+| `CpuRegionConfig.elementwiseIslands()` | only fusable elementwise islands, `maxRegionNodes=32` |
+| `CpuRegionConfig.aggressive()` | wider regions, `maxRegionNodes=128`, aggressive fanout/fusion intent |
+
+Concrete example:
+
+```text
+Graph:
+  0: x leaf
+  1: w leaf
+  2: b leaf
+  3: matmul(x, w)
+  4: add(3, b)
+  5: relu(4)
+
+CpuRegionConfig.elementwiseIslands():
+  node 3 is not fusable, so a region can start at node 4
+  possible CPU region: [4, 5]
+
+CpuRegionConfig.defaults():
+  matmul is structurally supported CPU content even though it is not fusable
+  possible CPU region: [3, 4, 5]
+```
+
+This does not mean matmul is fused into the elementwise loop. It means the CPU region can contain a unit-kernel boundary (`matmul`) and a fused elementwise loop (`add -> relu`) under one region artifact.
+
+### CpuFusionConfig
+
+[`CpuFusionConfig`](../src/main/java/config/optimizer/CpuFusionConfig.java) controls CPU fused-loop selection **inside CPU regions**.
+
+| Field | Values | Current behavior |
+| --- | --- | --- |
+| `mode` | `OFF`, `LOCAL_CONSERVATIVE`, `LOCAL_BALANCED`, `LOCAL_AGGRESSIVE` | `OFF` emits `UNIT_KERNEL` units. Any non-`OFF` mode enables whole-partition fusion or mixed subchain fusion. The current implementation does not distinguish conservative/balanced/aggressive beyond the preset values they carry. |
+| `maxChainNodes` | positive integer | Caps whole-region fused unit size and mixed subchain length. Values below `1` are normalized to `1`. |
+| `fanoutPolicy` | `STOP_AT_FANOUT`, `ALLOW_CHEAP_DUPLICATION`, `MATERIALIZE_AND_CONTINUE` | Stored on the config and profile. Current CPU unit construction still requires a single published output for fused subchains and does not duplicate shared producers based on this field. |
+| `layoutPolicy` | `BOUNDARY`, `ALIAS_VIEW_PASSTHROUGH` | Stored on the config and profile. Current fusable checks are driven by `Operation.OpType.isFusable()`; layout/view passthrough is not yet a separate fusion rule here. |
+| `cheapProducerPolicy` | `EXTERNAL_INPUT`, `INLINE_IF_SINGLE_USE`, `INLINE_CHEAP_SHARED` | Stored on the config and profile. Current mixed subchain formation follows linear consumption of the previous chain output and does not yet inline shared producers by this field. |
+
+Convenience presets:
+
+| Method | Policy shape |
+| --- | --- |
+| `CpuFusionConfig.defaults()` | `LOCAL_BALANCED`, `maxChainNodes=16`, stop at fanout, layout boundary, inline cheap single-use producers |
+| `CpuFusionConfig.off()` | no CPU fused loops |
+| `CpuFusionConfig.conservative()` | smaller local chains, `maxChainNodes=8` |
+| `CpuFusionConfig.aggressive()` | larger local chains, `maxChainNodes=32`, aggressive fanout/layout/producer intent |
+
+The distinction between configuration surface and implementation is intentional in this documentation. The public profile schema already stores all CPU fusion policy fields, and graph autotune can choose among presets, but the current `CpuRegionOptimizationPolicy` directly uses only `mode` and `maxChainNodes`.
+
+### Graph Autotune Policy Candidates
+
+Graph autotune mutates graph policies, not hardware thresholds. The current candidate source is [`GraphPolicyMutators`](../src/main/java/tuning/candidate/graph/GraphPolicyMutators.java).
+
+Production standard candidates:
+
+| Candidate name | Main policy changes |
+| --- | --- |
+| `graphPolicy=current` | Keeps the incoming graph policy. |
+| `offload=cpu-only+cpuRegion=natural+cpuFusion=balanced` | CPU-only, natural CPU regions, default CPU fusion. |
+| `offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced` | CPU-only, only elementwise CPU regions, default CPU fusion. |
+| `offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive` | CPU-only, natural CPU regions, aggressive CPU fusion preset. |
+| `offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced` | Allows greedy accelerator ownership regions plus natural CPU regions. |
+| `offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced` | Allows scored accelerator ownership regions plus natural CPU regions. |
+
+Research candidates additionally explore CSE mode, piecewise lowering, memory lifetime policy, `cpuRegion=off+cpuFusion=off`, and `cpuRegion=aggressive+cpuFusion=aggressive`.
+
+This keeps graph autotune focused on graph-shape decisions:
+
+```text
+Graph autotune changes:
+  offload policy
+  accelerator region policy
+  CPU region policy
+  CPU fusion policy
+  selected research graph policies
+
+Calibration/runtime changes:
+  CPU vector thresholds
+  CPU parallel thresholds
+  ASM vector widths
+  BLAS/FFM provider and matmul thresholds
+```
+
+Do not move BLAS provider, vector width, or parallel threshold decisions into graph policy candidates. Those are hardware/runtime calibration choices.
 
 ## Stage Ordering
 
@@ -779,11 +972,25 @@ The aggressive mode can merge more expressions in inference because there are no
 
 ### Problem Solved
 
-Backends need contiguous, legal regions of the graph to lower as a unit. Naive execution treats every node as a separate prepared step. Partition planning identifies backend-targeted regions, records boundaries, and attaches backend plans when a legality adapter can lower the candidate.
+Backends and later optimizer stages need region boundaries before they can lower or fuse work safely. Naive execution treats every node as a separate prepared step. Partition planning identifies backend-targeted regions, records boundaries, and attaches backend plans when a legality adapter can lower the candidate.
+
+The important current distinction is:
+
+- accelerator planning creates **ownership regions**: Metal/CUDA owns a legal accelerator DAG
+- CPU planning creates **natural execution regions**: CPU groups structurally related work so FUSE can split it into fused loops and unit kernels later
 
 ### Mental Model
 
-`PART` asks: "Which connected runs of nodes can this target backend own, and where must values cross region boundaries?"
+`PART` asks two related questions:
+
+```text
+Accelerator path:
+  Which connected runs can this accelerator backend own as one legal subgraph?
+
+CPU path:
+  Which CPU nodes belong to the same natural execution/memory region,
+  even if some of them will later remain unit kernels?
+```
 
 It does not fuse elementwise code itself. It creates `Partition` artifacts for FUSE and backend selection.
 
@@ -791,10 +998,13 @@ Scope: `PART` is a **global planning pass**. It scans the whole compiled graph a
 
 ```mermaid
 flowchart LR
-    A[CompiledNode list] --> B[Resolve target CPU/Metal/CUDA]
-    B --> C[Build consumer map]
-    C --> D[Planner strategy]
-    D --> E[Legality adapter]
+    A[CompiledNode list] --> B[Resolve planning jobs]
+    B --> C1[Accelerator job: Metal/CUDA ownership]
+    B --> C2[CPU job: natural execution region]
+    C1 --> D1[Greedy or scored closed-region planner]
+    C2 --> D2[CpuNaturalExecutionRegionPlanner]
+    D1 --> E[Legality adapter]
+    D2 --> E
     E --> F[PartitionPlanningResult]
     F --> G[OptimizerState.partitions]
 ```
@@ -802,10 +1012,14 @@ flowchart LR
 ### Key Concepts
 
 - `PartitionTarget`: backend target such as `CPU`, `GPU_METAL`, `GPU_CUDA`, `AUTO`, or `NONE`.
+- `ExecutionRegionKind`: semantic meaning of the partition: `ACCELERATOR_OWNERSHIP` or `CPU_EXECUTION`.
+- `PlanningJob`: internal `PartitionIntentRule` job containing target, strategy, policy, and CPU region config.
 - `PartitionPlanningContext`: runtime config, backward support flag, compiled nodes, and consumer map.
 - `PartitionPlanningRequest`: target, strategy, score policy, legality adapter, and required materialized values.
 - `Partition`: accepted region with ordered node ids, values, internal edges, boundary edges, external inputs, output refs, and debug trace.
 - `PartitionPlan`: backend-specific attached plan with backend, anchor node, node ids, external inputs, produced outputs, and estimated work.
+- `OffloadConfig`: decides whether auto planning creates accelerator ownership jobs.
+- `CpuRegionConfig`: decides whether CPU natural execution jobs exist and how broad they can be.
 - Required materialized values: forward output and gradient publication targets that must remain materialized at region boundaries.
 
 ### Partition Anatomy
@@ -852,9 +1066,13 @@ This distinction is what lets `FUSE` optimize only partition-owned nodes while `
 ### Where It Lives
 
 - [`config/optimizer/PartitionConfig.java`](../src/main/java/config/optimizer/PartitionConfig.java)
+- [`config/optimizer/OffloadConfig.java`](../src/main/java/config/optimizer/OffloadConfig.java)
+- [`config/optimizer/CpuRegionConfig.java`](../src/main/java/config/optimizer/CpuRegionConfig.java)
 - [`graph/optimizer/partition/PartitionIntentRule.java`](../src/main/java/graph/optimizer/partition/PartitionIntentRule.java)
 - [`graph/optimizer/partition/GreedyMaxRegionPartitionPlanner.java`](../src/main/java/graph/optimizer/partition/GreedyMaxRegionPartitionPlanner.java)
 - [`graph/optimizer/partition/ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/optimizer/partition/ScoredCandidatePartitionPlanner.java)
+- [`graph/optimizer/partition/CpuNaturalExecutionRegionPlanner.java`](../src/main/java/graph/optimizer/partition/CpuNaturalExecutionRegionPlanner.java)
+- [`graph/optimizer/partition/ExecutionRegionKind.java`](../src/main/java/graph/optimizer/partition/ExecutionRegionKind.java)
 - [`graph/compile/PartitionPlanningSnapshotBuilder.java`](../src/main/java/graph/compile/PartitionPlanningSnapshotBuilder.java)
 
 ### Step-by-Step Walkthrough
@@ -862,19 +1080,20 @@ This distinction is what lets `FUSE` optimize only partition-owned nodes while `
 1. `PartitionIntentRule.apply(...)` receives the current optimizer state.
 2. It propagates backend intent through `BackendIntentPropagator.propagateBackwardClosure(...)`.
 3. It snapshots the current graph into `CompiledNode` records.
-4. It resolves the target:
-   - configured non-`AUTO` target wins
-   - otherwise the first GPU Metal or CUDA backend node wins
-   - otherwise CPU wins if any CPU node appears
-   - otherwise target is `NONE`
-5. If target is `NONE`, the state is returned with no partitions.
+4. It resolves one or more planning jobs:
+   - explicit non-`AUTO` `PartitionConfig.target()` creates one job for that target
+   - `AUTO` can create accelerator jobs from `OffloadConfig`
+   - `AUTO` can also create a CPU job from `CpuRegionConfig`
+5. If no jobs are resolved, the state is returned with no partitions.
 6. It builds a consumer map from compiled node input ids.
 7. It builds a `PartitionPlanningContext`.
-8. It selects the planner strategy:
-   - `GREEDY_MAX_REGION`
-   - `SCORED_CANDIDATE_SEARCH`
-9. It asks the target legality adapter to seed, expand, create structural candidates, and attach plans.
-10. It returns `state.withPartitions(planning.partitions(), planning.plansByPartitionId())`.
+8. For each job, it chooses the planner:
+   - `GREEDY_MAX_REGION` for greedy accelerator ownership
+   - `SCORED_CANDIDATE_SEARCH` for scored accelerator ownership
+   - `CPU_NATURAL_EXECUTION_REGION` for CPU natural regions
+9. It asks the job's legality adapter to create structural candidates and attach backend plans.
+10. It concatenates all accepted partitions and attached plans.
+11. It returns `state.withPartitions(partitions, plansByPartitionId)`.
 
 ### Worked Example With Concrete Values
 
@@ -898,7 +1117,8 @@ node 3: relu(2)       [6, 8, 10, 12]
 With a CPU target, a legal partition can be:
 
 ```text
-partitionId: cpu-2
+partitionId: cpu-natural-2
+regionKind: CPU_EXECUTION
 target: CPU
 orderedNodeIds: [2, 3]
 externalInputNodeIds: [0, 1]
@@ -926,9 +1146,24 @@ plannerStrategy = GREEDY_MAX_REGION
 target = AUTO
 ```
 
+These are shared planning/search values. They are not the complete graph policy anymore. In `AUTO` mode the actual planning jobs are resolved from `OffloadConfig` and `CpuRegionConfig`.
+
+`PartitionIntentRule.resolvePlanningJobs(...)` behaves like this:
+
+| Situation | Jobs created |
+| --- | --- |
+| `PartitionConfig.target() == NONE` | No jobs. |
+| Explicit `target == CPU` | One CPU job using `CPU_NATURAL_EXECUTION_REGION`. |
+| Explicit `target == GPU_METAL` or `GPU_CUDA` | One accelerator job using `PartitionConfig.plannerStrategy()`. |
+| `AUTO` + `OffloadPolicy.CPU_ONLY` + CPU-only backend intent | One CPU natural-region job if `CpuRegionConfig.policy() != OFF`. |
+| `AUTO` + `ACCELERATOR_IF_PROFITABLE` + Metal/CUDA backend intent | Accelerator jobs using `OffloadConfig.acceleratorRegionPolicy()`, plus CPU job when CPU nodes exist and CPU regions are enabled. |
+| `AUTO` + `CPU_ONLY` + existing Metal/CUDA backend intent | Accelerator jobs can still be created from the existing backend intent using `PartitionConfig.plannerStrategy()`. `CPU_ONLY` prevents proactive offload policy, not explicit/preselected accelerator backend nodes. |
+
 `GreedyMaxRegionPartitionPlanner` walks compiled nodes in order. For each uncovered target-backend node, it tries to seed a region, absorbs supported producer closure, validates a structural candidate, attaches a backend plan, then expands through consumers until the frontier is exhausted or a budget stops the search. It records decision reasons such as `unsupported-start-node`, `lowerer-rejected`, `covered-by-earlier-partition`, `external-input-not-allowed`, `max-search-nodes`, and `budget-stop`.
 
 `ScoredCandidatePartitionPlanner` explores candidate sets up to `maxVisitedCandidates`, keeps the best structural and best accepted candidates by score, and accepts only candidates for which the backend adapter can create a plan.
+
+`CpuNaturalExecutionRegionPlanner` is the CPU-specific strategy. It walks CPU nodes in topological order, groups supported CPU operations up to the configured node budget, skips leaf/external values, and stops at unsupported compute nodes. It does not use accelerator-style producer closure as a hard requirement. That is deliberate: CPU FUSE can later split the region into fused loops and unit kernels, so a matmul/reduction/layout operation can be a boundary inside the region rather than a reason to abandon the region.
 
 `PartitionPlanningSnapshotBuilder` repeats similar planning after `CompiledNode` snapshots are rebuilt in `GraphCompiler`. It stores compile artifacts such as partitions, attached backend plans, backend selection candidates, and `PartitionCompileTrace`.
 
@@ -968,6 +1203,83 @@ The accepted partition is therefore the largest greedy legal region found from t
 
 The score uses signals such as node count, internal edges, merge-node bonus, tail depth, external input penalty, and estimated work. A candidate still needs backend legality: a high score is not enough if the adapter cannot produce a valid `PartitionPlan`.
 
+### CPU Natural Region Planner Deep Dive
+
+[`CpuNaturalExecutionRegionPlanner`](../src/main/java/graph/optimizer/partition/CpuNaturalExecutionRegionPlanner.java) exists because CPU regions are not accelerator ownership regions.
+
+The older greedy closed-region strategy is a good fit for accelerators: if Metal/CUDA can own a producer and consumer, the planner tries to keep them in the same closed backend region. That reduces accelerator boundary crossings.
+
+For CPU hot paths, that same closure rule can be counterproductive. A CPU region may legitimately contain a matmul unit kernel, then a fused elementwise loop, then a reduction unit kernel. The CPU backend does not need the whole region to become one fused loop.
+
+Current CPU planner algorithm:
+
+1. Walk compiled nodes in topological order.
+2. Skip unsupported or non-CPU nodes and record `unsupported-or-non-cpu-node`.
+3. Start a region at a supported CPU node.
+4. Keep adding later supported CPU nodes until:
+   - `maxSearchNodes` from the planning policy is reached
+   - an unsupported compute node is reached
+   - the graph ends
+5. Skip leaf/external values while scanning. Leaves are inputs, not region compute content.
+6. Ask `CpuRegionLegalityAdapter.tryCreateStructuralCandidate(...)` to validate outputs, external inputs, and boundary shape.
+7. Ask `CpuRegionLegalityAdapter.tryCreatePlan(...)` to attach a `CpuPartitionPlan`.
+8. Emit a `Partition` whose `regionKind` is `CPU_EXECUTION`.
+
+The CPU legality adapter is intentionally broad today:
+
+```text
+supported CPU region content =
+  CPU operation node
+  non-empty input list
+  op type not in excluded structural family
+  structurally compatible inputs
+
+excluded structural family =
+  NOOP
+  FUSED
+```
+
+For `CpuRegionPolicy.ELEMENTWISE_ISLANDS` or `CpuRegionBoundaryPolicy.ELEMENTWISE_ONLY`, the planner further requires `node.operation().opType().isFusable()`.
+
+Worked CPU example:
+
+```text
+node 0: x leaf
+node 1: w leaf
+node 2: b leaf
+node 3: matmul(x, w)       supported CPU, not fusable
+node 4: add(node3, b)      supported CPU, fusable
+node 5: relu(node4)        supported CPU, fusable
+node 6: sum(node5)         supported CPU, not fusable
+```
+
+With `CpuRegionConfig.defaults()`:
+
+```text
+PART:
+  regionKind = CPU_EXECUTION
+  strategy   = CPU_NATURAL_EXECUTION_REGION
+  nodes      = [3, 4, 5, 6]
+
+FUSE:
+  unit A = UNIT_KERNEL       [3]      // matmul
+  unit B = FUSED_ELEMENTWISE [4, 5]   // add + relu
+  unit C = UNIT_KERNEL       [6]      // sum
+```
+
+With `CpuRegionConfig.elementwiseIslands()`:
+
+```text
+PART:
+  node 3 is not fusable, so it cannot enter the CPU region
+  possible region = [4, 5]
+
+FUSE:
+  unit A = FUSED_ELEMENTWISE [4, 5]
+```
+
+This is why CPU region policy is a graph tuning knob: the best region shape depends on the graph. A tiny graph may not benefit from wide CPU regions. A hot path with long elementwise chains after unit kernels often benefits from natural CPU regions because FUSE can still build one larger fused loop around the fusable part.
+
 ### What Runs Inside A Partition Later
 
 `PART` itself does not execute anything inside the partition. It only records the region.
@@ -996,9 +1308,12 @@ So when debugging partition behavior, ask two separate questions:
 
 ### Edge Cases
 
-- A configured target of `NONE` or an auto-resolved target of `NONE` produces no partitions.
+- A configured target of `NONE`, disabled offload plus disabled CPU regions, or a graph with no eligible planning target produces no partitions.
+- `OffloadPolicy.CPU_ONLY` prevents proactive accelerator offload for CPU-only graphs, but explicit/preselected Metal or CUDA backend nodes can still produce accelerator ownership jobs.
+- `CpuRegionPolicy.OFF` prevents CPU natural-region jobs even when CPU nodes are present.
 - Nodes already covered by an earlier partition are not reused by later partitions.
 - The legality adapter can reject a structurally plausible candidate.
+- CPU `ELEMENTWISE_ISLANDS` rejects non-fusable CPU operations at the region policy layer even if the CPU adapter structurally supports them.
 - Required forward outputs and gradient bindings are carried into planning so they are not accidentally virtualized away.
 - `PartitionPlanningSnapshotBuilder.backendSelectionCandidates(...)` filters backend selection candidates to non-CPU plans. CPU partitions can still exist, but backend selection candidates are currently for accelerator plans.
 
@@ -1006,6 +1321,9 @@ So when debugging partition behavior, ask two separate questions:
 
 - PART does not mean every node is placed into a partition.
 - PART does not perform elementwise fusion.
+- `PartitionTarget` is not the whole policy model. It names the backend target; `OffloadConfig`, `CpuRegionConfig`, and `CpuFusionConfig` control how the graph policy uses targets.
+- A CPU partition is not proof that all included nodes will run as one fused loop. It may become several unit kernels and fused subchains.
+- An accelerator partition is closer to backend ownership: the target backend owns the accepted region as a lowerable subgraph.
 - A `Partition` is not the same as a backend executable. It is a planning artifact that may carry an attached backend plan.
 - `PartitionConfig` scoring weights guide candidate selection; they do not guarantee a backend can lower the selected structure.
 
@@ -1069,12 +1387,13 @@ flowchart TD
 ### Key Concepts
 
 - `OptimizedRegion`: region id, source partition, target, execution units, region values, materialized outputs, and trace.
-- `ExecutionUnit`: either `FUSED_ELEMENTWISE` or `SINGLE_OP`.
+- `ExecutionUnit`: an executable unit descriptor inside an optimized region. Current graph optimizer paths primarily emit `FUSED_ELEMENTWISE` for fused chains and `UNIT_KERNEL` for single-operation units.
 - `RegionValue`: value produced in a region with transport kind and type contract.
 - `ValueTransportKind.MATERIALIZED`: value must have materialized storage.
 - `ValueTransportKind.CONTINUATION`: value can continue across units or regions without becoming a normal graph materialization point.
 - `ValueTransportKind.VIRTUAL`: value is internal and does not need storage.
 - `opType().isFusable()`: operation metadata used to decide fusable elementwise candidates.
+- `CpuFusionConfig`: CPU-only fused-loop policy passed to `RegionOptimizationRule`.
 
 ### Execution Unit Anatomy
 
@@ -1111,6 +1430,7 @@ The important point is that node 3 and node 4 still exist in the semantic graph,
 ### Where It Lives
 
 - [`config/optimizer/FuseConfig.java`](../src/main/java/config/optimizer/FuseConfig.java)
+- [`config/optimizer/CpuFusionConfig.java`](../src/main/java/config/optimizer/CpuFusionConfig.java)
 - [`graph/optimizer/region/RegionOptimizationRule.java`](../src/main/java/graph/optimizer/region/RegionOptimizationRule.java)
 - [`graph/optimizer/region/DefaultRegionOptimizer.java`](../src/main/java/graph/optimizer/region/DefaultRegionOptimizer.java)
 - [`graph/optimizer/region/CpuRegionOptimizationPolicy.java`](../src/main/java/graph/optimizer/region/CpuRegionOptimizationPolicy.java)
@@ -1138,10 +1458,10 @@ The important point is that node 3 and node 4 still exist in the semantic graph,
 1. `RegionOptimizationRule.apply(...)` checks `state.partitions()`.
 2. If no partitions exist, it returns the state with an empty optimized region list.
 3. It snapshots the current graph into `CompiledNode` records.
-4. It creates a `RegionOptimizationContext` with compiled nodes and `FuseConfig`.
+4. It creates a `RegionOptimizationContext` with compiled nodes, `FuseConfig`, and `CpuFusionConfig`.
 5. It optimizes every partition through `DefaultRegionOptimizer`.
 6. `DefaultRegionOptimizer` chooses policy by target:
-   - CPU target uses `CpuRegionOptimizationPolicy`.
+   - CPU target uses `CpuRegionOptimizationPolicy` and `CpuFusionConfig`.
    - non-CPU targets use `GenericGpuRegionOptimizationPolicy`.
 7. The policy builds execution units.
 8. The optimizer maps each partition value into a `RegionValue` with a transport kind.
@@ -1254,7 +1574,19 @@ nonCheapBonus = 0.35
 preserveSharedExpensiveNodes = false
 ```
 
-The current region implementation uses `FuseConfig` mainly as context for policies and future scoring; the concrete whole-partition/subchain decisions are driven by partition shape and `opType().isFusable()`.
+The current region implementation uses `FuseConfig` mainly as context for policies and future scoring; the concrete whole-partition/subchain decisions are driven primarily by partition shape and `opType().isFusable()`.
+
+`CpuFusionConfig` is the active CPU-specific fusion policy:
+
+| Setting | Used directly today? | Effect in current code |
+| --- | --- | --- |
+| `mode` | Yes | `OFF` emits `UNIT_KERNEL` units only. Non-`OFF` enables whole-partition fusion and mixed fusable subchains. |
+| `maxChainNodes` | Yes | Caps whole-partition fused unit size and CPU mixed-subchain length. |
+| `fanoutPolicy` | Stored, not directly branched on yet | Current mixed subchains still require a single published output. |
+| `layoutPolicy` | Stored, not directly branched on yet | Current fusable checks are still based on `opType().isFusable()`. |
+| `cheapProducerPolicy` | Stored, not directly branched on yet | Current chain extension requires the next node to consume the previous chain output. |
+
+That means `LOCAL_CONSERVATIVE`, `LOCAL_BALANCED`, and `LOCAL_AGGRESSIVE` currently differ by their preset values, especially `maxChainNodes`, but not by separate mode-specific branching inside `CpuRegionOptimizationPolicy`.
 
 `RegionOptimizationUnitSupport.shouldFuseWholePartition(...)` returns true only when:
 
@@ -1264,9 +1596,9 @@ The current region implementation uses `FuseConfig` mainly as context for polici
 - every node has an operation
 - every operation type is fusable
 
-CPU policy has an extra mixed-unit path. If the whole partition cannot fuse, it scans ordered nodes and fuses linear subchains of fusable operations when the chain has one published output. Otherwise it emits single-op units.
+CPU policy has an extra mixed-unit path. If the whole partition cannot fuse, it scans ordered nodes and fuses linear subchains of fusable operations when the chain has one published output. Otherwise it emits `UNIT_KERNEL` units.
 
-Generic GPU policy is simpler: fuse the whole partition if possible, otherwise emit single-op units.
+Generic GPU policy is simpler: fuse the whole partition if possible, otherwise emit `UNIT_KERNEL` units.
 
 ### Backend Lowering: From FUSE Metadata To Real Execution
 
@@ -1399,7 +1731,7 @@ This is why calibration has separate fused-width families. A vector width that i
 
 GPU fusion has a different goal from CPU ASM fusion. CPU fusion creates one generated Java bytecode loop. GPU fusion creates a lowered accelerator graph/DAG so the native accelerator bridge can compile and execute a region as one submitted graph.
 
-The graph optimizer marks a whole GPU partition as `FUSED_ELEMENTWISE` only when the entire partition is fusable. If not, `GenericGpuRegionOptimizationPolicy` emits single-op units. The GPU region lowerers then classify the region:
+The graph optimizer marks a whole GPU partition as `FUSED_ELEMENTWISE` only when the entire partition is fusable. If not, `GenericGpuRegionOptimizationPolicy` emits `UNIT_KERNEL` units. The GPU region lowerers then classify the region:
 
 | Target | Fused family | Non-fused family |
 |---|---|---|
@@ -1472,13 +1804,13 @@ If that succeeds, the entire partition becomes one `FUSED_ELEMENTWISE` unit.
 
 If that fails:
 
-- `GenericGpuRegionOptimizationPolicy` emits one `SINGLE_OP` unit per node.
+- `GenericGpuRegionOptimizationPolicy` emits one `UNIT_KERNEL` unit per node.
 - `CpuRegionOptimizationPolicy` tries a mixed strategy:
   - scan nodes in partition order
   - start a subchain at a fusable node
   - extend while the next node is fusable and consumes the previous chain output
   - fuse the subchain only when it has more than one node and exactly one published output
-  - otherwise emit a `SINGLE_OP` unit
+  - otherwise emit a `UNIT_KERNEL` unit
 
 Concrete mixed example:
 
@@ -1495,8 +1827,8 @@ Possible CPU units:
 
 ```text
 unit A: FUSED_ELEMENTWISE [2, 3]
-unit B: SINGLE_OP         [4]
-unit C: SINGLE_OP         [5]
+unit B: UNIT_KERNEL       [4]
+unit C: UNIT_KERNEL       [5]
 ```
 
 The reduction is a fusion barrier because `SUM` is not marked fusable in `Operation.OpType`.
@@ -1558,7 +1890,7 @@ If `relu` is not required materialized and is handed to another region, it can b
 - A partition with one node cannot become a whole-partition fused unit.
 - A partition with multiple output values cannot become a whole-partition fused unit.
 - Any non-fusable operation in the partition blocks whole-partition fusion.
-- CPU mixed partitions can still contain fused subchains, but they fall back to `SINGLE_OP` units where the chain shape is not suitable.
+- CPU mixed partitions can still contain fused subchains, but they fall back to `UNIT_KERNEL` units where the chain shape is not suitable.
 - Region values that are required materialized become `MATERIALIZED`.
 - Partition outputs not required materialized can become `CONTINUATION`.
 - Intermediate values with no unit boundary need can become `VIRTUAL`.

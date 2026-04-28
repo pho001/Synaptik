@@ -37,6 +37,16 @@ Core commands:
 ./gradlew run
 ```
 
+Optional native Metal commands:
+
+```bash
+./gradlew buildMetalMpsShim
+./gradlew nativeBuild
+./gradlew metalTest
+```
+
+`buildMetalMpsShim` is the low-level macOS shim builder. `nativeBuild` is the explicit optional-native lifecycle task. `metalTest` builds the Metal shim and runs the Metal/MPS test slice with `synaptik.metal.mps.lib` set to `build/native/apple/libsynaptik_apple_mps.dylib`. These tasks are deliberately separate from `classes`, `build`, and `check`.
+
 The `test` task defaults to `maxHeapSize = 2g`. Override it with:
 
 ```bash
@@ -513,7 +523,7 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 | Property | Default | Effect | Source |
 |---|---|---|---|
 | `synaptik.testMaxHeap` | `2g` | Overrides Gradle test max heap when non-blank. | `build.gradle` |
-| `os.name` | JVM value | Used by `buildMetalMpsShim` to run only on macOS. | `build.gradle` |
+| `os.name` | JVM value | Used by `buildMetalMpsShim`, `nativeBuild`, and `metalTest` to run only on macOS. | `build.gradle` |
 
 ### Runtime System Properties
 

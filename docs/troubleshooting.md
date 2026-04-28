@@ -171,19 +171,33 @@ Build the shim on macOS:
 ./gradlew buildMetalMpsShim
 ```
 
+Build all optional native components for the current platform:
+
+```bash
+./gradlew nativeBuild
+```
+
 The build script writes:
 
 ```text
 build/native/apple/libsynaptik_apple_mps.dylib
 ```
 
-Run bridge tests with the explicit library:
+Run the Metal test slice with the explicit library configured by Gradle:
+
+```bash
+./gradlew metalTest
+```
+
+Run one bridge test manually with the explicit library:
 
 ```bash
 ./gradlew test --no-daemon --tests backend.metal.bridge.MetalMpsFfmBridgeTest -Dsynaptik.metal.mps.lib=build/native/apple/libsynaptik_apple_mps.dylib
 ```
 
 If the task says it is only supported on macOS, that is expected: `buildMetalMpsShim` checks `os.name` for `mac`.
+
+Current dtype boundary: the Metal MPS FFM bridge uses `_f32` native compile/execute symbols. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, `FLOAT32` data inputs, and `BOOL` only for predicate inputs such as the `where` condition. Direct SDPA remains CPU/fallback until the native MPSGraph scale contract is aligned with the framework's CPU semantics. Masked decomposed attention should stay as generic `WHERE`/`SOFTMAX`/`MATMUL` DAG operations rather than native `SDPA(maskTensor=bool)`, because the verified native MPSGraph SDPA mask operand expects a floating tensor. `FLOAT64`, `BFLOAT16`, and `INT32` graphs should remain on CPU unless a later native ABI/storage path is implemented.
 
 ## CUDA Shim Missing
 

@@ -125,6 +125,20 @@ Build the optional macOS Metal MPS shim:
 ./gradlew buildMetalMpsShim
 ```
 
+Run the explicit optional native build lifecycle:
+
+```bash
+./gradlew nativeBuild
+```
+
+Run the Metal/MPS test slice with the freshly built shim:
+
+```bash
+./gradlew metalTest
+```
+
+`metalTest` is intentionally separate from `test`, `check`, and `build`. It is for macOS machines with the Metal toolchain available; Java-only verification remains portable.
+
 ## Full Suite Duration And Heap Behavior
 
 A recent local verification in this workspace ran:
@@ -228,6 +242,14 @@ Build and run Metal bridge tests on macOS:
 ./gradlew buildMetalMpsShim
 ./gradlew test --no-daemon --tests backend.metal.bridge.MetalMpsFfmBridgeTest -Dsynaptik.metal.mps.lib=build/native/apple/libsynaptik_apple_mps.dylib
 ```
+
+Preferred Metal slice for day-to-day native verification:
+
+```bash
+./gradlew metalTest
+```
+
+The task filters to Metal-specific tests, including `backend.metal.*` and `PreparedExecutionBuildTest.gpuMetal*`, and injects the `synaptik.metal.mps.lib` system property. If you need one isolated class or method, keep using `./gradlew test --tests ... -Dsynaptik.metal.mps.lib=...`.
 
 Needs verification: CUDA shim build instructions are not present in the repository; only the Java bridge and tests were found.
 
