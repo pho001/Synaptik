@@ -1,342 +1,280 @@
 package synaptik.app;
 
 import backend.runtime.ExecutionMode;
+import config.optimizer.OptimizerConfig;
 import config.profile.ExecutionProfile;
-import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;
-import config.profile.PlatformRuntimeProfileIO;
-import config.profile.WorkloadProfile;
+import config.runtime.RuntimeConfig;
 import tensor.DataType;
+import tuning.autotune.TuningDefaults;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.BenchmarkSession;
+import tuning.benchmark.report.BenchmarkReport;
+import tuning.benchmark.report.TextBenchmarkReportRenderer;
+import tuning.calibration.PlatformCalibrationResult;
+import tuning.calibration.family.CalibrationFamilyId;
 import tuning.calibration.run.CalibrationCommand;
 import tuning.calibration.run.CalibrationRunner;
 import tuning.calibration.run.CalibrationScope;
-import tuning.autotune.GraphAutotuneMode;
-import tuning.autotune.GraphAutotuneRequest;
-import tuning.candidate.graph.GraphAutotuneCandidateSpace;
-import tuning.benchmark.report.TextBenchmarkReportRenderer;
-import tuning.autotune.report.TextTuningResultRenderer;
-import tuning.search.SearchPolicy;
-import tuning.autotune.AutotuneSession;
-import tuning.benchmark.BenchmarkEntry;
-import tuning.benchmark.BenchmarkSession;
-import tuning.autotune.TuningDefaults;
+import tuning.measure.MeasurementPolicy;
 import tuning.preset.TuningPreset;
-import tuning.calibration.store.CalibrationArtifactLayout;
-import tuning.store.JsonFileBestProfileStore;
-import tuning.store.JsonFileTuningHistoryStore;
-import tuning.store.HardwareFingerprint;
-import tuning.store.PersistencePolicy;
-import tuning.calibration.store.PlatformCalibrationPaths;
-import tuning.validate.DefaultValidationEngine;
 import tuning.workload.StandardWorkloads;
+import tuning.workload.WorkloadSpec;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Programmatic tuning entry point.
+ *
+ * <p>This class is intentionally not a CLI parser. It shows the regular Java API shape for running
+ * calibration and then benchmarking calibrated runtime settings. The command-line tool remains
+ * {@link TuningCli}; this entry point is useful when the application should be configured from Java
+ * code instead of command tokens.</p>
+ */
 public final class Main {
+    private static final Path PROFILE_ROOT = Path.of("profiles");
+    private static final DataType DTYPE = DataType.FLOAT64;
+    private static final ExecutionMode MODE = ExecutionMode.FORWARD_BACKWARD;
+    private static final TuningPreset PRESET = TuningPreset.QUICK;
+
     private Main() {
     }
 
+    /**
+     * Runs a small programmatic calibration and benchmark flow.
+     *
+     * @param args ignored; this class is not a command-line parser
+     */
     public static void main(String[] args) {
-        if (args.length == 0) {
-            runFull(DTypeTarget.F64);
-            return;
-        }
+        List<PlatformCalibrationResult> calibrationResults = calibration()
+                .dtypes().single(DTYPE)
+                .families().all()
+                .preset(PRESET)
+                .mode().training()
+                .measurement().iterations(1, 3, 1)
+                .progress().lines()
+                .color().auto()
+                .outputRoot(PROFILE_ROOT)
+                .run();
 
-        Phase phase = Phase.parse(args[0]);
-        if (phase == null) {
-            printUsage();
-            return;
-        }
-
-        switch (phase) {
-            case FULL -> {
-                requireExactArgCount(args, 2);
-                DTypeTarget dtype = requireDType(args[1]);
-                runFull(dtype);
-            }
-            case CALIBRATE -> runCalibration(CalibrationCommand.parse(args));
-            case AUTOTUNE -> {
-                requireExactArgCount(args, 2);
-                DTypeTarget dtype = requireDType(args[1]);
-                runAutotune(dtype);
-            }
-            case BENCHMARK_WINNER -> {
-                requireExactArgCount(args, 2);
-                DTypeTarget dtype = requireDType(args[1]);
-                runWinnerBenchmark(dtype);
-            }
-            case BENCHMARK_GRAPH_SPACE -> {
-                requireExactArgCount(args, 2);
-                DTypeTarget dtype = requireDType(args[1]);
-                runGraphSpaceBenchmark(dtype);
-            }
-        }
+        PlatformRuntimeProfile calibratedRuntime = calibrationResults.getLast().finalRuntimeProfile();
+        BenchmarkReport benchmark = benchmarkCalibratedRuntime(DTYPE, calibratedRuntime);
+        System.out.println(TextBenchmarkReportRenderer.render(benchmark));
     }
 
-    private static void runFull(DTypeTarget dtype) {
-        System.out.println(header(dtype, "full flow"));
-        System.out.println("note=convenience flow for local iteration; for the cleanest performance numbers prefer running phases separately");
-        runCalibration(new CalibrationCommand(
-                List.of(dtype.dataType),
-                null,
-                CalibrationScope.ALL_FAMILIES,
-                TuningPreset.BALANCED,
-                ExecutionMode.FORWARD_BACKWARD,
-                null,
-                "auto",
-                "live",
-                Path.of("profiles"),
-                false
-        ));
-        runAutotune(dtype);
-        runWinnerBenchmark(dtype);
+    private static CalibrationDsl calibration() {
+        return new CalibrationDsl();
     }
 
-    private static void runCalibration(CalibrationCommand command) {
-        CalibrationRunner.create().run(command);
-    }
-
-    private static void runAutotune(DTypeTarget dtype) {
-        System.out.println(header(dtype, "ABC autotune"));
-        PlatformRuntimeProfile runtimeProfile = loadCalibrationProfile(dtype);
-        var workload = abcWorkload(dtype);
-        PersistencePolicy persistence = tuningPersistence(dtype);
-
-        var graphRequest = new GraphAutotuneRequest(
-                workload,
-                "abc-" + dtype.id + "-graph-autotune",
-                dtype.dataType,
-                ExecutionMode.FORWARD_BACKWARD,
-                GraphExecutionPolicy.trainingDefaults(),
-                runtimeProfile,
-                GraphAutotuneMode.STANDARD,
-                TuningPreset.BALANCED.autotuneMeasurement(),
-                TuningPreset.BALANCED.autotuneValidation(),
-                new SearchPolicy(1, 1, 1, false),
-                persistence,
-                null
+    private static BenchmarkReport benchmarkCalibratedRuntime(DataType dtype, PlatformRuntimeProfile calibratedRuntime) {
+        WorkloadSpec workload = StandardWorkloads.abcSequenceMatmulBlasBenchmark(
+                "main_abc_sequence_matmul_" + CalibrationCommand.dtypeId(dtype)
         );
-        var result = AutotuneSession.create(
-                graphRequest.toAutotuneRequest(),
-                new tuning.search.SingleCandidateSearchStrategy(),
-                new tuning.measure.DefaultMeasurementEngine(),
-                new DefaultValidationEngine(),
-                new JsonFileBestProfileStore(),
-                new JsonFileTuningHistoryStore()
-        ).run();
+        ExecutionProfile baseline = new ExecutionProfile(
+                "main-baseline-no-opt-" + CalibrationCommand.dtypeId(dtype),
+                "baseline-no-opt",
+                dtype,
+                MODE,
+                OptimizerConfig.noOptimization(),
+                RuntimeConfig.noOptNoVecNoPar()
+        );
+        ExecutionProfile calibrated = new ExecutionProfile(
+                "main-calibrated-runtime-" + CalibrationCommand.dtypeId(dtype),
+                "calibrated-runtime",
+                dtype,
+                MODE,
+                OptimizerConfig.trainingDefaults(),
+                calibratedRuntime.toRuntimeConfig()
+        );
 
-        System.out.println(TextTuningResultRenderer.render(result));
-        System.out.println("autotuneBestProfilePath=" + persistence.bestProfilePath());
-        System.out.println("autotuneHistoryPath=" + persistence.historyPath());
-    }
-
-    private static void runWinnerBenchmark(DTypeTarget dtype) {
-        System.out.println(header(dtype, "ABC benchmark: baseline vs winner"));
-        ExecutionProfile baseline = baselineProfile(dtype);
-        ExecutionProfile winner = loadWinnerProfile(dtype);
-
-        var request = TuningDefaults.benchmark(
-                TuningPreset.BALANCED,
-                abcWorkload(dtype),
+        return BenchmarkSession.create(TuningDefaults.quickBenchmark(
+                workload,
                 List.of(
                         BenchmarkEntry.baseline("baseline-no-opt", baseline),
-                        BenchmarkEntry.candidate("best-profile", winner)
+                        BenchmarkEntry.candidate("calibrated-runtime", calibrated)
                 )
-        );
-        var report = BenchmarkSession.create(request).run();
-        System.out.println(TextBenchmarkReportRenderer.render(report));
+        )).run();
     }
 
-    private static void runGraphSpaceBenchmark(DTypeTarget dtype) {
-        System.out.println(header(dtype, "ABC benchmark: graph space exploration"));
-        ExecutionProfile baseline = baselineProfile(dtype);
-        PlatformRuntimeProfile runtimeProfile = loadCalibrationProfile(dtype);
-        var workload = abcWorkload(dtype);
-        var candidateSpace = new GraphAutotuneCandidateSpace(
-                "abc-" + dtype.id + "-graph-space",
-                dtype.dataType,
-                ExecutionMode.FORWARD_BACKWARD,
-                runtimeProfile,
-                GraphExecutionPolicy.trainingDefaults(),
-                GraphAutotuneMode.STANDARD
-        );
+    private static final class CalibrationDsl {
+        private List<DataType> dataTypes = List.of(DTYPE);
+        private CalibrationFamilyId family;
+        private CalibrationScope scope = CalibrationScope.ALL_FAMILIES;
+        private TuningPreset preset = PRESET;
+        private ExecutionMode mode = MODE;
+        private MeasurementPolicy measurement;
+        private String colorMode = "auto";
+        private String progressMode = "live";
+        private Path outputRoot = PROFILE_ROOT;
+        private boolean includeAccelerators;
 
-        List<BenchmarkEntry> entries = new ArrayList<>();
-        entries.add(BenchmarkEntry.baseline("baseline-no-opt", baseline));
-        candidateSpace.generate(workload).forEach(candidate ->
-                entries.add(BenchmarkEntry.candidate(candidate.name(), candidate.profile()))
-        );
-
-        var request = TuningDefaults.benchmark(
-                TuningPreset.BALANCED,
-                workload,
-                entries
-        );
-        var report = BenchmarkSession.create(request).run();
-        System.out.println(TextBenchmarkReportRenderer.render(report));
-    }
-
-    private static ExecutionProfile trainingSeedProfile(DTypeTarget dtype) {
-        return new ExecutionProfile(
-                "platform-seed-" + dtype.id + "-training",
-                "platform-seed-" + dtype.id + "-training",
-                dtype.dataType,
-                ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.trainingDefaults(),
-                config.runtime.RuntimeConfig.trainingDefaults(),
-                WorkloadProfile.none()
-        );
-    }
-
-    private static PlatformRuntimeProfile loadCalibrationProfile(DTypeTarget dtype) {
-        ExecutionProfile seed = trainingSeedProfile(dtype);
-        HardwareFingerprint hardware = HardwareFingerprint.capture();
-        String platformId = PlatformCalibrationPaths.platformId(hardware);
-        CalibrationArtifactLayout layout = CalibrationArtifactLayout.of(Path.of("profiles"), platformId);
-        Path path = layout.latestProfilePath(dtype.id, ExecutionMode.FORWARD_BACKWARD.name());
-        if (!Files.exists(path)) {
-            throw new IllegalStateException("Missing calibration profile: " + path
-                    + ". Run `calibrate --dtype " + dtype.id + " --families all` first.");
+        private DTypeStep dtypes() {
+            return new DTypeStep(this);
         }
-        PlatformRuntimeProfile fallback = PlatformRuntimeProfile.fromExecutionProfile(
-                platformId,
-                hardware.key(),
-                "fallback",
-                seed
-        );
-        return PlatformRuntimeProfileIO.loadOrDefault(path, fallback);
-    }
 
-    private static ExecutionProfile baselineProfile(DTypeTarget dtype) {
-        return new ExecutionProfile(
-                "abc-baseline-no-opt-" + dtype.id,
-                "abc-baseline-no-opt-" + dtype.id,
-                dtype.dataType,
-                ExecutionMode.FORWARD_BACKWARD,
-                config.optimizer.OptimizerConfig.noOptimization(),
-                config.runtime.RuntimeConfig.noOptNoVecNoPar(),
-                WorkloadProfile.none()
-        );
-    }
+        private FamilyStep families() {
+            return new FamilyStep(this);
+        }
 
-    private static ExecutionProfile loadWinnerProfile(DTypeTarget dtype) {
-        Path path = tuningPersistence(dtype).bestProfilePath();
-        return new JsonFileBestProfileStore()
-                .load(path)
-                .orElseThrow(() -> new IllegalStateException("Missing best profile: " + path + ". Run `autotune " + dtype.id + "` first."))
-                .profile();
-    }
+        private CalibrationDsl preset(TuningPreset value) {
+            preset = value == null ? TuningPreset.BALANCED : value;
+            return this;
+        }
 
-    private static PersistencePolicy tuningPersistence(DTypeTarget dtype) {
-        String platformId = PlatformCalibrationPaths.platformId(HardwareFingerprint.capture());
-        Path root = Path.of("profiles", "platform", platformId, "tuning", "abc");
-        return new PersistencePolicy(
-                true,
-                true,
-                root.resolve(dtype.id + "-best-profile.json"),
-                root.resolve(dtype.id + "-history.jsonl")
-        );
-    }
+        private CalibrationDsl quick() {
+            return preset(TuningPreset.QUICK);
+        }
 
-    private static tuning.workload.WorkloadSpec abcWorkload(DTypeTarget dtype) {
-        return StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_" + dtype.id);
-    }
+        private CalibrationDsl balanced() {
+            return preset(TuningPreset.BALANCED);
+        }
 
-    private static String header(DTypeTarget dtype, String title) {
-        return "\n==============================\n"
-                + "Synaptik " + dtype.id.toUpperCase() + " " + title + "\n"
-                + "==============================";
-    }
+        private CalibrationDsl thorough() {
+            return preset(TuningPreset.THOROUGH);
+        }
 
-    private static void printUsage() {
-        System.out.println("""
-                Usage:
-                  ./gradlew run --args="full <f64|f32|bf16>"
-                  ./gradlew run --args="calibrate --dtype <f64|f32|bf16> --family <family-id>"
-                  ./gradlew run --args="calibrate --dtype <f64|f32|bf16> --families all"
-                  ./gradlew run --args="calibrate --dtypes all --families all"
-                  ./gradlew run --args="autotune <f64|f32|bf16>"
-                  ./gradlew run --args="benchmark-winner <f64|f32|bf16>"
-                  ./gradlew run --args="benchmark-graph-space <f64|f32|bf16>"
+        private ModeStep mode() {
+            return new ModeStep(this);
+        }
 
-                Notes:
-                  - no args defaults to `full f64`
-                  - run phases separately to avoid cross-phase JVM warmup bias
-                  - `calibrate` accepts explicit measurement override, e.g. `--measurement 30:100:2`
-                  - supported calibration families: %s
-                  - `autotune` expects an existing calibration profile
-                  - `benchmark-winner` expects an existing best-profile artifact
-                """.formatted(tuning.calibration.family.CalibrationFamilyRegistry.supportedCliNames()));
-    }
+        private MeasurementStep measurement() {
+            return new MeasurementStep(this);
+        }
 
-    private static void requireExactArgCount(String[] args, int expected) {
-        if (args.length != expected) {
-            printUsage();
-            throw new IllegalArgumentException("Unexpected argument count.");
+        private ProgressStep progress() {
+            return new ProgressStep(this);
+        }
+
+        private ColorStep color() {
+            return new ColorStep(this);
+        }
+
+        private CalibrationDsl outputRoot(Path value) {
+            outputRoot = value == null ? PROFILE_ROOT : value;
+            return this;
+        }
+
+        private CalibrationDsl includeAccelerators() {
+            includeAccelerators = true;
+            return this;
+        }
+
+        private CalibrationCommand toCommand() {
+            return new CalibrationCommand(
+                    dataTypes,
+                    family,
+                    scope,
+                    preset,
+                    mode,
+                    measurement,
+                    colorMode,
+                    progressMode,
+                    outputRoot,
+                    includeAccelerators
+            );
+        }
+
+        private List<PlatformCalibrationResult> run() {
+            return CalibrationRunner.create().run(toCommand());
         }
     }
 
-    private enum Phase {
-        FULL("full"),
-        CALIBRATE("calibrate"),
-        AUTOTUNE("autotune"),
-        BENCHMARK_WINNER("benchmark-winner"),
-        BENCHMARK_GRAPH_SPACE("benchmark-graph-space");
-
-        private final String cliName;
-
-        Phase(String cliName) {
-            this.cliName = cliName;
+    private record DTypeStep(CalibrationDsl parent) {
+        private CalibrationDsl single(DataType dataType) {
+            parent.dataTypes = List.of(dataType);
+            return parent;
         }
 
-        private static Phase parse(String value) {
-            if (value == null) {
-                return null;
-            }
-            for (Phase phase : values()) {
-                if (phase.cliName.equalsIgnoreCase(value)) {
-                    return phase;
-                }
-            }
-            return null;
+        private CalibrationDsl all() {
+            parent.dataTypes = List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16);
+            return parent;
         }
     }
 
-    private enum DTypeTarget {
-        F64("f64", DataType.FLOAT64),
-        F32("f32", DataType.FLOAT32),
-        BF16("bf16", DataType.BFLOAT16);
-
-        private final String id;
-        private final DataType dataType;
-
-        DTypeTarget(String id, DataType dataType) {
-            this.id = id;
-            this.dataType = dataType;
+    private record FamilyStep(CalibrationDsl parent) {
+        private CalibrationDsl single(CalibrationFamilyId family) {
+            parent.family = family;
+            parent.scope = CalibrationScope.SINGLE_FAMILY;
+            return parent;
         }
 
-        private static DTypeTarget parse(String value) {
-            if (value == null) {
-                return null;
-            }
-            for (DTypeTarget target : values()) {
-                if (target.id.equalsIgnoreCase(value)) {
-                    return target;
-                }
-            }
-            return null;
+        private CalibrationDsl all() {
+            parent.family = null;
+            parent.scope = CalibrationScope.ALL_FAMILIES;
+            return parent;
         }
     }
 
-    private static DTypeTarget requireDType(String value) {
-        DTypeTarget dtype = DTypeTarget.parse(value);
-        if (dtype == null) {
-            printUsage();
-            throw new IllegalArgumentException("Unknown dtype: " + value);
+    private record ModeStep(CalibrationDsl parent) {
+        private CalibrationDsl forward() {
+            parent.mode = ExecutionMode.FORWARD;
+            return parent;
         }
-        return dtype;
+
+        private CalibrationDsl training() {
+            parent.mode = ExecutionMode.FORWARD_BACKWARD;
+            return parent;
+        }
+
+        private CalibrationDsl forwardBackward() {
+            return training();
+        }
+    }
+
+    private record MeasurementStep(CalibrationDsl parent) {
+        private CalibrationDsl iterations(int warmupIters, int measureIters, int repeats) {
+            MeasurementPolicy base = parent.preset.benchmarkMeasurement();
+            parent.measurement = new MeasurementPolicy(
+                    warmupIters,
+                    measureIters,
+                    repeats,
+                    base.measureCompile(),
+                    base.measurePrepare(),
+                    base.measureColdRun(),
+                    base.measureSteadyState(),
+                    base.captureStepTrace()
+            );
+            return parent;
+        }
+
+        private CalibrationDsl policy(MeasurementPolicy policy) {
+            parent.measurement = policy;
+            return parent;
+        }
+    }
+
+    private record ProgressStep(CalibrationDsl parent) {
+        private CalibrationDsl live() {
+            parent.progressMode = "live";
+            return parent;
+        }
+
+        private CalibrationDsl lines() {
+            parent.progressMode = "lines";
+            return parent;
+        }
+
+        private CalibrationDsl quiet() {
+            parent.progressMode = "quiet";
+            return parent;
+        }
+    }
+
+    private record ColorStep(CalibrationDsl parent) {
+        private CalibrationDsl auto() {
+            parent.colorMode = "auto";
+            return parent;
+        }
+
+        private CalibrationDsl always() {
+            parent.colorMode = "always";
+            return parent;
+        }
+
+        private CalibrationDsl never() {
+            parent.colorMode = "never";
+            return parent;
+        }
     }
 }

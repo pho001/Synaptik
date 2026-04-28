@@ -591,8 +591,8 @@ public class SourceTreeHygieneTest {
 
     @Test
     void productionAutotuneDoesNotReferenceStageOrderCandidateSpace() throws IOException {
-        Path main = Path.of("src/main/java/synaptik/app/Main.java");
-        String source = Files.readString(main);
+        Path tuningCli = Path.of("src/main/java/synaptik/app/TuningCli.java");
+        String source = Files.readString(tuningCli);
         assertTrue(!Files.exists(Path.of("src/main/java/tuning/candidate/ProfileMutators.java")), "Old mixed ProfileMutators surface must not remain.");
         assertTrue(!source.contains("ProfileMutators"), "Production CLI autotune must not use explicit profile mutators.");
         assertTrue(!source.contains("stageCandidateSpace"), "Production CLI autotune must not use stage candidate space.");

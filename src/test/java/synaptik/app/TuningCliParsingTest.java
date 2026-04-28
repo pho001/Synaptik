@@ -3,16 +3,69 @@ package synaptik.app;
 import backend.runtime.ExecutionMode;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
+import tuning.autotune.GraphAutotuneMode;
 import tuning.calibration.family.CalibrationFamilyId;
 import tuning.calibration.run.CalibrationCommand;
 import tuning.calibration.run.CalibrationScope;
 import tuning.calibration.run.CalibrationSuite;
 import tuning.preset.TuningPreset;
 
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class MainCliParsingTest {
+class TuningCliParsingTest {
+
+    @Test
+    void mainParsesDottedCalibrationCommandAsCanonicalCalibration() {
+        TuningCli.ParsedCommand parsed = TuningCli.parseCommand(new String[]{
+                "calibration.run", "--dtype", "f64", "--family", "matmul"
+        });
+
+        assertEquals(TuningCli.CommandKind.CALIBRATION, parsed.kind());
+        assertEquals(CalibrationScope.SINGLE_FAMILY, parsed.calibration().scope());
+        assertEquals(DataType.FLOAT64, parsed.calibration().dataTypes().getFirst());
+        assertEquals(CalibrationFamilyId.MATMUL, parsed.calibration().family());
+    }
+
+    @Test
+    void mainParsesDottedAutotuneCommandWithFlags() {
+        TuningCli.ParsedCommand parsed = TuningCli.parseCommand(new String[]{
+                "autotune.run",
+                "--dtype", "f32",
+                "--preset", "quick",
+                "--graph-mode", "research",
+                "--profile-root", "build/test-profiles",
+                "--measurement", "1:2:3"
+        });
+
+        assertEquals(TuningCli.CommandKind.AUTOTUNE, parsed.kind());
+        assertEquals(TuningPreset.QUICK, parsed.tuning().preset());
+        assertEquals(GraphAutotuneMode.RESEARCH, parsed.tuning().graphMode());
+        assertEquals(Path.of("build/test-profiles"), parsed.tuning().profileRoot());
+        assertEquals(1, parsed.tuning().measurement().warmupIters());
+        assertEquals(2, parsed.tuning().measurement().measureIters());
+        assertEquals(3, parsed.tuning().measurement().repeats());
+    }
+
+    @Test
+    void mainParsesGenericBenchmarkRunScenario() {
+        TuningCli.ParsedCommand parsed = TuningCli.parseCommand(new String[]{
+                "benchmark.run", "--scenario", "graph-space", "--dtype", "bf16"
+        });
+
+        assertEquals(TuningCli.CommandKind.BENCHMARK_GRAPH_SPACE, parsed.kind());
+    }
+
+    @Test
+    void mainKeepsLegacyBenchmarkWinnerAlias() {
+        TuningCli.ParsedCommand parsed = TuningCli.parseCommand(new String[]{
+                "benchmark-winner", "f64"
+        });
+
+        assertEquals(TuningCli.CommandKind.BENCHMARK_WINNER, parsed.kind());
+    }
 
     @Test
     void calibrateParsesSingleFamilyCommand() {

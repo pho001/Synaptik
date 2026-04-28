@@ -50,7 +50,7 @@ tasks.withType(JavaExec).configureEach {
 }
 
 application {
-    mainClass = 'synaptik.app.Main'
+    mainClass = 'synaptik.app.TuningCli'
     applicationDefaultJvmArgs = runtimeJvmArgs
 }
 
