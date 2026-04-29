@@ -1132,19 +1132,27 @@ later Metal step because device storage is marked current and a device buffer bi
 `PreparedMetalExecutable` now has the Java-side selector for this path:
 
 ```text
-if bridge.supportsBufferBindings()
+if bridge/context/executable are available
+   and bridge.supportsBufferBindings()
    and every external input has an available MetalBufferBinding readable by Metal
-   and every output has an available MetalBufferBinding writable by Metal:
+   and every output has an available MetalBufferBinding writable by Metal
+   and every binding matches runtime dtype, logical shape, and element count:
      bridge.executeBuffers(...)
      metalExecutionPath = BUFFER_BINDING
 else:
-     bridge.execute(...)
-     metalExecutionPath = TENSOR_ARRAY_COPY
+     try tensor-array copy path
 ```
 
-The selector is intentionally conservative. Missing output binding, wrong access intent, unavailable handle, or a
-bridge that reports `supportsBufferBindings() == false` does not pretend zero-copy happened. The step remains on the
-tensor-array path and records `metalBufferBindingDecision` in the run trace.
+The selector is intentionally conservative, but it checks buffer bindings before it checks the legacy tensor-array
+storage contract. A shared-buffer execution should not be rejected just because the Java tensor view is non-contiguous,
+has no direct `float[]`, or would otherwise fail the copy path. Those conditions matter only when the executable falls
+back to `MetalMpsGraphBridge.execute(...)`, which still consumes Java tensor arrays.
+
+Missing output binding, wrong access intent, unavailable handle, mismatched dtype/shape/element count, or a bridge that
+reports `supportsBufferBindings() == false` does not pretend zero-copy happened. The step records
+`metalBufferBindingDecision` and then tries the tensor-array path. If the tensor-array path also cannot satisfy its
+contiguous/direct-array contract, the selected Metal region is replayed through CPU fallback with an explicit
+`metalFallbackReason`.
 
 Example trace when the current FFM bridge is used:
 

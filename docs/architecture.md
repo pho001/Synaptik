@@ -462,18 +462,24 @@ flowchart LR
     NativeAbi --> MPS
 ```
 
-The Java execution side now has a selector for this future path. `PreparedMetalExecutable.execute(...)` checks:
+The Java execution side now has a selector for this future path. `PreparedMetalExecutable.execute(...)` checks buffer
+bindings before it validates the old tensor-array copy contract. That order matters: a real shared-buffer path must not
+be blocked just because a runtime tensor has no direct Java `float[]` array or is represented by a non-contiguous Java
+view. Those are copy-path limitations, not native-buffer limitations.
 
-1. The normal Metal bridge readiness gates pass: bridge, context, executable, dtype, layout, and output compatibility.
+1. The normal Metal bridge readiness gates pass: bridge, context, executable, and training-SDPA safety gates.
 2. `MetalMpsGraphBridge.supportsBufferBindings()` returns `true`.
 3. Every external input node id has a registered available `MetalBufferBinding` with `READ` or `READ_WRITE` access.
 4. Every output node id has a registered available `MetalBufferBinding` with `WRITE` or `READ_WRITE` access.
+5. Each binding matches the runtime tensor's compiled node id, dtype, logical shape, and element count.
 
-If all four conditions hold, it calls `MetalMpsGraphBridge.executeBuffers(...)` and expects the returned
+If all five conditions hold, it calls `MetalMpsGraphBridge.executeBuffers(...)` and expects the returned
 `MetalMpsBridgeExecutionStats` to report `MetalMpsBridgeExecutionPath.BUFFER_BINDING`. If any binding condition is
-missing, the executable stays on the tensor-array copy path instead of failing the graph. That fallback is important
+missing, the executable tries the tensor-array copy path. Only that fallback path requires contiguous CPU-visible tensor
+arrays with no storage offset and dtypes supported by the current FFM bridge. If the tensor-array contract also fails,
+the selected Metal region is replayed through CPU fallback with explicit trace reasons. This separation is important
 during migration: existing CPU-array tensors and the current FFM bridge keep working while the native buffer ABI is
-implemented.
+implemented, but future buffer-owned tensors are not forced through Java-array validation first.
 
 Current limitation: the selector exists, but the production FFM bridge still reports
 `supportsBufferBindings() == false`. Therefore normal Metal execution still reports

@@ -72,6 +72,32 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void bufferBindingPathDoesNotRequireTensorArrayLayoutCompatibility() {
+        Fixture fixture = nonContiguousInputFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                binding(fixture.inputNode().id(), MetalBufferAccess.READ, 16, fixture.inputNode().shape(), 4),
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                "input shared buffer"
+        );
+        fixture.state().attachDeviceBufferBinding(
+                fixture.outputNode().id(),
+                binding(fixture.outputNode().id(), MetalBufferAccess.WRITE, 16, fixture.outputNode().shape(), 4),
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                "output shared buffer"
+        );
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+        assertEquals("using native buffer bindings", executable.lastBufferBindingDecision());
+    }
+
+    @Test
     void usesTensorArrayPathWhenBufferOutputBindingIsMissing() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
@@ -119,7 +145,7 @@ class PreparedMetalExecutableBufferBindingTest {
 
     private static PreparedMetalExecutable executable(Fixture fixture, MetalMpsGraphBridge bridge) {
         return new PreparedMetalExecutable(
-                plan(fixture.inputNode().id(), fixture.outputNode().id()),
+                plan(fixture.inputNode(), fixture.outputNode()),
                 backend.lowering.LoweringFamily.METAL_GRAPH_REGION,
                 fixture.outputNode(),
                 cpuPlan(),
@@ -131,14 +157,27 @@ class PreparedMetalExecutableBufferBindingTest {
     private static Fixture fixture() {
         Tensor input = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "input", DataType.FLOAT32);
         Tensor output = input.relu();
-        CompiledGraph compiled = CompiledGraph.compile(output, OptimizerConfig.inferenceDefaults());
+        return fixture(input, output);
+    }
+
+    private static Fixture nonContiguousInputFixture() {
+        Tensor base = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "base", DataType.FLOAT32);
+        Tensor input = base.permute(1, 0);
+        Tensor output = input.relu();
+        return fixture(input, output);
+    }
+
+    private static Fixture fixture(Tensor input, Tensor output) {
+        CompiledGraph compiled = CompiledGraph.compile(output, OptimizerConfig.noOptimization());
         List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
-        CompiledNode inputNode = nodes.stream()
-                .filter(CompiledNode::leaf)
+        CompiledNode outputNode = nodes.stream()
+                .filter(node -> node.semanticTensor() == output
+                        || (node.operation() != null && node.operation().opType() == Operation.OpType.RELU))
                 .findFirst()
                 .orElseThrow();
-        CompiledNode outputNode = nodes.stream()
-                .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.RELU)
+        int inputNodeId = outputNode.inputIds().getFirst();
+        CompiledNode inputNode = nodes.stream()
+                .filter(node -> node.id() == inputNodeId)
                 .findFirst()
                 .orElseThrow();
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
@@ -168,10 +207,14 @@ class PreparedMetalExecutableBufferBindingTest {
         return new CpuNodeExecutionPlan(layoutPlan, null, false, 1, 0, null, null, null, null, null, null);
     }
 
-    private static MetalPartitionPlan plan(int inputNodeId, int outputNodeId) {
-        AcceleratorDagInput input = new AcceleratorDagInput(inputNodeId, List.of(2), DataType.FLOAT32);
+    private static MetalPartitionPlan plan(CompiledNode inputNode, CompiledNode outputNode) {
+        AcceleratorDagInput input = new AcceleratorDagInput(
+                inputNode.id(),
+                shapeList(inputNode.shape()),
+                inputNode.dataType()
+        );
         AcceleratorDagNode node = new AcceleratorDagNode(
-                outputNodeId,
+                outputNode.id(),
                 AcceleratorDagNodeType.RELU,
                 AcceleratorDagValueRef.externalInput(0),
                 AcceleratorDagValueRef.none(),
@@ -184,30 +227,44 @@ class PreparedMetalExecutableBufferBindingTest {
                 1,
                 1
         );
-        AcceleratorDagSpec dag = new AcceleratorDagSpec(List.of(input), List.of(node), List.of(0), List.of(outputNodeId));
+        AcceleratorDagSpec dag = new AcceleratorDagSpec(List.of(input), List.of(node), List.of(0), List.of(outputNode.id()));
         AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
-                outputNodeId,
-                List.of(outputNodeId),
-                List.of(new AcceleratorSubgraphOp(outputNodeId, Operation.OpType.RELU)),
-                List.of(inputNodeId),
-                List.of(outputNodeId)
+                outputNode.id(),
+                List.of(outputNode.id()),
+                List.of(new AcceleratorSubgraphOp(outputNode.id(), Operation.OpType.RELU)),
+                List.of(inputNode.id()),
+                List.of(outputNode.id())
         );
         return new MetalPartitionPlan(
-                outputNodeId,
+                outputNode.id(),
                 subgraph,
-                new AcceleratorSubgraphLoweringResult(outputNodeId, null, dag, 2)
+                new AcceleratorSubgraphLoweringResult(outputNode.id(), null, dag, outputNode.flatDataSize())
         );
     }
 
     private static MetalBufferBinding binding(int nodeId, MetalBufferAccess access, long bytes) {
+        return binding(nodeId, access, bytes, new int[]{2}, 2);
+    }
+
+    private static MetalBufferBinding binding(
+            int nodeId,
+            MetalBufferAccess access,
+            long bytes,
+            int[] shape,
+            long elementCount
+    ) {
         return new MetalBufferBinding(
                 nodeId,
                 DataType.FLOAT32,
-                new int[]{2},
-                2,
+                shape,
+                elementCount,
                 new MetalBufferHandle(MemorySegment.ofAddress(nodeId + 1L), bytes, "shared", "test", false),
                 access
         );
+    }
+
+    private static List<Integer> shapeList(int[] shape) {
+        return java.util.Arrays.stream(shape).boxed().toList();
     }
 
     private record Fixture(

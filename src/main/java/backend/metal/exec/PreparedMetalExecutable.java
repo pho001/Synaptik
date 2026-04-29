@@ -20,6 +20,7 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -80,46 +81,80 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
 
     /**
      * Executes through the Metal bridge when available and compatible, otherwise runs CPU fallback steps.
+     *
+     * <p>Buffer-binding execution is evaluated before the legacy tensor-array copy contract. This keeps the
+     * future shared-buffer path independent from Java-array layout restrictions such as direct {@code float[]}
+     * storage, contiguity, and storage offset. Those checks are applied only when the executable has to use the
+     * copy-based bridge path.</p>
      */
     @Override
     public void execute(ExecutionContext context) {
+        String bridgeFallbackReason = metalBridgeUnavailableReason(context);
+        if (!bridgeFallbackReason.isBlank()) {
+            runCpuFallback(context, "not evaluated: " + bridgeFallbackReason, bridgeFallbackReason);
+            return;
+        }
+
+        BufferBindingResolution externalInputBindings = resolveMetalBufferBindings(
+                context,
+                bridgeExecutable.externalInputNodeIds(),
+                MetalBufferAccess.READ,
+                "external input"
+        );
+        BufferBindingResolution outputBindings = resolveMetalBufferBindings(
+                context,
+                bridgeExecutable.outputNodeIds(),
+                MetalBufferAccess.WRITE,
+                "output"
+        );
+
+        if (bridge.supportsBufferBindings()
+                && externalInputBindings.available()
+                && outputBindings.available()) {
+            lastBufferBindingDecision = "using native buffer bindings";
+            lastExecutionStats = bridge.executeBuffers(
+                    bridgeContext,
+                    bridgeExecutable,
+                    externalInputBindings.bindings(),
+                    outputBindings.bindings()
+            );
+            return;
+        }
+
+        lastBufferBindingDecision = bufferBindingDecision(externalInputBindings, outputBindings);
         List<Tensor> resolvedExternalInputs = bridgeExecutable.externalInputNodeIds().isEmpty()
                 ? List.of()
                 : resolveExternalInputs(context);
         List<Tensor> outputs = bridgeExecutable.outputNodeIds().isEmpty()
                 ? List.of()
                 : PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(bridgeExecutable.outputNodeIds(), context);
-        String fallbackReason = metalFallbackReason(context, resolvedExternalInputs, outputs);
-        if (fallbackReason.isBlank()) {
-            BufferBindingResolution externalInputBindings = resolveMetalBufferBindings(
-                    context,
-                    bridgeExecutable.externalInputNodeIds(),
-                    MetalBufferAccess.READ,
-                    "external input"
-            );
-            BufferBindingResolution outputBindings = resolveMetalBufferBindings(
-                    context,
-                    bridgeExecutable.outputNodeIds(),
-                    MetalBufferAccess.WRITE,
-                    "output"
-            );
-            if (bridge.supportsBufferBindings()
-                    && externalInputBindings.available()
-                    && outputBindings.available()) {
-                lastBufferBindingDecision = "using native buffer bindings";
-                lastExecutionStats = bridge.executeBuffers(
-                        bridgeContext,
-                        bridgeExecutable,
-                        externalInputBindings.bindings(),
-                        outputBindings.bindings()
-                );
-                return;
-            }
-            lastBufferBindingDecision = bufferBindingDecision(externalInputBindings, outputBindings);
+        String tensorArrayFallbackReason = tensorArrayFallbackReason(resolvedExternalInputs, outputs);
+        if (tensorArrayFallbackReason.isBlank()) {
             lastExecutionStats = bridge.execute(bridgeContext, bridgeExecutable, resolvedExternalInputs, outputs);
             return;
         }
-        lastBufferBindingDecision = "not evaluated: " + fallbackReason;
+
+        runCpuFallback(context, lastBufferBindingDecision, tensorArrayFallbackReason, resolvedExternalInputs, outputs);
+    }
+
+    private void runCpuFallback(ExecutionContext context, String bufferBindingDecision, String fallbackReason) {
+        List<Tensor> resolvedExternalInputs = bridgeExecutable.externalInputNodeIds().isEmpty()
+                ? List.of()
+                : resolveExternalInputs(context);
+        List<Tensor> outputs = bridgeExecutable.outputNodeIds().isEmpty()
+                ? List.of()
+                : PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(bridgeExecutable.outputNodeIds(), context);
+        runCpuFallback(context, bufferBindingDecision, fallbackReason, resolvedExternalInputs, outputs);
+    }
+
+    private void runCpuFallback(
+            ExecutionContext context,
+            String bufferBindingDecision,
+            String fallbackReason,
+            List<Tensor> resolvedExternalInputs,
+            List<Tensor> outputs
+    ) {
+        lastBufferBindingDecision = bufferBindingDecision;
         lastExecutionStats = MetalMpsBridgeExecutionStats.fallback(
                 fallbackReason,
                 resolvedExternalInputs.size(),
@@ -143,7 +178,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         return "tensor-array copy path";
     }
 
-    private String metalFallbackReason(ExecutionContext context, List<Tensor> resolvedExternalInputs, List<Tensor> outputs) {
+    private String metalBridgeUnavailableReason(ExecutionContext context) {
         if (!shouldUseMetalBridge(context)) {
             return "backward pass contains forward SDPA DAG unsupported by current Metal bridge";
         }
@@ -156,6 +191,10 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         if (!bridgeExecutable.available()) {
             return "bridge executable unavailable: " + bridgeExecutable.reason();
         }
+        return "";
+    }
+
+    private String tensorArrayFallbackReason(List<Tensor> resolvedExternalInputs, List<Tensor> outputs) {
         for (int i = 0; i < resolvedExternalInputs.size(); i++) {
             String reason = unsupportedExternalInputReason(resolvedExternalInputs.get(i));
             if (!reason.isBlank()) {
@@ -225,6 +264,22 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             if (!metalBinding.available()) {
                 return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
                         + " binding is unavailable: " + metalBinding.describe());
+            }
+            Tensor tensor = context.runtimeTensorForNodeId(nodeId);
+            if (metalBinding.dataType() != tensor.getDataType()) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                        + " binding dtype " + metalBinding.dataType()
+                        + " does not match tensor dtype " + tensor.getDataType());
+            }
+            if (!Arrays.equals(metalBinding.shape(), tensor.getShape())) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                        + " binding shape " + Arrays.toString(metalBinding.shape())
+                        + " does not match tensor shape " + Arrays.toString(tensor.getShape()));
+            }
+            if (metalBinding.elementCount() != tensor.getFlatDataSize()) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                        + " binding elementCount " + metalBinding.elementCount()
+                        + " does not match tensor elementCount " + tensor.getFlatDataSize());
             }
             if (!accessCompatible(metalBinding.access(), requiredAccess)) {
                 return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
