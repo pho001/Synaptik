@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Compute Flow
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Mechanisms](mechanisms.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Mechanisms](mechanisms.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Lifecycle Map](#lifecycle-map) | [Primary Artifacts](#primary-artifacts) | [Artifact Lifetimes And Storage](#artifact-lifetimes-and-storage) | [Graph Building](#graph-building) | [Tensor Compute API](#tensor-compute-api) | [Compile](#compile) | [Prepare](#prepare) | [Execution](#execution) | [Runtime State And Tracking](#runtime-state-and-tracking) | [Worked Example](#worked-example) | [Reuse Rules](#reuse-rules) | [Traces](#traces) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
@@ -728,6 +728,10 @@ Current lowerer roles:
 - `CudaRegionLowerer` lowers selected CUDA regions to `CUDA_GRAPH_REGION` or `CUDA_FUSED_ELEMENTWISE_GRAPH`.
 
 Prepared GPU anchors require both a selected partition plan and a lowered region. Metal and CUDA preparers also prepare CPU fallback steps for the partition.
+
+`BLAS` here means the CPU path may call an external GEMM implementation such as OpenBLAS through Java FFM. It is still
+prepared and executed as a CPU runtime path, not as an accelerator region. The detailed BLAS/GEMM and Java FFM model is
+in [Native Bridges & BLAS](native-bridges-and-blas.md).
 
 ### BackendPrepareDispatcher
 
@@ -1505,6 +1509,11 @@ When `executeTraced(...)` is used, `PreparedExecution` records one `ExecutionSte
 | `metadata.conv` | Conv execution kind, lowering, BLAS provider, dimensions, call counts. |
 | `metadata.fused` | Fused precision, cost family, scheduler signature, backend, node/input counts. |
 | `metadata.attributes` | Accelerator details such as Metal bridge/cache/subgraph info. |
+
+For BLAS-related traces, read `metadata.matMul` as the prepared matmul decision and `metadata.conv` as the prepared
+conv2d GEMM decision. A selected provider such as `OPENBLAS_FFM` is not by itself proof that a tiny or non-contiguous
+node used native BLAS; the prepared hints and per-node trace fields are the source of truth. See
+[Native Bridges & BLAS: Matmul Dispatch Flow](native-bridges-and-blas.md#matmul-dispatch-flow).
 
 Illustrative trace for a simple optimized `ADD -> RELU -> SUM` graph:
 

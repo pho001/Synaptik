@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Documentation Index
 
-Navigation: [README](../README.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md) | [Public API](public-api.md) | [Examples](examples.md)
+Navigation: [README](../README.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md) | [Public API](public-api.md) | [Examples](examples.md)
 
 Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
 
@@ -22,7 +22,8 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 2. [Framework Concepts](framework-concepts.md) - core vocabulary and the mental model behind compiled tensor execution.
 3. [Compute Flow](compute-flow.md) - the detailed journey from `Tensor` graph construction through compile, prepare, execution, memory binding, and traces.
 4. [Graph Optimizer](graph-optimizer.md) - detailed explanations of `AR`, `CSE`, `PART`, `FUSE`, and `MEM`.
-5. [Modules](modules.md) - package-by-package responsibilities, dependencies, invariants, and failure modes.
+5. [Native Bridges & BLAS](native-bridges-and-blas.md) - what BLAS/GEMM are, how Java FFM calls native libraries, and how OpenBLAS is selected.
+6. [Modules](modules.md) - package-by-package responsibilities, dependencies, invariants, and failure modes.
 
 ### Tensor API user path
 
@@ -54,8 +55,9 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 2. [Metal Backend](metal-backend.md) - detailed Java FFM, Objective-C shim, buffer ABI, storage residency, trace, and fallback mechanics.
 3. [Architecture: Metal MPS Buffer Execution And Copy Chain](architecture.md#metal-mps-buffer-execution-and-copy-chain) - how tensor-array and buffer-binding transport differ.
 4. [Compute Flow: Native buffer-binding Metal path](compute-flow.md#native-buffer-binding-metal-path) - how execution state keeps Metal outputs device-owned until materialization.
-5. [Graph Optimizer: Scored Candidate Planner Deep Dive](graph-optimizer.md#scored-candidate-planner-deep-dive) - how Metal partition scoring accounts for input bytes, output bytes, and avoided intermediate bytes.
-6. [Calibration & Graph Autotune: Built-in workload catalogs](calibration-autotune.md#built-in-workload-catalogs) - transformer shape presets for stressing larger attention and FFN workloads.
+5. [Native Bridges & BLAS: How This Differs From Metal FFM](native-bridges-and-blas.md#how-this-differs-from-metal-ffm) - the shared Java FFM idea and the different execution models for BLAS and Metal.
+6. [Graph Optimizer: Scored Candidate Planner Deep Dive](graph-optimizer.md#scored-candidate-planner-deep-dive) - how Metal partition scoring accounts for input bytes, output bytes, and avoided intermediate bytes.
+7. [Calibration & Graph Autotune: Built-in workload catalogs](calibration-autotune.md#built-in-workload-catalogs) - transformer shape presets for stressing larger attention and FFN workloads.
 
 ### Calibration and autotune path
 
@@ -72,6 +74,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [framework-concepts.md](framework-concepts.md) | First-principles mental models for tensors, semantic graphs, compiled graphs, prepared execution, backend policy, and tuning. |
 | [compute-flow.md](compute-flow.md) | Deep end-to-end walkthrough from graph building to `Tensor.compute(...)`, compile, prepare, execution, traces, and reuse rules. |
 | [graph-optimizer.md](graph-optimizer.md) | Deep explanation of optimizer configuration, state, trace, and every optimizer stage. |
+| [native-bridges-and-blas.md](native-bridges-and-blas.md) | Explanation of BLAS/GEMM, OpenBLAS dispatch, Java FFM bridges, native lookup, fallbacks, and performance tradeoffs. |
 | [metal-backend.md](metal-backend.md) | Detailed Metal backend guide covering planner legality, Java FFM, Objective-C MPS shim, native buffer ABI, residency, traces, and fallbacks. |
 | [adding-tensor-operation.md](adding-tensor-operation.md) | Contributor guide for adding a new tensor operation through descriptors, builders, public API, CPU kernels, autograd, optimizer/fusion integration, docs, and tests. |
 | [tensor-api.md](tensor-api.md) | Detailed public Tensor API guide with signatures, `compute(...)` options, edge cases, and value-level operation examples. |

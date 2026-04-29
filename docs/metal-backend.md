@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Metal Backend
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Modules](modules.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Modules](modules.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Purpose And Current Status](#purpose-and-current-status) | [Mental Model](#mental-model) | [Source Map](#source-map) | [End-To-End Flow](#end-to-end-flow) | [Partition Legality And Lowering](#partition-legality-and-lowering) | [Java FFM Bridge](#java-ffm-bridge) | [Objective-C Native Shim](#objective-c-native-shim) | [Native Buffer ABI](#native-buffer-abi) | [Buffer Residency And Materialization](#buffer-residency-and-materialization) | [Worked Example](#worked-example) | [Trace Reading](#trace-reading) | [Supported Operations And DTypes](#supported-operations-and-dtypes) | [Fallbacks And Failure Modes](#fallbacks-and-failure-modes) | [Performance Model](#performance-model) | [Tests](#tests) | [Implementation Checklist](#implementation-checklist)
 
@@ -214,6 +214,11 @@ Lowering itself is deliberately thin. `MetalRegionLowerer.lower(...)` does not e
 2. Discover required and optional symbols.
 3. Convert lowered accelerator DAG metadata into primitive FFM arrays.
 4. Execute either tensor-array calls or buffer-binding calls and return `MetalMpsBridgeExecutionStats`.
+
+For the general explanation of Java FFM concepts (`Arena`, `SymbolLookup`, `Linker`, `FunctionDescriptor`,
+`MemorySegment`, downcall `MethodHandle`s, and ABI discipline), see
+[Native Bridges & BLAS: What Java FFM Is](native-bridges-and-blas.md#what-java-ffm-is). This document focuses on the
+Metal-specific Objective-C shim, MPSGraph objects, and `MTLBuffer` lifetime rules.
 
 ### Library lookup
 

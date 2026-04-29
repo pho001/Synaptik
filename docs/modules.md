@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik Module Guide
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Tensor API](tensor-api.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Development](development.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Tensor API](tensor-api.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Development](development.md)
 
 Chapters: [Package Map](#package-map) | [`tensor`: Public Graph-Building Surface](#tensor-public-graph-building-surface) | [`operations`: Primitive Semantic Descriptors](#operations-primitive-semantic-descriptors) | [`graph`: Compile Artifacts, Preparation Facade, And Execution Types](#graph-compile-artifacts-preparation-facade-and-execution-types) | [`graph.optimizer`: Rewrite, Partition, Fusion, And Memory Planning](#graphoptimizer-rewrite-partition-fusion-and-memory-planning) | [`backend`: Backend Contracts, Selection, Lowering, And Runtime Context](#backend-backend-contracts-selection-lowering-and-runtime-context) | [`backend.cpu`: CPU Backend Implementation](#backendcpu-cpu-backend-implementation) | [`backend.cpu.kernels`: CPU Kernel Families](#backendcpukernels-cpu-kernel-families) | [`backend.cpu.fused`: Fused Planning And Generated Execution Support](#backendcpufused-fused-planning-and-generated-execution-support) | [Accelerator Scaffolding: `backend.accelerator`, `backend.metal`, `backend.cuda`, `backend.opencl`](#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [`config`: Optimizer, Runtime, And Profile Records](#config-optimizer-runtime-and-profile-records) | [`tuning`: Measurement, Search, Validation, Reporting, Persistence](#tuning-measurement-search-validation-reporting-persistence) | [`synaptik.app`: CLI Entry Point](#synaptikapp-cli-entry-point) | [`numerics`: Numerical Drift Harness](#numerics-numerical-drift-harness) | [`utils`: Support Classes](#utils-support-classes) | [Test Coverage Landmarks](#test-coverage-landmarks)
 
@@ -239,7 +239,10 @@ Important support packages:
   `TensorResidencyState`, `CpuMaterializationReason`, and `DeviceBufferBinding`. These records describe whether a
   run's newest value is CPU-current, device-current, or backed by a shared/device buffer without changing the semantic
   `Tensor` API.
-- `backend.blas` contains BLAS provider/runtime bridge abstractions.
+- `backend.blas` contains BLAS provider/runtime bridge abstractions. The main concrete bridge is
+  `OpenBlasFfmBridge`, which loads OpenBLAS through Java FFM and exposes only the row-major no-transpose GEMM subset
+  used by CPU matmul and GEMM-lowered conv2d. See [Native Bridges & BLAS](native-bridges-and-blas.md) for the detailed
+  BLAS/GEMM/FFM model.
 
 ## `backend.cpu`: CPU Backend Implementation
 
@@ -306,6 +309,12 @@ The CPU kernel tree is organized by operation family:
 | `plan` | assembly of CPU node execution plans |
 
 `backend.cpu.registry.CpuKernelResolver` is the central mapping from `Operation.OpType` to concrete kernel singleton. If a new operation descriptor is added, the CPU resolver is one of the places that must be updated for CPU execution.
+
+The `linalg.matmul` subtree has both Java and BLAS execution paths. BLAS eligibility is prepared by
+`MatMulPlanner`, while `MatMulBlasBackend` calls `OpenBlasFfmBridge` for `sgemm`, `dgemm`, or optional `sbgemm`.
+If the bridge is unavailable or a matmul BLAS call fails, matmul falls back to the Java CPU path. The same native
+bridge can also be used by `nn.Conv2dGemmBackend` after convolution is lowered to im2col + GEMM. The concepts and
+worked examples are in [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-in-synaptik).
 
 ## `backend.cpu.fused`: Fused Planning And Generated Execution Support
 

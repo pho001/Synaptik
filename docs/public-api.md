@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Public API
 
-Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Examples](examples.md) | [Configuration](configuration.md) | [Compute Flow](compute-flow.md) | [Metal Backend](metal-backend.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Examples](examples.md) | [Configuration](configuration.md) | [Compute Flow](compute-flow.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Stability Map](#stability-map) | [Tensor](#tensor) | [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy) | [CompiledGraph](#compiledgraph) | [PreparedExecution](#preparedexecution) | [Configuration APIs](#configuration-apis) | [Tuning Fluent API](#tuning-fluent-api) | [CLI Entry Point](#cli-entry-point) | [Probably Internal APIs](#probably-internal-apis) | [Verification Notes](#verification-notes)
 
@@ -580,6 +580,7 @@ Performance notes:
 - `trainingDefaults()` uses CPU kernel training defaults, disabled BLAS, disabled conv2d BLAS, ASM fused execution with fallback, and default accelerator config.
 - `inferenceDefaults()` uses CPU inference defaults and inference fused/accelerator defaults.
 - `noOptNoVecNoPar()` disables practical vectorization, parallelism, and BLAS by using very high thresholds.
+- `BlasConfig` can make OpenBLAS eligible through `BlasProvider.OPENBLAS_FFM`, but node-level BLAS dispatch still depends on dtype, shape, contiguity, and work gates. See [Native Bridges & BLAS](native-bridges-and-blas.md).
 
 ### ExecutionProfile And PlatformRuntimeProfile
 

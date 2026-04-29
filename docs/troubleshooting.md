@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Troubleshooting
 
-Navigation: [Index](index.md) | [Configuration](configuration.md) | [Testing](testing.md) | [Compute Flow](compute-flow.md) | [Metal Backend](metal-backend.md) | [Tensor API](tensor-api.md) | [Calibration & Autotune](calibration-autotune.md)
+Navigation: [Index](index.md) | [Configuration](configuration.md) | [Testing](testing.md) | [Compute Flow](compute-flow.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Tensor API](tensor-api.md) | [Calibration & Autotune](calibration-autotune.md)
 
 Chapters: [Java Heap Space](#java-heap-space) | [Incubator Vector API](#incubator-vector-api) | [Missing Native Access](#missing-native-access) | [OpenBLAS Missing Or Unavailable](#openblas-missing-or-unavailable) | [Metal MPS Shim Missing](#metal-mps-shim-missing) | [CUDA Shim Missing](#cuda-shim-missing) | [Validation Mismatch In Benchmark Or Autotune](#validation-mismatch-in-benchmark-or-autotune) | [Shape And Broadcast Errors](#shape-and-broadcast-errors) | [Optimizer Rewrite Bugs](#optimizer-rewrite-bugs) | [Gradients Missing Or Wrong](#gradients-missing-or-wrong) | [Unsupported DType In A Kernel](#unsupported-dtype-in-a-kernel) | [CPU Kernel Resolution Failure](#cpu-kernel-resolution-failure) | [Performance Regressions](#performance-regressions) | [Generated Artifacts In Source Tree](#generated-artifacts-in-source-tree) | [Source Hygiene Architecture Failures](#source-hygiene-architecture-failures) | [Stale Or Missing Profile Artifacts](#stale-or-missing-profile-artifacts)
 
@@ -147,6 +147,11 @@ OPENBLAS_LIB=/absolute/path/to/libopenblas.dylib ./gradlew test --no-daemon --te
 ```
 
 If OpenBLAS is not part of the change, run the Java fallback path with `BlasConfig.disabled()` in the test or choose tests that do not force `BlasProvider.OPENBLAS_FFM`.
+
+Important distinction: selecting `OPENBLAS_FFM` only makes BLAS eligible. A specific matmul still needs to pass dtype,
+work, contiguity, and shape gates, and matmul falls back to Java if the native bridge is unavailable or throws. A
+prepared conv2d GEMM plan that requires OpenBLAS is stricter and can fail when the bridge is unavailable. The detailed
+BLAS/GEMM/Java FFM explanation is in [Native Bridges & BLAS](native-bridges-and-blas.md).
 
 ## Metal MPS Shim Missing
 

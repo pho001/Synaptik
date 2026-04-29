@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Development
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Modules](modules.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Metal Backend](metal-backend.md) | [Testing](testing.md) | [Configuration](configuration.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Modules](modules.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Testing](testing.md) | [Configuration](configuration.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Local Setup](#local-setup) | [Repository Structure](#repository-structure) | [Coding Patterns](#coding-patterns) | [Adding Tensor Ops](#adding-tensor-ops) | [Adding Backend Kernels](#adding-backend-kernels) | [Adding Optimizer Rules](#adding-optimizer-rules) | [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families) | [Documentation Workflow](#documentation-workflow) | [Operational Risks](#operational-risks)
 
@@ -161,6 +161,10 @@ For native or accelerator-adjacent paths:
 ./gradlew nativeBuild
 ./gradlew metalTest
 ```
+
+The general native-bridge model, including BLAS/GEMM terminology and Java FFM symbol binding, is documented in
+[Native Bridges & BLAS](native-bridges-and-blas.md). Read it before changing `backend.blas`, `OpenBlasFfmBridge`,
+or native dispatch thresholds.
 
 `buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
 

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Configuration
 
-Navigation: [Index](index.md) | [Calibration & Autotune](calibration-autotune.md) | [Compute Flow](compute-flow.md) | [Metal Backend](metal-backend.md) | [Development](development.md) | [Testing](testing.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Calibration & Autotune](calibration-autotune.md) | [Compute Flow](compute-flow.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Development](development.md) | [Testing](testing.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Build Requirements](#build-requirements) | [OptimizerConfig](#optimizerconfig) | [RuntimeConfig](#runtimeconfig) | [Execution Profiles](#execution-profiles) | [Platform Runtime Profiles](#platform-runtime-profiles) | [Tuning And Calibration Persistence](#tuning-and-calibration-persistence) | [System Properties And Environment Variables](#system-properties-and-environment-variables) | [CLI Configuration Behavior](#cli-configuration-behavior) | [Verification Notes](#verification-notes)
 
@@ -274,6 +274,12 @@ Supported providers:
 - `OPENBLAS_FFM`
 
 `BlasConfig.disabled()` returns `NONE` with default thresholds.
+
+`OPENBLAS_FFM` means the CPU matmul/conv2d GEMM paths may call OpenBLAS through Java's Foreign Function and Memory API.
+It does not force every matrix multiplication through BLAS. The CPU matmul planner still checks dtype, estimated work,
+contiguity, and `FLOAT32`/`BFLOAT16` shape guards before setting BLAS metadata. For the full explanation of BLAS,
+GEMM, Java FFM, lookup order, fallback behavior, and why `threads` is currently normalized to `0`, see
+[Native Bridges & BLAS](native-bridges-and-blas.md).
 
 ### Conv2dConfig
 

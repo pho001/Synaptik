@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik Architecture
 
-Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md) | [Modules](modules.md)
+Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md) | [Modules](modules.md)
 
 Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core-artifact-boundaries) | [Graph Construction](#graph-construction) | [Compile Pipeline](#compile-pipeline) | [Optimizer And Partitioning](#optimizer-and-partitioning) | [Prepare Pipeline](#prepare-pipeline) | [Execution Pipeline](#execution-pipeline) | [CPU Backend](#cpu-backend) | [Accelerator Scaffolding](#accelerator-scaffolding) | [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning) | [Memory And Layout Model](#memory-and-layout-model) | [Tracing And Observability](#tracing-and-observability) | [Numerics Harness](#numerics-harness) | [Verification Anchors](#verification-anchors)
 
@@ -273,6 +273,12 @@ Important specialized subareas include:
 
 The Gradle build adds `jdk.incubator.vector` for compile, test, and run tasks in `build.gradle`, so CPU vectorized code can rely on the Vector API module being available when run through the Gradle wrapper.
 
+The BLAS path is an optional CPU acceleration path, not a separate backend. `BlasConfig` selects `NONE` or
+`OPENBLAS_FFM`; `MatMulPlanner` decides whether a particular matmul is large, contiguous, and shape-compatible enough
+to call OpenBLAS; `MatMulBlasBackend` invokes `OpenBlasFfmBridge`; and failed or unavailable matmul calls fall back to
+Java CPU kernels. GEMM-lowered convolution can also use the same OpenBLAS bridge when its prepared plan requires it.
+The full BLAS/GEMM and Java FFM explanation is in [Native Bridges & BLAS](native-bridges-and-blas.md).
+
 ## Accelerator Scaffolding
 
 Accelerator support is present but not equivalent to the CPU backend.
@@ -286,6 +292,7 @@ Accelerator support is present but not equivalent to the CPU backend.
 
 Needs verification: native Metal/CUDA runtime availability depends on machine-specific bridge loading and external native libraries, which cannot be proven from Java source alone. The source-level integration points are `backend.metal.bridge.*`, `backend.cuda.bridge.*`, and `backend.accelerator.select.AcceleratorRuntimeAvailability`.
 
+For the general Java FFM bridge model and the CPU OpenBLAS bridge, see [Native Bridges & BLAS](native-bridges-and-blas.md).
 For the detailed Metal runtime, Java FFM, Objective-C shim, buffer ABI, and fallback mechanics, see [Metal Backend](metal-backend.md). This architecture document keeps the high-level boundaries; the Metal document follows the native call path in detail.
 
 ### Metal MPS Capability Boundary
