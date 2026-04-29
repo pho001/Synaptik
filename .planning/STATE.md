@@ -2,7 +2,7 @@
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 1 — Accelerator Buffer Layout ABI (planned, ready to execute)
+**Current focus:** Phase 1 — Accelerator Buffer Layout ABI (plan 001-01 complete; plans 001-02 and 001-03 pending)
 
 ## Project Reference
 
@@ -41,13 +41,13 @@ Planning agents should read the relevant codebase map documents before proposing
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is not available in the current shell, so initialization artifacts were generated directly from the GSD workflow templates and current repository context.
-- Use `$gsd-execute-phase 1` next to implement Phase 1.
+- Continue Phase 1 with plan 001-02, then 001-03.
 
 ## Phase Planning Status
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 1 — Accelerator Buffer Layout ABI | Ready to execute | 3 plans / 3 waves | Plan-checker passed on 2026-04-29 |
+| 1 — Accelerator Buffer Layout ABI | In progress | 1 of 3 plans complete | 001-01 verification passed on 2026-04-29 |
 
 ## Recent Decisions
 
@@ -57,6 +57,13 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-29 | Treat the current roadmap as a brownfield next-milestone roadmap | The codebase already has many shipped capabilities; the next work should focus on accelerator/runtime architecture. |
 | 2026-04-29 | Keep public tensors logical and backend residency in runtime state | Maintains clean API design while enabling device-owned execution. |
 | 2026-04-29 | Phase 1 planning passed with no compatibility shims | The accelerator buffer ABI should migrate call sites directly to canonical layout-aware contracts. |
+| 2026-04-29 | DeviceBufferBinding exposes shared layout/access/native identity | Plan 001-01 established the backend-neutral buffer ABI while keeping Metal handles backend-owned. |
+
+## Recent Sessions
+
+| Date | Completed | Stopped At | Resume |
+|------|-----------|------------|--------|
+| 2026-04-29 | Completed 001-01-PLAN.md | None | .planning/phases/001-accelerator-buffer-layout-abi/001-01-SUMMARY.md |
 
 ---
-*State initialized: 2026-04-29*
+*Last updated: 2026-04-29 after 001-01 execution*

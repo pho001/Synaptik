@@ -38,7 +38,7 @@
 **Plans:** 3 plans
 
 Plans:
-- [ ] 001-01-PLAN.md — Create the shared accelerator buffer layout/access ABI and attach it to runtime bindings.
+- [x] 001-01-PLAN.md — Create the shared accelerator buffer layout/access ABI and attach it to runtime bindings. Complete: `.planning/phases/001-accelerator-buffer-layout-abi/001-01-SUMMARY.md`
 - [ ] 001-02-PLAN.md — Adapt Metal and CUDA seams to the shared layout contract while preserving conservative fallback.
 - [ ] 001-03-PLAN.md — Add focused tests and trace/report documentation for layout classes and stable fallback reasons.
 
@@ -126,10 +126,10 @@ Plans:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ABI-01 | Phase 1 | Pending |
-| ABI-02 | Phase 1 | Pending |
-| ABI-03 | Phase 1 | Pending |
-| ABI-04 | Phase 1 | Pending |
+| ABI-01 | Phase 1 | Complete in 001-01 |
+| ABI-02 | Phase 1 | Complete in 001-01 |
+| ABI-03 | Phase 1 | Complete in 001-01 |
+| ABI-04 | Phase 1 | Complete in 001-01 |
 | METAL-01 | Phase 2 | Pending |
 | METAL-02 | Phase 2 | Pending |
 | METAL-03 | Phase 2 | Pending |
