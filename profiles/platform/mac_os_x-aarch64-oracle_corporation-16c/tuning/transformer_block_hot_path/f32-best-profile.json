@@ -1,14 +1,14 @@
 {
-  "score": 72.28432688,
-  "updatedAt": "2026-04-29T07:16:36.299498+02:00",
+  "score": 71.27194667,
+  "updatedAt": "2026-04-29T18:50:06.715971+02:00",
   "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
-  "workloadKey": "name=transformer_block_hot_path_f32|kind=TRANSFORMER_HOT_PATH|dtype=FLOAT32|mode=FORWARD_BACKWARD|heads=8|headDim=64|seqLen=128|valueDim=64|batch=8|causal=true|modelDim=512|ffHiddenDim=2048|shapePreset=medium",
+  "workloadKey": "name=transformer_block_hot_path_medium_f32|kind=TRANSFORMER_HOT_PATH|dtype=FLOAT32|mode=FORWARD_BACKWARD|heads=8|headDim=64|seqLen=128|valueDim=64|batch=8|causal=true|modelDim=512|ffHiddenDim=2048|shapePreset=medium",
   "autotuneKind": "autotune",
   "graphAutotuneMode": "",
   "candidateKind": "GENERIC",
   "runtimeProfileId": "mac_os_x-aarch64-oracle_corporation-16c",
   "productionEligible": true,
-  "candidateMetadata": {"productionEligible": "true", "candidateSpaceVersion": "1", "graphAutotuneMode": "", "runtimeFrozen": "false", "parameterVariant": "candidate", "parameterFamily": "generic", "candidateSpaceId": "generic", "graphPolicyMutated": "false"},
+  "candidateMetadata": {"graphPolicyMutated": "false", "productionEligible": "true", "candidateSpaceVersion": "1", "graphAutotuneMode": "", "runtimeFrozen": "false", "parameterVariant": "candidate", "parameterFamily": "generic", "candidateSpaceId": "generic"},
   "profile": {
       "profileName": "transformer_block_hot_path-f32-graph-autotune",
       "candidateName": "offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced",
@@ -54,7 +54,8 @@
           "partitionExternalInputPenalty": 60.0,
           "partitionWorkWeight": 1.0,
           "partitionPlannerStrategy": "GREEDY_MAX_REGION",
-          "partitionAcceleratorTarget": "AUTO"
+          "partitionAcceleratorTarget": "AUTO",
+          "partitionMetalTransferModel": "CONSERVATIVE"
         },
         "offload": {
           "offloadPolicy": "ACCELERATOR_IF_PROFITABLE",
@@ -163,12 +164,21 @@
           "cudaEnabled": true,
           "cudaRequireRuntimeAvailability": false,
           "cudaMinimumEstimatedWork": 0,
+          "cudaBufferBindingMode": "AUTO",
+          "cudaAllowPreparedInputMaterialization": true,
+          "cudaBufferMinimumEstimatedWork": 0,
           "openclEnabled": true,
           "openclRequireRuntimeAvailability": false,
           "openclMinimumEstimatedWork": 0,
+          "openclBufferBindingMode": "AUTO",
+          "openclAllowPreparedInputMaterialization": true,
+          "openclBufferMinimumEstimatedWork": 0,
           "metalEnabled": true,
           "metalRequireRuntimeAvailability": false,
-          "metalMinimumEstimatedWork": 0
+          "metalMinimumEstimatedWork": 0,
+          "metalBufferBindingMode": "AUTO",
+          "metalAllowPreparedInputMaterialization": true,
+          "metalBufferMinimumEstimatedWork": 0
         },
         "workload": {
           "kind": "NONE",
