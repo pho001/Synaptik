@@ -991,7 +991,9 @@ The materialization reasons are explicit:
 
 This guard is deliberately strict. `markMaterializedToCpu(...)` only updates residency metadata after a real
 device-to-CPU synchronization has happened; it does not perform the copy. If a node is `DEVICE_OWNED` and CPU-stale,
-`requireCpuReadable(...)` throws instead of allowing `copyDataFrom(...)` to read stale CPU array storage.
+`requireCpuReadable(...)` refuses to let `copyDataFrom(...)` read stale CPU array storage. When a backend has registered
+a matching `DeviceToCpuMaterializer` for the active `DeviceBufferBinding`, `requireCpuReadable(...)` invokes that
+materializer first; otherwise it records a failed `CpuMaterializationTrace` and throws.
 
 Device buffer bindings are tracked per run, not on semantic tensors:
 
@@ -1005,6 +1007,17 @@ ExecutionState
 
 For a shared Metal buffer this means a CPU publication guard can pass without a download, because CPU storage is already
 current. For a device-owned Metal buffer the same guard fails until a materializer copies or synchronizes the bytes back.
+
+The materializer contract is also per run:
+
+```java
+executionState.registerDeviceToCpuMaterializer("GPU_METAL", materializer);
+```
+
+The registered materializer receives the active `DeviceBufferBinding`, the runtime `Tensor` whose CPU storage must be
+updated, and the `CpuMaterializationReason`. It must copy or synchronize bytes into the tensor before returning a
+`CpuMaterializationResult`. Execution state then records the duration/detail and transitions the node back to
+`CPU_ARRAY`.
 
 After each execution step, `PreparedExecution` applies a default residency rule:
 
@@ -1046,8 +1059,10 @@ State transitions implemented today:
 | `markMaterializedToCpu(nodeId, reason)` | `CPU_ARRAY` | yes | no | no | A materializer has already synchronized device bytes into CPU storage. |
 
 `markMaterializedToCpu(...)` is intentionally not a copy routine. It must be called only after the actual transfer has
-already happened. Today there is no production Metal device-to-CPU materializer because current Metal execution already
-copies outputs back into Java arrays.
+already happened. `DeviceToCpuMaterializer` is the callable version of that same contract: the backend performs the
+copy, returns a `CpuMaterializationResult`, and then execution state marks CPU storage current. Today there is no
+production Metal device-to-CPU materializer because current Metal execution already copies outputs back into Java
+arrays.
 
 Every failed or completed CPU-materialization request is recorded as a `CpuMaterializationTrace` on the run's
 `RunTrace.cpuMaterializations()` list. The trace entry carries:

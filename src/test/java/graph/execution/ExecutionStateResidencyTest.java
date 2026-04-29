@@ -1,7 +1,9 @@
 package graph.execution;
 
 import backend.memory.CpuMaterializationReason;
+import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
+import backend.memory.DeviceToCpuMaterializer;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -20,6 +22,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -51,7 +54,7 @@ class ExecutionStateResidencyTest {
         assertEquals(StorageResidency.DEVICE_OWNED, trace.sourceResidency());
         assertEquals(8L, trace.bytes());
         assertFalse(trace.completed());
-        assertTrue(trace.detail().contains("no device-to-CPU materializer"));
+        assertTrue(trace.detail().contains("no device buffer binding"));
     }
 
     @Test
@@ -80,6 +83,42 @@ class ExecutionStateResidencyTest {
         assertEquals(8L, trace.bytes());
         assertEquals(123L, trace.durationNs());
         assertTrue(trace.completed());
+    }
+
+    @Test
+    void registeredMaterializerRestoresCpuReadableStateForDeviceOwnedBinding() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, true);
+        RecordingMaterializer materializer = new RecordingMaterializer(321L, "fake Metal readback");
+
+        fixture.state().attachDeviceBufferBinding(
+                outputNodeId,
+                binding,
+                StorageResidency.DEVICE_OWNED,
+                "device-owned output"
+        );
+        fixture.state().registerDeviceToCpuMaterializer("GPU_METAL", materializer);
+
+        fixture.state().requireCpuReadable(outputNodeId, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+        assertEquals(1, materializer.calls);
+        assertSame(binding, materializer.binding);
+        assertSame(fixture.state().runtimeTensorForNodeId(outputNodeId), materializer.target);
+        assertEquals(CpuMaterializationReason.PUBLIC_DATA_ACCESS, materializer.reason);
+        assertNull(fixture.state().deviceBufferBindingForNodeId(outputNodeId));
+        var residency = fixture.state().residencyForNodeId(outputNodeId);
+        assertEquals(StorageResidency.CPU_ARRAY, residency.residency());
+        assertTrue(residency.cpuCurrent());
+        assertFalse(residency.deviceCurrent());
+        var trace = fixture.state().cpuMaterializationTraces().getFirst();
+        assertEquals(outputNodeId, trace.nodeId());
+        assertEquals(CpuMaterializationReason.PUBLIC_DATA_ACCESS, trace.reason());
+        assertEquals("GPU_METAL", trace.materializedFrom());
+        assertEquals(StorageResidency.DEVICE_OWNED, trace.sourceResidency());
+        assertEquals(321L, trace.durationNs());
+        assertTrue(trace.completed());
+        assertEquals("fake Metal readback", trace.detail());
     }
 
     @Test
@@ -206,6 +245,33 @@ class ExecutionStateResidencyTest {
         @Override
         public String describe() {
             return "fake nodeId=" + nodeId + ", backend=" + backendId + ", bytes=" + logicalByteLength;
+        }
+    }
+
+    private static final class RecordingMaterializer implements DeviceToCpuMaterializer {
+        private final long durationNs;
+        private final String detail;
+        private int calls;
+        private DeviceBufferBinding binding;
+        private Tensor target;
+        private CpuMaterializationReason reason;
+
+        private RecordingMaterializer(long durationNs, String detail) {
+            this.durationNs = durationNs;
+            this.detail = detail;
+        }
+
+        @Override
+        public CpuMaterializationResult materialize(
+                DeviceBufferBinding binding,
+                Tensor target,
+                CpuMaterializationReason reason
+        ) {
+            calls++;
+            this.binding = binding;
+            this.target = target;
+            this.reason = reason;
+            return new CpuMaterializationResult(durationNs, detail);
         }
     }
 }

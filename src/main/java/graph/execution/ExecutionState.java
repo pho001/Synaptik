@@ -3,7 +3,9 @@ package graph.execution;
 import backend.cpu.kernels.CpuNodeWorkspace;
 import backend.cpu.plan.CpuPreparedInput;
 import backend.memory.CpuMaterializationReason;
+import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
+import backend.memory.DeviceToCpuMaterializer;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
 import graph.CompiledNode;
@@ -35,6 +37,7 @@ public final class ExecutionState {
     private final Map<Tensor, Integer> runtimeNodeIdByTensor;
     private final Map<Integer, TensorResidencyState> residencyByNodeId;
     private final Map<Integer, DeviceBufferBinding> deviceBufferBindingByNodeId;
+    private final Map<String, DeviceToCpuMaterializer> deviceToCpuMaterializerByBackend;
     private final List<CpuMaterializationTrace> cpuMaterializationTraces;
 
     private ExecutionState(
@@ -51,6 +54,7 @@ public final class ExecutionState {
         this.runtimeNodeIdByTensor = Map.copyOf(runtimeNodeIdByTensor);
         this.residencyByNodeId = Map.copyOf(residencyByNodeId);
         this.deviceBufferBindingByNodeId = new HashMap<>(deviceBufferBindingByNodeId == null ? Map.of() : deviceBufferBindingByNodeId);
+        this.deviceToCpuMaterializerByBackend = new HashMap<>();
         this.cpuMaterializationTraces = new ArrayList<>();
     }
 
@@ -306,6 +310,26 @@ public final class ExecutionState {
      * @param durationNs measured materialization duration
      */
     public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason, long durationNs) {
+        markMaterializedToCpu(nodeId, reason, durationNs, "device value synchronized to CPU storage");
+    }
+
+    /**
+     * Marks a completed device-to-CPU synchronization with measured duration and trace detail.
+     *
+     * <p>This method must only be called after the CPU array storage has been updated with the current
+     * value. It intentionally does not perform the copy itself.</p>
+     *
+     * @param nodeId compiled node id
+     * @param reason reason that forced CPU materialization
+     * @param durationNs measured materialization duration
+     * @param detail diagnostic trace detail
+     */
+    public void markMaterializedToCpu(
+            int nodeId,
+            CpuMaterializationReason reason,
+            long durationNs,
+            String detail
+    ) {
         Objects.requireNonNull(reason, "reason cannot be null");
         TensorResidencyState state = residencyForNodeId(nodeId);
         cpuMaterializationTraces.add(new CpuMaterializationTrace(
@@ -316,10 +340,26 @@ public final class ExecutionState {
                 logicalByteLength(nodeId),
                 durationNs,
                 true,
-                "device value synchronized to CPU storage"
+                detail == null || detail.isBlank() ? "device value synchronized to CPU storage" : detail
         ));
         deviceBufferBindingByNodeId.remove(nodeId);
         state.markMaterializedToCpu(reason.label());
+    }
+
+    /**
+     * Registers or replaces the materializer used for one device backend during this run.
+     *
+     * <p>The registration is intentionally per execution state. It avoids a hidden global singleton and lets
+     * prepared/runtime code decide which backend object owns synchronization for a particular run.</p>
+     *
+     * @param backendId backend id such as {@code GPU_METAL}
+     * @param materializer materializer implementation
+     */
+    public void registerDeviceToCpuMaterializer(String backendId, DeviceToCpuMaterializer materializer) {
+        if (backendId == null || backendId.isBlank()) {
+            throw new IllegalArgumentException("backendId cannot be blank");
+        }
+        deviceToCpuMaterializerByBackend.put(backendId, Objects.requireNonNull(materializer, "materializer cannot be null"));
     }
 
     /**
@@ -343,24 +383,8 @@ public final class ExecutionState {
         Objects.requireNonNull(reason, "reason cannot be null");
         TensorResidencyState state = residencyForNodeId(nodeId);
         if (state.requiresCpuMaterialization()) {
-            cpuMaterializationTraces.add(new CpuMaterializationTrace(
-                    nodeId,
-                    reason,
-                    state.deviceBackend(),
-                    state.residency(),
-                    logicalByteLength(nodeId),
-                    0L,
-                    false,
-                    "no device-to-CPU materializer is available"
-            ));
-            throw new IllegalStateException(
-                    "CPU materialization requested for nodeId=" + nodeId
-                            + " reason=" + reason.label()
-                            + " but no device-to-CPU materializer is available for backend="
-                            + state.deviceBackend()
-                            + ", residency=" + state.residency()
-                            + ". This prevents publishing stale CPU tensor storage."
-            );
+            tryMaterializeToCpu(nodeId, reason, state);
+            return;
         }
         if (!state.cpuCurrent()) {
             cpuMaterializationTraces.add(new CpuMaterializationTrace(
@@ -379,6 +403,53 @@ public final class ExecutionState {
                             + " but CPU storage is not current and no device representation is current."
             );
         }
+    }
+
+    private void tryMaterializeToCpu(int nodeId, CpuMaterializationReason reason, TensorResidencyState state) {
+        DeviceBufferBinding binding = deviceBufferBindingByNodeId.get(nodeId);
+        DeviceToCpuMaterializer materializer = binding == null ? null : deviceToCpuMaterializerByBackend.get(binding.backendId());
+        if (binding != null
+                && materializer != null
+                && materializer.supports(binding, runtimeTensorForNodeId(nodeId), reason)) {
+            CpuMaterializationResult result = materializer.materialize(binding, runtimeTensorForNodeId(nodeId), reason);
+            if (result == null) {
+                result = CpuMaterializationResult.unmeasured("device value synchronized to CPU storage");
+            }
+            markMaterializedToCpu(nodeId, reason, result.durationNs(), result.detail());
+            return;
+        }
+        String detail = materializationFailureDetail(binding, materializer);
+        cpuMaterializationTraces.add(new CpuMaterializationTrace(
+                nodeId,
+                reason,
+                state.deviceBackend(),
+                state.residency(),
+                logicalByteLength(nodeId),
+                0L,
+                false,
+                detail
+        ));
+        throw new IllegalStateException(
+                "CPU materialization requested for nodeId=" + nodeId
+                        + " reason=" + reason.label()
+                        + " but " + detail
+                        + " for backend=" + state.deviceBackend()
+                        + ", residency=" + state.residency()
+                        + ". This prevents publishing stale CPU tensor storage."
+        );
+    }
+
+    private static String materializationFailureDetail(
+            DeviceBufferBinding binding,
+            DeviceToCpuMaterializer materializer
+    ) {
+        if (binding == null) {
+            return "no device buffer binding is available";
+        }
+        if (materializer == null) {
+            return "no device-to-CPU materializer is available";
+        }
+        return "registered device-to-CPU materializer does not support the active binding";
     }
 
     /**

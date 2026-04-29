@@ -65,6 +65,8 @@ Project-specific terms used in Synaptik, with source references.
 
 **CPU materialization trace**: Run-trace entry that records a failed or completed request for CPU-readable tensor storage, including node id, reason, source backend/residency, logical bytes, duration, completion flag, and diagnostic detail. Source: [`CpuMaterializationTrace.java`](../src/main/java/graph/execution/trace/CpuMaterializationTrace.java), [`RunTrace.java`](../src/main/java/graph/execution/trace/RunTrace.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
 
+**Device-to-CPU materializer**: Per-run backend hook that synchronizes an active device buffer binding into a runtime tensor's CPU-visible storage when a CPU consumer, graph output publication, gradient publication, or public data access needs current CPU bytes. Source: [`DeviceToCpuMaterializer.java`](../src/main/java/backend/memory/DeviceToCpuMaterializer.java), [`CpuMaterializationResult.java`](../src/main/java/backend/memory/CpuMaterializationResult.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
+
 **Compiled node**: Immutable compile-time snapshot of a tensor node. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
 
 **Compute contract**: CPU prepared metadata describing storage dtype, compute dtype, accumulate dtype, and execution backend. Source: [`ResolvedCpuComputeContract.java`](../src/main/java/backend/cpu/kernels/ResolvedCpuComputeContract.java), [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java).

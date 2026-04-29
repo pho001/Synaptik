@@ -2,6 +2,7 @@ package backend.runtime;
 
 import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
+import backend.memory.DeviceToCpuMaterializer;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
 import config.runtime.RuntimeConfig;
@@ -254,6 +255,18 @@ public final class ExecutionContext {
     public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason, long durationNs) {
         if (executionState != null) {
             executionState.markMaterializedToCpu(nodeId, reason, durationNs);
+        }
+    }
+
+    /**
+     * Registers a backend hook that can synchronize device-current values into CPU tensor storage.
+     *
+     * @param backendId backend id such as {@code GPU_METAL}
+     * @param materializer materializer implementation
+     */
+    public void registerDeviceToCpuMaterializer(String backendId, DeviceToCpuMaterializer materializer) {
+        if (executionState != null) {
+            executionState.registerDeviceToCpuMaterializer(backendId, materializer);
         }
     }
 

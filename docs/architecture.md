@@ -560,10 +560,17 @@ data.
 
 Those guardrails now feed run-level observability. `RunTrace.cpuMaterializations()` returns `CpuMaterializationTrace`
 entries for failed CPU-read requests and completed device-to-CPU synchronizations. A failed entry records the requested
-node id, reason, source backend, source residency, logical bytes, zero duration, and a diagnostic saying that no
-materializer was available. A completed entry records the same site with `completed=true` and the measured
-materialization duration. This is still not a production Metal materializer; it is the audit trail that prevents lazy
-materialization from becoming invisible.
+node id, reason, source backend, source residency, logical bytes, zero duration, and a diagnostic saying what piece of
+the materialization contract was missing. A completed entry records the same site with `completed=true` and the measured
+materialization duration.
+
+`DeviceToCpuMaterializer` is the per-run hook that turns the guardrail into a real lazy materialization path. A backend
+registers it on `ExecutionState` or `ExecutionContext` for a backend id such as `GPU_METAL`. When a CPU publication
+point asks for a `DEVICE_OWNED` value and an active `DeviceBufferBinding` exists, execution state calls the registered
+materializer with the binding, target runtime tensor, and materialization reason. The materializer must synchronize
+bytes into CPU-visible tensor storage before returning `CpuMaterializationResult`; execution state then records the
+trace and marks CPU storage current. This is still not a production Metal readback implementation because the current
+FFM bridge already copies outputs back into Java arrays and does not register a Metal materializer.
 
 The next Java-side contract is `DeviceBufferBinding`. It is backend-neutral and deliberately small: node id, backend
 id, logical byte length, availability, and a diagnostic description. `MetalBufferBinding` implements that contract and
