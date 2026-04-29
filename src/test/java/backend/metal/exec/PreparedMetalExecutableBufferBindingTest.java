@@ -4,6 +4,8 @@ import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
+import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
@@ -45,6 +47,7 @@ import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
 import graph.execution.PreparedNodeExecution;
 import operations.Operation;
+import operations.elementwise.unary.relu;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -133,10 +136,16 @@ class PreparedMetalExecutableBufferBindingTest {
 
         IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
 
-        assertTrue(failure.getMessage().contains("BACKEND_BUFFER_NOT_IMPLEMENTED"));
+        assertTrue(failure.getMessage().contains("NATIVE_BUFFER_ABI_UNAVAILABLE"));
+        assertTrue(failure.getMessage().contains("native Metal buffer ABI unavailable: bridge does not support buffer bindings"));
         assertEquals(0, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
         assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertTrue(executable.lastAcceleratorBufferDecision().required());
+        assertEquals(
+                AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode()
+        );
     }
 
     @Test
@@ -163,8 +172,10 @@ class PreparedMetalExecutableBufferBindingTest {
                 fixture.outputNode().flatDataSize(),
                 List.of(fixture.inputNode().id()),
                 List.of(DataType.FLOAT32),
+                List.of(AcceleratorBufferLayout.fromTensor(semanticInput)),
                 List.of(fixture.outputNode().id()),
                 List.of(DataType.FLOAT32),
+                List.of(AcceleratorBufferLayout.fromTensor(fixture.context().runtimeTensorForNodeId(fixture.outputNode().id()))),
                 false
         );
 
@@ -173,6 +184,7 @@ class PreparedMetalExecutableBufferBindingTest {
 
         assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, decision.path());
         assertTrue(decision.preparedInputUsed());
+        assertEquals(AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS, decision.inputs().getFirst().layout().layoutClass());
         assertEquals(1, bindings.inputs().size());
         assertEquals(fixture.inputNode().id(), bindings.inputs().getFirst().nodeId());
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.inputNode().id()));
@@ -180,13 +192,19 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void bufferBindingPathDoesNotRequireTensorArrayLayoutCompatibility() {
+    void nonDenseExistingBindingStillFallsBackConservatively() {
         Fixture fixture = nonContiguousInputFixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
+        Tensor input = fixture.context().runtimeTensorForNodeId(fixture.inputNode().id());
         fixture.state().attachDeviceBufferBinding(
                 fixture.inputNode().id(),
-                binding(fixture.inputNode().id(), MetalBufferAccess.READ, 16, fixture.inputNode().shape(), 4),
+                binding(
+                        fixture.inputNode().id(),
+                        MetalBufferAccess.READ,
+                        16,
+                        AcceleratorBufferLayout.fromTensor(input)
+                ),
                 StorageResidency.HOST_SHARED_DEVICE_BUFFER,
                 "input shared buffer"
         );
@@ -201,11 +219,14 @@ class PreparedMetalExecutableBufferBindingTest {
 
         executable.execute(fixture.context());
 
-        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
-        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
-        assertEquals("using native buffer bindings", executable.lastBufferBindingDecision());
-        assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+        assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
+        assertEquals(AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertTrue(executable.lastBufferBindingDecision().contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
+        assertTrue(executable.lastBufferBindingDecision().contains("storageOffset=0"));
+        assertTrue(executable.lastBufferBindingDecision().contains("strides=[1, 2]"));
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
     }
 
     @Test
@@ -261,7 +282,7 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void fallsBackBeforeReservingBufferForNonContiguousOutputTensor() {
+    void fallsBackBeforeReservingBufferForPermutedOutputTensor() {
         Fixture fixture = nonContiguousOutputFixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
@@ -272,8 +293,35 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(0, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
         assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
-        assertTrue(executable.lastBufferBindingDecision().contains("output tensor layout is not contiguous/zero-offset"));
+        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(
+                AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
+                executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass()
+        );
+        assertTrue(executable.lastBufferBindingDecision().contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
+        assertTrue(executable.lastBufferBindingDecision().contains("storageOffset=0"));
+        assertTrue(executable.lastBufferBindingDecision().contains("strides=[1, 2]"));
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+    }
+
+    @Test
+    void reportsZeroOffsetViewOutputLayoutClass() {
+        assertOutputLayoutFallback(zeroOffsetViewOutputFixture(), AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW);
+    }
+
+    @Test
+    void reportsNonZeroOffsetViewOutputLayoutClass() {
+        assertOutputLayoutFallback(nonZeroOffsetOutputFixture(), AcceleratorBufferLayoutClass.NON_ZERO_OFFSET_VIEW);
+    }
+
+    @Test
+    void reportsBroadcastZeroStrideOutputLayoutClass() {
+        assertOutputLayoutFallback(broadcastOutputFixture(), AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW);
+    }
+
+    @Test
+    void reportsUnsupportedOutputLayoutClass() {
+        assertOutputLayoutFallback(unsupportedOutputFixture(), AcceleratorBufferLayoutClass.UNSUPPORTED);
     }
 
     @Test
@@ -342,7 +390,11 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(0, bridge.bufferExecutions);
         assertEquals(1, bridge.tensorExecutions);
         assertEquals(MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY, executable.lastExecutionStats().executionPath());
-        assertTrue(executable.lastBufferBindingDecision().contains("bridge does not support buffer bindings"));
+        assertEquals(
+                AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode()
+        );
+        assertTrue(executable.lastBufferBindingDecision().contains("native Metal buffer ABI unavailable"));
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
     }
 
@@ -384,7 +436,30 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(1, bridge.tensorExecutions);
         assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
         assertTrue(executable.lastExecutionStats().fallbackReason().contains("tensor-array bridge execution failed"));
-        assertTrue(executable.lastBufferBindingDecision().contains("bridge does not support buffer bindings"));
+        assertTrue(executable.lastBufferBindingDecision().contains("native Metal buffer ABI unavailable"));
+    }
+
+    @Test
+    void requestRejectsLayoutListsThatDoNotMatchNodeIdLists() {
+        AcceleratorBufferLayout dense = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2},
+                new int[]{1},
+                0,
+                2
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> new AcceleratorBufferRequest(
+                ComputeBackend.GPU_METAL,
+                2,
+                List.of(1),
+                List.of(DataType.FLOAT32),
+                List.of(),
+                List.of(2),
+                List.of(DataType.FLOAT32),
+                List.of(dense),
+                false
+        ));
     }
 
     @Test
@@ -501,6 +576,42 @@ class PreparedMetalExecutableBufferBindingTest {
     private static Fixture nonContiguousOutputFixture() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "input", DataType.FLOAT32);
         Tensor output = input.permute(1, 0);
+        return directFixture(input, output);
+    }
+
+    private static Fixture zeroOffsetViewOutputFixture() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f}, new int[]{2, 2, 2}, null, "input", DataType.FLOAT32);
+        Tensor output = input.select(1, 0);
+        return directFixture(input, output);
+    }
+
+    private static Fixture nonZeroOffsetOutputFixture() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
+        Tensor output = input.select(0, 1);
+        return directFixture(input, output);
+    }
+
+    private static Fixture broadcastOutputFixture() {
+        Tensor input = new Tensor(new float[]{1f, 2f}, new int[]{1, 2}, null, "input", DataType.FLOAT32);
+        Tensor output = input.expand(new int[]{3, 2});
+        return directFixture(input, output);
+    }
+
+    private static Fixture unsupportedOutputFixture() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "input", DataType.FLOAT32);
+        Tensor output = new Tensor(
+                new int[]{2, 3},
+                new int[]{3, -1},
+                0,
+                List.of(input),
+                new relu(),
+                "unsupported_output",
+                DataType.FLOAT32
+        );
+        return directFixture(input, output);
+    }
+
+    private static Fixture directFixture(Tensor input, Tensor output) {
         List<CompiledNode> nodes = CompiledNode.snapshot(List.of(input, output));
         CompiledNode inputNode = nodes.get(0);
         CompiledNode outputNode = nodes.get(1);
@@ -513,6 +624,23 @@ class PreparedMetalExecutableBufferBindingTest {
                 state
         );
         return new Fixture(inputNode, outputNode, state, context);
+    }
+
+    private static void assertOutputLayoutFallback(Fixture fixture, AcceleratorBufferLayoutClass layoutClass) {
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+
+        executable.execute(fixture.context());
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
+        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(layoutClass, executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass());
+        assertTrue(executable.lastBufferBindingDecision().contains("layoutClass=" + layoutClass));
+        assertTrue(executable.lastBufferBindingDecision().contains("storageOffset="));
+        assertTrue(executable.lastBufferBindingDecision().contains("strides=["));
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
     }
 
     private static Fixture fixture(Tensor input, Tensor output) {
@@ -612,9 +740,34 @@ class PreparedMetalExecutableBufferBindingTest {
             long elementCount,
             String storageMode
     ) {
+        return binding(
+                nodeId,
+                access,
+                bytes,
+                AcceleratorBufferLayout.of(DataType.FLOAT32, shape, denseStrides(shape), 0, elementCount),
+                storageMode
+        );
+    }
+
+    private static MetalBufferBinding binding(
+            int nodeId,
+            MetalBufferAccess access,
+            long bytes,
+            AcceleratorBufferLayout layout
+    ) {
+        return binding(nodeId, access, bytes, layout, "shared");
+    }
+
+    private static MetalBufferBinding binding(
+            int nodeId,
+            MetalBufferAccess access,
+            long bytes,
+            AcceleratorBufferLayout layout,
+            String storageMode
+    ) {
         return new MetalBufferBinding(
                 nodeId,
-                AcceleratorBufferLayout.of(DataType.FLOAT32, shape, denseStrides(shape), 0, elementCount),
+                layout,
                 new MetalBufferHandle(MemorySegment.ofAddress(nodeId + 1L), bytes, storageMode, "test", false),
                 access
         );
