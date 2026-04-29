@@ -4,6 +4,7 @@ import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferBindings;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
@@ -235,10 +236,21 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 plan.estimatedWork(),
                 bridgeExecutable.externalInputNodeIds(),
                 bridgeExecutable.externalInputDataTypes(),
+                layoutsForNodeIds(context, bridgeExecutable.externalInputNodeIds()),
                 bridgeExecutable.outputNodeIds(),
                 bridgeExecutable.outputDataTypes(),
+                layoutsForNodeIds(context, bridgeExecutable.outputNodeIds()),
                 context != null && context.runsBackwardPass()
         );
+    }
+
+    private static List<AcceleratorBufferLayout> layoutsForNodeIds(ExecutionContext context, List<Integer> nodeIds) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return List.of();
+        }
+        return nodeIds.stream()
+                .map(nodeId -> AcceleratorBufferLayout.fromTensor(context.runtimeTensorForNodeId(nodeId)))
+                .toList();
     }
 
     private List<Tensor> outputTensors(ExecutionContext context) {
