@@ -89,8 +89,8 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
                     AcceleratorBufferExecutionPath.UNAVAILABLE,
                     false,
                     true,
-                    AcceleratorBufferReasonCode.BACKEND_BUFFER_NOT_IMPLEMENTED,
-                    "CUDA bridge does not support buffer bindings",
+                    AcceleratorBufferReasonCode.REQUIRED_BUFFER_EXECUTION_UNAVAILABLE,
+                    "CUDA bridge does not support required buffer bindings",
                     List.of(),
                     List.of()
             );

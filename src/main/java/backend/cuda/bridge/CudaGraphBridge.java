@@ -48,8 +48,9 @@ public interface CudaGraphBridge {
     /**
      * Returns whether this CUDA bridge can execute through explicit native buffer bindings.
      *
-     * <p>The default is {@code false}. Future CUDA native-buffer implementations should override this
-     * only after they own a concrete device pointer/graph-buffer lifetime contract.</p>
+     * <p>The default is {@code false}. Implementations must only return {@code true} when they can
+     * consume the shared layout ABI with backend-owned native handles and a concrete device
+     * pointer/graph-buffer lifetime contract.</p>
      */
     default boolean supportsBufferBindings() {
         return false;
