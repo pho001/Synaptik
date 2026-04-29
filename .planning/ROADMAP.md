@@ -35,6 +35,13 @@
 - Avoid making the common ABI depend on `MTLBuffer` or CUDA-specific handle classes.
 - Preserve conservative fallback for layouts that cannot yet be executed safely.
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 001-01-PLAN.md — Create the shared accelerator buffer layout/access ABI and attach it to runtime bindings.
+- [ ] 001-02-PLAN.md — Adapt Metal and CUDA seams to the shared layout contract while preserving conservative fallback.
+- [ ] 001-03-PLAN.md — Add focused tests and trace/report documentation for layout classes and stable fallback reasons.
+
 ### Phase 2: Metal Layout-Aware Device Flow
 
 **Goal:** Teach Metal buffer execution to preserve legal device-owned view/layout values and avoid falling back only because an intermediate output is non-contiguous or non-zero-offset.
