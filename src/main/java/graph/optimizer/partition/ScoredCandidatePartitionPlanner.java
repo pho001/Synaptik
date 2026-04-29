@@ -60,7 +60,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
         List<PartitionDecisionTrace> decisions = new ArrayList<>();
         for (int i = 0; i < nodes.size(); i++) {
             CompiledNode current = nodes.get(i);
-            if (current.backend() != request.target().backend()) {
+            if (!request.canConsiderNode(current)) {
                 continue;
             }
             if (covered[i]) {
@@ -319,7 +319,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                 if (consumer == null
                         || selectedNodeIds.contains(consumer.id())
                         || covered[consumer.id()]
-                        || consumer.backend() != request.target().backend()
+                        || !request.canConsiderNode(consumer)
                         || !request.adapter().isNodeSupported(consumer, request.context())) {
                     continue;
                 }

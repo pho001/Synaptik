@@ -1,6 +1,7 @@
 package graph.optimizer.partition;
 
 import config.optimizer.CpuRegionConfig;
+import graph.CompiledNode;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 
 import java.util.LinkedHashSet;
@@ -15,6 +16,7 @@ import java.util.Set;
  * @param context compiled graph context
  * @param policy scoring and search policy
  * @param adapter backend legality and lowering adapter
+ * @param sourcePolicy backend-intent eligibility for candidate source nodes
  * @param requiredMaterializedValueRefs values that must remain materialized across region boundaries
  * @param cpuRegionConfig CPU region policy when {@link #strategy()} is
  *                        {@link PartitionPlannerStrategy#CPU_NATURAL_EXECUTION_REGION}
@@ -25,6 +27,7 @@ public record PartitionPlanningRequest(
         PartitionPlanningContext context,
         AcceleratorPartitionScoreModel.PlannerPolicy policy,
         RegionLegalityAdapter adapter,
+        PartitionSourcePolicy sourcePolicy,
         Set<PartitionValueRef> requiredMaterializedValueRefs,
         CpuRegionConfig cpuRegionConfig
 ) {
@@ -36,7 +39,37 @@ public record PartitionPlanningRequest(
             RegionLegalityAdapter adapter,
             Set<PartitionValueRef> requiredMaterializedValueRefs
     ) {
-        this(strategy, target, context, policy, adapter, requiredMaterializedValueRefs, CpuRegionConfig.defaults());
+        this(
+                strategy,
+                target,
+                context,
+                policy,
+                adapter,
+                PartitionSourcePolicy.TARGET_BACKEND_ONLY,
+                requiredMaterializedValueRefs,
+                CpuRegionConfig.defaults()
+        );
+    }
+
+    public PartitionPlanningRequest(
+            PartitionPlannerStrategy strategy,
+            PartitionTarget target,
+            PartitionPlanningContext context,
+            AcceleratorPartitionScoreModel.PlannerPolicy policy,
+            RegionLegalityAdapter adapter,
+            Set<PartitionValueRef> requiredMaterializedValueRefs,
+            CpuRegionConfig cpuRegionConfig
+    ) {
+        this(
+                strategy,
+                target,
+                context,
+                policy,
+                adapter,
+                PartitionSourcePolicy.TARGET_BACKEND_ONLY,
+                requiredMaterializedValueRefs,
+                cpuRegionConfig
+        );
     }
 
     public PartitionPlanningRequest {
@@ -45,7 +78,18 @@ public record PartitionPlanningRequest(
         context = Objects.requireNonNull(context, "context cannot be null");
         policy = policy == null ? AcceleratorPartitionScoreModel.PlannerPolicy.defaults() : policy;
         adapter = Objects.requireNonNull(adapter, "adapter cannot be null");
+        sourcePolicy = sourcePolicy == null ? PartitionSourcePolicy.TARGET_BACKEND_ONLY : sourcePolicy;
         requiredMaterializedValueRefs = Set.copyOf(requiredMaterializedValueRefs == null ? Set.of() : new LinkedHashSet<>(requiredMaterializedValueRefs));
         cpuRegionConfig = cpuRegionConfig == null ? CpuRegionConfig.defaults() : cpuRegionConfig;
+    }
+
+    /**
+     * Returns whether a compiled node may be considered as part of this request's target candidate.
+     *
+     * @param node compiled node to check
+     * @return true when the node's current backend intent is compatible with this planning request
+     */
+    public boolean canConsiderNode(CompiledNode node) {
+        return sourcePolicy.accepts(target, node);
     }
 }

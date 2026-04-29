@@ -21,6 +21,7 @@ import graph.optimizer.partition.PartitionPlannerStrategy;
 import graph.optimizer.partition.PartitionPlanningContext;
 import graph.optimizer.partition.PartitionPlanningRequest;
 import graph.optimizer.partition.PartitionPlanningResult;
+import graph.optimizer.partition.PartitionSourcePolicy;
 import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValueRef;
 
@@ -189,6 +190,7 @@ public final class PartitionPlanningSnapshotBuilder {
                             planningContext,
                             job.policy(),
                             descriptors.legalityAdapterFor(job.target()),
+                            job.sourcePolicy(),
                             requiredMaterialized,
                             job.cpuRegionConfig()
                     )
@@ -214,6 +216,7 @@ public final class PartitionPlanningSnapshotBuilder {
             PartitionTarget target,
             PartitionPlannerStrategy strategy,
             graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy policy,
+            PartitionSourcePolicy sourcePolicy,
             CpuRegionConfig cpuRegionConfig
     ) {
     }
@@ -235,6 +238,7 @@ public final class PartitionPlanningSnapshotBuilder {
                             ? PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION
                             : config.plannerStrategy(),
                     plannerPolicyFor(config, configured == PartitionTarget.CPU ? cpuRegionConfig : null),
+                    PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                     configured == PartitionTarget.CPU ? cpuRegionConfig : CpuRegionConfig.defaults()
             ));
         }
@@ -252,18 +256,22 @@ public final class PartitionPlanningSnapshotBuilder {
             }
         }
         List<PlanningJob> jobs = new ArrayList<>();
-        if (offloadConfig.policy() == OffloadPolicy.ACCELERATOR_IF_PROFITABLE || metalSeen || cudaSeen) {
+        boolean planAcceleratorOffload = offloadConfig.policy() == OffloadPolicy.ACCELERATOR_IF_PROFITABLE;
+        if (planAcceleratorOffload || metalSeen || cudaSeen) {
             PartitionPlannerStrategy acceleratorStrategy = acceleratorStrategy(offloadConfig);
             if (acceleratorStrategy == null && (metalSeen || cudaSeen)) {
                 acceleratorStrategy = config.plannerStrategy();
             }
             if (acceleratorStrategy != null) {
                 var policy = graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(config);
-                if (metalSeen) {
+                if (metalSeen || (planAcceleratorOffload && cpuSeen)) {
                     jobs.add(new PlanningJob(
                             PartitionTarget.GPU_METAL,
                             acceleratorStrategy,
                             policy,
+                            planAcceleratorOffload
+                                    ? PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
+                                    : PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                             CpuRegionConfig.defaults()
                     ));
                 }
@@ -272,6 +280,7 @@ public final class PartitionPlanningSnapshotBuilder {
                             PartitionTarget.GPU_CUDA,
                             acceleratorStrategy,
                             policy,
+                            PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                             CpuRegionConfig.defaults()
                     ));
                 }
@@ -282,6 +291,7 @@ public final class PartitionPlanningSnapshotBuilder {
                     PartitionTarget.CPU,
                     PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION,
                     plannerPolicyFor(config, cpuRegionConfig),
+                    PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                     cpuRegionConfig
             ));
         }

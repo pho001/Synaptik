@@ -63,7 +63,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         List<PartitionDecisionTrace> decisions = new ArrayList<>();
         for (int i = 0; i < nodes.size(); i++) {
             CompiledNode current = nodes.get(i);
-            if (current.backend() != request.target().backend()) {
+            if (!request.canConsiderNode(current)) {
                 continue;
             }
             if (covered[i]) {
@@ -306,7 +306,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
             if (covered[currentNodeId]) {
                 return new Rejection("covered-by-earlier-partition", currentNodeId);
             }
-            if (current.backend() != request.target().backend() || !request.adapter().isNodeSupported(current, request.context())) {
+            if (!request.canConsiderNode(current) || !request.adapter().isNodeSupported(current, request.context())) {
                 return new Rejection("unsupported-node", currentNodeId);
             }
             expanded.add(currentNodeId);
@@ -320,7 +320,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                 if (producer == null) {
                     return new Rejection("missing-input-node", inputId);
                 }
-                boolean sameTargetSupported = producer.backend() == request.target().backend()
+                boolean sameTargetSupported = request.canConsiderNode(producer)
                         && !covered[inputId]
                         && request.adapter().isNodeSupported(producer, request.context());
                 if (sameTargetSupported) {
@@ -352,7 +352,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                     if (covered[consumer.id()]) {
                         return new Rejection("covered-by-earlier-partition", consumer.id());
                     }
-                    if (consumer.backend() != request.target().backend()
+                    if (!request.canConsiderNode(consumer)
                             || !request.adapter().isNodeSupported(consumer, request.context())) {
                         continue;
                     }
@@ -380,7 +380,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
         if (covered[frontierNodeId]) {
             return "covered-by-earlier-partition";
         }
-        if (node.backend() != request.target().backend() || !request.adapter().isNodeSupported(node, request.context())) {
+        if (!request.canConsiderNode(node) || !request.adapter().isNodeSupported(node, request.context())) {
             return "unsupported-node";
         }
         for (int inputId : node.inputIds()) {
@@ -391,7 +391,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
             if (producer == null) {
                 return "missing-input-node";
             }
-            boolean sameTargetSupported = producer.backend() == request.target().backend()
+            boolean sameTargetSupported = request.canConsiderNode(producer)
                     && !covered[inputId]
                     && request.adapter().isNodeSupported(producer, request.context());
             if (sameTargetSupported) {
@@ -415,7 +415,7 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                 if (consumer == null
                         || selectedNodeIds.contains(consumer.id())
                         || covered[consumer.id()]
-                        || consumer.backend() != request.target().backend()) {
+                        || !request.canConsiderNode(consumer)) {
                     continue;
                 }
                 out.add(consumer.id());

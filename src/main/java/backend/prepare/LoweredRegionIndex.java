@@ -40,8 +40,15 @@ final class LoweredRegionIndex {
             if (region == null) {
                 continue;
             }
+            if (region.target() == graph.optimizer.partition.PartitionTarget.CPU) {
+                publishCpuRegion(region, roleIndex);
+            }
+        }
+        for (LoweredRegion region : loweredRegions) {
+            if (region == null) {
+                continue;
+            }
             switch (region.target()) {
-                case CPU -> publishCpuRegion(region, roleIndex);
                 case GPU_METAL -> publishGpuRegion(region, metalRegionsByAnchor, roleIndex);
                 case GPU_CUDA -> publishGpuRegion(region, cudaRegionsByAnchor, roleIndex);
                 default -> {

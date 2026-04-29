@@ -4,6 +4,7 @@ import backend.metal.exec.PreparedMetalExecutable;
 import backend.cuda.exec.PreparedCudaExecutable;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
+import config.optimizer.OffloadConfig;
 import config.optimizer.PartitionConfig;
 import config.runtime.RuntimeConfig;
 import config.runtime.FusedExecutionPolicy;
@@ -109,6 +110,34 @@ public class PreparedExecutionBuildTest {
         assertFalse(compiled.compileArtifacts().optimizerState().optimizedRegions().isEmpty());
         assertNotNull(compiled.compileArtifacts().optimizerState().memoryPlan());
         assertNotNull(compiled.compileArtifacts().memoryPlan());
+    }
+
+    @Test
+    void acceleratorOffloadCanSelectMetalForCpuFloat32GraphWithoutBackendIntent() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b).relu();
+
+        OptimizerConfig optimizerConfig = OptimizerConfig.inferenceDefaults()
+                .withOffload(OffloadConfig.acceleratorGreedy());
+        CompiledGraph compiled = CompiledGraph.compile(out, optimizerConfig);
+
+        assertTrue(compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.operation() != null)
+                .allMatch(node -> node.backend() == ComputeBackend.CPU));
+        assertTrue(compiled.compileArtifacts().backendSelectionCandidates().stream()
+                .anyMatch(candidate -> candidate.plan() != null
+                        && candidate.plan().backend() == ComputeBackend.GPU_METAL
+                        && candidate.nodeIds().size() >= 2));
+
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+
+        assertTrue(execution.prepareTrace().backendSelection().decisions().stream()
+                .anyMatch(decision -> decision.selected()
+                        && decision.selectedBackend() == ComputeBackend.GPU_METAL));
+        assertTrue(execution.forwardSteps().stream()
+                .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL
+                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable));
     }
 
     @Test

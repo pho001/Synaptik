@@ -138,6 +138,7 @@ public final class PartitionIntentRule implements OptimizationRule {
                             planningContext,
                             job.policy(),
                             backendPartitionDescriptors.legalityAdapterFor(job.target()),
+                            job.sourcePolicy(),
                             requiredMaterialized,
                             job.cpuRegionConfig()
                     )
@@ -162,6 +163,7 @@ public final class PartitionIntentRule implements OptimizationRule {
                     configured == PartitionTarget.CPU
                             ? cpuPlannerPolicy()
                             : AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(config),
+                    PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                     configured == PartitionTarget.CPU ? cpuRegionConfig : CpuRegionConfig.defaults()
             ));
         }
@@ -179,17 +181,21 @@ public final class PartitionIntentRule implements OptimizationRule {
             }
         }
         List<PlanningJob> jobs = new ArrayList<>();
-        if (offloadConfig.policy() == OffloadPolicy.ACCELERATOR_IF_PROFITABLE || metalSeen || cudaSeen) {
+        boolean planAcceleratorOffload = offloadConfig.policy() == OffloadPolicy.ACCELERATOR_IF_PROFITABLE;
+        if (planAcceleratorOffload || metalSeen || cudaSeen) {
             PartitionPlannerStrategy acceleratorStrategy = acceleratorStrategy();
             if (acceleratorStrategy == null && (metalSeen || cudaSeen)) {
                 acceleratorStrategy = config.plannerStrategy();
             }
             if (acceleratorStrategy != null) {
-                if (metalSeen) {
+                if (metalSeen || (planAcceleratorOffload && cpuSeen)) {
                     jobs.add(new PlanningJob(
                             PartitionTarget.GPU_METAL,
                             acceleratorStrategy,
                             AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(config),
+                            planAcceleratorOffload
+                                    ? PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
+                                    : PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                             CpuRegionConfig.defaults()
                     ));
                 }
@@ -198,6 +204,7 @@ public final class PartitionIntentRule implements OptimizationRule {
                             PartitionTarget.GPU_CUDA,
                             acceleratorStrategy,
                             AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(config),
+                            PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                             CpuRegionConfig.defaults()
                     ));
                 }
@@ -208,6 +215,7 @@ public final class PartitionIntentRule implements OptimizationRule {
                     PartitionTarget.CPU,
                     PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION,
                     cpuPlannerPolicy(),
+                    PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                     cpuRegionConfig
             ));
         }
@@ -249,6 +257,7 @@ public final class PartitionIntentRule implements OptimizationRule {
             PartitionTarget target,
             PartitionPlannerStrategy strategy,
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
+            PartitionSourcePolicy sourcePolicy,
             CpuRegionConfig cpuRegionConfig
     ) {
     }

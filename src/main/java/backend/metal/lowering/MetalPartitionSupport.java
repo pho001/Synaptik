@@ -1,6 +1,5 @@
 package backend.metal.lowering;
 
-import backend.ComputeBackend;
 import backend.metal.MetalMpsCapabilities;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
@@ -22,7 +21,6 @@ public final class MetalPartitionSupport {
      */
     public static boolean isPlannerSupported(CompiledNode node, PartitionPlanningContext context) {
         if (node == null
-                || node.backend() != ComputeBackend.GPU_METAL
                 || node.operation() == null
                 || node.inputIds().isEmpty()
                 || !MetalMpsCapabilities.supportsComputeDType(node.dataType())
