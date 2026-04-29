@@ -572,13 +572,13 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             MetalBufferBinding binding = externalInputs.get(i);
             validateBinding(binding, "external input " + i);
             DataType expected = i < executable.externalInputDataTypes().size() ? executable.externalInputDataTypes().get(i) : null;
-            if (expected != null && binding.dataType() != expected) {
+            if (expected != null && binding.layout().dataType() != expected) {
                 throw new UnsupportedOperationException("Metal buffer input " + i
-                        + " dtype " + binding.dataType() + " does not match executable dtype " + expected + ".");
+                        + " dtype " + binding.layout().dataType() + " does not match executable dtype " + expected + ".");
             }
-            if (binding.dataType() != DataType.FLOAT32 && binding.dataType() != DataType.BOOL) {
+            if (binding.layout().dataType() != DataType.FLOAT32 && binding.layout().dataType() != DataType.BOOL) {
                 throw new UnsupportedOperationException("Metal buffer input " + i
-                        + " has unsupported dtype " + binding.dataType() + ".");
+                        + " has unsupported dtype " + binding.layout().dataType() + ".");
             }
             if (!readable(binding.access())) {
                 throw new UnsupportedOperationException("Metal buffer input " + i
@@ -589,12 +589,12 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             MetalBufferBinding binding = outputs.get(i);
             validateBinding(binding, "output " + i);
             DataType expected = i < executable.outputDataTypes().size() ? executable.outputDataTypes().get(i) : DataType.FLOAT32;
-            if (expected != null && binding.dataType() != expected) {
+            if (expected != null && binding.layout().dataType() != expected) {
                 throw new UnsupportedOperationException("Metal buffer output " + i
-                        + " dtype " + binding.dataType() + " does not match executable dtype " + expected + ".");
+                        + " dtype " + binding.layout().dataType() + " does not match executable dtype " + expected + ".");
             }
-            if (binding.dataType() != DataType.FLOAT32) {
-                throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32 only; got " + binding.dataType() + ".");
+            if (binding.layout().dataType() != DataType.FLOAT32) {
+                throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32 only; got " + binding.layout().dataType() + ".");
             }
             if (!writable(binding.access())) {
                 throw new UnsupportedOperationException("Metal buffer output " + i

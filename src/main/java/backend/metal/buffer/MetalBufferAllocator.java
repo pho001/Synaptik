@@ -1,9 +1,11 @@
 package backend.metal.buffer;
 
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorMetadata;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -152,7 +154,12 @@ public final class MetalBufferAllocator {
         int[] safeShape = shape == null ? new int[0] : shape.clone();
         long bytes = Math.multiplyExact(elementCount, (long) Float.BYTES);
         MetalBufferHandle handle = nativeAccess.createBuffer(bytes, STORAGE_MODE_SHARED, MemorySegment.NULL, 0L);
-        return new MetalBufferBinding(nodeId, dtype, safeShape, elementCount, handle, MetalBufferAccess.READ_WRITE);
+        return new MetalBufferBinding(
+                nodeId,
+                AcceleratorBufferLayout.of(dtype, safeShape, TensorMetadata.computeStrides(safeShape), 0, elementCount),
+                handle,
+                MetalBufferAccess.READ_WRITE
+        );
     }
 
     /**
@@ -171,11 +178,11 @@ public final class MetalBufferAllocator {
         ensureAvailable();
         Objects.requireNonNull(binding, "binding cannot be null");
         Objects.requireNonNull(destination, "destination cannot be null");
-        if (binding.dataType() != DataType.FLOAT32 || destination.getDataType() != DataType.FLOAT32) {
+        if (binding.layout().dataType() != DataType.FLOAT32 || destination.getDataType() != DataType.FLOAT32) {
             throw new UnsupportedOperationException("Metal materializer supports FLOAT32 bindings only.");
         }
-        if (!Arrays.equals(binding.shape(), destination.getShape())
-                || binding.elementCount() != destination.getFlatDataSize()) {
+        if (!Arrays.equals(binding.layout().shape(), destination.getShape())
+                || binding.layout().logicalElementCount() != destination.getFlatDataSize()) {
             throw new IllegalArgumentException("Metal binding shape/count does not match destination tensor.");
         }
         if (!destination.isContiguous() || destination.hasStorageOffset()) {
@@ -232,9 +239,7 @@ public final class MetalBufferAllocator {
     private static MetalBufferBinding binding(int nodeId, Tensor tensor, MetalBufferHandle handle, MetalBufferAccess access) {
         return new MetalBufferBinding(
                 nodeId,
-                tensor.getDataType(),
-                tensor.getShape(),
-                tensor.getFlatDataSize(),
+                AcceleratorBufferLayout.fromTensor(tensor),
                 handle,
                 access
         );

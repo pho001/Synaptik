@@ -318,18 +318,18 @@ public final class MetalAcceleratorBufferBinder {
         if (!metalBinding.available()) {
             return "binding is unavailable: " + metalBinding.describe();
         }
-        if (tensor != null && metalBinding.dataType() != tensor.getDataType()) {
-            return "binding dtype " + metalBinding.dataType() + " does not match tensor dtype " + tensor.getDataType();
+        if (tensor != null && metalBinding.layout().dataType() != tensor.getDataType()) {
+            return "binding dtype " + metalBinding.layout().dataType() + " does not match tensor dtype " + tensor.getDataType();
         }
-        if (expectedDataType != null && metalBinding.dataType() != expectedDataType) {
-            return "binding dtype " + metalBinding.dataType() + " does not match executable dtype " + expectedDataType;
+        if (expectedDataType != null && metalBinding.layout().dataType() != expectedDataType) {
+            return "binding dtype " + metalBinding.layout().dataType() + " does not match executable dtype " + expectedDataType;
         }
-        if (tensor != null && !Arrays.equals(metalBinding.shape(), tensor.getShape())) {
-            return "binding shape " + Arrays.toString(metalBinding.shape())
+        if (tensor != null && !Arrays.equals(metalBinding.layout().shape(), tensor.getShape())) {
+            return "binding shape " + Arrays.toString(metalBinding.layout().shape())
                     + " does not match tensor shape " + Arrays.toString(tensor.getShape());
         }
-        if (tensor != null && metalBinding.elementCount() != tensor.getFlatDataSize()) {
-            return "binding elementCount " + metalBinding.elementCount()
+        if (tensor != null && metalBinding.layout().logicalElementCount() != tensor.getFlatDataSize()) {
+            return "binding elementCount " + metalBinding.layout().logicalElementCount()
                     + " does not match tensor elementCount " + tensor.getFlatDataSize();
         }
         if (!accessCompatible(metalBinding.access(), requiredAccess)) {

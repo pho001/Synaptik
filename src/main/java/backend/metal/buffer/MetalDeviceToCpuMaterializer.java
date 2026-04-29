@@ -34,10 +34,10 @@ public final class MetalDeviceToCpuMaterializer implements DeviceToCpuMaterializ
             return false;
         }
         return metalBinding.available()
-                && metalBinding.dataType() == DataType.FLOAT32
+                && metalBinding.layout().dataType() == DataType.FLOAT32
                 && target.getDataType() == DataType.FLOAT32
-                && Arrays.equals(metalBinding.shape(), target.getShape())
-                && metalBinding.elementCount() == target.getFlatDataSize();
+                && Arrays.equals(metalBinding.layout().shape(), target.getShape())
+                && metalBinding.layout().logicalElementCount() == target.getFlatDataSize();
     }
 
     /**

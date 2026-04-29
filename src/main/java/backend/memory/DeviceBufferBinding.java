@@ -1,11 +1,14 @@
 package backend.memory;
 
+import backend.accelerator.buffer.AcceleratorBufferAccessMode;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
+
 /**
  * Backend-neutral descriptor for a runtime tensor value that has a device-visible buffer.
  *
  * <p>This interface is intentionally smaller than backend-specific buffer handles. Execution state
- * only needs to know which compiled node the binding represents, which backend owns it, whether it
- * is usable, and how many logical bytes it covers. Metal, CUDA, or another accelerator can carry
+ * only needs to know which compiled node the binding represents, which backend owns it, the logical
+ * tensor layout it covers, whether it is usable, and a diagnostic native identity. Metal, CUDA, or another accelerator can carry
  * richer native-handle details in their own implementation classes.</p>
  */
 public interface DeviceBufferBinding {
@@ -24,11 +27,34 @@ public interface DeviceBufferBinding {
     String backendId();
 
     /**
+     * Returns the logical tensor layout represented by this binding.
+     *
+     * @return backend-neutral layout metadata
+     */
+    AcceleratorBufferLayout layout();
+
+    /**
+     * Returns the backend-neutral access mode requested for this binding.
+     *
+     * @return access mode
+     */
+    AcceleratorBufferAccessMode accessMode();
+
+    /**
+     * Returns an opaque diagnostic identity for the backend-owned native handle.
+     *
+     * @return native identity string without exposing backend-native handle objects
+     */
+    String nativeHandleIdentity();
+
+    /**
      * Returns the logical tensor payload size in bytes.
      *
      * @return logical byte length
      */
-    long logicalByteLength();
+    default long logicalByteLength() {
+        return layout().logicalByteLength();
+    }
 
     /**
      * Returns whether this binding can be used by its backend.

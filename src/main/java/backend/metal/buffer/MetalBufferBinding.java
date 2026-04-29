@@ -1,60 +1,45 @@
 package backend.metal.buffer;
 
 import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferAccessMode;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.DeviceBufferBinding;
-import tensor.DataType;
 
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
  * Runtime binding between one compiled graph value and a Metal-compatible buffer.
  *
  * <p>This is the Java-side contract used by the native Metal buffer bridge.
- * It carries only execution facts: node id, dtype, shape, element count, buffer
- * handle, and access intent. Tensor materialization policy remains in execution
+ * It carries only execution facts: node id, shared logical layout metadata,
+ * buffer handle, and access intent. Tensor materialization policy remains in execution
  * state; native code receives buffer bindings rather than semantic tensors.</p>
  *
  * @param nodeId compiled node id represented by the buffer
- * @param dataType tensor dtype stored in the buffer
- * @param shape logical tensor shape
- * @param elementCount logical element count
+ * @param layout backend-neutral logical tensor layout
  * @param handle native buffer handle
  * @param access native access intent
  */
 public record MetalBufferBinding(
         int nodeId,
-        DataType dataType,
-        int[] shape,
-        long elementCount,
+        AcceleratorBufferLayout layout,
         MetalBufferHandle handle,
         MetalBufferAccess access
 ) implements DeviceBufferBinding {
     public MetalBufferBinding {
-        Objects.requireNonNull(dataType, "dataType cannot be null");
-        shape = shape == null ? new int[0] : shape.clone();
-        elementCount = Math.max(0L, elementCount);
+        Objects.requireNonNull(layout, "layout cannot be null");
         Objects.requireNonNull(handle, "handle cannot be null");
         access = access == null ? MetalBufferAccess.READ : access;
     }
 
     /**
-     * Returns a defensive copy of the logical shape.
-     *
-     * @return tensor shape
-     */
-    @Override
-    public int[] shape() {
-        return shape.clone();
-    }
-
-    /**
-     * Returns the expected byte size implied by dtype and element count.
+     * Returns the expected byte size implied by the shared layout.
      *
      * @return logical payload byte size
      */
+    @Override
     public long logicalByteLength() {
-        return elementCount * elementByteSize(dataType);
+        return layout.logicalByteLength();
     }
 
     /**
@@ -76,6 +61,23 @@ public record MetalBufferBinding(
         return handle.available() && handle.byteLength() >= logicalByteLength();
     }
 
+    @Override
+    public AcceleratorBufferAccessMode accessMode() {
+        return switch (access) {
+            case READ -> AcceleratorBufferAccessMode.READ;
+            case WRITE -> AcceleratorBufferAccessMode.WRITE;
+            case READ_WRITE -> AcceleratorBufferAccessMode.READ_WRITE;
+        };
+    }
+
+    @Override
+    public String nativeHandleIdentity() {
+        return backendId()
+                + ":owner=" + handle.owner()
+                + ",storageMode=" + handle.storageMode()
+                + ",bytes=" + handle.byteLength();
+    }
+
     /**
      * Returns whether the binding can be used by Metal.
      *
@@ -93,20 +95,8 @@ public record MetalBufferBinding(
      */
     public String describe() {
         return "nodeId=" + nodeId
-                + ", dtype=" + dataType
-                + ", shape=" + Arrays.toString(shape)
+                + ", " + layout.describe()
                 + ", access=" + access
-                + ", bytes=" + logicalByteLength()
                 + ", handleBytes=" + handle.byteLength();
-    }
-
-    private static int elementByteSize(DataType dataType) {
-        return switch (dataType) {
-            case FLOAT64 -> Double.BYTES;
-            case FLOAT32 -> Float.BYTES;
-            case BFLOAT16 -> Short.BYTES;
-            case BOOL -> Byte.BYTES;
-            case INT32 -> Integer.BYTES;
-        };
     }
 }

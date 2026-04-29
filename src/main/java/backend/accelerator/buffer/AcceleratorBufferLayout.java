@@ -3,6 +3,7 @@ package backend.accelerator.buffer;
 import tensor.DataType;
 import tensor.Tensor;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -91,6 +92,16 @@ public record AcceleratorBufferLayout(
     @Override
     public int[] strides() {
         return strides.clone();
+    }
+
+    public String describe() {
+        return "dtype=" + dataType
+                + ", layoutClass=" + layoutClass
+                + ", shape=" + Arrays.toString(shape)
+                + ", strides=" + Arrays.toString(strides)
+                + ", storageOffset=" + storageOffset
+                + ", elements=" + logicalElementCount
+                + ", bytes=" + logicalByteLength;
     }
 
     static int[] normalizeShape(int[] shape) {

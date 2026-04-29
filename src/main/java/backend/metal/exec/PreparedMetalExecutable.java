@@ -363,9 +363,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         }
         return new MetalBufferBinding(
                 binding.nodeId(),
-                binding.dataType(),
-                binding.shape(),
-                binding.elementCount(),
+                binding.layout(),
                 binding.handle(),
                 MetalBufferAccess.READ_WRITE
         );
