@@ -17,6 +17,8 @@
 
 ### Phase 1: Accelerator Buffer Layout ABI
 
+**Status:** Complete — verified 2026-04-29 (`001-VERIFICATION.md`, score 10/10)
+
 **Goal:** Extend the shared runtime device buffer model so Metal and future CUDA backends can describe logical tensor views, including strides and storage offsets, without baking Metal-specific assumptions into common code.
 
 **Requirements:** ABI-01, ABI-02, ABI-03, ABI-04
@@ -126,10 +128,10 @@ Plans:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ABI-01 | Phase 1 | Complete in 001-01 |
-| ABI-02 | Phase 1 | Complete in 001-01 |
-| ABI-03 | Phase 1 | Complete in 001-01 |
-| ABI-04 | Phase 1 | Complete in 001-01 |
+| ABI-01 | Phase 1 | Complete — verified in 001-VERIFICATION |
+| ABI-02 | Phase 1 | Complete — verified in 001-VERIFICATION |
+| ABI-03 | Phase 1 | Complete — verified in 001-VERIFICATION |
+| ABI-04 | Phase 1 | Complete — verified in 001-VERIFICATION |
 | METAL-01 | Phase 2 | Pending |
 | METAL-02 | Phase 2 | Pending |
 | METAL-03 | Phase 2 | Pending |

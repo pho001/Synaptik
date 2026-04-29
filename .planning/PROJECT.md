@@ -24,10 +24,10 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 - ✓ CUDA backend has shared accelerator scaffolding, bridge interfaces, prepared executable policy seams, and tests for buffer-policy behavior, but no checked-in native CUDA shim yet — existing.
 - ✓ Documentation exists under `docs/` for architecture, compute flow, optimizer stages, tensor API, calibration/autotune, Metal backend, native bridges, testing, and extension workflows — existing.
 - ✓ `.planning/codebase/` contains a current brownfield codebase map for stack, architecture, structure, conventions, testing, integrations, and concerns — existing.
+- ✓ Backend-neutral device buffer layout ABI represents shape, strides, storage offset, dtype, logical element count, byte length, access mode, backend id, and native handle identity for Metal now and CUDA later — validated in Phase 1 by `.planning/phases/001-accelerator-buffer-layout-abi/001-VERIFICATION.md`.
 
 ### Active
 
-- [ ] Establish a backend-neutral device buffer layout ABI that can represent shape, strides, storage offset, dtype, logical element count, access mode, and backend handle identity for Metal now and CUDA later.
 - [ ] Extend accelerator execution so view-like layout operations can stay inside a device-owned flow when legal, instead of forcing CPU materialization only because a tensor is non-contiguous or has a storage offset.
 - [ ] Improve Metal buffer execution to handle layout-aware inputs/outputs safely, including either native view metadata, native/device contiguous transforms, or explicit optimizer-planned boundaries.
 - [ ] Teach accelerator region planning and backend selection to score CPU materialization cost, layout fallback cost, upload/download cost, dispatch overhead, and expected compute benefit.
@@ -86,9 +86,9 @@ The design goal is therefore not "Metal hacks" or "CUDA hacks". The goal is a cl
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Keep `Tensor` logical and put backend residency in `ExecutionState` / device buffer bindings | Avoids public API pollution and matches existing compile/prepare/execute architecture | ✓ Good |
-| Treat Metal and CUDA as backend implementations of shared accelerator contracts | Prevents duplicate architecture and keeps future CUDA work aligned with Metal learnings | — Pending |
+| Treat Metal and CUDA as backend implementations of shared accelerator contracts | Prevents duplicate architecture and keeps future CUDA work aligned with Metal learnings | ✓ Good — Phase 1 ABI validated; native CUDA remains future work |
 | Prioritize longer device-owned flows over buffer-binding micro-optimizations | Recent benchmarks show region/offload policy dominates zero-copy micro-gains | — Pending |
-| Represent view/layout metadata in accelerator buffer ABI before broadening GPU fusion | Non-contiguous/view fallback currently breaks GPU flow and causes CPU materialization | — Pending |
+| Represent view/layout metadata in accelerator buffer ABI before broadening GPU fusion | Non-contiguous/view fallback currently breaks GPU flow and causes CPU materialization | ✓ Good — ABI validated; executable Metal layout flow is Phase 2 |
 | Keep graph autotune and platform calibration separate | Graph policy is workload-specific; hardware thresholds are platform/dtype-specific | ✓ Good |
 | Keep fallback observable in trace and benchmark output | Performance work must distinguish real accelerator execution from CPU replay or tensor-array copies | ✓ Good |
 
@@ -110,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-29 after initialization*
+*Last updated: 2026-04-29 after Phase 1 verification*

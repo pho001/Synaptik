@@ -9,10 +9,10 @@ These requirements define the next brownfield milestone. They are intentionally 
 
 ### Device Buffer ABI
 
-- [x] **ABI-01**: Runtime device buffer bindings can represent backend id, native handle identity, dtype, shape, strides, storage offset, logical element count, byte length, and access mode. Completed by 001-01.
-- [x] **ABI-02**: The shared accelerator buffer model is backend-neutral and reusable by Metal now and CUDA later. Completed by 001-01.
-- [x] **ABI-03**: Buffer compatibility checks distinguish dense contiguous tensors, zero-offset views, non-zero-offset views, permuted/strided views, broadcast/zero-stride views, and unsupported layouts. Completed by 001-01.
-- [x] **ABI-04**: Buffer binding decisions expose stable reason codes for success, fallback, unsupported dtype, unsupported layout, unavailable native ABI, and required-but-unavailable buffer execution. Completed by 001-01.
+- [x] **ABI-01**: Runtime device buffer bindings can represent backend id, native handle identity, dtype, shape, strides, storage offset, logical element count, byte length, and access mode. Completed in Phase 1 and verified by `001-VERIFICATION.md`.
+- [x] **ABI-02**: The shared accelerator buffer model is backend-neutral and reusable by Metal now and CUDA later. Completed in Phase 1 and verified by `001-VERIFICATION.md`.
+- [x] **ABI-03**: Buffer compatibility checks distinguish dense contiguous tensors, zero-offset views, non-zero-offset views, permuted/strided views, broadcast/zero-stride views, and unsupported layouts. Completed in Phase 1 and verified by `001-VERIFICATION.md`.
+- [x] **ABI-04**: Buffer binding decisions expose stable reason codes for success, fallback, unsupported dtype, unsupported layout, unavailable native ABI, and required-but-unavailable buffer execution. Completed in Phase 1 and verified by `001-VERIFICATION.md`.
 
 ### Metal Layout Execution
 
@@ -82,10 +82,10 @@ These requirements define the next brownfield milestone. They are intentionally 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ABI-01 | Phase 1 | Complete in 001-01 |
-| ABI-02 | Phase 1 | Complete in 001-01 |
-| ABI-03 | Phase 1 | Complete in 001-01 |
-| ABI-04 | Phase 1 | Complete in 001-01 |
+| ABI-01 | Phase 1 | Complete — verified in 001-VERIFICATION |
+| ABI-02 | Phase 1 | Complete — verified in 001-VERIFICATION |
+| ABI-03 | Phase 1 | Complete — verified in 001-VERIFICATION |
+| ABI-04 | Phase 1 | Complete — verified in 001-VERIFICATION |
 | METAL-01 | Phase 2 | Pending |
 | METAL-02 | Phase 2 | Pending |
 | METAL-03 | Phase 2 | Pending |
@@ -114,4 +114,4 @@ These requirements define the next brownfield milestone. They are intentionally 
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after 001-01 execution*
+*Last updated: 2026-04-29 after Phase 1 verification*
