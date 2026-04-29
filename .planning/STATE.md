@@ -2,7 +2,7 @@
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 1 — Accelerator Buffer Layout ABI (plan 001-01 complete; plans 001-02 and 001-03 pending)
+**Current focus:** Phase 1 — Accelerator Buffer Layout ABI (plans 001-01 and 001-02 complete; plan 001-03 pending)
 
 ## Project Reference
 
@@ -47,7 +47,7 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 1 — Accelerator Buffer Layout ABI | In progress | 1 of 3 plans complete | 001-01 verification passed on 2026-04-29 |
+| 1 — Accelerator Buffer Layout ABI | In progress | 2 of 3 plans complete | 001-02 verification passed on 2026-04-29 |
 
 ## Recent Decisions
 
@@ -58,12 +58,14 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-29 | Keep public tensors logical and backend residency in runtime state | Maintains clean API design while enabling device-owned execution. |
 | 2026-04-29 | Phase 1 planning passed with no compatibility shims | The accelerator buffer ABI should migrate call sites directly to canonical layout-aware contracts. |
 | 2026-04-29 | DeviceBufferBinding exposes shared layout/access/native identity | Plan 001-01 established the backend-neutral buffer ABI while keeping Metal handles backend-owned. |
+| 2026-04-29 | Metal/CUDA seams consume shared layout ABI without native view execution | Plan 001-02 adapted request, decision, allocator, materializer, and CUDA policy seams while preserving conservative fallback. |
 
 ## Recent Sessions
 
 | Date | Completed | Stopped At | Resume |
 |------|-----------|------------|--------|
 | 2026-04-29 | Completed 001-01-PLAN.md | None | .planning/phases/001-accelerator-buffer-layout-abi/001-01-SUMMARY.md |
+| 2026-04-29 | Completed 001-02-PLAN.md | None | .planning/phases/001-accelerator-buffer-layout-abi/001-02-SUMMARY.md |
 
 ---
-*Last updated: 2026-04-29 after 001-01 execution*
+*Last updated: 2026-04-29 after 001-02 execution*
