@@ -29,8 +29,15 @@ public class GraphAutotuneCandidateSpaceTest {
 
         assertTrue(candidates.size() > 1);
         assertTrue(candidates.stream().anyMatch(candidate -> candidate.name().equals("graphPolicy=current")));
+        assertTrue(candidates.stream().anyMatch(candidate -> candidate.name().equals("acceleratorBuffer=off")));
+        assertTrue(candidates.stream().anyMatch(candidate -> candidate.name().equals("acceleratorBuffer=auto")));
         assertTrue(candidates.stream().allMatch(candidate -> candidate.kind() == CandidateKind.GRAPH_STANDARD));
-        assertTrue(candidates.stream().allMatch(candidate -> candidate.metadata().runtimeFrozen()));
+        assertTrue(candidates.stream()
+                .filter(candidate -> !candidate.name().startsWith("acceleratorBuffer="))
+                .allMatch(candidate -> candidate.metadata().runtimeFrozen()));
+        assertTrue(candidates.stream()
+                .filter(candidate -> candidate.name().startsWith("acceleratorBuffer="))
+                .allMatch(candidate -> !candidate.metadata().runtimeFrozen()));
         assertTrue(candidates.stream().allMatch(candidate -> candidate.metadata().productionEligible()));
         assertTrue(candidates.stream()
                 .filter(candidate -> candidate.name().equals("graphPolicy=current"))
@@ -40,6 +47,39 @@ public class GraphAutotuneCandidateSpaceTest {
                 .anyMatch(candidate -> candidate.metadata().graphPolicyMutated()));
         assertTrue(candidates.stream().anyMatch(candidate ->
                 "CPU_REGION_POLICY".equals(candidate.metadata().attributes().get("graphParameter"))));
+    }
+
+    @Test
+    void standardModeGeneratesAcceleratorBufferRuntimeCandidates() {
+        var seed = seedProfile();
+        var runtime = PlatformRuntimeProfile.fromExecutionProfile("platform", "hardware", "TEST", seed);
+        var candidates = new GraphAutotuneCandidateSpace(
+                "graph-standard",
+                seed.dataType(),
+                seed.mode(),
+                runtime,
+                GraphExecutionPolicy.fromExecutionProfile(seed),
+                GraphAutotuneMode.STANDARD
+        ).generate(workload());
+
+        var off = candidates.stream()
+                .filter(candidate -> candidate.name().equals("acceleratorBuffer=off"))
+                .findFirst()
+                .orElseThrow();
+        var auto = candidates.stream()
+                .filter(candidate -> candidate.name().equals("acceleratorBuffer=auto"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("accelerator-buffer", off.metadata().parameterFamily());
+        assertEquals("buffer-off", off.metadata().parameterVariant());
+        assertEquals("OFF", off.metadata().attributes().get("acceleratorBufferBindingMode"));
+        assertEquals(config.runtime.AcceleratorBufferBindingMode.OFF,
+                off.profile().runtime().accelerator().metal().buffer().bindingMode());
+        assertEquals(config.runtime.AcceleratorBufferBindingMode.AUTO,
+                auto.profile().runtime().accelerator().metal().buffer().bindingMode());
+        assertEquals(runtime.toRuntimeConfig().blas(), off.profile().runtime().blas());
+        assertEquals(GraphExecutionPolicy.fromExecutionProfile(seed).optimizer(), off.profile().optimizer());
     }
 
     @Test

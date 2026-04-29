@@ -100,6 +100,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  tracedRunMs=").append(formatMs(trace.run().durationNs())).append('\n');
                         sb.append("  stepCount=").append(trace.run().steps().size()).append('\n');
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
+                        appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
                         sb.append("  parallelUsed=").append(usesParallel(trace.run().steps())).append('\n');
                         sb.append("  vectorUsed=").append(usesVector(trace.run().steps())).append('\n');
                         sb.append("  steadyStateMeanMs=").append(String.format(Locale.US, "%.6f", stats.meanMs())).append('\n');
@@ -145,6 +146,28 @@ public final class TextBenchmarkReportRenderer {
                 sb.append(" detail=").append(materialization.detail());
             }
             sb.append('\n');
+        }
+    }
+
+    private static void appendAcceleratorSummary(StringBuilder sb, AcceleratorTraceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return;
+        }
+        sb.append("  accelerator:\n");
+        for (var entry : summary.backends().entrySet()) {
+            var backend = entry.getValue();
+            sb.append("    - backend=").append(entry.getKey())
+                    .append(" steps=").append(backend.steps())
+                    .append(" buffer=").append(backend.bufferBindingSteps())
+                    .append(" tensorArray=").append(backend.tensorArraySteps())
+                    .append(" cpuFallback=").append(backend.cpuFallbackSteps())
+                    .append(" unavailable=").append(backend.unavailableSteps())
+                    .append(" preparedInputSteps=").append(backend.preparedInputSteps())
+                    .append(" bytes=").append(backend.inputBytes()).append("->").append(backend.outputBytes())
+                    .append(" javaToNativeMs=").append(formatNsAttr(backend.javaToNativeCopyNs()))
+                    .append(" nativeToJavaMs=").append(formatNsAttr(backend.nativeToJavaCopyNs()))
+                    .append(" nativeDeviceCopyMs=").append(formatNsAttr(backend.nativeDeviceCopyNs()))
+                    .append('\n');
         }
     }
 

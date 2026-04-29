@@ -5,12 +5,14 @@ import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;
 import tensor.DataType;
 import tuning.autotune.GraphAutotuneMode;
+import tuning.candidate.AcceleratorRuntimeOverrides;
 import tuning.candidate.Candidate;
 import tuning.candidate.CandidateKind;
 import tuning.candidate.CandidateMetadata;
 import tuning.candidate.CandidateSpace;
 import tuning.workload.WorkloadSpec;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -66,13 +68,21 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
      */
     @Override
     public List<Candidate> generate(WorkloadSpec workload) {
-        List<GraphPolicyMutators.GraphPolicyVariant> variants = mode == GraphAutotuneMode.RESEARCH
+        List<GraphPolicyMutators.GraphPolicyVariant> graphVariants = mode == GraphAutotuneMode.RESEARCH
                 ? GraphPolicyMutators.research(graphPolicy)
                 : GraphPolicyMutators.standard(graphPolicy);
+        List<GraphRuntimePolicyVariant> variants = new ArrayList<>();
+        graphVariants.stream()
+                .map(variant -> GraphRuntimePolicyVariant.fromGraphPolicy(variant, graphPolicy))
+                .forEach(variants::add);
+        if (mode == GraphAutotuneMode.STANDARD) {
+            variants.add(bufferModeVariant("OFF"));
+            variants.add(bufferModeVariant("AUTO"));
+        }
         return variants.stream().map(this::candidate).toList();
     }
 
-    private Candidate candidate(GraphPolicyMutators.GraphPolicyVariant variant) {
+    private Candidate candidate(GraphRuntimePolicyVariant variant) {
         boolean standard = mode == GraphAutotuneMode.STANDARD;
         var profile = GraphPolicyCandidateAssembler.assemble(
                 profileName,
@@ -80,38 +90,65 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                 dataType,
                 executionMode,
                 runtimeProfile,
-                variant.policy()
+                variant.policy(),
+                variant.runtimeOverride()
         );
-        boolean graphPolicyMutated = !variant.policy().equals(graphPolicy);
         CandidateMetadata metadata = standard
-                ? new CandidateMetadata(
-                        "graph-autotune",
-                        "1",
-                        variant.parameter().name(),
-                        variant.name(),
-                        "STANDARD",
-                        true,
-                        graphPolicyMutated,
-                        true,
-                        java.util.Map.of()
-                )
+                ? standardMetadata(variant)
                 : CandidateMetadata.graphResearch(
                         variant.parameter().name(),
                         variant.name(),
-                        graphPolicyMutated
+                        variant.graphPolicyMutated()
                 );
         var optimizer = variant.policy().optimizer();
+        CandidateMetadata enriched = metadata.withAttribute("graphParameter", variant.parameter().name())
+                .withAttribute("offloadPolicy", optimizer.offload().policy().name())
+                .withAttribute("acceleratorRegionPolicy", optimizer.offload().acceleratorRegionPolicy().name())
+                .withAttribute("metalTransferModel", optimizer.partition().metalTransferModel().name())
+                .withAttribute("cpuRegionPolicy", optimizer.cpuRegion().policy().name())
+                .withAttribute("cpuFusionPolicy", optimizer.cpuFusion().mode().name())
+                .withAttribute("productionEligible", Boolean.toString(standard));
+        for (var entry : variant.metadata().entrySet()) {
+            enriched = enriched.withAttribute(entry.getKey(), entry.getValue());
+        }
         return new Candidate(
                 variant.name(),
                 profile,
                 standard ? CandidateKind.GRAPH_STANDARD : CandidateKind.GRAPH_RESEARCH,
-                metadata.withAttribute("graphParameter", variant.parameter().name())
-                        .withAttribute("offloadPolicy", optimizer.offload().policy().name())
-                        .withAttribute("acceleratorRegionPolicy", optimizer.offload().acceleratorRegionPolicy().name())
-                        .withAttribute("metalTransferModel", optimizer.partition().metalTransferModel().name())
-                        .withAttribute("cpuRegionPolicy", optimizer.cpuRegion().policy().name())
-                        .withAttribute("cpuFusionPolicy", optimizer.cpuFusion().mode().name())
-                        .withAttribute("productionEligible", Boolean.toString(standard))
+                enriched
         );
     }
+
+    private GraphRuntimePolicyVariant bufferModeVariant(String modeName) {
+        return new GraphRuntimePolicyVariant(
+                "acceleratorBuffer=" + modeName.toLowerCase(java.util.Locale.ROOT),
+                GraphAutotuneParameter.ACCELERATOR_BUFFER_MODE,
+                graphPolicy,
+                AcceleratorRuntimeOverrides.bufferBindingMode(modeName),
+                false,
+                true,
+                java.util.Map.of(
+                        "acceleratorBufferBindingMode", modeName
+                )
+        );
+    }
+
+    private static CandidateMetadata standardMetadata(GraphRuntimePolicyVariant variant) {
+        boolean bufferVariant = variant.parameter() == GraphAutotuneParameter.ACCELERATOR_BUFFER_MODE;
+        return new CandidateMetadata(
+                "graph-autotune",
+                "1",
+                bufferVariant ? "accelerator-buffer" : variant.parameter().name(),
+                bufferVariant ? "buffer-" + variant.metadata().getOrDefault(
+                        "acceleratorBufferBindingMode",
+                        "AUTO"
+                ).toLowerCase(java.util.Locale.ROOT) : variant.name(),
+                "STANDARD",
+                !variant.runtimeMutated(),
+                variant.graphPolicyMutated(),
+                true,
+                java.util.Map.of()
+        );
+    }
+
 }

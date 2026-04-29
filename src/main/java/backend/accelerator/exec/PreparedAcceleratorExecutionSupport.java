@@ -1,6 +1,7 @@
 package backend.accelerator.exec;
 
 import backend.cpu.CpuBackend;
+import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
@@ -68,13 +69,29 @@ public final class PreparedAcceleratorExecutionSupport {
 
     /**
      * Executes precomputed CPU fallback steps in partition order.
+     *
+     * <p>The fallback path executes inside one accelerator wrapper step, so it cannot rely on
+     * {@code PreparedExecution}'s outer per-step residency bookkeeping. Each internal CPU step must
+     * validate its CPU-readable inputs and publish its output residency itself; otherwise a later
+     * consumer can see stale CPU storage with no active device binding after the fallback completes.</p>
      */
     public static void executeCpuFallback(List<CpuFallbackStep> steps, ExecutionContext context) {
         if (steps == null) {
             return;
         }
         for (CpuFallbackStep step : steps) {
+            requireCpuReadableInputs(step, context);
             CPU_BACKEND.execute(step.node(), step.metadata(), context);
+            context.markCpuCurrent(step.node().id(), "accelerator cpu fallback wrote CPU array");
+        }
+    }
+
+    private static void requireCpuReadableInputs(CpuFallbackStep step, ExecutionContext context) {
+        List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
+                ? step.node().inputIds()
+                : step.metadata().executionInputNodeIds();
+        for (int inputId : inputIds) {
+            context.requireCpuReadable(inputId, CpuMaterializationReason.CPU_CONSUMER);
         }
     }
 }

@@ -348,8 +348,13 @@ Main paths:
 Shared accelerator code includes:
 
 - DAG specs under `backend.accelerator.dag`
+- buffer policy records under `backend.accelerator.buffer`, including `AcceleratorBufferRequest`,
+  `AcceleratorBufferDecision`, stable `AcceleratorBufferReasonCode` values, and typed
+  `AcceleratorBufferBindings`
 - lowering contracts under `backend.accelerator.lowering`
-- prepared executable contracts under `backend.accelerator.exec`
+- prepared executable contracts under `backend.accelerator.exec`, including
+  `AcceleratorPreparedInputResolver`, which reuses CPU prepared-input planning before accelerator tensor-array or
+  buffer execution
 - availability and cost helpers under `backend.accelerator.select`
 - shared prepare support under `backend.accelerator.prepare`
 
@@ -362,11 +367,15 @@ Metal and CUDA have more complete source-level scaffolding than OpenCL:
 
 Needs verification: whether Metal or CUDA execution is available on a specific machine depends on native bridge availability and external runtime libraries. Source-level availability checks live in `backend.accelerator.select.AcceleratorRuntimeAvailability`.
 
-The Metal buffer package is the runtime contract for native buffer execution. `MetalBufferBinding`,
-`MetalBufferHandle`, and `MetalBufferAccess` describe explicit run-scoped `MTLBuffer` handles. When the native shim
-exports the complete buffer ABI, `MetalMpsFfmBridge.supportsBufferBindings()` reports true, `PreparedMetalExecutable`
-can pass adjacent Metal-region values through `MetalBufferBinding`, and CPU materialization is delayed until a real CPU
-boundary. The legacy tensor-array path remains as fallback when symbols, dtypes, layouts, or native execution fail.
+The common accelerator buffer package decides path and diagnostics; the Metal buffer package owns concrete native
+handles. `MetalBufferBinding`, `MetalBufferHandle`, and `MetalBufferAccess` describe explicit run-scoped `MTLBuffer`
+handles. `MetalAcceleratorBufferBinder` maps a common `AcceleratorBufferDecision` to concrete Metal input/output
+bindings. When the native shim exports the complete buffer ABI, `MetalMpsFfmBridge.supportsBufferBindings()` reports
+true, `PreparedMetalExecutable` can pass adjacent Metal-region values through `MetalBufferBinding`, and CPU
+materialization is delayed until a real CPU boundary. The legacy tensor-array path remains as fallback when policy is
+`OFF`, the bridge does not support buffers, dtypes/layouts are illegal, or native execution fails. CUDA consumes the
+same `AcceleratorBackendConfig.buffer()` policy today, but `CudaGraphBridge.supportsBufferBindings()` still defaults
+to false until a concrete CUDA buffer lifetime/ABI exists.
 For the native Objective-C implementation and buffer ABI details, see [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim) and [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
 ## `config`: Optimizer, Runtime, And Profile Records

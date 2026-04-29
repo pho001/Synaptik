@@ -145,10 +145,15 @@ would run as separate CPU operations unless the CPU fusion path could fuse the e
    - `METAL_GRAPH_REGION` otherwise
 6. `MetalNodePreparer` creates a `PreparedMetalExecutable`.
 7. The executable compiles the lowered DAG through `MetalMpsFfmBridge.compile(...)`.
-8. At execution time, `PreparedMetalExecutable.execute(...)` checks bridge availability and runtime storage conditions.
-9. If buffer bindings are supported and all bindings can be created or reused, it calls `MetalMpsFfmBridge.executeBuffers(...)`.
-10. If the buffer path is unavailable, it tries the legacy tensor-array bridge.
-11. If both Metal paths are unavailable or fail, CPU fallback steps replay the region through CPU kernels.
+8. At execution time, `PreparedMetalExecutable.execute(...)` checks bridge availability and resolves external inputs
+   through `AcceleratorPreparedInputResolver`, so tensor-array and buffer paths see the same prepared contiguous inputs.
+9. `MetalAcceleratorBufferBinder` evaluates the common `RuntimeConfig.accelerator().metal().buffer()` policy:
+   `OFF`, `AUTO`, or `REQUIRE`.
+10. If the common decision is `BUFFER_BINDING`, the binder creates or reuses `MetalBufferBinding` handles and
+    `PreparedMetalExecutable` calls `MetalMpsFfmBridge.executeBuffers(...)`.
+11. If the buffer path is unavailable in `AUTO`, it tries the legacy tensor-array bridge. In `REQUIRE`, it throws with
+    a stable `AcceleratorBufferReasonCode`.
+12. If both Metal paths are unavailable or fail, CPU fallback steps replay the region through CPU kernels.
 
 ```mermaid
 sequenceDiagram
@@ -158,6 +163,8 @@ sequenceDiagram
     participant Lower as MetalRegionLowerer
     participant Prep as MetalNodePreparer
     participant PME as PreparedMetalExecutable
+    participant Resolver as AcceleratorPreparedInputResolver
+    participant Binder as MetalAcceleratorBufferBinder
     participant FFM as MetalMpsFfmBridge
     participant ObjC as Objective-C shim
     participant MPS as MPSGraph
@@ -173,6 +180,17 @@ sequenceDiagram
     PME->>FFM: compile lowered DAG
     FFM->>ObjC: synaptik_apple_mps_compile_partition_f32
     ObjC-->>FFM: executable handle
+    PME->>Resolver: resolve external inputs through CPU layout plan
+    PME->>Binder: decide buffer path from AcceleratorBufferRequest
+    Binder-->>PME: AcceleratorBufferDecision
+    alt BUFFER_BINDING
+        PME->>Binder: resolve MetalBufferBinding handles
+        PME->>FFM: executeBuffers(...)
+    else TENSOR_ARRAY
+        PME->>FFM: execute(...)
+    else CPU_FALLBACK
+        PME->>ES: replay CPU fallback steps
+    end
     U->>PME: execute
     PME->>ES: resolve/create MetalBufferBinding
     PME->>FFM: executeBuffers

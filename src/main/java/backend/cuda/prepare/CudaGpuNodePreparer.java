@@ -82,7 +82,13 @@ public final class CudaGpuNodePreparer {
                 fallback.anchorCpuMetadata().cpuPlan(),
                 null,
                 null,
-                new PreparedCudaExecutable(plan.dagSpec(), loweringFamily, bridge, fallback.preparedSteps()),
+                new PreparedCudaExecutable(
+                        plan.dagSpec(),
+                        loweringFamily,
+                        bridge,
+                        fallback.preparedSteps(),
+                        context.runtimeConfig().accelerator().cuda()
+                ),
                 PartitionExecutionRole.ANCHOR
         );
     }

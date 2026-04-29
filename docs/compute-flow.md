@@ -1175,18 +1175,47 @@ device-to-CPU materializer, which reads the buffer into the runtime tensor's Jav
 
 `PreparedMetalExecutable` now has the Java-side selector for this path:
 
+`PreparedMetalExecutable` now delegates buffer legality to a backend-neutral policy and keeps Metal handle
+ownership in the Metal package:
+
 ```text
-if bridge/context/executable are available
-   and bridge.supportsBufferBindings()
-   and a MetalBufferAllocator is available
-   and existing external inputs can be reused or CPU-current inputs can be uploaded
-   and output buffers can be allocated and reserved
-   and every binding matches runtime dtype, logical shape, and element count:
-     bridge.executeBuffers(...)
-     promote output bindings to DEVICE_OWNED
-     metalExecutionPath = BUFFER_BINDING
+backend.accelerator.buffer.*
+  decides OFF/AUTO/REQUIRE, reason codes, selected path, and prepared-input diagnostics
+
+backend.metal.buffer.MetalAcceleratorBufferBinder
+  turns a legal common decision into concrete MetalBufferBinding / MTLBuffer handles
+
+PreparedMetalExecutable
+  resolves inputs once, asks the binder, then calls executeBuffers(...), execute(...), or CPU fallback
+```
+
+The policy lives in `RuntimeConfig.accelerator().metal().buffer()`:
+
+| Mode | Runtime meaning | Typical use |
+|---|---|---|
+| `OFF` | Do not evaluate native buffer bindings. Use tensor-array bridge or CPU fallback. | Regression comparison and graphs where buffer preflight overhead is known to hurt. |
+| `AUTO` | Try native buffers only when bridge support, input bindings, prepared inputs, dtype, layout, and output buffers are legal. | Production default. |
+| `REQUIRE` | Native buffer execution must be possible; otherwise execution throws with a stable reason code. | Contract tests and zero-copy smoke checks. |
+
+Current Java flow:
+
+```text
+if bridge/context/executable are available:
+  resolvedInputs = AcceleratorPreparedInputResolver.resolve(cpuFallbackSteps, externalInputNodeIds, context)
+  request = AcceleratorBufferRequest(backend, estimatedWork, external ids/dtypes, output ids/dtypes)
+  decision = MetalAcceleratorBufferBinder.decide(request, resolvedInputs, bufferConfig, context)
+
+  if decision.path == BUFFER_BINDING:
+    bindings = MetalAcceleratorBufferBinder.resolve(request, resolvedInputs, decision, context)
+    bridge.executeBuffers(...)
+    promote output bindings to DEVICE_OWNED
+    metalExecutionPath = BUFFER_BINDING
+  else if decision.required:
+    throw IllegalStateException(decision.reasonCode + decision.reason)
+  else:
+    try tensor-array copy path
 else:
-     try tensor-array copy path
+  CPU fallback
 ```
 
 The selector is intentionally conservative, but it checks buffer bindings before it checks the legacy tensor-array
@@ -1199,6 +1228,35 @@ reports `supportsBufferBindings() == false` does not pretend zero-copy happened.
 `metalBufferBindingDecision` and then tries the tensor-array path. If the tensor-array path also cannot satisfy its
 contiguous/direct-array contract, the selected Metal region is replayed through CPU fallback with an explicit
 `metalFallbackReason`.
+
+Prepared contiguous inputs are now shared by the tensor-array path and the buffer path. This matters for layout views:
+
+```java
+Tensor base = new Tensor(
+        new float[]{1, 2, 3, 4},
+        new int[]{2, 2},
+        null,
+        "base",
+        DataType.FLOAT32
+);
+// base = [[1, 2],
+//         [3, 4]]
+
+Tensor p = base.permute(1, 0);
+// p = [[1, 3],
+//      [2, 4]]
+// p is a non-contiguous semantic view.
+
+Tensor y = p.relu();
+// CPU layout planning may create a prepared contiguous runtime tensor p':
+// p' = [[1, 3],
+//       [2, 4]]
+```
+
+The native executable still identifies the external input by the semantic compiled node id for `p`, but the bytes
+passed to `executeBuffers(...)` may come from `p'`. Because `p'` is an execution-local prepared input, the binder does
+not attach the input upload as the device-current value of semantic node `p`. Only true semantic bindings, such as an
+output produced by a previous Metal region, are reusable through `ExecutionState.deviceBufferBindingForNodeId(...)`.
 
 Runtime bridge failures follow the same rule. If `executeBuffers(...)` throws, the output reservation is not promoted
 to an active binding and the region falls back to CPU with a `buffer binding execution failed: ...` reason. If the
@@ -1827,6 +1885,19 @@ When a step is an accelerator anchor, the attributes map can include bridge and 
 
 For Metal anchors, the attributes map also exposes bridge transfer diagnostics from
 `MetalMpsBridgeExecutionStats`:
+
+Common accelerator buffer attributes are emitted for every accelerator executable, including Metal today and CUDA
+once CUDA grows a real buffer ABI:
+
+| Attribute | Meaning |
+|---|---|
+| `acceleratorBufferMode` | Runtime mode: `OFF`, `AUTO`, or `REQUIRE`. |
+| `acceleratorBufferBackend` | Backend enum such as `GPU_METAL` or `GPU_CUDA`. |
+| `acceleratorBufferExecutionPath` | Backend-neutral path: `BUFFER_BINDING`, `TENSOR_ARRAY`, `CPU_FALLBACK`, or `UNAVAILABLE`. |
+| `acceleratorBufferReasonCode` | Stable machine-readable reason such as `BUFFER_BINDINGS_DISABLED`, `BACKEND_BUFFER_NOT_IMPLEMENTED`, `INPUT_NOT_CONTIGUOUS`, or `BUFFER_BINDING_AVAILABLE`. |
+| `acceleratorBufferReason` | Human-readable detail, often including node id or backend availability reason. |
+| `acceleratorBufferPreparedInputUsed` | Whether at least one external input was resolved through a prepared/remapped tensor. |
+| `acceleratorBufferInputCount`, `acceleratorBufferOutputCount` | Number of inputs and outputs evaluated by buffer policy. |
 
 | Attribute | Meaning |
 |---|---|

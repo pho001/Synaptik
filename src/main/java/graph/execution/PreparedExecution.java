@@ -411,6 +411,19 @@ public final class PreparedExecution {
             );
         }
 
+        if (metadata.acceleratorExecutable() != null) {
+            var decision = metadata.acceleratorExecutable().lastAcceleratorBufferDecision();
+            attrs.put("acceleratorBufferMode", decision.mode().name());
+            attrs.put("acceleratorBufferBackend", decision.backend().name());
+            attrs.put("acceleratorBufferDecision", decision.path().name());
+            attrs.put("acceleratorBufferExecutionPath", decision.path().name());
+            attrs.put("acceleratorBufferReasonCode", decision.reasonCode().name());
+            attrs.put("acceleratorBufferReason", decision.reason());
+            attrs.put("acceleratorBufferPreparedInputUsed", decision.preparedInputUsed());
+            attrs.put("acceleratorBufferInputCount", decision.inputs().size());
+            attrs.put("acceleratorBufferOutputCount", decision.outputs().size());
+        }
+
         if (metadata.acceleratorExecutable() instanceof backend.metal.exec.PreparedMetalExecutable metal) {
             var metalStats = metal.lastExecutionStats();
             attrs.put("metalBridgeAvailable", metal.bridge().isAvailable());

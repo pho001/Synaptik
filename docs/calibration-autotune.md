@@ -2528,6 +2528,7 @@ This candidate means "use Metal only when the runtime is available and the estim
 | `CPU_FUSION_POLICY` | Standard | `offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive` | Compares a more aggressive CPU fusion policy against the balanced default while keeping runtime fixed. |
 | `OFFLOAD_POLICY` | Standard | `offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced` | Enables accelerator ownership only when the graph policy says it should be profitable. |
 | `ACCELERATOR_REGION_POLICY` | Standard | `offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced` | Uses a scored accelerator region policy instead of the greedy accelerator region policy. |
+| `ACCELERATOR_BUFFER_MODE` | Standard | `acceleratorBuffer=off`, `acceleratorBuffer=auto` | Changes `RuntimeConfig.accelerator().*.buffer().bindingMode()` for this graph candidate while preserving calibrated CPU/BLAS/fused thresholds. |
 | `RESEARCH_METAL_TRANSFER_MODEL` | Research | `metalTransfer=measured+accelRegion=scored`, `metalTransfer=aggressive+accelRegion=scored` | Changes `PartitionConfig.metalTransferModel()` for scored Metal region profitability. It does not change Metal legality or runtime capability. |
 | `CSE_STRICT_SAFETY` | Research | `cse=strict`, `cse=aggressive` | Replaces CSE config with `CseConfig.strictDefaults()` (`strictSafety=true`) or `CseConfig.aggressiveDefaults()` (`strictSafety=false`). |
 | `PIECEWISE_LOWERING` | Research | `piecewise=current`, `piecewise=off`, `piecewise=canonical` | Keeps current policy, disables piecewise lowering with `PiecewiseLoweringConfig.defaults()` (`canonicalSigmoid=false`, `reluLikeWhere=false`, `clampLikeWhere=false`), or enables aggressive piecewise lowering with all three booleans true. |
@@ -2564,6 +2565,72 @@ generated:
 ```
 
 This candidate is useful even though it does not mutate graph policy: it is the control point that tells you whether any other production graph-policy variant actually improves the workload.
+
+### `ACCELERATOR_BUFFER_MODE`
+
+Accelerator buffer mode is a graph/runtime autotune parameter. It is not a platform calibration result, because the
+same machine can benefit from buffer bindings on one graph and lose time on another graph:
+
+```text
+platform calibration:
+  "this machine supports Metal buffer ABI"
+  "these CPU/BLAS/fused thresholds are good for FLOAT32"
+
+graph autotune:
+  "for this graph and workload, should buffer binding be OFF or AUTO?"
+```
+
+The generated production candidates are:
+
+```text
+acceleratorBuffer=off
+  runtime.accelerator().cuda().buffer().bindingMode() = OFF
+  runtime.accelerator().opencl().buffer().bindingMode() = OFF
+  runtime.accelerator().metal().buffer().bindingMode() = OFF
+  metadata.parameterFamily = accelerator-buffer
+  metadata.parameterVariant = buffer-off
+  runtimeFrozen = false
+
+acceleratorBuffer=auto
+  runtime.accelerator().cuda().buffer().bindingMode() = AUTO
+  runtime.accelerator().opencl().buffer().bindingMode() = AUTO
+  runtime.accelerator().metal().buffer().bindingMode() = AUTO
+  metadata.parameterFamily = accelerator-buffer
+  metadata.parameterVariant = buffer-auto
+  runtimeFrozen = false
+```
+
+`REQUIRE` is intentionally not a production autotune candidate. It is a diagnostic mode for tests and smoke checks:
+
+```java
+RuntimeConfig strictMetalBuffer = RuntimeConfig.inferenceDefaults().withAccelerator(
+        RuntimeConfig.inferenceDefaults().accelerator().withMetal(
+                RuntimeConfig.inferenceDefaults()
+                        .accelerator()
+                        .metal()
+                        .withBuffer(new AcceleratorBufferConfig(
+                                AcceleratorBufferBindingMode.REQUIRE,
+                                true,
+                                0
+                        ))
+        )
+);
+// REQUIRE means: if the selected Metal executable cannot use buffer bindings,
+// throw with a reason code instead of silently using tensor-array copy path.
+```
+
+`OFF` is useful for performance comparisons because it bypasses buffer preflight and allocator work. `AUTO` is the
+production path: it can use existing device-current bindings between adjacent accelerator regions, or it can use a
+prepared contiguous input when the CPU layout plan already knows how to materialize a non-contiguous view safely.
+Benchmark reports now aggregate the common accelerator trace fields, so a candidate result can show:
+
+```text
+accelerator:
+  GPU_METAL steps=12 buffer=4 tensorArray=8 cpuFallback=0 preparedInputSteps=3
+```
+
+That line answers the practical question that matters during autotune: did this graph actually use native buffers,
+or did it merely pay the policy check and then fall back to tensor arrays?
 
 ### `CSE_STRICT_SAFETY`
 

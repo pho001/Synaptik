@@ -1,5 +1,8 @@
 package backend.metal.exec;
 
+import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -7,17 +10,21 @@ import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
+import backend.accelerator.exec.AcceleratorPreparedInputSite;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
+import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.kernels.elementwise.strided.StridedLayoutDecision;
+import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
 import backend.metal.bridge.MetalMpsBridgeExecutionPath;
 import backend.metal.bridge.MetalMpsBridgeExecutionStats;
 import backend.metal.bridge.MetalMpsGraphBridge;
+import backend.metal.buffer.MetalAcceleratorBufferBinder;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
@@ -26,6 +33,9 @@ import backend.metal.lowering.MetalPartitionPlan;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
+import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorBufferBindingMode;
+import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.CompiledNode;
@@ -45,6 +55,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PreparedMetalExecutableBufferBindingTest {
@@ -72,6 +83,98 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
         assertTrue(fixture.state().requiresCpuMaterialization(fixture.outputNode().id()));
+    }
+
+    @Test
+    void bufferOffUsesTensorArrayWithoutAllocatorPreflight() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(
+                fixture.inputNode(),
+                fixture.outputNode(),
+                bridge,
+                List.of(),
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.OFF, true, 0)
+                )
+        );
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                "input shared buffer"
+        );
+
+        executable.execute(fixture.context());
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(1, bridge.tensorExecutions);
+        assertEquals(0, bridge.bufferAllocations);
+        assertEquals(AcceleratorBufferExecutionPath.TENSOR_ARRAY, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferBindingMode.OFF, executable.lastAcceleratorBufferDecision().mode());
+        assertTrue(executable.lastBufferBindingDecision().contains("buffer bindings disabled"));
+    }
+
+    @Test
+    void bufferRequireFailsWhenBridgeDoesNotSupportBufferBindings() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(false);
+        PreparedMetalExecutable executable = executable(
+                fixture.inputNode(),
+                fixture.outputNode(),
+                bridge,
+                List.of(),
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertTrue(failure.getMessage().contains("BACKEND_BUFFER_NOT_IMPLEMENTED"));
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+    }
+
+    @Test
+    void preparedInputUploadIsExecutionLocalAndDoesNotPromoteSemanticInputBinding() {
+        Fixture fixture = nonContiguousInputFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        MetalAcceleratorBufferBinder binder = new MetalAcceleratorBufferBinder(bridge, bridge.createContext());
+        Tensor semanticInput = fixture.context().runtimeTensorForNodeId(fixture.inputNode().id());
+        Tensor preparedInput = new Tensor(new float[]{1f, 3f, 2f, 4f}, fixture.inputNode().shape(), null, "prepared", DataType.FLOAT32);
+        ResolvedAcceleratorInputs resolved = new ResolvedAcceleratorInputs(
+                List.of(fixture.inputNode().id()),
+                List.of(semanticInput),
+                List.of(preparedInput),
+                List.of(true),
+                List.of(new AcceleratorPreparedInputSite(
+                        fixture.inputNode().id(),
+                        fixture.outputNode().id(),
+                        0,
+                        true
+                ))
+        );
+        AcceleratorBufferRequest request = new AcceleratorBufferRequest(
+                ComputeBackend.GPU_METAL,
+                fixture.outputNode().flatDataSize(),
+                List.of(fixture.inputNode().id()),
+                List.of(DataType.FLOAT32),
+                List.of(fixture.outputNode().id()),
+                List.of(DataType.FLOAT32),
+                false
+        );
+
+        var decision = binder.decide(request, resolved, AcceleratorBufferConfig.defaults(), fixture.context());
+        var bindings = binder.resolve(request, resolved, decision, fixture.context());
+
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, decision.path());
+        assertTrue(decision.preparedInputUsed());
+        assertEquals(1, bindings.inputs().size());
+        assertEquals(fixture.inputNode().id(), bindings.inputs().getFirst().nodeId());
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.inputNode().id()));
+        assertEquals(2, bridge.bufferAllocations);
     }
 
     @Test
@@ -172,6 +275,28 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void doesNotAllocateOutputBufferWhenInputBufferPreflightFails() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                new NonMetalBinding(fixture.inputNode().id(), 8),
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                "non-metal shared input"
+        );
+
+        executable.execute(fixture.context());
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(1, bridge.tensorExecutions);
+        assertEquals(0, bridge.bufferAllocations);
+        assertTrue(executable.lastBufferBindingDecision().contains("external input"));
+        assertTrue(executable.lastBufferBindingDecision().contains("binding is not Metal-compatible"));
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+    }
+
+    @Test
     void adjacentMetalExecutionsReuseIntermediateBufferWithoutCpuMaterialization() {
         TwoStageFixture fixture = twoStageFixture();
         FakeBridge bridge = new FakeBridge(true);
@@ -260,6 +385,37 @@ class PreparedMetalExecutableBufferBindingTest {
         assertTrue(executable.lastBufferBindingDecision().contains("bridge does not support buffer bindings"));
     }
 
+    @Test
+    void cpuFallbackPublishesEveryInternalStepAsCpuCurrent() {
+        TwoStageFixture fixture = twoStageFixture();
+        FakeBridge bridge = new FakeBridge(false, true, false);
+        PreparedMetalExecutable executable = executable(
+                fixture.inputNode(),
+                fixture.outputNode(),
+                bridge,
+                List.of(
+                        new PreparedAcceleratorExecutionSupport.CpuFallbackStep(
+                                fixture.middleNode(),
+                                fixture.metadata().get(fixture.middleNode().id())
+                        ),
+                        new PreparedAcceleratorExecutionSupport.CpuFallbackStep(
+                                fixture.outputNode(),
+                                fixture.metadata().get(fixture.outputNode().id())
+                        )
+                )
+        );
+
+        executable.execute(fixture.context());
+
+        assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
+        assertEquals(StorageResidency.CPU_ARRAY, fixture.state().residencyForNodeId(fixture.middleNode().id()).residency());
+        assertTrue(fixture.state().residencyForNodeId(fixture.middleNode().id()).cpuCurrent());
+        assertEquals(StorageResidency.CPU_ARRAY, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
+        assertTrue(fixture.state().residencyForNodeId(fixture.outputNode().id()).cpuCurrent());
+        fixture.context().requireCpuReadable(fixture.middleNode().id(), backend.memory.CpuMaterializationReason.CPU_CONSUMER);
+        fixture.context().requireCpuReadable(fixture.outputNode().id(), backend.memory.CpuMaterializationReason.CPU_CONSUMER);
+    }
+
     private static PreparedMetalExecutable executable(Fixture fixture, MetalMpsGraphBridge bridge) {
         return executable(fixture.inputNode(), fixture.outputNode(), bridge);
     }
@@ -269,13 +425,31 @@ class PreparedMetalExecutableBufferBindingTest {
             CompiledNode outputNode,
             MetalMpsGraphBridge bridge
     ) {
+        return executable(inputNode, outputNode, bridge, List.of());
+    }
+
+    private static PreparedMetalExecutable executable(
+            CompiledNode inputNode,
+            CompiledNode outputNode,
+            MetalMpsGraphBridge bridge,
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps
+    ) {
+        return executable(inputNode, outputNode, bridge, cpuFallbackSteps, AcceleratorBackendConfig.defaults());
+    }
+
+    private static PreparedMetalExecutable executable(
+            CompiledNode inputNode,
+            CompiledNode outputNode,
+            MetalMpsGraphBridge bridge,
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
+            AcceleratorBackendConfig backendConfig
+    ) {
         return new PreparedMetalExecutable(
                 plan(inputNode, outputNode),
                 backend.lowering.LoweringFamily.METAL_GRAPH_REGION,
-                outputNode,
-                cpuPlan(),
                 bridge,
-                List.<PreparedAcceleratorExecutionSupport.CpuFallbackStep>of()
+                cpuFallbackSteps,
+                backendConfig
         );
     }
 
@@ -312,7 +486,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 metadata,
                 state
         );
-        return new TwoStageFixture(inputNode, middleNode, outputNode, state, context);
+        return new TwoStageFixture(inputNode, middleNode, outputNode, state, context, metadata);
     }
 
     private static Fixture nonContiguousInputFixture() {
@@ -463,8 +637,26 @@ class PreparedMetalExecutableBufferBindingTest {
             CompiledNode middleNode,
             CompiledNode outputNode,
             ExecutionState state,
-            ExecutionContext context
+            ExecutionContext context,
+            Map<Integer, CompiledNodeExecutionMetadata> metadata
     ) {
+    }
+
+    private record NonMetalBinding(int nodeId, long logicalByteLength) implements DeviceBufferBinding {
+        @Override
+        public String backendId() {
+            return "GPU_TEST";
+        }
+
+        @Override
+        public boolean available() {
+            return true;
+        }
+
+        @Override
+        public String describe() {
+            return "non-metal nodeId=" + nodeId;
+        }
     }
 
     private static final class FakeBridge implements MetalMpsGraphBridge {
@@ -473,6 +665,7 @@ class PreparedMetalExecutableBufferBindingTest {
         private final boolean failBufferExecution;
         private int tensorExecutions;
         private int bufferExecutions;
+        private int bufferAllocations;
         private List<MetalBufferBinding> lastBufferInputs = List.of();
 
         private FakeBridge(boolean supportsBufferBindings) {
@@ -528,6 +721,7 @@ class PreparedMetalExecutableBufferBindingTest {
             return MetalBufferAllocator.available(new MetalBufferAllocator.NativeAccess() {
                 @Override
                 public MetalBufferHandle createBuffer(long byteLength, int storageMode, MemorySegment initialData, long initialDataBytes) {
+                    bufferAllocations++;
                     return new MetalBufferHandle(MemorySegment.ofAddress(1000L + byteLength), byteLength, "shared", "test", true);
                 }
 

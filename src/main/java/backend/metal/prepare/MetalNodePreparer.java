@@ -86,10 +86,9 @@ public final class MetalNodePreparer {
                 new PreparedMetalExecutable(
                         plan,
                         loweringFamily,
-                        fallback.computeNode(),
-                        fallback.computeCpuMetadata().cpuPlan(),
                         bridge,
-                        fallback.preparedSteps()
+                        fallback.preparedSteps(),
+                        context.runtimeConfig().accelerator().metal()
                 ),
                 PartitionExecutionRole.ANCHOR
         );

@@ -33,7 +33,12 @@ public enum CpuMaterializationReason {
     /**
      * An accelerator path fell back to CPU execution and needs CPU storage as the active representation.
      */
-    CPU_FALLBACK;
+    CPU_FALLBACK,
+
+    /**
+     * An accelerator path is creating a prepared contiguous input from CPU-visible tensor storage.
+     */
+    ACCELERATOR_PREPARED_INPUT;
 
     /**
      * Returns a stable lowercase label suitable for traces and error messages.

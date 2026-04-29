@@ -1,6 +1,9 @@
 package backend.cuda.exec;
 
 import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferDecision;
+import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.cuda.bridge.CudaBridgeContext;
@@ -9,6 +12,8 @@ import backend.cuda.bridge.CudaGraphBridge;
 import backend.lowering.LoweringFamily;
 import backend.runtime.ExecutionContext;
 import backend.accelerator.dag.AcceleratorDagSpec;
+import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorBufferBindingMode;
 
 import java.util.List;
 import java.util.Objects;
@@ -28,6 +33,9 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
     private final CudaBridgeContext bridgeContext;
     private final CudaBridgeExecutable bridgeExecutable;
     private final List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps;
+    private final AcceleratorBackendConfig backendConfig;
+    private volatile AcceleratorBufferDecision lastAcceleratorBufferDecision =
+            AcceleratorBufferDecision.notEvaluated(ComputeBackend.GPU_CUDA);
 
     /**
      * Creates a prepared CUDA executable around a lowered DAG and fallback plan.
@@ -38,12 +46,26 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             CudaGraphBridge bridge,
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps
     ) {
+        this(dagSpec, loweringFamily, bridge, cpuFallbackSteps, AcceleratorBackendConfig.defaults());
+    }
+
+    /**
+     * Creates a prepared CUDA executable with an explicit backend runtime policy.
+     */
+    public PreparedCudaExecutable(
+            AcceleratorDagSpec dagSpec,
+            LoweringFamily loweringFamily,
+            CudaGraphBridge bridge,
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
+            AcceleratorBackendConfig backendConfig
+    ) {
         this.dagSpec = Objects.requireNonNull(dagSpec, "dagSpec cannot be null");
         this.loweringFamily = Objects.requireNonNull(loweringFamily, "loweringFamily cannot be null");
         this.bridge = Objects.requireNonNull(bridge, "bridge cannot be null");
         this.bridgeContext = bridge.createContext();
         this.bridgeExecutable = bridge.compile(bridgeContext, dagSpec);
         this.cpuFallbackSteps = List.copyOf(cpuFallbackSteps == null ? List.of() : cpuFallbackSteps);
+        this.backendConfig = backendConfig == null ? AcceleratorBackendConfig.defaults() : backendConfig;
     }
 
     /**
@@ -59,6 +81,39 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
      */
     @Override
     public void execute(ExecutionContext context) {
+        if (backendConfig.buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE
+                && !bridge.supportsBufferBindings()) {
+            lastAcceleratorBufferDecision = new AcceleratorBufferDecision(
+                    ComputeBackend.GPU_CUDA,
+                    backendConfig.buffer().bindingMode(),
+                    AcceleratorBufferExecutionPath.UNAVAILABLE,
+                    false,
+                    true,
+                    AcceleratorBufferReasonCode.BACKEND_BUFFER_NOT_IMPLEMENTED,
+                    "CUDA bridge does not support buffer bindings",
+                    List.of(),
+                    List.of()
+            );
+            throw new IllegalStateException("Accelerator buffer path is required for GPU_CUDA but unavailable: "
+                    + lastAcceleratorBufferDecision.reasonCode() + ": " + lastAcceleratorBufferDecision.reason());
+        }
+        lastAcceleratorBufferDecision = new AcceleratorBufferDecision(
+                ComputeBackend.GPU_CUDA,
+                backendConfig.buffer().bindingMode(),
+                bridge.supportsBufferBindings()
+                        ? AcceleratorBufferExecutionPath.UNAVAILABLE
+                        : AcceleratorBufferExecutionPath.TENSOR_ARRAY,
+                false,
+                false,
+                bridge.supportsBufferBindings()
+                        ? AcceleratorBufferReasonCode.NOT_EVALUATED
+                        : AcceleratorBufferReasonCode.BACKEND_BUFFER_NOT_IMPLEMENTED,
+                bridge.supportsBufferBindings()
+                        ? "CUDA buffer policy not evaluated by tensor-list bridge"
+                        : "CUDA bridge does not support buffer bindings",
+                List.of(),
+                List.of()
+        );
         if (PreparedAcceleratorExecutionSupport.bridgeReady(
                 bridge.isAvailable(),
                 bridgeContext.available(),
@@ -78,6 +133,11 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             return;
         }
         PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+    }
+
+    @Override
+    public AcceleratorBufferDecision lastAcceleratorBufferDecision() {
+        return lastAcceleratorBufferDecision;
     }
 
     /**

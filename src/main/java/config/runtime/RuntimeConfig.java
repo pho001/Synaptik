@@ -246,7 +246,7 @@ public record RuntimeConfig(
                         FusedPrimaryBackend.ASM,
                         false
                 ),
-                AcceleratorConfig.defaultsTraining()
+                AcceleratorConfig.disabled()
 
         );
         return runtime;

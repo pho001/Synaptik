@@ -37,6 +37,8 @@ import config.profile.ExecutionProfileIO;
 import config.profile.WorkloadProfile;
 import config.runtime.ApproximationConfig;
 import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorBufferBindingMode;
+import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.BlasConfig;
 import config.runtime.FusedExecutionPolicy;
@@ -121,9 +123,24 @@ public class ExecutionProfileIoTest {
                         new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 12.0d, false, 0),
                         new FusedExecutionPolicy(FusedPrimaryBackend.ASM, true),
                         new AcceleratorConfig(
-                                new AcceleratorBackendConfig(false, true, 111L),
-                                new AcceleratorBackendConfig(true, false, 222L),
-                                new AcceleratorBackendConfig(true, true, 333L)
+                                new AcceleratorBackendConfig(
+                                        false,
+                                        true,
+                                        111L,
+                                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.OFF, false, 1_111L)
+                                ),
+                                new AcceleratorBackendConfig(
+                                        true,
+                                        false,
+                                        222L,
+                                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.AUTO, true, 2_222L)
+                                ),
+                                new AcceleratorBackendConfig(
+                                        true,
+                                        true,
+                                        333L,
+                                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, false, 3_333L)
+                                )
                         )
                 ),
                 new WorkloadProfile(config.profile.WorkloadKind.TRANSFORMER_HOT_PATH, 4, 8, 64, 32, 32, 256, true)
@@ -172,6 +189,33 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().fused(), actual.runtime().fused());
         assertEquals(expected.runtime().accelerator(), actual.runtime().accelerator());
         assertEquals(expected.workload(), actual.workload());
+    }
+
+    @Test
+    void legacyExecutionProfilesWithoutAcceleratorBufferKeysUseDefaults() {
+        ExecutionProfile fallback = defaultProfile();
+        String json = """
+                {
+                  "dataType": "FLOAT32",
+                  "mode": "FORWARD",
+                  "profileName": "legacy",
+                  "candidateName": "legacy",
+                  "runtime": {
+                    "accelerator": {
+                      "metalEnabled": true,
+                      "metalRequireRuntimeAvailability": true,
+                      "metalMinimumEstimatedWork": 123
+                    }
+                  }
+                }
+                """;
+
+        ExecutionProfile actual = ExecutionProfileIO.fromJsonOrDefault(json, fallback);
+
+        assertEquals(123L, actual.runtime().accelerator().metal().minimumEstimatedWork());
+        assertEquals(AcceleratorBufferBindingMode.AUTO, actual.runtime().accelerator().metal().buffer().bindingMode());
+        assertEquals(0L, actual.runtime().accelerator().metal().buffer().minimumEstimatedWork());
+        assertEquals(true, actual.runtime().accelerator().metal().buffer().allowPreparedInputMaterialization());
     }
 
     @Test

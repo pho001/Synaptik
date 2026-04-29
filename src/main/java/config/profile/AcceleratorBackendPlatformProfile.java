@@ -1,6 +1,7 @@
 package config.profile;
 
 import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorBufferConfig;
 
 /**
  * Calibrated policy for one accelerator backend on the current platform.
@@ -12,14 +13,25 @@ import config.runtime.AcceleratorBackendConfig;
  * @param enabled whether this accelerator backend may be selected
  * @param requireRuntimeAvailability whether selection must require a successful runtime availability check
  * @param minimumEstimatedWork minimum estimated operation work before this backend is eligible
+ * @param buffer native buffer-binding policy for this backend
  */
 public record AcceleratorBackendPlatformProfile(
         boolean enabled,
         boolean requireRuntimeAvailability,
-        long minimumEstimatedWork
+        long minimumEstimatedWork,
+        AcceleratorBufferConfig buffer
 ) {
     public AcceleratorBackendPlatformProfile {
         minimumEstimatedWork = Math.max(0L, minimumEstimatedWork);
+        buffer = buffer == null ? AcceleratorBufferConfig.defaults() : buffer;
+    }
+
+    public AcceleratorBackendPlatformProfile(
+            boolean enabled,
+            boolean requireRuntimeAvailability,
+            long minimumEstimatedWork
+    ) {
+        this(enabled, requireRuntimeAvailability, minimumEstimatedWork, AcceleratorBufferConfig.defaults());
     }
 
     /**
@@ -42,7 +54,8 @@ public record AcceleratorBackendPlatformProfile(
         return new AcceleratorBackendPlatformProfile(
                 resolved.enabled(),
                 resolved.requireRuntimeAvailability(),
-                resolved.minimumEstimatedWork()
+                resolved.minimumEstimatedWork(),
+                resolved.buffer()
         );
     }
 
@@ -52,6 +65,6 @@ public record AcceleratorBackendPlatformProfile(
      * @return runtime accelerator backend config
      */
     public AcceleratorBackendConfig toRuntimeConfig() {
-        return new AcceleratorBackendConfig(enabled, requireRuntimeAvailability, minimumEstimatedWork);
+        return new AcceleratorBackendConfig(enabled, requireRuntimeAvailability, minimumEstimatedWork, buffer);
     }
 }

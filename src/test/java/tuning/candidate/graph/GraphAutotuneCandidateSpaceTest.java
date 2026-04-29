@@ -34,6 +34,11 @@ class GraphAutotuneCandidateSpaceTest {
                 "CPU_FUSION_POLICY".equals(candidate.metadata().attributes().get("graphParameter"))));
         assertTrue(candidates.stream().anyMatch(candidate ->
                 "OFFLOAD_POLICY".equals(candidate.metadata().attributes().get("graphParameter"))));
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                "ACCELERATOR_BUFFER_MODE".equals(candidate.metadata().attributes().get("graphParameter"))));
+        assertTrue(candidates.stream()
+                .filter(candidate -> "ACCELERATOR_BUFFER_MODE".equals(candidate.metadata().attributes().get("graphParameter")))
+                .allMatch(candidate -> "accelerator-buffer".equals(candidate.metadata().parameterFamily())));
     }
 
     @Test

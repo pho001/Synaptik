@@ -58,6 +58,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"cpuMaterializationCount\": ").append(trace.run().cpuMaterializations().size()).append(",\n");
                 sb.append("        \"parallelUsed\": ").append(usesParallel(trace.run().steps())).append(",\n");
                 sb.append("        \"vectorUsed\": ").append(usesVector(trace.run().steps())).append(",\n");
+                sb.append("        \"accelerator\": ").append(acceleratorSummaryJson(
+                        AcceleratorTraceSummary.fromSteps(trace.run().steps())
+                )).append(",\n");
                 sb.append("        \"cpuMaterializations\": [\n");
                 var materializations = trace.run().cpuMaterializations();
                 for (int j = 0; j < materializations.size(); j++) {
@@ -133,6 +136,35 @@ public final class JsonBenchmarkReportRenderer {
             sb.append('"').append(escape(stages.get(i).name())).append('"');
         }
         sb.append(']');
+        return sb.toString();
+    }
+
+    private static String acceleratorSummaryJson(AcceleratorTraceSummary summary) {
+        if (summary == null || !summary.present()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        int i = 0;
+        for (var entry : summary.backends().entrySet()) {
+            if (i++ > 0) {
+                sb.append(", ");
+            }
+            var backend = entry.getValue();
+            sb.append('"').append(escape(entry.getKey())).append("\": {")
+                    .append("\"steps\": ").append(backend.steps()).append(", ")
+                    .append("\"bufferBindingSteps\": ").append(backend.bufferBindingSteps()).append(", ")
+                    .append("\"tensorArraySteps\": ").append(backend.tensorArraySteps()).append(", ")
+                    .append("\"cpuFallbackSteps\": ").append(backend.cpuFallbackSteps()).append(", ")
+                    .append("\"unavailableSteps\": ").append(backend.unavailableSteps()).append(", ")
+                    .append("\"preparedInputSteps\": ").append(backend.preparedInputSteps()).append(", ")
+                    .append("\"inputBytes\": ").append(backend.inputBytes()).append(", ")
+                    .append("\"outputBytes\": ").append(backend.outputBytes()).append(", ")
+                    .append("\"javaToNativeCopyNs\": ").append(backend.javaToNativeCopyNs()).append(", ")
+                    .append("\"nativeToJavaCopyNs\": ").append(backend.nativeToJavaCopyNs()).append(", ")
+                    .append("\"nativeDeviceCopyNs\": ").append(backend.nativeDeviceCopyNs())
+                    .append("}");
+        }
+        sb.append('}');
         return sb.toString();
     }
 

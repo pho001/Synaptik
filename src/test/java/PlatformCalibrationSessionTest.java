@@ -104,9 +104,36 @@ public class PlatformCalibrationSessionTest {
                         config.runtime.BlasConfig.disabled(),
                         config.runtime.FusedExecutionPolicy.defaultsInference(),
                         new config.runtime.AcceleratorConfig(
-                                new config.runtime.AcceleratorBackendConfig(false, false, 123L),
-                                new config.runtime.AcceleratorBackendConfig(true, false, 456L),
-                                new config.runtime.AcceleratorBackendConfig(true, true, 789L)
+                                new config.runtime.AcceleratorBackendConfig(
+                                        false,
+                                        false,
+                                        123L,
+                                        new config.runtime.AcceleratorBufferConfig(
+                                                config.runtime.AcceleratorBufferBindingMode.OFF,
+                                                false,
+                                                1_230L
+                                        )
+                                ),
+                                new config.runtime.AcceleratorBackendConfig(
+                                        true,
+                                        false,
+                                        456L,
+                                        new config.runtime.AcceleratorBufferConfig(
+                                                config.runtime.AcceleratorBufferBindingMode.AUTO,
+                                                true,
+                                                4_560L
+                                        )
+                                ),
+                                new config.runtime.AcceleratorBackendConfig(
+                                        true,
+                                        true,
+                                        789L,
+                                        new config.runtime.AcceleratorBufferConfig(
+                                                config.runtime.AcceleratorBufferBindingMode.REQUIRE,
+                                                false,
+                                                7_890L
+                                        )
+                                )
                         )
                 ),
                 WorkloadProfile.none()
@@ -139,6 +166,12 @@ public class PlatformCalibrationSessionTest {
         assertEquals(123L, loaded.accelerator().cuda().minimumEstimatedWork());
         assertEquals(456L, loaded.accelerator().opencl().minimumEstimatedWork());
         assertEquals(789L, loaded.accelerator().metal().minimumEstimatedWork());
+        assertEquals(config.runtime.AcceleratorBufferBindingMode.OFF, loaded.accelerator().cuda().buffer().bindingMode());
+        assertEquals(config.runtime.AcceleratorBufferBindingMode.AUTO, loaded.accelerator().opencl().buffer().bindingMode());
+        assertEquals(config.runtime.AcceleratorBufferBindingMode.REQUIRE, loaded.accelerator().metal().buffer().bindingMode());
+        assertEquals(1_230L, loaded.accelerator().cuda().buffer().minimumEstimatedWork());
+        assertEquals(4_560L, loaded.accelerator().opencl().buffer().minimumEstimatedWork());
+        assertEquals(7_890L, loaded.accelerator().metal().buffer().minimumEstimatedWork());
         assertTrue(loaded.accelerator().metal().requireRuntimeAvailability());
         assertEquals(4, loaded.toRuntimeConfig().kernel().cpu().fusedCheapContiguousAsmVectorWidth());
         assertEquals(2, loaded.toRuntimeConfig().kernel().cpu().fusedCheapStridedAsmVectorWidth());
@@ -150,6 +183,11 @@ public class PlatformCalibrationSessionTest {
         assertEquals(2_048, loaded.toRuntimeConfig().kernel().cpu().cheapBF16MaterializeThreshold());
         assertEquals(8_192, loaded.toRuntimeConfig().kernel().cpu().whereMaterializeThreshold());
         assertEquals(789L, loaded.toRuntimeConfig().accelerator().metal().minimumEstimatedWork());
+        assertEquals(
+                config.runtime.AcceleratorBufferBindingMode.REQUIRE,
+                loaded.toRuntimeConfig().accelerator().metal().buffer().bindingMode()
+        );
+        assertEquals(7_890L, loaded.toRuntimeConfig().accelerator().metal().buffer().minimumEstimatedWork());
         assertTrue(loaded.toRuntimeConfig().accelerator().metal().requireRuntimeAvailability());
     }
 

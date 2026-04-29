@@ -46,6 +46,16 @@ public interface CudaGraphBridge {
     }
 
     /**
+     * Returns whether this CUDA bridge can execute through explicit native buffer bindings.
+     *
+     * <p>The default is {@code false}. Future CUDA native-buffer implementations should override this
+     * only after they own a concrete device pointer/graph-buffer lifetime contract.</p>
+     */
+    default boolean supportsBufferBindings() {
+        return false;
+    }
+
+    /**
      * Executes a compiled CUDA graph against already resolved runtime tensors.
      */
     void execute(

@@ -1,6 +1,7 @@
 package backend.accelerator.exec;
 
 import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.runtime.ExecutionContext;
 
 /**
@@ -22,4 +23,13 @@ public interface PreparedAcceleratorExecutable {
      * @param context runtime tensor lookup and execution flags for the current graph run
      */
     void execute(ExecutionContext context);
+
+    /**
+     * Returns buffer-binding diagnostics from the most recent execution attempt.
+     *
+     * @return latest buffer decision, or a not-evaluated decision when the backend has no buffer path
+     */
+    default AcceleratorBufferDecision lastAcceleratorBufferDecision() {
+        return AcceleratorBufferDecision.notEvaluated(backend());
+    }
 }

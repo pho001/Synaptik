@@ -36,6 +36,8 @@ import config.optimizer.PartitionConfig;
 import config.optimizer.PiecewiseLoweringConfig;
 import config.optimizer.RewriteConfig;
 import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorBufferBindingMode;
+import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
@@ -357,7 +359,8 @@ public final class ExecutionProfileIO {
                                     json,
                                     "cudaMinimumEstimatedWork",
                                     defaultProfile.runtime().accelerator().cuda().minimumEstimatedWork()
-                            )
+                            ),
+                            acceleratorBufferConfig(json, "cuda", defaultProfile.runtime().accelerator().cuda().buffer())
                     ),
                     new AcceleratorBackendConfig(
                             findBoolean(json, "openclEnabled", defaultProfile.runtime().accelerator().opencl().enabled()),
@@ -370,7 +373,8 @@ public final class ExecutionProfileIO {
                                     json,
                                     "openclMinimumEstimatedWork",
                                     defaultProfile.runtime().accelerator().opencl().minimumEstimatedWork()
-                            )
+                            ),
+                            acceleratorBufferConfig(json, "opencl", defaultProfile.runtime().accelerator().opencl().buffer())
                     ),
                     new AcceleratorBackendConfig(
                             findBoolean(json, "metalEnabled", defaultProfile.runtime().accelerator().metal().enabled()),
@@ -383,7 +387,8 @@ public final class ExecutionProfileIO {
                                     json,
                                     "metalMinimumEstimatedWork",
                                     defaultProfile.runtime().accelerator().metal().minimumEstimatedWork()
-                            )
+                            ),
+                            acceleratorBufferConfig(json, "metal", defaultProfile.runtime().accelerator().metal().buffer())
                     )
             );
             RuntimeConfig runtime = new RuntimeConfig(new KernelTuningConfig(cpu, cuda, opencl), approximation, blas, conv2d, fused, accelerator);
@@ -595,12 +600,21 @@ public final class ExecutionProfileIO {
                 "      \"cudaEnabled\": " + accelerator.cuda().enabled() + ",\n" +
                 "      \"cudaRequireRuntimeAvailability\": " + accelerator.cuda().requireRuntimeAvailability() + ",\n" +
                 "      \"cudaMinimumEstimatedWork\": " + accelerator.cuda().minimumEstimatedWork() + ",\n" +
+                "      \"cudaBufferBindingMode\": \"" + accelerator.cuda().buffer().bindingMode().name() + "\",\n" +
+                "      \"cudaAllowPreparedInputMaterialization\": " + accelerator.cuda().buffer().allowPreparedInputMaterialization() + ",\n" +
+                "      \"cudaBufferMinimumEstimatedWork\": " + accelerator.cuda().buffer().minimumEstimatedWork() + ",\n" +
                 "      \"openclEnabled\": " + accelerator.opencl().enabled() + ",\n" +
                 "      \"openclRequireRuntimeAvailability\": " + accelerator.opencl().requireRuntimeAvailability() + ",\n" +
                 "      \"openclMinimumEstimatedWork\": " + accelerator.opencl().minimumEstimatedWork() + ",\n" +
+                "      \"openclBufferBindingMode\": \"" + accelerator.opencl().buffer().bindingMode().name() + "\",\n" +
+                "      \"openclAllowPreparedInputMaterialization\": " + accelerator.opencl().buffer().allowPreparedInputMaterialization() + ",\n" +
+                "      \"openclBufferMinimumEstimatedWork\": " + accelerator.opencl().buffer().minimumEstimatedWork() + ",\n" +
                 "      \"metalEnabled\": " + accelerator.metal().enabled() + ",\n" +
                 "      \"metalRequireRuntimeAvailability\": " + accelerator.metal().requireRuntimeAvailability() + ",\n" +
-                "      \"metalMinimumEstimatedWork\": " + accelerator.metal().minimumEstimatedWork() + "\n" +
+                "      \"metalMinimumEstimatedWork\": " + accelerator.metal().minimumEstimatedWork() + ",\n" +
+                "      \"metalBufferBindingMode\": \"" + accelerator.metal().buffer().bindingMode().name() + "\",\n" +
+                "      \"metalAllowPreparedInputMaterialization\": " + accelerator.metal().buffer().allowPreparedInputMaterialization() + ",\n" +
+                "      \"metalBufferMinimumEstimatedWork\": " + accelerator.metal().buffer().minimumEstimatedWork() + "\n" +
                 "    },\n" +
                 "    \"workload\": {\n" +
                 "      \"kind\": \"" + workload.kind().name() + "\",\n" +
@@ -643,6 +657,37 @@ public final class ExecutionProfileIO {
 
     private static String escapeJson(String value) {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static AcceleratorBufferConfig acceleratorBufferConfig(
+            String json,
+            String backendPrefix,
+            AcceleratorBufferConfig defaultConfig
+    ) {
+        AcceleratorBufferConfig fallback = defaultConfig == null ? AcceleratorBufferConfig.defaults() : defaultConfig;
+        String prefix = backendPrefix == null || backendPrefix.isBlank() ? "" : backendPrefix;
+        String normalizedPrefix = prefix.isBlank()
+                ? ""
+                : prefix.substring(0, 1).toLowerCase(java.util.Locale.ROOT) + prefix.substring(1);
+        String keyPrefix = normalizedPrefix;
+        return new AcceleratorBufferConfig(
+                findEnum(
+                        json,
+                        keyPrefix + "BufferBindingMode",
+                        fallback.bindingMode(),
+                        AcceleratorBufferBindingMode.class
+                ),
+                findBoolean(
+                        json,
+                        keyPrefix + "AllowPreparedInputMaterialization",
+                        fallback.allowPreparedInputMaterialization()
+                ),
+                findLong(
+                        json,
+                        keyPrefix + "BufferMinimumEstimatedWork",
+                        fallback.minimumEstimatedWork()
+                )
+        );
     }
 
     private static boolean findBoolean(String json, String key, boolean defaultValue) {

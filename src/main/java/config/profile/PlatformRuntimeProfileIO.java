@@ -5,6 +5,8 @@ import backend.blas.BlasProvider;
 import backend.runtime.ExecutionMode;
 import config.backend.CpuMatMulMicroKernel;
 import config.backend.SumAccuracyMode;
+import config.runtime.AcceleratorBufferBindingMode;
+import config.runtime.AcceleratorBufferConfig;
 import tensor.DataType;
 
 import java.io.IOException;
@@ -123,12 +125,21 @@ public final class PlatformRuntimeProfileIO {
                 "    \"cudaEnabled\": " + profile.accelerator().cuda().enabled() + ",\n" +
                 "    \"cudaRequireRuntimeAvailability\": " + profile.accelerator().cuda().requireRuntimeAvailability() + ",\n" +
                 "    \"cudaMinimumEstimatedWork\": " + profile.accelerator().cuda().minimumEstimatedWork() + ",\n" +
+                "    \"cudaBufferBindingMode\": \"" + profile.accelerator().cuda().buffer().bindingMode().name() + "\",\n" +
+                "    \"cudaAllowPreparedInputMaterialization\": " + profile.accelerator().cuda().buffer().allowPreparedInputMaterialization() + ",\n" +
+                "    \"cudaBufferMinimumEstimatedWork\": " + profile.accelerator().cuda().buffer().minimumEstimatedWork() + ",\n" +
                 "    \"openclEnabled\": " + profile.accelerator().opencl().enabled() + ",\n" +
                 "    \"openclRequireRuntimeAvailability\": " + profile.accelerator().opencl().requireRuntimeAvailability() + ",\n" +
                 "    \"openclMinimumEstimatedWork\": " + profile.accelerator().opencl().minimumEstimatedWork() + ",\n" +
+                "    \"openclBufferBindingMode\": \"" + profile.accelerator().opencl().buffer().bindingMode().name() + "\",\n" +
+                "    \"openclAllowPreparedInputMaterialization\": " + profile.accelerator().opencl().buffer().allowPreparedInputMaterialization() + ",\n" +
+                "    \"openclBufferMinimumEstimatedWork\": " + profile.accelerator().opencl().buffer().minimumEstimatedWork() + ",\n" +
                 "    \"metalEnabled\": " + profile.accelerator().metal().enabled() + ",\n" +
                 "    \"metalRequireRuntimeAvailability\": " + profile.accelerator().metal().requireRuntimeAvailability() + ",\n" +
-                "    \"metalMinimumEstimatedWork\": " + profile.accelerator().metal().minimumEstimatedWork() + "\n" +
+                "    \"metalMinimumEstimatedWork\": " + profile.accelerator().metal().minimumEstimatedWork() + ",\n" +
+                "    \"metalBufferBindingMode\": \"" + profile.accelerator().metal().buffer().bindingMode().name() + "\",\n" +
+                "    \"metalAllowPreparedInputMaterialization\": " + profile.accelerator().metal().buffer().allowPreparedInputMaterialization() + ",\n" +
+                "    \"metalBufferMinimumEstimatedWork\": " + profile.accelerator().metal().buffer().minimumEstimatedWork() + "\n" +
                 "  }\n" +
                 "}\n";
     }
@@ -295,7 +306,8 @@ public final class PlatformRuntimeProfileIO {
                                             json,
                                             "cudaMinimumEstimatedWork",
                                             fallback.accelerator().cuda().minimumEstimatedWork()
-                                    )
+                                    ),
+                                    acceleratorBufferConfig(json, "cuda", fallback.accelerator().cuda().buffer())
                             ),
                             new AcceleratorBackendPlatformProfile(
                                     findBoolean(json, "openclEnabled", fallback.accelerator().opencl().enabled()),
@@ -308,7 +320,8 @@ public final class PlatformRuntimeProfileIO {
                                             json,
                                             "openclMinimumEstimatedWork",
                                             fallback.accelerator().opencl().minimumEstimatedWork()
-                                    )
+                                    ),
+                                    acceleratorBufferConfig(json, "opencl", fallback.accelerator().opencl().buffer())
                             ),
                             new AcceleratorBackendPlatformProfile(
                                     findBoolean(json, "metalEnabled", fallback.accelerator().metal().enabled()),
@@ -321,7 +334,8 @@ public final class PlatformRuntimeProfileIO {
                                             json,
                                             "metalMinimumEstimatedWork",
                                             fallback.accelerator().metal().minimumEstimatedWork()
-                                    )
+                                    ),
+                                    acceleratorBufferConfig(json, "metal", fallback.accelerator().metal().buffer())
                             )
                     )
             );
@@ -338,6 +352,26 @@ public final class PlatformRuntimeProfileIO {
         int firstQuote = json.indexOf('"', json.indexOf(':', idx) + 1);
         int secondQuote = json.indexOf('"', firstQuote + 1);
         return firstQuote < 0 || secondQuote < 0 ? fallback : json.substring(firstQuote + 1, secondQuote);
+    }
+
+    private static AcceleratorBufferConfig acceleratorBufferConfig(
+            String json,
+            String backendPrefix,
+            AcceleratorBufferConfig fallback
+    ) {
+        AcceleratorBufferConfig resolved = fallback == null ? AcceleratorBufferConfig.defaults() : fallback;
+        String prefix = backendPrefix == null || backendPrefix.isBlank()
+                ? ""
+                : backendPrefix.substring(0, 1).toLowerCase(java.util.Locale.ROOT) + backendPrefix.substring(1);
+        return new AcceleratorBufferConfig(
+                findEnum(json, prefix + "BufferBindingMode", resolved.bindingMode(), AcceleratorBufferBindingMode.class),
+                findBoolean(
+                        json,
+                        prefix + "AllowPreparedInputMaterialization",
+                        resolved.allowPreparedInputMaterialization()
+                ),
+                findLong(json, prefix + "BufferMinimumEstimatedWork", resolved.minimumEstimatedWork())
+        );
     }
 
     private static int findInt(String json, String key, int fallback) {
