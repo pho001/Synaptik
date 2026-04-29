@@ -1008,6 +1008,26 @@ ExecutionState
 For a shared Metal buffer this means a CPU publication guard can pass without a download, because CPU storage is already
 current. For a device-owned Metal buffer the same guard fails until a materializer copies or synchronizes the bytes back.
 
+Execution state also distinguishes an active binding from a reserved output binding. A reserved binding means "this
+backend has a writable buffer available for node 42", not "node 42's newest value is already in that buffer":
+
+```java
+executionState.reserveDeviceBufferBinding(42, writableOutputBinding);
+```
+
+After reservation:
+
+```text
+deviceBufferBindingForNodeId(42) = null
+writableDeviceBufferBindingForNodeId(42) = writableOutputBinding
+storageResidency = CPU_ARRAY
+storageCpuCurrent = false
+storageDeviceCurrent = false
+```
+
+The distinction prevents a preallocated output buffer from being mistaken for current data before the accelerator
+actually writes it.
+
 The materializer contract is also per run:
 
 ```java
@@ -1054,6 +1074,7 @@ State transitions implemented today:
 |---|---|---:|---:|---:|---|
 | `markCpuCurrent(nodeId, reason)` | `CPU_ARRAY` | yes | no | no | A CPU kernel or copy-back path wrote Java tensor storage. |
 | `markDeviceCurrent(nodeId, DEVICE_OWNED, backend, reason)` | `DEVICE_OWNED` | no | yes | no | Backend reports a device-only value but no reusable binding is registered. |
+| `reserveDeviceBufferBinding(nodeId, binding)` | unchanged | unchanged | unchanged | reserved only | A backend has a writable output buffer, but no value has been written yet. |
 | `attachDeviceBufferBinding(nodeId, binding, HOST_SHARED_DEVICE_BUFFER, reason)` | `HOST_SHARED_DEVICE_BUFFER` | yes | yes | yes | A backend-visible shared buffer is the active value and is also CPU-readable. |
 | `attachDeviceBufferBinding(nodeId, binding, DEVICE_OWNED, reason)` | `DEVICE_OWNED` | no | yes | yes | A backend-visible device buffer is the active value; CPU reads require materialization. |
 | `markMaterializedToCpu(nodeId, reason)` | `CPU_ARRAY` | yes | no | no | A materializer has already synchronized device bytes into CPU storage. |
@@ -1150,9 +1171,10 @@ later Metal step because device storage is marked current and a device buffer bi
 if bridge/context/executable are available
    and bridge.supportsBufferBindings()
    and every external input has an available MetalBufferBinding readable by Metal
-   and every output has an available MetalBufferBinding writable by Metal
+   and every output has an available reserved or active MetalBufferBinding writable by Metal
    and every binding matches runtime dtype, logical shape, and element count:
      bridge.executeBuffers(...)
+     promote output bindings to HOST_SHARED_DEVICE_BUFFER or DEVICE_OWNED
      metalExecutionPath = BUFFER_BINDING
 else:
      try tensor-array copy path
@@ -1168,6 +1190,11 @@ reports `supportsBufferBindings() == false` does not pretend zero-copy happened.
 `metalBufferBindingDecision` and then tries the tensor-array path. If the tensor-array path also cannot satisfy its
 contiguous/direct-array contract, the selected Metal region is replayed through CPU fallback with an explicit
 `metalFallbackReason`.
+
+When `executeBuffers(...)` succeeds, `PreparedMetalExecutable` promotes each output binding with
+`attachDeviceBufferBinding(...)`. Handles whose storage mode is reported as `shared` become
+`HOST_SHARED_DEVICE_BUFFER`; other storage modes become `DEVICE_OWNED`. This promotion happens after execution, not
+when the output buffer is reserved.
 
 Example trace when the current FFM bridge is used:
 

@@ -6,6 +6,7 @@ import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.memory.DeviceBufferBinding;
+import backend.memory.StorageResidency;
 import backend.metal.MetalMpsCapabilities;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferBinding;
@@ -118,6 +119,9 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                     externalInputBindings.bindings(),
                     outputBindings.bindings()
             );
+            if (!lastExecutionStats.usedCpuFallback()) {
+                markBufferOutputsCurrent(context, outputBindings.bindings());
+            }
             return;
         }
 
@@ -253,7 +257,9 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         }
         List<MetalBufferBinding> bindings = new ArrayList<>(nodeIds.size());
         for (int nodeId : nodeIds) {
-            DeviceBufferBinding binding = context.deviceBufferBindingForNodeId(nodeId);
+            DeviceBufferBinding binding = requiredAccess == MetalBufferAccess.WRITE
+                    ? context.writableDeviceBufferBindingForNodeId(nodeId)
+                    : context.deviceBufferBindingForNodeId(nodeId);
             if (binding == null) {
                 return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId + " has no device buffer binding");
             }
@@ -289,6 +295,28 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             bindings.add(metalBinding);
         }
         return BufferBindingResolution.available(bindings);
+    }
+
+    private static void markBufferOutputsCurrent(ExecutionContext context, List<MetalBufferBinding> outputBindings) {
+        if (context == null || outputBindings == null || outputBindings.isEmpty()) {
+            return;
+        }
+        for (MetalBufferBinding binding : outputBindings) {
+            context.attachDeviceBufferBinding(
+                    binding.nodeId(),
+                    binding,
+                    residencyForOutputBinding(binding),
+                    "metal buffer binding output"
+            );
+        }
+    }
+
+    private static StorageResidency residencyForOutputBinding(MetalBufferBinding binding) {
+        String storageMode = binding.handle().storageMode();
+        if ("shared".equalsIgnoreCase(storageMode)) {
+            return StorageResidency.HOST_SHARED_DEVICE_BUFFER;
+        }
+        return StorageResidency.DEVICE_OWNED;
     }
 
     private static boolean accessCompatible(MetalBufferAccess actual, MetalBufferAccess required) {

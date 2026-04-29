@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PreparedMetalExecutableBufferBindingTest {
@@ -56,12 +57,9 @@ class PreparedMetalExecutableBufferBindingTest {
                 StorageResidency.HOST_SHARED_DEVICE_BUFFER,
                 "input shared buffer"
         );
-        fixture.state().attachDeviceBufferBinding(
-                fixture.outputNode().id(),
-                binding(fixture.outputNode().id(), MetalBufferAccess.WRITE, 8),
-                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
-                "output shared buffer"
-        );
+        MetalBufferBinding outputBinding = binding(fixture.outputNode().id(), MetalBufferAccess.WRITE, 8);
+        fixture.state().reserveDeviceBufferBinding(fixture.outputNode().id(), outputBinding);
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
 
         executable.execute(fixture.context());
 
@@ -69,6 +67,8 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(0, bridge.tensorExecutions);
         assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
         assertEquals("using native buffer bindings", executable.lastBufferBindingDecision());
+        assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+        assertEquals(StorageResidency.HOST_SHARED_DEVICE_BUFFER, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
     }
 
     @Test
@@ -82,12 +82,14 @@ class PreparedMetalExecutableBufferBindingTest {
                 StorageResidency.HOST_SHARED_DEVICE_BUFFER,
                 "input shared buffer"
         );
-        fixture.state().attachDeviceBufferBinding(
+        MetalBufferBinding outputBinding = binding(
                 fixture.outputNode().id(),
-                binding(fixture.outputNode().id(), MetalBufferAccess.WRITE, 16, fixture.outputNode().shape(), 4),
-                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
-                "output shared buffer"
+                MetalBufferAccess.WRITE,
+                16,
+                fixture.outputNode().shape(),
+                4
         );
+        fixture.state().reserveDeviceBufferBinding(fixture.outputNode().id(), outputBinding);
 
         executable.execute(fixture.context());
 
@@ -95,6 +97,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(0, bridge.tensorExecutions);
         assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
         assertEquals("using native buffer bindings", executable.lastBufferBindingDecision());
+        assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
     }
 
     @Test
@@ -128,11 +131,9 @@ class PreparedMetalExecutableBufferBindingTest {
                 StorageResidency.HOST_SHARED_DEVICE_BUFFER,
                 "input shared buffer"
         );
-        fixture.state().attachDeviceBufferBinding(
+        fixture.state().reserveDeviceBufferBinding(
                 fixture.outputNode().id(),
-                binding(fixture.outputNode().id(), MetalBufferAccess.WRITE, 8),
-                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
-                "output shared buffer"
+                binding(fixture.outputNode().id(), MetalBufferAccess.WRITE, 8)
         );
 
         executable.execute(fixture.context());
@@ -141,6 +142,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(1, bridge.tensorExecutions);
         assertEquals(MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY, executable.lastExecutionStats().executionPath());
         assertTrue(executable.lastBufferBindingDecision().contains("bridge does not support buffer bindings"));
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
     }
 
     private static PreparedMetalExecutable executable(Fixture fixture, MetalMpsGraphBridge bridge) {

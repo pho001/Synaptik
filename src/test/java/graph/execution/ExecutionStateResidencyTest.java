@@ -169,6 +169,22 @@ class ExecutionStateResidencyTest {
     }
 
     @Test
+    void reservedDeviceBufferBindingDoesNotMarkValueCurrent() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, true);
+
+        fixture.state().reserveDeviceBufferBinding(outputNodeId, binding);
+
+        assertNull(fixture.state().deviceBufferBindingForNodeId(outputNodeId));
+        assertSame(binding, fixture.state().writableDeviceBufferBindingForNodeId(outputNodeId));
+        var residency = fixture.state().residencyForNodeId(outputNodeId);
+        assertEquals(StorageResidency.CPU_ARRAY, residency.residency());
+        assertFalse(residency.cpuCurrent());
+        assertFalse(residency.deviceCurrent());
+    }
+
+    @Test
     void cpuWriteClearsDeviceBufferBinding() {
         Fixture fixture = fixture();
         int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();

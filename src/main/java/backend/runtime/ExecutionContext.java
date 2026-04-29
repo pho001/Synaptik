@@ -221,6 +221,18 @@ public final class ExecutionContext {
     }
 
     /**
+     * Reserves a writable device buffer for a future backend output without marking it current.
+     *
+     * @param nodeId compiled node id
+     * @param binding backend-specific buffer binding
+     */
+    public void reserveDeviceBufferBinding(int nodeId, DeviceBufferBinding binding) {
+        if (executionState != null) {
+            executionState.reserveDeviceBufferBinding(nodeId, binding);
+        }
+    }
+
+    /**
      * Returns the registered device buffer binding for a runtime tensor.
      *
      * @param nodeId compiled node id
@@ -231,6 +243,19 @@ public final class ExecutionContext {
             return null;
         }
         return executionState.deviceBufferBindingForNodeId(nodeId);
+    }
+
+    /**
+     * Returns a writable device buffer binding for a future backend output.
+     *
+     * @param nodeId compiled node id
+     * @return writable binding, or {@code null} when none is available
+     */
+    public DeviceBufferBinding writableDeviceBufferBindingForNodeId(int nodeId) {
+        if (executionState == null) {
+            return null;
+        }
+        return executionState.writableDeviceBufferBindingForNodeId(nodeId);
     }
 
     /**

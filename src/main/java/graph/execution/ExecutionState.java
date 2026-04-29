@@ -37,6 +37,7 @@ public final class ExecutionState {
     private final Map<Tensor, Integer> runtimeNodeIdByTensor;
     private final Map<Integer, TensorResidencyState> residencyByNodeId;
     private final Map<Integer, DeviceBufferBinding> deviceBufferBindingByNodeId;
+    private final Map<Integer, DeviceBufferBinding> reservedDeviceBufferBindingByNodeId;
     private final Map<String, DeviceToCpuMaterializer> deviceToCpuMaterializerByBackend;
     private final List<CpuMaterializationTrace> cpuMaterializationTraces;
 
@@ -54,6 +55,7 @@ public final class ExecutionState {
         this.runtimeNodeIdByTensor = Map.copyOf(runtimeNodeIdByTensor);
         this.residencyByNodeId = Map.copyOf(residencyByNodeId);
         this.deviceBufferBindingByNodeId = new HashMap<>(deviceBufferBindingByNodeId == null ? Map.of() : deviceBufferBindingByNodeId);
+        this.reservedDeviceBufferBindingByNodeId = new HashMap<>();
         this.deviceToCpuMaterializerByBackend = new HashMap<>();
         this.cpuMaterializationTraces = new ArrayList<>();
     }
@@ -216,6 +218,7 @@ public final class ExecutionState {
      */
     public void markCpuCurrent(int nodeId, String reason) {
         deviceBufferBindingByNodeId.remove(nodeId);
+        reservedDeviceBufferBindingByNodeId.remove(nodeId);
         residencyForNodeId(nodeId).markCpuCurrent(reason);
     }
 
@@ -232,7 +235,24 @@ public final class ExecutionState {
      */
     public void markDeviceCurrent(int nodeId, StorageResidency residency, String deviceBackend, String reason) {
         deviceBufferBindingByNodeId.remove(nodeId);
+        reservedDeviceBufferBindingByNodeId.remove(nodeId);
         residencyForNodeId(nodeId).markDeviceCurrent(residency, deviceBackend, reason);
+    }
+
+    /**
+     * Reserves a writable device buffer for a future backend output without marking the value current.
+     *
+     * <p>This method is for output buffers that have been allocated but not written yet. Unlike
+     * {@link #attachDeviceBufferBinding(int, DeviceBufferBinding, StorageResidency, String)}, it does not
+     * change residency or CPU/device current flags. A backend must promote the reservation with
+     * {@code attachDeviceBufferBinding(...)} only after it has written the output bytes.</p>
+     *
+     * @param nodeId compiled node id
+     * @param binding backend-specific buffer binding
+     */
+    public void reserveDeviceBufferBinding(int nodeId, DeviceBufferBinding binding) {
+        validateDeviceBufferBinding(nodeId, binding);
+        reservedDeviceBufferBindingByNodeId.put(nodeId, binding);
     }
 
     /**
@@ -256,18 +276,12 @@ public final class ExecutionState {
     ) {
         Objects.requireNonNull(binding, "binding cannot be null");
         Objects.requireNonNull(residency, "residency cannot be null");
-        if (binding.nodeId() != nodeId) {
-            throw new IllegalArgumentException("Device buffer binding nodeId=" + binding.nodeId()
-                    + " does not match requested nodeId=" + nodeId);
-        }
+        validateDeviceBufferBinding(nodeId, binding);
         if (residency == StorageResidency.CPU_ARRAY) {
             throw new IllegalArgumentException("Device buffer binding requires a device residency.");
         }
-        if (!binding.available()) {
-            throw new IllegalArgumentException("Device buffer binding is not available: " + binding.describe());
-        }
-        residencyForNodeId(nodeId);
         deviceBufferBindingByNodeId.put(nodeId, binding);
+        reservedDeviceBufferBindingByNodeId.remove(nodeId);
         if (residency == StorageResidency.HOST_SHARED_DEVICE_BUFFER) {
             residencyForNodeId(nodeId).markSharedBufferCurrent(binding.backendId(), reason);
             return;
@@ -284,6 +298,22 @@ public final class ExecutionState {
     public DeviceBufferBinding deviceBufferBindingForNodeId(int nodeId) {
         residencyForNodeId(nodeId);
         return deviceBufferBindingByNodeId.get(nodeId);
+    }
+
+    /**
+     * Returns a writable device buffer binding for a future backend output.
+     *
+     * <p>The returned binding may be either an already active binding or a reserved output binding. Callers
+     * must not treat a reserved binding as current data until the backend has written it and promoted it via
+     * {@link #attachDeviceBufferBinding(int, DeviceBufferBinding, StorageResidency, String)}.</p>
+     *
+     * @param nodeId compiled node id
+     * @return writable binding, or {@code null} when none is available
+     */
+    public DeviceBufferBinding writableDeviceBufferBindingForNodeId(int nodeId) {
+        residencyForNodeId(nodeId);
+        DeviceBufferBinding reserved = reservedDeviceBufferBindingByNodeId.get(nodeId);
+        return reserved == null ? deviceBufferBindingByNodeId.get(nodeId) : reserved;
     }
 
     /**
@@ -343,6 +373,7 @@ public final class ExecutionState {
                 detail == null || detail.isBlank() ? "device value synchronized to CPU storage" : detail
         ));
         deviceBufferBindingByNodeId.remove(nodeId);
+        reservedDeviceBufferBindingByNodeId.remove(nodeId);
         state.markMaterializedToCpu(reason.label());
     }
 
@@ -450,6 +481,18 @@ public final class ExecutionState {
             return "no device-to-CPU materializer is available";
         }
         return "registered device-to-CPU materializer does not support the active binding";
+    }
+
+    private void validateDeviceBufferBinding(int nodeId, DeviceBufferBinding binding) {
+        Objects.requireNonNull(binding, "binding cannot be null");
+        if (binding.nodeId() != nodeId) {
+            throw new IllegalArgumentException("Device buffer binding nodeId=" + binding.nodeId()
+                    + " does not match requested nodeId=" + nodeId);
+        }
+        if (!binding.available()) {
+            throw new IllegalArgumentException("Device buffer binding is not available: " + binding.describe());
+        }
+        residencyForNodeId(nodeId);
     }
 
     /**

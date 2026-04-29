@@ -575,9 +575,11 @@ FFM bridge already copies outputs back into Java arrays and does not register a 
 The next Java-side contract is `DeviceBufferBinding`. It is backend-neutral and deliberately small: node id, backend
 id, logical byte length, availability, and a diagnostic description. `MetalBufferBinding` implements that contract and
 keeps Metal-specific native handle details in `backend.metal.buffer`. `ExecutionState` can now register such a binding
-per compiled node. Registering a `HOST_SHARED_DEVICE_BUFFER` binding marks both CPU and device representations current;
-registering a `DEVICE_OWNED` binding marks CPU stale and device current. A later CPU write or completed CPU
-materialization clears the binding, because the previous device handle can no longer be treated as the active value.
+per compiled node. Reserving a binding only says that a writable backend buffer exists for a future output; it does not
+change residency and cannot be read as current data. Attaching a `HOST_SHARED_DEVICE_BUFFER` binding after execution
+marks both CPU and device representations current; attaching a `DEVICE_OWNED` binding marks CPU stale and device
+current. A later CPU write or completed CPU materialization clears the active/reserved binding, because the previous
+device handle can no longer be treated as the active value.
 
 This also changes the default post-step residency rule. CPU backend steps are still marked CPU-current after execution.
 Accelerator steps are marked CPU-current only when they did not publish any residency state themselves. That preserves
