@@ -1,6 +1,7 @@
 package backend.cuda.exec;
 
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -40,9 +41,13 @@ class PreparedCudaExecutableBufferPolicyTest {
 
         assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
         assertEquals(AcceleratorBufferBindingMode.REQUIRE, executable.lastAcceleratorBufferDecision().mode());
-        assertEquals("BACKEND_BUFFER_NOT_IMPLEMENTED", executable.lastAcceleratorBufferDecision().reasonCode().name());
+        assertEquals(
+                AcceleratorBufferReasonCode.REQUIRED_BUFFER_EXECUTION_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode()
+        );
         assertEquals("Accelerator buffer path is required for GPU_CUDA but unavailable: "
-                + "BACKEND_BUFFER_NOT_IMPLEMENTED: CUDA bridge does not support buffer bindings", failure.getMessage());
+                + "REQUIRED_BUFFER_EXECUTION_UNAVAILABLE: CUDA bridge does not support required buffer bindings",
+                failure.getMessage());
     }
 
     private static AcceleratorDagSpec dag() {
