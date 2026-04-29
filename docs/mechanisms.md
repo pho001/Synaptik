@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Mechanisms
 
-Navigation: [Index](index.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Tensor API](tensor-api.md) | [Architecture](architecture.md) | [Modules](modules.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#how-the-stages-work-together) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Architecture](architecture.md#core-artifact-boundaries) | [Modules](modules.md#package-map)
 
 Chapters: [Graph Construction](#graph-construction) | [Broadcasting](#broadcasting) | [Autodiff / Backward Graph](#autodiff-backward-graph) | [Compile Pipeline](#compile-pipeline) | [Semantic Canonicalization](#semantic-canonicalization) | [Optimizer Stages: AR / CSE / PART / FUSE / MEM](#optimizer-stages-ar-cse-part-fuse-mem) | [Prepared Execution](#prepared-execution) | [Memory Planning / Runtime Binding](#memory-planning-runtime-binding) | [CPU Dispatch](#cpu-dispatch) | [Fused ASM Execution](#fused-asm-execution) | [Tuning / Calibration / Persistence](#tuning-calibration-persistence)
 
@@ -507,7 +507,7 @@ For `a.add(b).mul(a).sigmoid()` with inference defaults, prepare creates forward
 - Compile Pipeline
 - Memory Planning / Runtime Binding
 - CPU Dispatch
-- [Metal Backend](metal-backend.md)
+- [Metal Backend: End-To-End Flow](metal-backend.md#end-to-end-flow)
 
 ## Memory Planning / Runtime Binding
 
@@ -577,7 +577,7 @@ If `t1` is no longer needed after `t2`, its buffer may become reusable. A strict
 
 - Prepared Execution
 - Fused ASM Execution
-- [Metal Backend](metal-backend.md)
+- [Metal Backend: Buffer Residency And Materialization](metal-backend.md#buffer-residency-and-materialization)
 - Autodiff / Backward Graph
 
 ## CPU Dispatch

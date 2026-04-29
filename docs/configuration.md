@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Configuration
 
-Navigation: [Index](index.md) | [Calibration & Autotune](calibration-autotune.md) | [Compute Flow](compute-flow.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Development](development.md) | [Testing](testing.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Calibration & Autotune](calibration-autotune.md#runtime-and-graph-artifacts) | [Compute Flow](compute-flow.md#tensor-compute-api) | [Native Bridges & BLAS](native-bridges-and-blas.md#configuration-and-library-lookup) | [Metal Backend](metal-backend.md#supported-operations-and-dtypes) | [Development](development.md#local-setup) | [Testing](testing.md#exact-commands) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
 
 Chapters: [Build Requirements](#build-requirements) | [OptimizerConfig](#optimizerconfig) | [RuntimeConfig](#runtimeconfig) | [Execution Profiles](#execution-profiles) | [Platform Runtime Profiles](#platform-runtime-profiles) | [Tuning And Calibration Persistence](#tuning-and-calibration-persistence) | [System Properties And Environment Variables](#system-properties-and-environment-variables) | [CLI Configuration Behavior](#cli-configuration-behavior) | [Verification Notes](#verification-notes)
 
@@ -279,7 +279,7 @@ Supported providers:
 It does not force every matrix multiplication through BLAS. The CPU matmul planner still checks dtype, estimated work,
 contiguity, and `FLOAT32`/`BFLOAT16` shape guards before setting BLAS metadata. For the full explanation of BLAS,
 GEMM, Java FFM, lookup order, fallback behavior, and why `threads` is currently normalized to `0`, see
-[Native Bridges & BLAS](native-bridges-and-blas.md).
+[Native Bridges & BLAS: Configuration And Library Lookup](native-bridges-and-blas.md#configuration-and-library-lookup).
 
 ### Conv2dConfig
 
@@ -347,7 +347,7 @@ new AcceleratorBackendConfig(
 Current capability note: CPU remains the broadest backend. Metal has a real MPSGraph FFM path for a tested `FLOAT32`
 subset, including native buffer binding when the shim exports the current buffer ABI; CUDA and OpenCL are still more limited
 from the documented source surface. The detailed Metal capability boundary, supported dtypes, buffer ABI, and fallback
-rules are in [Metal Backend](metal-backend.md).
+rules are in [Metal Backend: Supported Operations And DTypes](metal-backend.md#supported-operations-and-dtypes).
 
 ## Execution Profiles
 

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Public API
 
-Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Examples](examples.md) | [Configuration](configuration.md) | [Compute Flow](compute-flow.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Examples](examples.md#running-examples) | [Configuration](configuration.md#runtimeconfig) | [Compute Flow](compute-flow.md#tensor-compute-api) | [Native Bridges & BLAS](native-bridges-and-blas.md#configuration-and-library-lookup) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Troubleshooting](troubleshooting.md#unsupported-dtype-in-a-kernel)
 
 Chapters: [Stability Map](#stability-map) | [Tensor](#tensor) | [ComputeOptions, CompileMode, And AutotunePolicy](#computeoptions-compilemode-and-autotunepolicy) | [CompiledGraph](#compiledgraph) | [PreparedExecution](#preparedexecution) | [Configuration APIs](#configuration-apis) | [Tuning Fluent API](#tuning-fluent-api) | [CLI Entry Point](#cli-entry-point) | [Probably Internal APIs](#probably-internal-apis) | [Verification Notes](#verification-notes)
 
@@ -580,7 +580,7 @@ Performance notes:
 - `trainingDefaults()` uses CPU kernel training defaults, disabled BLAS, disabled conv2d BLAS, ASM fused execution with fallback, and default accelerator config.
 - `inferenceDefaults()` uses CPU inference defaults and inference fused/accelerator defaults.
 - `noOptNoVecNoPar()` disables practical vectorization, parallelism, and BLAS by using very high thresholds.
-- `BlasConfig` can make OpenBLAS eligible through `BlasProvider.OPENBLAS_FFM`, but node-level BLAS dispatch still depends on dtype, shape, contiguity, and work gates. See [Native Bridges & BLAS](native-bridges-and-blas.md).
+- `BlasConfig` can make OpenBLAS eligible through `BlasProvider.OPENBLAS_FFM`, but node-level BLAS dispatch still depends on dtype, shape, contiguity, and work gates. See [Native Bridges & BLAS: Dispatch Terms](native-bridges-and-blas.md#dispatch-terms).
 
 ### ExecutionProfile And PlatformRuntimeProfile
 
@@ -787,7 +787,7 @@ These APIs are visible in Java but are implementation-oriented. Prefer the publi
 | `backend.ComputeEngine` | `src/main/java/backend/ComputeEngine.java` | Dispatches prepared compiled nodes; callers should use `Tensor`, `CompiledGraph`, or `PreparedExecution`. |
 | `backend.memory.StorageResidency`, `backend.memory.TensorResidencyState`, `backend.memory.CpuMaterializationReason`, `backend.memory.CpuMaterializationResult`, `backend.memory.DeviceBufferBinding`, `backend.memory.DeviceToCpuMaterializer`, `backend.memory.ExecutionResource` | `src/main/java/backend/memory/*.java` | Public Java types because execution/trace code crosses packages, but they describe per-run runtime storage state rather than an application-facing tensor storage API. `CpuMaterializationReason` is diagnostic; it names why CPU storage is required. `DeviceBufferBinding` is the backend-neutral handle contract used by shared-buffer execution paths. `DeviceToCpuMaterializer` synchronizes an active device binding into CPU storage; `ExecutionResource` scopes native resource cleanup to one execution run. |
 | `graph.execution.trace.CpuMaterializationTrace` | `src/main/java/graph/execution/trace/CpuMaterializationTrace.java` | Run-trace record for CPU-readable storage requests. It is observability for residency/materialization decisions, not a public tensor materialization API. |
-| `backend.metal.buffer.MetalBufferAccess`, `MetalBufferHandle`, `MetalBufferBinding`, `MetalBufferAllocator`, `MetalDeviceToCpuMaterializer`, `MetalBufferResource` | `src/main/java/backend/metal/buffer/*.java` | Java-side contract for native shared-buffer Metal execution. These remain internal/SPI-oriented rather than application APIs: they are tied to compiled node ids, run-scoped native handles, and execution-state ownership. See [Metal Backend](metal-backend.md). |
+| `backend.metal.buffer.MetalBufferAccess`, `MetalBufferHandle`, `MetalBufferBinding`, `MetalBufferAllocator`, `MetalDeviceToCpuMaterializer`, `MetalBufferResource` | `src/main/java/backend/metal/buffer/*.java` | Java-side contract for native shared-buffer Metal execution. These remain internal/SPI-oriented rather than application APIs: they are tied to compiled node ids, run-scoped native handles, and execution-state ownership. See [Metal Backend: Buffer Residency And Materialization](metal-backend.md#buffer-residency-and-materialization). |
 | `backend.metal.bridge.MetalMpsBridgeExecutionStats`, `MetalMpsBridgeExecutionPath` | `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java`, `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java` | Trace/report diagnostics for Metal bridge executions and fallbacks, surfaced through run trace attributes and benchmark reports rather than through normal tensor APIs. |
 | `backend.cpu.*`, `backend.metal.*`, `backend.cuda.*` | `src/main/java/backend/**/*.java` | Kernel implementations and native bridge plumbing. |
 | `graph.compile.*`, `graph.optimizer.*` | `src/main/java/graph/**/*.java` | Compile pipeline internals; only `CompiledGraph` is the general entry point. |

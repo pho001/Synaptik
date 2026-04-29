@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Framework Concepts
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Glossary](glossary.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#system-overview) | [Compute Flow](compute-flow.md#lifecycle-map) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Graph Optimizer](graph-optimizer.md#stage-ordering) | [Metal Backend](metal-backend.md#mental-model) | [Glossary](glossary.md#a)
 
 Chapters: [Tensors As Graph Nodes](#tensors-as-graph-nodes) | [Operation Descriptors](#operation-descriptors) | [Storage And Layout](#storage-and-layout) | [Broadcasting](#broadcasting) | [Compile, Prepare, Execute](#compile-prepare-execute) | [Autodiff](#autodiff) | [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-and-optimizer-stages) | [Profiles](#profiles) | [Tuning, Calibration, And Persistence](#tuning-calibration-and-persistence) | [Common Mental Pitfalls](#common-mental-pitfalls)
 
@@ -44,7 +44,7 @@ The graph is a DAG over object references, not a separate IR object during const
 
 ## Operation Descriptors
 
-`operations.Operation` describes what a node means, not how to execute it. Its core fields are `opType()`, `getExpression()`, and the optional `isCheap()` hint. `Operation.OpType` also classifies primitives by arity family and marks elementwise primitives as fusable. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md).
+`operations.Operation` describes what a node means, not how to execute it. Its core fields are `opType()`, `getExpression()`, and the optional `isCheap()` hint. `Operation.OpType` also classifies primitives by arity family and marks elementwise primitives as fusable. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md#core-contract).
 
 Examples:
 
@@ -171,7 +171,7 @@ The tuning package measures and persists executable profiles; it does not define
 - Per-graph autotune: search candidate `ExecutionProfile` objects for one workload.
 - Platform calibration: search runtime defaults for one hardware/JDK platform and persist a `PlatformRuntimeProfile`.
 
-Source: [`tuning/README.md`](../src/main/java/tuning/README.md), [`AutotuneSession.java`](../src/main/java/tuning/autotune/AutotuneSession.java), [`DefaultAutotuneSession.java`](../src/main/java/tuning/autotune/DefaultAutotuneSession.java), [`DefaultPlatformCalibrationSession.java`](../src/main/java/tuning/calibration/DefaultPlatformCalibrationSession.java).
+Source: [`tuning/README.md`](../src/main/java/tuning/README.md#three-distinct-workflows), [`AutotuneSession.java`](../src/main/java/tuning/autotune/AutotuneSession.java), [`DefaultAutotuneSession.java`](../src/main/java/tuning/autotune/DefaultAutotuneSession.java), [`DefaultPlatformCalibrationSession.java`](../src/main/java/tuning/calibration/DefaultPlatformCalibrationSession.java).
 
 Persistence is explicit. Autotune can persist best profiles and history through `PersistencePolicy`, `JsonFileBestProfileStore`, and `JsonFileTuningHistoryStore`. CLI platform calibration uses the schema-v2 layout rooted at `profiles/platform/<platform-id>/calibration/schema-v2`, with latest profiles under `latest/<dtype>/<mode>/profile.json`, per-family history under `history/<dtype>/<mode>/<family-id>.jsonl`, and run artifacts under `runs/<run-id>/<dtype>/<mode>/<family-id>/`. Source: [`PersistencePolicy.java`](../src/main/java/tuning/store/PersistencePolicy.java), [`JsonFileBestProfileStore.java`](../src/main/java/tuning/store/JsonFileBestProfileStore.java), [`CalibrationArtifactLayout.java`](../src/main/java/tuning/calibration/store/CalibrationArtifactLayout.java).
 

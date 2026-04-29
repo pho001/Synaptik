@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Compute Flow
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Mechanisms](mechanisms.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#execution-pipeline) | [Tensor API](tensor-api.md#compute-convenience-api) | [Graph Optimizer](graph-optimizer.md#how-the-stages-work-together) | [Native Bridges & BLAS](native-bridges-and-blas.md#matmul-dispatch-flow) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Mechanisms](mechanisms.md#prepared-execution) | [Troubleshooting](troubleshooting.md#performance-regressions)
 
 Chapters: [Lifecycle Map](#lifecycle-map) | [Primary Artifacts](#primary-artifacts) | [Artifact Lifetimes And Storage](#artifact-lifetimes-and-storage) | [Graph Building](#graph-building) | [Tensor Compute API](#tensor-compute-api) | [Compile](#compile) | [Prepare](#prepare) | [Execution](#execution) | [Runtime State And Tracking](#runtime-state-and-tracking) | [Worked Example](#worked-example) | [Reuse Rules](#reuse-rules) | [Traces](#traces) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
@@ -731,7 +731,7 @@ Prepared GPU anchors require both a selected partition plan and a lowered region
 
 `BLAS` here means the CPU path may call an external GEMM implementation such as OpenBLAS through Java FFM. It is still
 prepared and executed as a CPU runtime path, not as an accelerator region. The detailed BLAS/GEMM and Java FFM model is
-in [Native Bridges & BLAS](native-bridges-and-blas.md).
+in [Native Bridges & BLAS: Matmul Dispatch Flow](native-bridges-and-blas.md#matmul-dispatch-flow).
 
 ### BackendPrepareDispatcher
 
@@ -962,7 +962,8 @@ ConvTraceMetadata trace = context.convTraceForNodeId(node.id());
 and attaches the result to `StepExecutionMetadata`.
 
 Storage residency is a side channel used by Metal observability and native buffer execution. The Metal-specific buffer
-ABI and Objective-C shim are covered in [Metal Backend](metal-backend.md); this section focuses on how the compute
+ABI and Objective-C shim are covered in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and
+[Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim); this section focuses on how the compute
 runtime tracks the resulting state. `ExecutionState`
 allocates one `TensorResidencyState` per compiled node. `ExecutionContext.residencyForNodeId(...)` exposes that state to
 prepared executables, and `ExecutionContext.markCpuCurrent(...)` records the normal CPU-array result after a step writes

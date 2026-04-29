@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Testing
 
-Navigation: [Index](index.md) | [Development](development.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Compute Flow](compute-flow.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Development](development.md#local-setup) | [Tensor API](tensor-api.md#operation-catalog) | [Graph Optimizer](graph-optimizer.md#adding-or-changing-optimizer-behavior) | [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-bridge-lifecycle) | [Metal Backend](metal-backend.md#tests) | [Compute Flow](compute-flow.md#traces) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
 
 Chapters: [Test Framework And Setup](#test-framework-and-setup) | [Test Organization](#test-organization) | [Exact Commands](#exact-commands) | [Full Suite Duration And Heap Behavior](#full-suite-duration-and-heap-behavior) | [Targeted Test Patterns](#targeted-test-patterns) | [Debug And Benchmark Tests](#debug-and-benchmark-tests) | [Native And Optional Backend Tests](#native-and-optional-backend-tests) | [Source Hygiene Tests](#source-hygiene-tests) | [How To Interpret Failures](#how-to-interpret-failures)
 
@@ -236,7 +236,7 @@ openblas
 
 OpenBLAS tests validate an optional Java FFM bridge. A skipped OpenBLAS test usually means the local library or symbols
 were not available; it does not mean the Java fallback path is broken. For the exact BLAS/GEMM dispatch model, bridge
-symbol lookup, and fallback behavior, see [Native Bridges & BLAS](native-bridges-and-blas.md).
+symbol lookup, and fallback behavior, see [Native Bridges & BLAS: OpenBLAS Bridge Lifecycle](native-bridges-and-blas.md#openblas-bridge-lifecycle).
 
 Metal tests use `-Dsynaptik.metal.mps.lib=<path>` or `SYNAPTIK_METAL_MPS_LIB` for explicit shim loading. CUDA tests use `-Dsynaptik.cuda.graph.lib=<path>` or `SYNAPTIK_CUDA_GRAPH_LIB`.
 

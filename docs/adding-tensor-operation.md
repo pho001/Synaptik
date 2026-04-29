@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Adding A Tensor Operation
 
-Navigation: [Index](index.md) | [Development](development.md) | [Tensor API](tensor-api.md) | [Modules](modules.md) | [Graph Optimizer](graph-optimizer.md) | [Testing](testing.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Development](development.md#adding-tensor-ops) | [Tensor API](tensor-api.md#operation-catalog) | [Modules](modules.md#operations-primitive-semantic-descriptors) | [Graph Optimizer](graph-optimizer.md#stage-cse-common-subexpression-elimination) | [Testing](testing.md#targeted-test-patterns)
 
 Chapters: [Purpose](#purpose) | [Mental Model](#mental-model) | [Choose The Operation Kind](#choose-the-operation-kind) | [Source Map](#source-map) | [Implementation Checklist](#implementation-checklist) | [Worked Example: Unary Floating Operation](#worked-example-unary-floating-operation) | [Descriptor Layer](#descriptor-layer) | [Tensor Builder Layer](#tensor-builder-layer) | [Public API Layer](#public-api-layer) | [CPU Kernel Layer](#cpu-kernel-layer) | [Autograd](#autograd) | [Broadcasting Shape And DType Rules](#broadcasting-shape-and-dtype-rules) | [Optimizer Integration](#optimizer-integration) | [Fusion And Accelerator Integration](#fusion-and-accelerator-integration) | [Testing Matrix](#testing-matrix) | [Common Mistakes](#common-mistakes)
 
@@ -92,7 +92,7 @@ Use the existing family closest to the operation. Do not create a new top-level 
 | CSE parameter signatures | [`CommonSubexpressionEliminationRule.java`](../src/main/java/graph/optimizer/cse/CommonSubexpressionEliminationRule.java) |
 | CPU fused planning/codegen | [`backend/cpu/fused`](../src/main/java/backend/cpu/fused) |
 | Metal allowlist and lowering | [`MetalPartitionSupport.java`](../src/main/java/backend/metal/lowering/MetalPartitionSupport.java), [`AcceleratorSubgraphLowerer.java`](../src/main/java/backend/accelerator/lowering/AcceleratorSubgraphLowerer.java) |
-| Operation documentation | [`tensor-api.md`](tensor-api.md) |
+| Operation documentation | [`tensor-api.md`](tensor-api.md#operation-catalog) |
 | Development/source hygiene tests | [`SourceTreeHygieneTest.java`](../src/test/java/SourceTreeHygieneTest.java) |
 
 ## Implementation Checklist
@@ -256,7 +256,7 @@ public Tensor square() {
 
 Use both only when both APIs make sense. Some operations are intentionally static or factory-like because they need several inputs or options. For example, `TensorOps.conv2d(...)` has option-heavy overloads, while common unary/binary operations are natural instance methods.
 
-After adding public API, update [Tensor API](tensor-api.md) with:
+After adding public API, update [Tensor API](tensor-api.md#operation-catalog) with:
 
 - signature
 - purpose
@@ -492,7 +492,9 @@ For Metal, check:
 - [`MetalPartitionSupport.java`](../src/main/java/backend/metal/lowering/MetalPartitionSupport.java) for planner legality
 - [`AcceleratorSubgraphLowerer.java`](../src/main/java/backend/accelerator/lowering/AcceleratorSubgraphLowerer.java) for DAG node mapping and scalar parameter encoding
 - [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m) for the native Objective-C implementation
-- [Metal Backend](metal-backend.md) for dtype, buffer ABI, and fallback constraints
+- [Metal Backend: Supported Operations And DTypes](metal-backend.md#supported-operations-and-dtypes) for dtype boundaries
+- [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) for buffer contracts
+- [Metal Backend: Fallbacks And Failure Modes](metal-backend.md#fallbacks-and-failure-modes) for runtime fallback behavior
 
 Current Metal compute/output dtype support is `FLOAT32` only, with `BOOL` allowed only for selected predicate input roles. A new CPU op should stay CPU-only until Metal semantics, dtype behavior, native code, and tests are all in place.
 
@@ -543,4 +545,4 @@ For performance-sensitive ops, add benchmark coverage only after correctness tes
 | Reimplementing broadcasting manually | Shape behavior diverges from the rest of the framework. | Use `TensorBroadcastOps.planBinary(...)` and `sumToShape(...)`. |
 | Letting backend kernels validate public API shape rules | Errors happen too late and may be backend-specific. | Validate user-facing contracts in `tensor.ops.*`. |
 | Adding Metal allowlist support without native implementation | Planner can select a region that cannot execute. | Add native lowering/shim/test first, then allowlist. |
-| Forgetting docs | Users see the method but not dtype, shape, gradient, or examples. | Update [Tensor API](tensor-api.md) and examples where appropriate. |
+| Forgetting docs | Users see the method but not dtype, shape, gradient, or examples. | Update [Tensor API: Operation Catalog](tensor-api.md#operation-catalog) and [Examples: Running Examples](examples.md#running-examples) where appropriate. |

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Development
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Modules](modules.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Testing](testing.md) | [Configuration](configuration.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#system-overview) | [Modules](modules.md#package-map) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Native Bridges & BLAS](native-bridges-and-blas.md#java-ffm-step-by-step) | [Metal Backend](metal-backend.md#tests) | [Testing](testing.md#exact-commands) | [Configuration](configuration.md#build-requirements) | [Troubleshooting](troubleshooting.md#generated-artifacts-in-source-tree)
 
 Chapters: [Local Setup](#local-setup) | [Repository Structure](#repository-structure) | [Coding Patterns](#coding-patterns) | [Adding Tensor Ops](#adding-tensor-ops) | [Adding Backend Kernels](#adding-backend-kernels) | [Adding Optimizer Rules](#adding-optimizer-rules) | [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families) | [Documentation Workflow](#documentation-workflow) | [Operational Risks](#operational-risks)
 
@@ -102,7 +102,7 @@ Source hygiene tests also reject legacy package paths such as `graph.fused`, `gr
 ## Adding Tensor Ops
 
 For the full end-to-end guide, including descriptors, builders, public facades, CPU kernels, autograd formulas,
-CSE signatures, fusion/accelerator integration, and tests, see [Adding A Tensor Operation](adding-tensor-operation.md).
+CSE signatures, fusion/accelerator integration, and tests, see [Adding A Tensor Operation: Implementation Checklist](adding-tensor-operation.md#implementation-checklist).
 
 Use an existing family as the template. For a binary elementwise op, compare:
 
@@ -163,12 +163,12 @@ For native or accelerator-adjacent paths:
 ```
 
 The general native-bridge model, including BLAS/GEMM terminology and Java FFM symbol binding, is documented in
-[Native Bridges & BLAS](native-bridges-and-blas.md). Read it before changing `backend.blas`, `OpenBlasFfmBridge`,
+[Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step). Read it before changing `backend.blas`, `OpenBlasFfmBridge`,
 or native dispatch thresholds.
 
 `buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
 
-Default Java lifecycle tasks stay portable: `classes`, `build`, and `check` do not depend on Metal native compilation. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior. The native ABI and Objective-C call path are documented in [Metal Backend](metal-backend.md).
+Default Java lifecycle tasks stay portable: `classes`, `build`, and `check` do not depend on Metal native compilation. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior. The native ABI and Objective-C call path are documented in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim).
 
 ## Adding Optimizer Rules
 

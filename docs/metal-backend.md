@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Metal Backend
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Modules](modules.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#metal-mps-buffer-execution-and-copy-chain) | [Compute Flow](compute-flow.md#native-buffer-binding-metal-path) | [Graph Optimizer](graph-optimizer.md#scored-candidate-planner-deep-dive) | [Native Bridges & BLAS](native-bridges-and-blas.md#how-this-differs-from-metal-ffm) | [Modules](modules.md#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [Troubleshooting](troubleshooting.md#metal-mps-shim-missing)
 
 Chapters: [Purpose And Current Status](#purpose-and-current-status) | [Mental Model](#mental-model) | [Source Map](#source-map) | [End-To-End Flow](#end-to-end-flow) | [Partition Legality And Lowering](#partition-legality-and-lowering) | [Java FFM Bridge](#java-ffm-bridge) | [Objective-C Native Shim](#objective-c-native-shim) | [Native Buffer ABI](#native-buffer-abi) | [Buffer Residency And Materialization](#buffer-residency-and-materialization) | [Worked Example](#worked-example) | [Trace Reading](#trace-reading) | [Supported Operations And DTypes](#supported-operations-and-dtypes) | [Fallbacks And Failure Modes](#fallbacks-and-failure-modes) | [Performance Model](#performance-model) | [Tests](#tests) | [Implementation Checklist](#implementation-checklist)
 

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Examples
 
-Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Public API](public-api.md) | [Calibration & Autotune](calibration-autotune.md) | [Testing](testing.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-api.md#operation-catalog) | [Compute Flow](compute-flow.md#worked-example) | [Public API](public-api.md#tensor) | [Calibration & Autotune](calibration-autotune.md#ergonomic-fluent-api) | [Testing](testing.md#exact-commands)
 
 Chapters: [Running Examples](#running-examples) | [Broadcast Add And ReLU](#broadcast-add-and-relu) | [Reverse-Mode Autodiff](#reverse-mode-autodiff) | [Matrix Multiplication](#matrix-multiplication) | [Boolean Mask With `where`](#boolean-mask-with-where) | [Softmax](#softmax) | [Explicit Compile And Runtime Config](#explicit-compile-and-runtime-config) | [Reusing PreparedExecution](#reusing-preparedexecution) | [ComputeOptions With Explicit Defaults](#computeoptions-with-explicit-defaults) | [Programmatic Tuning API](#programmatic-tuning-api) | [CLI Examples](#cli-examples) | [Verification Notes](#verification-notes)
 

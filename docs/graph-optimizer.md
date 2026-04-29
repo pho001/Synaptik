@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Graph Optimizer Guide
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Metal Backend](metal-backend.md) | [Mechanisms](mechanisms.md) | [Configuration](configuration.md) | [Testing](testing.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#optimizer-and-partitioning) | [Compute Flow](compute-flow.md#compile) | [Metal Backend](metal-backend.md#partition-legality-and-lowering) | [Mechanisms](mechanisms.md#optimizer-stages-ar-cse-part-fuse-mem) | [Configuration](configuration.md#optimizerconfig) | [Testing](testing.md#targeted-test-patterns)
 
 Chapters: [Mental Model](#mental-model) | [DAG And Graph Vocabulary](#dag-and-graph-vocabulary) | [Global Versus Partition-Scoped Work](#global-versus-partition-scoped-work) | [Compiler Boundary](#compiler-boundary) | [OptimizerConfig](#optimizerconfig) | [Graph Region Policy Layers](#graph-region-policy-layers) | [Stage Ordering](#stage-ordering) | [OptimizerState](#optimizerstate) | [OptimizerTrace](#optimizertrace) | [Stage AR: Rewrite and Lowering](#stage-ar-rewrite-and-lowering) | [Stage CSE: Common Subexpression Elimination](#stage-cse-common-subexpression-elimination) | [Stage PART: Partition Planning](#stage-part-partition-planning) | [Stage FUSE: Region Optimization and Fusion](#stage-fuse-region-optimization-and-fusion) | [Stage MEM: Memory and Lifetime Planning](#stage-mem-memory-and-lifetime-planning) | [How the Stages Work Together](#how-the-stages-work-together) | [Adding or Changing Optimizer Behavior](#adding-or-changing-optimizer-behavior)
 

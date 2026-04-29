@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Glossary
 
-Navigation: [Index](index.md) | [Framework Concepts](framework-concepts.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Native Bridges & BLAS](native-bridges-and-blas.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md)
+Navigation: [Index](index.md#recommended-reading-paths) | [Framework Concepts](framework-concepts.md#tensors-as-graph-nodes) | [Architecture](architecture.md#core-artifact-boundaries) | [Compute Flow](compute-flow.md#primary-artifacts) | [Graph Optimizer](graph-optimizer.md#dag-and-graph-vocabulary) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#native-buffer-abi) | [Calibration & Autotune](calibration-autotune.md#core-distinction)
 
 Chapters: [A](#a) | [B](#b) | [C](#c) | [D](#d) | [E](#e) | [F](#f) | [G](#g) | [J](#j) | [L](#l) | [M](#m) | [N](#n) | [O](#o) | [P](#p) | [R](#r) | [S](#s) | [T](#t) | [W](#w)
 
@@ -51,7 +51,7 @@ Project-specific terms used in Synaptik, with source references.
 
 **Backend selection**: Prepare-time selection of backend partition plans using runtime config. Source: [`DefaultBackendSelectionPolicy.java`](../src/main/java/backend/select/DefaultBackendSelectionPolicy.java), [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java).
 
-**BLAS**: Basic Linear Algebra Subprograms, a standard family of optimized vector/matrix routines. In Synaptik, BLAS currently matters mainly for GEMM-backed matmul and GEMM-lowered conv2d through the OpenBLAS FFM bridge. Source: [`BlasProvider.java`](../src/main/java/backend/blas/BlasProvider.java), [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS](native-bridges-and-blas.md).
+**BLAS**: Basic Linear Algebra Subprograms, a standard family of optimized vector/matrix routines. In Synaptik, BLAS currently matters mainly for GEMM-backed matmul and GEMM-lowered conv2d through the OpenBLAS FFM bridge. Source: [`BlasProvider.java`](../src/main/java/backend/blas/BlasProvider.java), [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: What BLAS Is](native-bridges-and-blas.md#what-blas-is).
 
 **Broadcast plan**: Shape, stride, and gradient-reduction metadata for broadcasted binary operations. Source: [`BroadcastPlan.java`](../src/main/java/tensor/BroadcastPlan.java), [`BroadcastPlanner.java`](../src/main/java/tensor/BroadcastPlanner.java).
 
@@ -151,13 +151,13 @@ Project-specific terms used in Synaptik, with source references.
 
 **Memory segment**: Java FFM view of a region of memory. In the OpenBLAS bridge, `MemorySegment.ofArray(...)` wraps Java tensor arrays and `asSlice(...)` applies element offsets for batched GEMM calls. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 
-**Metal buffer binding**: Java-side descriptor for the current native Metal buffer execution path. It ties a compiled node id, dtype, shape, element count, access intent, and native buffer handle together without exposing semantic `Tensor` objects to native code. Source: [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [Metal Backend](metal-backend.md).
+**Metal buffer binding**: Java-side descriptor for the current native Metal buffer execution path. It ties a compiled node id, dtype, shape, element count, access intent, and native buffer handle together without exposing semantic `Tensor` objects to native code. Source: [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [Metal Backend: Buffer Residency And Materialization](metal-backend.md#buffer-residency-and-materialization).
 
 **Metal bridge execution stats**: Per-execution diagnostics from the Metal MPSGraph bridge, including input/output bytes, Java-to-native copy time, native execute time, native-to-Java copy time, CPU fallback flag, and fallback reason. Source: [`MetalMpsBridgeExecutionStats.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java), [`PreparedMetalExecutable.java`](../src/main/java/backend/metal/exec/PreparedMetalExecutable.java).
 
 **Metal bridge execution path**: Trace label for the actual runtime path of a selected Metal executable: CPU fallback, tensor-array copy bridge, or explicit buffer-binding bridge. Source: [`MetalMpsBridgeExecutionPath.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java), [Metal Backend: Trace Reading](metal-backend.md#trace-reading).
 
-**MPSGraph**: Apple's graph-level Metal Performance Shaders API used by the native shim to compile and run selected `FLOAT32` accelerator DAG regions. Synaptik calls it through the Objective-C shim, not directly from Java tensor code. Source: [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m), [Metal Backend](metal-backend.md).
+**MPSGraph**: Apple's graph-level Metal Performance Shaders API used by the native shim to compile and run selected `FLOAT32` accelerator DAG regions. Synaptik calls it through the Objective-C shim, not directly from Java tensor code. Source: [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m), [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim).
 
 **MTLBuffer**: Metal buffer object used by the native shim to pass tensor bytes to and from MPSGraph. Java sees it only as an opaque handle inside `MetalBufferHandle`; ownership and release are handled by the native shim and run-scoped execution resources. Source: [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m), [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
@@ -165,15 +165,15 @@ Project-specific terms used in Synaptik, with source references.
 
 ## N
 
-**Native bridge**: Java adapter that loads a native library, discovers symbols, converts Java-side metadata/memory into the native ABI, and calls native code. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java), [`CudaFfmBridge.java`](../src/main/java/backend/cuda/bridge/CudaFfmBridge.java), [Native Bridges & BLAS](native-bridges-and-blas.md).
+**Native bridge**: Java adapter that loads a native library, discovers symbols, converts Java-side metadata/memory into the native ABI, and calls native code. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java), [`CudaFfmBridge.java`](../src/main/java/backend/cuda/bridge/CudaFfmBridge.java), [Native Bridges & BLAS: Term Map At A Glance](native-bridges-and-blas.md#term-map-at-a-glance).
 
 **Native library**: Loadable compiled binary outside the JVM, such as OpenBLAS or the Synaptik Metal `.dylib`. Java FFM uses `SymbolLookup.libraryLookup(...)` to load and inspect these libraries. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java).
 
 ## O
 
-**OpenBLAS**: Native BLAS implementation optionally used by Synaptik's CPU matmul and GEMM-lowered conv2d paths. It is selected with `BlasProvider.OPENBLAS_FFM`, but each node still needs to pass planner legality and profitability gates before the bridge is called. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java), [Native Bridges & BLAS](native-bridges-and-blas.md).
+**OpenBLAS**: Native BLAS implementation optionally used by Synaptik's CPU matmul and GEMM-lowered conv2d paths. It is selected with `BlasProvider.OPENBLAS_FFM`, but each node still needs to pass planner legality and profitability gates before the bridge is called. Source: [`OpenBlasFfmBridge.java`](../src/main/java/backend/blas/OpenBlasFfmBridge.java), [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java), [Native Bridges & BLAS: OpenBLAS In Synaptik](native-bridges-and-blas.md#openblas-in-synaptik).
 
-**Operation descriptor**: Immutable semantic descriptor implementing `Operation`. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md).
+**Operation descriptor**: Immutable semantic descriptor implementing `Operation`. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md#core-contract).
 
 **Optimizer state**: Mutable optimizer pipeline carrier for graph, forward output, execution metadata, partitions, optimized regions, and memory plan. Source: [`OptimizerState.java`](../src/main/java/graph/optimizer/state/OptimizerState.java).
 
@@ -225,7 +225,7 @@ Project-specific terms used in Synaptik, with source references.
 
 ## T
 
-**Tensor**: Public value type and semantic graph node. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`tensor/README.md`](../src/main/java/tensor/README.md).
+**Tensor**: Public value type and semantic graph node. Source: [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`tensor/README.md`](../src/main/java/tensor/README.md#what-tensor-represents).
 
 **Tensor storage**: Dtype-specific backing storage with mutation versioning. Source: [`TensorStorage.java`](../src/main/java/tensor/TensorStorage.java).
 
