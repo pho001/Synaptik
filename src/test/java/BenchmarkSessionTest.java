@@ -1,3 +1,5 @@
+import backend.memory.CpuMaterializationReason;
+import backend.memory.StorageResidency;
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
@@ -277,7 +279,21 @@ public class BenchmarkSessionTest {
                                 new graph.execution.trace.ExecutionTrace(
                                         new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
                                         new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.BackendSelectionTrace.empty()),
-                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 2_000_000L, List.of(step))
+                                        new graph.execution.trace.RunTrace(
+                                                ExecutionMode.FORWARD,
+                                                2_000_000L,
+                                                List.of(step),
+                                                List.of(new graph.execution.trace.CpuMaterializationTrace(
+                                                        42,
+                                                        CpuMaterializationReason.GRAPH_OUTPUT,
+                                                        "GPU_METAL",
+                                                        StorageResidency.DEVICE_OWNED,
+                                                        4096L,
+                                                        250_000L,
+                                                        true,
+                                                        "device value synchronized to CPU storage"
+                                                ))
+                                        )
                                 ),
                                 new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
                         )
@@ -289,11 +305,18 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("metalFallback=false"));
         assertTrue(text.contains("metalBytes=2048->1024"));
         assertTrue(text.contains("metalNativeMs=1.500000"));
+        assertTrue(text.contains("cpuMaterializationCount=1"));
+        assertTrue(text.contains("nodeId=42 reason=GRAPH_OUTPUT from=GPU_METAL residency=DEVICE_OWNED bytes=4096"));
+        assertTrue(text.contains("durationMs=0.250000 completed=true"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"metalExecutionPath\": \"TENSOR_ARRAY_COPY\""));
         assertTrue(json.contains("\"metalSupportsBufferBindings\": false"));
         assertTrue(json.contains("\"metalInputBytes\": 2048"));
         assertTrue(json.contains("\"metalNativeExecuteNs\": 1500000"));
+        assertTrue(json.contains("\"cpuMaterializationCount\": 1"));
+        assertTrue(json.contains("\"reason\": \"GRAPH_OUTPUT\""));
+        assertTrue(json.contains("\"materializedFrom\": \"GPU_METAL\""));
+        assertTrue(json.contains("\"sourceResidency\": \"DEVICE_OWNED\""));
     }
 }

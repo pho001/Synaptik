@@ -55,8 +55,18 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("      \"trace\": {\n");
                 sb.append("        \"mode\": \"").append(trace.run().mode().name()).append("\",\n");
                 sb.append("        \"stepCount\": ").append(trace.run().steps().size()).append(",\n");
+                sb.append("        \"cpuMaterializationCount\": ").append(trace.run().cpuMaterializations().size()).append(",\n");
                 sb.append("        \"parallelUsed\": ").append(usesParallel(trace.run().steps())).append(",\n");
                 sb.append("        \"vectorUsed\": ").append(usesVector(trace.run().steps())).append(",\n");
+                sb.append("        \"cpuMaterializations\": [\n");
+                var materializations = trace.run().cpuMaterializations();
+                for (int j = 0; j < materializations.size(); j++) {
+                    if (j > 0) {
+                        sb.append(",\n");
+                    }
+                    appendCpuMaterializationJson(sb, materializations.get(j), "          ");
+                }
+                sb.append("\n        ],\n");
                 sb.append("        \"steps\": [\n");
                 var allSteps = trace.run().steps();
                 for (int j = 0; j < allSteps.size(); j++) {
@@ -178,6 +188,24 @@ public final class JsonBenchmarkReportRenderer {
 
     private static boolean isVectorMode(String mode) {
         return "VECTOR".equals(mode) || "PARALLEL_VECTOR".equals(mode);
+    }
+
+    private static void appendCpuMaterializationJson(
+            StringBuilder sb,
+            graph.execution.trace.CpuMaterializationTrace materialization,
+            String indent
+    ) {
+        sb.append(indent).append("{\n");
+        sb.append(indent).append("  \"nodeId\": ").append(materialization.nodeId()).append(",\n");
+        sb.append(indent).append("  \"reason\": \"").append(materialization.reason().name()).append("\",\n");
+        sb.append(indent).append("  \"materializedFrom\": \"").append(escape(materialization.materializedFrom())).append("\",\n");
+        sb.append(indent).append("  \"sourceResidency\": \"").append(materialization.sourceResidency().name()).append("\",\n");
+        sb.append(indent).append("  \"bytes\": ").append(materialization.bytes()).append(",\n");
+        sb.append(indent).append("  \"durationMs\": ").append(format(nanosToMs(materialization.durationNs()))).append(",\n");
+        sb.append(indent).append("  \"durationNs\": ").append(materialization.durationNs()).append(",\n");
+        sb.append(indent).append("  \"completed\": ").append(materialization.completed()).append(",\n");
+        sb.append(indent).append("  \"detail\": \"").append(escape(materialization.detail())).append("\"\n");
+        sb.append(indent).append("}");
     }
 
     private static void appendStepJson(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step, String indent) {

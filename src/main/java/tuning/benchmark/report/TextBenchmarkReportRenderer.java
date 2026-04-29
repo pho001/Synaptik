@@ -99,12 +99,14 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  prepareMs=").append(formatMs(trace.prepare().durationNs())).append('\n');
                         sb.append("  tracedRunMs=").append(formatMs(trace.run().durationNs())).append('\n');
                         sb.append("  stepCount=").append(trace.run().steps().size()).append('\n');
+                        sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
                         sb.append("  parallelUsed=").append(usesParallel(trace.run().steps())).append('\n');
                         sb.append("  vectorUsed=").append(usesVector(trace.run().steps())).append('\n');
                         sb.append("  steadyStateMeanMs=").append(String.format(Locale.US, "%.6f", stats.meanMs())).append('\n');
                         sb.append("  steadyStateMedianMs=").append(String.format(Locale.US, "%.6f", stats.medianMs())).append('\n');
                         sb.append("  steadyStateP90Ms=").append(String.format(Locale.US, "%.6f", stats.p90Ms())).append('\n');
                         sb.append("  speedupVsBaseline=").append(formatRatio(report.speedupVsBaseline(candidate))).append('\n');
+                        appendCpuMaterializations(sb, trace.run().cpuMaterializations());
                         appendHotSteps(sb, trace.run().steps(), 5);
                         appendAllSteps(sb, trace.run().steps());
                     }
@@ -119,6 +121,31 @@ public final class TextBenchmarkReportRenderer {
 
     private static double nanosToMs(long durationNs) {
         return durationNs / 1_000_000.0d;
+    }
+
+    private static void appendCpuMaterializations(
+            StringBuilder sb,
+            java.util.List<graph.execution.trace.CpuMaterializationTrace> materializations
+    ) {
+        if (materializations == null || materializations.isEmpty()) {
+            return;
+        }
+        sb.append("  cpuMaterializations:\n");
+        for (var materialization : materializations) {
+            sb.append("    - nodeId=").append(materialization.nodeId())
+                    .append(" reason=").append(materialization.reason())
+                    .append(" from=").append(materialization.materializedFrom().isBlank()
+                            ? "CPU"
+                            : materialization.materializedFrom())
+                    .append(" residency=").append(materialization.sourceResidency())
+                    .append(" bytes=").append(materialization.bytes())
+                    .append(" durationMs=").append(formatMs(materialization.durationNs()))
+                    .append(" completed=").append(materialization.completed());
+            if (!materialization.detail().isBlank()) {
+                sb.append(" detail=").append(materialization.detail());
+            }
+            sb.append('\n');
+        }
     }
 
     private static void appendHotSteps(StringBuilder sb, java.util.List<graph.execution.trace.ExecutionStepTrace> steps, int limit) {

@@ -1679,6 +1679,46 @@ Validation rules:
 - A benchmark should not persist a best profile; persistence belongs to autotune.
 - Baseline and candidate profile dtypes should match the workload dtype expectations.
 
+When trace reporting is enabled, the benchmark report includes both per-step execution diagnostics
+and run-level CPU materialization diagnostics. The materialization section is especially important
+for accelerator work because a benchmark can otherwise look like it ran on Metal while silently
+forcing graph outputs, gradients, or CPU consumers back into Java arrays.
+
+Text report example:
+
+```text
+cpuMaterializationCount=1
+cpuMaterializations:
+  - nodeId=42 reason=GRAPH_OUTPUT from=GPU_METAL residency=DEVICE_OWNED bytes=4096 durationMs=0.250000 completed=true detail=device value synchronized to CPU storage
+```
+
+JSON report example:
+
+```json
+"cpuMaterializations": [
+  {
+    "nodeId": 42,
+    "reason": "GRAPH_OUTPUT",
+    "materializedFrom": "GPU_METAL",
+    "sourceResidency": "DEVICE_OWNED",
+    "bytes": 4096,
+    "durationMs": 0.250000,
+    "durationNs": 250000,
+    "completed": true,
+    "detail": "device value synchronized to CPU storage"
+  }
+]
+```
+
+Interpretation:
+
+- `completed=true` means some materializer already synchronized the device value into CPU-readable
+  storage before the trace entry was recorded.
+- `completed=false` means execution discovered a required CPU read but no materializer could safely
+  make CPU storage current. That is a correctness guard, not a performance optimization.
+- `bytes` is logical tensor payload size. It does not include native buffer metadata, padding, allocator
+  overhead, or command queue synchronization cost.
+
 ### Benchmark suite fluent API
 
 Benchmark suites should be a sibling workflow rather than a flag on single-workload benchmark:
