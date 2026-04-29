@@ -1049,6 +1049,20 @@ State transitions implemented today:
 already happened. Today there is no production Metal device-to-CPU materializer because current Metal execution already
 copies outputs back into Java arrays.
 
+Every failed or completed CPU-materialization request is recorded as a `CpuMaterializationTrace` on the run's
+`RunTrace.cpuMaterializations()` list. The trace entry carries:
+
+| Field | Meaning |
+|---|---|
+| `nodeId` | Compiled node whose value was requested on CPU. |
+| `reason` | `CpuMaterializationReason`, such as `CPU_CONSUMER`, `GRAPH_OUTPUT`, or `GRADIENT_PUBLICATION`. |
+| `materializedFrom` | Device backend that owned the current value, for example `GPU_METAL`. |
+| `sourceResidency` | Residency before the CPU read/materialization request. |
+| `bytes` | Logical payload size derived from runtime tensor element count and dtype. |
+| `durationNs` | Measured materialization time; zero when no materializer ran. |
+| `completed` | `true` when CPU storage was synchronized, `false` when the request failed. |
+| `detail` | Human-readable diagnostic. |
+
 #### Copy-based Metal today
 
 For the current FFM bridge, the state remains simple:
@@ -1185,6 +1199,34 @@ executionState.markMaterializedToCpu(42, CpuMaterializationReason.GRAPH_OUTPUT);
 ```
 
 Only after that transition may `PreparedExecution.syncRootData(...)` safely publish the result.
+
+The failed publication attempt records a trace entry before throwing:
+
+```text
+CpuMaterializationTrace:
+  nodeId = 42
+  reason = GRAPH_OUTPUT
+  materializedFrom = GPU_METAL
+  sourceResidency = DEVICE_OWNED
+  bytes = 65536
+  durationNs = 0
+  completed = false
+  detail = no device-to-CPU materializer is available
+```
+
+After a future real materializer runs, the completed trace would look like:
+
+```text
+CpuMaterializationTrace:
+  nodeId = 42
+  reason = GRAPH_OUTPUT
+  materializedFrom = GPU_METAL
+  sourceResidency = DEVICE_OWNED
+  bytes = 65536
+  durationNs = 82000
+  completed = true
+  detail = device value synchronized to CPU storage
+```
 
 #### Post-step residency rule
 
@@ -1548,7 +1590,7 @@ There are three trace layers:
 |---|---|---|
 | `CompileTrace` | `GraphCompiler.compile()` | `measured`, `durationNs`, `totalNodeCount`, `forwardNodeCount`, `supportsBackward`, `partitionPlanning` |
 | `PrepareTrace` | `PreparedExecutionBuilder.prepare(...)` | `measured`, `durationNs`, `forwardStepCount`, `backwardStepCount`, `backendSelection` |
-| `RunTrace` | `PreparedExecution.executeTraced(...)` | `mode`, `durationNs`, `ExecutionStepTrace` list |
+| `RunTrace` | `PreparedExecution.executeTraced(...)` | `mode`, `durationNs`, `ExecutionStepTrace` list, `CpuMaterializationTrace` list |
 
 Each `ExecutionStepTrace` includes step index, label, op type, shape, dtype, selected backend, kernel class name, duration, and `StepExecutionMetadata`. Step metadata can include compute mode, layout path, dispatch hints, reduction hints, matmul hints, convolution hints, fused metadata, and accelerator attributes.
 
@@ -1584,6 +1626,7 @@ PrepareTrace prepareTrace = prepared.prepareTrace();
 RunTrace runTrace = prepared.executeTraced(ExecutionMode.FORWARD);
 // runTrace.durationNs() is total run duration.
 // runTrace.steps() contains one entry per executed prepared step.
+// runTrace.cpuMaterializations() contains device-to-CPU materialization requests observed during the run.
 // out = 3.5 after execution.
 ```
 
@@ -1674,6 +1717,7 @@ This tells you the accelerator path was structurally possible but rejected becau
 | `mode` | `FORWARD` or `FORWARD_BACKWARD`. |
 | `durationNs` | Total run duration. |
 | `steps` | Executed step trace list. |
+| `cpuMaterializations` | CPU-readable storage requests. Empty for ordinary CPU/current-copy-back execution. |
 
 Each step trace can be read as: "for this compiled node, this prepared operation ran on this backend with these runtime hints."
 
@@ -1785,6 +1829,7 @@ Trace tests verify that:
 - [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java): per-run tensors, runtime inputs, workspaces, prepared input tensors, residency state, and device buffer binding registry.
 - [`TensorResidencyState.java`](../src/main/java/backend/memory/TensorResidencyState.java): CPU/device current flags and residency transitions.
 - [`CpuMaterializationReason.java`](../src/main/java/backend/memory/CpuMaterializationReason.java): explicit reasons for forced CPU-readable storage.
+- [`CpuMaterializationTrace.java`](../src/main/java/graph/execution/trace/CpuMaterializationTrace.java): run-trace entries for CPU materialization requests and completed synchronizations.
 - [`DeviceBufferBinding.java`](../src/main/java/backend/memory/DeviceBufferBinding.java): backend-neutral runtime contract for device-visible buffers.
 - [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java): Metal-specific device buffer binding descriptor.
 - [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/RuntimeMemoryBinder.java): runtime storage aliasing from memory plan.

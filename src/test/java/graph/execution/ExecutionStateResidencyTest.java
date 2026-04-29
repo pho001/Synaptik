@@ -44,6 +44,14 @@ class ExecutionStateResidencyTest {
         assertTrue(error.getMessage().contains("reason=graph_output"));
         assertTrue(error.getMessage().contains("backend=GPU_METAL"));
         assertTrue(error.getMessage().contains("prevents publishing stale CPU tensor storage"));
+        var trace = fixture.state().cpuMaterializationTraces().getFirst();
+        assertEquals(outputNodeId, trace.nodeId());
+        assertEquals(CpuMaterializationReason.GRAPH_OUTPUT, trace.reason());
+        assertEquals("GPU_METAL", trace.materializedFrom());
+        assertEquals(StorageResidency.DEVICE_OWNED, trace.sourceResidency());
+        assertEquals(8L, trace.bytes());
+        assertFalse(trace.completed());
+        assertTrue(trace.detail().contains("no device-to-CPU materializer"));
     }
 
     @Test
@@ -57,7 +65,7 @@ class ExecutionStateResidencyTest {
                 "GPU_METAL",
                 "shared output"
         );
-        fixture.state().markMaterializedToCpu(outputNodeId, CpuMaterializationReason.GRADIENT_PUBLICATION);
+        fixture.state().markMaterializedToCpu(outputNodeId, CpuMaterializationReason.GRADIENT_PUBLICATION, 123L);
 
         fixture.state().requireCpuReadable(outputNodeId, CpuMaterializationReason.GRADIENT_PUBLICATION);
         var residency = fixture.state().residencyForNodeId(outputNodeId);
@@ -65,6 +73,13 @@ class ExecutionStateResidencyTest {
         assertTrue(residency.cpuCurrent());
         assertFalse(residency.deviceCurrent());
         assertEquals("gradient_publication", residency.lastTransitionReason());
+        var trace = fixture.state().cpuMaterializationTraces().getFirst();
+        assertEquals(CpuMaterializationReason.GRADIENT_PUBLICATION, trace.reason());
+        assertEquals("GPU_METAL", trace.materializedFrom());
+        assertEquals(StorageResidency.HOST_SHARED_DEVICE_BUFFER, trace.sourceResidency());
+        assertEquals(8L, trace.bytes());
+        assertEquals(123L, trace.durationNs());
+        assertTrue(trace.completed());
     }
 
     @Test

@@ -7,9 +7,12 @@ import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
 import graph.CompiledNode;
+import graph.execution.trace.CpuMaterializationTrace;
+import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -32,6 +35,7 @@ public final class ExecutionState {
     private final Map<Tensor, Integer> runtimeNodeIdByTensor;
     private final Map<Integer, TensorResidencyState> residencyByNodeId;
     private final Map<Integer, DeviceBufferBinding> deviceBufferBindingByNodeId;
+    private final List<CpuMaterializationTrace> cpuMaterializationTraces;
 
     private ExecutionState(
             Map<Integer, Tensor> runtimeTensorByNodeId,
@@ -47,6 +51,7 @@ public final class ExecutionState {
         this.runtimeNodeIdByTensor = Map.copyOf(runtimeNodeIdByTensor);
         this.residencyByNodeId = Map.copyOf(residencyByNodeId);
         this.deviceBufferBindingByNodeId = new HashMap<>(deviceBufferBindingByNodeId == null ? Map.of() : deviceBufferBindingByNodeId);
+        this.cpuMaterializationTraces = new ArrayList<>();
     }
 
     /**
@@ -287,9 +292,34 @@ public final class ExecutionState {
      * @param reason reason that forced CPU materialization
      */
     public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason) {
+        markMaterializedToCpu(nodeId, reason, 0L);
+    }
+
+    /**
+     * Marks a completed device-to-CPU synchronization with measured duration.
+     *
+     * <p>This method must only be called after the CPU array storage has been updated with the current
+     * value. It intentionally does not perform the copy itself.</p>
+     *
+     * @param nodeId compiled node id
+     * @param reason reason that forced CPU materialization
+     * @param durationNs measured materialization duration
+     */
+    public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason, long durationNs) {
         Objects.requireNonNull(reason, "reason cannot be null");
+        TensorResidencyState state = residencyForNodeId(nodeId);
+        cpuMaterializationTraces.add(new CpuMaterializationTrace(
+                nodeId,
+                reason,
+                state.deviceBackend(),
+                state.residency(),
+                logicalByteLength(nodeId),
+                durationNs,
+                true,
+                "device value synchronized to CPU storage"
+        ));
         deviceBufferBindingByNodeId.remove(nodeId);
-        residencyForNodeId(nodeId).markMaterializedToCpu(reason.label());
+        state.markMaterializedToCpu(reason.label());
     }
 
     /**
@@ -313,6 +343,16 @@ public final class ExecutionState {
         Objects.requireNonNull(reason, "reason cannot be null");
         TensorResidencyState state = residencyForNodeId(nodeId);
         if (state.requiresCpuMaterialization()) {
+            cpuMaterializationTraces.add(new CpuMaterializationTrace(
+                    nodeId,
+                    reason,
+                    state.deviceBackend(),
+                    state.residency(),
+                    logicalByteLength(nodeId),
+                    0L,
+                    false,
+                    "no device-to-CPU materializer is available"
+            ));
             throw new IllegalStateException(
                     "CPU materialization requested for nodeId=" + nodeId
                             + " reason=" + reason.label()
@@ -323,11 +363,48 @@ public final class ExecutionState {
             );
         }
         if (!state.cpuCurrent()) {
+            cpuMaterializationTraces.add(new CpuMaterializationTrace(
+                    nodeId,
+                    reason,
+                    state.deviceBackend(),
+                    state.residency(),
+                    logicalByteLength(nodeId),
+                    0L,
+                    false,
+                    "CPU storage is not current and no device representation is current"
+            ));
             throw new IllegalStateException(
                     "CPU read requested for nodeId=" + nodeId
                             + " reason=" + reason.label()
                             + " but CPU storage is not current and no device representation is current."
             );
         }
+    }
+
+    /**
+     * Returns CPU materialization trace entries recorded during this execution.
+     *
+     * @return immutable trace entries
+     */
+    public List<CpuMaterializationTrace> cpuMaterializationTraces() {
+        return List.copyOf(cpuMaterializationTraces);
+    }
+
+    private long logicalByteLength(int nodeId) {
+        Tensor tensor = runtimeTensorForNodeId(nodeId);
+        return (long) tensor.getFlatDataSize() * elementByteSize(tensor.getDataType());
+    }
+
+    private static int elementByteSize(DataType dataType) {
+        if (dataType == null) {
+            return 0;
+        }
+        return switch (dataType) {
+            case FLOAT64 -> Double.BYTES;
+            case FLOAT32 -> Float.BYTES;
+            case BFLOAT16 -> Short.BYTES;
+            case BOOL -> Byte.BYTES;
+            case INT32 -> Integer.BYTES;
+        };
     }
 }

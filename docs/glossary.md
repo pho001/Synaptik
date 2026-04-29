@@ -63,6 +63,8 @@ Project-specific terms used in Synaptik, with source references.
 
 **CPU materialization reason**: Explicit reason why execution needs CPU-readable tensor storage, such as graph output publication, gradient publication, CPU consumer, public data access, or CPU fallback. It is a residency/trace contract, not a copy implementation. Source: [`CpuMaterializationReason.java`](../src/main/java/backend/memory/CpuMaterializationReason.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
 
+**CPU materialization trace**: Run-trace entry that records a failed or completed request for CPU-readable tensor storage, including node id, reason, source backend/residency, logical bytes, duration, completion flag, and diagnostic detail. Source: [`CpuMaterializationTrace.java`](../src/main/java/graph/execution/trace/CpuMaterializationTrace.java), [`RunTrace.java`](../src/main/java/graph/execution/trace/RunTrace.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
+
 **Compiled node**: Immutable compile-time snapshot of a tensor node. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
 
 **Compute contract**: CPU prepared metadata describing storage dtype, compute dtype, accumulate dtype, and execution backend. Source: [`ResolvedCpuComputeContract.java`](../src/main/java/backend/cpu/kernels/ResolvedCpuComputeContract.java), [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java).

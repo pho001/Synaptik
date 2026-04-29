@@ -201,7 +201,12 @@ public final class PreparedExecution {
             executeSteps(forwardSteps, context, captureTrace, steps, 0);
             syncRootData(mode, executionState);
         }
-        return new RunTrace(mode, System.nanoTime() - runStart, steps == null ? List.of() : steps);
+        return new RunTrace(
+                mode,
+                System.nanoTime() - runStart,
+                steps == null ? List.of() : steps,
+                executionState.cpuMaterializationTraces()
+        );
     }
 
     /**

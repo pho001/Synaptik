@@ -552,6 +552,13 @@ real materializer has synchronized the bytes into CPU storage. That failure is i
 array would be worse than throwing, because it would make a zero-copy optimization appear correct while returning stale
 data.
 
+Those guardrails now feed run-level observability. `RunTrace.cpuMaterializations()` returns `CpuMaterializationTrace`
+entries for failed CPU-read requests and completed device-to-CPU synchronizations. A failed entry records the requested
+node id, reason, source backend, source residency, logical bytes, zero duration, and a diagnostic saying that no
+materializer was available. A completed entry records the same site with `completed=true` and the measured
+materialization duration. This is still not a production Metal materializer; it is the audit trail that prevents lazy
+materialization from becoming invisible.
+
 The next Java-side contract is `DeviceBufferBinding`. It is backend-neutral and deliberately small: node id, backend
 id, logical byte length, availability, and a diagnostic description. `MetalBufferBinding` implements that contract and
 keeps Metal-specific native handle details in `backend.metal.buffer`. `ExecutionState` can now register such a binding

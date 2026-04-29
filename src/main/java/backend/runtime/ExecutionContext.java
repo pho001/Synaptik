@@ -245,6 +245,19 @@ public final class ExecutionContext {
     }
 
     /**
+     * Marks a completed device-to-CPU synchronization with measured duration.
+     *
+     * @param nodeId compiled node id
+     * @param reason reason that forced CPU materialization
+     * @param durationNs measured materialization duration
+     */
+    public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason, long durationNs) {
+        if (executionState != null) {
+            executionState.markMaterializedToCpu(nodeId, reason, durationNs);
+        }
+    }
+
+    /**
      * Verifies that CPU array storage is current before a CPU read or publication.
      *
      * @param nodeId compiled node id
