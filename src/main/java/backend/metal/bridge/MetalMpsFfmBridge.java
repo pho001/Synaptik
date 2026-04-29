@@ -6,6 +6,11 @@ import backend.accelerator.lowering.AcceleratorSubgraphSignature;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagSpec;
+import backend.metal.buffer.MetalBufferAllocator;
+import backend.metal.buffer.MetalBufferBinding;
+import backend.metal.buffer.MetalBufferHandle;
+import backend.metal.buffer.MetalBufferAccess;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.lang.foreign.Arena;
@@ -22,6 +27,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 /**
  * Metal MPSGraph bridge backed by the Java Foreign Function and Memory API.
@@ -264,7 +270,9 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     "",
                     cacheHit,
                     dagSpec.externalInputs().stream().map(AcceleratorDagInput::nodeId).toList(),
+                    dagSpec.externalInputs().stream().map(AcceleratorDagInput::dataType).toList(),
                     dagSpec.outputNodeIds(),
+                    dagSpec.outputNodeIds().stream().map(ignored -> DataType.FLOAT32).toList(),
                     dagSpec.outputNodeIndices()
             );
         } catch (Throwable t) {
@@ -295,6 +303,74 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
     @Override
     public void destroyExecutable(MetalMpsBridgeExecutable executable) {
         // Executables are cached by subgraph signature and reused within the shared bridge context.
+    }
+
+    /**
+     * Returns whether all native buffer binding symbols are available.
+     */
+    @Override
+    public boolean supportsBufferBindings() {
+        return STATE.available
+                && STATE.createBufferFn != null
+                && STATE.writeBufferFn != null
+                && STATE.readBufferFn != null
+                && STATE.destroyBufferFn != null
+                && STATE.executePartitionBuffersFn != null;
+    }
+
+    /**
+     * Creates a Metal buffer allocator backed by this FFM bridge.
+     */
+    @Override
+    public MetalBufferAllocator createBufferAllocator(MetalMpsBridgeContext bridgeContext) {
+        if (!supportsBufferBindings()) {
+            return MetalBufferAllocator.unavailable("Metal MPS buffer ABI symbols are unavailable.");
+        }
+        if (bridgeContext == null || !bridgeContext.available()) {
+            return MetalBufferAllocator.unavailable(bridgeContext == null ? "Missing Metal bridge context." : bridgeContext.reason());
+        }
+        return MetalBufferAllocator.available(new MetalBufferAllocator.NativeAccess() {
+            @Override
+            public MetalBufferHandle createBuffer(long byteLength, int storageMode, MemorySegment initialData, long initialDataBytes) {
+                try {
+                    MemorySegment initial = initialData == null ? MemorySegment.NULL : initialData;
+                    MemorySegment handle = (MemorySegment) STATE.createBufferFn.invokeExact(
+                            bridgeContext.handle(),
+                            byteLength,
+                            storageMode,
+                            initial,
+                            initialDataBytes
+                    );
+                    if (handle == null || handle.equals(MemorySegment.NULL)) {
+                        throw new UnsupportedOperationException("Metal MPS create_buffer returned null.");
+                    }
+                    return new MetalBufferHandle(handle, byteLength, storageModeLabel(storageMode), "MetalMpsFfmBridge", true);
+                } catch (Throwable t) {
+                    throw new UnsupportedOperationException("Metal MPS create_buffer failed: " + safeMessage(t), t);
+                }
+            }
+
+            @Override
+            public void readBuffer(MetalBufferHandle handle, MemorySegment destination, long byteLength) {
+                try {
+                    int status = (int) STATE.readBufferFn.invokeExact(handle.nativeHandle(), destination, byteLength);
+                    if (status != 0) {
+                        throw new UnsupportedOperationException("Metal MPS read_buffer returned non-zero status: " + status);
+                    }
+                } catch (Throwable t) {
+                    throw new UnsupportedOperationException("Metal MPS read_buffer failed: " + safeMessage(t), t);
+                }
+            }
+
+            @Override
+            public void destroyBuffer(MetalBufferHandle handle) {
+                try {
+                    STATE.destroyBufferFn.invokeExact(handle.nativeHandle());
+                } catch (Throwable t) {
+                    throw new UnsupportedOperationException("Metal MPS destroy_buffer failed: " + safeMessage(t), t);
+                }
+            }
+        });
     }
 
     /**
@@ -392,6 +468,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         javaToNativeCopyNs,
                         outputAllocationNs,
                         nativeExecuteNs,
+                        0L,
                         nativeToJavaCopyNs,
                         System.nanoTime() - totalStart
                 );
@@ -400,6 +477,169 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         } catch (Throwable t) {
             throw new UnsupportedOperationException("Metal MPS execute_partition failed: " + safeMessage(t), t);
         }
+    }
+
+    /**
+     * Executes a compiled Metal DAG using preallocated native buffer bindings.
+     */
+    @Override
+    public MetalMpsBridgeExecutionStats executeBuffers(
+            MetalMpsBridgeContext bridgeContext,
+            MetalMpsBridgeExecutable executable,
+            java.util.List<MetalBufferBinding> externalInputs,
+            java.util.List<MetalBufferBinding> outputs
+    ) {
+        if (!supportsBufferBindings()) {
+            throw new UnsupportedOperationException("Metal MPS buffer ABI symbols are unavailable.");
+        }
+        if (bridgeContext == null || !bridgeContext.available()) {
+            throw new UnsupportedOperationException(bridgeContext == null ? "Missing Metal bridge context." : bridgeContext.reason());
+        }
+        if (executable == null || !executable.available()) {
+            throw new UnsupportedOperationException(executable == null ? "Missing Metal bridge executable." : executable.reason());
+        }
+        java.util.List<MetalBufferBinding> resolvedExternalInputs = externalInputs == null ? java.util.List.of() : java.util.List.copyOf(externalInputs);
+        java.util.List<MetalBufferBinding> resolvedOutputs = outputs == null ? java.util.List.of() : java.util.List.copyOf(outputs);
+        validateBufferBindings(executable, resolvedExternalInputs, resolvedOutputs);
+
+        long totalStart = System.nanoTime();
+        long inputBytes = byteSizeBindings(resolvedExternalInputs);
+        long outputBytes = byteSizeBindings(resolvedOutputs);
+        long nativeExecuteNs;
+        long nativeDeviceCopyNs;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment inputHandles = resolvedExternalInputs.isEmpty()
+                    ? MemorySegment.NULL
+                    : arena.allocate(ADDRESS, resolvedExternalInputs.size());
+            for (int i = 0; i < resolvedExternalInputs.size(); i++) {
+                inputHandles.setAtIndex(ADDRESS, i, resolvedExternalInputs.get(i).handle().nativeHandle());
+            }
+            MemorySegment outputHandles = arena.allocate(ADDRESS, resolvedOutputs.size());
+            for (int i = 0; i < resolvedOutputs.size(); i++) {
+                outputHandles.setAtIndex(ADDRESS, i, resolvedOutputs.get(i).handle().nativeHandle());
+            }
+            MemorySegment nativeDeviceCopyNsOut = arena.allocate(JAVA_LONG);
+            nativeDeviceCopyNsOut.set(JAVA_LONG, 0L, 0L);
+            long nativeStart = System.nanoTime();
+            int status = (int) STATE.executePartitionBuffersFn.invokeExact(
+                    bridgeContext.handle(),
+                    executable.handle(),
+                    inputHandles,
+                    resolvedExternalInputs.size(),
+                    outputHandles,
+                    resolvedOutputs.size(),
+                    nativeDeviceCopyNsOut
+            );
+            nativeExecuteNs = System.nanoTime() - nativeStart;
+            nativeDeviceCopyNs = nativeDeviceCopyNsOut.get(JAVA_LONG, 0L);
+            if (status != 0) {
+                throw new UnsupportedOperationException("Metal MPS execute_partition_f32_buffers returned non-zero status: " + status);
+            }
+        } catch (Throwable t) {
+            throw new UnsupportedOperationException("Metal MPS execute_partition_f32_buffers failed: " + safeMessage(t), t);
+        }
+        return new MetalMpsBridgeExecutionStats(
+                false,
+                "",
+                MetalMpsBridgeExecutionPath.BUFFER_BINDING,
+                resolvedExternalInputs.size(),
+                resolvedOutputs.size(),
+                inputBytes,
+                outputBytes,
+                0L,
+                0L,
+                nativeExecuteNs,
+                nativeDeviceCopyNs,
+                0L,
+                System.nanoTime() - totalStart
+        );
+    }
+
+    private static void validateBufferBindings(
+            MetalMpsBridgeExecutable executable,
+            java.util.List<MetalBufferBinding> externalInputs,
+            java.util.List<MetalBufferBinding> outputs
+    ) {
+        if (externalInputs.size() != executable.externalInputNodeIds().size()) {
+            throw new UnsupportedOperationException("Metal buffer execution received "
+                    + externalInputs.size() + " inputs, expected " + executable.externalInputNodeIds().size() + ".");
+        }
+        if (outputs.isEmpty() || outputs.size() != executable.outputNodeIds().size()) {
+            throw new UnsupportedOperationException("Metal buffer execution received "
+                    + outputs.size() + " outputs, expected " + executable.outputNodeIds().size() + ".");
+        }
+        for (int i = 0; i < externalInputs.size(); i++) {
+            MetalBufferBinding binding = externalInputs.get(i);
+            validateBinding(binding, "external input " + i);
+            DataType expected = i < executable.externalInputDataTypes().size() ? executable.externalInputDataTypes().get(i) : null;
+            if (expected != null && binding.dataType() != expected) {
+                throw new UnsupportedOperationException("Metal buffer input " + i
+                        + " dtype " + binding.dataType() + " does not match executable dtype " + expected + ".");
+            }
+            if (binding.dataType() != DataType.FLOAT32 && binding.dataType() != DataType.BOOL) {
+                throw new UnsupportedOperationException("Metal buffer input " + i
+                        + " has unsupported dtype " + binding.dataType() + ".");
+            }
+            if (!readable(binding.access())) {
+                throw new UnsupportedOperationException("Metal buffer input " + i
+                        + " access " + binding.access() + " is not readable.");
+            }
+        }
+        for (int i = 0; i < outputs.size(); i++) {
+            MetalBufferBinding binding = outputs.get(i);
+            validateBinding(binding, "output " + i);
+            DataType expected = i < executable.outputDataTypes().size() ? executable.outputDataTypes().get(i) : DataType.FLOAT32;
+            if (expected != null && binding.dataType() != expected) {
+                throw new UnsupportedOperationException("Metal buffer output " + i
+                        + " dtype " + binding.dataType() + " does not match executable dtype " + expected + ".");
+            }
+            if (binding.dataType() != DataType.FLOAT32) {
+                throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32 only; got " + binding.dataType() + ".");
+            }
+            if (!writable(binding.access())) {
+                throw new UnsupportedOperationException("Metal buffer output " + i
+                        + " access " + binding.access() + " is not writable.");
+            }
+        }
+    }
+
+    private static void validateBinding(MetalBufferBinding binding, String role) {
+        if (binding == null) {
+            throw new UnsupportedOperationException("Metal buffer " + role + " binding is null.");
+        }
+        if (!binding.available()) {
+            throw new UnsupportedOperationException("Metal buffer " + role + " binding is unavailable: " + binding.describe());
+        }
+    }
+
+    private static boolean readable(MetalBufferAccess access) {
+        return access == MetalBufferAccess.READ || access == MetalBufferAccess.READ_WRITE;
+    }
+
+    private static boolean writable(MetalBufferAccess access) {
+        return access == MetalBufferAccess.WRITE || access == MetalBufferAccess.READ_WRITE;
+    }
+
+    private static long byteSizeBindings(java.util.List<MetalBufferBinding> bindings) {
+        long bytes = 0L;
+        if (bindings == null) {
+            return 0L;
+        }
+        for (MetalBufferBinding binding : bindings) {
+            if (binding != null) {
+                bytes += binding.logicalByteLength();
+            }
+        }
+        return bytes;
+    }
+
+    private static String storageModeLabel(int storageMode) {
+        return switch (storageMode) {
+            case 1 -> "shared";
+            case 2 -> "private";
+            case 3 -> "managed";
+            default -> "unknown(" + storageMode + ")";
+        };
     }
 
     private static long byteSize(java.util.List<Tensor> tensors) {
@@ -489,6 +729,36 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     "synaptik_apple_mps_execute_partition_f32",
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
             );
+            MethodHandle createBufferFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_create_buffer",
+                    FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT, ADDRESS, JAVA_LONG)
+            );
+            MethodHandle writeBufferFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_write_buffer",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG)
+            );
+            MethodHandle readBufferFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_read_buffer",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG)
+            );
+            MethodHandle destroyBufferFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_destroy_buffer",
+                    FunctionDescriptor.ofVoid(ADDRESS)
+            );
+            MethodHandle executePartitionBuffersFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_execute_partition_f32_buffers",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS)
+            );
             MethodHandle destroyContextFn = optionalHandle(
                     linker,
                     lookup,
@@ -504,14 +774,19 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
 
             int available = (int) availableFn.invokeExact();
             if (available != 0) {
-                return new State(true, null, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn, executePartitionFn, destroyContextFn, destroyExecutableFn);
+                return new State(true, null, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
+                        executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
+                        executePartitionBuffersFn, destroyContextFn, destroyExecutableFn);
             }
 
             MemorySegment reasonPtr = (MemorySegment) unavailableReasonFn.invokeExact();
             String reason = cStringOrDefault(reasonPtr, "Metal MPS shim reported unavailable.");
-            return new State(false, reason, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn, executePartitionFn, destroyContextFn, destroyExecutableFn);
+            return new State(false, reason, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
+                    executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
+                    executePartitionBuffersFn, destroyContextFn, destroyExecutableFn);
         } catch (Throwable t) {
-            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null, null, null, null, null, null);
+            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null,
+                    null, null, null, null, null, null, null, null, null, null);
         }
     }
 
@@ -565,6 +840,12 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         private final MethodHandle createContextFn;
         private final MethodHandle compilePartitionFn;
         private final MethodHandle executePartitionFn;
+        private final MethodHandle createBufferFn;
+        @SuppressWarnings("unused")
+        private final MethodHandle writeBufferFn;
+        private final MethodHandle readBufferFn;
+        private final MethodHandle destroyBufferFn;
+        private final MethodHandle executePartitionBuffersFn;
         private final MethodHandle destroyContextFn;
         private final MethodHandle destroyExecutableFn;
 
@@ -577,6 +858,11 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 MethodHandle createContextFn,
                 MethodHandle compilePartitionFn,
                 MethodHandle executePartitionFn,
+                MethodHandle createBufferFn,
+                MethodHandle writeBufferFn,
+                MethodHandle readBufferFn,
+                MethodHandle destroyBufferFn,
+                MethodHandle executePartitionBuffersFn,
                 MethodHandle destroyContextFn,
                 MethodHandle destroyExecutableFn
         ) {
@@ -588,6 +874,11 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             this.createContextFn = createContextFn;
             this.compilePartitionFn = compilePartitionFn;
             this.executePartitionFn = executePartitionFn;
+            this.createBufferFn = createBufferFn;
+            this.writeBufferFn = writeBufferFn;
+            this.readBufferFn = readBufferFn;
+            this.destroyBufferFn = destroyBufferFn;
+            this.executePartitionBuffersFn = executePartitionBuffersFn;
             this.destroyContextFn = destroyContextFn;
             this.destroyExecutableFn = destroyExecutableFn;
         }

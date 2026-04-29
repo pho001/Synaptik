@@ -189,24 +189,46 @@ public final class PreparedExecution {
         long runStart = System.nanoTime();
         java.util.ArrayList<ExecutionStepTrace> steps = captureTrace ? new java.util.ArrayList<>() : null;
         ExecutionState executionState = ExecutionState.create(allNodes, metadataIndex, forwardOutputNode.id());
-        RuntimeMemoryBinder.bind(memoryPlan, allNodes, executionState);
-        ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex, executionState);
+        RuntimeException executionFailure = null;
+        Error executionError = null;
+        try {
+            RuntimeMemoryBinder.bind(memoryPlan, allNodes, executionState);
+            ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex, executionState);
 
-        if (mode == ExecutionMode.FORWARD_BACKWARD) {
-            seedRootGradient(executionState);
-            executeSteps(executionSteps, context, captureTrace, steps, 0);
-            syncRootData(mode, executionState);
-            publishCompiledGradients(executionState);
-        } else {
-            executeSteps(forwardSteps, context, captureTrace, steps, 0);
-            syncRootData(mode, executionState);
+            if (mode == ExecutionMode.FORWARD_BACKWARD) {
+                seedRootGradient(executionState);
+                executeSteps(executionSteps, context, captureTrace, steps, 0);
+                syncRootData(mode, executionState);
+                publishCompiledGradients(executionState);
+            } else {
+                executeSteps(forwardSteps, context, captureTrace, steps, 0);
+                syncRootData(mode, executionState);
+            }
+            return new RunTrace(
+                    mode,
+                    System.nanoTime() - runStart,
+                    steps == null ? List.of() : steps,
+                    executionState.cpuMaterializationTraces()
+            );
+        } catch (RuntimeException ex) {
+            executionFailure = ex;
+            throw ex;
+        } catch (Error err) {
+            executionError = err;
+            throw err;
+        } finally {
+            try {
+                executionState.closeResources();
+            } catch (RuntimeException closeFailure) {
+                if (executionFailure != null) {
+                    executionFailure.addSuppressed(closeFailure);
+                } else if (executionError != null) {
+                    executionError.addSuppressed(closeFailure);
+                } else {
+                    throw closeFailure;
+                }
+            }
         }
-        return new RunTrace(
-                mode,
-                System.nanoTime() - runStart,
-                steps == null ? List.of() : steps,
-                executionState.cpuMaterializationTraces()
-        );
     }
 
     /**
@@ -275,7 +297,12 @@ public final class PreparedExecution {
 
     private static String residencyReason(PreparedNodeExecution step) {
         if (step != null && step.metadata().acceleratorExecutable() instanceof backend.metal.exec.PreparedMetalExecutable metal) {
-            return metal.lastExecutionStats().usedCpuFallback() ? "metal cpu fallback wrote CPU array" : "metal bridge copied output to CPU array";
+            if (metal.lastExecutionStats().usedCpuFallback()) {
+                return "metal cpu fallback wrote CPU array";
+            }
+            return metal.lastExecutionStats().executionPath() == backend.metal.bridge.MetalMpsBridgeExecutionPath.BUFFER_BINDING
+                    ? "metal buffer binding execution wrote device buffer"
+                    : "metal bridge copied output to CPU array";
         }
         return "backend wrote CPU array";
     }
@@ -405,6 +432,7 @@ public final class PreparedExecution {
             attrs.put("metalJavaToNativeCopyNs", metalStats.javaToNativeCopyNs());
             attrs.put("metalOutputAllocationNs", metalStats.outputAllocationNs());
             attrs.put("metalNativeExecuteNs", metalStats.nativeExecuteNs());
+            attrs.put("metalNativeDeviceCopyNs", metalStats.nativeDeviceCopyNs());
             attrs.put("metalNativeToJavaCopyNs", metalStats.nativeToJavaCopyNs());
             attrs.put("metalBridgeTotalNs", metalStats.totalNs());
         }

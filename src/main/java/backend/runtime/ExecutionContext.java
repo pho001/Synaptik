@@ -3,6 +3,7 @@ package backend.runtime;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;
+import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
 import config.runtime.RuntimeConfig;
@@ -292,6 +293,17 @@ public final class ExecutionContext {
     public void registerDeviceToCpuMaterializer(String backendId, DeviceToCpuMaterializer materializer) {
         if (executionState != null) {
             executionState.registerDeviceToCpuMaterializer(backendId, materializer);
+        }
+    }
+
+    /**
+     * Registers a resource whose lifetime is owned by this execution run.
+     *
+     * @param resource resource to close when the run finishes
+     */
+    public void registerResource(ExecutionResource resource) {
+        if (executionState != null) {
+            executionState.registerResource(resource);
         }
     }
 

@@ -349,9 +349,11 @@ Metal and CUDA have more complete source-level scaffolding than OpenCL:
 
 Needs verification: whether Metal or CUDA execution is available on a specific machine depends on native bridge availability and external runtime libraries. Source-level availability checks live in `backend.accelerator.select.AcceleratorRuntimeAvailability`.
 
-The Metal buffer package is a contract, not proof of zero-copy execution. `MetalBufferBinding`, `MetalBufferHandle`, and
-`MetalBufferAccess` define how a future native bridge should receive explicit buffer descriptors. The current
-`MetalMpsFfmBridge` still reports `supportsBufferBindings() == false` and executes through tensor arrays.
+The Metal buffer package is the runtime contract for native buffer execution. `MetalBufferBinding`,
+`MetalBufferHandle`, and `MetalBufferAccess` describe explicit run-scoped `MTLBuffer` handles. When the native shim
+exports the complete buffer ABI, `MetalMpsFfmBridge.supportsBufferBindings()` reports true, `PreparedMetalExecutable`
+can pass adjacent Metal-region values through `MetalBufferBinding`, and CPU materialization is delayed until a real CPU
+boundary. The legacy tensor-array path remains as fallback when symbols, dtypes, layouts, or native execution fail.
 
 ## `config`: Optimizer, Runtime, And Profile Records
 

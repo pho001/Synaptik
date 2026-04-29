@@ -1,6 +1,7 @@
 package backend.metal.bridge;
 
 import backend.metal.lowering.MetalPartitionPlan;
+import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
 import tensor.Tensor;
 
@@ -68,6 +69,19 @@ public interface MetalMpsGraphBridge {
      */
     default boolean supportsBufferBindings() {
         return false;
+    }
+
+    /**
+     * Creates a buffer allocator bound to the supplied bridge context.
+     *
+     * <p>The default is unavailable so prepared execution can ask the bridge for a narrow allocation seam without
+     * depending on a concrete FFM implementation.</p>
+     *
+     * @param bridgeContext native bridge context
+     * @return allocator, or an unavailable allocator with a diagnostic reason
+     */
+    default MetalBufferAllocator createBufferAllocator(MetalMpsBridgeContext bridgeContext) {
+        return MetalBufferAllocator.unavailable("Metal bridge does not support native buffer allocation.");
     }
 
     /**

@@ -6,7 +6,8 @@ package backend.metal.bridge;
  * <p>The values are intentionally measured at the Java bridge boundary. Native
  * GPU command timing may be refined later, but these counters already expose
  * the costs that currently dominate the bridge path: Java-to-native input
- * copies, native invocation, output allocation, and native-to-Java copy-back.</p>
+ * copies, native invocation, output allocation, native shim result copies into
+ * caller-provided buffers, and native-to-Java copy-back.</p>
  *
  * @param usedCpuFallback whether this execution was served by CPU fallback instead of Metal
  * @param fallbackReason stable diagnostic reason when {@code usedCpuFallback} is true
@@ -18,6 +19,7 @@ package backend.metal.bridge;
  * @param javaToNativeCopyNs time spent copying Java tensor arrays into native bridge memory
  * @param outputAllocationNs time spent allocating temporary native output buffers
  * @param nativeExecuteNs time spent inside the native execute call as observed by Java
+ * @param nativeDeviceCopyNs time spent by the native shim copying MPSGraph result storage into caller-provided buffers
  * @param nativeToJavaCopyNs time spent copying native outputs back into Java tensor arrays
  * @param totalNs total measured bridge execution time
  */
@@ -32,6 +34,7 @@ public record MetalMpsBridgeExecutionStats(
         long javaToNativeCopyNs,
         long outputAllocationNs,
         long nativeExecuteNs,
+        long nativeDeviceCopyNs,
         long nativeToJavaCopyNs,
         long totalNs
 ) {
@@ -67,6 +70,7 @@ public record MetalMpsBridgeExecutionStats(
                 outputCount,
                 inputBytes,
                 outputBytes,
+                0L,
                 0L,
                 0L,
                 0L,

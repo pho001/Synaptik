@@ -3,6 +3,7 @@
 #import <MetalPerformanceShaders/MetalPerformanceShaders.h>
 #import <MetalPerformanceShadersGraph/MetalPerformanceShadersGraph.h>
 #import <string.h>
+#import <time.h>
 
 static const char *SYNAPTIK_APPLE_MPS_DEFAULT_UNAVAILABLE_REASON =
         "Apple MPSGraph runtime is unavailable on this machine.";
@@ -25,9 +26,26 @@ static const char *SYNAPTIK_APPLE_MPS_DEFAULT_UNAVAILABLE_REASON =
 @property(nonatomic, strong) NSArray<NSNumber *> *externalInputDim1;
 @property(nonatomic, strong) NSArray<NSNumber *> *externalInputDim2;
 @property(nonatomic, strong) NSArray<NSNumber *> *externalInputDim3;
+@property(nonatomic, strong) NSArray<NSNumber *> *outputRanks;
+@property(nonatomic, strong) NSArray<NSNumber *> *outputDTypes;
+@property(nonatomic, strong) NSArray<NSNumber *> *outputDim0;
+@property(nonatomic, strong) NSArray<NSNumber *> *outputDim1;
+@property(nonatomic, strong) NSArray<NSNumber *> *outputDim2;
+@property(nonatomic, strong) NSArray<NSNumber *> *outputDim3;
+@property(nonatomic, strong) NSArray<NSNumber *> *outputElementCounts;
 @end
 
 @implementation SynaptikAppleMpsExecutableBox
+@end
+
+@interface SynaptikAppleMpsBufferBox : NSObject
+@property(nonatomic, strong) id<MTLBuffer> buffer;
+@property(nonatomic) NSUInteger byteLength;
+@property(nonatomic) int32_t storageMode;
+@property(nonatomic) BOOL ownsBuffer;
+@end
+
+@implementation SynaptikAppleMpsBufferBox
 @end
 
 static SynaptikAppleMpsContextBox *SynaptikUnboxContext(void *contextPtr) {
@@ -42,6 +60,44 @@ static SynaptikAppleMpsExecutableBox *SynaptikUnboxExecutable(void *executablePt
         return nil;
     }
     return (__bridge SynaptikAppleMpsExecutableBox *) executablePtr;
+}
+
+static SynaptikAppleMpsBufferBox *SynaptikUnboxBuffer(void *bufferPtr) {
+    if (bufferPtr == NULL) {
+        return nil;
+    }
+    return (__bridge SynaptikAppleMpsBufferBox *) bufferPtr;
+}
+
+static NSMutableArray<NSNumber *> *SynaptikShapeFromDims(int32_t rank, NSUInteger dim0, NSUInteger dim1, NSUInteger dim2, NSUInteger dim3) {
+    if (rank < 1 || rank > 4) {
+        return nil;
+    }
+    NSMutableArray<NSNumber *> *shape = [NSMutableArray arrayWithCapacity:(NSUInteger) rank];
+    [shape addObject:@(dim0)];
+    if (rank >= 2) [shape addObject:@(dim1)];
+    if (rank >= 3) [shape addObject:@(dim2)];
+    if (rank >= 4) [shape addObject:@(dim3)];
+    return shape;
+}
+
+static NSUInteger SynaptikElementCountFromDims(int32_t rank, NSUInteger dim0, NSUInteger dim1, NSUInteger dim2, NSUInteger dim3) {
+    if (rank < 1 || rank > 4) {
+        return 0;
+    }
+    NSUInteger elementCount = dim0;
+    if (rank >= 2) elementCount *= dim1;
+    if (rank >= 3) elementCount *= dim2;
+    if (rank >= 4) elementCount *= dim3;
+    return elementCount;
+}
+
+static int64_t SynaptikNowNs(void) {
+    struct timespec timestamp;
+    if (clock_gettime(CLOCK_MONOTONIC, &timestamp) != 0) {
+        return 0;
+    }
+    return ((int64_t) timestamp.tv_sec * 1000000000LL) + (int64_t) timestamp.tv_nsec;
 }
 
 static int32_t SynaptikDecodeIntScalar(const float *nodeScalarValues, int32_t index) {
@@ -135,6 +191,86 @@ void synaptik_apple_mps_destroy_context(void *context) {
     }
     @autoreleasepool {
         CFBridgingRelease(context);
+    }
+}
+
+void *synaptik_apple_mps_create_buffer(
+        void *context,
+        int64_t byte_length,
+        int32_t storage_mode,
+        const void *initial_data,
+        int64_t initial_data_bytes
+) {
+    @autoreleasepool {
+        SynaptikAppleMpsContextBox *contextBox = SynaptikUnboxContext(context);
+        if (contextBox == nil || contextBox.device == nil || byte_length <= 0) {
+            return NULL;
+        }
+        if (storage_mode != 1) {
+            return NULL;
+        }
+        id<MTLBuffer> buffer = [contextBox.device newBufferWithLength:(NSUInteger) byte_length
+                                                              options:MTLResourceStorageModeShared];
+        if (buffer == nil) {
+            return NULL;
+        }
+        if (initial_data != NULL && initial_data_bytes > 0) {
+            if (initial_data_bytes > byte_length || [buffer contents] == NULL) {
+                return NULL;
+            }
+            memcpy([buffer contents], initial_data, (size_t) initial_data_bytes);
+        }
+        SynaptikAppleMpsBufferBox *box = [SynaptikAppleMpsBufferBox new];
+        box.buffer = buffer;
+        box.byteLength = (NSUInteger) byte_length;
+        box.storageMode = storage_mode;
+        box.ownsBuffer = YES;
+        return (void *) CFBridgingRetain(box);
+    }
+}
+
+int32_t synaptik_apple_mps_write_buffer(
+        void *buffer,
+        const void *src,
+        int64_t byte_length
+) {
+    @autoreleasepool {
+        SynaptikAppleMpsBufferBox *box = SynaptikUnboxBuffer(buffer);
+        if (box == nil || box.buffer == nil || src == NULL || byte_length < 0) {
+            return 1;
+        }
+        if ((NSUInteger) byte_length > box.byteLength || [box.buffer contents] == NULL) {
+            return 2;
+        }
+        memcpy([box.buffer contents], src, (size_t) byte_length);
+        return 0;
+    }
+}
+
+int32_t synaptik_apple_mps_read_buffer(
+        void *buffer,
+        void *dst,
+        int64_t byte_length
+) {
+    @autoreleasepool {
+        SynaptikAppleMpsBufferBox *box = SynaptikUnboxBuffer(buffer);
+        if (box == nil || box.buffer == nil || dst == NULL || byte_length < 0) {
+            return 1;
+        }
+        if ((NSUInteger) byte_length > box.byteLength || [box.buffer contents] == NULL) {
+            return 2;
+        }
+        memcpy(dst, [box.buffer contents], (size_t) byte_length);
+        return 0;
+    }
+}
+
+void synaptik_apple_mps_destroy_buffer(void *buffer) {
+    if (buffer == NULL) {
+        return;
+    }
+    @autoreleasepool {
+        CFBridgingRelease(buffer);
     }
 }
 
@@ -498,6 +634,13 @@ void *synaptik_apple_mps_compile_partition_f32(
             return NULL;
         }
         NSMutableArray<MPSGraphTensor *> *targetTensors = [NSMutableArray arrayWithCapacity:(NSUInteger) output_node_count];
+        NSMutableArray<NSNumber *> *outputRanksBoxed = [NSMutableArray arrayWithCapacity:(NSUInteger) output_node_count];
+        NSMutableArray<NSNumber *> *outputDTypesBoxed = [NSMutableArray arrayWithCapacity:(NSUInteger) output_node_count];
+        NSMutableArray<NSNumber *> *outputDim0Boxed = [NSMutableArray arrayWithCapacity:(NSUInteger) output_node_count];
+        NSMutableArray<NSNumber *> *outputDim1Boxed = [NSMutableArray arrayWithCapacity:(NSUInteger) output_node_count];
+        NSMutableArray<NSNumber *> *outputDim2Boxed = [NSMutableArray arrayWithCapacity:(NSUInteger) output_node_count];
+        NSMutableArray<NSNumber *> *outputDim3Boxed = [NSMutableArray arrayWithCapacity:(NSUInteger) output_node_count];
+        NSMutableArray<NSNumber *> *outputElementCountsBoxed = [NSMutableArray arrayWithCapacity:(NSUInteger) output_node_count];
         for (int32_t i = 0; i < output_node_count; i++) {
             int32_t output_node_index = output_node_indices[i];
             if (output_node_index < 0 || output_node_index >= nodeOutputs.count) {
@@ -508,6 +651,25 @@ void *synaptik_apple_mps_compile_partition_f32(
                 return NULL;
             }
             [targetTensors addObject:outputTensor];
+            int32_t rank = output_ranks == NULL ? 0 : output_ranks[output_node_index];
+            if (rank < 1 || rank > 4) {
+                return NULL;
+            }
+            NSUInteger dim0 = (NSUInteger) output_dim0[output_node_index];
+            NSUInteger dim1 = (NSUInteger) (rank >= 2 ? output_dim1[output_node_index] : 1);
+            NSUInteger dim2 = (NSUInteger) (rank >= 3 ? output_dim2[output_node_index] : 1);
+            NSUInteger dim3 = (NSUInteger) (rank >= 4 ? output_dim3[output_node_index] : 1);
+            NSUInteger elementCount = SynaptikElementCountFromDims(rank, dim0, dim1, dim2, dim3);
+            if (elementCount == 0) {
+                return NULL;
+            }
+            [outputRanksBoxed addObject:@(rank)];
+            [outputDTypesBoxed addObject:@(1)];
+            [outputDim0Boxed addObject:@(dim0)];
+            [outputDim1Boxed addObject:@(dim1)];
+            [outputDim2Boxed addObject:@(dim2)];
+            [outputDim3Boxed addObject:@(dim3)];
+            [outputElementCountsBoxed addObject:@(elementCount)];
         }
 
         MPSGraphExecutable *executable = [graph compileWithDevice:contextBox.graphDevice
@@ -528,6 +690,13 @@ void *synaptik_apple_mps_compile_partition_f32(
         box.externalInputDim1 = [externalInputDim1Boxed copy];
         box.externalInputDim2 = [externalInputDim2Boxed copy];
         box.externalInputDim3 = [externalInputDim3Boxed copy];
+        box.outputRanks = [outputRanksBoxed copy];
+        box.outputDTypes = [outputDTypesBoxed copy];
+        box.outputDim0 = [outputDim0Boxed copy];
+        box.outputDim1 = [outputDim1Boxed copy];
+        box.outputDim2 = [outputDim2Boxed copy];
+        box.outputDim3 = [outputDim3Boxed copy];
+        box.outputElementCounts = [outputElementCountsBoxed copy];
         return (void *) CFBridgingRetain(box);
     }
 }
@@ -605,6 +774,130 @@ int synaptik_apple_mps_execute_partition_f32(
                 return 8;
             }
             [resultArray readBytes:outputs[i] strideBytes:NULL];
+        }
+        return 0;
+    }
+}
+
+int32_t synaptik_apple_mps_execute_partition_f32_buffers(
+        void *context,
+        void *executable,
+        const void * const *external_input_buffers,
+        int32_t external_input_count,
+        void * const *output_buffers,
+        int32_t output_count,
+        int64_t *native_device_copy_ns
+) {
+    @autoreleasepool {
+        if (native_device_copy_ns != NULL) {
+            *native_device_copy_ns = 0;
+        }
+        SynaptikAppleMpsContextBox *contextBox = SynaptikUnboxContext(context);
+        SynaptikAppleMpsExecutableBox *executableBox = SynaptikUnboxExecutable(executable);
+        if (contextBox == nil || executableBox == nil) {
+            return 1;
+        }
+        if ((NSUInteger) external_input_count != executableBox.externalInputRanks.count
+                || external_input_buffers == NULL) {
+            return 2;
+        }
+        if ((NSUInteger) output_count != executableBox.outputRanks.count
+                || output_buffers == NULL
+                || output_count < 1) {
+            return 3;
+        }
+
+        MPSGraphExecutableExecutionDescriptor *executionDescriptor = [MPSGraphExecutableExecutionDescriptor new];
+        executionDescriptor.waitUntilCompleted = YES;
+
+        NSMutableArray<MPSGraphTensorData *> *inputs = [NSMutableArray arrayWithCapacity:(NSUInteger) external_input_count];
+        for (int32_t i = 0; i < external_input_count; i++) {
+            SynaptikAppleMpsBufferBox *box = SynaptikUnboxBuffer((void *) external_input_buffers[i]);
+            if (box == nil || box.buffer == nil) {
+                return 4;
+            }
+            int32_t rank = executableBox.externalInputRanks[(NSUInteger) i].intValue;
+            NSUInteger dim0 = (NSUInteger) executableBox.externalInputDim0[(NSUInteger) i].intValue;
+            NSUInteger dim1 = (NSUInteger) executableBox.externalInputDim1[(NSUInteger) i].intValue;
+            NSUInteger dim2 = (NSUInteger) executableBox.externalInputDim2[(NSUInteger) i].intValue;
+            NSUInteger dim3 = (NSUInteger) executableBox.externalInputDim3[(NSUInteger) i].intValue;
+            int32_t dtypeCode = executableBox.externalInputDTypes[(NSUInteger) i].intValue;
+            MPSDataType dataType = dtypeCode == 2 ? MPSDataTypeBool : MPSDataTypeFloat32;
+            NSUInteger elementCount = SynaptikElementCountFromDims(rank, dim0, dim1, dim2, dim3);
+            NSUInteger bytes = elementCount * (dtypeCode == 2 ? sizeof(uint8_t) : sizeof(float));
+            NSMutableArray<NSNumber *> *shape = SynaptikShapeFromDims(rank, dim0, dim1, dim2, dim3);
+            if (shape == nil || elementCount == 0 || box.byteLength < bytes) {
+                return 5;
+            }
+            MPSGraphTensorData *data = [[MPSGraphTensorData alloc] initWithMTLBuffer:box.buffer
+                                                                               shape:shape
+                                                                            dataType:dataType];
+            if (data == nil) {
+                return 6;
+            }
+            [inputs addObject:data];
+        }
+
+        NSMutableArray<MPSGraphTensorData *> *outputs = [NSMutableArray arrayWithCapacity:(NSUInteger) output_count];
+        for (int32_t i = 0; i < output_count; i++) {
+            SynaptikAppleMpsBufferBox *box = SynaptikUnboxBuffer(output_buffers[i]);
+            if (box == nil || box.buffer == nil) {
+                return 7;
+            }
+            int32_t rank = executableBox.outputRanks[(NSUInteger) i].intValue;
+            NSUInteger dim0 = (NSUInteger) executableBox.outputDim0[(NSUInteger) i].intValue;
+            NSUInteger dim1 = (NSUInteger) executableBox.outputDim1[(NSUInteger) i].intValue;
+            NSUInteger dim2 = (NSUInteger) executableBox.outputDim2[(NSUInteger) i].intValue;
+            NSUInteger dim3 = (NSUInteger) executableBox.outputDim3[(NSUInteger) i].intValue;
+            int32_t dtypeCode = executableBox.outputDTypes[(NSUInteger) i].intValue;
+            MPSDataType dataType = dtypeCode == 2 ? MPSDataTypeBool : MPSDataTypeFloat32;
+            NSUInteger elementCount = (NSUInteger) executableBox.outputElementCounts[(NSUInteger) i].unsignedLongLongValue;
+            NSUInteger bytes = elementCount * (dtypeCode == 2 ? sizeof(uint8_t) : sizeof(float));
+            NSMutableArray<NSNumber *> *shape = SynaptikShapeFromDims(rank, dim0, dim1, dim2, dim3);
+            if (shape == nil || elementCount == 0 || box.byteLength < bytes) {
+                return 8;
+            }
+            MPSGraphTensorData *data = [[MPSGraphTensorData alloc] initWithMTLBuffer:box.buffer
+                                                                               shape:shape
+                                                                            dataType:dataType];
+            if (data == nil) {
+                return 9;
+            }
+            [outputs addObject:data];
+        }
+
+        NSArray<MPSGraphTensorData *> *results =
+                [executableBox.executable runWithMTLCommandQueue:contextBox.queue
+                                                     inputsArray:[inputs copy]
+                                                    resultsArray:[outputs copy]
+                                             executionDescriptor:executionDescriptor];
+        if (results.count < (NSUInteger) output_count) {
+            return 10;
+        }
+        int64_t copyNs = 0;
+        for (int32_t i = 0; i < output_count; i++) {
+            SynaptikAppleMpsBufferBox *box = SynaptikUnboxBuffer(output_buffers[i]);
+            MPSGraphTensorData *resultData = results[(NSUInteger) i];
+            MPSNDArray *resultArray = resultData.mpsndarray;
+            if (box == nil || box.buffer == nil || resultArray == nil) {
+                return 11;
+            }
+            int32_t dtypeCode = executableBox.outputDTypes[(NSUInteger) i].intValue;
+            NSUInteger elementCount = (NSUInteger) executableBox.outputElementCounts[(NSUInteger) i].unsignedLongLongValue;
+            NSUInteger bytes = elementCount * (dtypeCode == 2 ? sizeof(uint8_t) : sizeof(float));
+            void *contents = box.buffer.contents;
+            if (contents == NULL || box.byteLength < bytes) {
+                return 12;
+            }
+            int64_t copyStart = SynaptikNowNs();
+            [resultArray readBytes:contents strideBytes:NULL];
+            int64_t copyEnd = SynaptikNowNs();
+            if (copyEnd > copyStart) {
+                copyNs += copyEnd - copyStart;
+            }
+        }
+        if (native_device_copy_ns != NULL) {
+            *native_device_copy_ns = copyNs;
         }
         return 0;
     }

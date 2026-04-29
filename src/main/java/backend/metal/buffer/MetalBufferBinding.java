@@ -10,7 +10,7 @@ import java.util.Objects;
 /**
  * Runtime binding between one compiled graph value and a Metal-compatible buffer.
  *
- * <p>This is the Java-side contract needed by the future shared-buffer bridge.
+ * <p>This is the Java-side contract used by the native Metal buffer bridge.
  * It carries only execution facts: node id, dtype, shape, element count, buffer
  * handle, and access intent. Tensor materialization policy remains in execution
  * state; native code receives buffer bindings rather than semantic tensors.</p>

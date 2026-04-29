@@ -6,6 +6,7 @@ import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;
+import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
 import graph.CompiledNode;
@@ -40,6 +41,7 @@ public final class ExecutionState {
     private final Map<Integer, DeviceBufferBinding> reservedDeviceBufferBindingByNodeId;
     private final Map<String, DeviceToCpuMaterializer> deviceToCpuMaterializerByBackend;
     private final List<CpuMaterializationTrace> cpuMaterializationTraces;
+    private final List<ExecutionResource> executionResources;
 
     private ExecutionState(
             Map<Integer, Tensor> runtimeTensorByNodeId,
@@ -58,6 +60,7 @@ public final class ExecutionState {
         this.reservedDeviceBufferBindingByNodeId = new HashMap<>();
         this.deviceToCpuMaterializerByBackend = new HashMap<>();
         this.cpuMaterializationTraces = new ArrayList<>();
+        this.executionResources = new ArrayList<>();
     }
 
     /**
@@ -391,6 +394,44 @@ public final class ExecutionState {
             throw new IllegalArgumentException("backendId cannot be blank");
         }
         deviceToCpuMaterializerByBackend.put(backendId, Objects.requireNonNull(materializer, "materializer cannot be null"));
+    }
+
+    /**
+     * Registers a native/backend resource owned by this execution run.
+     *
+     * <p>Resources are closed in reverse allocation order by {@link #closeResources()}. Only owned resources
+     * should be registered here; borrowed handles must remain under their original owner.</p>
+     *
+     * @param resource resource to close when this run finishes
+     */
+    public void registerResource(ExecutionResource resource) {
+        executionResources.add(Objects.requireNonNull(resource, "resource cannot be null"));
+    }
+
+    /**
+     * Closes all registered execution resources in reverse allocation order.
+     *
+     * <p>All close attempts are made even if one resource fails. Active and reserved device buffer bindings are
+     * cleared afterward so no closed handle remains discoverable from runtime state.</p>
+     */
+    public void closeResources() {
+        RuntimeException closeFailure = null;
+        for (int i = executionResources.size() - 1; i >= 0; i--) {
+            try {
+                executionResources.get(i).close();
+            } catch (RuntimeException ex) {
+                if (closeFailure == null) {
+                    closeFailure = new RuntimeException("One or more execution resources failed to close.");
+                }
+                closeFailure.addSuppressed(ex);
+            }
+        }
+        executionResources.clear();
+        deviceBufferBindingByNodeId.clear();
+        reservedDeviceBufferBindingByNodeId.clear();
+        if (closeFailure != null) {
+            throw closeFailure;
+        }
     }
 
     /**

@@ -312,17 +312,28 @@ This is intentionally conservative. The planner can explain why direct SDPA did 
 `AcceleratorSubgraphLowerer` still contains the future DAG encoding path so native verification can be added without
 redesigning the accelerator DAG format.
 
-### Metal MPS Copy Chain
+### Metal MPS Buffer Execution And Copy Chain
 
-The current Metal bridge is not zero-copy. A float32 Metal execution moves data through these ownership domains:
+The Metal bridge now has two execution paths. The legacy path is still available as a fallback. A float32 legacy
+execution moves data through these ownership domains:
 
 1. Java `float[]` or `byte[]` tensor storage is copied into a confined FFM arena in `MetalMpsFfmBridge.execute(...)`.
 2. The Objective-C shim creates Metal buffers from those bytes.
-3. MPSGraph executes into native output buffers owned by the bridge call.
+3. MPSGraph executes and the shim materializes native output buffers owned by the bridge call.
 4. Java copies the native output memory back into the destination tensor `float[]`.
 5. The tensor marks its data view stale so later Java reads see the updated storage state.
 
-This design keeps CPU fallback and Java tensor ownership simple, but it means Metal execution currently pays host copy costs around the native call. A true zero-copy path would need a larger storage design: native-backed `TensorStorage`, explicit `MTLBuffer` ownership/lifetime, synchronization rules between Metal writes and Java reads, fallback materialization back to CPU-visible arrays, and tracing/memory accounting for off-heap buffers. The current architecture chooses correctness and predictable fallback over a partial second memory model.
+The native buffer-binding path avoids that Java-array round-trip between adjacent Metal regions. `MetalMpsFfmBridge`
+discovers `synaptik_apple_mps_create_buffer`, `synaptik_apple_mps_read_buffer`,
+`synaptik_apple_mps_destroy_buffer`, and `synaptik_apple_mps_execute_partition_f32_buffers` before reporting
+`supportsBufferBindings() == true`. `PreparedMetalExecutable` then allocates run-scoped shared `MTLBuffer` handles for
+missing inputs and outputs, executes MPSGraph with those handles, copies any returned MPSGraph result storage into the
+caller-provided output buffers inside the native shim, marks outputs as `DEVICE_OWNED`, and materializes back into
+Java `float[]` only at a true CPU boundary such as graph output or gradient publication.
+
+This is deliberately not long-lived public GPU tensor storage. Public tensors are still CPU-readable when
+`compute()` or `PreparedExecution.execute(...)` returns. The native buffers are owned by the execution run and closed
+by `ExecutionState.closeResources()`.
 
 The copy chain is now measured explicitly. `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java`
 is returned from `MetalMpsGraphBridge.execute(...)` and records logical input/output byte counts plus timing
@@ -334,9 +345,10 @@ buckets around the bridge boundary:
 | `javaToNativeCopyNs` | Java-side time spent copying CPU tensor arrays into FFM/native input memory. |
 | `outputAllocationNs` | Java-side time spent allocating temporary native output memory for the current bridge call. |
 | `nativeExecuteNs` | Wall time observed around the native execute function call. This includes native MPSGraph work and any synchronization hidden by the native shim. |
+| `nativeDeviceCopyNs` | Native shim time spent copying MPSGraph result storage into caller-provided output buffers. The current conservative buffer path records this copy instead of assuming MPSGraph wrote directly into supplied output storage. |
 | `nativeToJavaCopyNs` | Java-side time spent copying native output memory back into Java tensor arrays. |
 | `usedCpuFallback`, `fallbackReason` | Whether `PreparedMetalExecutable` served the step through CPU fallback and the reason. |
-| `executionPath` | One of `CPU_FALLBACK`, `TENSOR_ARRAY_COPY`, or future `BUFFER_BINDING`. Current successful FFM executions report `TENSOR_ARRAY_COPY`. |
+| `executionPath` | One of `CPU_FALLBACK`, `TENSOR_ARRAY_COPY`, or `BUFFER_BINDING`. Current buffer-capable FFM executions report `BUFFER_BINDING`; fallback paths remain explicit. |
 
 `PreparedMetalExecutable` publishes those stats into run trace attributes through
 `src/main/java/graph/execution/PreparedExecution.java`. Benchmark reports can therefore answer the
@@ -345,7 +357,7 @@ without guessing from the selected backend label alone.
 
 ### Metal Buffer Binding Contract
 
-This section is about the contract that will allow Metal execution to move from "copy tensor arrays into native code"
+This section is about the contract that allows Metal execution to move from "copy tensor arrays into native code"
 toward "execute over explicit buffers". It is deliberately split into API and ABI concepts because the two are easy to
 confuse.
 
@@ -380,17 +392,18 @@ Java tensor arrays
 That ABI is simple and safe because the Java side always ends with CPU-current arrays. It is also expensive because
 every Metal region pays input upload and output download costs.
 
-A future shared-buffer ABI would be buffer-oriented:
+The shared-buffer ABI is buffer-oriented:
 
 ```text
 Java execution state owns or references a Metal-compatible buffer
   -> Java passes buffer descriptors / handles to native code
   -> Objective-C wraps those handles as MPSGraphTensorData inputs/outputs
-  -> MPSGraph reads and writes those buffers
+  -> MPSGraph reads input buffers and returns result storage
+  -> Objective-C copies result storage into caller output buffers
   -> Java records residency instead of immediately copying bytes back
 ```
 
-The repository now has the Java-side pieces of that future contract under `src/main/java/backend/memory` and
+The repository has the Java-side pieces of that contract under `src/main/java/backend/memory` and
 `src/main/java/backend/metal/buffer`:
 
 - `MetalBufferHandle` is an opaque native handle plus byte length, storage mode, owner label, and lifetime flag. Only
@@ -398,13 +411,16 @@ The repository now has the Java-side pieces of that future contract under `src/m
   conservatively treated as device-owned until a materializer synchronizes CPU storage.
 - `MetalBufferAccess` distinguishes `READ`, `WRITE`, and `READ_WRITE` intent.
 - `MetalBufferBinding` ties a compiled node id, dtype, shape, element count, handle, and access mode together.
+- `MetalBufferAllocator` creates shared `MTLBuffer` handles through the active bridge context and reads them back
+  through the native `read_buffer` ABI.
+- `MetalDeviceToCpuMaterializer` is registered per run and copies device-current Metal output buffers into the
+  destination runtime tensor's Java `float[]` when CPU publication requires it.
 - `DeviceBufferBinding` is the backend-neutral view used by `ExecutionState`. It exposes only node id, backend id,
   logical byte length, availability, and a diagnostic description.
 
-This is intentionally not yet a production zero-copy implementation. `MetalMpsGraphBridge.supportsBufferBindings()`
-defaults to `false`, and the current FFM bridge still executes through tensor arrays. The value of the contract is
-architectural: future native ABI work can pass buffer descriptors to the bridge without teaching native code about
-semantic `Tensor` objects or making `Tensor` construction allocate device resources.
+`MetalMpsGraphBridge.supportsBufferBindings()` still defaults to `false` for unavailable bridges, but the production
+FFM bridge returns `true` when all buffer ABI symbols are present. The bridge receives only explicit buffer bindings;
+it does not pull arrays out of semantic `Tensor` objects.
 
 The important ownership split is:
 
@@ -425,28 +441,31 @@ Compiled node:
   elementCount = 16384
   logical bytes = 16384 * 4 = 65536
 
-Future shared-buffer binding:
+Shared-buffer binding:
   MetalBufferBinding(
     nodeId = 42,
     dataType = FLOAT32,
     shape = [128, 128],
     elementCount = 16384,
     handle.byteLength = 65536,
-    access = WRITE
+    access = READ_WRITE
   )
 
-ExecutionState records:
-  TensorResidencyState = HOST_SHARED_DEVICE_BUFFER
-  cpuCurrent = true
+ExecutionState records after a Metal output write:
+  TensorResidencyState = DEVICE_OWNED
+  cpuCurrent = false
   deviceCurrent = true
   deviceBackend = GPU_METAL
   DeviceBufferBinding = the binding above
 ```
 
-In that state, graph output publication may read CPU-visible storage without forcing a download because the shared buffer
-contract says the CPU representation is current. By contrast, a `DEVICE_OWNED` binding would set `cpuCurrent=false` and
-`deviceCurrent=true`; graph output publication would then fail until a real materializer performs device-to-CPU
-synchronization.
+The output reservation is writable before native execution, but the active binding is promoted as readable after the
+write succeeds. This matters for adjacent Metal regions: region A writes node `42`, region B can then consume node `42`
+as a Metal input without first materializing the value into a Java array.
+
+Even if the underlying `MTLBuffer` uses shared storage, the Java tensor's `float[]` is not automatically current.
+Graph output publication therefore calls the Metal materializer, reads the buffer into the Java array, records a
+`CpuMaterializationTrace`, and only then marks CPU storage current.
 
 ```mermaid
 flowchart LR
@@ -464,32 +483,23 @@ flowchart LR
     NativeAbi --> MPS
 ```
 
-The Java execution side now has a selector for this future path. `PreparedMetalExecutable.execute(...)` checks buffer
-bindings before it validates the old tensor-array copy contract. That order matters: a real shared-buffer path must not
-be blocked just because a runtime tensor has no direct Java `float[]` array or is represented by a non-contiguous Java
-view. Those are copy-path limitations, not native-buffer limitations.
+The Java execution side now has a production selector for this path. `PreparedMetalExecutable.execute(...)` checks
+native buffer capability before it validates the old tensor-array copy contract.
 
 1. The normal Metal bridge readiness gates pass: bridge, context, executable, and training-SDPA safety gates.
 2. `MetalMpsGraphBridge.supportsBufferBindings()` returns `true`.
-3. Every external input node id has a registered available `MetalBufferBinding` with `READ` or `READ_WRITE` access.
-4. Every output node id has a registered available `MetalBufferBinding` with `WRITE` or `READ_WRITE` access.
-5. Each binding matches the runtime tensor's compiled node id, dtype, logical shape, and element count.
+3. A `MetalBufferAllocator` is available from the bridge context.
+4. Existing Metal input bindings are reused, or CPU-current inputs are uploaded into shared buffers.
+5. Output buffers are allocated and reserved, then promoted only after native execution succeeds.
+6. Each binding matches the runtime tensor's compiled node id, dtype, logical shape, and element count.
 
-If all five conditions hold, it calls `MetalMpsGraphBridge.executeBuffers(...)` and expects the returned
+If all six conditions hold, it calls `MetalMpsGraphBridge.executeBuffers(...)` and expects the returned
 `MetalMpsBridgeExecutionStats` to report `MetalMpsBridgeExecutionPath.BUFFER_BINDING`. If any binding condition is
 missing, the executable tries the tensor-array copy path. Only that fallback path requires contiguous CPU-visible tensor
 arrays with no storage offset and dtypes supported by the current FFM bridge. If the tensor-array contract also fails,
 the selected Metal region is replayed through CPU fallback with explicit trace reasons. Runtime bridge exceptions are
 also converted into explicit CPU fallback diagnostics, and failed buffer execution does not promote reserved output
-buffers to current residency. This separation is important during migration: existing CPU-array tensors and the current
-FFM bridge keep working while the native buffer ABI is implemented, but future buffer-owned tensors are not forced
-through Java-array validation first.
-
-Current limitation: the selector exists, but the production FFM bridge still reports
-`supportsBufferBindings() == false`. Therefore normal Metal execution still reports
-`MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY`, and outputs are copied back to Java arrays. Tests under
-`src/test/java/backend/metal/exec/PreparedMetalExecutableBufferBindingTest.java` exercise the selector with a fake
-buffer-capable bridge so the Java contract is locked before the native ABI exists.
+buffers to current residency.
 
 ## Configuration, Profiles, And Tuning
 
@@ -545,22 +555,22 @@ transition happened. The residency enum is:
 | Residency | Meaning today | Intended future use |
 |---|---|---|
 | `CPU_ARRAY` | The current value is in normal typed Java tensor storage. This is the state produced by CPU kernels and by the current Metal copy-back path. | Baseline representation and materialization target for public tensor reads. |
-| `HOST_SHARED_DEVICE_BUFFER` | Representable state for a host-visible buffer usable by a device backend. The current Metal FFM path does not yet produce this state. | First zero-copy step for shared Metal buffers. |
-| `DEVICE_OWNED` | Representable state for a value whose newest copy is owned by a device backend. The current Metal FFM path does not yet produce this state. | Long-lived GPU residency with lazy CPU materialization. |
+| `HOST_SHARED_DEVICE_BUFFER` | A host-visible buffer and Java CPU storage are both current. Metal uses this for uploaded inputs whose Java arrays are already current. | True shared-storage paths where the CPU representation is genuinely current. |
+| `DEVICE_OWNED` | The newest value is in a device/backend buffer and Java CPU arrays are stale. Metal buffer outputs use this state even when the underlying `MTLBuffer` is shared. | Device residency with explicit CPU materialization. |
 
 The important design point is that residency is per execution run, not part of the semantic graph. A `Tensor` still
 means "this value in the user's graph"; residency means "where this run currently has the newest materialized bytes for
 compiled node N." In the current implementation, `PreparedExecution` marks each executed step as CPU-current after the
-step completes. For Metal this is honest: even a successful Metal bridge call copies outputs back into Java arrays, so
-the trace should say `CPU_ARRAY`, not pretend that the value stayed on the GPU.
+step completes. For the legacy Metal path this is honest because outputs are copied back into Java arrays. For the
+buffer-binding Metal path, `PreparedMetalExecutable` attaches a device binding and marks the output
+`DEVICE_OWNED`; root publication or gradient publication then invokes the registered Metal materializer.
 
 CPU publication points now check residency before reading runtime tensor arrays. The relevant reasons are encoded in
 `CpuMaterializationReason`: `GRAPH_OUTPUT`, `GRADIENT_PUBLICATION`, `CPU_CONSUMER`, `PUBLIC_DATA_ACCESS`, and
-`CPU_FALLBACK`. Today this is a guardrail rather than a transfer engine. If a future Metal path marks a value as
-`DEVICE_OWNED` and CPU-stale, `PreparedExecution` will refuse to publish the root tensor or public gradients until a
-real materializer has synchronized the bytes into CPU storage. That failure is intentional: publishing an old Java
-array would be worse than throwing, because it would make a zero-copy optimization appear correct while returning stale
-data.
+`CPU_FALLBACK`. This is now both a guardrail and a transfer engine for Metal: if a Metal buffer output is
+`DEVICE_OWNED` and CPU-stale, `PreparedExecution` asks the registered Metal materializer to read the native buffer into
+the runtime tensor's Java array before publishing the root tensor or gradients. If the materializer is absent or rejects
+the binding, execution throws rather than publishing stale CPU data.
 
 Those guardrails now feed run-level observability. `RunTrace.cpuMaterializations()` returns `CpuMaterializationTrace`
 entries for failed CPU-read requests and completed device-to-CPU synchronizations. A failed entry records the requested
@@ -573,8 +583,8 @@ registers it on `ExecutionState` or `ExecutionContext` for a backend id such as 
 point asks for a `DEVICE_OWNED` value and an active `DeviceBufferBinding` exists, execution state calls the registered
 materializer with the binding, target runtime tensor, and materialization reason. The materializer must synchronize
 bytes into CPU-visible tensor storage before returning `CpuMaterializationResult`; execution state then records the
-trace and marks CPU storage current. This is still not a production Metal readback implementation because the current
-FFM bridge already copies outputs back into Java arrays and does not register a Metal materializer.
+trace and marks CPU storage current. The Metal implementation is `MetalDeviceToCpuMaterializer`, backed by
+`MetalBufferAllocator.readToCpu(...)` and the native `synaptik_apple_mps_read_buffer(...)` ABI.
 
 The next Java-side contract is `DeviceBufferBinding`. It is backend-neutral and deliberately small: node id, backend
 id, logical byte length, availability, and a diagnostic description. `MetalBufferBinding` implements that contract and
@@ -582,12 +592,13 @@ keeps Metal-specific native handle details in `backend.metal.buffer`. `Execution
 per compiled node. Reserving a binding only says that a writable backend buffer exists for a future output; it does not
 change residency and cannot be read as current data. Attaching a `HOST_SHARED_DEVICE_BUFFER` binding after execution
 marks both CPU and device representations current; attaching a `DEVICE_OWNED` binding marks CPU stale and device
-current. A later CPU write or completed CPU materialization clears the active/reserved binding, because the previous
-device handle can no longer be treated as the active value.
+current. Metal output promotion uses `DEVICE_OWNED` because the Java tensor array is not updated until materialization.
+A later CPU write or completed CPU materialization clears the active/reserved binding, because the previous device
+handle can no longer be treated as the active value.
 
 This also changes the default post-step residency rule. CPU backend steps are still marked CPU-current after execution.
 Accelerator steps are marked CPU-current only when they did not publish any residency state themselves. That preserves
-the current copy-back Metal behavior while leaving a real path for a future shared-buffer executable to keep its output
+the legacy copy-back Metal behavior while letting buffer-binding Metal executable keep its output
 device-resident.
 
 ## Tracing And Observability

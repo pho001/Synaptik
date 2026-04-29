@@ -199,6 +199,19 @@ If the task says it is only supported on macOS, that is expected: `buildMetalMps
 
 Current dtype boundary: the Metal MPS FFM bridge uses `_f32` native compile/execute symbols. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, `FLOAT32` data inputs, and `BOOL` only for predicate inputs such as the `where` condition. Direct SDPA remains CPU/fallback until the native MPSGraph scale contract is aligned with the framework's CPU semantics. Masked decomposed attention should stay as generic `WHERE`/`SOFTMAX`/`MATMUL` DAG operations rather than native `SDPA(maskTensor=bool)`, because the verified native MPSGraph SDPA mask operand expects a floating tensor. `FLOAT64`, `BFLOAT16`, and `INT32` graphs should remain on CPU unless a later native ABI/storage path is implemented.
 
+Native buffer ABI boundary: a current shim should also export `synaptik_apple_mps_create_buffer`,
+`synaptik_apple_mps_read_buffer`, `synaptik_apple_mps_destroy_buffer`, and
+`synaptik_apple_mps_execute_partition_f32_buffers`. When those symbols are present,
+`MetalMpsFfmBridge.supportsBufferBindings()` can return `true` and run Metal regions through
+`BUFFER_BINDING`. If traces still show `TENSOR_ARRAY_COPY`, check `metalBufferBindingDecision`: it should explain
+whether the bridge lacked symbols, input allocation failed, dtype/layout was unsupported, or native buffer execution
+failed and fell back.
+
+For successful buffer execution, outputs are marked `DEVICE_OWNED` until root/gradient publication reads the Metal
+buffer back through the registered materializer. Seeing `metalNativeToJavaCopyNs=0` with a later
+`CpuMaterializationTrace` is expected: there was no Java array round-trip between Metal regions, but public tensors
+still become CPU-readable before `compute()` returns.
+
 ## CUDA Shim Missing
 
 Symptoms:

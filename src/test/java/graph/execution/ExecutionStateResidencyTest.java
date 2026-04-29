@@ -4,6 +4,7 @@ import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;
+import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -18,6 +19,7 @@ import tensor.Tensor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -225,6 +227,29 @@ class ExecutionStateResidencyTest {
         assertNull(fixture.state().deviceBufferBindingForNodeId(outputNodeId));
     }
 
+    @Test
+    void executionResourcesCloseInReverseOrderAndClearBindings() {
+        Fixture fixture = fixture();
+        int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
+        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, true);
+        List<String> closed = new ArrayList<>();
+
+        fixture.state().attachDeviceBufferBinding(
+                outputNodeId,
+                binding,
+                StorageResidency.DEVICE_OWNED,
+                "device output"
+        );
+        fixture.state().registerResource(new RecordingResource("first", closed));
+        fixture.state().registerResource(new RecordingResource("second", closed));
+
+        fixture.state().closeResources();
+
+        assertEquals(List.of("second", "first"), closed);
+        assertNull(fixture.state().deviceBufferBindingForNodeId(outputNodeId));
+        assertNull(fixture.state().writableDeviceBufferBindingForNodeId(outputNodeId));
+    }
+
     private static Fixture fixture() {
         Tensor a = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{3f, 4f}, new int[]{2}, null, "b", DataType.FLOAT32);
@@ -288,6 +313,26 @@ class ExecutionStateResidencyTest {
             this.target = target;
             this.reason = reason;
             return new CpuMaterializationResult(durationNs, detail);
+        }
+    }
+
+    private static final class RecordingResource implements ExecutionResource {
+        private final String label;
+        private final List<String> closed;
+        private boolean closeCalled;
+
+        private RecordingResource(String label, List<String> closed) {
+            this.label = label;
+            this.closed = closed;
+        }
+
+        @Override
+        public void close() {
+            if (closeCalled) {
+                throw new AssertionError("resource closed twice: " + label);
+            }
+            closeCalled = true;
+            closed.add(label);
         }
     }
 }

@@ -9,7 +9,10 @@ import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.metal.MetalMpsCapabilities;
 import backend.metal.buffer.MetalBufferAccess;
+import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
+import backend.metal.buffer.MetalBufferResource;
+import backend.metal.buffer.MetalDeviceToCpuMaterializer;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
 import backend.metal.bridge.MetalMpsBridgeExecutionStats;
@@ -84,7 +87,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
      * Executes through the Metal bridge when available and compatible, otherwise runs CPU fallback steps.
      *
      * <p>Buffer-binding execution is evaluated before the legacy tensor-array copy contract. This keeps the
-     * future shared-buffer path independent from Java-array layout restrictions such as direct {@code float[]}
+     * native shared-buffer path independent from Java-array layout restrictions such as direct {@code float[]}
      * storage, contiguity, and storage offset. Those checks are applied only when the executable has to use the
      * copy-based bridge path.</p>
      */
@@ -96,44 +99,56 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             return;
         }
 
-        BufferBindingResolution externalInputBindings = resolveMetalBufferBindings(
-                context,
-                bridgeExecutable.externalInputNodeIds(),
-                MetalBufferAccess.READ,
-                "external input"
-        );
-        BufferBindingResolution outputBindings = resolveMetalBufferBindings(
-                context,
-                bridgeExecutable.outputNodeIds(),
-                MetalBufferAccess.WRITE,
-                "output"
-        );
-
-        if (bridge.supportsBufferBindings()
-                && externalInputBindings.available()
-                && outputBindings.available()) {
-            lastBufferBindingDecision = "using native buffer bindings";
-            try {
-                lastExecutionStats = bridge.executeBuffers(
-                        bridgeContext,
-                        bridgeExecutable,
-                        externalInputBindings.bindings(),
-                        outputBindings.bindings()
-                );
-                if (!lastExecutionStats.usedCpuFallback()) {
-                    markBufferOutputsCurrent(context, outputBindings.bindings());
-                }
-            } catch (RuntimeException ex) {
-                runCpuFallback(
+        BufferBindingResolution externalInputBindings = BufferBindingResolution.unavailable("not evaluated");
+        BufferBindingResolution outputBindings = BufferBindingResolution.unavailable("not evaluated");
+        if (bridge.supportsBufferBindings()) {
+            MetalBufferAllocator allocator = bridge.createBufferAllocator(bridgeContext);
+            if (allocator.available()) {
+                context.registerDeviceToCpuMaterializer(ComputeBackend.GPU_METAL.name(), new MetalDeviceToCpuMaterializer(allocator));
+                externalInputBindings = resolveOrCreateMetalBufferBindings(
                         context,
-                        "buffer binding execution failed: " + safeMessage(ex),
-                        "buffer binding execution failed: " + safeMessage(ex)
+                        bridgeExecutable.externalInputNodeIds(),
+                        bridgeExecutable.externalInputDataTypes(),
+                        MetalBufferAccess.READ,
+                        "external input",
+                        allocator
                 );
+                outputBindings = resolveOrCreateMetalBufferBindings(
+                        context,
+                        bridgeExecutable.outputNodeIds(),
+                        bridgeExecutable.outputDataTypes(),
+                        MetalBufferAccess.WRITE,
+                        "output",
+                        allocator
+                );
+                if (externalInputBindings.available() && outputBindings.available()) {
+                    lastBufferBindingDecision = "using native buffer bindings";
+                    try {
+                        lastExecutionStats = bridge.executeBuffers(
+                                bridgeContext,
+                                bridgeExecutable,
+                                externalInputBindings.bindings(),
+                                outputBindings.bindings()
+                        );
+                        if (!lastExecutionStats.usedCpuFallback()) {
+                            markBufferOutputsCurrent(context, outputBindings.bindings());
+                        }
+                    } catch (RuntimeException ex) {
+                        runCpuFallback(
+                                context,
+                                "buffer binding execution failed: " + safeMessage(ex),
+                                "buffer binding execution failed: " + safeMessage(ex)
+                        );
+                    }
+                    return;
+                }
+            } else {
+                externalInputBindings = BufferBindingResolution.unavailable("Metal buffer allocator unavailable: " + allocator.unavailableReason());
             }
-            return;
         }
 
         lastBufferBindingDecision = bufferBindingDecision(externalInputBindings, outputBindings);
+        ensureTensorArrayInputsCpuReadable(context);
         List<Tensor> resolvedExternalInputs = bridgeExecutable.externalInputNodeIds().isEmpty()
                 ? List.of()
                 : resolveExternalInputs(context);
@@ -157,6 +172,12 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         }
 
         runCpuFallback(context, lastBufferBindingDecision, tensorArrayFallbackReason, resolvedExternalInputs, outputs);
+    }
+
+    private void ensureTensorArrayInputsCpuReadable(ExecutionContext context) {
+        for (int nodeId : bridgeExecutable.externalInputNodeIds()) {
+            context.requireCpuReadable(nodeId, backend.memory.CpuMaterializationReason.CPU_CONSUMER);
+        }
     }
 
     private void runCpuFallback(ExecutionContext context, String bufferBindingDecision, String fallbackReason) {
@@ -184,6 +205,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 byteSize(resolvedExternalInputs),
                 byteSize(outputs)
         );
+        ensureTensorArrayInputsCpuReadable(context);
         PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
     }
 
@@ -315,24 +337,154 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         return BufferBindingResolution.available(bindings);
     }
 
+    private static BufferBindingResolution resolveOrCreateMetalBufferBindings(
+            ExecutionContext context,
+            List<Integer> nodeIds,
+            List<DataType> expectedDataTypes,
+            MetalBufferAccess requiredAccess,
+            String role,
+            MetalBufferAllocator allocator
+    ) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return BufferBindingResolution.available(List.of());
+        }
+        List<MetalBufferBinding> bindings = new ArrayList<>(nodeIds.size());
+        List<DataType> expectedTypes = expectedDataTypes == null ? List.of() : expectedDataTypes;
+        for (int i = 0; i < nodeIds.size(); i++) {
+            int nodeId = nodeIds.get(i);
+            DataType expectedDataType = i < expectedTypes.size() ? expectedTypes.get(i) : null;
+            DeviceBufferBinding existing = requiredAccess == MetalBufferAccess.WRITE
+                    ? context.writableDeviceBufferBindingForNodeId(nodeId)
+                    : context.deviceBufferBindingForNodeId(nodeId);
+            if (existing instanceof MetalBufferBinding existingMetal) {
+                String reason = incompatibleBindingReason(context, nodeId, existingMetal, requiredAccess, role, expectedDataType);
+                if (!reason.isBlank()) {
+                    return BufferBindingResolution.unavailable(reason);
+                }
+                bindings.add(existingMetal);
+                continue;
+            }
+            if (existing != null) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                        + " binding is not Metal-compatible: " + existing.getClass().getSimpleName());
+            }
+
+            Tensor tensor = context.runtimeTensorForNodeId(nodeId);
+            try {
+                MetalBufferBinding created;
+                if (requiredAccess == MetalBufferAccess.WRITE) {
+                    String outputLayoutReason = unsupportedBufferOutputLayoutReason(tensor);
+                    if (!outputLayoutReason.isBlank()) {
+                        return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                                + " output tensor layout is not " + outputLayoutReason
+                                + " for Metal buffer materialization");
+                    }
+                    created = allocator.createOutputBinding(nodeId, tensor.getDataType(), tensor.getShape(), tensor.getFlatDataSize());
+                    context.registerResource(new MetalBufferResource(allocator, created.handle()));
+                    context.reserveDeviceBufferBinding(nodeId, created);
+                } else {
+                    var residency = context.residencyForNodeId(nodeId);
+                    if (residency == null || !residency.cpuCurrent()) {
+                        return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                                + " has no Metal binding and CPU storage is not current");
+                    }
+                    if (expectedDataType == DataType.BOOL) {
+                        created = allocator.createPredicateInputBinding(nodeId, tensor);
+                    } else {
+                        created = allocator.createInputBinding(nodeId, tensor);
+                    }
+                    context.registerResource(new MetalBufferResource(allocator, created.handle()));
+                    context.attachDeviceBufferBinding(nodeId, created, StorageResidency.HOST_SHARED_DEVICE_BUFFER, "metal shared input buffer upload");
+                }
+                bindings.add(created);
+            } catch (RuntimeException ex) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                        + " allocation failed: " + safeMessage(ex));
+            }
+        }
+        return BufferBindingResolution.available(bindings);
+    }
+
+    private static String incompatibleBindingReason(
+            ExecutionContext context,
+            int nodeId,
+            MetalBufferBinding metalBinding,
+            MetalBufferAccess requiredAccess,
+            String role,
+            DataType expectedDataType
+    ) {
+        if (!metalBinding.available()) {
+            return role + " nodeId=" + nodeId + " binding is unavailable: " + metalBinding.describe();
+        }
+        Tensor tensor = context.runtimeTensorForNodeId(nodeId);
+        if (metalBinding.dataType() != tensor.getDataType()) {
+            return role + " nodeId=" + nodeId
+                    + " binding dtype " + metalBinding.dataType()
+                    + " does not match tensor dtype " + tensor.getDataType();
+        }
+        if (expectedDataType != null && metalBinding.dataType() != expectedDataType) {
+            return role + " nodeId=" + nodeId
+                    + " binding dtype " + metalBinding.dataType()
+                    + " does not match executable dtype " + expectedDataType;
+        }
+        if (!Arrays.equals(metalBinding.shape(), tensor.getShape())) {
+            return role + " nodeId=" + nodeId
+                    + " binding shape " + Arrays.toString(metalBinding.shape())
+                    + " does not match tensor shape " + Arrays.toString(tensor.getShape());
+        }
+        if (metalBinding.elementCount() != tensor.getFlatDataSize()) {
+            return role + " nodeId=" + nodeId
+                    + " binding elementCount " + metalBinding.elementCount()
+                    + " does not match tensor elementCount " + tensor.getFlatDataSize();
+        }
+        if (!accessCompatible(metalBinding.access(), requiredAccess)) {
+            return role + " nodeId=" + nodeId
+                    + " binding access " + metalBinding.access()
+                    + " is incompatible with required " + requiredAccess;
+        }
+        if (requiredAccess == MetalBufferAccess.WRITE) {
+            String outputLayoutReason = unsupportedBufferOutputLayoutReason(tensor);
+            if (!outputLayoutReason.isBlank()) {
+                return role + " nodeId=" + nodeId
+                        + " output tensor layout is not " + outputLayoutReason
+                        + " for Metal buffer materialization";
+            }
+        }
+        return "";
+    }
+
     private static void markBufferOutputsCurrent(ExecutionContext context, List<MetalBufferBinding> outputBindings) {
         if (context == null || outputBindings == null || outputBindings.isEmpty()) {
             return;
         }
         for (MetalBufferBinding binding : outputBindings) {
+            MetalBufferBinding activeBinding = readableAfterWrite(binding);
             context.attachDeviceBufferBinding(
-                    binding.nodeId(),
-                    binding,
-                    residencyForOutputBinding(binding),
+                    activeBinding.nodeId(),
+                    activeBinding,
+                    residencyForOutputBinding(activeBinding),
                     "metal buffer binding output"
             );
         }
     }
 
-    private static StorageResidency residencyForOutputBinding(MetalBufferBinding binding) {
-        if (binding.handle().hostShared()) {
-            return StorageResidency.HOST_SHARED_DEVICE_BUFFER;
+    private static MetalBufferBinding readableAfterWrite(MetalBufferBinding binding) {
+        if (binding.access() == MetalBufferAccess.READ_WRITE) {
+            return binding;
         }
+        return new MetalBufferBinding(
+                binding.nodeId(),
+                binding.dataType(),
+                binding.shape(),
+                binding.elementCount(),
+                binding.handle(),
+                MetalBufferAccess.READ_WRITE
+        );
+    }
+
+    private static StorageResidency residencyForOutputBinding(MetalBufferBinding binding) {
+        // The backing MTLBuffer may be host-shared, but the runtime Tensor's Java float[] storage is still
+        // stale until the Metal materializer reads the buffer into that array.
         return StorageResidency.DEVICE_OWNED;
     }
 
@@ -377,6 +529,19 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             return MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         }
         return tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
+    }
+
+    private static String unsupportedBufferOutputLayoutReason(Tensor tensor) {
+        if (tensor == null) {
+            return "available";
+        }
+        if (!tensor.isContiguous()) {
+            return "contiguous/zero-offset";
+        }
+        if (tensor.hasStorageOffset()) {
+            return "contiguous/zero-offset";
+        }
+        return "";
     }
 
     private static long byteSize(List<Tensor> tensors) {

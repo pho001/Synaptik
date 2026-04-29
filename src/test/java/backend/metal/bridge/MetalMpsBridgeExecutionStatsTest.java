@@ -21,6 +21,7 @@ class MetalMpsBridgeExecutionStatsTest {
         assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, stats.executionPath());
         assertEquals(128L, stats.inputBytes());
         assertEquals(64L, stats.outputBytes());
+        assertEquals(0L, stats.nativeDeviceCopyNs());
     }
 
     @Test
@@ -37,10 +38,13 @@ class MetalMpsBridgeExecutionStatsTest {
                 20L,
                 30L,
                 40L,
+                50L,
                 100L
         );
 
         assertEquals("", stats.fallbackReason());
         assertEquals(MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY, stats.executionPath());
+        assertEquals(40L, stats.nativeDeviceCopyNs());
+        assertEquals(50L, stats.nativeToJavaCopyNs());
     }
 }
