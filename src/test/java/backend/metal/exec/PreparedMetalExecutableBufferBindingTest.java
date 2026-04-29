@@ -146,6 +146,10 @@ class PreparedMetalExecutableBufferBindingTest {
                 AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
                 executable.lastAcceleratorBufferDecision().reasonCode()
         );
+        assertEquals(
+                "native Metal buffer ABI unavailable: bridge does not support buffer bindings",
+                executable.lastAcceleratorBufferDecision().reason()
+        );
     }
 
     @Test
@@ -305,6 +309,37 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void requiredBufferModeConvertsUnsupportedOutputLayoutToUnavailableBeforeTensorArrayExecution() {
+        Fixture fixture = nonContiguousOutputFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(
+                fixture.inputNode(),
+                fixture.outputNode(),
+                bridge,
+                List.of(),
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertTrue(failure.getMessage().contains("OUTPUT_LAYOUT_UNSUPPORTED"));
+        assertTrue(failure.getMessage().contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(0, bridge.bufferAllocations);
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertTrue(executable.lastAcceleratorBufferDecision().required());
+        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(
+                AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
+                executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass()
+        );
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+    }
+
+    @Test
     void reportsZeroOffsetViewOutputLayoutClass() {
         assertOutputLayoutFallback(zeroOffsetViewOutputFixture(), AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW);
     }
@@ -393,6 +428,10 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(
                 AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
                 executable.lastAcceleratorBufferDecision().reasonCode()
+        );
+        assertEquals(
+                "native Metal buffer ABI unavailable: bridge does not support buffer bindings",
+                executable.lastAcceleratorBufferDecision().reason()
         );
         assertTrue(executable.lastBufferBindingDecision().contains("native Metal buffer ABI unavailable"));
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
