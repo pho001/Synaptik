@@ -2,7 +2,7 @@
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 1 — Accelerator Buffer Layout ABI (plans 001-01 and 001-02 complete; plan 001-03 pending)
+**Current focus:** Phase 1 — Accelerator Buffer Layout ABI complete; ready to plan/execute Phase 2 — Metal Layout-Aware Device Flow
 
 ## Project Reference
 
@@ -41,13 +41,13 @@ Planning agents should read the relevant codebase map documents before proposing
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is not available in the current shell, so initialization artifacts were generated directly from the GSD workflow templates and current repository context.
-- Continue Phase 1 with plan 001-02, then 001-03.
+- Continue with Phase 2, building on the completed Accelerator Buffer Layout ABI.
 
 ## Phase Planning Status
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 1 — Accelerator Buffer Layout ABI | In progress | 2 of 3 plans complete | 001-02 verification passed on 2026-04-29 |
+| 1 — Accelerator Buffer Layout ABI | Complete | 3 of 3 plans complete | 001-03 targeted suite and classes passed on 2026-04-29 |
 
 ## Recent Decisions
 
@@ -59,6 +59,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-29 | Phase 1 planning passed with no compatibility shims | The accelerator buffer ABI should migrate call sites directly to canonical layout-aware contracts. |
 | 2026-04-29 | DeviceBufferBinding exposes shared layout/access/native identity | Plan 001-01 established the backend-neutral buffer ABI while keeping Metal handles backend-owned. |
 | 2026-04-29 | Metal/CUDA seams consume shared layout ABI without native view execution | Plan 001-02 adapted request, decision, allocator, materializer, and CUDA policy seams while preserving conservative fallback. |
+| 2026-04-29 | Phase 1 ABI closure relies on focused regression tests and trace docs | Plan 001-03 proved layout classes, conservative Metal fallback, CUDA required-unavailable behavior, and stable reason-code documentation. |
 
 ## Recent Sessions
 
@@ -66,6 +67,7 @@ Planning agents should read the relevant codebase map documents before proposing
 |------|-----------|------------|--------|
 | 2026-04-29 | Completed 001-01-PLAN.md | None | .planning/phases/001-accelerator-buffer-layout-abi/001-01-SUMMARY.md |
 | 2026-04-29 | Completed 001-02-PLAN.md | None | .planning/phases/001-accelerator-buffer-layout-abi/001-02-SUMMARY.md |
+| 2026-04-29 | Completed 001-03-PLAN.md | None | .planning/phases/001-accelerator-buffer-layout-abi/001-03-SUMMARY.md |
 
 ---
-*Last updated: 2026-04-29 after 001-02 execution*
+*Last updated: 2026-04-29 after 001-03 execution*
