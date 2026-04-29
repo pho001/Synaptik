@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Tensor API Guide
 
-Navigation: [Index](index.md) | [Public API](public-api.md) | [Examples](examples.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Public API](public-api.md) | [Examples](examples.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [API Surface And Conventions](#api-surface-and-conventions) | [Constructors, Storage, And Dtype](#constructors-storage-and-dtype) | [Metadata, Data Access, And Mutation](#metadata-data-access-and-mutation) | [Graph Lifecycle And Execution](#graph-lifecycle-and-execution) | [Compute Convenience API](#compute-convenience-api) | [Operation Catalog](#operation-catalog) | [Layout And View Operations](#layout-and-view-operations) | [Binary Broadcasting And Scalar Arithmetic](#binary-broadcasting-and-scalar-arithmetic) | [Comparisons, Boolean Logic, And Selection](#comparisons-boolean-logic-and-selection) | [Indexing, Gather, Scatter, And Take Along Axis](#indexing-gather-scatter-and-take-along-axis) | [Unary Math](#unary-math) | [Reductions, Softmax, And LogSoftmax](#reductions-softmax-and-logsoftmax) | [Matrix, Linear, And Attention Operations](#matrix-linear-and-attention-operations) | [Convolution And Pooling](#convolution-and-pooling) | [Normalization](#normalization) | [Loss Functions](#loss-functions) | [Dtype, Shape, And Edge-Case Rules](#dtype-shape-and-edge-case-rules) | [Implementation Source Map](#implementation-source-map)
 
@@ -36,6 +36,8 @@ Where it lives in the code:
 - `src/main/java/tensor/TensorOps.java` exposes static counterparts for operation families and delegates into `src/main/java/tensor/ops/**`.
 - `src/main/java/operations/**` contains operation primitives that compiled graphs execute.
 - Runtime behavior is covered by tests under `src/test/java/*Tensor*Test.java`, `src/test/java/*ExecutionTest.java`, `src/test/java/*Broadcast*Test.java`, and `src/test/java/*Gradient*Test.java`.
+
+For contributor instructions on adding a new operation to these layers, see [Adding A Tensor Operation](adding-tensor-operation.md).
 
 `Tensor` operation methods are graph-building methods unless they are explicit data/metadata accessors or mutators. For example, `x.add(y)` creates a graph tensor with an `ADD` operation; kernels run when the graph is computed or compiled and executed.
 

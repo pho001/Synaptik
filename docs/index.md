@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Documentation Index
 
-Navigation: [README](../README.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md) | [Public API](public-api.md) | [Examples](examples.md)
+Navigation: [README](../README.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md) | [Public API](public-api.md) | [Examples](examples.md)
 
 Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
 
@@ -32,6 +32,14 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 4. [Public API](public-api.md) - the externally usable Java surfaces and probably-internal implementation hooks.
 5. [Examples](examples.md) - executable-style snippets for tensor operations, compile/prepare/execute, and tuning flows.
 6. [Troubleshooting](troubleshooting.md) - common runtime, compile, dtype, backend, and tuning failures.
+
+### Tensor operation contributor path
+
+1. [Adding A Tensor Operation](adding-tensor-operation.md) - end-to-end implementation guide for new operations.
+2. [Development: Adding Tensor Ops](development.md#adding-tensor-ops) - compact checklist and current package conventions.
+3. [Modules: `tensor`](modules.md#tensor-public-graph-building-surface) and [Modules: `operations`](modules.md#operations-primitive-semantic-descriptors) - where public graph builders and descriptors live.
+4. [Graph Optimizer: CSE](graph-optimizer.md#stage-cse-common-subexpression-elimination) and [Graph Optimizer: FUSE](graph-optimizer.md#stage-fuse-region-optimization-and-fusion) - what must be updated when an op has parameters or participates in fusion.
+5. [Testing](testing.md) - focused Gradle commands and test organization.
 
 ### Optimizer and runtime path
 
@@ -65,6 +73,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [compute-flow.md](compute-flow.md) | Deep end-to-end walkthrough from graph building to `Tensor.compute(...)`, compile, prepare, execution, traces, and reuse rules. |
 | [graph-optimizer.md](graph-optimizer.md) | Deep explanation of optimizer configuration, state, trace, and every optimizer stage. |
 | [metal-backend.md](metal-backend.md) | Detailed Metal backend guide covering planner legality, Java FFM, Objective-C MPS shim, native buffer ABI, residency, traces, and fallbacks. |
+| [adding-tensor-operation.md](adding-tensor-operation.md) | Contributor guide for adding a new tensor operation through descriptors, builders, public API, CPU kernels, autograd, optimizer/fusion integration, docs, and tests. |
 | [tensor-api.md](tensor-api.md) | Detailed public Tensor API guide with signatures, `compute(...)` options, edge cases, and value-level operation examples. |
 | [calibration-autotune.md](calibration-autotune.md) | Deep calibration/autotune guide covering families, parameters, candidate values, persistence, progress, and reports. |
 | [mechanisms.md](mechanisms.md) | Mechanism-oriented guide using a repeated problem/mental-model/walkthrough/example format. |

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik Module Guide
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Tensor API](tensor-api.md) | [Development](development.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Tensor API](tensor-api.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Development](development.md)
 
 Chapters: [Package Map](#package-map) | [`tensor`: Public Graph-Building Surface](#tensor-public-graph-building-surface) | [`operations`: Primitive Semantic Descriptors](#operations-primitive-semantic-descriptors) | [`graph`: Compile Artifacts, Preparation Facade, And Execution Types](#graph-compile-artifacts-preparation-facade-and-execution-types) | [`graph.optimizer`: Rewrite, Partition, Fusion, And Memory Planning](#graphoptimizer-rewrite-partition-fusion-and-memory-planning) | [`backend`: Backend Contracts, Selection, Lowering, And Runtime Context](#backend-backend-contracts-selection-lowering-and-runtime-context) | [`backend.cpu`: CPU Backend Implementation](#backendcpu-cpu-backend-implementation) | [`backend.cpu.kernels`: CPU Kernel Families](#backendcpukernels-cpu-kernel-families) | [`backend.cpu.fused`: Fused Planning And Generated Execution Support](#backendcpufused-fused-planning-and-generated-execution-support) | [Accelerator Scaffolding: `backend.accelerator`, `backend.metal`, `backend.cuda`, `backend.opencl`](#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [`config`: Optimizer, Runtime, And Profile Records](#config-optimizer-runtime-and-profile-records) | [`tuning`: Measurement, Search, Validation, Reporting, Persistence](#tuning-measurement-search-validation-reporting-persistence) | [`synaptik.app`: CLI Entry Point](#synaptikapp-cli-entry-point) | [`numerics`: Numerical Drift Harness](#numerics-numerical-drift-harness) | [`utils`: Support Classes](#utils-support-classes) | [Test Coverage Landmarks](#test-coverage-landmarks)
 
@@ -107,6 +107,10 @@ y.compute();
 ```
 
 `TensorExecutionSupport` is the bridge from public convenience calls to compile/prepare/execute. It chooses default optimizer and runtime configs from `CompileMode`, and it can run generic tensor autotune when `ComputeOptions.autotune(AutotunePolicy.IF_MISSING)` is used.
+
+When adding a new public operation, follow [Adding A Tensor Operation](adding-tensor-operation.md). A complete operation
+normally crosses `operations.*`, `tensor.ops.*`, public facades, CPU kernels, optimizer signatures, documentation, and
+tests; adding only a method to `Tensor.java` is not enough.
 
 ## `operations`: Primitive Semantic Descriptors
 

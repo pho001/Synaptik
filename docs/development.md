@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Development
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Modules](modules.md) | [Metal Backend](metal-backend.md) | [Testing](testing.md) | [Configuration](configuration.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Modules](modules.md) | [Adding Tensor Operation](adding-tensor-operation.md) | [Metal Backend](metal-backend.md) | [Testing](testing.md) | [Configuration](configuration.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Local Setup](#local-setup) | [Repository Structure](#repository-structure) | [Coding Patterns](#coding-patterns) | [Adding Tensor Ops](#adding-tensor-ops) | [Adding Backend Kernels](#adding-backend-kernels) | [Adding Optimizer Rules](#adding-optimizer-rules) | [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families) | [Documentation Workflow](#documentation-workflow) | [Operational Risks](#operational-risks)
 
@@ -101,6 +101,9 @@ Source hygiene tests also reject legacy package paths such as `graph.fused`, `gr
 
 ## Adding Tensor Ops
 
+For the full end-to-end guide, including descriptors, builders, public facades, CPU kernels, autograd formulas,
+CSE signatures, fusion/accelerator integration, and tests, see [Adding A Tensor Operation](adding-tensor-operation.md).
+
 Use an existing family as the template. For a binary elementwise op, compare:
 
 - Descriptor: `src/main/java/operations/elementwise/binary/add.java`
@@ -124,6 +127,11 @@ Checklist for a new primitive:
 9. Add tests for forward values, gradients, dtype handling, shape validation, and optimizer interaction if a rewrite can see the op.
 
 Broadcasting should use the existing planners. Binary ops call `TensorBroadcastOps.planBinary(...)`, which delegates to `BroadcastPlanner` and throws `IllegalArgumentException("Broadcast mismatch at dim ...")` when aligned dimensions are incompatible.
+
+Two extra rules are easy to miss:
+
+- If the operation descriptor has semantic parameters, update `CommonSubexpressionEliminationRule.parameterKey(...)`.
+- If `Operation.OpType(..., true)` marks the op fusable, the interpreted and ASM fused paths must support it before the flag is safe.
 
 ## Adding Backend Kernels
 
