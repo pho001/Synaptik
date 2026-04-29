@@ -479,9 +479,11 @@ If all five conditions hold, it calls `MetalMpsGraphBridge.executeBuffers(...)` 
 `MetalMpsBridgeExecutionStats` to report `MetalMpsBridgeExecutionPath.BUFFER_BINDING`. If any binding condition is
 missing, the executable tries the tensor-array copy path. Only that fallback path requires contiguous CPU-visible tensor
 arrays with no storage offset and dtypes supported by the current FFM bridge. If the tensor-array contract also fails,
-the selected Metal region is replayed through CPU fallback with explicit trace reasons. This separation is important
-during migration: existing CPU-array tensors and the current FFM bridge keep working while the native buffer ABI is
-implemented, but future buffer-owned tensors are not forced through Java-array validation first.
+the selected Metal region is replayed through CPU fallback with explicit trace reasons. Runtime bridge exceptions are
+also converted into explicit CPU fallback diagnostics, and failed buffer execution does not promote reserved output
+buffers to current residency. This separation is important during migration: existing CPU-array tensors and the current
+FFM bridge keep working while the native buffer ABI is implemented, but future buffer-owned tensors are not forced
+through Java-array validation first.
 
 Current limitation: the selector exists, but the production FFM bridge still reports
 `supportsBufferBindings() == false`. Therefore normal Metal execution still reports

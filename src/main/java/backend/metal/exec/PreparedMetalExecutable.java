@@ -113,14 +113,22 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 && externalInputBindings.available()
                 && outputBindings.available()) {
             lastBufferBindingDecision = "using native buffer bindings";
-            lastExecutionStats = bridge.executeBuffers(
-                    bridgeContext,
-                    bridgeExecutable,
-                    externalInputBindings.bindings(),
-                    outputBindings.bindings()
-            );
-            if (!lastExecutionStats.usedCpuFallback()) {
-                markBufferOutputsCurrent(context, outputBindings.bindings());
+            try {
+                lastExecutionStats = bridge.executeBuffers(
+                        bridgeContext,
+                        bridgeExecutable,
+                        externalInputBindings.bindings(),
+                        outputBindings.bindings()
+                );
+                if (!lastExecutionStats.usedCpuFallback()) {
+                    markBufferOutputsCurrent(context, outputBindings.bindings());
+                }
+            } catch (RuntimeException ex) {
+                runCpuFallback(
+                        context,
+                        "buffer binding execution failed: " + safeMessage(ex),
+                        "buffer binding execution failed: " + safeMessage(ex)
+                );
             }
             return;
         }
@@ -134,7 +142,17 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 : PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(bridgeExecutable.outputNodeIds(), context);
         String tensorArrayFallbackReason = tensorArrayFallbackReason(resolvedExternalInputs, outputs);
         if (tensorArrayFallbackReason.isBlank()) {
-            lastExecutionStats = bridge.execute(bridgeContext, bridgeExecutable, resolvedExternalInputs, outputs);
+            try {
+                lastExecutionStats = bridge.execute(bridgeContext, bridgeExecutable, resolvedExternalInputs, outputs);
+            } catch (RuntimeException ex) {
+                runCpuFallback(
+                        context,
+                        lastBufferBindingDecision,
+                        "tensor-array bridge execution failed: " + safeMessage(ex),
+                        resolvedExternalInputs,
+                        outputs
+                );
+            }
             return;
         }
 
@@ -385,6 +403,14 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             case BOOL -> Byte.BYTES;
             case INT32 -> Integer.BYTES;
         };
+    }
+
+    private static String safeMessage(RuntimeException ex) {
+        if (ex == null) {
+            return "unknown error";
+        }
+        String message = ex.getMessage();
+        return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
     }
 
     /**

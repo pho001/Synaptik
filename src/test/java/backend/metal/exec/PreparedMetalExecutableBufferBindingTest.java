@@ -175,6 +175,47 @@ class PreparedMetalExecutableBufferBindingTest {
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
     }
 
+    @Test
+    void bufferBindingExecutionFailureFallsBackWithoutPromotingOutput() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true, false, true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                "input shared buffer"
+        );
+        fixture.state().reserveDeviceBufferBinding(
+                fixture.outputNode().id(),
+                binding(fixture.outputNode().id(), MetalBufferAccess.WRITE, 8)
+        );
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
+        assertTrue(executable.lastExecutionStats().fallbackReason().contains("buffer binding execution failed"));
+        assertTrue(executable.lastBufferBindingDecision().contains("buffer binding execution failed"));
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+    }
+
+    @Test
+    void tensorArrayExecutionFailureFallsBackWithTraceReason() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(false, true, false);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+
+        executable.execute(fixture.context());
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(1, bridge.tensorExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
+        assertTrue(executable.lastExecutionStats().fallbackReason().contains("tensor-array bridge execution failed"));
+        assertTrue(executable.lastBufferBindingDecision().contains("bridge does not support buffer bindings"));
+    }
+
     private static PreparedMetalExecutable executable(Fixture fixture, MetalMpsGraphBridge bridge) {
         return new PreparedMetalExecutable(
                 plan(fixture.inputNode(), fixture.outputNode()),
@@ -320,11 +361,19 @@ class PreparedMetalExecutableBufferBindingTest {
 
     private static final class FakeBridge implements MetalMpsGraphBridge {
         private final boolean supportsBufferBindings;
+        private final boolean failTensorExecution;
+        private final boolean failBufferExecution;
         private int tensorExecutions;
         private int bufferExecutions;
 
         private FakeBridge(boolean supportsBufferBindings) {
+            this(supportsBufferBindings, false, false);
+        }
+
+        private FakeBridge(boolean supportsBufferBindings, boolean failTensorExecution, boolean failBufferExecution) {
             this.supportsBufferBindings = supportsBufferBindings;
+            this.failTensorExecution = failTensorExecution;
+            this.failBufferExecution = failBufferExecution;
         }
 
         @Override
@@ -368,6 +417,9 @@ class PreparedMetalExecutableBufferBindingTest {
                 List<Tensor> outputs
         ) {
             tensorExecutions++;
+            if (failTensorExecution) {
+                throw new UnsupportedOperationException("synthetic tensor bridge failure");
+            }
             return new MetalMpsBridgeExecutionStats(
                     false,
                     "",
@@ -392,6 +444,9 @@ class PreparedMetalExecutableBufferBindingTest {
                 List<MetalBufferBinding> outputs
         ) {
             bufferExecutions++;
+            if (failBufferExecution) {
+                throw new UnsupportedOperationException("synthetic buffer bridge failure");
+            }
             return new MetalMpsBridgeExecutionStats(
                     false,
                     "",

@@ -1191,6 +1191,12 @@ reports `supportsBufferBindings() == false` does not pretend zero-copy happened.
 contiguous/direct-array contract, the selected Metal region is replayed through CPU fallback with an explicit
 `metalFallbackReason`.
 
+Runtime bridge failures follow the same rule. If `executeBuffers(...)` throws, the output reservation is not promoted
+to an active binding and the region falls back to CPU with a `buffer binding execution failed: ...` reason. If the
+tensor-array bridge call throws, the region falls back with a `tensor-array bridge execution failed: ...` reason. This
+keeps native failures visible in traces instead of either crashing without context or pretending a device buffer now
+contains a valid current output.
+
 When `executeBuffers(...)` succeeds, `PreparedMetalExecutable` promotes each output binding with
 `attachDeviceBufferBinding(...)`. Handles whose storage mode is reported as `shared` become
 `HOST_SHARED_DEVICE_BUFFER`; private, managed, blank, or unknown storage modes become `DEVICE_OWNED`. This conservative
