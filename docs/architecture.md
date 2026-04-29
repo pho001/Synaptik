@@ -462,9 +462,24 @@ flowchart LR
     NativeAbi --> MPS
 ```
 
-Current limitation: the diagram above documents the intended bridge shape, not current production execution. The
-current `MetalMpsFfmBridge` reports `supportsBufferBindings() == false`, successful Metal execution reports
-`MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY`, and outputs are copied back to Java arrays.
+The Java execution side now has a selector for this future path. `PreparedMetalExecutable.execute(...)` checks:
+
+1. The normal Metal bridge readiness gates pass: bridge, context, executable, dtype, layout, and output compatibility.
+2. `MetalMpsGraphBridge.supportsBufferBindings()` returns `true`.
+3. Every external input node id has a registered available `MetalBufferBinding` with `READ` or `READ_WRITE` access.
+4. Every output node id has a registered available `MetalBufferBinding` with `WRITE` or `READ_WRITE` access.
+
+If all four conditions hold, it calls `MetalMpsGraphBridge.executeBuffers(...)` and expects the returned
+`MetalMpsBridgeExecutionStats` to report `MetalMpsBridgeExecutionPath.BUFFER_BINDING`. If any binding condition is
+missing, the executable stays on the tensor-array copy path instead of failing the graph. That fallback is important
+during migration: existing CPU-array tensors and the current FFM bridge keep working while the native buffer ABI is
+implemented.
+
+Current limitation: the selector exists, but the production FFM bridge still reports
+`supportsBufferBindings() == false`. Therefore normal Metal execution still reports
+`MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY`, and outputs are copied back to Java arrays. Tests under
+`src/test/java/backend/metal/exec/PreparedMetalExecutableBufferBindingTest.java` exercise the selector with a fake
+buffer-capable bridge so the Java contract is locked before the native ABI exists.
 
 ## Configuration, Profiles, And Tuning
 

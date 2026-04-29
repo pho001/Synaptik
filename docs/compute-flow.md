@@ -1022,6 +1022,7 @@ storageDeviceCurrent = true
 deviceBufferBackend = GPU_METAL
 deviceBufferBytes = 65536
 deviceBufferAvailable = true
+metalBufferBindingDecision = using native buffer bindings
 ```
 
 #### Residency state machine
@@ -1077,7 +1078,8 @@ That does not mean Metal failed; it means the current bridge is copy-back based.
 
 #### Shared-buffer future path
 
-The Java-side contract added for phase 45 allows a future Metal executable to do this instead:
+The Java-side contract added for phase 45 allows a Metal executable to do this instead once the bridge supports native
+buffer bindings:
 
 ```text
 nodeId = 42
@@ -1112,6 +1114,39 @@ deviceBufferAvailable = true
 
 The result can be read by a CPU publication point because CPU storage is marked current. It can also be consumed by a
 later Metal step because device storage is marked current and a device buffer binding exists.
+
+`PreparedMetalExecutable` now has the Java-side selector for this path:
+
+```text
+if bridge.supportsBufferBindings()
+   and every external input has an available MetalBufferBinding readable by Metal
+   and every output has an available MetalBufferBinding writable by Metal:
+     bridge.executeBuffers(...)
+     metalExecutionPath = BUFFER_BINDING
+else:
+     bridge.execute(...)
+     metalExecutionPath = TENSOR_ARRAY_COPY
+```
+
+The selector is intentionally conservative. Missing output binding, wrong access intent, unavailable handle, or a
+bridge that reports `supportsBufferBindings() == false` does not pretend zero-copy happened. The step remains on the
+tensor-array path and records `metalBufferBindingDecision` in the run trace.
+
+Example trace when the current FFM bridge is used:
+
+```text
+metalSupportsBufferBindings = false
+metalBufferBindingDecision = tensor-array copy path: bridge does not support buffer bindings
+metalExecutionPath = TENSOR_ARRAY_COPY
+```
+
+Example trace for a future buffer-capable bridge with all bindings available:
+
+```text
+metalSupportsBufferBindings = true
+metalBufferBindingDecision = using native buffer bindings
+metalExecutionPath = BUFFER_BINDING
+```
 
 #### Device-owned future path
 

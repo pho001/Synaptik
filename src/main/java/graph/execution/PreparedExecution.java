@@ -386,6 +386,7 @@ public final class PreparedExecution {
             attrs.put("metalBridgeExecutableAvailable", metal.bridgeExecutable().available());
             attrs.put("metalBridgeCacheHit", metal.bridgeExecutable().cacheHit());
             attrs.put("metalSupportsBufferBindings", metal.bridge().supportsBufferBindings());
+            attrs.put("metalBufferBindingDecision", metal.lastBufferBindingDecision());
             attrs.put("metalSubgraphNodeCount", metal.plan().nodeIds().size());
             attrs.put("metalSubgraphOps", metal.plan().subgraph().ops().stream().map(op -> op.opType().name()).toList());
             attrs.put("metalEstimatedWork", metal.plan().estimatedWork());

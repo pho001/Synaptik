@@ -5,7 +5,10 @@ import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
+import backend.memory.DeviceBufferBinding;
 import backend.metal.MetalMpsCapabilities;
+import backend.metal.buffer.MetalBufferAccess;
+import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
 import backend.metal.bridge.MetalMpsBridgeExecutionStats;
@@ -37,6 +40,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     private final MetalMpsBridgeContext bridgeContext;
     private final MetalMpsBridgeExecutable bridgeExecutable;
     private final List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps;
+    private volatile String lastBufferBindingDecision = "not executed yet";
     private volatile MetalMpsBridgeExecutionStats lastExecutionStats = MetalMpsBridgeExecutionStats.fallback(
             "not executed yet",
             0,
@@ -87,9 +91,35 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 : PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(bridgeExecutable.outputNodeIds(), context);
         String fallbackReason = metalFallbackReason(context, resolvedExternalInputs, outputs);
         if (fallbackReason.isBlank()) {
+            BufferBindingResolution externalInputBindings = resolveMetalBufferBindings(
+                    context,
+                    bridgeExecutable.externalInputNodeIds(),
+                    MetalBufferAccess.READ,
+                    "external input"
+            );
+            BufferBindingResolution outputBindings = resolveMetalBufferBindings(
+                    context,
+                    bridgeExecutable.outputNodeIds(),
+                    MetalBufferAccess.WRITE,
+                    "output"
+            );
+            if (bridge.supportsBufferBindings()
+                    && externalInputBindings.available()
+                    && outputBindings.available()) {
+                lastBufferBindingDecision = "using native buffer bindings";
+                lastExecutionStats = bridge.executeBuffers(
+                        bridgeContext,
+                        bridgeExecutable,
+                        externalInputBindings.bindings(),
+                        outputBindings.bindings()
+                );
+                return;
+            }
+            lastBufferBindingDecision = bufferBindingDecision(externalInputBindings, outputBindings);
             lastExecutionStats = bridge.execute(bridgeContext, bridgeExecutable, resolvedExternalInputs, outputs);
             return;
         }
+        lastBufferBindingDecision = "not evaluated: " + fallbackReason;
         lastExecutionStats = MetalMpsBridgeExecutionStats.fallback(
                 fallbackReason,
                 resolvedExternalInputs.size(),
@@ -98,6 +128,19 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 byteSize(outputs)
         );
         PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+    }
+
+    private String bufferBindingDecision(BufferBindingResolution externalInputBindings, BufferBindingResolution outputBindings) {
+        if (!bridge.supportsBufferBindings()) {
+            return "tensor-array copy path: bridge does not support buffer bindings";
+        }
+        if (!externalInputBindings.available()) {
+            return "tensor-array copy path: " + externalInputBindings.reason();
+        }
+        if (!outputBindings.available()) {
+            return "tensor-array copy path: " + outputBindings.reason();
+        }
+        return "tensor-array copy path";
     }
 
     private String metalFallbackReason(ExecutionContext context, List<Tensor> resolvedExternalInputs, List<Tensor> outputs) {
@@ -158,6 +201,46 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             }
         }
         return List.copyOf(resolved);
+    }
+
+    private static BufferBindingResolution resolveMetalBufferBindings(
+            ExecutionContext context,
+            List<Integer> nodeIds,
+            MetalBufferAccess requiredAccess,
+            String role
+    ) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return BufferBindingResolution.available(List.of());
+        }
+        List<MetalBufferBinding> bindings = new ArrayList<>(nodeIds.size());
+        for (int nodeId : nodeIds) {
+            DeviceBufferBinding binding = context.deviceBufferBindingForNodeId(nodeId);
+            if (binding == null) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId + " has no device buffer binding");
+            }
+            if (!(binding instanceof MetalBufferBinding metalBinding)) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                        + " binding is not Metal-compatible: " + binding.getClass().getSimpleName());
+            }
+            if (!metalBinding.available()) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                        + " binding is unavailable: " + metalBinding.describe());
+            }
+            if (!accessCompatible(metalBinding.access(), requiredAccess)) {
+                return BufferBindingResolution.unavailable(role + " nodeId=" + nodeId
+                        + " binding access " + metalBinding.access()
+                        + " is incompatible with required " + requiredAccess);
+            }
+            bindings.add(metalBinding);
+        }
+        return BufferBindingResolution.available(bindings);
+    }
+
+    private static boolean accessCompatible(MetalBufferAccess actual, MetalBufferAccess required) {
+        if (actual == MetalBufferAccess.READ_WRITE) {
+            return true;
+        }
+        return actual == required;
     }
 
     private static String unsupportedExternalInputReason(Tensor tensor) {
@@ -268,5 +351,38 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
      */
     public MetalMpsBridgeExecutionStats lastExecutionStats() {
         return lastExecutionStats;
+    }
+
+    /**
+     * Returns the buffer-binding path decision from the most recent execution attempt.
+     *
+     * <p>The current FFM bridge normally reports that it does not support buffer bindings. Future
+     * shared-buffer bridges should report when all required bindings were present and
+     * {@link MetalMpsGraphBridge#executeBuffers(MetalMpsBridgeContext, MetalMpsBridgeExecutable, List, List)}
+     * was selected.</p>
+     *
+     * @return latest buffer-binding selection diagnostic
+     */
+    public String lastBufferBindingDecision() {
+        return lastBufferBindingDecision;
+    }
+
+    private record BufferBindingResolution(List<MetalBufferBinding> bindings, String reason) {
+        private BufferBindingResolution {
+            bindings = List.copyOf(bindings == null ? List.of() : bindings);
+            reason = reason == null ? "" : reason;
+        }
+
+        static BufferBindingResolution available(List<MetalBufferBinding> bindings) {
+            return new BufferBindingResolution(bindings, "");
+        }
+
+        static BufferBindingResolution unavailable(String reason) {
+            return new BufferBindingResolution(List.of(), reason);
+        }
+
+        boolean available() {
+            return reason.isBlank();
+        }
     }
 }
