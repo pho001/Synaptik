@@ -4,6 +4,7 @@ import backend.metal.MetalMpsCapabilities;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
+import operations.linalg.scaledDotProductAttention;
 
 /**
  * Shared Metal partition planner predicates.
@@ -20,14 +21,47 @@ public final class MetalPartitionSupport {
      * @return true when the node operation and output dtype can be represented by the Metal bridge
      */
     public static boolean isPlannerSupported(CompiledNode node, PartitionPlanningContext context) {
-        if (node == null
-                || node.operation() == null
-                || node.inputIds().isEmpty()
-                || !MetalMpsCapabilities.supportsComputeDType(node.dataType())
-                || !MetalMpsCapabilities.supportsOutputDType(node.dataType())) {
-            return false;
+        return plannerUnsupportedReason(node, context).isBlank();
+    }
+
+    /**
+     * Returns a stable diagnostic reason when a node is not currently legal for Metal planning.
+     *
+     * <p>This method is intentionally capability-oriented. It explains tested Metal planner coverage; it does not
+     * estimate profitability and it does not inspect runtime tensor storage layout.</p>
+     *
+     * @param node compiled node to test
+     * @param context planning context; reserved for capability checks that need graph context
+     * @return empty string when supported, otherwise a readable rejection reason
+     */
+    public static String plannerUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (node == null) {
+            return "node is null";
         }
-        return isOperationSupported(node);
+        if (node.operation() == null) {
+            return "node has no operation";
+        }
+        if (node.inputIds().isEmpty()) {
+            return "leaf nodes are external inputs, not Metal compute nodes";
+        }
+        if (!MetalMpsCapabilities.supportsComputeDType(node.dataType())
+                || !MetalMpsCapabilities.supportsOutputDType(node.dataType())) {
+            return MetalMpsCapabilities.unsupportedDTypeMessage(node.dataType());
+        }
+        Operation.OpType opType = node.operation().opType();
+        if (!node.backwardNode() && opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
+            if (node.operation() instanceof scaledDotProductAttention attention && attention.hasMask()) {
+                return "direct masked SDPA disabled until bool-mask semantics are verified against MPSGraph floating masks";
+            }
+            return "direct forward SDPA disabled until native MPSGraph scale contract matches CPU semantics";
+        }
+        if (node.backwardNode() && opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
+            return "forward SDPA nodes are not legal inside Metal backward regions";
+        }
+        if (!isOperationSupported(node)) {
+            return "operation " + opType + " is not in the tested Metal planner allowlist";
+        }
+        return "";
     }
 
     /**

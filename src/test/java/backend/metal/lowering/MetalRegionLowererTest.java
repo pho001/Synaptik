@@ -288,6 +288,10 @@ class MetalRegionLowererTest {
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        assertEquals(
+                "direct forward SDPA disabled until native MPSGraph scale contract matches CPU semantics",
+                MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
+        );
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
@@ -332,6 +336,10 @@ class MetalRegionLowererTest {
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        assertEquals(
+                "direct masked SDPA disabled until bool-mask semantics are verified against MPSGraph floating masks",
+                MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
+        );
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
@@ -349,6 +357,10 @@ class MetalRegionLowererTest {
 
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        assertEquals(
+                backend.metal.MetalMpsCapabilities.unsupportedDTypeMessage(DataType.FLOAT64),
+                MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
+        );
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(sdpaNodeId),
                 context,
