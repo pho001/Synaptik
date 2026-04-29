@@ -64,6 +64,13 @@ Plans:
 - Use explicit device contiguous transforms only when metadata views are not safe or not supported.
 - Do not silently claim buffer execution when native code replays on CPU.
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 002-01-PLAN.md — Add Metal layout decision policy and Java-side buffer preflight classification.
+- [ ] 002-02-PLAN.md — Implement safe dense-physical logical-view Metal allocation/materialization without native ABI churn.
+- [ ] 002-03-PLAN.md — Add end-to-end Metal flow tests, trace assertions, docs, and CPU parity gates.
+
 ### Phase 3: Materialization-Aware Region Planning
 
 **Goal:** Make `PART` and backend selection prefer profitable long device-owned flows and avoid short accelerator islands that force expensive CPU materialization.
