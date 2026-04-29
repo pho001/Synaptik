@@ -59,6 +59,8 @@ Project-specific terms used in Synaptik, with source references.
 
 **Compiled graph**: Facade around compiled artifacts with prepare and execute helpers. Source: [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java).
 
+**CPU materialization reason**: Explicit reason why execution needs CPU-readable tensor storage, such as graph output publication, gradient publication, CPU consumer, public data access, or CPU fallback. It is a residency/trace contract, not a copy implementation. Source: [`CpuMaterializationReason.java`](../src/main/java/backend/memory/CpuMaterializationReason.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
+
 **Compiled node**: Immutable compile-time snapshot of a tensor node. Source: [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
 
 **Compute contract**: CPU prepared metadata describing storage dtype, compute dtype, accumulate dtype, and execution backend. Source: [`ResolvedCpuComputeContract.java`](../src/main/java/backend/cpu/kernels/ResolvedCpuComputeContract.java), [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java).
@@ -74,6 +76,8 @@ Project-specific terms used in Synaptik, with source references.
 ## D
 
 **Detached gradient publication**: Copying runtime gradient tensors back to semantic tensors without aliasing runtime buffers. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
+
+**Device buffer binding**: Backend-neutral runtime descriptor that associates a compiled node with a usable device-visible buffer. Metal implements it through `MetalBufferBinding`, while execution state stores only the small common contract. Source: [`DeviceBufferBinding.java`](../src/main/java/backend/memory/DeviceBufferBinding.java), [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
 
 **Dispatch hints**: Prepared elementwise/fused execution mode metadata such as scalar/vector/parallel mode, vector width, workers, and chunk sizes. Source: [`ResolvedDispatchHints.java`](../src/main/java/backend/cpu/kernels/elementwise/plan/ResolvedDispatchHints.java), [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java).
 

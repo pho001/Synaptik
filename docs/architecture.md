@@ -420,6 +420,26 @@ compiled node N." In the current implementation, `PreparedExecution` marks each 
 step completes. For Metal this is honest: even a successful Metal bridge call copies outputs back into Java arrays, so
 the trace should say `CPU_ARRAY`, not pretend that the value stayed on the GPU.
 
+CPU publication points now check residency before reading runtime tensor arrays. The relevant reasons are encoded in
+`CpuMaterializationReason`: `GRAPH_OUTPUT`, `GRADIENT_PUBLICATION`, `CPU_CONSUMER`, `PUBLIC_DATA_ACCESS`, and
+`CPU_FALLBACK`. Today this is a guardrail rather than a transfer engine. If a future Metal path marks a value as
+`DEVICE_OWNED` and CPU-stale, `PreparedExecution` will refuse to publish the root tensor or public gradients until a
+real materializer has synchronized the bytes into CPU storage. That failure is intentional: publishing an old Java
+array would be worse than throwing, because it would make a zero-copy optimization appear correct while returning stale
+data.
+
+The next Java-side contract is `DeviceBufferBinding`. It is backend-neutral and deliberately small: node id, backend
+id, logical byte length, availability, and a diagnostic description. `MetalBufferBinding` implements that contract and
+keeps Metal-specific native handle details in `backend.metal.buffer`. `ExecutionState` can now register such a binding
+per compiled node. Registering a `HOST_SHARED_DEVICE_BUFFER` binding marks both CPU and device representations current;
+registering a `DEVICE_OWNED` binding marks CPU stale and device current. A later CPU write or completed CPU
+materialization clears the binding, because the previous device handle can no longer be treated as the active value.
+
+This also changes the default post-step residency rule. CPU backend steps are still marked CPU-current after execution.
+Accelerator steps are marked CPU-current only when they did not publish any residency state themselves. That preserves
+the current copy-back Metal behavior while leaving a real path for a future shared-buffer executable to keep its output
+device-resident.
+
 ## Tracing And Observability
 
 Synaptik's observability model follows the same three-stage lifecycle as compute itself: compile,

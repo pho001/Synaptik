@@ -960,7 +960,10 @@ and attaches the result to `StepExecutionMetadata`.
 Storage residency is a newer side channel used by Metal observability and future zero-copy work. `ExecutionState`
 allocates one `TensorResidencyState` per compiled node. `ExecutionContext.residencyForNodeId(...)` exposes that state to
 prepared executables, and `ExecutionContext.markCpuCurrent(...)` records the normal CPU-array result after a step writes
-Java tensor storage.
+Java tensor storage. `ExecutionContext.markDeviceCurrent(...)` is the corresponding state transition for a future
+device writer, and `ExecutionState.requireCpuReadable(...)` is the safety check used before CPU publication.
+`ExecutionState.attachDeviceBufferBinding(...)` is the Java-side bridge between residency metadata and a concrete
+backend buffer descriptor.
 
 The current Metal bridge still copies outputs back into Java arrays, so a successful Metal step ends like this:
 
@@ -975,6 +978,51 @@ node 42:
 That is not a failure. It is the expected state for the current copy-based bridge. A future shared-buffer path should
 instead be able to leave a node in `HOST_SHARED_DEVICE_BUFFER` or `DEVICE_OWNED` until a CPU consumer, graph output
 publication, gradient publication, or public data accessor forces materialization.
+
+The materialization reasons are explicit:
+
+| Reason | Where it applies | Current behavior |
+|---|---|---|
+| `GRAPH_OUTPUT` | `PreparedExecution.syncRootData(...)` copies the runtime root result into the semantic root tensor. | Requires CPU storage to already be current. |
+| `GRADIENT_PUBLICATION` | `PreparedExecution.publishCompiledGradients(...)` copies runtime gradient tensors into public `.grad()` tensors. | Requires CPU storage to already be current. |
+| `CPU_CONSUMER` | A later CPU backend step needs an accelerator-produced value. | Contract exists for future materializers; current copy-based Metal path already returns CPU-current values. |
+| `PUBLIC_DATA_ACCESS` | A future public accessor reads data from a runtime/device-backed tensor. | Contract only; public `Tensor` storage is still CPU-array-first. |
+| `CPU_FALLBACK` | Accelerator execution falls back to CPU and writes Java arrays. | Used as a diagnostic category for fallback-driven CPU materialization. |
+
+This guard is deliberately strict. `markMaterializedToCpu(...)` only updates residency metadata after a real
+device-to-CPU synchronization has happened; it does not perform the copy. If a node is `DEVICE_OWNED` and CPU-stale,
+`requireCpuReadable(...)` throws instead of allowing `copyDataFrom(...)` to read stale CPU array storage.
+
+Device buffer bindings are tracked per run, not on semantic tensors:
+
+```text
+ExecutionState
+  nodeId=42
+    runtime Tensor        -> normal Synaptik runtime tensor object
+    TensorResidencyState  -> HOST_SHARED_DEVICE_BUFFER, cpuCurrent=true, deviceCurrent=true
+    DeviceBufferBinding   -> backend=GPU_METAL, bytes=65536, available=true
+```
+
+For a shared Metal buffer this means a CPU publication guard can pass without a download, because CPU storage is already
+current. For a device-owned Metal buffer the same guard fails until a materializer copies or synchronizes the bytes back.
+
+After each execution step, `PreparedExecution` applies a default residency rule:
+
+1. CPU backend step: mark the output CPU-current, because CPU kernels write Java tensor storage.
+2. Accelerator step that did not update residency: mark the output CPU-current. This preserves today's copy-back Metal
+   bridge, where successful execution writes Java arrays.
+3. Accelerator step that attached a shared/device buffer: leave the backend-published residency intact.
+
+The run trace includes device-buffer attributes when a binding is present:
+
+```text
+storageResidency = HOST_SHARED_DEVICE_BUFFER
+storageCpuCurrent = true
+storageDeviceCurrent = true
+deviceBufferBackend = GPU_METAL
+deviceBufferBytes = 65536
+deviceBufferAvailable = true
+```
 
 ### RuntimeMemoryBinder tracking
 

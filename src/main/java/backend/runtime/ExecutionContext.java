@@ -1,10 +1,13 @@
 package backend.runtime;
 
+import backend.memory.CpuMaterializationReason;
+import backend.memory.DeviceBufferBinding;
+import backend.memory.StorageResidency;
+import backend.memory.TensorResidencyState;
 import config.runtime.RuntimeConfig;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
 import graph.execution.trace.ConvTraceMetadata;
-import backend.memory.TensorResidencyState;
 import tensor.Tensor;
 
 import java.util.Collections;
@@ -180,6 +183,76 @@ public final class ExecutionContext {
     public void markCpuCurrent(int nodeId, String reason) {
         if (executionState != null) {
             executionState.markCpuCurrent(nodeId, reason);
+        }
+    }
+
+    /**
+     * Marks a node output as current only in a device-visible representation.
+     *
+     * @param nodeId compiled node id
+     * @param residency device residency class; must not be {@link StorageResidency#CPU_ARRAY}
+     * @param deviceBackend backend id such as {@code GPU_METAL}
+     * @param reason diagnostic transition reason
+     */
+    public void markDeviceCurrent(int nodeId, StorageResidency residency, String deviceBackend, String reason) {
+        if (executionState != null) {
+            executionState.markDeviceCurrent(nodeId, residency, deviceBackend, reason);
+        }
+    }
+
+    /**
+     * Registers a usable device buffer binding for a runtime tensor and updates residency.
+     *
+     * @param nodeId compiled node id
+     * @param binding backend-specific buffer binding
+     * @param residency device residency class
+     * @param reason diagnostic transition reason
+     */
+    public void attachDeviceBufferBinding(
+            int nodeId,
+            DeviceBufferBinding binding,
+            StorageResidency residency,
+            String reason
+    ) {
+        if (executionState != null) {
+            executionState.attachDeviceBufferBinding(nodeId, binding, residency, reason);
+        }
+    }
+
+    /**
+     * Returns the registered device buffer binding for a runtime tensor.
+     *
+     * @param nodeId compiled node id
+     * @return device buffer binding, or {@code null} when no execution state or binding exists
+     */
+    public DeviceBufferBinding deviceBufferBindingForNodeId(int nodeId) {
+        if (executionState == null) {
+            return null;
+        }
+        return executionState.deviceBufferBindingForNodeId(nodeId);
+    }
+
+    /**
+     * Marks a completed device-to-CPU synchronization.
+     *
+     * @param nodeId compiled node id
+     * @param reason reason that forced CPU materialization
+     */
+    public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason) {
+        if (executionState != null) {
+            executionState.markMaterializedToCpu(nodeId, reason);
+        }
+    }
+
+    /**
+     * Verifies that CPU array storage is current before a CPU read or publication.
+     *
+     * @param nodeId compiled node id
+     * @param reason reason for the requested CPU access
+     */
+    public void requireCpuReadable(int nodeId, CpuMaterializationReason reason) {
+        if (executionState != null) {
+            executionState.requireCpuReadable(nodeId, reason);
         }
     }
 

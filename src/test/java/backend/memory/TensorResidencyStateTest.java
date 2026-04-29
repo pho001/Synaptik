@@ -38,6 +38,20 @@ class TensorResidencyStateTest {
     }
 
     @Test
+    void sharedBufferCanBeCurrentForCpuAndDevice() {
+        TensorResidencyState state = TensorResidencyState.cpuArrayCurrent("input");
+
+        state.markSharedBufferCurrent("GPU_METAL", "shared buffer attached");
+
+        assertEquals(StorageResidency.HOST_SHARED_DEVICE_BUFFER, state.residency());
+        assertTrue(state.cpuCurrent());
+        assertTrue(state.deviceCurrent());
+        assertFalse(state.requiresCpuMaterialization());
+        assertEquals("GPU_METAL", state.deviceBackend());
+        assertEquals("shared buffer attached", state.lastTransitionReason());
+    }
+
+    @Test
     void deviceWriteRejectsCpuArrayResidency() {
         TensorResidencyState state = TensorResidencyState.cpuArrayCurrent("input");
 

@@ -1,8 +1,10 @@
 package graph.execution;
 
+import backend.ComputeBackend;
 import backend.ComputeEngine;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.kernels.CpuDTypeOps;
+import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
@@ -233,11 +235,36 @@ public final class PreparedExecution {
         for (int i = 0; i < steps.size(); i++) {
             PreparedNodeExecution step = steps.get(i);
             long t0 = captureTrace ? System.nanoTime() : 0L;
+            requireCpuReadableInputs(step, context);
             ComputeEngine.compute(step.compiledNode(), step.metadata(), context);
-            context.markCpuCurrent(step.compiledNode().id(), residencyReason(step));
+            markResidencyAfterStep(step, context);
             if (captureTrace) {
                 traces.add(toStepTrace(startIndex + i, step, System.nanoTime() - t0, context));
             }
+        }
+    }
+
+    private static void markResidencyAfterStep(PreparedNodeExecution step, ExecutionContext context) {
+        int nodeId = step.compiledNode().id();
+        if (step.metadata().backend() == ComputeBackend.CPU) {
+            context.markCpuCurrent(nodeId, residencyReason(step));
+            return;
+        }
+        var residency = context.residencyForNodeId(nodeId);
+        if (residency == null || (!residency.cpuCurrent() && !residency.deviceCurrent())) {
+            context.markCpuCurrent(nodeId, residencyReason(step));
+        }
+    }
+
+    private static void requireCpuReadableInputs(PreparedNodeExecution step, ExecutionContext context) {
+        if (step.metadata().backend() != ComputeBackend.CPU) {
+            return;
+        }
+        List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
+                ? step.compiledNode().inputIds()
+                : step.metadata().executionInputNodeIds();
+        for (int inputId : inputIds) {
+            context.requireCpuReadable(inputId, CpuMaterializationReason.CPU_CONSUMER);
         }
     }
 
@@ -383,6 +410,13 @@ public final class PreparedExecution {
             attrs.put("storageDeviceBackend", residency.deviceBackend());
             attrs.put("storageTransitionReason", residency.lastTransitionReason());
         }
+        var deviceBinding = context.deviceBufferBindingForNodeId(node.id());
+        if (deviceBinding != null) {
+            attrs.put("deviceBufferBackend", deviceBinding.backendId());
+            attrs.put("deviceBufferBytes", deviceBinding.logicalByteLength());
+            attrs.put("deviceBufferAvailable", deviceBinding.available());
+            attrs.put("deviceBuffer", deviceBinding.describe());
+        }
 
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
     }
@@ -391,6 +425,7 @@ public final class PreparedExecution {
         Tensor publishTarget = resolveSemanticPublishTarget(rootTensor);
         Integer publishNodeId = nodeIdForSemanticTensor(publishTarget);
         if (publishNodeId != null) {
+            executionState.requireCpuReadable(publishNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
             Tensor runtimePublished = executionState.runtimeTensorForNodeId(publishNodeId);
             if (publishTarget.getStorage() == runtimePublished.getStorage()) {
                 repairSemanticAliasChain(rootTensor);
@@ -404,6 +439,7 @@ public final class PreparedExecution {
         }
 
         int actualRootNodeId = resolveForwardRuntimeRootNodeId();
+        executionState.requireCpuReadable(actualRootNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
         Tensor actualRoot = executionState.runtimeTensorForNodeId(actualRootNodeId);
         if (mode == ExecutionMode.FORWARD_BACKWARD || actualRoot != rootTensor) {
             rootTensor.copyDataFrom(actualRoot);
@@ -484,6 +520,7 @@ public final class PreparedExecution {
             }
             Tensor published;
             if (binding instanceof CompiledGradientBinding.NodeBinding nodeBinding) {
+                executionState.requireCpuReadable(nodeBinding.nodeId(), CpuMaterializationReason.GRADIENT_PUBLICATION);
                 published = detachedCopy(executionState.runtimeTensorForNodeId(nodeBinding.nodeId()));
             } else if (binding instanceof CompiledGradientBinding.ConstantBinding constantBinding) {
                 published = detachedCopy(constantBinding.template());

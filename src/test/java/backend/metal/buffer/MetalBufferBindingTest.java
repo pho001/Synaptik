@@ -23,6 +23,8 @@ class MetalBufferBindingTest {
         );
 
         assertTrue(binding.bufferCoversLogicalPayload());
+        assertTrue(binding.available());
+        assertTrue(binding.backendId().equals("GPU_METAL"));
         assertTrue(binding.describe().contains("nodeId=7"));
         assertTrue(binding.describe().contains("bytes=16"));
     }

@@ -1,9 +1,12 @@
 package graph.execution;
 
 import backend.cpu.kernels.CpuNodeWorkspace;
+import backend.cpu.plan.CpuPreparedInput;
+import backend.memory.CpuMaterializationReason;
+import backend.memory.DeviceBufferBinding;
+import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
 import graph.CompiledNode;
-import backend.cpu.plan.CpuPreparedInput;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
@@ -28,19 +31,22 @@ public final class ExecutionState {
     private final Map<PreparedInputKey, Tensor> preparedInputTensorByKey;
     private final Map<Tensor, Integer> runtimeNodeIdByTensor;
     private final Map<Integer, TensorResidencyState> residencyByNodeId;
+    private final Map<Integer, DeviceBufferBinding> deviceBufferBindingByNodeId;
 
     private ExecutionState(
             Map<Integer, Tensor> runtimeTensorByNodeId,
             Map<Integer, CpuNodeWorkspace> cpuWorkspaceByNodeId,
             Map<PreparedInputKey, Tensor> preparedInputTensorByKey,
             Map<Tensor, Integer> runtimeNodeIdByTensor,
-            Map<Integer, TensorResidencyState> residencyByNodeId
+            Map<Integer, TensorResidencyState> residencyByNodeId,
+            Map<Integer, DeviceBufferBinding> deviceBufferBindingByNodeId
     ) {
         this.runtimeTensorByNodeId = Map.copyOf(runtimeTensorByNodeId);
         this.cpuWorkspaceByNodeId = Map.copyOf(cpuWorkspaceByNodeId);
         this.preparedInputTensorByKey = Map.copyOf(preparedInputTensorByKey);
         this.runtimeNodeIdByTensor = Map.copyOf(runtimeNodeIdByTensor);
         this.residencyByNodeId = Map.copyOf(residencyByNodeId);
+        this.deviceBufferBindingByNodeId = new HashMap<>(deviceBufferBindingByNodeId == null ? Map.of() : deviceBufferBindingByNodeId);
     }
 
     /**
@@ -127,7 +133,7 @@ public final class ExecutionState {
                 }
             }
         }
-        return new ExecutionState(runtimeTensors, workspaces, preparedInputs, runtimeNodeIds, residency);
+        return new ExecutionState(runtimeTensors, workspaces, preparedInputs, runtimeNodeIds, residency, Map.of());
     }
 
     /**
@@ -200,6 +206,128 @@ public final class ExecutionState {
      * @param reason diagnostic transition reason
      */
     public void markCpuCurrent(int nodeId, String reason) {
+        deviceBufferBindingByNodeId.remove(nodeId);
         residencyForNodeId(nodeId).markCpuCurrent(reason);
+    }
+
+    /**
+     * Marks a node output as current only in a device-visible representation.
+     *
+     * <p>This method records state only; it does not allocate or populate a device buffer. Backends
+     * should call it after they have actually written the value to the corresponding device storage.</p>
+     *
+     * @param nodeId compiled node id
+     * @param residency device residency class; must not be {@link StorageResidency#CPU_ARRAY}
+     * @param deviceBackend backend id such as {@code GPU_METAL}
+     * @param reason diagnostic transition reason
+     */
+    public void markDeviceCurrent(int nodeId, StorageResidency residency, String deviceBackend, String reason) {
+        deviceBufferBindingByNodeId.remove(nodeId);
+        residencyForNodeId(nodeId).markDeviceCurrent(residency, deviceBackend, reason);
+    }
+
+    /**
+     * Registers a usable device buffer binding for a runtime tensor and updates residency.
+     *
+     * <p>For {@link StorageResidency#HOST_SHARED_DEVICE_BUFFER}, both CPU and device representations
+     * are marked current. For {@link StorageResidency#DEVICE_OWNED}, CPU storage is marked stale and
+     * device storage is marked current. This method records metadata only; the caller must already
+     * have created and populated the backend buffer.</p>
+     *
+     * @param nodeId compiled node id
+     * @param binding backend-specific buffer binding
+     * @param residency device residency class
+     * @param reason diagnostic transition reason
+     */
+    public void attachDeviceBufferBinding(
+            int nodeId,
+            DeviceBufferBinding binding,
+            StorageResidency residency,
+            String reason
+    ) {
+        Objects.requireNonNull(binding, "binding cannot be null");
+        Objects.requireNonNull(residency, "residency cannot be null");
+        if (binding.nodeId() != nodeId) {
+            throw new IllegalArgumentException("Device buffer binding nodeId=" + binding.nodeId()
+                    + " does not match requested nodeId=" + nodeId);
+        }
+        if (residency == StorageResidency.CPU_ARRAY) {
+            throw new IllegalArgumentException("Device buffer binding requires a device residency.");
+        }
+        if (!binding.available()) {
+            throw new IllegalArgumentException("Device buffer binding is not available: " + binding.describe());
+        }
+        residencyForNodeId(nodeId);
+        deviceBufferBindingByNodeId.put(nodeId, binding);
+        if (residency == StorageResidency.HOST_SHARED_DEVICE_BUFFER) {
+            residencyForNodeId(nodeId).markSharedBufferCurrent(binding.backendId(), reason);
+            return;
+        }
+        residencyForNodeId(nodeId).markDeviceCurrent(residency, binding.backendId(), reason);
+    }
+
+    /**
+     * Returns the registered device buffer binding for a runtime tensor.
+     *
+     * @param nodeId compiled node id
+     * @return device buffer binding, or {@code null} when none is registered
+     */
+    public DeviceBufferBinding deviceBufferBindingForNodeId(int nodeId) {
+        residencyForNodeId(nodeId);
+        return deviceBufferBindingByNodeId.get(nodeId);
+    }
+
+    /**
+     * Marks a completed device-to-CPU synchronization.
+     *
+     * <p>This method must only be called after the CPU array storage has been updated with the current
+     * value. It intentionally does not perform the copy itself.</p>
+     *
+     * @param nodeId compiled node id
+     * @param reason reason that forced CPU materialization
+     */
+    public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason) {
+        Objects.requireNonNull(reason, "reason cannot be null");
+        deviceBufferBindingByNodeId.remove(nodeId);
+        residencyForNodeId(nodeId).markMaterializedToCpu(reason.label());
+    }
+
+    /**
+     * Returns whether a CPU read would need device-to-CPU materialization.
+     *
+     * @param nodeId compiled node id
+     * @return {@code true} when CPU storage is stale and device storage is current
+     */
+    public boolean requiresCpuMaterialization(int nodeId) {
+        return residencyForNodeId(nodeId).requiresCpuMaterialization();
+    }
+
+    /**
+     * Verifies that CPU array storage is current before a CPU read or publication.
+     *
+     * @param nodeId compiled node id
+     * @param reason reason for the requested CPU access
+     * @throws IllegalStateException if the current value is only device-resident
+     */
+    public void requireCpuReadable(int nodeId, CpuMaterializationReason reason) {
+        Objects.requireNonNull(reason, "reason cannot be null");
+        TensorResidencyState state = residencyForNodeId(nodeId);
+        if (state.requiresCpuMaterialization()) {
+            throw new IllegalStateException(
+                    "CPU materialization requested for nodeId=" + nodeId
+                            + " reason=" + reason.label()
+                            + " but no device-to-CPU materializer is available for backend="
+                            + state.deviceBackend()
+                            + ", residency=" + state.residency()
+                            + ". This prevents publishing stale CPU tensor storage."
+            );
+        }
+        if (!state.cpuCurrent()) {
+            throw new IllegalStateException(
+                    "CPU read requested for nodeId=" + nodeId
+                            + " reason=" + reason.label()
+                            + " but CPU storage is not current and no device representation is current."
+            );
+        }
     }
 }

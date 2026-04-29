@@ -231,9 +231,10 @@ Important support packages:
 - `backend.partition` registers partition descriptors and lowerers.
 - `backend.select` selects backend plans from candidates.
 - `backend.runtime` carries `ExecutionMode`, `ExecutionContext`, and run-scoped state access.
-- `backend.memory` carries backend-neutral runtime residency records such as `StorageResidency` and
-  `TensorResidencyState`. These records describe whether a run's newest value is CPU-current or device-current without
-  changing the semantic `Tensor` API.
+- `backend.memory` carries backend-neutral runtime residency records such as `StorageResidency`,
+  `TensorResidencyState`, `CpuMaterializationReason`, and `DeviceBufferBinding`. These records describe whether a
+  run's newest value is CPU-current, device-current, or backed by a shared/device buffer without changing the semantic
+  `Tensor` API.
 - `backend.blas` contains BLAS provider/runtime bridge abstractions.
 
 ## `backend.cpu`: CPU Backend Implementation

@@ -1,5 +1,7 @@
 package backend.metal.buffer;
 
+import backend.ComputeBackend;
+import backend.memory.DeviceBufferBinding;
 import tensor.DataType;
 
 import java.util.Arrays;
@@ -27,7 +29,7 @@ public record MetalBufferBinding(
         long elementCount,
         MetalBufferHandle handle,
         MetalBufferAccess access
-) {
+) implements DeviceBufferBinding {
     public MetalBufferBinding {
         Objects.requireNonNull(dataType, "dataType cannot be null");
         shape = shape == null ? new int[0] : shape.clone();
@@ -56,12 +58,32 @@ public record MetalBufferBinding(
     }
 
     /**
+     * Returns the backend id for Metal buffer bindings.
+     *
+     * @return {@code GPU_METAL}
+     */
+    @Override
+    public String backendId() {
+        return ComputeBackend.GPU_METAL.name();
+    }
+
+    /**
      * Returns whether the attached native buffer can hold the logical payload.
      *
      * @return true when the handle is available and large enough
      */
     public boolean bufferCoversLogicalPayload() {
         return handle.available() && handle.byteLength() >= logicalByteLength();
+    }
+
+    /**
+     * Returns whether the binding can be used by Metal.
+     *
+     * @return true when the native handle is available and large enough
+     */
+    @Override
+    public boolean available() {
+        return bufferCoversLogicalPayload();
     }
 
     /**

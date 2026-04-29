@@ -84,6 +84,24 @@ public final class TensorResidencyState {
     }
 
     /**
+     * Marks a host-shared buffer as current from both CPU and device perspectives.
+     *
+     * <p>This state represents a true shared-buffer contract: CPU reads do not require a download,
+     * and device reads do not require an upload, provided the owner obeys the synchronization rules
+     * of the backing native buffer. It is only valid for {@link StorageResidency#HOST_SHARED_DEVICE_BUFFER}.</p>
+     *
+     * @param deviceBackend backend id such as {@code GPU_METAL}
+     * @param reason diagnostic reason
+     */
+    public void markSharedBufferCurrent(String deviceBackend, String reason) {
+        residency = StorageResidency.HOST_SHARED_DEVICE_BUFFER;
+        cpuCurrent = true;
+        deviceCurrent = true;
+        this.deviceBackend = normalize(deviceBackend);
+        lastTransitionReason = normalize(reason);
+    }
+
+    /**
      * Marks a successful device-to-CPU synchronization.
      *
      * @param reason diagnostic reason
