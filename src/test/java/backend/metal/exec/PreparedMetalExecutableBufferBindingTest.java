@@ -502,6 +502,40 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void requestRejectsDTypeListsThatDoNotMatchNodeIdLists() {
+        AcceleratorBufferLayout dense = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2},
+                new int[]{1},
+                0,
+                2
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> new AcceleratorBufferRequest(
+                ComputeBackend.GPU_METAL,
+                2,
+                List.of(1),
+                List.of(),
+                List.of(dense),
+                List.of(2),
+                List.of(DataType.FLOAT32),
+                List.of(dense),
+                false
+        ));
+        assertThrows(IllegalArgumentException.class, () -> new AcceleratorBufferRequest(
+                ComputeBackend.GPU_METAL,
+                2,
+                List.of(1),
+                List.of(DataType.FLOAT32),
+                List.of(dense),
+                List.of(2),
+                List.of(),
+                List.of(dense),
+                false
+        ));
+    }
+
+    @Test
     void cpuFallbackPublishesEveryInternalStepAsCpuCurrent() {
         TwoStageFixture fixture = twoStageFixture();
         FakeBridge bridge = new FakeBridge(false, true, false);

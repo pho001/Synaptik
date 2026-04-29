@@ -11,6 +11,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AcceleratorBufferLayoutClassifierTest {
     @Test
@@ -180,6 +181,17 @@ class AcceleratorBufferLayoutClassifierTest {
                         -1,
                         AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
                 ));
+        IllegalArgumentException mismatch = assertThrows(IllegalArgumentException.class,
+                () -> new AcceleratorBufferLayout(
+                        DataType.FLOAT32,
+                        new int[]{2},
+                        new int[]{1},
+                        0,
+                        2,
+                        4,
+                        AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS
+                ));
+        assertTrue(mismatch.getMessage().contains("does not match dtype/element count byte length"));
     }
 
     @Test

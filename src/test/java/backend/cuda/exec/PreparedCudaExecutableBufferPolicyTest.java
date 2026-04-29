@@ -50,6 +50,31 @@ class PreparedCudaExecutableBufferPolicyTest {
                 failure.getMessage());
     }
 
+    @Test
+    void requireBufferModeFailsEvenIfCudaBridgeAdvertisesBufferSupportWithoutImplementation() {
+        PreparedCudaExecutable executable = new PreparedCudaExecutable(
+                dag(),
+                LoweringFamily.CUDA_GRAPH_REGION,
+                new FakeCudaBridge(true),
+                List.of(),
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(null));
+
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferBindingMode.REQUIRE, executable.lastAcceleratorBufferDecision().mode());
+        assertEquals(
+                AcceleratorBufferReasonCode.REQUIRED_BUFFER_EXECUTION_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode()
+        );
+        assertEquals("Accelerator buffer path is required for GPU_CUDA but unavailable: "
+                        + "REQUIRED_BUFFER_EXECUTION_UNAVAILABLE: CUDA prepared executable does not implement buffer binding execution",
+                failure.getMessage());
+    }
+
     private static AcceleratorDagSpec dag() {
         return new AcceleratorDagSpec(
                 List.of(new AcceleratorDagInput(1, List.of(2), DataType.FLOAT32)),
@@ -73,6 +98,16 @@ class PreparedCudaExecutableBufferPolicyTest {
     }
 
     private static final class FakeCudaBridge implements CudaGraphBridge {
+        private final boolean supportsBufferBindings;
+
+        private FakeCudaBridge() {
+            this(false);
+        }
+
+        private FakeCudaBridge(boolean supportsBufferBindings) {
+            this.supportsBufferBindings = supportsBufferBindings;
+        }
+
         @Override
         public boolean isAvailable() {
             return true;
@@ -91,6 +126,11 @@ class PreparedCudaExecutableBufferPolicyTest {
         @Override
         public CudaBridgeExecutable compile(CudaBridgeContext bridgeContext, AcceleratorDagSpec dagSpec) {
             return new CudaBridgeExecutable(true, MemorySegment.ofAddress(2), "", false, List.of(1), List.of(2));
+        }
+
+        @Override
+        public boolean supportsBufferBindings() {
+            return supportsBufferBindings;
         }
 
         @Override

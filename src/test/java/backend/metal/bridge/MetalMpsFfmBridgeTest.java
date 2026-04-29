@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -194,9 +195,62 @@ class MetalMpsFfmBridgeTest {
         }
     }
 
+    @Test
+    void bufferBindingValidationRejectsMismatchedInputNodeId() {
+        MetalMpsBridgeExecutable executable = executableDescriptor(1, 2);
+        MetalBufferBinding wrongInput = binding(99, MetalBufferAccess.READ);
+        MetalBufferBinding output = binding(2, MetalBufferAccess.WRITE);
+
+        UnsupportedOperationException failure = assertThrows(UnsupportedOperationException.class,
+                () -> MetalMpsFfmBridge.validateBufferBindings(executable, List.of(wrongInput), List.of(output)));
+
+        assertEquals("Metal buffer input 0 nodeId 99 does not match executable nodeId 1.", failure.getMessage());
+    }
+
+    @Test
+    void bufferBindingValidationRejectsMismatchedOutputNodeId() {
+        MetalMpsBridgeExecutable executable = executableDescriptor(1, 2);
+        MetalBufferBinding input = binding(1, MetalBufferAccess.READ);
+        MetalBufferBinding wrongOutput = binding(99, MetalBufferAccess.WRITE);
+
+        UnsupportedOperationException failure = assertThrows(UnsupportedOperationException.class,
+                () -> MetalMpsFfmBridge.validateBufferBindings(executable, List.of(input), List.of(wrongOutput)));
+
+        assertEquals("Metal buffer output 0 nodeId 99 does not match executable nodeId 2.", failure.getMessage());
+    }
+
     private static AcceleratorBufferLayout denseF32Layout(int[] shape) {
         long elements = Arrays.stream(shape).asLongStream().reduce(1L, Math::multiplyExact);
         return AcceleratorBufferLayout.of(DataType.FLOAT32, shape, TensorMetadata.computeStrides(shape), 0, elements);
+    }
+
+    private static MetalBufferBinding binding(int nodeId, MetalBufferAccess access) {
+        return new MetalBufferBinding(
+                nodeId,
+                denseF32Layout(new int[]{2}),
+                new backend.metal.buffer.MetalBufferHandle(
+                        java.lang.foreign.MemorySegment.ofAddress(nodeId + 1L),
+                        2L * Float.BYTES,
+                        "shared",
+                        "test",
+                        false
+                ),
+                access
+        );
+    }
+
+    private static MetalMpsBridgeExecutable executableDescriptor(int inputNodeId, int outputNodeId) {
+        return new MetalMpsBridgeExecutable(
+                true,
+                java.lang.foreign.MemorySegment.ofAddress(100),
+                "",
+                false,
+                List.of(inputNodeId),
+                List.of(DataType.FLOAT32),
+                List.of(outputNodeId),
+                List.of(DataType.FLOAT32),
+                List.of(0)
+        );
     }
 
     private static MetalPartitionPlan reluPlan() {

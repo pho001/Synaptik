@@ -390,6 +390,9 @@ public final class MetalAcceleratorBufferBinder {
         if (layout.layoutClass() == AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
             return "";
         }
-        return "layoutClass=" + layout.layoutClass() + ", storageOffset=" + layout.storageOffset() + ", strides=" + Arrays.toString(layout.strides());
+        return "layoutClass=" + layout.layoutClass()
+                + ", shape=" + Arrays.toString(layout.shape())
+                + ", storageOffset=" + layout.storageOffset()
+                + ", strides=" + Arrays.toString(layout.strides());
     }
 }

@@ -81,8 +81,10 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
      */
     @Override
     public void execute(ExecutionContext context) {
-        if (backendConfig.buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE
-                && !bridge.supportsBufferBindings()) {
+        if (backendConfig.buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE) {
+            String reason = bridge.supportsBufferBindings()
+                    ? "CUDA prepared executable does not implement buffer binding execution"
+                    : "CUDA bridge does not support required buffer bindings";
             lastAcceleratorBufferDecision = new AcceleratorBufferDecision(
                     ComputeBackend.GPU_CUDA,
                     backendConfig.buffer().bindingMode(),
@@ -90,7 +92,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
                     false,
                     true,
                     AcceleratorBufferReasonCode.REQUIRED_BUFFER_EXECUTION_UNAVAILABLE,
-                    "CUDA bridge does not support required buffer bindings",
+                    reason,
                     List.of(),
                     List.of()
             );

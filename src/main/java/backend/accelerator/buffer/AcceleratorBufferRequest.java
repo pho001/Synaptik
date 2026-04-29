@@ -29,8 +29,14 @@ public record AcceleratorBufferRequest(
         outputNodeIds = List.copyOf(outputNodeIds == null ? List.of() : outputNodeIds);
         outputDataTypes = List.copyOf(outputDataTypes == null ? List.of() : outputDataTypes);
         outputLayouts = List.copyOf(outputLayouts == null ? List.of() : outputLayouts);
+        if (externalInputDataTypes.size() != externalInputNodeIds.size()) {
+            throw new IllegalArgumentException("externalInputDataTypes size must match externalInputNodeIds size");
+        }
         if (externalInputLayouts.size() != externalInputNodeIds.size()) {
             throw new IllegalArgumentException("externalInputLayouts size must match externalInputNodeIds size");
+        }
+        if (outputDataTypes.size() != outputNodeIds.size()) {
+            throw new IllegalArgumentException("outputDataTypes size must match outputNodeIds size");
         }
         if (outputLayouts.size() != outputNodeIds.size()) {
             throw new IllegalArgumentException("outputLayouts size must match outputNodeIds size");

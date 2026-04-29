@@ -555,7 +555,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         );
     }
 
-    private static void validateBufferBindings(
+    static void validateBufferBindings(
             MetalMpsBridgeExecutable executable,
             java.util.List<MetalBufferBinding> externalInputs,
             java.util.List<MetalBufferBinding> outputs
@@ -571,6 +571,12 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         for (int i = 0; i < externalInputs.size(); i++) {
             MetalBufferBinding binding = externalInputs.get(i);
             validateBinding(binding, "external input " + i);
+            int expectedNodeId = executable.externalInputNodeIds().get(i);
+            if (binding.nodeId() != expectedNodeId) {
+                throw new UnsupportedOperationException("Metal buffer input " + i
+                        + " nodeId " + binding.nodeId()
+                        + " does not match executable nodeId " + expectedNodeId + ".");
+            }
             DataType expected = i < executable.externalInputDataTypes().size() ? executable.externalInputDataTypes().get(i) : null;
             if (expected != null && binding.layout().dataType() != expected) {
                 throw new UnsupportedOperationException("Metal buffer input " + i
@@ -588,6 +594,12 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         for (int i = 0; i < outputs.size(); i++) {
             MetalBufferBinding binding = outputs.get(i);
             validateBinding(binding, "output " + i);
+            int expectedNodeId = executable.outputNodeIds().get(i);
+            if (binding.nodeId() != expectedNodeId) {
+                throw new UnsupportedOperationException("Metal buffer output " + i
+                        + " nodeId " + binding.nodeId()
+                        + " does not match executable nodeId " + expectedNodeId + ".");
+            }
             DataType expected = i < executable.outputDataTypes().size() ? executable.outputDataTypes().get(i) : DataType.FLOAT32;
             if (expected != null && binding.layout().dataType() != expected) {
                 throw new UnsupportedOperationException("Metal buffer output " + i

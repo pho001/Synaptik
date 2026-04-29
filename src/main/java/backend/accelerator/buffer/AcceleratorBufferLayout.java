@@ -35,6 +35,11 @@ public record AcceleratorBufferLayout(
         if (logicalByteLength < 0) {
             throw new IllegalArgumentException("logicalByteLength cannot be negative");
         }
+        long expectedByteLength = byteLength(dataType, logicalElementCount);
+        if (logicalByteLength != expectedByteLength) {
+            throw new IllegalArgumentException("logicalByteLength " + logicalByteLength
+                    + " does not match dtype/element count byte length " + expectedByteLength);
+        }
         shape = normalizeShape(shape);
         strides = strides.clone();
     }
