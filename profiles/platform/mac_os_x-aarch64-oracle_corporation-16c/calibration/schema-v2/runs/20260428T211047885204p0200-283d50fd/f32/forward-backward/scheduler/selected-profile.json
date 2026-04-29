@@ -1,0 +1,96 @@
+{
+  "metadata": {
+    "platformProfileId": "mac_os_x-aarch64-oracle_corporation-16c",
+    "hardwareKey": "os=mac_os_x|arch=aarch64|vm=openjdk_64-bit_server_vm|vendor=oracle_corporation|cores=16",
+    "frameworkVersion": "dev",
+    "plannerSchemaVersion": "1",
+    "persistenceSchemaVersion": "1",
+    "createdAtIso": "2026-04-28T02:51:03.569654+02:00",
+    "calibrationPreset": "built-in-defaults",
+    "dataType": "FLOAT32",
+    "executionMode": "FORWARD_BACKWARD"
+  },
+  "matmul": {
+    "blasProvider": "OPENBLAS_FFM",
+    "blasMatmulMinWork": 2000000,
+    "blasThreads": 0,
+    "f32RequireMgeK": false,
+    "f32MaxNOverK": 3.0,
+    "f32WideRequireMgeK": false,
+    "f32WideMaxNOverK": 3.0,
+    "loopUnrollFactor": 1,
+    "matMulTileM": 32,
+    "matMulTileN": 64,
+    "matMulTileK": 64,
+    "attentionMatMulTileM": 32,
+    "attentionMatMulTileN": 128,
+    "attentionMatMulTileK": 64,
+    "matMulParallelMinSize": 2000000,
+    "matMulMicroKernel": "F32_4X4",
+    "attentionMatMulMicroKernel": "F32_4X4"
+  },
+  "conv2d": {
+    "conv2dBlasProvider": "NONE",
+    "conv2dF64BlasMinWork": 2000000,
+    "conv2dF32BlasMinWork": 2000000,
+    "conv2dF32RequireMgeK": false,
+    "conv2dF32MaxNOverK": 1.5,
+    "conv2dBf16BlasMinWork": 2000000,
+    "conv2dBf16RequireMgeK": true,
+    "conv2dBf16MaxNOverK": 3.0
+  },
+  "fused": {
+    "fusedCheapVectorMinSize": 64,
+    "fusedTranscendentalVectorMinSize": 32,
+    "fusedCheapParallelMinSize": 4096,
+    "fusedTranscendentalParallelMinSize": 4096,
+    "fusedCheapContiguousAsmVectorWidth": 8,
+    "fusedCheapStridedAsmVectorWidth": 2,
+    "fusedNonCheapContiguousAsmVectorWidth": 1,
+    "fusedNonCheapStridedAsmVectorWidth": 2
+  },
+  "elementwiseDispatch": {
+    "cheapVectorMinSize": 2048,
+    "transcendentalVectorMinSize": 64,
+    "cheapParallelMinSize": 65536,
+    "transcendentalParallelMinSize": 16384
+  },
+  "reduction": {
+    "reductionVectorMinSize": 2048,
+    "reductionParallelMinSize": 8192,
+    "attentionVectorMinSize": 16384,
+    "attentionParallelMinSize": 16384,
+    "sumAccuracyMode": "FAST"
+  },
+  "scheduler": {
+    "lowCostTargetChunksPerWorker": 5,
+    "mediumCostTargetChunksPerWorker": 2,
+    "highCostTargetChunksPerWorker": 1,
+    "minScalarChunkSize": 4096,
+    "minVectorChunkSize": 8192,
+    "minReductionChunkSize": 16384,
+    "commonPoolLowCostMaxWorkPerWorker": 16384
+  },
+  "materialization": {
+    "contiguousMaterializeThreshold": 131072,
+    "cheapF64MaterializeThreshold": 1000000000,
+    "cheapF32MaterializeThreshold": 1048576,
+    "cheapBF16MaterializeThreshold": 1000000000,
+    "whereMaterializeThreshold": 262144
+  },
+  "numerics": {
+    "approxMode": "OFF",
+    "forceExactTranscendentals": false
+  },
+  "accelerator": {
+    "cudaEnabled": true,
+    "cudaRequireRuntimeAvailability": false,
+    "cudaMinimumEstimatedWork": 0,
+    "openclEnabled": true,
+    "openclRequireRuntimeAvailability": false,
+    "openclMinimumEstimatedWork": 0,
+    "metalEnabled": true,
+    "metalRequireRuntimeAvailability": false,
+    "metalMinimumEstimatedWork": 0
+  }
+}

@@ -1,0 +1,3 @@
+{"family":"fused-noncheap-contiguous-width","candidateId":"base+fusedAsmVectorWidth[noncheap-contiguous]=1","valid":true,"score":1.9855851050000002}
+{"family":"fused-noncheap-contiguous-width","candidateId":"base+fusedAsmVectorWidth[noncheap-contiguous]=2","valid":true,"score":2.049147605}
+{"family":"fused-noncheap-contiguous-width","candidateId":"base+fusedAsmVectorWidth[noncheap-contiguous]=4","valid":true,"score":2.035654165}

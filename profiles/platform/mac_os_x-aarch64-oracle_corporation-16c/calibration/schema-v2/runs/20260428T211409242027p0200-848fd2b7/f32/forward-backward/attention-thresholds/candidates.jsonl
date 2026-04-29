@@ -1,0 +1,16 @@
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=16384/16384","valid":true,"score":2.62814425667893}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=16384/2048","valid":true,"score":2.6457203451797437}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=16384/32768","valid":true,"score":2.6264306040514085}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=16384/8192","valid":true,"score":2.626791414968137}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=2048/16384","valid":true,"score":2.585089290804944}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=2048/2048","valid":true,"score":2.5690698387242983}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=2048/32768","valid":true,"score":2.6225067917974316}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=2048/8192","valid":true,"score":2.5915268152313433}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=512/16384","valid":true,"score":2.658893918914576}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=512/2048","valid":true,"score":2.6224968436389244}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=512/32768","valid":true,"score":2.673976220898452}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=512/8192","valid":true,"score":2.65024061295651}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=8192/16384","valid":true,"score":2.6297123118281824}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=8192/2048","valid":true,"score":2.580699381219068}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=8192/32768","valid":true,"score":2.64607901829515}
+{"family":"attention-thresholds","candidateId":"base+attentionThresholds=8192/8192","valid":true,"score":2.607854015283526}

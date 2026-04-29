@@ -1,0 +1,16 @@
+{"family":"reduction","candidateId":"base+reductionThresholds=16384/16384","valid":true,"score":0.33302771000000003}
+{"family":"reduction","candidateId":"base+reductionThresholds=16384/32768","valid":true,"score":0.33894083750000004}
+{"family":"reduction","candidateId":"base+reductionThresholds=16384/65536","valid":true,"score":0.33831228999999996}
+{"family":"reduction","candidateId":"base+reductionThresholds=16384/8192","valid":true,"score":0.3333156225}
+{"family":"reduction","candidateId":"base+reductionThresholds=2048/16384","valid":true,"score":0.33758177}
+{"family":"reduction","candidateId":"base+reductionThresholds=2048/32768","valid":true,"score":0.3334193775}
+{"family":"reduction","candidateId":"base+reductionThresholds=2048/65536","valid":true,"score":0.331847085}
+{"family":"reduction","candidateId":"base+reductionThresholds=2048/8192","valid":true,"score":0.3400776025}
+{"family":"reduction","candidateId":"base+reductionThresholds=512/16384","valid":true,"score":0.3312656225}
+{"family":"reduction","candidateId":"base+reductionThresholds=512/32768","valid":true,"score":0.33939520999999995}
+{"family":"reduction","candidateId":"base+reductionThresholds=512/65536","valid":true,"score":0.3387644775}
+{"family":"reduction","candidateId":"base+reductionThresholds=512/8192","valid":true,"score":0.332036875}
+{"family":"reduction","candidateId":"base+reductionThresholds=8192/16384","valid":true,"score":0.33313010499999995}
+{"family":"reduction","candidateId":"base+reductionThresholds=8192/32768","valid":true,"score":0.3320183325}
+{"family":"reduction","candidateId":"base+reductionThresholds=8192/65536","valid":true,"score":0.3369111425}
+{"family":"reduction","candidateId":"base+reductionThresholds=8192/8192","valid":true,"score":0.3320425025}

@@ -1,0 +1,3 @@
+{"family":"fused-noncheap-strided-width","candidateId":"base+fusedAsmVectorWidth[noncheap-strided]=1","valid":true,"score":3.9202783300000004}
+{"family":"fused-noncheap-strided-width","candidateId":"base+fusedAsmVectorWidth[noncheap-strided]=2","valid":true,"score":3.9466111475000005}
+{"family":"fused-noncheap-strided-width","candidateId":"base+fusedAsmVectorWidth[noncheap-strided]=4","valid":true,"score":3.942423645}
