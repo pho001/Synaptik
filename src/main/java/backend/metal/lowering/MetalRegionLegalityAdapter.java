@@ -70,7 +70,7 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
     }
 
     private boolean sameTargetSupportedProducer(CompiledNode producer, CompiledNode consumer, PartitionPlanningContext context) {
-        if (isForwardAttentionInputToBackwardAttention(producer, consumer)) {
+        if (isForwardValueInputToBackwardRegion(producer, consumer)) {
             return false;
         }
         return producer != null
@@ -79,13 +79,11 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
                 && MetalPartitionSupport.isPlannerSupported(producer, context);
     }
 
-    private boolean isForwardAttentionInputToBackwardAttention(CompiledNode producer, CompiledNode consumer) {
+    private boolean isForwardValueInputToBackwardRegion(CompiledNode producer, CompiledNode consumer) {
         return producer != null
-                && producer.operation() != null
-                && producer.operation().opType() == operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION
                 && consumer != null
-                && consumer.operation() != null
-                && consumer.operation().opType() == operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD;
+                && !producer.backwardNode()
+                && consumer.backwardNode();
     }
 
     private boolean externalInputRolesAreSupported(CompiledNode producer, CompiledNode consumer) {
@@ -118,6 +116,9 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
             return null;
         }
         List<Integer> orderedNodeIds = selectedNodeIds.stream().sorted().toList();
+        if (mixesForwardAndBackward(orderedNodeIds, context)) {
+            return null;
+        }
         for (int nodeId : orderedNodeIds) {
             if (!MetalPartitionSupport.isPlannerSupported(context.compiledNode(nodeId), context)) {
                 return null;
@@ -155,6 +156,26 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
                 List.copyOf(outputNodeIds),
                 anchorNodeId
         );
+    }
+
+    private boolean mixesForwardAndBackward(List<Integer> orderedNodeIds, PartitionPlanningContext context) {
+        boolean hasForward = false;
+        boolean hasBackward = false;
+        for (int nodeId : orderedNodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            if (node.backwardNode()) {
+                hasBackward = true;
+            } else {
+                hasForward = true;
+            }
+            if (hasForward && hasBackward) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

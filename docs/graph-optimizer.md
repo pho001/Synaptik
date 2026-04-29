@@ -299,6 +299,16 @@ Important implementation detail: `OffloadConfig` normalizes impossible combinati
 
 The word "closed" matters for accelerators. Metal/CUDA region adapters generally avoid treating a same-target supported producer as an external input, because splitting such a producer outside the region can create an unnecessary backend boundary or an unsupported external-input role. That is different from CPU natural planning, where a supported producer may be a materialized input or a unit boundary.
 
+There is an important phase-boundary exception: a backward accelerator region must not absorb forward activations just
+because those activations are legal on the same accelerator. For example, `SOFTMAX_GRAD` needs the forward `SOFTMAX`
+output as an input, but the forward `SUM` may also need that same `SOFTMAX` result before backward execution starts. If
+the planner merged the forward `SOFTMAX` into a backward Metal region, prepared execution would hide `SOFTMAX` as an
+interior node and the forward `SUM` would read a tensor whose CPU/device residency was never made current. The greedy
+planner therefore asks the backend adapter whether a same-target producer is allowed to remain an external input before
+forcing producer closure, and `MetalRegionLegalityAdapter` rejects mixed forward/backward Metal candidates. Backward
+Metal regions can still consume forward values; they consume them as explicit external inputs instead of owning their
+forward execution.
+
 ### CpuRegionConfig
 
 [`CpuRegionConfig`](../src/main/java/config/optimizer/CpuRegionConfig.java) controls CPU natural execution-region construction.

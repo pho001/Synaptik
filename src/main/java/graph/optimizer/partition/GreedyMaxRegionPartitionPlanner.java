@@ -320,14 +320,20 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
                 if (producer == null) {
                     return new Rejection("missing-input-node", inputId);
                 }
+                boolean externalInputAllowed = request.adapter().canUseAsExternalInput(
+                        producer,
+                        current,
+                        expanded,
+                        request.context()
+                );
                 boolean sameTargetSupported = request.canConsiderNode(producer)
                         && !covered[inputId]
                         && request.adapter().isNodeSupported(producer, request.context());
-                if (sameTargetSupported) {
+                if (sameTargetSupported && !externalInputAllowed) {
                     stack.push(inputId);
                     continue;
                 }
-                if (!request.adapter().canUseAsExternalInput(producer, current, expanded, request.context())) {
+                if (!externalInputAllowed) {
                     return new Rejection("external-input-not-allowed", inputId);
                 }
             }
@@ -391,13 +397,19 @@ public final class GreedyMaxRegionPartitionPlanner implements PartitionPlanner {
             if (producer == null) {
                 return "missing-input-node";
             }
+            boolean externalInputAllowed = request.adapter().canUseAsExternalInput(
+                    producer,
+                    node,
+                    selected,
+                    request.context()
+            );
             boolean sameTargetSupported = request.canConsiderNode(producer)
                     && !covered[inputId]
                     && request.adapter().isNodeSupported(producer, request.context());
-            if (sameTargetSupported) {
+            if (sameTargetSupported && !externalInputAllowed) {
                 return "lowerer-rejected";
             }
-            if (!request.adapter().canUseAsExternalInput(producer, node, selected, request.context())) {
+            if (!externalInputAllowed) {
                 return "external-input-not-allowed";
             }
         }
