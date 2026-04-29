@@ -24,6 +24,7 @@ import config.optimizer.CpuRegionPolicy;
 import config.optimizer.FuseConfig;
 import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
+import config.optimizer.MetalTransferModel;
 import config.optimizer.OffloadConfig;
 import config.optimizer.OffloadPolicy;
 import config.optimizer.OptimizerConfig;
@@ -70,7 +71,19 @@ public class ExecutionProfileIoTest {
                         CseConfig.aggressiveDefaults(),
                         FuseConfig.inferenceDefaults(),
                         new MemoryConfig(false, false, true, 8),
-                        new PartitionConfig(9, 77, 11.0, 22.0, 33.0, 44.0, 55.0, 66.0),
+                        new PartitionConfig(
+                                9,
+                                77,
+                                11.0,
+                                22.0,
+                                33.0,
+                                44.0,
+                                55.0,
+                                66.0,
+                                graph.optimizer.partition.PartitionPlannerStrategy.SCORED_CANDIDATE_SEARCH,
+                                graph.optimizer.partition.PartitionTarget.GPU_METAL,
+                                MetalTransferModel.MEASURED
+                        ),
                         new OffloadConfig(
                                 OffloadPolicy.ACCELERATOR_IF_PROFITABLE,
                                 AcceleratorRegionPolicy.SCORED_PROFITABLE_REGIONS

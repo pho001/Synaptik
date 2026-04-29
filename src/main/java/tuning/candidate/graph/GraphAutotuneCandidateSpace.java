@@ -108,6 +108,7 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                 metadata.withAttribute("graphParameter", variant.parameter().name())
                         .withAttribute("offloadPolicy", optimizer.offload().policy().name())
                         .withAttribute("acceleratorRegionPolicy", optimizer.offload().acceleratorRegionPolicy().name())
+                        .withAttribute("metalTransferModel", optimizer.partition().metalTransferModel().name())
                         .withAttribute("cpuRegionPolicy", optimizer.cpuRegion().policy().name())
                         .withAttribute("cpuFusionPolicy", optimizer.cpuFusion().mode().name())
                         .withAttribute("productionEligible", Boolean.toString(standard))

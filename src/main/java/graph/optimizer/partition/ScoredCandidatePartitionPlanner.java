@@ -281,7 +281,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             }
             PartitionPlan acceptedPlan = request.adapter().tryCreatePlan(structural, request.context());
             if (acceptedPlan != null) {
-                double acceptedScore = AcceleratorPartitionScoreModel.acceptedScore(metrics, acceptedPlan.estimatedWork(), request.policy());
+                double acceptedScore = acceptedScore(structural, acceptedPlan, metrics, request);
                 if (isBetterAccepted(
                         structural,
                         acceptedScore,
@@ -306,6 +306,24 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             expanded.add(nodeId);
             exploreCandidateSearch(expanded, request, covered, visited, accumulator);
         }
+    }
+
+    private double acceptedScore(
+            PartitionCandidate candidate,
+            PartitionPlan acceptedPlan,
+            AcceleratorPartitionScoreModel.CandidateMetrics metrics,
+            PartitionPlanningRequest request
+    ) {
+        if (request.target() != PartitionTarget.GPU_METAL) {
+            return AcceleratorPartitionScoreModel.acceptedScore(metrics, acceptedPlan.estimatedWork(), request.policy());
+        }
+        return AcceleratorPartitionScoreModel.acceptedScore(
+                metrics,
+                acceptedPlan.estimatedWork(),
+                transferMetricsFor(candidate, request.context()),
+                request.policy(),
+                AcceleratorPartitionScoreModel.TransferPolicy.fromMetalTransferModel(request.metalTransferModel())
+        );
     }
 
     private List<Integer> expandableConsumers(
@@ -371,6 +389,48 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                 mergeNodeCount,
                 tailDepth
         );
+    }
+
+    private AcceleratorPartitionScoreModel.TransferMetrics transferMetricsFor(
+            PartitionCandidate candidate,
+            PartitionPlanningContext context
+    ) {
+        Set<Integer> outputs = Set.copyOf(candidate.outputNodeIds());
+        long inputBytes = 0L;
+        long outputBytes = 0L;
+        long avoidedIntermediateBytes = 0L;
+        for (int nodeId : candidate.externalInputIds()) {
+            inputBytes += nodeBytes(context.compiledNode(nodeId));
+        }
+        for (int nodeId : candidate.outputNodeIds()) {
+            outputBytes += nodeBytes(context.compiledNode(nodeId));
+        }
+        for (int nodeId : candidate.orderedNodeIds()) {
+            if (!outputs.contains(nodeId)) {
+                avoidedIntermediateBytes += nodeBytes(context.compiledNode(nodeId));
+            }
+        }
+        return new AcceleratorPartitionScoreModel.TransferMetrics(inputBytes, outputBytes, avoidedIntermediateBytes);
+    }
+
+    private static long nodeBytes(CompiledNode node) {
+        if (node == null) {
+            return 0L;
+        }
+        return (long) node.flatDataSize() * elementByteSize(node.dataType());
+    }
+
+    private static int elementByteSize(tensor.DataType dataType) {
+        if (dataType == null) {
+            return 0;
+        }
+        return switch (dataType) {
+            case FLOAT64 -> Double.BYTES;
+            case FLOAT32 -> Float.BYTES;
+            case BFLOAT16 -> Short.BYTES;
+            case BOOL -> Byte.BYTES;
+            case INT32 -> Integer.BYTES;
+        };
     }
 
     private boolean isBetterStructural(

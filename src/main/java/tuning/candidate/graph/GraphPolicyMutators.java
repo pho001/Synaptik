@@ -4,6 +4,7 @@ import config.optimizer.CseConfig;
 import config.optimizer.CpuFusionConfig;
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.MemoryConfig;
+import config.optimizer.MetalTransferModel;
 import config.optimizer.OffloadConfig;
 import config.optimizer.PiecewiseLoweringConfig;
 import config.profile.GraphExecutionPolicy;
@@ -126,6 +127,20 @@ public final class GraphPolicyMutators {
                         "memory=cross-phase-lifetime",
                         GraphAutotuneParameter.RESEARCH_MEMORY_LIFETIME,
                         GraphExecutionPolicy.of(optimizer.withMemory(new MemoryConfig(false, true, false, 1)))
+                ),
+                new GraphPolicyVariant(
+                        "metalTransfer=measured+accelRegion=scored",
+                        GraphAutotuneParameter.RESEARCH_METAL_TRANSFER_MODEL,
+                        GraphExecutionPolicy.of(optimizer
+                                .withOffload(OffloadConfig.acceleratorScored())
+                                .withPartition(optimizer.partition().withMetalTransferModel(MetalTransferModel.MEASURED)))
+                ),
+                new GraphPolicyVariant(
+                        "metalTransfer=aggressive+accelRegion=scored",
+                        GraphAutotuneParameter.RESEARCH_METAL_TRANSFER_MODEL,
+                        GraphExecutionPolicy.of(optimizer
+                                .withOffload(OffloadConfig.acceleratorScored())
+                                .withPartition(optimizer.partition().withMetalTransferModel(MetalTransferModel.AGGRESSIVE)))
                 ),
                 new GraphPolicyVariant(
                         "research:cpuRegion=off+cpuFusion=off",

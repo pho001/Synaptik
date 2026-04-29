@@ -4,6 +4,7 @@ import backend.ComputeBackend;
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.CpuRegionPolicy;
+import config.optimizer.MetalTransferModel;
 import config.optimizer.OffloadConfig;
 import config.optimizer.OffloadPolicy;
 import config.optimizer.PartitionConfig;
@@ -192,7 +193,8 @@ public final class PartitionPlanningSnapshotBuilder {
                             descriptors.legalityAdapterFor(job.target()),
                             job.sourcePolicy(),
                             requiredMaterialized,
-                            job.cpuRegionConfig()
+                            job.cpuRegionConfig(),
+                            job.metalTransferModel()
                     )
             );
             partitions.addAll(planning.partitions());
@@ -217,7 +219,8 @@ public final class PartitionPlanningSnapshotBuilder {
             PartitionPlannerStrategy strategy,
             graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.PlannerPolicy policy,
             PartitionSourcePolicy sourcePolicy,
-            CpuRegionConfig cpuRegionConfig
+            CpuRegionConfig cpuRegionConfig,
+            MetalTransferModel metalTransferModel
     ) {
     }
 
@@ -239,7 +242,8 @@ public final class PartitionPlanningSnapshotBuilder {
                             : config.plannerStrategy(),
                     plannerPolicyFor(config, configured == PartitionTarget.CPU ? cpuRegionConfig : null),
                     PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                    configured == PartitionTarget.CPU ? cpuRegionConfig : CpuRegionConfig.defaults()
+                    configured == PartitionTarget.CPU ? cpuRegionConfig : CpuRegionConfig.defaults(),
+                    configured == PartitionTarget.GPU_METAL ? config.metalTransferModel() : MetalTransferModel.CONSERVATIVE
             ));
         }
         boolean cpuSeen = false;
@@ -272,7 +276,8 @@ public final class PartitionPlanningSnapshotBuilder {
                             planAcceleratorOffload
                                     ? PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
                                     : PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                            CpuRegionConfig.defaults()
+                            CpuRegionConfig.defaults(),
+                            config.metalTransferModel()
                     ));
                 }
                 if (cudaSeen) {
@@ -281,7 +286,8 @@ public final class PartitionPlanningSnapshotBuilder {
                             acceleratorStrategy,
                             policy,
                             PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                            CpuRegionConfig.defaults()
+                            CpuRegionConfig.defaults(),
+                            MetalTransferModel.CONSERVATIVE
                     ));
                 }
             }
@@ -292,7 +298,8 @@ public final class PartitionPlanningSnapshotBuilder {
                     PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION,
                     plannerPolicyFor(config, cpuRegionConfig),
                     PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                    cpuRegionConfig
+                    cpuRegionConfig,
+                    MetalTransferModel.CONSERVATIVE
             ));
         }
         return List.copyOf(jobs);

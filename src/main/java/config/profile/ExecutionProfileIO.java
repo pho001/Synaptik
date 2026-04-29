@@ -27,6 +27,7 @@ import config.optimizer.CseConfig;
 import config.optimizer.FuseConfig;
 import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
+import config.optimizer.MetalTransferModel;
 import config.optimizer.OffloadConfig;
 import config.optimizer.OffloadPolicy;
 import config.optimizer.OptimizerConfig;
@@ -149,7 +150,8 @@ public final class ExecutionProfileIO {
                     findDouble(json, "partitionExternalInputPenalty", defaultPartition.externalInputPenalty()),
                     findDouble(json, "partitionWorkWeight", defaultPartition.workWeight()),
                     findEnum(json, "partitionPlannerStrategy", defaultPartition.plannerStrategy(), PartitionPlannerStrategy.class),
-                    findEnum(json, "partitionAcceleratorTarget", defaultPartition.target(), PartitionTarget.class)
+                    findEnum(json, "partitionAcceleratorTarget", defaultPartition.target(), PartitionTarget.class),
+                    findEnum(json, "partitionMetalTransferModel", defaultPartition.metalTransferModel(), MetalTransferModel.class)
             );
             OffloadConfig defaultOffload = defaultProfile.optimizer().offload();
             OffloadConfig offload = new OffloadConfig(
@@ -483,7 +485,8 @@ public final class ExecutionProfileIO {
                 "      \"partitionExternalInputPenalty\": " + optimizer.partition().externalInputPenalty() + ",\n" +
                 "      \"partitionWorkWeight\": " + optimizer.partition().workWeight() + ",\n" +
                 "      \"partitionPlannerStrategy\": \"" + optimizer.partition().plannerStrategy().name() + "\",\n" +
-                "      \"partitionAcceleratorTarget\": \"" + optimizer.partition().target().name() + "\"\n" +
+                "      \"partitionAcceleratorTarget\": \"" + optimizer.partition().target().name() + "\",\n" +
+                "      \"partitionMetalTransferModel\": \"" + optimizer.partition().metalTransferModel().name() + "\"\n" +
                 "    },\n" +
                 "    \"offload\": {\n" +
                 "      \"offloadPolicy\": \"" + optimizer.offload().policy().name() + "\",\n" +

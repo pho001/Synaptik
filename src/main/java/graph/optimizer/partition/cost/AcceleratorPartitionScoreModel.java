@@ -1,5 +1,6 @@
 package graph.optimizer.partition.cost;
 
+import config.optimizer.MetalTransferModel;
 import config.optimizer.PartitionConfig;
 
 /**
@@ -46,6 +47,41 @@ public final class AcceleratorPartitionScoreModel {
     }
 
     /**
+     * Scores an accepted candidate while accounting for accelerator transfer pressure.
+     *
+     * <p>This is intended for device ownership regions such as Metal. Larger
+     * device regions are useful when they reduce intermediate materialization,
+     * but expensive when they require large CPU/device boundary transfers. The
+     * transfer model is deliberately explicit so graph autotune can later vary
+     * the policy without changing legality rules.</p>
+     *
+     * @param metrics candidate structural metrics
+     * @param estimatedWork backend work estimate
+     * @param transfers estimated transfer/materialization metrics
+     * @param policy structural/work score policy
+     * @param transferPolicy transfer score policy
+     * @return transfer-aware score, or negative infinity when candidate data is not usable
+     */
+    public static double acceptedScore(
+            CandidateMetrics metrics,
+            long estimatedWork,
+            TransferMetrics transfers,
+            PlannerPolicy policy,
+            TransferPolicy transferPolicy
+    ) {
+        double base = acceptedScore(metrics, estimatedWork, policy);
+        if (!Double.isFinite(base)) {
+            return base;
+        }
+        TransferMetrics resolvedTransfers = transfers == null ? TransferMetrics.none() : transfers;
+        TransferPolicy resolvedPolicy = transferPolicy == null ? TransferPolicy.defaults() : transferPolicy;
+        return base
+                - resolvedTransfers.inputBytes() * resolvedPolicy.inputBytePenalty()
+                - resolvedTransfers.outputBytes() * resolvedPolicy.outputBytePenalty()
+                + resolvedTransfers.avoidedIntermediateBytes() * resolvedPolicy.avoidedIntermediateByteCredit();
+    }
+
+    /**
      * Structural metrics used by partition scoring.
      *
      * @param nodeCount selected node count
@@ -67,6 +103,81 @@ public final class AcceleratorPartitionScoreModel {
             externalInputCount = Math.max(0, externalInputCount);
             mergeNodeCount = Math.max(0, mergeNodeCount);
             tailDepth = Math.max(0, tailDepth);
+        }
+    }
+
+    /**
+     * Estimated accelerator boundary transfer metrics for one candidate.
+     *
+     * @param inputBytes bytes that must cross into the accelerator region
+     * @param outputBytes bytes that must leave the accelerator region
+     * @param avoidedIntermediateBytes bytes of selected internal intermediates kept inside the region
+     */
+    public record TransferMetrics(
+            long inputBytes,
+            long outputBytes,
+            long avoidedIntermediateBytes
+    ) {
+        public TransferMetrics {
+            inputBytes = Math.max(0L, inputBytes);
+            outputBytes = Math.max(0L, outputBytes);
+            avoidedIntermediateBytes = Math.max(0L, avoidedIntermediateBytes);
+        }
+
+        /**
+         * Returns an empty transfer metric value.
+         *
+         * @return zeroed transfer metrics
+         */
+        public static TransferMetrics none() {
+            return new TransferMetrics(0L, 0L, 0L);
+        }
+    }
+
+    /**
+     * Weights used by transfer-aware accelerator scoring.
+     *
+     * @param inputBytePenalty score penalty per input byte copied into a device region
+     * @param outputBytePenalty score penalty per output byte copied out of a device region
+     * @param avoidedIntermediateByteCredit score credit per intermediate byte kept inside a device region
+     */
+    public record TransferPolicy(
+            double inputBytePenalty,
+            double outputBytePenalty,
+            double avoidedIntermediateByteCredit
+    ) {
+        public TransferPolicy {
+            inputBytePenalty = Math.max(0.0d, inputBytePenalty);
+            outputBytePenalty = Math.max(0.0d, outputBytePenalty);
+            avoidedIntermediateByteCredit = Math.max(0.0d, avoidedIntermediateByteCredit);
+        }
+
+        /**
+         * Returns the conservative default transfer policy for current Metal execution.
+         *
+         * <p>Outputs are penalized more than inputs because the current bridge
+         * synchronously copies native results back into Java arrays. Future
+         * shared-buffer/device-resident execution can tune this policy down.</p>
+         *
+         * @return default transfer score policy
+         */
+        public static TransferPolicy defaults() {
+            return new TransferPolicy(0.05d, 0.10d, 0.025d);
+        }
+
+        /**
+         * Builds a transfer policy from a graph-level Metal transfer model.
+         *
+         * @param model transfer model, or {@code null} for conservative defaults
+         * @return transfer score policy
+         */
+        public static TransferPolicy fromMetalTransferModel(MetalTransferModel model) {
+            MetalTransferModel resolved = model == null ? MetalTransferModel.CONSERVATIVE : model;
+            return new TransferPolicy(
+                    resolved.inputBytePenalty(),
+                    resolved.outputBytePenalty(),
+                    resolved.avoidedIntermediateByteCredit()
+            );
         }
     }
 

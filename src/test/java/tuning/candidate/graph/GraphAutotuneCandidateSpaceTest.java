@@ -55,6 +55,10 @@ class GraphAutotuneCandidateSpaceTest {
                 "RESEARCH_CSE_POLICY".equals(candidate.metadata().attributes().get("graphParameter"))));
         assertTrue(candidates.stream().anyMatch(candidate ->
                 "RESEARCH_MEMORY_LIFETIME".equals(candidate.metadata().attributes().get("graphParameter"))));
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                "RESEARCH_METAL_TRANSFER_MODEL".equals(candidate.metadata().attributes().get("graphParameter"))));
+        assertTrue(candidates.stream().anyMatch(candidate ->
+                "AGGRESSIVE".equals(candidate.metadata().attributes().get("metalTransferModel"))));
         assertEquals(runtime.toRuntimeConfig().blas(), candidates.getFirst().profile().runtime().blas());
         assertEquals(
                 runtime.toRuntimeConfig().cpuKernelConfig().cheapVectorMinSize(),

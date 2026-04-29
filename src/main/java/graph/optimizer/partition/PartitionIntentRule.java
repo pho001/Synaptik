@@ -3,6 +3,7 @@ package graph.optimizer.partition;
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.CpuRegionPolicy;
+import config.optimizer.MetalTransferModel;
 import config.optimizer.OffloadConfig;
 import config.optimizer.OffloadPolicy;
 import config.optimizer.PartitionConfig;
@@ -140,7 +141,8 @@ public final class PartitionIntentRule implements OptimizationRule {
                             backendPartitionDescriptors.legalityAdapterFor(job.target()),
                             job.sourcePolicy(),
                             requiredMaterialized,
-                            job.cpuRegionConfig()
+                            job.cpuRegionConfig(),
+                            job.metalTransferModel()
                     )
             );
             partitions.addAll(planning.partitions());
@@ -164,7 +166,8 @@ public final class PartitionIntentRule implements OptimizationRule {
                             ? cpuPlannerPolicy()
                             : AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(config),
                     PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                    configured == PartitionTarget.CPU ? cpuRegionConfig : CpuRegionConfig.defaults()
+                    configured == PartitionTarget.CPU ? cpuRegionConfig : CpuRegionConfig.defaults(),
+                    configured == PartitionTarget.GPU_METAL ? config.metalTransferModel() : MetalTransferModel.CONSERVATIVE
             ));
         }
         boolean cpuSeen = false;
@@ -196,7 +199,8 @@ public final class PartitionIntentRule implements OptimizationRule {
                             planAcceleratorOffload
                                     ? PartitionSourcePolicy.CPU_OR_TARGET_BACKEND
                                     : PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                            CpuRegionConfig.defaults()
+                            CpuRegionConfig.defaults(),
+                            config.metalTransferModel()
                     ));
                 }
                 if (cudaSeen) {
@@ -205,7 +209,8 @@ public final class PartitionIntentRule implements OptimizationRule {
                             acceleratorStrategy,
                             AcceleratorPartitionScoreModel.PlannerPolicy.fromConfig(config),
                             PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                            CpuRegionConfig.defaults()
+                            CpuRegionConfig.defaults(),
+                            MetalTransferModel.CONSERVATIVE
                     ));
                 }
             }
@@ -216,7 +221,8 @@ public final class PartitionIntentRule implements OptimizationRule {
                     PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION,
                     cpuPlannerPolicy(),
                     PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                    cpuRegionConfig
+                    cpuRegionConfig,
+                    MetalTransferModel.CONSERVATIVE
             ));
         }
         return List.copyOf(jobs);
@@ -258,7 +264,8 @@ public final class PartitionIntentRule implements OptimizationRule {
             PartitionPlannerStrategy strategy,
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
             PartitionSourcePolicy sourcePolicy,
-            CpuRegionConfig cpuRegionConfig
+            CpuRegionConfig cpuRegionConfig,
+            MetalTransferModel metalTransferModel
     ) {
     }
 

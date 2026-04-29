@@ -19,6 +19,7 @@ import graph.optimizer.partition.PartitionPlannerStrategy;
  * @param workWeight score weight for estimated work
  * @param plannerStrategy partition planner strategy; {@code null} uses greedy max-region
  * @param target preferred partition target; {@code null} uses auto
+ * @param metalTransferModel transfer-cost preset used by scored Metal planning
  */
 public record PartitionConfig(
         int maxSearchNodes,
@@ -30,13 +31,42 @@ public record PartitionConfig(
         double externalInputPenalty,
         double workWeight,
         PartitionPlannerStrategy plannerStrategy,
-        PartitionTarget target
+        PartitionTarget target,
+        MetalTransferModel metalTransferModel
 ) {
     public PartitionConfig {
         maxSearchNodes = Math.max(1, maxSearchNodes);
         maxVisitedCandidates = Math.max(1, maxVisitedCandidates);
         plannerStrategy = plannerStrategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : plannerStrategy;
         target = target == null ? PartitionTarget.AUTO : target;
+        metalTransferModel = metalTransferModel == null ? MetalTransferModel.CONSERVATIVE : metalTransferModel;
+    }
+
+    public PartitionConfig(
+            int maxSearchNodes,
+            int maxVisitedCandidates,
+            double nodeWeight,
+            double internalEdgeWeight,
+            double mergeNodeBonus,
+            double tailDepthWeight,
+            double externalInputPenalty,
+            double workWeight,
+            PartitionPlannerStrategy plannerStrategy,
+            PartitionTarget target
+    ) {
+        this(
+                maxSearchNodes,
+                maxVisitedCandidates,
+                nodeWeight,
+                internalEdgeWeight,
+                mergeNodeBonus,
+                tailDepthWeight,
+                externalInputPenalty,
+                workWeight,
+                plannerStrategy,
+                target,
+                MetalTransferModel.CONSERVATIVE
+        );
     }
 
     public PartitionConfig(
@@ -59,7 +89,8 @@ public record PartitionConfig(
                 externalInputPenalty,
                 workWeight,
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                PartitionTarget.AUTO
+                PartitionTarget.AUTO,
+                MetalTransferModel.CONSERVATIVE
         );
     }
 
@@ -77,7 +108,8 @@ public record PartitionConfig(
                 60.0,
                 1.0,
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                PartitionTarget.AUTO
+                PartitionTarget.AUTO,
+                MetalTransferModel.CONSERVATIVE
         );
     }
 
@@ -98,7 +130,33 @@ public record PartitionConfig(
                 externalInputPenalty,
                 workWeight,
                 plannerStrategy,
-                newTarget
+                newTarget,
+                metalTransferModel
+        );
+    }
+
+    /**
+     * Returns a copy with a different Metal transfer-cost model.
+     *
+     * <p>This affects scored Metal profitability only. It does not make unsupported operations,
+     * dtypes, layouts, masks, or native bridge paths legal.</p>
+     *
+     * @param newMetalTransferModel replacement transfer model; {@code null} uses conservative
+     * @return updated partition config
+     */
+    public PartitionConfig withMetalTransferModel(MetalTransferModel newMetalTransferModel) {
+        return new PartitionConfig(
+                maxSearchNodes,
+                maxVisitedCandidates,
+                nodeWeight,
+                internalEdgeWeight,
+                mergeNodeBonus,
+                tailDepthWeight,
+                externalInputPenalty,
+                workWeight,
+                plannerStrategy,
+                target,
+                newMetalTransferModel
         );
     }
 }
