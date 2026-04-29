@@ -312,8 +312,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     }
 
     private static StorageResidency residencyForOutputBinding(MetalBufferBinding binding) {
-        String storageMode = binding.handle().storageMode();
-        if ("shared".equalsIgnoreCase(storageMode)) {
+        if (binding.handle().hostShared()) {
             return StorageResidency.HOST_SHARED_DEVICE_BUFFER;
         }
         return StorageResidency.DEVICE_OWNED;

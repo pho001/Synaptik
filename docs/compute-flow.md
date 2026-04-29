@@ -1193,8 +1193,9 @@ contiguous/direct-array contract, the selected Metal region is replayed through 
 
 When `executeBuffers(...)` succeeds, `PreparedMetalExecutable` promotes each output binding with
 `attachDeviceBufferBinding(...)`. Handles whose storage mode is reported as `shared` become
-`HOST_SHARED_DEVICE_BUFFER`; other storage modes become `DEVICE_OWNED`. This promotion happens after execution, not
-when the output buffer is reserved.
+`HOST_SHARED_DEVICE_BUFFER`; private, managed, blank, or unknown storage modes become `DEVICE_OWNED`. This conservative
+rule avoids treating a device-only output as CPU-readable before an explicit materializer has synchronized it. Promotion
+happens after execution, not when the output buffer is reserved.
 
 Example trace when the current FFM bridge is used:
 

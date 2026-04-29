@@ -393,7 +393,9 @@ Java execution state owns or references a Metal-compatible buffer
 The repository now has the Java-side pieces of that future contract under `src/main/java/backend/memory` and
 `src/main/java/backend/metal/buffer`:
 
-- `MetalBufferHandle` is an opaque native handle plus byte length, storage mode, owner label, and lifetime flag.
+- `MetalBufferHandle` is an opaque native handle plus byte length, storage mode, owner label, and lifetime flag. Only
+  an explicit `shared` storage mode is treated as host-shared; private, managed, blank, or unknown modes are
+  conservatively treated as device-owned until a materializer synchronizes CPU storage.
 - `MetalBufferAccess` distinguishes `READ`, `WRITE`, and `READ_WRITE` intent.
 - `MetalBufferBinding` ties a compiled node id, dtype, shape, element count, handle, and access mode together.
 - `DeviceBufferBinding` is the backend-neutral view used by `ExecutionState`. It exposes only node id, backend id,

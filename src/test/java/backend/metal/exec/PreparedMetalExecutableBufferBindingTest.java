@@ -101,6 +101,36 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void bufferBindingOutputWithPrivateStorageBecomesDeviceOwned() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
+                StorageResidency.HOST_SHARED_DEVICE_BUFFER,
+                "input shared buffer"
+        );
+        MetalBufferBinding outputBinding = binding(
+                fixture.outputNode().id(),
+                MetalBufferAccess.WRITE,
+                8,
+                fixture.outputNode().shape(),
+                2,
+                "private"
+        );
+        fixture.state().reserveDeviceBufferBinding(fixture.outputNode().id(), outputBinding);
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+        assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
+        assertTrue(fixture.state().requiresCpuMaterialization(fixture.outputNode().id()));
+    }
+
+    @Test
     void usesTensorArrayPathWhenBufferOutputBindingIsMissing() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
@@ -255,12 +285,23 @@ class PreparedMetalExecutableBufferBindingTest {
             int[] shape,
             long elementCount
     ) {
+        return binding(nodeId, access, bytes, shape, elementCount, "shared");
+    }
+
+    private static MetalBufferBinding binding(
+            int nodeId,
+            MetalBufferAccess access,
+            long bytes,
+            int[] shape,
+            long elementCount,
+            String storageMode
+    ) {
         return new MetalBufferBinding(
                 nodeId,
                 DataType.FLOAT32,
                 shape,
                 elementCount,
-                new MetalBufferHandle(MemorySegment.ofAddress(nodeId + 1L), bytes, "shared", "test", false),
+                new MetalBufferHandle(MemorySegment.ofAddress(nodeId + 1L), bytes, storageMode, "test", false),
                 access
         );
     }

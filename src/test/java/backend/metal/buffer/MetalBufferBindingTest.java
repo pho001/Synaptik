@@ -30,6 +30,19 @@ class MetalBufferBindingTest {
     }
 
     @Test
+    void handleIdentifiesOnlySharedStorageAsHostShared() {
+        MetalBufferHandle shared = new MetalBufferHandle(MemorySegment.ofAddress(1), 16, "shared", "test", false);
+        MetalBufferHandle mixedCaseShared = new MetalBufferHandle(MemorySegment.ofAddress(2), 16, "SHARED", "test", false);
+        MetalBufferHandle privateStorage = new MetalBufferHandle(MemorySegment.ofAddress(3), 16, "private", "test", false);
+        MetalBufferHandle unknownStorage = new MetalBufferHandle(MemorySegment.ofAddress(4), 16, "", "test", false);
+
+        assertTrue(shared.hostShared());
+        assertTrue(mixedCaseShared.hostShared());
+        assertFalse(privateStorage.hostShared());
+        assertFalse(unknownStorage.hostShared());
+    }
+
+    @Test
     void shapeAccessorReturnsDefensiveCopy() {
         MetalBufferHandle handle = new MetalBufferHandle(MemorySegment.ofAddress(1), 32, "shared", "test", false);
         int[] shape = {2, 4};

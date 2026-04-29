@@ -39,4 +39,17 @@ public record MetalBufferHandle(
     public boolean available() {
         return !nativeHandle.equals(MemorySegment.NULL) && byteLength > 0L;
     }
+
+    /**
+     * Returns whether the handle reports a host-shared storage mode.
+     *
+     * <p>Only explicit {@code shared} storage is treated as CPU-current after a Metal buffer execution.
+     * Other modes, including private or unknown modes, are conservatively treated as device-owned until a
+     * materializer synchronizes them back to CPU storage.</p>
+     *
+     * @return true when the stable storage mode label is {@code shared}
+     */
+    public boolean hostShared() {
+        return "shared".equalsIgnoreCase(storageMode);
+    }
 }
