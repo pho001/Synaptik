@@ -1,5 +1,6 @@
 package backend.metal.buffer;
 
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.CpuMaterializationReason;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -32,9 +33,7 @@ class MetalBufferAllocatorTest {
         });
         MetalBufferBinding binding = new MetalBufferBinding(
                 7,
-                DataType.FLOAT32,
-                new int[]{2, 2},
-                4,
+                AcceleratorBufferLayout.of(DataType.FLOAT32, new int[]{2, 2}, new int[]{2, 1}, 0, 4),
                 new MetalBufferHandle(MemorySegment.ofAddress(7), 16, "shared", "test", false),
                 MetalBufferAccess.READ_WRITE
         );

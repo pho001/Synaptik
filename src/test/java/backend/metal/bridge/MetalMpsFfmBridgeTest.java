@@ -7,6 +7,7 @@ import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.memory.CpuMaterializationReason;
 import backend.metal.buffer.MetalBufferAllocator;
@@ -103,9 +104,7 @@ class MetalMpsFfmBridgeTest {
             MetalBufferBinding sentinelBinding = allocator.createInputBinding(9, sentinel);
             output = new MetalBufferBinding(
                     9,
-                    DataType.FLOAT32,
-                    sentinel.getShape(),
-                    sentinel.getFlatDataSize(),
+                    AcceleratorBufferLayout.fromTensor(sentinel),
                     sentinelBinding.handle(),
                     MetalBufferAccess.READ_WRITE
             );

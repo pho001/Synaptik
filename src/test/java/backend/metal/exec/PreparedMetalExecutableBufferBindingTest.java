@@ -1,7 +1,9 @@
 package backend.metal.exec;
 
+import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
@@ -612,12 +614,14 @@ class PreparedMetalExecutableBufferBindingTest {
     ) {
         return new MetalBufferBinding(
                 nodeId,
-                DataType.FLOAT32,
-                shape,
-                elementCount,
+                AcceleratorBufferLayout.of(DataType.FLOAT32, shape, denseStrides(shape), 0, elementCount),
                 new MetalBufferHandle(MemorySegment.ofAddress(nodeId + 1L), bytes, storageMode, "test", false),
                 access
         );
+    }
+
+    private static int[] denseStrides(int[] shape) {
+        return tensor.TensorMetadata.computeStrides(shape);
     }
 
     private static List<Integer> shapeList(int[] shape) {
@@ -646,6 +650,27 @@ class PreparedMetalExecutableBufferBindingTest {
         @Override
         public String backendId() {
             return "GPU_TEST";
+        }
+
+        @Override
+        public AcceleratorBufferLayout layout() {
+            return AcceleratorBufferLayout.of(
+                    DataType.FLOAT32,
+                    new int[]{(int) (logicalByteLength / Float.BYTES)},
+                    new int[]{1},
+                    0,
+                    logicalByteLength / Float.BYTES
+            );
+        }
+
+        @Override
+        public AcceleratorBufferAccessMode accessMode() {
+            return AcceleratorBufferAccessMode.READ_WRITE;
+        }
+
+        @Override
+        public String nativeHandleIdentity() {
+            return "non-metal-" + nodeId;
         }
 
         @Override

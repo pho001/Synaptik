@@ -1,5 +1,7 @@
 package backend.metal.buffer;
 
+import backend.accelerator.buffer.AcceleratorBufferAccessMode;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 
@@ -15,9 +17,7 @@ class MetalBufferBindingTest {
         MetalBufferHandle handle = new MetalBufferHandle(MemorySegment.ofAddress(1), 16, "shared", "test", false);
         MetalBufferBinding binding = new MetalBufferBinding(
                 7,
-                DataType.FLOAT32,
-                new int[]{2, 2},
-                4,
+                AcceleratorBufferLayout.of(DataType.FLOAT32, new int[]{2, 2}, new int[]{2, 1}, 0, 4),
                 handle,
                 MetalBufferAccess.READ
         );
@@ -25,7 +25,15 @@ class MetalBufferBindingTest {
         assertTrue(binding.bufferCoversLogicalPayload());
         assertTrue(binding.available());
         assertTrue(binding.backendId().equals("GPU_METAL"));
+        assertTrue(binding.nativeHandleIdentity().contains("GPU_METAL"));
+        assertTrue(binding.nativeHandleIdentity().contains("owner=test"));
+        assertTrue(binding.nativeHandleIdentity().contains("storageMode=shared"));
+        assertTrue(binding.nativeHandleIdentity().contains("bytes=16"));
+        assertTrue(binding.accessMode().equals(AcceleratorBufferAccessMode.READ));
         assertTrue(binding.describe().contains("nodeId=7"));
+        assertTrue(binding.describe().contains("layoutClass=DENSE_CONTIGUOUS"));
+        assertTrue(binding.describe().contains("strides=[2, 1]"));
+        assertTrue(binding.describe().contains("storageOffset=0"));
         assertTrue(binding.describe().contains("bytes=16"));
     }
 
@@ -46,30 +54,28 @@ class MetalBufferBindingTest {
     void shapeAccessorReturnsDefensiveCopy() {
         MetalBufferHandle handle = new MetalBufferHandle(MemorySegment.ofAddress(1), 32, "shared", "test", false);
         int[] shape = {2, 4};
-        MetalBufferBinding binding = new MetalBufferBinding(3, DataType.FLOAT32, shape, 8, handle, MetalBufferAccess.WRITE);
+        AcceleratorBufferLayout layout = AcceleratorBufferLayout.of(DataType.FLOAT32, shape, new int[]{4, 1}, 0, 8);
+        MetalBufferBinding binding = new MetalBufferBinding(3, layout, handle, MetalBufferAccess.WRITE);
 
         shape[0] = 99;
-        int[] read = binding.shape();
+        int[] read = binding.layout().shape();
         read[1] = 99;
 
-        assertArrayEquals(new int[]{2, 4}, binding.shape());
+        assertArrayEquals(new int[]{2, 4}, binding.layout().shape());
+        assertTrue(binding.accessMode().equals(AcceleratorBufferAccessMode.WRITE));
     }
 
     @Test
     void unavailableOrSmallHandleDoesNotCoverPayload() {
         MetalBufferBinding unavailable = new MetalBufferBinding(
                 1,
-                DataType.FLOAT32,
-                new int[]{2},
-                2,
+                AcceleratorBufferLayout.of(DataType.FLOAT32, new int[]{2}, new int[]{1}, 0, 2),
                 new MetalBufferHandle(MemorySegment.NULL, 8, "shared", "test", false),
                 MetalBufferAccess.READ
         );
         MetalBufferBinding tooSmall = new MetalBufferBinding(
                 2,
-                DataType.FLOAT64,
-                new int[]{2},
-                2,
+                AcceleratorBufferLayout.of(DataType.FLOAT64, new int[]{2}, new int[]{1}, 0, 2),
                 new MetalBufferHandle(MemorySegment.ofAddress(1), 8, "shared", "test", false),
                 MetalBufferAccess.READ
         );

@@ -1,5 +1,7 @@
 package graph.execution;
 
+import backend.accelerator.buffer.AcceleratorBufferAccessMode;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
@@ -91,7 +93,7 @@ class ExecutionStateResidencyTest {
     void registeredMaterializerRestoresCpuReadableStateForDeviceOwnedBinding() {
         Fixture fixture = fixture();
         int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
-        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, true);
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
         RecordingMaterializer materializer = new RecordingMaterializer(321L, "fake Metal readback");
 
         fixture.state().attachDeviceBufferBinding(
@@ -152,7 +154,7 @@ class ExecutionStateResidencyTest {
     void sharedDeviceBufferBindingKeepsCpuReadableAndDeviceCurrent() {
         Fixture fixture = fixture();
         int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
-        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, true);
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
 
         fixture.state().attachDeviceBufferBinding(
                 outputNodeId,
@@ -174,7 +176,7 @@ class ExecutionStateResidencyTest {
     void reservedDeviceBufferBindingDoesNotMarkValueCurrent() {
         Fixture fixture = fixture();
         int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
-        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, true);
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
 
         fixture.state().reserveDeviceBufferBinding(outputNodeId, binding);
 
@@ -190,7 +192,7 @@ class ExecutionStateResidencyTest {
     void cpuWriteClearsDeviceBufferBinding() {
         Fixture fixture = fixture();
         int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
-        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, true);
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
 
         fixture.state().attachDeviceBufferBinding(
                 outputNodeId,
@@ -211,7 +213,7 @@ class ExecutionStateResidencyTest {
     void unavailableDeviceBufferBindingIsRejected() {
         Fixture fixture = fixture();
         int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
-        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, false);
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, false);
 
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,
@@ -231,7 +233,7 @@ class ExecutionStateResidencyTest {
     void executionResourcesCloseInReverseOrderAndClearBindings() {
         Fixture fixture = fixture();
         int outputNodeId = fixture.compiled().compileArtifacts().forwardOutputNode().id();
-        DeviceBufferBinding binding = new FakeDeviceBufferBinding(outputNodeId, "GPU_METAL", 8, true);
+        DeviceBufferBinding binding = fakeBinding(outputNodeId, 8, true);
         List<String> closed = new ArrayList<>();
 
         fixture.state().attachDeviceBufferBinding(
@@ -277,15 +279,36 @@ class ExecutionStateResidencyTest {
     ) {
     }
 
+    private static DeviceBufferBinding fakeBinding(int nodeId, long logicalByteLength, boolean available) {
+        return new FakeDeviceBufferBinding(
+                nodeId,
+                "GPU_METAL",
+                AcceleratorBufferLayout.of(
+                        DataType.FLOAT32,
+                        new int[]{(int) (logicalByteLength / Float.BYTES)},
+                        new int[]{1},
+                        0,
+                        logicalByteLength / Float.BYTES
+                ),
+                AcceleratorBufferAccessMode.READ_WRITE,
+                "fake-native-" + nodeId,
+                available
+        );
+    }
+
     private record FakeDeviceBufferBinding(
             int nodeId,
             String backendId,
-            long logicalByteLength,
+            AcceleratorBufferLayout layout,
+            AcceleratorBufferAccessMode accessMode,
+            String nativeHandleIdentity,
             boolean available
     ) implements DeviceBufferBinding {
         @Override
         public String describe() {
-            return "fake nodeId=" + nodeId + ", backend=" + backendId + ", bytes=" + logicalByteLength;
+            return "fake nodeId=" + nodeId + ", backend=" + backendId
+                    + ", bytes=" + layout.logicalByteLength()
+                    + ", native=" + nativeHandleIdentity;
         }
     }
 
