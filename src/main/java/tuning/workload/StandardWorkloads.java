@@ -45,8 +45,30 @@ public final class StandardWorkloads {
         return new TransformerHotPathWorkloadSpec(name);
     }
 
+    /**
+     * Creates a transformer hot-path workload with a default shape profile.
+     *
+     * @param name workload name used in reports and persistence
+     * @param profile default transformer shape used when candidate profiles do not carry workload metadata
+     * @return workload specification
+     */
+    public static TransformerHotPathWorkloadSpec transformerHotPath(String name, WorkloadProfile profile) {
+        return new TransformerHotPathWorkloadSpec(name, profile);
+    }
+
     public static TransformerBlockHotPathWorkloadSpec transformerBlockHotPath(String name) {
         return new TransformerBlockHotPathWorkloadSpec(name);
+    }
+
+    /**
+     * Creates a transformer-block workload with a default shape profile.
+     *
+     * @param name workload name used in reports and persistence
+     * @param profile default transformer shape used when candidate profiles do not carry workload metadata
+     * @return workload specification
+     */
+    public static TransformerBlockHotPathWorkloadSpec transformerBlockHotPath(String name, WorkloadProfile profile) {
+        return new TransformerBlockHotPathWorkloadSpec(name, profile);
     }
 
     public static AbcSequenceMatmulWorkloadSpec abcSequenceMatmul(String name, int batch, int features) {
@@ -131,7 +153,15 @@ public final class StandardWorkloads {
                 .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, Pool2dOptions.square(2)))
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
                 .register(transformerHotPath("transformer_hot_path"))
-                .register(transformerBlockHotPath("transformer_block_hot_path"));
+                .register(transformerHotPath("transformer_hot_path_large", WorkloadProfile.transformerHotPathLarge()))
+                .register(transformerHotPath("transformer_hot_path_long_seq", WorkloadProfile.transformerHotPathLongSeq()))
+                .register(transformerHotPath("transformer_hot_path_ffn_heavy", WorkloadProfile.transformerHotPathFfnHeavy()))
+                .register(transformerHotPath("transformer_hot_path_attention_heavy", WorkloadProfile.transformerHotPathAttentionHeavy()))
+                .register(transformerBlockHotPath("transformer_block_hot_path"))
+                .register(transformerBlockHotPath("transformer_block_hot_path_large", WorkloadProfile.transformerHotPathLarge()))
+                .register(transformerBlockHotPath("transformer_block_hot_path_long_seq", WorkloadProfile.transformerHotPathLongSeq()))
+                .register(transformerBlockHotPath("transformer_block_hot_path_ffn_heavy", WorkloadProfile.transformerHotPathFfnHeavy()))
+                .register(transformerBlockHotPath("transformer_block_hot_path_attention_heavy", WorkloadProfile.transformerHotPathAttentionHeavy()));
     }
 
     public static BenchmarkRequest benchmark(String workloadName, List<BenchmarkEntry> entries, TuningPreset preset) {

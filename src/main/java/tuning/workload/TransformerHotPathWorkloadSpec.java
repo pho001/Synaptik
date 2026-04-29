@@ -16,9 +16,34 @@ import java.util.Map;
 
 public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
     private final String name;
+    private final WorkloadProfile defaultProfile;
 
+    /**
+     * Creates a transformer hot-path workload with the default medium shape.
+     *
+     * @param name workload name used in reports and tuning persistence
+     */
     public TransformerHotPathWorkloadSpec(String name) {
+        this(name, WorkloadProfile.transformerHotPathDefaults());
+    }
+
+    /**
+     * Creates a transformer hot-path workload with an explicit default shape profile.
+     *
+     * <p>The default profile is used when the measured execution profile does
+     * not carry workload metadata. This lets CLI/catalog workloads represent
+     * large shape presets while still allowing explicit candidate profiles to
+     * override the shape.</p>
+     *
+     * @param name workload name used in reports and tuning persistence
+     * @param defaultProfile default transformer shape; must be {@code TRANSFORMER_HOT_PATH}
+     */
+    public TransformerHotPathWorkloadSpec(String name, WorkloadProfile defaultProfile) {
         this.name = (name == null || name.isBlank()) ? "transformer_hot_path" : name;
+        this.defaultProfile = defaultProfile == null ? WorkloadProfile.transformerHotPathDefaults() : defaultProfile;
+        if (this.defaultProfile.kind() != WorkloadKind.TRANSFORMER_HOT_PATH) {
+            throw new IllegalArgumentException("TransformerHotPathWorkloadSpec default profile must be TRANSFORMER_HOT_PATH.");
+        }
     }
 
     @Override
@@ -36,7 +61,7 @@ public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
         ExecutionProfile profile = environment.profile();
         WorkloadProfile requested = profile.workload();
         WorkloadProfile workload = requested.kind() == WorkloadKind.NONE
-                ? WorkloadProfile.transformerHotPathDefaults()
+                ? defaultProfile
                 : requested;
         if (workload.kind() != WorkloadKind.TRANSFORMER_HOT_PATH) {
             throw new IllegalArgumentException("TransformerHotPathWorkloadSpec requires profile.workload.kind == TRANSFORMER_HOT_PATH");
@@ -76,6 +101,7 @@ public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
         metadata.put("valueDim", workload.valueDim());
         metadata.put("ffHiddenDim", workload.ffHiddenDim());
         metadata.put("causal", workload.causal());
+        metadata.put("shapePreset", workload.transformerPresetName());
         List<String> gradientLabels = new ArrayList<>();
         if (requiresGrad) {
             gradientLabels.add("X_BLOCK");

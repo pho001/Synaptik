@@ -58,7 +58,79 @@ public record WorkloadProfile(
      * @return transformer hot-path descriptor with batch 8, 8 heads, sequence length 128, and model width 512
      */
     public static WorkloadProfile transformerHotPathDefaults() {
+        return transformerHotPathMedium();
+    }
+
+    /**
+     * Returns the medium transformer hot-path profile used as the continuity baseline.
+     *
+     * @return transformer profile with batch 8, 8 heads, sequence length 128, and model width 512
+     */
+    public static WorkloadProfile transformerHotPathMedium() {
         return new WorkloadProfile(WorkloadKind.TRANSFORMER_HOT_PATH, 8, 8, 128, 64, 64, 2048, true);
+    }
+
+    /**
+     * Returns a larger mixed transformer block profile for accelerator stress testing.
+     *
+     * @return transformer profile with batch 8, 12 heads, sequence length 256, and wider FFN
+     */
+    public static WorkloadProfile transformerHotPathLarge() {
+        return new WorkloadProfile(WorkloadKind.TRANSFORMER_HOT_PATH, 8, 12, 256, 64, 64, 3072, true);
+    }
+
+    /**
+     * Returns a long-sequence transformer profile that stresses attention and softmax work.
+     *
+     * @return transformer profile with batch 4, 8 heads, and sequence length 512
+     */
+    public static WorkloadProfile transformerHotPathLongSeq() {
+        return new WorkloadProfile(WorkloadKind.TRANSFORMER_HOT_PATH, 4, 8, 512, 64, 64, 2048, true);
+    }
+
+    /**
+     * Returns a feed-forward-heavy transformer profile that stresses projection matmuls.
+     *
+     * @return transformer profile with current medium attention shape and a 4096-wide FFN
+     */
+    public static WorkloadProfile transformerHotPathFfnHeavy() {
+        return new WorkloadProfile(WorkloadKind.TRANSFORMER_HOT_PATH, 8, 8, 128, 64, 64, 4096, true);
+    }
+
+    /**
+     * Returns an attention-heavy transformer profile with more heads and a longer sequence.
+     *
+     * @return transformer profile with batch 8, 16 heads, sequence length 256, and model width 1024
+     */
+    public static WorkloadProfile transformerHotPathAttentionHeavy() {
+        return new WorkloadProfile(WorkloadKind.TRANSFORMER_HOT_PATH, 8, 16, 256, 64, 64, 2048, true);
+    }
+
+    /**
+     * Resolves a stable preset name for known transformer hot-path dimensions.
+     *
+     * @return known preset id, {@code custom}, or {@code none}
+     */
+    public String transformerPresetName() {
+        if (kind != WorkloadKind.TRANSFORMER_HOT_PATH) {
+            return "none";
+        }
+        if (sameShape(this, transformerHotPathMedium())) {
+            return "medium";
+        }
+        if (sameShape(this, transformerHotPathLarge())) {
+            return "large";
+        }
+        if (sameShape(this, transformerHotPathLongSeq())) {
+            return "long_seq";
+        }
+        if (sameShape(this, transformerHotPathFfnHeavy())) {
+            return "ffn_heavy";
+        }
+        if (sameShape(this, transformerHotPathAttentionHeavy())) {
+            return "attention_heavy";
+        }
+        return "custom";
     }
 
     /**
@@ -72,5 +144,16 @@ public record WorkloadProfile(
             throw new IllegalStateException("modelDim is only defined for transformer hot-path workloads.");
         }
         return heads * valueDim;
+    }
+
+    private static boolean sameShape(WorkloadProfile left, WorkloadProfile right) {
+        return left.kind == right.kind
+                && left.batch == right.batch
+                && left.heads == right.heads
+                && left.seqLen == right.seqLen
+                && left.headDim == right.headDim
+                && left.valueDim == right.valueDim
+                && left.ffHiddenDim == right.ffHiddenDim
+                && left.causal == right.causal;
     }
 }

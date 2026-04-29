@@ -23,6 +23,7 @@ import java.util.Map;
  */
 public final class TransformerBlockHotPathWorkloadSpec implements WorkloadSpec {
     private final String name;
+    private final WorkloadProfile defaultProfile;
 
     /**
      * Creates a transformer-block workload with the given stable name.
@@ -30,7 +31,26 @@ public final class TransformerBlockHotPathWorkloadSpec implements WorkloadSpec {
      * @param name workload name used in reports and tuning persistence
      */
     public TransformerBlockHotPathWorkloadSpec(String name) {
+        this(name, WorkloadProfile.transformerHotPathDefaults());
+    }
+
+    /**
+     * Creates a transformer-block workload with an explicit default shape profile.
+     *
+     * <p>The default is used when the candidate execution profile does not carry
+     * specialized workload metadata. Candidate profiles that do carry
+     * {@link WorkloadProfile} still win, which lets autotune and benchmark
+     * entries keep shape identity in persistence fingerprints.</p>
+     *
+     * @param name workload name used in reports and tuning persistence
+     * @param defaultProfile default transformer shape; must be {@code TRANSFORMER_HOT_PATH}
+     */
+    public TransformerBlockHotPathWorkloadSpec(String name, WorkloadProfile defaultProfile) {
         this.name = name == null || name.isBlank() ? "transformer_block_hot_path" : name;
+        this.defaultProfile = defaultProfile == null ? WorkloadProfile.transformerHotPathDefaults() : defaultProfile;
+        if (this.defaultProfile.kind() != WorkloadKind.TRANSFORMER_HOT_PATH) {
+            throw new IllegalArgumentException("TransformerBlockHotPathWorkloadSpec default profile must be TRANSFORMER_HOT_PATH.");
+        }
     }
 
     @Override
@@ -46,7 +66,7 @@ public final class TransformerBlockHotPathWorkloadSpec implements WorkloadSpec {
     @Override
     public WorkloadInstance instantiate(WorkloadEnvironment environment) {
         ExecutionProfile profile = environment.profile();
-        WorkloadProfile workload = resolveWorkloadProfile(profile);
+        WorkloadProfile workload = resolveWorkloadProfile(profile, defaultProfile);
         boolean requiresGrad = profile.mode() == ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
 
@@ -102,10 +122,10 @@ public final class TransformerBlockHotPathWorkloadSpec implements WorkloadSpec {
         );
     }
 
-    private static WorkloadProfile resolveWorkloadProfile(ExecutionProfile profile) {
+    private static WorkloadProfile resolveWorkloadProfile(ExecutionProfile profile, WorkloadProfile defaultProfile) {
         WorkloadProfile requested = profile.workload();
         if (requested.kind() == WorkloadKind.NONE) {
-            return WorkloadProfile.transformerHotPathDefaults();
+            return defaultProfile;
         }
         if (requested.kind() != WorkloadKind.TRANSFORMER_HOT_PATH) {
             throw new IllegalArgumentException("TransformerBlockHotPathWorkloadSpec requires TRANSFORMER_HOT_PATH workload metadata.");
@@ -135,7 +155,7 @@ public final class TransformerBlockHotPathWorkloadSpec implements WorkloadSpec {
         metadata.put("modelDim", workload.modelDim());
         metadata.put("ffHiddenDim", workload.ffHiddenDim());
         metadata.put("causal", workload.causal());
-        metadata.put("shapePreset", "medium");
+        metadata.put("shapePreset", workload.transformerPresetName());
         return metadata;
     }
 
