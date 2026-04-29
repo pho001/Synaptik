@@ -381,25 +381,22 @@ public record MetalBufferBinding(
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | Exact new class names such as `AcceleratorBufferLayout` and `AcceleratorBufferLayoutClass` are recommended names, not existing locked names. | Architecture Patterns / Code Examples | Low; planner can choose equivalent names if package ownership and behavior stay consistent. |
-| A2 | Whether native handle identity must be stable across runs or only suitable for trace diagnostics is not specified. | Open Questions | Medium; choosing the wrong identity semantics could force later ABI churn. |
+| A2 | Native handle identity is a diagnostic token for the current run/report, not a persistent cross-run key or ownership handle. | Open Questions (RESOLVED) | Low; the common ABI avoids native handle ownership and leaves backend handles backend-owned. |
 | A3 | The research validity window of 30 days is an estimate, not a project policy. | Metadata | Low; planner can refresh research if implementation changes first. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should `logicalElementCount` stay `long` while tensor flat size remains `int`?** [VERIFIED: current `TensorMetadata.getFlatSize()` returns `int`]
+1. **RESOLVED: `logicalElementCount` stays `long` in the accelerator buffer ABI while tensor flat size remains `int` in Phase 1.** [VERIFIED: current `TensorMetadata.getFlatSize()` returns `int`]
    - What we know: ABI-01 asks for logical element count, and `MetalBufferBinding.elementCount` is already `long`. [CITED: src/main/java/backend/metal/buffer/MetalBufferBinding.java:25]
-   - What's unclear: A broader long-shape migration is listed as v2/scaling work, not Phase 1. [CITED: .planning/REQUIREMENTS.md]
-   - Recommendation: Use `long` in the ABI descriptor while deriving from current `int` flat sizes for Phase 1. [VERIFIED: minimal compatibility]
+   - Decision: Use `long` in the ABI descriptor while deriving from current `int` flat sizes for Phase 1. A broader long-shape/storage migration remains v2 scaling work. [VERIFIED: minimal ABI expansion; CITED: .planning/REQUIREMENTS.md]
 
-2. **Should access mode be a shared enum or mapped from backend enums?** [VERIFIED: current Metal has `MetalBufferAccess`]
+2. **RESOLVED: access mode is a shared accelerator enum mapped from backend-specific enums.** [VERIFIED: current Metal has `MetalBufferAccess`]
    - What we know: ABI-01 requires access mode, and Metal already has backend-specific `MetalBufferAccess`. [CITED: src/main/java/backend/metal/buffer/MetalBufferBinding.java:25]
-   - What's unclear: No CUDA buffer access enum exists in the checked source. [VERIFIED: codebase grep]
-   - Recommendation: Add a common `AcceleratorBufferAccessMode` and map Metal access to it. [RECOMMENDED]
+   - Decision: Add a common `AcceleratorBufferAccessMode` and map Metal access to it. CUDA can later map its own access semantics to the same shared enum without importing CUDA classes into common ABI code. [RECOMMENDED]
 
-3. **How much native handle identity should common code expose?** [VERIFIED: ABI-01 says native handle identity]
+3. **RESOLVED: common code exposes only a diagnostic native handle identity string, not a native handle object.** [VERIFIED: ABI-01 says native handle identity]
    - What we know: Common code should not dereference native handles, and Metal handles are opaque backend values. [CITED: src/main/java/backend/memory/DeviceBufferBinding.java:6; src/main/java/backend/metal/buffer/MetalBufferBinding.java:25]
-   - What's unclear: Whether identity must be stable across runs or only suitable for trace diagnostics. [ASSUMED]
-   - Recommendation: Use a backend-neutral `nativeHandleIdentity()` string/diagnostic token for traces, not a common native handle object. [RECOMMENDED]
+   - Decision: Use a backend-neutral `nativeHandleIdentity()` string/diagnostic token for traces and reports. It is stable enough to identify a binding within a run/report, but it is not a persistent cross-run key and must not be used for ownership, equality, or native dereference. [RECOMMENDED]
 
 ## Environment Availability
 

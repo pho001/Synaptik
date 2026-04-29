@@ -2,7 +2,7 @@
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 1 — Accelerator Buffer Layout ABI
+**Current focus:** Phase 1 — Accelerator Buffer Layout ABI (planned, ready to execute)
 
 ## Project Reference
 
@@ -41,7 +41,13 @@ Planning agents should read the relevant codebase map documents before proposing
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is not available in the current shell, so initialization artifacts were generated directly from the GSD workflow templates and current repository context.
-- Use `$gsd-plan-phase 1` next to create the implementation plan for Phase 1.
+- Use `$gsd-execute-phase 1` next to implement Phase 1.
+
+## Phase Planning Status
+
+| Phase | Status | Plans | Verification |
+|-------|--------|-------|--------------|
+| 1 — Accelerator Buffer Layout ABI | Ready to execute | 3 plans / 3 waves | Plan-checker passed on 2026-04-29 |
 
 ## Recent Decisions
 
@@ -50,6 +56,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-29 | Use native `.planning` artifacts going forward | Avoid cloning old `todo/` phase documents and give GSD a clean planning state. |
 | 2026-04-29 | Treat the current roadmap as a brownfield next-milestone roadmap | The codebase already has many shipped capabilities; the next work should focus on accelerator/runtime architecture. |
 | 2026-04-29 | Keep public tensors logical and backend residency in runtime state | Maintains clean API design while enabling device-owned execution. |
+| 2026-04-29 | Phase 1 planning passed with no compatibility shims | The accelerator buffer ABI should migrate call sites directly to canonical layout-aware contracts. |
 
 ---
 *State initialized: 2026-04-29*
