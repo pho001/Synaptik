@@ -171,6 +171,40 @@ class MetalBufferAllocatorTest {
         assertEquals(0, reads.get());
     }
 
+    @Test
+    void readToCpuRejectsNonZeroOffsetDestinationBeforeNativeRead() {
+        AtomicInteger reads = new AtomicInteger();
+        MetalBufferAllocator allocator = MetalBufferAllocator.available(new MetalBufferAllocator.NativeAccess() {
+            @Override
+            public MetalBufferHandle createBuffer(long byteLength, int storageMode, MemorySegment initialData, long initialDataBytes) {
+                throw new UnsupportedOperationException("not used");
+            }
+
+            @Override
+            public void readBuffer(MetalBufferHandle handle, MemorySegment destination, long byteLength) {
+                reads.incrementAndGet();
+            }
+
+            @Override
+            public void destroyBuffer(MetalBufferHandle handle) {
+            }
+        });
+        Tensor base = new Tensor(new float[]{0f, 0f, 0f, 0f, 0f, 0f}, new int[]{2, 3}, null, "base", DataType.FLOAT32);
+        Tensor destination = base.select(0, 1);
+        MetalBufferBinding binding = new MetalBufferBinding(
+                7,
+                AcceleratorBufferLayout.fromTensor(destination),
+                new MetalBufferHandle(MemorySegment.ofAddress(7), 12, "shared", "test", false),
+                MetalBufferAccess.READ_WRITE
+        );
+
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> allocator.readToCpu(binding, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS)
+        );
+        assertEquals(0, reads.get());
+    }
+
     private static MetalBufferAllocator unusedAllocator() {
         return MetalBufferAllocator.available(new MetalBufferAllocator.NativeAccess() {
             @Override

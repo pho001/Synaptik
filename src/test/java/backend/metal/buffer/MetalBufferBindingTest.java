@@ -2,12 +2,14 @@ package backend.metal.buffer;
 
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 
 import java.lang.foreign.MemorySegment;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,17 +26,21 @@ class MetalBufferBindingTest {
 
         assertTrue(binding.bufferCoversLogicalPayload());
         assertTrue(binding.available());
-        assertTrue(binding.backendId().equals("GPU_METAL"));
+        assertEquals("GPU_METAL", binding.backendId());
+        assertEquals(AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS, binding.layout().layoutClass());
+        assertArrayEquals(new int[]{2, 1}, binding.layout().strides());
+        assertEquals(0, binding.layout().storageOffset());
         assertTrue(binding.nativeHandleIdentity().contains("GPU_METAL"));
         assertTrue(binding.nativeHandleIdentity().contains("owner=test"));
         assertTrue(binding.nativeHandleIdentity().contains("storageMode=shared"));
         assertTrue(binding.nativeHandleIdentity().contains("bytes=16"));
-        assertTrue(binding.accessMode().equals(AcceleratorBufferAccessMode.READ));
+        assertEquals(AcceleratorBufferAccessMode.READ, binding.accessMode());
         assertTrue(binding.describe().contains("nodeId=7"));
         assertTrue(binding.describe().contains("layoutClass=DENSE_CONTIGUOUS"));
         assertTrue(binding.describe().contains("strides=[2, 1]"));
         assertTrue(binding.describe().contains("storageOffset=0"));
         assertTrue(binding.describe().contains("bytes=16"));
+        assertTrue(binding.describe().contains("handleBytes=16"));
     }
 
     @Test
@@ -51,18 +57,23 @@ class MetalBufferBindingTest {
     }
 
     @Test
-    void shapeAccessorReturnsDefensiveCopy() {
+    void layoutAccessorsReturnDefensiveCopiesThroughBinding() {
         MetalBufferHandle handle = new MetalBufferHandle(MemorySegment.ofAddress(1), 32, "shared", "test", false);
         int[] shape = {2, 4};
-        AcceleratorBufferLayout layout = AcceleratorBufferLayout.of(DataType.FLOAT32, shape, new int[]{4, 1}, 0, 8);
+        int[] strides = {4, 1};
+        AcceleratorBufferLayout layout = AcceleratorBufferLayout.of(DataType.FLOAT32, shape, strides, 0, 8);
         MetalBufferBinding binding = new MetalBufferBinding(3, layout, handle, MetalBufferAccess.WRITE);
 
         shape[0] = 99;
+        strides[0] = 99;
         int[] read = binding.layout().shape();
+        int[] readStrides = binding.layout().strides();
         read[1] = 99;
+        readStrides[1] = 99;
 
         assertArrayEquals(new int[]{2, 4}, binding.layout().shape());
-        assertTrue(binding.accessMode().equals(AcceleratorBufferAccessMode.WRITE));
+        assertArrayEquals(new int[]{4, 1}, binding.layout().strides());
+        assertEquals(AcceleratorBufferAccessMode.WRITE, binding.accessMode());
     }
 
     @Test

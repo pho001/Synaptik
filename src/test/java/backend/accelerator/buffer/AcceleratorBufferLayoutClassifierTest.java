@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class AcceleratorBufferLayoutClassifierTest {
     @Test
-    void classifiesDenseContiguousLayout() {
+    void denseContiguousLayoutClassifiesAsDenseContiguous() {
         AcceleratorBufferLayout layout = AcceleratorBufferLayoutClassifier.describe(
                 DataType.FLOAT32,
                 new int[]{2, 3},
@@ -28,7 +28,7 @@ class AcceleratorBufferLayoutClassifierTest {
     }
 
     @Test
-    void classifiesZeroOffsetViewWhenPositiveStridesAreMonotonic() {
+    void zeroOffsetPaddedViewClassifiesAsZeroOffsetView() {
         AcceleratorBufferLayout layout = AcceleratorBufferLayoutClassifier.describe(
                 DataType.FLOAT64,
                 new int[]{2, 2},
@@ -41,7 +41,7 @@ class AcceleratorBufferLayoutClassifierTest {
     }
 
     @Test
-    void classifiesNonZeroOffsetDenseView() {
+    void nonZeroOffsetDenseViewClassifiesAsNonZeroOffsetView() {
         AcceleratorBufferLayout layout = AcceleratorBufferLayoutClassifier.describe(
                 DataType.FLOAT32,
                 new int[]{2, 3},
@@ -55,7 +55,7 @@ class AcceleratorBufferLayoutClassifierTest {
     }
 
     @Test
-    void classifiesPermutedOrStridedLayout() {
+    void permutedLayoutClassifiesAsPermutedOrStridedView() {
         AcceleratorBufferLayout layout = AcceleratorBufferLayoutClassifier.describe(
                 DataType.FLOAT32,
                 new int[]{2, 3},
@@ -68,7 +68,7 @@ class AcceleratorBufferLayoutClassifierTest {
     }
 
     @Test
-    void classifiesBroadcastZeroStrideBeforeOtherPositiveStrideRules() {
+    void broadcastZeroStrideClassifiesAsBroadcastZeroStrideView() {
         AcceleratorBufferLayout layout = AcceleratorBufferLayoutClassifier.describe(
                 DataType.BFLOAT16,
                 new int[]{2, 3},
@@ -82,7 +82,7 @@ class AcceleratorBufferLayoutClassifierTest {
     }
 
     @Test
-    void classifiesNegativeStrideAsUnsupported() {
+    void unsupportedNegativeStrideClassifiesAsUnsupported() {
         AcceleratorBufferLayout layout = AcceleratorBufferLayoutClassifier.describe(
                 DataType.FLOAT32,
                 new int[]{2, 3},
@@ -128,7 +128,7 @@ class AcceleratorBufferLayoutClassifierTest {
     }
 
     @Test
-    void layoutDefensivelyCopiesShapeAndStrides() {
+    void layoutAccessorsReturnDefensiveCopies() {
         int[] shape = {2, 3};
         int[] strides = {3, 1};
         AcceleratorBufferLayout layout = AcceleratorBufferLayout.of(DataType.FLOAT32, shape, strides, 0, 6);
