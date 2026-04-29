@@ -1894,10 +1894,12 @@ once CUDA grows a real buffer ABI:
 | `acceleratorBufferMode` | Runtime mode: `OFF`, `AUTO`, or `REQUIRE`. |
 | `acceleratorBufferBackend` | Backend enum such as `GPU_METAL` or `GPU_CUDA`. |
 | `acceleratorBufferExecutionPath` | Backend-neutral path: `BUFFER_BINDING`, `TENSOR_ARRAY`, `CPU_FALLBACK`, or `UNAVAILABLE`. |
-| `acceleratorBufferReasonCode` | Stable machine-readable reason such as `BUFFER_BINDINGS_DISABLED`, `BACKEND_BUFFER_NOT_IMPLEMENTED`, `INPUT_NOT_CONTIGUOUS`, or `BUFFER_BINDING_AVAILABLE`. |
+| `acceleratorBufferReasonCode` | Stable machine-readable reason such as `INPUT_LAYOUT_UNSUPPORTED`, `OUTPUT_LAYOUT_UNSUPPORTED`, `NATIVE_BUFFER_ABI_UNAVAILABLE`, `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, `BUFFER_BINDING_AVAILABLE`, `TENSOR_ARRAY_SELECTED`, or `CPU_FALLBACK_SELECTED`. |
 | `acceleratorBufferReason` | Human-readable detail, often including node id or backend availability reason. |
 | `acceleratorBufferPreparedInputUsed` | Whether at least one external input was resolved through a prepared/remapped tensor. |
 | `acceleratorBufferInputCount`, `acceleratorBufferOutputCount` | Number of inputs and outputs evaluated by buffer policy. |
+
+When layout compatibility drives fallback, accelerator buffer diagnostics include `layoutClass`, `shape`, `strides`, and `storageOffset` details.
 
 | Attribute | Meaning |
 |---|---|
