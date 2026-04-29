@@ -301,7 +301,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
      * Executes a compiled Metal DAG and copies native output buffers back into runtime tensors.
      */
     @Override
-    public void execute(
+    public MetalMpsBridgeExecutionStats execute(
             MetalMpsBridgeContext bridgeContext,
             MetalMpsBridgeExecutable executable,
             java.util.List<Tensor> externalInputs,
@@ -324,6 +324,13 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         if (resolvedOutputs.isEmpty()) {
             throw new UnsupportedOperationException("Metal MPS FFM bridge requires at least one output tensor.");
         }
+        long totalStart = System.nanoTime();
+        long inputBytes = byteSize(resolvedExternalInputs);
+        long outputBytes = byteSize(resolvedOutputs);
+        long javaToNativeCopyNs = 0L;
+        long outputAllocationNs = 0L;
+        long nativeExecuteNs = 0L;
+        long nativeToJavaCopyNs = 0L;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment externalInputSegs = resolvedExternalInputs.isEmpty() ? MemorySegment.NULL : arena.allocate(ADDRESS, resolvedExternalInputs.size());
             for (int i = 0; i < resolvedExternalInputs.size(); i++) {
@@ -332,11 +339,13 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     throw new UnsupportedOperationException("Metal MPS FFM bridge received null external input.");
                 }
                 MemorySegment dataSeg;
+                long copyStart = System.nanoTime();
                 dataSeg = switch (tensor.getDataType()) {
                     case FLOAT32 -> arena.allocateFrom(JAVA_FLOAT, tensor.getFloat32Data());
                     case BOOL -> arena.allocateFrom(JAVA_BYTE, tensor.getBoolData());
                     default -> throw new UnsupportedOperationException(MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType()));
                 };
+                javaToNativeCopyNs += System.nanoTime() - copyStart;
                 externalInputSegs.setAtIndex(ADDRESS, i, dataSeg);
             }
             MemorySegment outputSegs = arena.allocate(ADDRESS, resolvedOutputs.size());
@@ -347,10 +356,13 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 if (outData == null) {
                     throw new UnsupportedOperationException("Metal MPS FFM bridge currently supports only FLOAT32 output tensors with direct float[] storage.");
                 }
+                long allocationStart = System.nanoTime();
                 MemorySegment outSeg = arena.allocate(JAVA_FLOAT, outData.length);
+                outputAllocationNs += System.nanoTime() - allocationStart;
                 outputSegs.setAtIndex(ADDRESS, i, outSeg);
                 outputLengths.setAtIndex(JAVA_INT, i, outData.length);
             }
+            long nativeStart = System.nanoTime();
             int status = (int) STATE.executePartitionFn.invokeExact(
                     bridgeContext.handle(),
                     executable.handle(),
@@ -359,19 +371,62 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     outputSegs,
                     resolvedOutputs.size()
             );
+            nativeExecuteNs = System.nanoTime() - nativeStart;
             if (status == 0) {
                 for (int i = 0; i < resolvedOutputs.size(); i++) {
                     Tensor out = resolvedOutputs.get(i);
                     float[] outData = out.getFloat32Data();
+                    long copyStart = System.nanoTime();
                     MemorySegment.ofArray(outData).copyFrom(outputSegs.getAtIndex(ADDRESS, i).reinterpret((long) outData.length * JAVA_FLOAT.byteSize()));
+                    nativeToJavaCopyNs += System.nanoTime() - copyStart;
                     out.markDataViewStale();
                 }
-                return;
+                return new MetalMpsBridgeExecutionStats(
+                        false,
+                        "",
+                        MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY,
+                        resolvedExternalInputs.size(),
+                        resolvedOutputs.size(),
+                        inputBytes,
+                        outputBytes,
+                        javaToNativeCopyNs,
+                        outputAllocationNs,
+                        nativeExecuteNs,
+                        nativeToJavaCopyNs,
+                        System.nanoTime() - totalStart
+                );
             }
             throw new UnsupportedOperationException("Metal MPS execute_partition returned non-zero status: " + status);
         } catch (Throwable t) {
             throw new UnsupportedOperationException("Metal MPS execute_partition failed: " + safeMessage(t), t);
         }
+    }
+
+    private static long byteSize(java.util.List<Tensor> tensors) {
+        long bytes = 0L;
+        if (tensors == null) {
+            return 0L;
+        }
+        for (Tensor tensor : tensors) {
+            if (tensor == null) {
+                continue;
+            }
+            bytes += (long) tensor.getFlatDataSize() * elementByteSize(tensor.getDataType());
+        }
+        return bytes;
+    }
+
+    private static int elementByteSize(tensor.DataType dataType) {
+        if (dataType == null) {
+            return 0;
+        }
+        return switch (dataType) {
+            case FLOAT64 -> Double.BYTES;
+            case FLOAT32 -> Float.BYTES;
+            case BFLOAT16 -> Short.BYTES;
+            case BOOL -> Byte.BYTES;
+            case INT32 -> Integer.BYTES;
+        };
     }
 
     private static State init() {

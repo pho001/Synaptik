@@ -53,7 +53,7 @@ public final class UnavailableMetalMpsGraphBridge implements MetalMpsGraphBridge
      * Throws because unavailable bridges cannot execute.
      */
     @Override
-    public void execute(
+    public MetalMpsBridgeExecutionStats execute(
             MetalMpsBridgeContext bridgeContext,
             MetalMpsBridgeExecutable executable,
             java.util.List<Tensor> externalInputs,

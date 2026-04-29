@@ -234,10 +234,18 @@ public final class PreparedExecution {
             PreparedNodeExecution step = steps.get(i);
             long t0 = captureTrace ? System.nanoTime() : 0L;
             ComputeEngine.compute(step.compiledNode(), step.metadata(), context);
+            context.markCpuCurrent(step.compiledNode().id(), residencyReason(step));
             if (captureTrace) {
                 traces.add(toStepTrace(startIndex + i, step, System.nanoTime() - t0, context));
             }
         }
+    }
+
+    private static String residencyReason(PreparedNodeExecution step) {
+        if (step != null && step.metadata().acceleratorExecutable() instanceof backend.metal.exec.PreparedMetalExecutable metal) {
+            return metal.lastExecutionStats().usedCpuFallback() ? "metal cpu fallback wrote CPU array" : "metal bridge copied output to CPU array";
+        }
+        return "backend wrote CPU array";
     }
 
     private static ExecutionStepTrace toStepTrace(int index, PreparedNodeExecution step, long durationNs, ExecutionContext context) {
@@ -345,13 +353,35 @@ public final class PreparedExecution {
         }
 
         if (metadata.acceleratorExecutable() instanceof backend.metal.exec.PreparedMetalExecutable metal) {
+            var metalStats = metal.lastExecutionStats();
             attrs.put("metalBridgeAvailable", metal.bridge().isAvailable());
             attrs.put("metalBridgeContextAvailable", metal.bridgeContext().available());
             attrs.put("metalBridgeExecutableAvailable", metal.bridgeExecutable().available());
             attrs.put("metalBridgeCacheHit", metal.bridgeExecutable().cacheHit());
+            attrs.put("metalSupportsBufferBindings", metal.bridge().supportsBufferBindings());
             attrs.put("metalSubgraphNodeCount", metal.plan().nodeIds().size());
             attrs.put("metalSubgraphOps", metal.plan().subgraph().ops().stream().map(op -> op.opType().name()).toList());
             attrs.put("metalEstimatedWork", metal.plan().estimatedWork());
+            attrs.put("metalUsedCpuFallback", metalStats.usedCpuFallback());
+            attrs.put("metalFallbackReason", metalStats.fallbackReason());
+            attrs.put("metalExecutionPath", metalStats.executionPath().name());
+            attrs.put("metalExternalInputCount", metalStats.externalInputCount());
+            attrs.put("metalOutputCount", metalStats.outputCount());
+            attrs.put("metalInputBytes", metalStats.inputBytes());
+            attrs.put("metalOutputBytes", metalStats.outputBytes());
+            attrs.put("metalJavaToNativeCopyNs", metalStats.javaToNativeCopyNs());
+            attrs.put("metalOutputAllocationNs", metalStats.outputAllocationNs());
+            attrs.put("metalNativeExecuteNs", metalStats.nativeExecuteNs());
+            attrs.put("metalNativeToJavaCopyNs", metalStats.nativeToJavaCopyNs());
+            attrs.put("metalBridgeTotalNs", metalStats.totalNs());
+        }
+        var residency = context.residencyForNodeId(node.id());
+        if (residency != null) {
+            attrs.put("storageResidency", residency.residency().name());
+            attrs.put("storageCpuCurrent", residency.cpuCurrent());
+            attrs.put("storageDeviceCurrent", residency.deviceCurrent());
+            attrs.put("storageDeviceBackend", residency.deviceBackend());
+            attrs.put("storageTransitionReason", residency.lastTransitionReason());
         }
 
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);

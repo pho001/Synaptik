@@ -223,4 +223,77 @@ public class BenchmarkSessionTest {
         String json = assertDoesNotThrow(() -> JsonBenchmarkReportRenderer.render(report));
         assertTrue(json.contains("\"vsBaseline\": null"));
     }
+
+    @Test
+    void renderersExposeMetalBridgeTransferDiagnostics() {
+        var profile = new ExecutionProfile(
+                "metal-candidate-profile",
+                "metal-candidate",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "metal_linear",
+                "LINEAR",
+                List.of(16, 16),
+                DataType.FLOAT32,
+                "GPU_METAL",
+                "PreparedMetalExecutable",
+                2_000_000L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.of(
+                                "metalBridgeAvailable", true,
+                                "metalExecutionPath", "TENSOR_ARRAY_COPY",
+                                "metalSupportsBufferBindings", false,
+                                "metalUsedCpuFallback", false,
+                                "metalInputBytes", 2048L,
+                                "metalOutputBytes", 1024L,
+                                "metalJavaToNativeCopyNs", 100_000L,
+                                "metalNativeExecuteNs", 1_500_000L,
+                                "metalNativeToJavaCopyNs", 200_000L
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        BenchmarkReport report = BenchmarkReport.of(
+                "metal_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("metal-candidate", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
+                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.BackendSelectionTrace.empty()),
+                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 2_000_000L, List.of(step))
+                                ),
+                                new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("metalPath=TENSOR_ARRAY_COPY"));
+        assertTrue(text.contains("metalFallback=false"));
+        assertTrue(text.contains("metalBytes=2048->1024"));
+        assertTrue(text.contains("metalNativeMs=1.500000"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"metalExecutionPath\": \"TENSOR_ARRAY_COPY\""));
+        assertTrue(json.contains("\"metalSupportsBufferBindings\": false"));
+        assertTrue(json.contains("\"metalInputBytes\": 2048"));
+        assertTrue(json.contains("\"metalNativeExecuteNs\": 1500000"));
+    }
 }

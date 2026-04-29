@@ -144,6 +144,7 @@ public final class TextBenchmarkReportRenderer {
                             sb.append(" backend=").append(backend);
                         }
                     }
+                    appendMetalHotStepSummary(sb, step);
                     sb.append('\n');
                 });
     }
@@ -347,5 +348,40 @@ public final class TextBenchmarkReportRenderer {
         }
         sb.append('}');
         return sb.toString();
+    }
+
+    private static void appendMetalHotStepSummary(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step) {
+        if (step == null || step.metadata() == null || step.metadata().attributes() == null) {
+            return;
+        }
+        Map<String, Object> attrs = step.metadata().attributes();
+        if (!attrs.containsKey("metalBridgeAvailable")) {
+            return;
+        }
+        Object path = attrs.get("metalExecutionPath");
+        if (path != null && !String.valueOf(path).isBlank()) {
+            sb.append(" metalPath=").append(path);
+        }
+        sb.append(" metalFallback=").append(attrs.getOrDefault("metalUsedCpuFallback", false));
+        Object inputBytes = attrs.get("metalInputBytes");
+        Object outputBytes = attrs.get("metalOutputBytes");
+        if (inputBytes != null || outputBytes != null) {
+            sb.append(" metalBytes=").append(inputBytes == null ? 0 : inputBytes)
+                    .append("->").append(outputBytes == null ? 0 : outputBytes);
+        }
+        sb.append(" metalCopyInMs=").append(formatNsAttr(attrs.get("metalJavaToNativeCopyNs")))
+                .append(" metalNativeMs=").append(formatNsAttr(attrs.get("metalNativeExecuteNs")))
+                .append(" metalCopyOutMs=").append(formatNsAttr(attrs.get("metalNativeToJavaCopyNs")));
+        Object reason = attrs.get("metalFallbackReason");
+        if (Boolean.TRUE.equals(attrs.get("metalUsedCpuFallback")) && reason != null && !String.valueOf(reason).isBlank()) {
+            sb.append(" reason=").append(reason);
+        }
+    }
+
+    private static String formatNsAttr(Object value) {
+        if (!(value instanceof Number number)) {
+            return "0.000000";
+        }
+        return String.format(Locale.US, "%.6f", number.longValue() / 1_000_000.0d);
     }
 }

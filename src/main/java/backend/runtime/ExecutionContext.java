@@ -4,6 +4,7 @@ import config.runtime.RuntimeConfig;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
 import graph.execution.trace.ConvTraceMetadata;
+import backend.memory.TensorResidencyState;
 import tensor.Tensor;
 
 import java.util.Collections;
@@ -155,6 +156,31 @@ public final class ExecutionContext {
             return null;
         }
         return executionState.nodeIdForRuntimeTensor(tensor);
+    }
+
+    /**
+     * Returns runtime residency state for a compiled node when this context has execution state.
+     *
+     * @param nodeId compiled node id
+     * @return residency state, or {@code null} for standalone contexts
+     */
+    public TensorResidencyState residencyForNodeId(int nodeId) {
+        if (executionState == null) {
+            return null;
+        }
+        return executionState.residencyForNodeId(nodeId);
+    }
+
+    /**
+     * Marks a node output as current in CPU array storage.
+     *
+     * @param nodeId compiled node id
+     * @param reason diagnostic transition reason
+     */
+    public void markCpuCurrent(int nodeId, String reason) {
+        if (executionState != null) {
+            executionState.markCpuCurrent(nodeId, reason);
+        }
     }
 
     /**

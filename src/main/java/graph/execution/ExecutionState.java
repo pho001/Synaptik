@@ -1,6 +1,7 @@
 package graph.execution;
 
 import backend.cpu.kernels.CpuNodeWorkspace;
+import backend.memory.TensorResidencyState;
 import graph.CompiledNode;
 import backend.cpu.plan.CpuPreparedInput;
 import tensor.Tensor;
@@ -26,17 +27,20 @@ public final class ExecutionState {
     private final Map<Integer, CpuNodeWorkspace> cpuWorkspaceByNodeId;
     private final Map<PreparedInputKey, Tensor> preparedInputTensorByKey;
     private final Map<Tensor, Integer> runtimeNodeIdByTensor;
+    private final Map<Integer, TensorResidencyState> residencyByNodeId;
 
     private ExecutionState(
             Map<Integer, Tensor> runtimeTensorByNodeId,
             Map<Integer, CpuNodeWorkspace> cpuWorkspaceByNodeId,
             Map<PreparedInputKey, Tensor> preparedInputTensorByKey,
-            Map<Tensor, Integer> runtimeNodeIdByTensor
+            Map<Tensor, Integer> runtimeNodeIdByTensor,
+            Map<Integer, TensorResidencyState> residencyByNodeId
     ) {
         this.runtimeTensorByNodeId = Map.copyOf(runtimeTensorByNodeId);
         this.cpuWorkspaceByNodeId = Map.copyOf(cpuWorkspaceByNodeId);
         this.preparedInputTensorByKey = Map.copyOf(preparedInputTensorByKey);
         this.runtimeNodeIdByTensor = Map.copyOf(runtimeNodeIdByTensor);
+        this.residencyByNodeId = Map.copyOf(residencyByNodeId);
     }
 
     /**
@@ -57,6 +61,7 @@ public final class ExecutionState {
 
         Map<Integer, Tensor> runtimeTensors = new HashMap<>(compiledNodes.size());
         Map<Tensor, Integer> runtimeNodeIds = new IdentityHashMap<>(compiledNodes.size());
+        Map<Integer, TensorResidencyState> residency = new HashMap<>(compiledNodes.size());
         for (CompiledNode node : compiledNodes) {
             Tensor runtimeTensor = new Tensor(
                     node.shape(),
@@ -74,6 +79,9 @@ public final class ExecutionState {
                 } else {
                     runtimeTensor.copyDataFrom(node.sourceTensor());
                 }
+                residency.put(node.id(), TensorResidencyState.cpuArrayCurrent("leaf runtime binding"));
+            } else {
+                residency.put(node.id(), TensorResidencyState.cpuArrayStale("runtime tensor allocated"));
             }
             runtimeTensors.put(node.id(), runtimeTensor);
             runtimeNodeIds.put(runtimeTensor, node.id());
@@ -119,7 +127,7 @@ public final class ExecutionState {
                 }
             }
         }
-        return new ExecutionState(runtimeTensors, workspaces, preparedInputs, runtimeNodeIds);
+        return new ExecutionState(runtimeTensors, workspaces, preparedInputs, runtimeNodeIds, residency);
     }
 
     /**
@@ -169,5 +177,29 @@ public final class ExecutionState {
      */
     public Integer nodeIdForRuntimeTensor(Tensor tensor) {
         return tensor == null ? null : runtimeNodeIdByTensor.get(tensor);
+    }
+
+    /**
+     * Returns runtime residency state for a compiled node.
+     *
+     * @param nodeId compiled node id
+     * @return mutable residency state for the runtime tensor
+     */
+    public TensorResidencyState residencyForNodeId(int nodeId) {
+        TensorResidencyState state = residencyByNodeId.get(nodeId);
+        if (state == null) {
+            throw new IllegalStateException("Missing runtime residency state for nodeId=" + nodeId);
+        }
+        return state;
+    }
+
+    /**
+     * Marks a node output as current in CPU array storage.
+     *
+     * @param nodeId compiled node id
+     * @param reason diagnostic transition reason
+     */
+    public void markCpuCurrent(int nodeId, String reason) {
+        residencyForNodeId(nodeId).markCpuCurrent(reason);
     }
 }

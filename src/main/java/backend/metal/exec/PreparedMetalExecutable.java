@@ -8,10 +8,12 @@ import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.metal.MetalMpsCapabilities;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
+import backend.metal.bridge.MetalMpsBridgeExecutionStats;
 import backend.metal.bridge.MetalMpsGraphBridge;
 import backend.runtime.ExecutionContext;
 import backend.lowering.LoweringFamily;
 import graph.CompiledNode;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -35,6 +37,13 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     private final MetalMpsBridgeContext bridgeContext;
     private final MetalMpsBridgeExecutable bridgeExecutable;
     private final List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps;
+    private volatile MetalMpsBridgeExecutionStats lastExecutionStats = MetalMpsBridgeExecutionStats.fallback(
+            "not executed yet",
+            0,
+            0,
+            0L,
+            0L
+    );
 
     /**
      * Creates a prepared Metal executable around a lowered plan and fallback plan.
@@ -70,23 +79,53 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
      */
     @Override
     public void execute(ExecutionContext context) {
-        if (shouldUseMetalBridge(context)
-                && PreparedAcceleratorExecutionSupport.bridgeReady(
-                bridge.isAvailable(),
-                bridgeContext.available(),
-                bridgeExecutable.available())) {
-            List<Tensor> resolvedExternalInputs = resolveExternalInputs(context);
-            List<Tensor> outputs = PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(
-                    bridgeExecutable.outputNodeIds(),
-                    context
-            );
-            if (resolvedExternalInputs.stream().allMatch(PreparedMetalExecutable::isSupportedMetalExternalInput)
-                    && outputs.stream().allMatch(PreparedMetalExecutable::isSupportedMetalOutput)) {
-                bridge.execute(bridgeContext, bridgeExecutable, resolvedExternalInputs, outputs);
-                return;
+        List<Tensor> resolvedExternalInputs = bridgeExecutable.externalInputNodeIds().isEmpty()
+                ? List.of()
+                : resolveExternalInputs(context);
+        List<Tensor> outputs = bridgeExecutable.outputNodeIds().isEmpty()
+                ? List.of()
+                : PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(bridgeExecutable.outputNodeIds(), context);
+        String fallbackReason = metalFallbackReason(context, resolvedExternalInputs, outputs);
+        if (fallbackReason.isBlank()) {
+            lastExecutionStats = bridge.execute(bridgeContext, bridgeExecutable, resolvedExternalInputs, outputs);
+            return;
+        }
+        lastExecutionStats = MetalMpsBridgeExecutionStats.fallback(
+                fallbackReason,
+                resolvedExternalInputs.size(),
+                outputs.size(),
+                byteSize(resolvedExternalInputs),
+                byteSize(outputs)
+        );
+        PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+    }
+
+    private String metalFallbackReason(ExecutionContext context, List<Tensor> resolvedExternalInputs, List<Tensor> outputs) {
+        if (!shouldUseMetalBridge(context)) {
+            return "backward pass contains forward SDPA DAG unsupported by current Metal bridge";
+        }
+        if (!bridge.isAvailable()) {
+            return "bridge unavailable: " + bridge.unavailableReason();
+        }
+        if (!bridgeContext.available()) {
+            return "bridge context unavailable: " + bridgeContext.reason();
+        }
+        if (!bridgeExecutable.available()) {
+            return "bridge executable unavailable: " + bridgeExecutable.reason();
+        }
+        for (int i = 0; i < resolvedExternalInputs.size(); i++) {
+            String reason = unsupportedExternalInputReason(resolvedExternalInputs.get(i));
+            if (!reason.isBlank()) {
+                return "external input " + i + " unsupported: " + reason;
             }
         }
-        PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+        for (int i = 0; i < outputs.size(); i++) {
+            String reason = unsupportedOutputReason(outputs.get(i));
+            if (!reason.isBlank()) {
+                return "output " + i + " unsupported: " + reason;
+            }
+        }
+        return "";
     }
 
     private boolean shouldUseMetalBridge(ExecutionContext context) {
@@ -121,26 +160,66 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         return List.copyOf(resolved);
     }
 
-    private static boolean isSupportedMetalExternalInput(Tensor tensor) {
-        if (tensor == null
-                || !tensor.isContiguous()
-                || tensor.hasStorageOffset()
-                || !MetalMpsCapabilities.supportsExternalInputDType(tensor.getDataType())) {
-            return false;
+    private static String unsupportedExternalInputReason(Tensor tensor) {
+        if (tensor == null) {
+            return "tensor is null";
+        }
+        if (!tensor.isContiguous()) {
+            return "tensor is not contiguous";
+        }
+        if (tensor.hasStorageOffset()) {
+            return "tensor has storage offset";
+        }
+        if (!MetalMpsCapabilities.supportsExternalInputDType(tensor.getDataType())) {
+            return MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         }
         return switch (tensor.getDataType()) {
-            case FLOAT32 -> tensor.getFloat32Data() != null;
-            case BOOL -> tensor.getBoolData() != null;
-            default -> false;
+            case FLOAT32 -> tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
+            case BOOL -> tensor.getBoolData() == null ? "missing direct bool[] storage" : "";
+            default -> MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
         };
     }
 
-    private static boolean isSupportedMetalOutput(Tensor tensor) {
-        return tensor != null
-                && tensor.isContiguous()
-                && !tensor.hasStorageOffset()
-                && MetalMpsCapabilities.supportsOutputDType(tensor.getDataType())
-                && tensor.getFloat32Data() != null;
+    private static String unsupportedOutputReason(Tensor tensor) {
+        if (tensor == null) {
+            return "tensor is null";
+        }
+        if (!tensor.isContiguous()) {
+            return "tensor is not contiguous";
+        }
+        if (tensor.hasStorageOffset()) {
+            return "tensor has storage offset";
+        }
+        if (!MetalMpsCapabilities.supportsOutputDType(tensor.getDataType())) {
+            return MetalMpsCapabilities.unsupportedDTypeMessage(tensor.getDataType());
+        }
+        return tensor.getFloat32Data() == null ? "missing direct float[] storage" : "";
+    }
+
+    private static long byteSize(List<Tensor> tensors) {
+        long bytes = 0L;
+        if (tensors == null) {
+            return 0L;
+        }
+        for (Tensor tensor : tensors) {
+            if (tensor != null) {
+                bytes += (long) tensor.getFlatDataSize() * elementByteSize(tensor.getDataType());
+            }
+        }
+        return bytes;
+    }
+
+    private static int elementByteSize(DataType dataType) {
+        if (dataType == null) {
+            return 0;
+        }
+        return switch (dataType) {
+            case FLOAT64 -> Double.BYTES;
+            case FLOAT32 -> Float.BYTES;
+            case BFLOAT16 -> Short.BYTES;
+            case BOOL -> Byte.BYTES;
+            case INT32 -> Integer.BYTES;
+        };
     }
 
     /**
@@ -176,5 +255,18 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
      */
     public MetalMpsBridgeExecutable bridgeExecutable() {
         return bridgeExecutable;
+    }
+
+    /**
+     * Returns diagnostics captured during the most recent execution attempt.
+     *
+     * <p>The value is updated for both Metal executions and CPU fallbacks, so
+     * trace rendering can explain why a selected Metal region did or did not
+     * enter the native bridge.</p>
+     *
+     * @return latest bridge execution diagnostics
+     */
+    public MetalMpsBridgeExecutionStats lastExecutionStats() {
+        return lastExecutionStats;
     }
 }
