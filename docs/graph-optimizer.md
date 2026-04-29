@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Graph Optimizer Guide
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Mechanisms](mechanisms.md) | [Configuration](configuration.md) | [Testing](testing.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Metal Backend](metal-backend.md) | [Mechanisms](mechanisms.md) | [Configuration](configuration.md) | [Testing](testing.md)
 
 Chapters: [Mental Model](#mental-model) | [DAG And Graph Vocabulary](#dag-and-graph-vocabulary) | [Global Versus Partition-Scoped Work](#global-versus-partition-scoped-work) | [Compiler Boundary](#compiler-boundary) | [OptimizerConfig](#optimizerconfig) | [Graph Region Policy Layers](#graph-region-policy-layers) | [Stage Ordering](#stage-ordering) | [OptimizerState](#optimizerstate) | [OptimizerTrace](#optimizertrace) | [Stage AR: Rewrite and Lowering](#stage-ar-rewrite-and-lowering) | [Stage CSE: Common Subexpression Elimination](#stage-cse-common-subexpression-elimination) | [Stage PART: Partition Planning](#stage-part-partition-planning) | [Stage FUSE: Region Optimization and Fusion](#stage-fuse-region-optimization-and-fusion) | [Stage MEM: Memory and Lifetime Planning](#stage-mem-memory-and-lifetime-planning) | [How the Stages Work Together](#how-the-stages-work-together) | [Adding or Changing Optimizer Behavior](#adding-or-changing-optimizer-behavior)
 
@@ -1222,12 +1222,15 @@ The current transfer metrics are deliberately simple and compile-time visible:
 
 | Metric | How it is estimated | Why it matters |
 |---|---|---|
-| `inputBytes` | Sum of logical byte sizes for `candidate.externalInputIds()` | Bytes that must enter the Metal region from outside. With today's bridge these are CPU-to-native/Metal copies unless the value later becomes resident. |
-| `outputBytes` | Sum of logical byte sizes for `candidate.outputNodeIds()` | Bytes that must leave the Metal region. Today's bridge copies these back into Java arrays, so output bytes are the most expensive boundary. |
+| `inputBytes` | Sum of logical byte sizes for `candidate.externalInputIds()` | Bytes that must enter the Metal region from outside. They may be uploaded from CPU storage, or reused from an existing Metal buffer binding when a previous Metal region already produced the value. |
+| `outputBytes` | Sum of logical byte sizes for `candidate.outputNodeIds()` | Bytes that must be made available outside the Metal region. With buffer binding, adjacent Metal consumers can reuse the output without Java-array copy-back; a real CPU boundary still materializes it. |
 | `avoidedIntermediateBytes` | Sum of logical byte sizes for selected nodes that are not region outputs | Intermediate bytes that can remain inside the selected region instead of being materialized at a boundary. |
 
 The transfer policy is selected by `PartitionConfig.metalTransferModel()`. The default is
-`MetalTransferModel.CONSERVATIVE`, which matches the current copy-based bridge:
+`MetalTransferModel.CONSERVATIVE`, which matches the current conservative bridge behavior: buffer bindings avoid
+Java-array round trips between adjacent Metal regions, but first CPU inputs, final CPU publication, and the native
+MPSGraph-result-to-output-buffer copy are still real costs. The low-level mechanics are explained in
+[Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
 ```text
 inputBytePenalty = 0.05
@@ -1276,16 +1279,17 @@ The transfer term is:
 = -707,788.8 score units
 ```
 
-That negative transfer pressure is intentional for the current copy-based bridge. It prevents the planner from choosing
-tiny Metal regions just because they are legal. Once shared-buffer or device-resident execution is real, graph autotune
-can justify less conservative transfer weights, but legality still remains non-tunable: dtype, mask semantics, rank
-support, and backend lowering correctness must be true before scoring starts.
+That negative transfer pressure is intentional for the current conservative Metal bridge. It prevents the planner from
+choosing tiny Metal regions just because they are legal. Buffer binding makes adjacent Metal regions cheaper than the
+old tensor-array copy path, but it does not eliminate all transfer/synchronization costs. Graph autotune can justify
+less conservative transfer weights only with benchmark and trace evidence. Legality still remains non-tunable: dtype,
+mask semantics, rank support, and backend lowering correctness must be true before scoring starts.
 
 Available transfer models:
 
 | Model | Input penalty | Output penalty | Avoided intermediate credit | Intended use |
 |---|---:|---:|---:|---|
-| `CONSERVATIVE` | `0.05` | `0.10` | `0.025` | Production default for the current FFM bridge, where outputs are synchronously copied back. |
+| `CONSERVATIVE` | `0.05` | `0.10` | `0.025` | Production default for the current FFM bridge, where buffer bindings exist but CPU boundaries and native result-copy costs still matter. |
 | `MEASURED` | `0.025` | `0.05` | `0.05` | Research preset for cases where measured transfer cost is lower or some boundary cost is amortized. |
 | `AGGRESSIVE` | `0.01` | `0.02` | `0.10` | Research preset that explores larger Metal regions. It should not be promoted without benchmark and trace evidence. |
 

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Framework Concepts
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Glossary](glossary.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Glossary](glossary.md)
 
 Chapters: [Tensors As Graph Nodes](#tensors-as-graph-nodes) | [Operation Descriptors](#operation-descriptors) | [Storage And Layout](#storage-and-layout) | [Broadcasting](#broadcasting) | [Compile, Prepare, Execute](#compile-prepare-execute) | [Autodiff](#autodiff) | [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-and-optimizer-stages) | [Profiles](#profiles) | [Tuning, Calibration, And Persistence](#tuning-calibration-and-persistence) | [Common Mental Pitfalls](#common-mental-pitfalls)
 
@@ -15,6 +15,7 @@ flowchart TD
     D --> E[PreparedExecution]
     E --> F[ComputeEngine]
     F --> G[CPU backend and kernels]
+    F --> J[Metal backend for selected FLOAT32 regions]
     H[ExecutionProfile] --> C
     H --> E
     I[Tuning and calibration] --> H

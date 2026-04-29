@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Glossary
 
-Navigation: [Index](index.md) | [Framework Concepts](framework-concepts.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Calibration & Autotune](calibration-autotune.md)
+Navigation: [Index](index.md) | [Framework Concepts](framework-concepts.md) | [Architecture](architecture.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md)
 
 Chapters: [A](#a) | [B](#b) | [C](#c) | [D](#d) | [E](#e) | [F](#f) | [G](#g) | [L](#l) | [M](#m) | [O](#o) | [P](#p) | [R](#r) | [S](#s) | [T](#t) | [W](#w)
 
@@ -131,11 +131,15 @@ Project-specific terms used in Synaptik, with source references.
 
 **Memory role**: Classification used by memory planning for temporaries, saved forward values, gradient targets, and related storage owners. Source: [`MemoryRole.java`](../src/main/java/graph/optimizer/memory/MemoryRole.java), [`NodeLifetime.java`](../src/main/java/graph/optimizer/memory/NodeLifetime.java).
 
-**Metal buffer binding**: Java-side descriptor for a future native Metal shared-buffer execution path. It ties a compiled node id, dtype, shape, element count, access intent, and native buffer handle together without exposing semantic `Tensor` objects to native code. Source: [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java).
+**Metal buffer binding**: Java-side descriptor for the current native Metal buffer execution path. It ties a compiled node id, dtype, shape, element count, access intent, and native buffer handle together without exposing semantic `Tensor` objects to native code. Source: [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [Metal Backend](metal-backend.md).
 
 **Metal bridge execution stats**: Per-execution diagnostics from the Metal MPSGraph bridge, including input/output bytes, Java-to-native copy time, native execute time, native-to-Java copy time, CPU fallback flag, and fallback reason. Source: [`MetalMpsBridgeExecutionStats.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java), [`PreparedMetalExecutable.java`](../src/main/java/backend/metal/exec/PreparedMetalExecutable.java).
 
-**Metal bridge execution path**: Trace label for the actual runtime path of a selected Metal executable: CPU fallback, current tensor-array copy bridge, or future explicit buffer-binding bridge. Source: [`MetalMpsBridgeExecutionPath.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
+**Metal bridge execution path**: Trace label for the actual runtime path of a selected Metal executable: CPU fallback, tensor-array copy bridge, or explicit buffer-binding bridge. Source: [`MetalMpsBridgeExecutionPath.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java), [Metal Backend: Trace Reading](metal-backend.md#trace-reading).
+
+**MPSGraph**: Apple's graph-level Metal Performance Shaders API used by the native shim to compile and run selected `FLOAT32` accelerator DAG regions. Synaptik calls it through the Objective-C shim, not directly from Java tensor code. Source: [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m), [Metal Backend](metal-backend.md).
+
+**MTLBuffer**: Metal buffer object used by the native shim to pass tensor bytes to and from MPSGraph. Java sees it only as an opaque handle inside `MetalBufferHandle`; ownership and release are handled by the native shim and run-scoped execution resources. Source: [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m), [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
 **Metal transfer model**: Graph-level scoring preset used by scored Metal partition planning to penalize input/output transfer bytes and credit avoided intermediate materialization. Source: [`MetalTransferModel.java`](../src/main/java/config/optimizer/MetalTransferModel.java), [`PartitionConfig.java`](../src/main/java/config/optimizer/PartitionConfig.java), [`ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/optimizer/partition/ScoredCandidatePartitionPlanner.java).
 

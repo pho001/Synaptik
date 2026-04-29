@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Documentation Index
 
-Navigation: [README](../README.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Calibration & Autotune](calibration-autotune.md) | [Public API](public-api.md) | [Examples](examples.md)
+Navigation: [README](../README.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md) | [Public API](public-api.md) | [Examples](examples.md)
 
 Chapters: [Recommended Reading Paths](#recommended-reading-paths) | [Document Map](#document-map) | [Source Documentation](#source-documentation) | [Verification Notes](#verification-notes)
 
@@ -43,10 +43,11 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 ### Metal and accelerator debugging path
 
 1. [Architecture: Accelerator Scaffolding](architecture.md#accelerator-scaffolding) - what the Metal/CUDA/OpenCL source layers contain and where the current Metal capability boundary is.
-2. [Architecture: Metal MPS Copy Chain](architecture.md#metal-mps-copy-chain) - why the current Metal bridge is still copy-based and which bridge stats are reported.
-3. [Compute Flow: Traces](compute-flow.md#traces) - how run traces expose Metal fallback, transfer timings, and storage residency.
-4. [Graph Optimizer: Scored Candidate Planner Deep Dive](graph-optimizer.md#scored-candidate-planner-deep-dive) - how Metal partition scoring accounts for input bytes, output bytes, and avoided intermediate bytes.
-5. [Calibration & Graph Autotune: Built-in workload catalogs](calibration-autotune.md#built-in-workload-catalogs) - transformer shape presets for stressing larger attention and FFN workloads.
+2. [Metal Backend](metal-backend.md) - detailed Java FFM, Objective-C shim, buffer ABI, storage residency, trace, and fallback mechanics.
+3. [Architecture: Metal MPS Buffer Execution And Copy Chain](architecture.md#metal-mps-buffer-execution-and-copy-chain) - how tensor-array and buffer-binding transport differ.
+4. [Compute Flow: Native buffer-binding Metal path](compute-flow.md#native-buffer-binding-metal-path) - how execution state keeps Metal outputs device-owned until materialization.
+5. [Graph Optimizer: Scored Candidate Planner Deep Dive](graph-optimizer.md#scored-candidate-planner-deep-dive) - how Metal partition scoring accounts for input bytes, output bytes, and avoided intermediate bytes.
+6. [Calibration & Graph Autotune: Built-in workload catalogs](calibration-autotune.md#built-in-workload-catalogs) - transformer shape presets for stressing larger attention and FFN workloads.
 
 ### Calibration and autotune path
 
@@ -63,6 +64,7 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 | [framework-concepts.md](framework-concepts.md) | First-principles mental models for tensors, semantic graphs, compiled graphs, prepared execution, backend policy, and tuning. |
 | [compute-flow.md](compute-flow.md) | Deep end-to-end walkthrough from graph building to `Tensor.compute(...)`, compile, prepare, execution, traces, and reuse rules. |
 | [graph-optimizer.md](graph-optimizer.md) | Deep explanation of optimizer configuration, state, trace, and every optimizer stage. |
+| [metal-backend.md](metal-backend.md) | Detailed Metal backend guide covering planner legality, Java FFM, Objective-C MPS shim, native buffer ABI, residency, traces, and fallbacks. |
 | [tensor-api.md](tensor-api.md) | Detailed public Tensor API guide with signatures, `compute(...)` options, edge cases, and value-level operation examples. |
 | [calibration-autotune.md](calibration-autotune.md) | Deep calibration/autotune guide covering families, parameters, candidate values, persistence, progress, and reports. |
 | [mechanisms.md](mechanisms.md) | Mechanism-oriented guide using a repeated problem/mental-model/walkthrough/example format. |

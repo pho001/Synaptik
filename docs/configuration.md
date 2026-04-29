@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Configuration
 
-Navigation: [Index](index.md) | [Calibration & Autotune](calibration-autotune.md) | [Compute Flow](compute-flow.md) | [Development](development.md) | [Testing](testing.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Calibration & Autotune](calibration-autotune.md) | [Compute Flow](compute-flow.md) | [Metal Backend](metal-backend.md) | [Development](development.md) | [Testing](testing.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Build Requirements](#build-requirements) | [OptimizerConfig](#optimizerconfig) | [RuntimeConfig](#runtimeconfig) | [Execution Profiles](#execution-profiles) | [Platform Runtime Profiles](#platform-runtime-profiles) | [Tuning And Calibration Persistence](#tuning-and-calibration-persistence) | [System Properties And Environment Variables](#system-properties-and-environment-variables) | [CLI Configuration Behavior](#cli-configuration-behavior) | [Verification Notes](#verification-notes)
 
@@ -338,7 +338,10 @@ new AcceleratorBackendConfig(
 
 `AcceleratorConfig.defaults()` enables CUDA, OpenCL, and Metal configs in policy. Runtime availability is not required by default. `AcceleratorConfig.disabled()` disables all three.
 
-Current capability note: the CPU backend is the only fully implemented execution backend. Metal, CUDA, and OpenCL packages expose scaffolding and selected bridge/lowering code, but they are not documented here as production-ready runtimes.
+Current capability note: CPU remains the broadest backend. Metal has a real MPSGraph FFM path for a tested `FLOAT32`
+subset, including native buffer binding when the shim exports the current buffer ABI; CUDA and OpenCL are still more limited
+from the documented source surface. The detailed Metal capability boundary, supported dtypes, buffer ABI, and fallback
+rules are in [Metal Backend](metal-backend.md).
 
 ## Execution Profiles
 

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Troubleshooting
 
-Navigation: [Index](index.md) | [Configuration](configuration.md) | [Testing](testing.md) | [Compute Flow](compute-flow.md) | [Tensor API](tensor-api.md) | [Calibration & Autotune](calibration-autotune.md)
+Navigation: [Index](index.md) | [Configuration](configuration.md) | [Testing](testing.md) | [Compute Flow](compute-flow.md) | [Metal Backend](metal-backend.md) | [Tensor API](tensor-api.md) | [Calibration & Autotune](calibration-autotune.md)
 
 Chapters: [Java Heap Space](#java-heap-space) | [Incubator Vector API](#incubator-vector-api) | [Missing Native Access](#missing-native-access) | [OpenBLAS Missing Or Unavailable](#openblas-missing-or-unavailable) | [Metal MPS Shim Missing](#metal-mps-shim-missing) | [CUDA Shim Missing](#cuda-shim-missing) | [Validation Mismatch In Benchmark Or Autotune](#validation-mismatch-in-benchmark-or-autotune) | [Shape And Broadcast Errors](#shape-and-broadcast-errors) | [Optimizer Rewrite Bugs](#optimizer-rewrite-bugs) | [Gradients Missing Or Wrong](#gradients-missing-or-wrong) | [Unsupported DType In A Kernel](#unsupported-dtype-in-a-kernel) | [CPU Kernel Resolution Failure](#cpu-kernel-resolution-failure) | [Performance Regressions](#performance-regressions) | [Generated Artifacts In Source Tree](#generated-artifacts-in-source-tree) | [Source Hygiene Architecture Failures](#source-hygiene-architecture-failures) | [Stale Or Missing Profile Artifacts](#stale-or-missing-profile-artifacts)
 
@@ -210,7 +210,9 @@ failed and fell back.
 For successful buffer execution, outputs are marked `DEVICE_OWNED` until root/gradient publication reads the Metal
 buffer back through the registered materializer. Seeing `metalNativeToJavaCopyNs=0` with a later
 `CpuMaterializationTrace` is expected: there was no Java array round-trip between Metal regions, but public tensors
-still become CPU-readable before `compute()` returns.
+still become CPU-readable before `compute()` returns. The full call path is described in
+[Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and
+[Metal Backend: Trace Reading](metal-backend.md#trace-reading).
 
 ## CUDA Shim Missing
 

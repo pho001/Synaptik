@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Development
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Modules](modules.md) | [Testing](testing.md) | [Configuration](configuration.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Modules](modules.md) | [Metal Backend](metal-backend.md) | [Testing](testing.md) | [Configuration](configuration.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Local Setup](#local-setup) | [Repository Structure](#repository-structure) | [Coding Patterns](#coding-patterns) | [Adding Tensor Ops](#adding-tensor-ops) | [Adding Backend Kernels](#adding-backend-kernels) | [Adding Optimizer Rules](#adding-optimizer-rules) | [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families) | [Documentation Workflow](#documentation-workflow) | [Operational Risks](#operational-risks)
 
@@ -156,7 +156,7 @@ For native or accelerator-adjacent paths:
 
 `buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
 
-Default Java lifecycle tasks stay portable: `classes`, `build`, and `check` do not depend on Metal native compilation. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior.
+Default Java lifecycle tasks stay portable: `classes`, `build`, and `check` do not depend on Metal native compilation. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior. The native ABI and Objective-C call path are documented in [Metal Backend](metal-backend.md).
 
 ## Adding Optimizer Rules
 

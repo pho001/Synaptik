@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Calibration And Graph Autotune
 
-Navigation: [Index](index.md) | [Configuration](configuration.md) | [Testing](testing.md) | [Examples](examples.md) | [Graph Optimizer](graph-optimizer.md) | [Compute Flow](compute-flow.md)
+Navigation: [Index](index.md) | [Configuration](configuration.md) | [Testing](testing.md) | [Examples](examples.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Compute Flow](compute-flow.md)
 
 Chapters: [Core Distinction](#core-distinction) | [Runtime And Graph Artifacts](#runtime-and-graph-artifacts) | [End-To-End Flow](#end-to-end-flow) | [Detailed Calibration Lifecycle](#detailed-calibration-lifecycle) | [Detailed Graph Autotune Lifecycle](#detailed-graph-autotune-lifecycle) | [CLI Entry Points](#cli-entry-points) | [Scenario Catalog And Configuration](#scenario-catalog-and-configuration) | [Ergonomic Fluent API](#ergonomic-fluent-api) | [Presets](#presets) | [Measurement Policy](#measurement-policy) | [Validation Policy](#validation-policy) | [Calibration Families](#calibration-families) | [Graph Autotune Parameters](#graph-autotune-parameters) | [Search Strategy](#search-strategy) | [Persistence And History Layout](#persistence-and-history-layout) | [Progress Rendering](#progress-rendering) | [Reports](#reports) | [Worked Example: Matmul Calibration](#worked-example-matmul-calibration) | [Worked Example: Graph Autotune Research Run](#worked-example-graph-autotune-research-run) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
@@ -2541,7 +2541,8 @@ Current graph autotune is deliberately small. It does not tune hardware proxy fi
 fused scoring knobs, arbitrary partition structural weights, or arbitrary optimizer stage order. Those are either
 runtime-facing, architectural pipeline contracts, or too broad to promote safely. `MetalTransferModel` is different:
 it is a graph-level profitability assumption for scored Metal ownership regions. It is still research-only today
-because the current Metal bridge remains copy-based; the conservative model is the production default.
+because the current Metal bridge has real buffer binding but still pays first-input, CPU-boundary, and native
+result-copy costs; the conservative model is the production default. See [Metal Backend: Performance Model](metal-backend.md#performance-model).
 
 ### `CURRENT_GRAPH_POLICY`
 

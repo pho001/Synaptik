@@ -1,11 +1,11 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik Architecture
 
-Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Calibration & Autotune](calibration-autotune.md) | [Modules](modules.md)
+Navigation: [Index](index.md) | [Tensor API](tensor-api.md) | [Compute Flow](compute-flow.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Calibration & Autotune](calibration-autotune.md) | [Modules](modules.md)
 
 Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core-artifact-boundaries) | [Graph Construction](#graph-construction) | [Compile Pipeline](#compile-pipeline) | [Optimizer And Partitioning](#optimizer-and-partitioning) | [Prepare Pipeline](#prepare-pipeline) | [Execution Pipeline](#execution-pipeline) | [CPU Backend](#cpu-backend) | [Accelerator Scaffolding](#accelerator-scaffolding) | [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning) | [Memory And Layout Model](#memory-and-layout-model) | [Tracing And Observability](#tracing-and-observability) | [Numerics Harness](#numerics-harness) | [Verification Anchors](#verification-anchors)
 
-Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. The fully implemented execution backend is CPU; Metal and CUDA have region lowering and executable scaffolding, while OpenCL currently exposes only a minimal no-op registry path.
+Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested `FLOAT32` subset, including native buffer binding between adjacent Metal regions; CUDA has region lowering and executable scaffolding; OpenCL currently exposes only a minimal no-op registry path.
 
 ## Table Of Contents
 
@@ -286,6 +286,8 @@ Accelerator support is present but not equivalent to the CPU backend.
 
 Needs verification: native Metal/CUDA runtime availability depends on machine-specific bridge loading and external native libraries, which cannot be proven from Java source alone. The source-level integration points are `backend.metal.bridge.*`, `backend.cuda.bridge.*`, and `backend.accelerator.select.AcceleratorRuntimeAvailability`.
 
+For the detailed Metal runtime, Java FFM, Objective-C shim, buffer ABI, and fallback mechanics, see [Metal Backend](metal-backend.md). This architecture document keeps the high-level boundaries; the Metal document follows the native call path in detail.
+
 ### Metal MPS Capability Boundary
 
 The current Metal path is intentionally narrower than the full tensor dtype model. `src/main/java/backend/metal/MetalMpsCapabilities.java` centralizes the Java-side contract for the native MPS bridge:
@@ -473,7 +475,7 @@ flowchart LR
     ExecutionState["ExecutionState\nper-run residency"]
     Binding["DeviceBufferBinding\nbackend-neutral descriptor"]
     MetalBinding["MetalBufferBinding\nnative handle + access"]
-    NativeAbi["Future native ABI\nbuffer descriptors"]
+    NativeAbi["Native buffer ABI\nbuffer descriptors"]
     MPS["MPSGraph execution"]
 
     JavaTensor --> ExecutionState
@@ -552,10 +554,10 @@ Runtime storage residency is represented separately from semantic tensor storage
 is current, whether a device representation is current, which backend owns the device representation, and why the last
 transition happened. The residency enum is:
 
-| Residency | Meaning today | Intended future use |
+| Residency | Meaning today | Runtime role |
 |---|---|---|
-| `CPU_ARRAY` | The current value is in normal typed Java tensor storage. This is the state produced by CPU kernels and by the current Metal copy-back path. | Baseline representation and materialization target for public tensor reads. |
-| `HOST_SHARED_DEVICE_BUFFER` | A host-visible buffer and Java CPU storage are both current. Metal uses this for uploaded inputs whose Java arrays are already current. | True shared-storage paths where the CPU representation is genuinely current. |
+| `CPU_ARRAY` | The current value is in normal typed Java tensor storage. This is the state produced by CPU kernels and by the legacy Metal copy-back path. | Baseline representation and materialization target for public tensor reads. |
+| `HOST_SHARED_DEVICE_BUFFER` | A host-visible buffer and Java CPU storage are both current. Metal uses this for uploaded inputs whose Java arrays are already current. | Shared input representation where the CPU representation is genuinely current. |
 | `DEVICE_OWNED` | The newest value is in a device/backend buffer and Java CPU arrays are stale. Metal buffer outputs use this state even when the underlying `MTLBuffer` is shared. | Device residency with explicit CPU materialization. |
 
 The important design point is that residency is per execution run, not part of the semantic graph. A `Tensor` still

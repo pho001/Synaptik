@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Testing
 
-Navigation: [Index](index.md) | [Development](development.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Compute Flow](compute-flow.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Development](development.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Compute Flow](compute-flow.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Test Framework And Setup](#test-framework-and-setup) | [Test Organization](#test-organization) | [Exact Commands](#exact-commands) | [Full Suite Duration And Heap Behavior](#full-suite-duration-and-heap-behavior) | [Targeted Test Patterns](#targeted-test-patterns) | [Debug And Benchmark Tests](#debug-and-benchmark-tests) | [Native And Optional Backend Tests](#native-and-optional-backend-tests) | [Source Hygiene Tests](#source-hygiene-tests) | [How To Interpret Failures](#how-to-interpret-failures)
 
@@ -250,6 +250,9 @@ Preferred Metal slice for day-to-day native verification:
 ```
 
 The task filters to Metal-specific tests, including `backend.metal.*` and `PreparedExecutionBuildTest.gpuMetal*`, and injects the `synaptik.metal.mps.lib` system property. If you need one isolated class or method, keep using `./gradlew test --tests ... -Dsynaptik.metal.mps.lib=...`.
+
+For what each Metal test proves, including the native buffer ABI and adjacent-region buffer handoff, see
+[Metal Backend: Tests](metal-backend.md#tests).
 
 Needs verification: CUDA shim build instructions are not present in the repository; only the Java bridge and tests were found.
 

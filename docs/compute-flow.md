@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Compute Flow
 
-Navigation: [Index](index.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Mechanisms](mechanisms.md) | [Troubleshooting](troubleshooting.md)
+Navigation: [Index](index.md) | [Architecture](architecture.md) | [Tensor API](tensor-api.md) | [Graph Optimizer](graph-optimizer.md) | [Metal Backend](metal-backend.md) | [Mechanisms](mechanisms.md) | [Troubleshooting](troubleshooting.md)
 
 Chapters: [Lifecycle Map](#lifecycle-map) | [Primary Artifacts](#primary-artifacts) | [Artifact Lifetimes And Storage](#artifact-lifetimes-and-storage) | [Graph Building](#graph-building) | [Tensor Compute API](#tensor-compute-api) | [Compile](#compile) | [Prepare](#prepare) | [Execution](#execution) | [Runtime State And Tracking](#runtime-state-and-tracking) | [Worked Example](#worked-example) | [Reuse Rules](#reuse-rules) | [Traces](#traces) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
@@ -957,7 +957,9 @@ ConvTraceMetadata trace = context.convTraceForNodeId(node.id());
 
 and attaches the result to `StepExecutionMetadata`.
 
-Storage residency is a side channel used by Metal observability and native buffer execution. `ExecutionState`
+Storage residency is a side channel used by Metal observability and native buffer execution. The Metal-specific buffer
+ABI and Objective-C shim are covered in [Metal Backend](metal-backend.md); this section focuses on how the compute
+runtime tracks the resulting state. `ExecutionState`
 allocates one `TensorResidencyState` per compiled node. `ExecutionContext.residencyForNodeId(...)` exposes that state to
 prepared executables, and `ExecutionContext.markCpuCurrent(...)` records the normal CPU-array result after a step writes
 Java tensor storage. `ExecutionContext.markDeviceCurrent(...)` is the corresponding state transition for a device
@@ -1060,7 +1062,7 @@ metalBufferBindingDecision = using native buffer bindings
 #### Residency state machine
 
 The runtime residency mechanism solves a specific problem: the framework needs to know whether a CPU read is safe after
-an accelerator step. Without explicit state, a future Metal path could write only a device buffer while the old Java
+an accelerator step. Without explicit state, the Metal buffer path could write only a device buffer while the old Java
 array still contains yesterday's bytes. Then root publication, gradient publication, or a CPU kernel could read stale
 data and silently return the wrong result.
 
@@ -1080,7 +1082,7 @@ State transitions implemented today:
 
 `markMaterializedToCpu(...)` is intentionally not a copy routine. It must be called only after the actual transfer has
 already happened. `DeviceToCpuMaterializer` is the callable version of that same contract: the backend performs the
-copy, returns a `CpuMaterializationResult`, and then execution state marks CPU storage current. The phase-46 Metal
+copy, returns a `CpuMaterializationResult`, and then execution state marks CPU storage current. The current Metal
 buffer path registers `MetalDeviceToCpuMaterializer` for this role: native buffer execution leaves outputs
 `DEVICE_OWNED`, and the materializer reads the active `MetalBufferBinding` back into the runtime tensor only at a CPU
 boundary such as root publication, gradient publication, or a CPU consumer.
