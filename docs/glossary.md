@@ -121,6 +121,14 @@ Project-specific terms used in Synaptik, with source references.
 
 **Memory role**: Classification used by memory planning for temporaries, saved forward values, gradient targets, and related storage owners. Source: [`MemoryRole.java`](../src/main/java/graph/optimizer/memory/MemoryRole.java), [`NodeLifetime.java`](../src/main/java/graph/optimizer/memory/NodeLifetime.java).
 
+**Metal buffer binding**: Java-side descriptor for a future native Metal shared-buffer execution path. It ties a compiled node id, dtype, shape, element count, access intent, and native buffer handle together without exposing semantic `Tensor` objects to native code. Source: [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java).
+
+**Metal bridge execution stats**: Per-execution diagnostics from the Metal MPSGraph bridge, including input/output bytes, Java-to-native copy time, native execute time, native-to-Java copy time, CPU fallback flag, and fallback reason. Source: [`MetalMpsBridgeExecutionStats.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java), [`PreparedMetalExecutable.java`](../src/main/java/backend/metal/exec/PreparedMetalExecutable.java).
+
+**Metal bridge execution path**: Trace label for the actual runtime path of a selected Metal executable: CPU fallback, current tensor-array copy bridge, or future explicit buffer-binding bridge. Source: [`MetalMpsBridgeExecutionPath.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
+
+**Metal transfer model**: Graph-level scoring preset used by scored Metal partition planning to penalize input/output transfer bytes and credit avoided intermediate materialization. Source: [`MetalTransferModel.java`](../src/main/java/config/optimizer/MetalTransferModel.java), [`PartitionConfig.java`](../src/main/java/config/optimizer/PartitionConfig.java), [`ScoredCandidatePartitionPlanner.java`](../src/main/java/graph/optimizer/partition/ScoredCandidatePartitionPlanner.java).
+
 ## O
 
 **Operation descriptor**: Immutable semantic descriptor implementing `Operation`. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md).
@@ -155,6 +163,8 @@ Project-specific terms used in Synaptik, with source references.
 
 **Run trace**: Execution-mode timing plus optional per-step trace metadata. Source: [`RunTrace.java`](../src/main/java/graph/execution/trace/RunTrace.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java).
 
+**Runtime storage residency**: Per-run state describing where the newest value for a compiled node is materialized: normal CPU array, host-shared device buffer, or device-owned buffer. Source: [`StorageResidency.java`](../src/main/java/backend/memory/StorageResidency.java), [`TensorResidencyState.java`](../src/main/java/backend/memory/TensorResidencyState.java), [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java).
+
 ## S
 
 **Semantic canonicalization**: Pre-autograd forward graph rebuilding into canonical semantic forms. Source: [`SemanticForwardCanonicalizer.java`](../src/main/java/graph/SemanticForwardCanonicalizer.java).
@@ -162,6 +172,8 @@ Project-specific terms used in Synaptik, with source references.
 **Source tensor mapping**: Mapping from canonicalized/optimized tensors back to original semantic tensors for publication and gradient binding. Source: [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
 
 **Storage offset**: Offset into backing storage for view tensors. Source: [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java).
+
+**Storage residency**: Physical residency class for a runtime tensor value, distinct from semantic tensor dtype/layout. `CPU_ARRAY` means Java typed storage is current; `HOST_SHARED_DEVICE_BUFFER` and `DEVICE_OWNED` are explicit states for shared-buffer or GPU-owned execution paths. Source: [`StorageResidency.java`](../src/main/java/backend/memory/StorageResidency.java).
 
 **Stride**: Per-axis step used to translate logical indices to storage positions. Source: [`TensorMetadata.java`](../src/main/java/tensor/TensorMetadata.java).
 

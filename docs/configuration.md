@@ -181,11 +181,16 @@ new PartitionConfig(
         60.0,   // externalInputPenalty
         1.0,    // workWeight
         PartitionPlannerStrategy.GREEDY_MAX_REGION,
-        PartitionTarget.AUTO
+        PartitionTarget.AUTO,
+        MetalTransferModel.CONSERVATIVE
 )
 ```
 
-`maxSearchNodes` and `maxVisitedCandidates` are clamped to at least `1`. Null strategy and target values default to `GREEDY_MAX_REGION` and `AUTO`.
+`maxSearchNodes` and `maxVisitedCandidates` are clamped to at least `1`. Null strategy and target values default to `GREEDY_MAX_REGION` and `AUTO`. Null `metalTransferModel` defaults to `CONSERVATIVE`.
+
+`metalTransferModel` is consumed only by scored Metal planning. It changes the transfer-cost weights used when
+`ScoredCandidatePartitionPlanner` evaluates `GPU_METAL` candidates. It does not make additional dtypes, operations,
+mask semantics, layouts, or native bridge modes legal.
 
 ## RuntimeConfig
 

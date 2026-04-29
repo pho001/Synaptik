@@ -767,7 +767,10 @@ Failures:
 Side effects:
 
 - Calibration writes profile, manifest, history, and report artifacts under `profiles/platform/<platform-id>/calibration/schema-v2/...` by default.
-- `autotune` writes `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json` and `<dtype>-history.jsonl`.
+- `autotune` writes `profiles/platform/<platform-id>/tuning/<workload-namespace>/<dtype>-best-profile.json`
+  and `<dtype>-history.jsonl`. The default namespace is `abc`; transformer shapes such as
+  `--workload transformer-block --shape large` use shape-specific namespaces such as
+  `transformer_block_hot_path_large`.
 - Benchmarks print text reports to standard output.
 
 ## Probably Internal APIs
@@ -781,6 +784,9 @@ These APIs are visible in Java but are implementation-oriented. Prefer the publi
 | `tensor.TensorStorage`, `Float64Storage`, `Float32Storage`, `BFloat16Storage`, `Int32Storage`, `BoolStorage` | `src/main/java/tensor/*.java` | Backing storage implementation, exposes mutable arrays. |
 | `tensor.TensorInternalAccess` | `src/main/java/tensor/TensorInternalAccess.java` | Internal access helper for backend/graph packages. |
 | `backend.ComputeEngine` | `src/main/java/backend/ComputeEngine.java` | Dispatches prepared compiled nodes; callers should use `Tensor`, `CompiledGraph`, or `PreparedExecution`. |
+| `backend.memory.StorageResidency`, `backend.memory.TensorResidencyState` | `src/main/java/backend/memory/*.java` | Public Java types because execution/trace code crosses packages, but they describe per-run runtime storage state rather than an application-facing tensor storage API. |
+| `backend.metal.buffer.MetalBufferAccess`, `MetalBufferHandle`, `MetalBufferBinding` | `src/main/java/backend/metal/buffer/*.java` | Java-side contract for a future native shared-buffer Metal bridge. The current FFM bridge still reports `supportsBufferBindings() == false`, so application code should not depend on these for zero-copy execution yet. |
+| `backend.metal.bridge.MetalMpsBridgeExecutionStats`, `MetalMpsBridgeExecutionPath` | `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java`, `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java` | Trace/report diagnostics for Metal bridge executions and fallbacks, surfaced through run trace attributes and benchmark reports rather than through normal tensor APIs. |
 | `backend.cpu.*`, `backend.metal.*`, `backend.cuda.*` | `src/main/java/backend/**/*.java` | Kernel implementations and native bridge plumbing. |
 | `graph.compile.*`, `graph.optimizer.*` | `src/main/java/graph/**/*.java` | Compile pipeline internals; only `CompiledGraph` is the general entry point. |
 | `tuning.candidate.*`, `tuning.search.*`, `tuning.measure.*` | `src/main/java/tuning/**/*.java` | Extensible tuning machinery; stable application workflows should use execution profiles, platform profiles, or the CLI. |

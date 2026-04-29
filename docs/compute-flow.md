@@ -929,6 +929,7 @@ It tracks:
 | `executionState` | Lets kernels resolve runtime tensors, workspaces, and prepared input tensors. |
 | `runtimeStateIndex` | Per-run identity map from runtime tensor to arbitrary runtime state. |
 | `convTraceIndex` | Per-run map from node id to convolution trace metadata. |
+| `residency` via `residencyForNodeId(...)` | Per-run state describing whether a compiled node's newest value is CPU-current or device-current. |
 
 The `runtimeStateIndex` is a side channel for kernels that need to attach temporary state to a runtime tensor during a run. It is synchronized and identity-based, so it distinguishes tensor objects by identity rather than by value equality.
 
@@ -955,6 +956,25 @@ ConvTraceMetadata trace = context.convTraceForNodeId(node.id());
 ```
 
 and attaches the result to `StepExecutionMetadata`.
+
+Storage residency is a newer side channel used by Metal observability and future zero-copy work. `ExecutionState`
+allocates one `TensorResidencyState` per compiled node. `ExecutionContext.residencyForNodeId(...)` exposes that state to
+prepared executables, and `ExecutionContext.markCpuCurrent(...)` records the normal CPU-array result after a step writes
+Java tensor storage.
+
+The current Metal bridge still copies outputs back into Java arrays, so a successful Metal step ends like this:
+
+```text
+node 42:
+  storageResidency = CPU_ARRAY
+  storageCpuCurrent = true
+  storageDeviceCurrent = false
+  storageTransitionReason = metal bridge copied output to CPU array
+```
+
+That is not a failure. It is the expected state for the current copy-based bridge. A future shared-buffer path should
+instead be able to leave a node in `HOST_SHARED_DEVICE_BUFFER` or `DEVICE_OWNED` until a CPU consumer, graph output
+publication, gradient publication, or public data accessor forces materialization.
 
 ### RuntimeMemoryBinder tracking
 
@@ -1411,6 +1431,37 @@ ExecutionStepTrace:
 ```
 
 When a step is an accelerator anchor, the attributes map can include bridge and executable details, for example Metal bridge availability, context availability, executable availability, cache hit, subgraph node count, subgraph ops, and estimated work.
+
+For Metal anchors, the attributes map also exposes bridge transfer diagnostics from
+`MetalMpsBridgeExecutionStats`:
+
+| Attribute | Meaning |
+|---|---|
+| `metalUsedCpuFallback` | `true` when the prepared Metal executable used CPU fallback instead of entering the native bridge. |
+| `metalFallbackReason` | Reason for fallback, such as unavailable bridge, unavailable executable, unsupported layout, or missing direct array storage. |
+| `metalExecutionPath` | Runtime path used for the attempt: `CPU_FALLBACK`, `TENSOR_ARRAY_COPY`, or future `BUFFER_BINDING`. |
+| `metalSupportsBufferBindings` | Whether the active bridge implementation supports explicit native buffer bindings. The current FFM bridge reports `false`. |
+| `metalExternalInputCount`, `metalOutputCount` | Number of external input tensors and output tensors resolved for the Metal executable. |
+| `metalInputBytes`, `metalOutputBytes` | Logical payload bytes crossing the current bridge boundary. |
+| `metalJavaToNativeCopyNs` | Time spent copying Java arrays into native bridge input memory. |
+| `metalOutputAllocationNs` | Time spent allocating temporary native output memory. |
+| `metalNativeExecuteNs` | Java-observed time inside the native execute call. |
+| `metalNativeToJavaCopyNs` | Time spent copying native output memory back into Java tensor arrays. |
+| `metalBridgeTotalNs` | Total measured bridge-boundary time. |
+
+Storage residency appears in the same attributes map:
+
+| Attribute | Meaning |
+|---|---|
+| `storageResidency` | Physical residency class, currently usually `CPU_ARRAY`. |
+| `storageCpuCurrent` | Whether CPU typed-array storage is current after the step. |
+| `storageDeviceCurrent` | Whether a device representation is current after the step. |
+| `storageDeviceBackend` | Backend label for the current device representation, if any. |
+| `storageTransitionReason` | Why the residency state last changed. |
+
+These fields prevent a common debugging mistake: `backend=GPU_METAL` does not imply zero-copy or long-lived GPU
+residency. In the current bridge, a real Metal execution can still report large copy-in/copy-out time and
+`storageResidency=CPU_ARRAY` because outputs are copied back at the region boundary.
 
 Trace tests verify that:
 

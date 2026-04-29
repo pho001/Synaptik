@@ -216,6 +216,7 @@ Main paths:
 - `src/main/java/backend/partition/**`
 - `src/main/java/backend/select/**`
 - `src/main/java/backend/runtime/**`
+- `src/main/java/backend/memory/**`
 - `src/main/java/backend/blas/**`
 - `src/main/java/backend/README.md`
 
@@ -230,6 +231,9 @@ Important support packages:
 - `backend.partition` registers partition descriptors and lowerers.
 - `backend.select` selects backend plans from candidates.
 - `backend.runtime` carries `ExecutionMode`, `ExecutionContext`, and run-scoped state access.
+- `backend.memory` carries backend-neutral runtime residency records such as `StorageResidency` and
+  `TensorResidencyState`. These records describe whether a run's newest value is CPU-current or device-current without
+  changing the semantic `Tensor` API.
 - `backend.blas` contains BLAS provider/runtime bridge abstractions.
 
 ## `backend.cpu`: CPU Backend Implementation
@@ -337,11 +341,16 @@ Shared accelerator code includes:
 
 Metal and CUDA have more complete source-level scaffolding than OpenCL:
 
-- Metal: legality adapter, partition plan, region lowerer, node preparer, prepared executable, MPS FFM bridge wrappers.
+- Metal: legality adapter, partition plan, region lowerer, node preparer, prepared executable, MPS FFM bridge wrappers,
+  bridge execution stats, and Java-side buffer binding contracts under `backend.metal.buffer`.
 - CUDA: legality adapter, partition plan, region lowerer, node preparer, prepared executable, CUDA FFM bridge wrappers.
 - OpenCL: backend and kernel registry classes exist, but `OpenClKernelRegistry` currently registers only `NOOP`.
 
 Needs verification: whether Metal or CUDA execution is available on a specific machine depends on native bridge availability and external runtime libraries. Source-level availability checks live in `backend.accelerator.select.AcceleratorRuntimeAvailability`.
+
+The Metal buffer package is a contract, not proof of zero-copy execution. `MetalBufferBinding`, `MetalBufferHandle`, and
+`MetalBufferAccess` define how a future native bridge should receive explicit buffer descriptors. The current
+`MetalMpsFfmBridge` still reports `supportsBufferBindings() == false` and executes through tensor arrays.
 
 ## `config`: Optimizer, Runtime, And Profile Records
 

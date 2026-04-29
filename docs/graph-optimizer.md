@@ -1144,6 +1144,7 @@ externalInputPenalty = 60.0
 workWeight = 1.0
 plannerStrategy = GREEDY_MAX_REGION
 target = AUTO
+metalTransferModel = CONSERVATIVE
 ```
 
 These are shared planning/search values. They are not the complete graph policy anymore. In `AUTO` mode the actual planning jobs are resolved from `OffloadConfig` and `CpuRegionConfig`.
@@ -1202,6 +1203,89 @@ The accepted partition is therefore the largest greedy legal region found from t
 - backend plan attachment result
 
 The score uses signals such as node count, internal edges, merge-node bonus, tail depth, external input penalty, and estimated work. A candidate still needs backend legality: a high score is not enough if the adapter cannot produce a valid `PartitionPlan`.
+
+For Metal targets, the accepted-candidate score is now transfer-aware. `ScoredCandidatePartitionPlanner` calls the
+overload of `AcceleratorPartitionScoreModel.acceptedScore(...)` that receives `TransferMetrics` when
+`PartitionTarget.GPU_METAL` is being planned. CPU and CUDA continue to use the older work-only accepted score.
+
+The current transfer metrics are deliberately simple and compile-time visible:
+
+| Metric | How it is estimated | Why it matters |
+|---|---|---|
+| `inputBytes` | Sum of logical byte sizes for `candidate.externalInputIds()` | Bytes that must enter the Metal region from outside. With today's bridge these are CPU-to-native/Metal copies unless the value later becomes resident. |
+| `outputBytes` | Sum of logical byte sizes for `candidate.outputNodeIds()` | Bytes that must leave the Metal region. Today's bridge copies these back into Java arrays, so output bytes are the most expensive boundary. |
+| `avoidedIntermediateBytes` | Sum of logical byte sizes for selected nodes that are not region outputs | Intermediate bytes that can remain inside the selected region instead of being materialized at a boundary. |
+
+The transfer policy is selected by `PartitionConfig.metalTransferModel()`. The default is
+`MetalTransferModel.CONSERVATIVE`, which matches the current copy-based bridge:
+
+```text
+inputBytePenalty = 0.05
+outputBytePenalty = 0.10
+avoidedIntermediateByteCredit = 0.025
+```
+
+So the Metal accepted score is conceptually:
+
+```text
+score =
+  structuralScore
+  + estimatedWork * workWeight
+  - inputBytes * 0.05
+  - outputBytes * 0.10
+  + avoidedIntermediateBytes * 0.025
+```
+
+Worked example:
+
+```text
+candidate nodes:
+  n10 matmul output  [8, 256, 768] FLOAT32  -> 6,291,456 bytes
+  n11 add output     [8, 256, 768] FLOAT32  -> 6,291,456 bytes
+  n12 tanh output    [8, 256, 768] FLOAT32  -> 6,291,456 bytes
+
+external inputs:
+  x, w, b -> 7,864,320 logical bytes total
+
+region output:
+  n12 -> 6,291,456 bytes
+
+avoided intermediates:
+  n10 + n11 -> 12,582,912 bytes
+```
+
+The transfer term is:
+
+```text
+  - 7,864,320 * 0.05
+  - 6,291,456 * 0.10
+  + 12,582,912 * 0.025
+= -393,216
+  -629,145.6
+  +314,572.8
+= -707,788.8 score units
+```
+
+That negative transfer pressure is intentional for the current copy-based bridge. It prevents the planner from choosing
+tiny Metal regions just because they are legal. Once shared-buffer or device-resident execution is real, graph autotune
+can justify less conservative transfer weights, but legality still remains non-tunable: dtype, mask semantics, rank
+support, and backend lowering correctness must be true before scoring starts.
+
+Available transfer models:
+
+| Model | Input penalty | Output penalty | Avoided intermediate credit | Intended use |
+|---|---:|---:|---:|---|
+| `CONSERVATIVE` | `0.05` | `0.10` | `0.025` | Production default for the current FFM bridge, where outputs are synchronously copied back. |
+| `MEASURED` | `0.025` | `0.05` | `0.05` | Research preset for cases where measured transfer cost is lower or some boundary cost is amortized. |
+| `AGGRESSIVE` | `0.01` | `0.02` | `0.10` | Research preset that explores larger Metal regions. It should not be promoted without benchmark and trace evidence. |
+
+`GraphPolicyMutators.research(...)` exposes `metalTransfer=measured+accelRegion=scored` and
+`metalTransfer=aggressive+accelRegion=scored` as non-production graph-autotune candidates. That makes the scoring
+assumption measurable without changing the legal operation set or the runtime Metal bridge.
+
+Metal legality is still separate from scoring. `MetalPartitionSupport.plannerUnsupportedReason(...)` names important
+unsupported cases, including direct forward SDPA and masked SDPA. A low transfer penalty cannot make those nodes legal;
+it can only change the score of candidates that already pass the Metal allowlist and lowering checks.
 
 ### CPU Natural Region Planner Deep Dive
 

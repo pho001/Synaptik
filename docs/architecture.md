@@ -299,6 +299,19 @@ That boundary is checked in two places for different reasons. `MetalRegionLegali
 
 Direct forward `SCALED_DOT_PRODUCT_ATTENTION` is not currently selected for Metal partitions. The lowerer can encode the operation scale into the accelerator DAG scalar bits, but native verification showed that the MPSGraph SDPA scale contract does not match the framework's CPU semantics for the tested call shape. Until that contract is resolved, direct SDPA remains CPU/fallback. The same caution applies to masks: masked `where(mask, scores, fill) -> softmax -> matmul` is left as a generic DAG instead of being converted to native `SDPA` with a bool mask, because the verified MPSGraph SDPA mask operand expects a floating mask tensor.
 
+The source-level SDPA support matrix is:
+
+| Attention form | Planner status | Reason |
+|---|---|---|
+| Direct unmasked forward `SCALED_DOT_PRODUCT_ATTENTION` | Rejected by `MetalPartitionSupport.plannerUnsupportedReason(...)` | Native MPSGraph scale semantics are not verified to match CPU output for the tested contract. |
+| Direct masked/causal forward SDPA | Rejected by `MetalPartitionSupport.plannerUnsupportedReason(...)` | Synaptik public masks are `BOOL`; verified MPSGraph SDPA mask input expects floating mask semantics. |
+| Generic lowered attention-like `matmul -> scale -> softmax -> matmul` fragments | Legal only for operations already in the Metal allowlist | This keeps tested primitive pieces available without pretending native direct SDPA is equivalent. |
+| `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` fragments | Present in the backward allowlist | Training flow is still guarded by `PreparedMetalExecutable`, which falls back when a forward SDPA DAG appears in backward execution. |
+
+This is intentionally conservative. The planner can explain why direct SDPA did not enter a Metal region, while
+`AcceleratorSubgraphLowerer` still contains the future DAG encoding path so native verification can be added without
+redesigning the accelerator DAG format.
+
 ### Metal MPS Copy Chain
 
 The current Metal bridge is not zero-copy. A float32 Metal execution moves data through these ownership domains:
@@ -310,6 +323,39 @@ The current Metal bridge is not zero-copy. A float32 Metal execution moves data 
 5. The tensor marks its data view stale so later Java reads see the updated storage state.
 
 This design keeps CPU fallback and Java tensor ownership simple, but it means Metal execution currently pays host copy costs around the native call. A true zero-copy path would need a larger storage design: native-backed `TensorStorage`, explicit `MTLBuffer` ownership/lifetime, synchronization rules between Metal writes and Java reads, fallback materialization back to CPU-visible arrays, and tracing/memory accounting for off-heap buffers. The current architecture chooses correctness and predictable fallback over a partial second memory model.
+
+The copy chain is now measured explicitly. `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java`
+is returned from `MetalMpsGraphBridge.execute(...)` and records logical input/output byte counts plus timing
+buckets around the bridge boundary:
+
+| Stat | Meaning |
+|---|---|
+| `inputBytes`, `outputBytes` | Logical payload volume crossing the Metal bridge boundary. These are derived from tensor dtype and element count, not from native allocator bookkeeping. |
+| `javaToNativeCopyNs` | Java-side time spent copying CPU tensor arrays into FFM/native input memory. |
+| `outputAllocationNs` | Java-side time spent allocating temporary native output memory for the current bridge call. |
+| `nativeExecuteNs` | Wall time observed around the native execute function call. This includes native MPSGraph work and any synchronization hidden by the native shim. |
+| `nativeToJavaCopyNs` | Java-side time spent copying native output memory back into Java tensor arrays. |
+| `usedCpuFallback`, `fallbackReason` | Whether `PreparedMetalExecutable` served the step through CPU fallback and the reason. |
+| `executionPath` | One of `CPU_FALLBACK`, `TENSOR_ARRAY_COPY`, or future `BUFFER_BINDING`. Current successful FFM executions report `TENSOR_ARRAY_COPY`. |
+
+`PreparedMetalExecutable` publishes those stats into run trace attributes through
+`src/main/java/graph/execution/PreparedExecution.java`. Benchmark reports can therefore answer the
+question "did this step actually run through Metal, and how much of its time was boundary transfer?"
+without guessing from the selected backend label alone.
+
+### Metal Buffer Binding Contract
+
+The repository now has a Java-side contract for the future shared-buffer bridge under
+`src/main/java/backend/metal/buffer`:
+
+- `MetalBufferHandle` is an opaque native handle plus byte length, storage mode, owner label, and lifetime flag.
+- `MetalBufferAccess` distinguishes `READ`, `WRITE`, and `READ_WRITE` intent.
+- `MetalBufferBinding` ties a compiled node id, dtype, shape, element count, handle, and access mode together.
+
+This is intentionally not yet a production zero-copy implementation. `MetalMpsGraphBridge.supportsBufferBindings()`
+defaults to `false`, and the current FFM bridge still executes through tensor arrays. The value of the contract is
+architectural: future native ABI work can pass buffer descriptors to the bridge without teaching native code about
+semantic `Tensor` objects or making `Tensor` construction allocate device resources.
 
 ## Configuration, Profiles, And Tuning
 
@@ -356,6 +402,23 @@ Layout is first-class in both semantic tensors and runtime execution. `TensorMet
 The `MEM` optimizer stage produces a `MemoryPlan` under `src/main/java/graph/optimizer/memory`. `PreparedExecution` passes that plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives in `ExecutionState`.
 
 The architecture supports view-like behavior without treating every layout operation as a dense copy. The CPU layout kernels under `src/main/java/backend/cpu/kernels/layout` include alias/view, expand, permute, contiguous, reshape-like, and noop paths.
+
+Runtime storage residency is represented separately from semantic tensor storage. `ExecutionState` now creates a
+`backend.memory.TensorResidencyState` for each compiled node. That state records whether the CPU array representation
+is current, whether a device representation is current, which backend owns the device representation, and why the last
+transition happened. The residency enum is:
+
+| Residency | Meaning today | Intended future use |
+|---|---|---|
+| `CPU_ARRAY` | The current value is in normal typed Java tensor storage. This is the state produced by CPU kernels and by the current Metal copy-back path. | Baseline representation and materialization target for public tensor reads. |
+| `HOST_SHARED_DEVICE_BUFFER` | Representable state for a host-visible buffer usable by a device backend. The current Metal FFM path does not yet produce this state. | First zero-copy step for shared Metal buffers. |
+| `DEVICE_OWNED` | Representable state for a value whose newest copy is owned by a device backend. The current Metal FFM path does not yet produce this state. | Long-lived GPU residency with lazy CPU materialization. |
+
+The important design point is that residency is per execution run, not part of the semantic graph. A `Tensor` still
+means "this value in the user's graph"; residency means "where this run currently has the newest materialized bytes for
+compiled node N." In the current implementation, `PreparedExecution` marks each executed step as CPU-current after the
+step completes. For Metal this is honest: even a successful Metal bridge call copies outputs back into Java arrays, so
+the trace should say `CPU_ARRAY`, not pretend that the value stayed on the GPU.
 
 ## Tracing And Observability
 
@@ -486,7 +549,7 @@ record can carry:
 | `matMul` | CPU matmul hints | BLAS use, batched BLAS use, parallelism, tiles, work estimate, micro-kernel |
 | `conv` | `ExecutionContext.publishConvTrace(...)` side channel | conv lowering kind, BLAS provider, GEMM dimensions, Java/BLAS call counts |
 | `fused` | `operations.FusedOperation` and prepared fused executable | fused precision, dispatch family, scheduler signature, backend, node/input counts |
-| `attributes` | accelerator prepared executables | Metal bridge availability, executable cache status, subgraph op list, estimated work |
+| `attributes` | accelerator prepared executables and runtime storage state | Metal bridge availability, executable cache status, subgraph op list, estimated work, Metal transfer timings, storage residency |
 
 The convolution metadata path is worth calling out because it is not known completely at prepare
 time. Kernels can publish per-run convolution details into `ExecutionContext` via
@@ -495,15 +558,16 @@ time. Kernels can publish per-run convolution details into `ExecutionContext` vi
 
 ### Runtime State Side Channels
 
-`ExecutionContext` in `src/main/java/backend/runtime/ExecutionContext.java` carries two synchronized
-side maps:
+`ExecutionContext` in `src/main/java/backend/runtime/ExecutionContext.java` carries synchronized
+side maps plus per-node residency state:
 
 - `runtimeStateIndex`, keyed by tensor identity, for backend-specific temporary state
 - `convTraceIndex`, keyed by compiled node id, for convolution trace metadata
+- storage residency state, keyed by compiled node id through `ExecutionState`
 
 These maps are per-run context, not shared global state. They let backend helpers exchange prepared
 state and diagnostics without mutating compile artifacts. The execution scheduler still controls the
-ordered prepared steps, runtime tensors, and workspaces through `ExecutionState`.
+ordered prepared steps, runtime tensors, workspaces, and residency records through `ExecutionState`.
 
 The important ownership rule is that traces describe decisions already made elsewhere:
 

@@ -36,9 +36,17 @@ This directory is the implementation-grounded documentation set for Synaptik. It
 ### Optimizer and runtime path
 
 1. [Compute Flow](compute-flow.md) - the lifecycle from semantic graph to prepared runtime execution.
-2. [Graph Optimizer](graph-optimizer.md) - stage-by-stage optimizer mechanics.
+2. [Graph Optimizer](graph-optimizer.md) - stage-by-stage optimizer mechanics, including CPU natural regions, accelerator ownership regions, and Metal transfer-aware region scoring.
 3. [Mechanisms](mechanisms.md) - cross-cutting mechanisms such as graph construction, compilation, preparation, memory planning, and dispatch.
 4. [Configuration](configuration.md) - optimizer/runtime knobs, system properties, native lookup, and profile layout.
+
+### Metal and accelerator debugging path
+
+1. [Architecture: Accelerator Scaffolding](architecture.md#accelerator-scaffolding) - what the Metal/CUDA/OpenCL source layers contain and where the current Metal capability boundary is.
+2. [Architecture: Metal MPS Copy Chain](architecture.md#metal-mps-copy-chain) - why the current Metal bridge is still copy-based and which bridge stats are reported.
+3. [Compute Flow: Traces](compute-flow.md#traces) - how run traces expose Metal fallback, transfer timings, and storage residency.
+4. [Graph Optimizer: Scored Candidate Planner Deep Dive](graph-optimizer.md#scored-candidate-planner-deep-dive) - how Metal partition scoring accounts for input bytes, output bytes, and avoided intermediate bytes.
+5. [Calibration & Graph Autotune: Built-in workload catalogs](calibration-autotune.md#built-in-workload-catalogs) - transformer shape presets for stressing larger attention and FFN workloads.
 
 ### Calibration and autotune path
 

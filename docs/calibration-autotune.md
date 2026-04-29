@@ -317,7 +317,9 @@ benchmarking without CLI parsing.
 ./gradlew run --args="calibrate --dtype <f64|f32|bf16> --families all"
 ./gradlew run --args="calibrate --dtypes all --families all"
 ./gradlew run --args="autotune <f64|f32|bf16>"
+./gradlew run --args="autotune --dtype <f64|f32|bf16> --workload <abc|transformer-block> --shape <shape>"
 ./gradlew run --args="benchmark-winner <f64|f32|bf16>"
+./gradlew run --args="benchmark-winner --dtype <f64|f32|bf16> --workload <abc|transformer-block> --shape <shape>"
 ./gradlew run --args="benchmark-graph-space <f64|f32|bf16>"
 ```
 
@@ -340,6 +342,40 @@ Calibration-specific options are parsed by `CalibrationCommand`:
 Production CLI graph autotune defaults to `GraphAutotuneMode.STANDARD`. `TuningCli` also exposes
 `--graph-mode research` for explicit research-mode runs.
 
+Autotune and benchmark share these workload options:
+
+| Option | Values | Meaning |
+|---|---|---|
+| `--workload` | `abc`, `transformer-block`, `transformer-hot-path` | Selects the workload factory used to build the measured graph. `abc` remains the default. |
+| `--shape` | `medium`, `large`, `long-seq`, `ffn-heavy`, `attention-heavy` | Selects a named transformer shape preset. Ignored for `abc`. |
+| `--graph-mode` | `standard`, `research` | Selects the graph candidate space for autotune or graph-space benchmark. |
+| `--profile-root` | path | Root for calibration and graph winner artifacts. Default is `profiles`. |
+| `--measurement` | `warmup:measure:repeats` | Overrides benchmark/autotune measurement loop counts while preserving preset trace flags. |
+
+The shape option changes both the generated workload dimensions and the persistence namespace for transformer workloads.
+For example:
+
+```bash
+./gradlew run --args="autotune.run --dtype f32 --workload transformer-block --shape large --measurement 10:100:2"
+./gradlew run --args="benchmark.winner --dtype f32 --workload transformer-block --shape large --measurement 10:100:2"
+```
+
+This writes and reads the best graph profile under:
+
+```text
+profiles/platform/<platform-id>/tuning/transformer_block_hot_path_large/f32-best-profile.json
+profiles/platform/<platform-id>/tuning/transformer_block_hot_path_large/f32-history.jsonl
+```
+
+The default `medium` transformer shape keeps the original namespace:
+
+```text
+profiles/platform/<platform-id>/tuning/transformer_block_hot_path/f32-best-profile.json
+```
+
+That separation is important because a winner for a medium sequence length should not overwrite a winner measured on a
+larger attention-heavy shape.
+
 ## Scenario Catalog And Configuration
 
 This section is the practical "how do I run this?" map for the calibration, autotune, and benchmark code. The important rule is that Synaptik has several scenario types, but they all converge on the same measurement primitives:
@@ -360,9 +396,9 @@ The code deliberately keeps those concerns separate. Calibration is configured b
 | Single-family calibration | `calibrate --dtype f64 --family matmul` | `CalibrationCommand.parse(...)` then `CalibrationRunner.create().run(...)` | `CalibrationCommand` | Runtime candidates owned by one calibration family | Calibration run artifacts and latest profile for the dtype/mode |
 | All-family calibration | `calibrate --dtype f64 --families all` | Same as above | `CalibrationCommand` | Standard family suite in registry order | Calibration run artifacts, family history, latest profile |
 | All-dtype calibration | `calibrate --dtypes all --families all` | Same as above | `CalibrationCommand` | Standard family suite for `FLOAT64`, `FLOAT32`, and `BFLOAT16` | Separate latest profile per dtype/mode |
-| Standard graph autotune | `autotune f64` | `TuningCli.runAutotune(...)` | `GraphAutotuneRequest` | Production graph-policy candidates for ABC workload with calibrated runtime profile | `profiles/platform/<platform-id>/tuning/abc/f64-best-profile.json` and `f64-history.jsonl` |
-| Winner benchmark | `benchmark-winner f64` | `TuningCli.runWinnerBenchmark(...)` | `BenchmarkRequest` from `TuningDefaults.benchmark(...)` | Baseline profile versus saved ABC best profile | No best-profile update; prints benchmark report |
-| Graph-space benchmark | `benchmark-graph-space f64` | `TuningCli.runGraphSpaceBenchmark(...)` | `BenchmarkRequest` with entries from `GraphAutotuneCandidateSpace` | Baseline plus standard graph candidate space | No best-profile update; prints benchmark report |
+| Standard graph autotune | `autotune f64` or `autotune --dtype f32 --workload transformer-block --shape large` | `TuningCli.runAutotune(...)` | `GraphAutotuneRequest` | Production graph-policy candidates for one workload namespace with calibrated runtime profile | `profiles/platform/<platform-id>/tuning/<namespace>/<dtype>-best-profile.json` and `<dtype>-history.jsonl` |
+| Winner benchmark | `benchmark-winner f64` or `benchmark-winner --dtype f32 --workload transformer-block --shape large` | `TuningCli.runWinnerBenchmark(...)` | `BenchmarkRequest` from `TuningDefaults.benchmark(...)` | Baseline profile versus saved best graph profile for the same namespace | No best-profile update; prints benchmark report |
+| Graph-space benchmark | `benchmark-graph-space f64` or `benchmark-graph-space --dtype f32 --workload transformer-block --shape large` | `TuningCli.runGraphSpaceBenchmark(...)` | `BenchmarkRequest` with entries from `GraphAutotuneCandidateSpace` | Baseline plus graph candidate space for one workload namespace | No best-profile update; prints benchmark report |
 | Programmatic custom workload | No direct CLI command | Caller builds request in Java | `TensorRootWorkloadSpec`, `GraphAutotuneRequest`, `BenchmarkRequest`, or `CalibrationCommand` | Whatever workload and candidate set the caller supplies | Depends on supplied `PersistencePolicy` or calibration output root |
 
 `benchmark-graph-space` is easy to misread. In the default `TuningCli` path it creates
@@ -868,6 +904,38 @@ There are two main workload catalogs:
 | `cross_entropy_small` | Indexed loss | Batch `8`, classes `16`, mean reduction. |
 | `transformer_hot_path` | Transformer-like hot path | Constructed by `TransformerHotPathWorkloadSpec`. |
 
+Transformer workloads can now be generated from named shape presets through `WorkloadProfile` and the CLI `--shape`
+option. `StandardWorkloads.defaultCatalog()` registers separate built-in names for the larger presets, and
+`TuningCli` also creates shape-specific names dynamically for command-line runs:
+
+| Shape id | WorkloadProfile factory | Batch | Heads | Seq len | Head dim | Value dim | FFN hidden | Intended stress |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| `medium` | `transformerHotPathMedium()` | 8 | 8 | 128 | 64 | 64 | 2048 | Continuity baseline and default transformer hot path. |
+| `large` | `transformerHotPathLarge()` | 8 | 12 | 256 | 64 | 64 | 3072 | Larger mixed transformer block with more matmul and attention work. |
+| `long_seq` / CLI `long-seq` | `transformerHotPathLongSeq()` | 4 | 8 | 512 | 64 | 64 | 2048 | Attention, softmax, layout, and SDPA-like sequence pressure. |
+| `ffn_heavy` / CLI `ffn-heavy` | `transformerHotPathFfnHeavy()` | 8 | 8 | 128 | 64 | 64 | 4096 | Feed-forward projection and BLAS/matmul pressure. |
+| `attention_heavy` / CLI `attention-heavy` | `transformerHotPathAttentionHeavy()` | 8 | 16 | 256 | 64 | 64 | 2048 | More heads and wider model dimension for attention-heavy graphs. |
+
+Example namespace mapping:
+
+```text
+--workload transformer-block --shape medium
+  namespace = transformer_block_hot_path
+  workload name = transformer_block_hot_path_medium_f32
+
+--workload transformer-block --shape large
+  namespace = transformer_block_hot_path_large
+  workload name = transformer_block_hot_path_large_f32
+
+--workload transformer-hot-path --shape long-seq
+  namespace = transformer_hot_path_long_seq
+  workload name = transformer_hot_path_long_seq_f32
+```
+
+The workload profile becomes part of the `ExecutionProfile` metadata. That lets benchmark and history records show
+whether a profile was measured on the generic ABC path, the medium transformer path, or a larger transformer stress
+shape. Calibration remains per platform/dtype/mode; graph autotune winners remain per workload namespace.
+
 The ABC BLAS benchmark helper used by `Main` is:
 
 ```java
@@ -934,12 +1002,17 @@ Artifact root:
 /tmp/synaptik-profiles/platform/<platform-id>/calibration/schema-v2/
 ```
 
-Graph autotune CLI persistence is not currently configurable from command-line flags. `TuningCli.tuningPersistence(...)` writes ABC results to:
+Graph autotune CLI persistence uses the shared profile root. The default root is `profiles`; pass
+`--profile-root <path>` to use a different root for autotune and benchmark winner lookup. `TuningCli.tuningPersistence(...)`
+writes results to the selected workload namespace:
 
 ```text
-profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json
-profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl
+<profile-root>/platform/<platform-id>/tuning/<workload-namespace>/<dtype>-best-profile.json
+<profile-root>/platform/<platform-id>/tuning/<workload-namespace>/<dtype>-history.jsonl
 ```
+
+For default ABC runs, `<workload-namespace>` is `abc`. For transformer shape runs, examples include
+`transformer_block_hot_path_large`, `transformer_hot_path_long_seq`, and `transformer_block_hot_path_attention_heavy`.
 
 Programmatic callers can choose any `PersistencePolicy`:
 
@@ -2406,7 +2479,7 @@ This candidate means "use Metal only when the runtime is available and the estim
 
 ## Graph Autotune Parameters
 
-`GraphAutotuneParameter` exposes four graph-side parameter groups. `GraphPolicyMutators` defines standard and research candidate names.
+`GraphAutotuneParameter` exposes graph-side parameter groups. `GraphPolicyMutators` defines standard and research candidate names.
 
 | Parameter | Mode | Candidate names | What changes |
 |---|---|---|---|
@@ -2415,15 +2488,20 @@ This candidate means "use Metal only when the runtime is available and the estim
 | `CPU_FUSION_POLICY` | Standard | `offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive` | Compares a more aggressive CPU fusion policy against the balanced default while keeping runtime fixed. |
 | `OFFLOAD_POLICY` | Standard | `offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced` | Enables accelerator ownership only when the graph policy says it should be profitable. |
 | `ACCELERATOR_REGION_POLICY` | Standard | `offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced` | Uses a scored accelerator region policy instead of the greedy accelerator region policy. |
+| `RESEARCH_METAL_TRANSFER_MODEL` | Research | `metalTransfer=measured+accelRegion=scored`, `metalTransfer=aggressive+accelRegion=scored` | Changes `PartitionConfig.metalTransferModel()` for scored Metal region profitability. It does not change Metal legality or runtime capability. |
 | `CSE_STRICT_SAFETY` | Research | `cse=strict`, `cse=aggressive` | Replaces CSE config with `CseConfig.strictDefaults()` (`strictSafety=true`) or `CseConfig.aggressiveDefaults()` (`strictSafety=false`). |
 | `PIECEWISE_LOWERING` | Research | `piecewise=current`, `piecewise=off`, `piecewise=canonical` | Keeps current policy, disables piecewise lowering with `PiecewiseLoweringConfig.defaults()` (`canonicalSigmoid=false`, `reluLikeWhere=false`, `clampLikeWhere=false`), or enables aggressive piecewise lowering with all three booleans true. |
 | `MEMORY_LIFETIME` | Research | `memory=current`, `memory=phase-isolated`, `memory=cross-phase-lifetime` | Keeps current memory policy, uses separated forward/backward pools with no cross-phase reuse, or allows cross-phase lifetime reuse by setting `separateForwardBackwardPools=false` and `allowCrossPhaseReuse=true`. |
 
-Standard mode generates production-eligible `CandidateKind.GRAPH_STANDARD` candidates for the current graph policy, CPU region policy, CPU fusion policy, and accelerator ownership policy. Research mode generates graph research candidates that are marked not production-eligible. Tests assert that research graph autotune does not include stage-order, conv2d-lowering, or partition-scoring candidates.
+Standard mode generates production-eligible `CandidateKind.GRAPH_STANDARD` candidates for the current graph policy, CPU region policy, CPU fusion policy, and accelerator ownership policy. Research mode generates graph research candidates that are marked not production-eligible. Tests assert that research graph autotune does not include stage-order, conv2d-lowering, or unsafe production promotion of research policies.
 
 ### Why these graph parameters and not every optimizer field
 
-Current graph autotune is deliberately small. It does not tune hardware proxy fields such as conv2d BLAS dispatch, fused scoring knobs, partition scoring, or arbitrary optimizer stage order. Those are either runtime-facing, architectural pipeline contracts, or not consumed as production scoring axes in the current optimizer. The production path exposes graph-policy candidates that are safe to promote for a workload; research mode exposes graph-policy experiments that are useful for diagnosis but not automatically production-safe.
+Current graph autotune is deliberately small. It does not tune hardware proxy fields such as conv2d BLAS dispatch,
+fused scoring knobs, arbitrary partition structural weights, or arbitrary optimizer stage order. Those are either
+runtime-facing, architectural pipeline contracts, or too broad to promote safely. `MetalTransferModel` is different:
+it is a graph-level profitability assumption for scored Metal ownership regions. It is still research-only today
+because the current Metal bridge remains copy-based; the conservative model is the production default.
 
 ### `CURRENT_GRAPH_POLICY`
 
@@ -3015,12 +3093,16 @@ The runner publishes `latest` only after all requested dtype/pass work completes
 
 ### Graph Autotune
 
-The ABC CLI stores graph autotune artifacts under:
+The CLI stores graph autotune artifacts under the workload namespace selected by `--workload` and `--shape`:
 
 ```text
-profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json
-profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl
+profiles/platform/<platform-id>/tuning/<workload-namespace>/<dtype>-best-profile.json
+profiles/platform/<platform-id>/tuning/<workload-namespace>/<dtype>-history.jsonl
 ```
+
+For `autotune f64`, the namespace is `abc`. For
+`autotune.run --dtype f32 --workload transformer-block --shape large`, the namespace is
+`transformer_block_hot_path_large`.
 
 Best-profile records include score, hardware key, workload key, autotune kind, graph autotune mode, candidate kind, runtime profile id, production eligibility, candidate metadata, and the measured `ExecutionProfile`.
 
@@ -3284,7 +3366,7 @@ If persistence is enabled, `DefaultAutotuneSession` can write a best-profile rec
 | Metal unavailable | `CalibrationSuite` checks Metal runtime availability before creating `METAL_SELECTION`. | Run without `--include-accelerators` or configure a machine/runtime with Metal support. |
 | Candidate changes an unowned knob | `CalibrationFamilyRegistry.validateCandidateChanges` rejects off-family knob assignments. | Fix the mutator or registry ownership before running the family. |
 | Missing calibration profile before autotune | `TuningCli.loadCalibrationProfile` expects latest schema-v2 profile under `profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/forward-backward/profile.json`. | Run calibration first for that dtype and mode. |
-| Missing best profile before winner benchmark | `TuningCli.loadWinnerProfile` expects `profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json`. | Run `autotune <dtype>` first. |
+| Missing best profile before winner benchmark | `TuningCli.loadWinnerProfile` expects `profiles/platform/<platform-id>/tuning/<workload-namespace>/<dtype>-best-profile.json`. | Run autotune first with the same `--dtype`, `--workload`, `--shape`, and `--profile-root` that the benchmark will use. |
 | Validation mismatch | `DefaultValidationEngine` detects dtype, shape, output, or gradient mismatch. | Inspect validation target/reference and candidate policy; use thorough mode only when gradients are expected. |
 | Candidate exception during validation or measurement | Sessions catch exceptions and record candidate failure. | Check candidate runtime/profile compatibility and workload construction. |
 | Search budget truncates research candidates | `ExhaustiveSearchStrategy` limits selection to `SearchPolicy.maxCandidates`. | Set `maxCandidates` at least to the generated candidate count for full research coverage. |
