@@ -35,13 +35,13 @@ import java.util.Objects;
  *         workload,
  *         "graph-policy-tune",
  *         DataType.FLOAT32,
- *         ExecutionMode.CPU,
+ *         ExecutionMode.FORWARD_BACKWARD,
  *         graphPolicy,
  *         calibratedRuntimeProfile,
  *         GraphAutotuneMode.STANDARD,
  *         MeasurementPolicy.defaults(),
  *         ValidationPolicy.defaults(),
- *         new SearchPolicy(1, 1, 1, false),
+ *         new SearchPolicy(16, 4, 1, false),
  *         PersistencePolicy.disabled(),
  *         AutotuneProgressListener.noop());
  * GraphAutotuneResult result = GraphAutotuneSession.create(graphRequest).run();
@@ -56,7 +56,7 @@ import java.util.Objects;
  * @param mode standard or research graph search mode; {@code null} means standard
  * @param measurement measurement controls; {@code null} means defaults
  * @param validation validation controls; {@code null} disables validation
- * @param search search controls; {@code null} selects a single-batch default
+ * @param search search controls; {@code null} selects a mode-aware default
  * @param persistence optional persistence policy; {@code null} disables persistence
  * @param progressListener optional progress sink; {@code null} becomes no-op
  */
@@ -84,9 +84,15 @@ public record GraphAutotuneRequest(
         mode = mode == null ? GraphAutotuneMode.STANDARD : mode;
         measurement = measurement == null ? MeasurementPolicy.defaults() : measurement;
         validation = validation == null ? ValidationPolicy.disabled() : validation;
-        search = search == null ? new SearchPolicy(1, 1, 1, false) : search;
+        search = search == null ? defaultSearchPolicy(mode) : search;
         persistence = persistence == null ? PersistencePolicy.disabled() : persistence;
         progressListener = progressListener == null ? AutotuneProgressListener.noop() : progressListener;
+    }
+
+    private static SearchPolicy defaultSearchPolicy(GraphAutotuneMode mode) {
+        return mode == GraphAutotuneMode.RESEARCH
+                ? TuningDefaults.balancedSearchPolicy()
+                : new SearchPolicy(16, 4, 1, false);
     }
 
     /**

@@ -12,7 +12,9 @@ import tuning.validate.ValidationEngine;
  *
  * <p>Sessions are intended to be used once. The default implementation catches
  * per-entry validation and measurement failures and records them in the
- * resulting report, allowing remaining entries to continue.</p>
+ * returned in-memory report, allowing remaining entries to continue. A benchmark
+ * session is read-only with respect to tuning storage: it does not save reports,
+ * update best profiles, append history, or modify calibration artifacts.</p>
  */
 public interface BenchmarkSession {
     /**

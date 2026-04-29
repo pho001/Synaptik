@@ -43,7 +43,7 @@ The split exists because runtime parameters and graph parameters age differently
 | Workflow | Tunes | Scope | Output | Production role |
 |---|---|---|---|---|
 | Platform calibration | Platform/runtime/hardware-sensitive `PlatformRuntimeProfile` knobs | Per platform, dtype, execution mode, and calibration family | Latest platform runtime profile plus per-family run artifacts | Provides reusable runtime defaults for later profile assembly |
-| Graph autotune | `GraphExecutionPolicy` only | One concrete workload with a frozen runtime profile | Best `ExecutionProfile` and append-only history | Standard mode persists production-eligible `graphPolicy=current`; research mode is explicit opt-in |
+| Graph autotune | `GraphExecutionPolicy` only | One concrete workload with a frozen runtime profile during measurement | Best graph-policy record and append-only history | Standard mode persists a production-eligible graph winner; winner benchmark rebases that graph policy onto the current platform runtime profile |
 
 Calibration answers questions such as "what matmul tile, BLAS threshold, fused width, or scheduler chunking policy is best on this machine for `f64` forward-backward?" Graph autotune answers "which graph policy candidate should this workload use when the runtime defaults are already fixed?"
 
@@ -82,7 +82,7 @@ The important boundary is that the runtime executes only real `ExecutionProfile`
 | `PlatformRuntimeProfile` | `src/main/java/config/profile/PlatformRuntimeProfile.java` | Runtime defaults: CPU kernel thresholds, matmul tiles, BLAS provider/min-work, fused widths, materialization thresholds, accelerator selection. | Optimizer stage order, CSE strictness, workload-specific best profile. | Can be reused across workloads on the same platform/dtype/mode. |
 | `GraphExecutionPolicy` | `src/main/java/config/profile/GraphExecutionPolicy.java` | `OptimizerConfig`-backed graph policy: rewrite, CSE, fuse, memory, partition-related optimizer settings. | Hardware runtime thresholds and calibrated runtime family winners. | Lets graph policy be varied without contaminating calibrated runtime defaults. |
 | `ExecutionProfile` | `src/main/java/config/profile/ExecutionProfile.java` | Dtype, execution mode, optimizer config, runtime config, workload profile, profile/candidate names. | Search history and report-only diagnostic data. | This is the only thing measured by compile/prepare/execute. |
-| `BestProfileRecord` | `src/main/java/tuning/store/BestProfileRecord.java` | A persisted winning `ExecutionProfile`, score, hardware/workload fingerprint, candidate metadata. | It is not a global platform default. | Used by workload-specific winner loading and history-aware ordering. |
+| `BestProfileRecord` | `src/main/java/tuning/store/BestProfileRecord.java` | A persisted winning graph policy embedded in a measured `ExecutionProfile`, score, hardware/workload fingerprint, candidate metadata, and the runtime profile id used during measurement. | It is not a global platform default and its embedded runtime snapshot is not authoritative for future runs. | Used by workload-specific winner loading and history-aware ordering; graph winners are reassembled with current calibration before execution. |
 
 Concrete assembly example:
 
@@ -106,7 +106,7 @@ ExecutionProfileAssembler.assemble(...)
      mode = FORWARD_BACKWARD
 ```
 
-The assembled `ExecutionProfile` is what `DefaultMeasurementEngine` measures. The profile is intentionally explicit, so reports, history, and best-profile stores can point back to the exact runtime and graph policy that were benchmarked.
+The assembled `ExecutionProfile` is what `DefaultMeasurementEngine` measures. The profile is intentionally explicit, so reports and history can point back to the exact runtime and graph policy that were benchmarked. For graph-autotune best profiles, that measured runtime is evidence, not ownership: `BestProfileRecord.graphPolicy()` extracts the graph side, and `BestProfileRecord.rebaseOnRuntime(...)` rebuilds a runnable profile from the current `PlatformRuntimeProfile`.
 
 ## End-To-End Flow
 
@@ -127,7 +127,11 @@ sequenceDiagram
     CLI->>Auto: autotune f64
     Auto->>Auto: generate graph candidates from frozen runtime profile
     Auto->>Auto: validate and measure candidates
-    Auto->>Best: write best profile and history
+    Auto->>Best: write graph winner and history
+    CLI->>Best: benchmark-winner f64
+    Best-->>CLI: graph policy winner
+    CLI->>Store: load latest platform runtime profile
+    CLI->>CLI: rebase graph policy onto current runtime
 ```
 
 The fresh-graph rule matters for both workflows: each candidate measurement instantiates a fresh `WorkloadInstance`. The workload layer treats graph construction, validation target, validation reference, and metadata as one reproducible contract.
@@ -237,8 +241,8 @@ flowchart LR
     Strategy["SearchStrategy"]
     Validate["DefaultValidationEngine"]
     Measure["DefaultMeasurementEngine"]
-    Winner["Best ExecutionProfile"]
-    Store["Best profile + history"]
+    Winner["Best graph-policy profile"]
+    Store["Best graph policy + history"]
 
     Request --> Space --> Strategy --> Validate --> Measure --> Winner --> Store
 ```
@@ -249,15 +253,15 @@ The candidate space creates `Candidate` objects. The strategy decides which cand
 
 1. `GraphAutotuneRequest` receives workload, dtype, mode, base `GraphExecutionPolicy`, frozen `PlatformRuntimeProfile`, graph autotune mode, measurement policy, validation policy, search policy, persistence policy, and progress listener.
 2. `GraphAutotuneCandidateSpace.generate(...)` asks `GraphPolicyMutators` for variants.
-3. In `STANDARD` mode, the candidate space returns exactly one production-eligible candidate: `graphPolicy=current`.
+3. In `STANDARD` mode, the candidate space returns production-eligible graph-policy candidates such as the current policy, CPU region policy variants, CPU fusion variants, and accelerator ownership policy variants. These candidates still keep the supplied runtime profile frozen.
 4. In `RESEARCH` mode, the candidate space returns CSE, piecewise-lowering, and memory-lifetime variants. They are marked `CandidateKind.GRAPH_RESEARCH` and `productionEligible=false`.
 5. `AutotuneDefaultStrategySelector` chooses a search strategy from candidate count, whether the candidate space is refinable, and the search policy.
 6. `DefaultAutotuneSession.run()` asks the strategy for an initial search batch and evaluates each candidate fingerprint only once.
 7. For each candidate, the session instantiates a fresh workload for validation.
 8. If validation passes or is skipped, the session instantiates another fresh workload for measurement.
 9. If the strategy supports refinement, the session calls `refine(...)` for additional rounds until `maxRounds` is reached or the strategy returns no candidates.
-10. Finalists are successful measured candidates sorted by median steady-state milliseconds. The session keeps up to `beamWidth` finalists and treats the first as the best profile.
-11. If persistence is enabled, the session appends every evaluated candidate to history and saves the winning best-profile record.
+10. Finalists are successful measured candidates sorted by median steady-state milliseconds. The session keeps up to `beamWidth` finalists and treats the first as the best graph policy.
+11. If persistence is enabled, the session appends every evaluated candidate to history and saves the winning best-profile record. The saved record includes the measured `ExecutionProfile`, but graph execution should later extract its graph policy and rebase it onto the current platform calibration.
 
 ### Worked example with concrete values
 
@@ -265,12 +269,17 @@ Production ABC graph autotune uses:
 
 ```text
 mode=STANDARD
-search=SearchPolicy(maxCandidates=1, beamWidth=1, maxRounds=1, allowPruning=false)
+search=SearchPolicy(maxCandidates=16, beamWidth=4, maxRounds=1, allowPruning=false)
 generated candidates:
   graphPolicy=current
+  offload=cpu-only+cpuRegion=natural+cpuFusion=balanced
+  offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced
+  offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive
+  offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced
+  offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced
 ```
 
-The session validates and measures that single profile. This may look redundant, but it has a useful production role: it writes a workload-specific best-profile record tied to hardware fingerprint, workload fingerprint, runtime profile id, candidate metadata, and measured score.
+The session validates and measures the generated production graph candidates with the same calibrated runtime profile. The useful persisted payload is the graph policy winner for this workload. The runtime profile id and embedded runtime config explain what was measured, but they do not become a graph-specific runtime override.
 
 Research mode for the same workload can generate:
 
@@ -351,7 +360,7 @@ The code deliberately keeps those concerns separate. Calibration is configured b
 | Single-family calibration | `calibrate --dtype f64 --family matmul` | `CalibrationCommand.parse(...)` then `CalibrationRunner.create().run(...)` | `CalibrationCommand` | Runtime candidates owned by one calibration family | Calibration run artifacts and latest profile for the dtype/mode |
 | All-family calibration | `calibrate --dtype f64 --families all` | Same as above | `CalibrationCommand` | Standard family suite in registry order | Calibration run artifacts, family history, latest profile |
 | All-dtype calibration | `calibrate --dtypes all --families all` | Same as above | `CalibrationCommand` | Standard family suite for `FLOAT64`, `FLOAT32`, and `BFLOAT16` | Separate latest profile per dtype/mode |
-| Standard graph autotune | `autotune f64` | `TuningCli.runAutotune(...)` | `GraphAutotuneRequest` | `graphPolicy=current` for ABC workload with calibrated runtime profile | `profiles/platform/<platform-id>/tuning/abc/f64-best-profile.json` and `f64-history.jsonl` |
+| Standard graph autotune | `autotune f64` | `TuningCli.runAutotune(...)` | `GraphAutotuneRequest` | Production graph-policy candidates for ABC workload with calibrated runtime profile | `profiles/platform/<platform-id>/tuning/abc/f64-best-profile.json` and `f64-history.jsonl` |
 | Winner benchmark | `benchmark-winner f64` | `TuningCli.runWinnerBenchmark(...)` | `BenchmarkRequest` from `TuningDefaults.benchmark(...)` | Baseline profile versus saved ABC best profile | No best-profile update; prints benchmark report |
 | Graph-space benchmark | `benchmark-graph-space f64` | `TuningCli.runGraphSpaceBenchmark(...)` | `BenchmarkRequest` with entries from `GraphAutotuneCandidateSpace` | Baseline plus standard graph candidate space | No best-profile update; prints benchmark report |
 | Programmatic custom workload | No direct CLI command | Caller builds request in Java | `TensorRootWorkloadSpec`, `GraphAutotuneRequest`, `BenchmarkRequest`, or `CalibrationCommand` | Whatever workload and candidate set the caller supplies | Depends on supplied `PersistencePolicy` or calibration output root |
@@ -484,8 +493,7 @@ mode=FORWARD_BACKWARD
 ./gradlew run --args="benchmark-graph-space f64"
 ```
 
-This measures the baseline plus the standard graph candidate `graphPolicy=current` by default. Use
-`--graph-mode research` when invoking `TuningCli` to include the research graph candidate space.
+This measures the baseline plus the generated standard graph candidate space using the current calibrated runtime profile. It does not load or update the persisted best profile. Use `--graph-mode research` when invoking `TuningCli` to include the research graph candidate space.
 
 ### Calibration command option catalog
 
@@ -667,7 +675,7 @@ var graphRequest = new GraphAutotuneRequest(
         GraphAutotuneMode.STANDARD,
         TuningPreset.BALANCED.autotuneMeasurement(),
         TuningPreset.BALANCED.autotuneValidation(),
-        new SearchPolicy(1, 1, 1, false),       // one standard candidate
+        new SearchPolicy(16, 4, 1, false),      // production graph-policy candidates
         new PersistencePolicy(
                 true,
                 true,
@@ -680,14 +688,17 @@ var graphRequest = new GraphAutotuneRequest(
 var result = AutotuneSession.create(graphRequest.toAutotuneRequest()).run();
 ```
 
-The actual `TuningCli.runAutotune(...)` uses `SingleCandidateSearchStrategy` explicitly when standard graph autotune emits one candidate:
+The actual `TuningCli.runAutotune(...)` relies on the default strategy selector. Standard graph autotune now emits a small production candidate set, so the selector normally evaluates the generated candidates within the `SearchPolicy(16, 4, 1, false)` budget:
 
 ```text
 candidate.name=graphPolicy=current
+candidate.name=offload=cpu-only+cpuRegion=natural+cpuFusion=balanced
+candidate.name=offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced
+candidate.name=offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive
 candidate.kind=GRAPH_STANDARD
-candidate.metadata.graphParameter=CURRENT_GRAPH_POLICY
+candidate.metadata.graphParameter=CURRENT_GRAPH_POLICY | CPU_REGION_POLICY | CPU_FUSION_POLICY | OFFLOAD_POLICY | ACCELERATOR_REGION_POLICY
 candidate.profile.runtime=<calibrated runtime profile>
-candidate.profile.optimizer=<training graph policy optimizer config>
+candidate.profile.optimizer=<candidate graph policy optimizer config>
 ```
 
 Expected output artifacts when persistence is enabled:
@@ -904,7 +915,7 @@ Calibration has terminal UI controls because long calibration runs should remain
 
 | Option | Best for | Behavior |
 |---|---|---|
-| `--progress live` | Interactive terminal | Repaints the same small set of lines with current phase, step, ETA, and status. |
+| `--progress live` | Local terminal, including Gradle-launched runs and fluent Java API runs | Forces ANSI redraw of the same fixed eight-line panel with current phase, step, ETA, and status instead of appending one line per event. |
 | `--progress lines` | CI logs, redirected output | Prints append-only progress lines that survive non-interactive log capture. |
 | `--progress quiet` | Scripts that only need artifacts | Suppresses progress UI. |
 | `--color auto` | Default | Uses color only when the renderer decides it is appropriate. |
@@ -1359,7 +1370,7 @@ GraphAutotuneRequest request = new GraphAutotuneRequest(
         GraphAutotuneMode.STANDARD,
         TuningPreset.BALANCED.autotuneMeasurement(),
         TuningPreset.BALANCED.autotuneValidation(),
-        new SearchPolicy(1, 1, 1, false),
+        new SearchPolicy(16, 4, 1, false),
         persistence,
         null
 );
@@ -1439,7 +1450,7 @@ Graph autotune configuration catalog:
 | `.runtime().profile(PlatformRuntimeProfile)` | explicit runtime profile | none | `runtimeProfile` | Best for tests or custom profile loading. |
 | `.runtime().fromLatestCalibration(Path root)` | output root such as `profiles` | none | load `latest/<dtype>/<mode>/profile.json` | Should use the same platform id derivation as `TuningCli.loadCalibrationProfile(...)`. |
 | `.runtime().fromLatestCalibration()` | no args | `profiles` | same as above | Convenience default root. |
-| `.standard()` | no args | `STANDARD` | `mode=GraphAutotuneMode.STANDARD` | Generates production candidate `graphPolicy=current`. |
+| `.standard()` | no args | `STANDARD` | `mode=GraphAutotuneMode.STANDARD` | Generates production graph-policy candidates with runtime frozen. |
 | `.research()` | no args | n/a | `mode=GraphAutotuneMode.RESEARCH` | Generates CSE, piecewise, and memory research variants. |
 | `.preset(TuningPreset)` | `QUICK`, `BALANCED`, `THOROUGH` | `BALANCED` for production shortcuts | measurement, validation, maybe search | Expands through `TuningPreset.autotuneMeasurement()`, `.autotuneValidation()`, `.autotuneSearch()`. |
 | `.quick()` | no args | n/a | quick measurement/validation/search | Convenience alias. |
@@ -1449,8 +1460,8 @@ Graph autotune configuration catalog:
 | `.measurement(int warmup, int measure, int repeats)` | integer loop counts | preset policy | `measurement` | Same loop-count semantics as calibration. |
 | `.validation(ValidationPolicy)` | explicit policy | preset policy or disabled if explicitly chosen | `validation` | Escape hatch. |
 | `.validationDisabled()` | no args | n/a | `ValidationPolicy.disabled()` | Useful for unsafe local microbenchmarks only. |
-| `.search().policy(SearchPolicy)` | explicit policy | `new SearchPolicy(1, 1, 1, false)` for standard, preset for research | `search` | Budget: max candidates, beam width, rounds, pruning. |
-| `.search().singleCandidate()` | no args | n/a | `SearchPolicy(1, 1, 1, false)` plus `SingleCandidateSearchStrategy` | Matches production standard graph autotune. |
+| `.search().policy(SearchPolicy)` | explicit policy | `new SearchPolicy(16, 4, 1, false)` for standard, preset for research | `search` | Budget: max candidates, beam width, rounds, pruning. |
+| `.search().singleCandidate()` | no args | n/a | `SearchPolicy(1, 1, 1, false)` plus `SingleCandidateSearchStrategy` | Diagnostic shortcut for measuring only the first generated candidate. |
 | `.search().strategy(SearchStrategy)` | explicit strategy | selector default | `AutotuneSession.create(request, strategy, ...)` | Advanced hook; should not be needed for normal use. |
 | `.persist().disabled()` | no args | disabled | `PersistencePolicy.disabled()` | Throwaway run. |
 | `.persist().to(Path best, Path history)` | two paths | disabled | `PersistencePolicy(true, true, best, history)` | Explicit artifact paths. |
@@ -1465,7 +1476,7 @@ Validation rules:
 
 - `.run()` must not be visible before dtype, workload, and runtime profile source are selected.
 - Runtime profile loading must use the selected dtype and execution mode.
-- `STANDARD` mode should default to `SearchPolicy(1, 1, 1, false)` because it currently generates one candidate.
+- `STANDARD` mode should default to `SearchPolicy(16, 4, 1, false)` because it generates a small production candidate set.
 - `RESEARCH` mode should default to the selected preset's search policy because it can generate multiple candidates.
 - `GraphAutotuneMode.RESEARCH` candidates should be clearly marked as research/non-production in reports and persistence metadata.
 - Graph autotune must not mutate `PlatformRuntimeProfile`; it receives a frozen runtime profile and varies only `GraphExecutionPolicy`.
@@ -1859,7 +1870,7 @@ The important invariant is that the fluent layer stays boring internally. It sho
 | `BALANCED` | `warmup=4`, `measure=8`, `repeats=3`, compile/prepare/cold/steady measured, no step trace | dtype-aware balanced tolerances, no gradient match | `maxCandidates=32`, `beamWidth=4`, `maxRounds=4`, pruning enabled | 2 for all-family calibration, 1 for single-family calibration |
 | `THOROUGH` | `warmup=4`, `measure=16`, `repeats=5`, compile/prepare/cold/steady measured, step trace captured | dtype-aware thorough tolerances, gradient match required | `maxCandidates=96`, `beamWidth=8`, `maxRounds=6`, pruning enabled | 2 for all-family calibration, 1 for single-family calibration |
 
-Calibration uses the preset's benchmark measurement and validation policies. Graph autotune uses the preset's autotune measurement and validation policies. In `TuningCli.runAutotune`, the ABC graph autotune command uses `TuningPreset.BALANCED` and overrides search to `SearchPolicy(1, 1, 1, false)` when standard graph autotune has one production candidate.
+Calibration uses the preset's benchmark measurement and validation policies. Graph autotune uses the preset's autotune measurement and validation policies. In `TuningCli.runAutotune`, the ABC graph autotune command uses `TuningPreset.BALANCED` and overrides standard-mode search to `SearchPolicy(16, 4, 1, false)` so the production graph-policy candidate set is covered in one round.
 
 ## Measurement Policy
 
@@ -2400,15 +2411,19 @@ This candidate means "use Metal only when the runtime is available and the estim
 | Parameter | Mode | Candidate names | What changes |
 |---|---|---|---|
 | `CURRENT_GRAPH_POLICY` | Standard | `graphPolicy=current` | Reuses the supplied `GraphExecutionPolicy` without mutating optimizer config. Runtime is frozen from the supplied `PlatformRuntimeProfile`. |
+| `CPU_REGION_POLICY` | Standard | `offload=cpu-only+cpuRegion=natural+cpuFusion=balanced`, `offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced` | Compares the default natural CPU region policy with an elementwise-islands policy while keeping runtime fixed. |
+| `CPU_FUSION_POLICY` | Standard | `offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive` | Compares a more aggressive CPU fusion policy against the balanced default while keeping runtime fixed. |
+| `OFFLOAD_POLICY` | Standard | `offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced` | Enables accelerator ownership only when the graph policy says it should be profitable. |
+| `ACCELERATOR_REGION_POLICY` | Standard | `offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced` | Uses a scored accelerator region policy instead of the greedy accelerator region policy. |
 | `CSE_STRICT_SAFETY` | Research | `cse=strict`, `cse=aggressive` | Replaces CSE config with `CseConfig.strictDefaults()` (`strictSafety=true`) or `CseConfig.aggressiveDefaults()` (`strictSafety=false`). |
 | `PIECEWISE_LOWERING` | Research | `piecewise=current`, `piecewise=off`, `piecewise=canonical` | Keeps current policy, disables piecewise lowering with `PiecewiseLoweringConfig.defaults()` (`canonicalSigmoid=false`, `reluLikeWhere=false`, `clampLikeWhere=false`), or enables aggressive piecewise lowering with all three booleans true. |
 | `MEMORY_LIFETIME` | Research | `memory=current`, `memory=phase-isolated`, `memory=cross-phase-lifetime` | Keeps current memory policy, uses separated forward/backward pools with no cross-phase reuse, or allows cross-phase lifetime reuse by setting `separateForwardBackwardPools=false` and `allowCrossPhaseReuse=true`. |
 
-Standard mode generates one production-eligible `CandidateKind.GRAPH_STANDARD` candidate. Research mode generates graph research candidates that are marked not production-eligible. Tests assert that research graph autotune does not include stage-order, conv2d-lowering, or partition-scoring candidates.
+Standard mode generates production-eligible `CandidateKind.GRAPH_STANDARD` candidates for the current graph policy, CPU region policy, CPU fusion policy, and accelerator ownership policy. Research mode generates graph research candidates that are marked not production-eligible. Tests assert that research graph autotune does not include stage-order, conv2d-lowering, or partition-scoring candidates.
 
 ### Why these graph parameters and not every optimizer field
 
-Current graph autotune is deliberately small. It does not tune hardware proxy fields such as conv2d BLAS dispatch, fused scoring knobs, partition scoring, or optimizer stage order. Those are either runtime-facing, architectural pipeline contracts, or not consumed as production scoring axes in the current optimizer. The production path therefore exposes only `CURRENT_GRAPH_POLICY`, while research mode exposes graph-policy experiments that are useful for diagnosis but not automatically production-safe.
+Current graph autotune is deliberately small. It does not tune hardware proxy fields such as conv2d BLAS dispatch, fused scoring knobs, partition scoring, or arbitrary optimizer stage order. Those are either runtime-facing, architectural pipeline contracts, or not consumed as production scoring axes in the current optimizer. The production path exposes graph-policy candidates that are safe to promote for a workload; research mode exposes graph-policy experiments that are useful for diagnosis but not automatically production-safe.
 
 ### `CURRENT_GRAPH_POLICY`
 
@@ -2429,7 +2444,7 @@ generated:
   runtimeFrozen = true
 ```
 
-This candidate is useful even though it does not mutate graph policy: it creates a best-profile record for one workload and hardware context after running validation and measurement through the normal pipeline.
+This candidate is useful even though it does not mutate graph policy: it is the control point that tells you whether any other production graph-policy variant actually improves the workload.
 
 ### `CSE_STRICT_SAFETY`
 
@@ -2530,7 +2545,9 @@ standard candidate:
   kind=GRAPH_STANDARD
   graphAutotuneMode=STANDARD
   productionEligible=true
-  graphParameter=CURRENT_GRAPH_POLICY
+  runtimeFrozen=true
+  graphPolicyMutated=false for graphPolicy=current, true for changed policy variants
+  graphParameter=CURRENT_GRAPH_POLICY | CPU_REGION_POLICY | CPU_FUSION_POLICY | OFFLOAD_POLICY | ACCELERATOR_REGION_POLICY
 
 research candidate:
   kind=GRAPH_RESEARCH
@@ -2596,7 +2613,7 @@ Search policies carry budget only:
 
 What problem this solves:
 
-This is the minimal strategy for a candidate space that generates zero or one candidate. It avoids pretending there is a search problem when standard production graph autotune only has `graphPolicy=current`.
+This is the minimal strategy for a candidate space that generates zero or one candidate. It avoids pretending there is a search problem when a caller intentionally provides only one runnable profile.
 
 How it works:
 
@@ -2618,7 +2635,7 @@ preferred:
 
 Why it exists:
 
-The production ABC graph autotune command currently uses standard graph autotune with `SearchPolicy(1, 1, 1, false)`. The right behavior is to measure the one runnable candidate and persist evidence, not to create artificial variants.
+This remains useful for diagnostic candidate spaces and for explicit `.search().singleCandidate()` style runs. The production ABC graph autotune command currently uses a multi-candidate standard graph space with `SearchPolicy(16, 4, 1, false)`, so it normally goes through the exhaustive/default strategy path instead.
 
 ### `ExhaustiveSearchStrategy`
 
@@ -3005,7 +3022,21 @@ profiles/platform/<platform-id>/tuning/abc/<dtype>-best-profile.json
 profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl
 ```
 
-Best-profile records include score, hardware key, workload key, autotune kind, graph autotune mode, candidate kind, runtime profile id, production eligibility, candidate metadata, and the full `ExecutionProfile`.
+Best-profile records include score, hardware key, workload key, autotune kind, graph autotune mode, candidate kind, runtime profile id, production eligibility, candidate metadata, and the measured `ExecutionProfile`.
+
+For graph autotune, the measured `ExecutionProfile` must be read carefully:
+
+- The optimizer section is the graph/workload winner.
+- The runtime section is the calibrated platform runtime that happened to be used during measurement.
+- Future winner benchmarks should not treat that embedded runtime as an override. `TuningCli.loadWinnerProfile(...)` loads the best record, calls `BestProfileRecord.rebaseOnRuntime(currentRuntimeProfile)`, and creates a fresh `ExecutionProfile` from the saved graph policy plus the latest `profiles/platform/<platform-id>/calibration/schema-v2/latest/<dtype>/<mode>/profile.json`.
+
+This is the practical rule:
+
+```text
+calibration latest profile = source of truth for runtime knobs
+graph best profile         = source of truth for workload graph policy
+benchmark winner           = graph policy + current runtime calibration
+```
 
 History is append-only JSONL. Each entry includes fingerprint, candidate name, validity, median/mean/score, failure reason, summary, timestamp, hardware/workload keys, candidate kind, runtime profile id, production eligibility, and candidate metadata.
 
@@ -3045,7 +3076,7 @@ Calibration progress uses `PlatformCalibrationProgressEvent` phases:
 - `COMPLETED`
 - `FAILED`
 
-`TerminalCalibrationProgressRenderer` renders an eight-line terminal panel with current phase, family position, workload position, candidate position, current best candidate, elapsed time, ETA for the current candidate set, ETA for total family progress, and message. `--progress lines` uses `LoggingPlatformCalibrationProgressListener`; `--progress quiet` uses a no-op listener.
+`TerminalCalibrationProgressRenderer` renders an eight-line terminal panel with current phase, family position, workload position, candidate position, current best candidate, elapsed time, ETA for the current candidate set, ETA for total family progress, and message. In `live` mode it emits ANSI cursor-up and clear-line sequences so the same panel rows are rewritten on each refresh. Long field values are shortened before rendering so candidate ids do not wrap and break the fixed panel height. `--progress lines` uses `LoggingPlatformCalibrationProgressListener`; `--progress quiet` uses a no-op listener.
 
 The live calibration renderer is designed to rewrite the same small terminal panel instead of printing one line per event. The event stream still contains granular lifecycle phases, but the UI keeps the screen readable during long calibration runs.
 
@@ -3062,7 +3093,7 @@ elapsed: 00:01:42
 eta: family 00:03:10, total 00:31:20
 ```
 
-`--progress lines` is better for CI logs because every important event becomes an append-only line. `--progress live` is better for interactive terminal use because it gives a dashboard-like view without flooding scrollback.
+`--progress lines` is better for CI logs because every important event becomes an append-only line. `--progress live` is better for local terminal use because it gives a dashboard-like view without flooding scrollback. Explicit live mode attempts ANSI redraw even when the process was launched through Gradle or the Java API and `System.console()` is unavailable. If an IDE run console still shows appended lines, run from a terminal that supports ANSI cursor movement or enable terminal emulation in the IDE.
 
 Graph autotune progress uses `AutotuneProgressPhase`:
 
@@ -3148,12 +3179,18 @@ The BLAS dispatch step evaluates:
 - `runtime.blas.f32RequireMgeK`: `true`, `false`
 - `runtime.blas.f32MaxNOverK`: `1.5`, `2.0`, `3.0`, `4.0`, `6.0`
 
+Its workload suite includes small/medium square matmuls, a small tall-skinny matmul, an attention-like batched matmul, and an ABC backward-like large matmul with `M=2048`, `K=256`, `N=256`. The last case is important because the ABC training hot path can benefit from BLAS in backward-like projection shapes even if small forward-like shapes do not.
+
 Even in an `f64` run, the f32 shape heuristic fields are present in `MatmulPlatformProfile`; they are part of the owned knob set and candidate map for this step.
 
 The wide BLAS step evaluates:
 
+- `runtime.blas.provider`: `NONE`, `OPENBLAS_FFM`
+- `runtime.blas.matmulMinWork`: `1000000`, `2000000`, `4000000` when provider is `OPENBLAS_FFM`
 - `runtime.blas.f32WideRequireMgeK`: `true`, `false`
 - `runtime.blas.f32WideMaxNOverK`: `4.0`, `6.0`, `8.0`
+
+The provider is included in the wide step deliberately. If the normal BLAS dispatch step chooses `NONE` because its mixed workload set favors Java matmul, the wide step still gets a chance to re-enable `OPENBLAS_FFM` for large wide shapes where BLAS is actually profitable.
 
 Expected artifact paths:
 
@@ -3251,7 +3288,7 @@ If persistence is enabled, `DefaultAutotuneSession` can write a best-profile rec
 | Validation mismatch | `DefaultValidationEngine` detects dtype, shape, output, or gradient mismatch. | Inspect validation target/reference and candidate policy; use thorough mode only when gradients are expected. |
 | Candidate exception during validation or measurement | Sessions catch exceptions and record candidate failure. | Check candidate runtime/profile compatibility and workload construction. |
 | Search budget truncates research candidates | `ExhaustiveSearchStrategy` limits selection to `SearchPolicy.maxCandidates`. | Set `maxCandidates` at least to the generated candidate count for full research coverage. |
-| Progress panel not redrawing | `TerminalCapabilities.detect` depends on terminal capabilities and progress/color mode. | Use `--progress lines` for plain logs or `--progress live --color always` when the terminal supports it. |
+| Progress panel not redrawing | `TerminalCapabilities.detect` enables ANSI redraw whenever progress mode is explicitly `live`; some IDE consoles still do not interpret cursor movement. | Use `--progress live` / `.progress().live()` in a terminal with ANSI cursor support, enable terminal emulation in the IDE, or use `--progress lines --color never` for plain logs. |
 
 ## Source Map
 

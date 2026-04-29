@@ -174,6 +174,7 @@ public final class PlatformCalibrationDefaults {
                         CalibrationWorkloads.matmulSquare(name + "_workload_small", 64),
                         CalibrationWorkloads.matmulSquare(name + "_workload_medium", 128),
                         CalibrationWorkloads.matmulTallSkinny(name + "_workload_tall_skinny", 256, 64, 64),
+                        CalibrationWorkloads.matmulTallSkinny(name + "_workload_abc_backward_like", 2_048, 256, 256),
                         CalibrationWorkloads.matmulBatchedAttentionLike(name + "_workload_attention_like", 8, 128, 64, 64)
                 ),
                 preset,
@@ -208,6 +209,10 @@ public final class PlatformCalibrationDefaults {
                 base -> new PlatformRuntimeProfileGridCandidateSpace(
                         base,
                         List.of(
+                                PlatformRuntimeProfileMutators.matmulBlasProviders(
+                                        List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
+                                        List.of(1_000_000L, 2_000_000L, 4_000_000L)
+                                ),
                                 PlatformRuntimeProfileMutators.matmulWideShapeHeuristics(
                                         List.of(true, false),
                                         supportedMatMulWideBlasShapeRatios(seedProfileDataType(base))
@@ -421,7 +426,10 @@ public final class PlatformCalibrationDefaults {
                 name,
                 CalibrationFamilyId.FUSED_CHEAP_CONTIGUOUS_WIDTH,
                 FusedDispatchFamily.CHEAP_CONTIGUOUS,
-                List.of(CalibrationWorkloads.fusedCheapElementwise(name + "_workload", 65_536)),
+                List.of(
+                        CalibrationWorkloads.fusedCheapElementwise(name + "_workload_medium", 65_536),
+                        CalibrationWorkloads.fusedCheapElementwise(name + "_workload_large", 262_144)
+                ),
                 preset,
                 dataType
         );
@@ -443,7 +451,10 @@ public final class PlatformCalibrationDefaults {
                 name,
                 CalibrationFamilyId.FUSED_NON_CHEAP_CONTIGUOUS_WIDTH,
                 FusedDispatchFamily.NON_CHEAP_CONTIGUOUS,
-                List.of(CalibrationWorkloads.fusedTranscendental(name + "_workload", 65_536)),
+                List.of(
+                        CalibrationWorkloads.fusedTranscendental(name + "_workload_medium", 65_536),
+                        CalibrationWorkloads.fusedTranscendental(name + "_workload_large", 262_144)
+                ),
                 preset,
                 dataType
         );

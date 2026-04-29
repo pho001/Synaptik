@@ -601,6 +601,16 @@ public class SourceTreeHygieneTest {
         assertTrue(!source.contains("benchmark-stage-space"), "Removed stage-space CLI command must not remain.");
     }
 
+    @Test
+    void benchmarkCliDoesNotPersistMeasurementResults() throws IOException {
+        Path tuningCli = Path.of("src/main/java/synaptik/app/TuningCli.java");
+        String source = Files.readString(tuningCli);
+        assertTrue(!source.contains("JsonFileBenchmarkReportStore"), "Benchmark CLI must not persist benchmark reports.");
+        assertTrue(!source.contains("JsonFileTuningHistoryStore"), "Benchmark CLI must not append tuning history.");
+        assertTrue(!source.contains("saveBenchmark("), "Benchmark CLI must not save benchmark reports.");
+        assertTrue(!source.contains(".append("), "Benchmark CLI must not append benchmark output to persistent history.");
+    }
+
     private static void assertGraphPartitionBackendPackageAbsent(String packageName, String message) throws IOException {
         List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
         try (Stream<Path> paths = roots.stream()

@@ -25,6 +25,7 @@ import tuning.candidate.graph.GraphAutotuneCandidateSpace;
 import tuning.measure.MeasurementPolicy;
 import tuning.preset.TuningPreset;
 import tuning.search.SearchPolicy;
+import tuning.store.BestProfileRecord;
 import tuning.store.HardwareFingerprint;
 import tuning.store.JsonFileBestProfileStore;
 import tuning.store.PersistencePolicy;
@@ -61,7 +62,6 @@ import java.util.Locale;
  */
 public final class TuningCli {
     private static final Path DEFAULT_PROFILE_ROOT = Path.of("profiles");
-    private static final String DEFAULT_TUNING_NAMESPACE = "abc";
 
     private TuningCli() {
     }
@@ -155,10 +155,11 @@ public final class TuningCli {
 
     private static void runAutotune(TuningOptions options) {
         DTypeTarget dtype = options.dtype();
-        System.out.println(header(dtype, "ABC autotune"));
+        WorkloadTarget workloadTarget = options.workload();
+        System.out.println(header(dtype, workloadTarget.displayName() + " autotune"));
         PlatformRuntimeProfile runtimeProfile = loadCalibrationProfile(dtype, options.profileRoot());
-        WorkloadSpec workload = abcWorkload(dtype);
-        PersistencePolicy persistence = tuningPersistence(dtype, options.profileRoot(), DEFAULT_TUNING_NAMESPACE);
+        WorkloadSpec workload = workloadTarget.workload(dtype);
+        PersistencePolicy persistence = tuningPersistence(dtype, options.profileRoot(), workloadTarget.namespace());
         GraphAutotuneMode graphMode = options.graphMode();
         TuningPreset preset = options.preset();
         MeasurementPolicy measurement = options.measurement() == null
@@ -167,7 +168,7 @@ public final class TuningCli {
 
         var graphRequest = new GraphAutotuneRequest(
                 workload,
-                DEFAULT_TUNING_NAMESPACE + "-" + dtype.id + "-graph-autotune",
+                workloadTarget.namespace() + "-" + dtype.id + "-graph-autotune",
                 dtype.dataType,
                 ExecutionMode.FORWARD_BACKWARD,
                 GraphExecutionPolicy.trainingDefaults(),
@@ -188,13 +189,15 @@ public final class TuningCli {
 
     private static void runWinnerBenchmark(TuningOptions options) {
         DTypeTarget dtype = options.dtype();
-        System.out.println(header(dtype, "ABC benchmark: baseline vs winner"));
-        ExecutionProfile baseline = baselineProfile(dtype);
-        ExecutionProfile winner = loadWinnerProfile(dtype, options.profileRoot(), DEFAULT_TUNING_NAMESPACE);
+        WorkloadTarget workloadTarget = options.workload();
+        System.out.println(header(dtype, workloadTarget.displayName() + " benchmark: baseline vs winner"));
+        ExecutionProfile baseline = baselineProfile(dtype, workloadTarget);
+        PlatformRuntimeProfile runtimeProfile = loadCalibrationProfile(dtype, options.profileRoot());
+        ExecutionProfile winner = loadWinnerProfile(dtype, options.profileRoot(), workloadTarget.namespace(), runtimeProfile);
 
         var request = benchmarkRequest(
                 options,
-                abcWorkload(dtype),
+                workloadTarget.workload(dtype),
                 List.of(
                         BenchmarkEntry.baseline("baseline-no-opt", baseline),
                         BenchmarkEntry.candidate("best-profile", winner)
@@ -206,12 +209,13 @@ public final class TuningCli {
 
     private static void runGraphSpaceBenchmark(TuningOptions options) {
         DTypeTarget dtype = options.dtype();
-        System.out.println(header(dtype, "ABC benchmark: graph space exploration"));
-        ExecutionProfile baseline = baselineProfile(dtype);
+        WorkloadTarget workloadTarget = options.workload();
+        System.out.println(header(dtype, workloadTarget.displayName() + " benchmark: graph space exploration"));
+        ExecutionProfile baseline = baselineProfile(dtype, workloadTarget);
         PlatformRuntimeProfile runtimeProfile = loadCalibrationProfile(dtype, options.profileRoot());
-        WorkloadSpec workload = abcWorkload(dtype);
+        WorkloadSpec workload = workloadTarget.workload(dtype);
         var candidateSpace = new GraphAutotuneCandidateSpace(
-                DEFAULT_TUNING_NAMESPACE + "-" + dtype.id + "-graph-space",
+                workloadTarget.namespace() + "-" + dtype.id + "-graph-space",
                 dtype.dataType,
                 ExecutionMode.FORWARD_BACKWARD,
                 runtimeProfile,
@@ -274,25 +278,42 @@ public final class TuningCli {
         return PlatformRuntimeProfileIO.loadOrDefault(path, fallback);
     }
 
-    private static ExecutionProfile baselineProfile(DTypeTarget dtype) {
+    private static ExecutionProfile baselineProfile(DTypeTarget dtype, WorkloadTarget workload) {
         return new ExecutionProfile(
-                "abc-baseline-no-opt-" + dtype.id,
-                "abc-baseline-no-opt-" + dtype.id,
+                workload.namespace() + "-baseline-no-opt-" + dtype.id,
+                workload.namespace() + "-baseline-no-opt-" + dtype.id,
                 dtype.dataType,
                 ExecutionMode.FORWARD_BACKWARD,
                 config.optimizer.OptimizerConfig.noOptimization(),
                 config.runtime.RuntimeConfig.noOptNoVecNoPar(),
-                WorkloadProfile.none()
+                workload.profile()
         );
     }
 
-    private static ExecutionProfile loadWinnerProfile(DTypeTarget dtype, Path profileRoot, String namespace) {
+    private static ExecutionProfile loadWinnerProfile(
+            DTypeTarget dtype,
+            Path profileRoot,
+            String namespace,
+            PlatformRuntimeProfile currentRuntimeProfile
+    ) {
         Path path = tuningPersistence(dtype, profileRoot, namespace).bestProfilePath();
-        return new JsonFileBestProfileStore()
+        BestProfileRecord record = new JsonFileBestProfileStore()
                 .load(path)
                 .orElseThrow(() -> new IllegalStateException("Missing best profile: " + path
-                        + ". Run `autotune.run --dtype " + dtype.id + "` first."))
-                .profile();
+                        + ". Run `autotune.run --dtype " + dtype.id + " --workload " + namespace + "` first."));
+        ExecutionProfile winner = record.profile();
+        if (currentRuntimeProfile == null) {
+            return winner;
+        }
+        ExecutionProfile rebound = record.rebaseOnRuntime(currentRuntimeProfile);
+        if (!record.runtimeProfileId().isBlank()
+                && !record.runtimeProfileId().equals(currentRuntimeProfile.metadata().platformProfileId())) {
+            System.out.println("note=best graph policy was measured with runtimeProfileId="
+                    + record.runtimeProfileId()
+                    + "; rebasing to current runtimeProfileId="
+                    + currentRuntimeProfile.metadata().platformProfileId());
+        }
+        return rebound;
     }
 
     private static PersistencePolicy tuningPersistence(DTypeTarget dtype, Path profileRoot, String namespace) {
@@ -304,10 +325,6 @@ public final class TuningCli {
                 root.resolve(dtype.id + "-best-profile.json"),
                 root.resolve(dtype.id + "-history.jsonl")
         );
-    }
-
-    private static WorkloadSpec abcWorkload(DTypeTarget dtype) {
-        return StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_" + dtype.id);
     }
 
     private static SearchPolicy searchPolicy(GraphAutotuneMode graphMode, TuningPreset preset) {
@@ -353,6 +370,7 @@ public final class TuningCli {
             BenchmarkScenario defaultScenario
     ) {
         DTypeTarget dtype = null;
+        WorkloadTarget workload = WorkloadTarget.ABC;
         TuningPreset preset = TuningPreset.BALANCED;
         GraphAutotuneMode graphMode = GraphAutotuneMode.STANDARD;
         Path profileRoot = DEFAULT_PROFILE_ROOT;
@@ -370,6 +388,10 @@ public final class TuningCli {
                 case "--preset" -> {
                     requireValue(args, i, arg);
                     preset = parsePreset(args[++i]);
+                }
+                case "--workload" -> {
+                    requireValue(args, i, arg);
+                    workload = WorkloadTarget.parse(args[++i]);
                 }
                 case "--graph-mode", "--autotune-mode" -> {
                     requireValue(args, i, arg);
@@ -404,7 +426,7 @@ public final class TuningCli {
             dtype = DTypeTarget.F64;
         }
 
-        return new TuningOptions(dtype, preset, graphMode, profileRoot, measurement, scenario);
+        return new TuningOptions(dtype, workload, preset, graphMode, profileRoot, measurement, scenario);
     }
 
     private static void requireValue(String[] args, int index, String option) {
@@ -473,6 +495,7 @@ public final class TuningCli {
                   ./gradlew run --args="calibration.run --dtype <f64|f32|bf16> --families all"
                   ./gradlew run --args="calibration.run --dtypes all --families all"
                   ./gradlew run --args="autotune.run --dtype <f64|f32|bf16>"
+                  ./gradlew run --args="autotune.run --dtype <f64|f32|bf16> --workload <abc|transformer-block>"
                   ./gradlew run --args="autotune.run --dtype <f64|f32|bf16> --graph-mode <standard|research>"
                   ./gradlew run --args="benchmark.winner --dtype <f64|f32|bf16>"
                   ./gradlew run --args="benchmark.graph-space --dtype <f64|f32|bf16>"
@@ -486,6 +509,7 @@ public final class TuningCli {
                   benchmark-graph-space <dtype>
 
                 Shared options for autotune and benchmark:
+                  --workload <abc|transformer-block|transformer-hot-path>
                   --preset <quick|balanced|thorough>
                   --measurement <warmup>:<measure>:<repeats>
                   --profile-root <path>
@@ -537,6 +561,7 @@ public final class TuningCli {
 
     record TuningOptions(
             DTypeTarget dtype,
+            WorkloadTarget workload,
             TuningPreset preset,
             GraphAutotuneMode graphMode,
             Path profileRoot,
@@ -547,13 +572,62 @@ public final class TuningCli {
             if (dtype == null) {
                 throw new IllegalArgumentException("dtype cannot be null");
             }
+            workload = workload == null ? WorkloadTarget.ABC : workload;
             preset = preset == null ? TuningPreset.BALANCED : preset;
             graphMode = graphMode == null ? GraphAutotuneMode.STANDARD : graphMode;
             profileRoot = profileRoot == null ? DEFAULT_PROFILE_ROOT : profileRoot;
         }
 
         static TuningOptions defaults(DTypeTarget dtype) {
-            return new TuningOptions(dtype, TuningPreset.BALANCED, GraphAutotuneMode.STANDARD, DEFAULT_PROFILE_ROOT, null, null);
+            return new TuningOptions(dtype, WorkloadTarget.ABC, TuningPreset.BALANCED, GraphAutotuneMode.STANDARD, DEFAULT_PROFILE_ROOT, null, null);
+        }
+    }
+
+    enum WorkloadTarget {
+        ABC("abc", "ABC"),
+        TRANSFORMER_BLOCK("transformer_block_hot_path", "Transformer block hot path"),
+        TRANSFORMER_HOT_PATH("transformer_hot_path", "Transformer hot path");
+
+        private final String namespace;
+        private final String displayName;
+
+        WorkloadTarget(String namespace, String displayName) {
+            this.namespace = namespace;
+            this.displayName = displayName;
+        }
+
+        private String namespace() {
+            return namespace;
+        }
+
+        private String displayName() {
+            return displayName;
+        }
+
+        private WorkloadSpec workload(DTypeTarget dtype) {
+            return switch (this) {
+                case ABC -> StandardWorkloads.abcSequenceMatmulBlasBenchmark("abc_sequence_matmul_" + dtype.id);
+                case TRANSFORMER_BLOCK -> StandardWorkloads.transformerBlockHotPath("transformer_block_hot_path_" + dtype.id);
+                case TRANSFORMER_HOT_PATH -> StandardWorkloads.transformerHotPath("transformer_hot_path_" + dtype.id);
+            };
+        }
+
+        private WorkloadProfile profile() {
+            return switch (this) {
+                case ABC -> WorkloadProfile.none();
+                case TRANSFORMER_BLOCK, TRANSFORMER_HOT_PATH -> WorkloadProfile.transformerHotPathDefaults();
+            };
+        }
+
+        private static WorkloadTarget parse(String value) {
+            String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+            return switch (normalized) {
+                case "abc", "abc-sequence", "abc-sequence-matmul" -> ABC;
+                case "transformer-block", "transformer-block-hot-path", "transformer-block-hotpath",
+                     "transformer-block-hot-path-f32" -> TRANSFORMER_BLOCK;
+                case "transformer", "transformer-hot-path", "transformer-hotpath" -> TRANSFORMER_HOT_PATH;
+                default -> throw new IllegalArgumentException("Unknown workload: " + value);
+            };
         }
     }
 

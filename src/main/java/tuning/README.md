@@ -45,9 +45,12 @@ Typical use:
 - validate and measure them
 - persist the winner and search history
 
-Current production graph autotune intentionally starts with one standard candidate:
+Current production graph autotune intentionally starts from a small standard graph-policy candidate set:
 
 - `graphPolicy=current`
+- CPU region policy variants
+- CPU fusion policy variants
+- accelerator ownership policy variants
 
 Research graph variants are explicit opt-in and are not production best-profile candidates by default.
 
@@ -148,7 +151,7 @@ That means:
 
 - calibration and autotune are not the same thing
 - calibration mostly answers runtime questions
-- standard graph autotune currently validates and persists the current graph policy boundary
+- standard graph autotune validates production graph-policy candidates and persists the best graph-policy winner for the workload
 
 ## Example: Workload-Specific Autotune
 
@@ -158,7 +161,7 @@ Autotune flow:
 
 1. load calibrated runtime defaults for `FLOAT64` forward/backward
 2. combine calibrated runtime defaults with the current graph policy
-3. generate the standard `graphPolicy=current` candidate
+3. generate the standard production graph-policy candidates
 4. validate correctness
 5. measure compile / prepare / traced run / steady-state
 6. persist:

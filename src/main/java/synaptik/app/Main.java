@@ -44,7 +44,7 @@ public final class Main {
                 .preset(PRESET)
                 .mode().training()
                 .measurement().iterations(1, 3, 1)
-                .progress().lines()
+                .progress().live()
                 .color().auto()
                 .outputRoot(PROFILE_ROOT)
                 .run();

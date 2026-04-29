@@ -82,12 +82,23 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                 runtimeProfile,
                 variant.policy()
         );
+        boolean graphPolicyMutated = !variant.policy().equals(graphPolicy);
         CandidateMetadata metadata = standard
-                ? CandidateMetadata.graphStandard("current")
+                ? new CandidateMetadata(
+                        "graph-autotune",
+                        "1",
+                        variant.parameter().name(),
+                        variant.name(),
+                        "STANDARD",
+                        true,
+                        graphPolicyMutated,
+                        true,
+                        java.util.Map.of()
+                )
                 : CandidateMetadata.graphResearch(
                         variant.parameter().name(),
                         variant.name(),
-                        !variant.policy().equals(graphPolicy)
+                        graphPolicyMutated
                 );
         var optimizer = variant.policy().optimizer();
         return new Candidate(

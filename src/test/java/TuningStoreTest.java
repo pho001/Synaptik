@@ -1,21 +1,27 @@
+import backend.blas.BlasProvider;
 import backend.runtime.ExecutionMode;
+import config.backend.KernelTuningConfig;
 import config.profile.ExecutionProfile;
+import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
+import config.runtime.ApproximationConfig;
+import config.runtime.BlasConfig;
+import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
+import tuning.benchmark.BenchmarkEntry;
+import tuning.benchmark.report.BenchmarkReport;
 import tuning.candidate.CandidateKind;
 import tuning.candidate.CandidateMetadata;
-import tuning.benchmark.report.BenchmarkReport;
-import tuning.benchmark.BenchmarkEntry;
 import tuning.store.HardwareFingerprint;
-import tuning.store.JsonFileBestProfileStore;
 import tuning.store.JsonFileBenchmarkReportStore;
-import tuning.store.JsonFileTuningHistoryStore;
+import tuning.store.JsonFileBestProfileStore;
 import tuning.store.JsonFileProfileStore;
+import tuning.store.JsonFileTuningHistoryStore;
 import tuning.store.TuningHistoryEntry;
 import tuning.store.WorkloadFingerprint;
-import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
+import tuning.workload.TensorRootWorkloadSpec;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,6 +29,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TuningStoreTest {
@@ -127,5 +134,95 @@ public class TuningStoreTest {
         assertEquals("runtime-profile", loadedHistory.runtimeProfileId());
         assertTrue(loadedBest.productionEligible());
         assertTrue(loadedHistory.productionEligible());
+    }
+
+    @Test
+    void bestProfileRecordRebasesGraphPolicyOntoCurrentRuntimeProfile() {
+        ExecutionProfile measuredWinner = new ExecutionProfile(
+                "abc-f32-graph-autotune",
+                "offload=cpu-only+cpuRegion=natural+cpuFusion=balanced",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD_BACKWARD,
+                config.optimizer.OptimizerConfig.trainingDefaults(),
+                RuntimeConfig.trainingDefaults(),
+                WorkloadProfile.none()
+        );
+        RuntimeConfig currentRuntime = new RuntimeConfig(
+                KernelTuningConfig.defaultsTraining(),
+                ApproximationConfig.defaults(),
+                new BlasConfig(BlasProvider.OPENBLAS_FFM, 4_000_000L, true, 1.5d, false)
+        );
+        PlatformRuntimeProfile currentRuntimeProfile = PlatformRuntimeProfile.fromExecutionProfile(
+                "mac_os_x-aarch64-oracle_corporation-16c",
+                "hardware",
+                "TEST",
+                new ExecutionProfile(
+                        "platform-runtime",
+                        "platform-runtime",
+                        tensor.DataType.FLOAT32,
+                        ExecutionMode.FORWARD_BACKWARD,
+                        config.optimizer.OptimizerConfig.noOptimization(),
+                        currentRuntime,
+                        WorkloadProfile.none()
+                )
+        );
+        WorkloadFingerprint workload = WorkloadFingerprint.of(
+                new TensorRootWorkloadSpec("store_workload", WorkloadKind.GENERIC, environment -> tensor.Tensor.scalar(1.0)),
+                WorkloadMetadata.of("store_workload", WorkloadKind.GENERIC),
+                measuredWinner
+        );
+        var record = new tuning.store.BestProfileRecord(
+                HardwareFingerprint.capture(),
+                workload,
+                measuredWinner,
+                1.23d,
+                OffsetDateTime.now(),
+                "autotune",
+                "STANDARD",
+                CandidateKind.GRAPH_STANDARD,
+                CandidateMetadata.graphStandard("current"),
+                currentRuntimeProfile.metadata().platformProfileId(),
+                true
+        );
+
+        ExecutionProfile rebound = record.rebaseOnRuntime(currentRuntimeProfile);
+
+        assertEquals(measuredWinner.profileName(), rebound.profileName());
+        assertEquals(measuredWinner.candidateName(), rebound.candidateName());
+        assertEquals(measuredWinner.optimizer(), rebound.optimizer());
+        assertEquals(BlasProvider.OPENBLAS_FFM, rebound.runtime().blas().provider());
+        assertEquals(4_000_000L, rebound.runtime().blas().matmulMinWork());
+
+        PlatformRuntimeProfile wrongDtypeProfile = PlatformRuntimeProfile.fromExecutionProfile(
+                "mac_os_x-aarch64-oracle_corporation-16c-f64",
+                "hardware",
+                "TEST",
+                new ExecutionProfile(
+                        "platform-runtime-f64",
+                        "platform-runtime-f64",
+                        tensor.DataType.FLOAT64,
+                        ExecutionMode.FORWARD_BACKWARD,
+                        config.optimizer.OptimizerConfig.noOptimization(),
+                        currentRuntime,
+                        WorkloadProfile.none()
+                )
+        );
+        PlatformRuntimeProfile wrongModeProfile = PlatformRuntimeProfile.fromExecutionProfile(
+                "mac_os_x-aarch64-oracle_corporation-16c-forward",
+                "hardware",
+                "TEST",
+                new ExecutionProfile(
+                        "platform-runtime-forward",
+                        "platform-runtime-forward",
+                        tensor.DataType.FLOAT32,
+                        ExecutionMode.FORWARD,
+                        config.optimizer.OptimizerConfig.noOptimization(),
+                        currentRuntime,
+                        WorkloadProfile.none()
+                )
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> record.rebaseOnRuntime(wrongDtypeProfile));
+        assertThrows(IllegalArgumentException.class, () -> record.rebaseOnRuntime(wrongModeProfile));
     }
 }

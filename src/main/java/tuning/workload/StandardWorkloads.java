@@ -45,6 +45,10 @@ public final class StandardWorkloads {
         return new TransformerHotPathWorkloadSpec(name);
     }
 
+    public static TransformerBlockHotPathWorkloadSpec transformerBlockHotPath(String name) {
+        return new TransformerBlockHotPathWorkloadSpec(name);
+    }
+
     public static AbcSequenceMatmulWorkloadSpec abcSequenceMatmul(String name, int batch, int features) {
         return new AbcSequenceMatmulWorkloadSpec(name, batch, features);
     }
@@ -126,7 +130,8 @@ public final class StandardWorkloads {
                 .register(normalization("layer_norm_small", NormalizationWorkloadSpec.NormalizationKind.LAYER_NORM, 4, 64, 8, 1, 1e-5))
                 .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, Pool2dOptions.square(2)))
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
-                .register(transformerHotPath("transformer_hot_path"));
+                .register(transformerHotPath("transformer_hot_path"))
+                .register(transformerBlockHotPath("transformer_block_hot_path"));
     }
 
     public static BenchmarkRequest benchmark(String workloadName, List<BenchmarkEntry> entries, TuningPreset preset) {

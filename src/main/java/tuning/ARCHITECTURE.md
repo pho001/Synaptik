@@ -65,6 +65,12 @@ Examples:
 
 These are not direct runtime sources of truth.
 
+For graph autotune, a best profile record is a workload graph-policy winner plus
+measurement evidence. The embedded `ExecutionProfile` records the runtime used
+when the candidate was measured, but future execution must reassemble the saved
+graph policy with the current `PlatformRuntimeProfile`. This keeps calibration
+per platform/dtype/mode and graph autotune per graph/workload.
+
 ## Assembly Boundary
 
 The correct assembly point for a final executable profile is:
@@ -76,9 +82,14 @@ This boundary matters because:
 - calibration mutates `PlatformRuntimeProfile`
 - graph autotune assembles and evaluates explicit `ExecutionProfile` candidates
 - runtime executes `ExecutionProfile`
+- winner loading for graph autotune extracts the persisted graph policy and
+  rebases it on the latest platform runtime profile before benchmarking
 
-Current standard graph autotune intentionally exposes only `graphPolicy=current`.
-Graph-resident fields such as stage order, conv2d lowering, fusion scoring, and partition scoring are not standard graph autotune axes.
+Current standard graph autotune exposes production graph-policy variants for CPU
+region policy, CPU fusion policy, and accelerator ownership policy while keeping
+runtime frozen. Graph-resident fields such as arbitrary stage order, conv2d
+lowering, fusion scoring, and partition scoring are not standard graph autotune
+axes.
 
 ## Workflow Ownership
 

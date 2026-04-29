@@ -12,7 +12,7 @@ public record TerminalCapabilities(boolean colorEnabled, boolean liveRedrawEnabl
             case "never" -> false;
             default -> interactive;
         };
-        boolean live = "live".equals(safeProgress) && interactive && out != null;
+        boolean live = "live".equals(safeProgress) && out != null;
         return new TerminalCapabilities(color, live);
     }
 }

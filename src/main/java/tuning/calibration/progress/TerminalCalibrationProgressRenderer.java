@@ -5,6 +5,7 @@ import java.util.Locale;
 
 public final class TerminalCalibrationProgressRenderer implements PlatformCalibrationProgressListener {
     private static final int PANEL_LINES = 8;
+    private static final int MAX_FIELD_CHARS = 72;
 
     private final PrintStream out;
     private final boolean colorEnabled;
@@ -76,10 +77,11 @@ public final class TerminalCalibrationProgressRenderer implements PlatformCalibr
             completedFamilies = snapshot.familyIndex();
         }
         int totalFamilies = Math.max(0, snapshot.familyCount());
-        String family = snapshot.family().isBlank() ? "n/a" : snapshot.family();
-        String workload = snapshot.workloadName().isBlank() ? "n/a" : snapshot.workloadName();
-        String candidate = snapshot.candidateId().isBlank() ? "n/a" : snapshot.candidateId();
-        String leader = snapshot.leaderId().isBlank() ? "n/a" : snapshot.leaderId();
+        String family = field(snapshot.family(), "n/a");
+        String workload = field(snapshot.workloadName(), "n/a");
+        String candidate = field(snapshot.candidateId(), "n/a");
+        String leader = field(snapshot.leaderId(), "n/a");
+        String message = field(snapshot.message(), "");
         String score = Double.isFinite(snapshot.leaderScore())
                 ? String.format(Locale.US, "%.6f", snapshot.leaderScore())
                 : "n/a";
@@ -93,11 +95,20 @@ public final class TerminalCalibrationProgressRenderer implements PlatformCalibr
                 "elapsed   " + EtaEstimator.format(estimator.elapsed())
                         + "  eta-current=" + EtaEstimator.format(estimator.remaining(completedCandidates, totalCandidates)),
                 "eta-total " + EtaEstimator.format(estimator.remaining(completedFamilies, totalFamilies)),
-                "message   " + snapshot.message()
+                "message   " + message
         };
     }
 
     private static String pos(int index, int count) {
         return Math.max(0, index) + "/" + Math.max(0, count);
+    }
+
+    private static String field(String value, String fallback) {
+        String normalized = value == null || value.isBlank() ? fallback : value;
+        normalized = normalized.replace('\r', ' ').replace('\n', ' ');
+        if (normalized.length() <= MAX_FIELD_CHARS) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_FIELD_CHARS - 3) + "...";
     }
 }

@@ -29,6 +29,29 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("max_pool2d_small"));
         assertTrue(catalog.names().contains("cross_entropy_small"));
         assertTrue(catalog.names().contains("transformer_hot_path"));
+        assertTrue(catalog.names().contains("transformer_block_hot_path"));
+    }
+
+    @Test
+    void transformerBlockHotPathInstantiatesProjectionAttentionAndFeedForwardGraph() {
+        ExecutionProfile profile = new ExecutionProfile(
+                "transformer-block-profile",
+                "transformer-block-profile",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                StandardWorkloads.transformerHotPathDefaults()
+        );
+
+        WorkloadInstance instance = StandardWorkloads.transformerBlockHotPath("transformer_block_hot_path")
+                .instantiate(new WorkloadEnvironment(profile));
+
+        assertEquals("transformer_block_hot_path", instance.metadata().name());
+        assertEquals(tuning.workload.WorkloadKind.TRANSFORMER_HOT_PATH, instance.metadata().kind());
+        assertEquals(1, instance.root().getShapeUnsafe().length);
+        assertEquals(ValidationTargetKind.ROOT, instance.validationTarget().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, instance.reference().kind());
     }
 
     @Test

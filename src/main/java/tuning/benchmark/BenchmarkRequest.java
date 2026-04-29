@@ -13,10 +13,13 @@ import java.util.Objects;
  * workload.
  *
  * <p>Benchmarking is observational: it validates and measures the entries the
- * caller provides and never creates, searches, or persists new profiles. Use
- * {@code tuning.autotune.AutotuneSession} when the system should select among a
- * candidate space, and use {@code tuning.calibration.PlatformCalibrationSession}
- * when runtime-platform knobs should be learned across calibration workloads.</p>
+ * caller provides and never creates, searches, or persists new profiles, best
+ * records, history entries, calibration artifacts, or benchmark reports.
+ * Explicit report persistence, when desired by a tool, must be a separate
+ * caller action outside the benchmark session. Use {@code tuning.autotune.AutotuneSession}
+ * when the system should select among a candidate space, and use
+ * {@code tuning.calibration.PlatformCalibrationSession} when runtime-platform
+ * knobs should be learned across calibration workloads.</p>
  *
  * <p>The request normalizes optional policies to defaults and defensively copies
  * {@link #entries()}. At most one entry may be marked as

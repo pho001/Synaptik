@@ -32,6 +32,12 @@ public class GraphAutotuneCandidateSpaceTest {
         assertTrue(candidates.stream().allMatch(candidate -> candidate.kind() == CandidateKind.GRAPH_STANDARD));
         assertTrue(candidates.stream().allMatch(candidate -> candidate.metadata().runtimeFrozen()));
         assertTrue(candidates.stream().allMatch(candidate -> candidate.metadata().productionEligible()));
+        assertTrue(candidates.stream()
+                .filter(candidate -> candidate.name().equals("graphPolicy=current"))
+                .allMatch(candidate -> !candidate.metadata().graphPolicyMutated()));
+        assertTrue(candidates.stream()
+                .filter(candidate -> !candidate.name().equals("graphPolicy=current"))
+                .anyMatch(candidate -> candidate.metadata().graphPolicyMutated()));
         assertTrue(candidates.stream().anyMatch(candidate ->
                 "CPU_REGION_POLICY".equals(candidate.metadata().attributes().get("graphParameter"))));
     }

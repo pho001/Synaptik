@@ -75,4 +75,62 @@ public class TerminalCalibrationProgressRendererTest {
         String output = bytes.toString(StandardCharsets.UTF_8);
         assertEquals(1, output.split("Synaptik calibration", -1).length - 1);
     }
+
+    @Test
+    void liveRendererRedrawsSamePanelLines() {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        TerminalCalibrationProgressRenderer renderer = new TerminalCalibrationProgressRenderer(
+                new PrintStream(bytes, true, StandardCharsets.UTF_8),
+                new TerminalCapabilities(false, true)
+        );
+
+        renderer.onEvent(new PlatformCalibrationProgressEvent(
+                PlatformCalibrationProgressPhase.STARTED,
+                "platform",
+                "",
+                0,
+                2,
+                "",
+                0,
+                0,
+                "",
+                0,
+                0,
+                "",
+                Double.NaN,
+                "started"
+        ));
+        renderer.onEvent(new PlatformCalibrationProgressEvent(
+                PlatformCalibrationProgressPhase.FAMILY_STARTED,
+                "platform",
+                "MATMUL",
+                1,
+                2,
+                "",
+                0,
+                0,
+                "candidate-with-a-very-long-name-that-should-not-wrap-the-live-progress-panel",
+                0,
+                0,
+                "",
+                Double.NaN,
+                "family started"
+        ));
+
+        String output = bytes.toString(StandardCharsets.UTF_8);
+        assertTrue(output.contains("\u001B[8F"));
+        assertTrue(output.contains("\u001B[2K"));
+        assertEquals(2, output.split("Synaptik calibration", -1).length - 1);
+    }
+
+    @Test
+    void explicitLiveModeEnablesRedrawEvenWithoutInteractiveConsole() {
+        TerminalCapabilities capabilities = TerminalCapabilities.detect(
+                "auto",
+                "live",
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8)
+        );
+
+        assertTrue(capabilities.liveRedrawEnabled());
+    }
 }
