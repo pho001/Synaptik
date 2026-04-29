@@ -266,12 +266,9 @@ public final class MetalAcceleratorBufferBinder {
                 bindings.add(metalBinding);
                 continue;
             }
-            Tensor tensor = context.runtimeTensorForNodeId(nodeId);
             MetalBufferBinding created = resolvedAllocator.createOutputBinding(
                     nodeId,
-                    tensor.getDataType(),
-                    tensor.getShape(),
-                    tensor.getFlatDataSize()
+                    layout
             );
             context.registerResource(new MetalBufferResource(resolvedAllocator, created.handle()));
             context.reserveDeviceBufferBinding(nodeId, created);

@@ -1,11 +1,11 @@
 package backend.metal.buffer;
 
 import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import tensor.DataType;
 import tensor.Tensor;
-import tensor.TensorMetadata;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -138,25 +138,27 @@ public final class MetalBufferAllocator {
      * Creates an unwritten shared F32 output binding.
      *
      * @param nodeId output node id
-     * @param dtype output dtype
-     * @param shape output shape
-     * @param elementCount output element count
+     * @param layout output layout
      * @return reserved output binding
      */
-    public MetalBufferBinding createOutputBinding(int nodeId, DataType dtype, int[] shape, long elementCount) {
+    public MetalBufferBinding createOutputBinding(int nodeId, AcceleratorBufferLayout layout) {
         ensureAvailable();
-        if (dtype != DataType.FLOAT32) {
-            throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32 only in this phase; got " + dtype);
+        Objects.requireNonNull(layout, "layout cannot be null");
+        if (layout.dataType() != DataType.FLOAT32) {
+            throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32 only in this phase; got " + layout.dataType());
         }
-        if (elementCount <= 0) {
+        if (layout.logicalElementCount() <= 0) {
             throw new IllegalArgumentException("Metal output elementCount must be positive.");
         }
-        int[] safeShape = shape == null ? new int[0] : shape.clone();
-        long bytes = Math.multiplyExact(elementCount, (long) Float.BYTES);
-        MetalBufferHandle handle = nativeAccess.createBuffer(bytes, STORAGE_MODE_SHARED, MemorySegment.NULL, 0L);
+        if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
+            throw new UnsupportedOperationException(
+                    "Metal buffer outputs require DENSE_CONTIGUOUS layout in this phase; got " + layout.layoutClass()
+            );
+        }
+        MetalBufferHandle handle = nativeAccess.createBuffer(layout.logicalByteLength(), STORAGE_MODE_SHARED, MemorySegment.NULL, 0L);
         return new MetalBufferBinding(
                 nodeId,
-                AcceleratorBufferLayout.of(dtype, safeShape, TensorMetadata.computeStrides(safeShape), 0, elementCount),
+                layout,
                 handle,
                 MetalBufferAccess.READ_WRITE
         );
@@ -179,11 +181,27 @@ public final class MetalBufferAllocator {
         Objects.requireNonNull(binding, "binding cannot be null");
         Objects.requireNonNull(destination, "destination cannot be null");
         if (binding.layout().dataType() != DataType.FLOAT32 || destination.getDataType() != DataType.FLOAT32) {
-            throw new UnsupportedOperationException("Metal materializer supports FLOAT32 bindings only.");
+            throw new UnsupportedOperationException(
+                    "Metal materializer supports FLOAT32 bindings only; binding="
+                            + binding.layout().dataType() + ", destination=" + destination.getDataType()
+            );
         }
-        if (!Arrays.equals(binding.layout().shape(), destination.getShape())
-                || binding.layout().logicalElementCount() != destination.getFlatDataSize()) {
-            throw new IllegalArgumentException("Metal binding shape/count does not match destination tensor.");
+        AcceleratorBufferLayout destinationLayout = AcceleratorBufferLayout.fromTensor(destination);
+        if (!Arrays.equals(binding.layout().shape(), destinationLayout.shape())) {
+            throw new IllegalArgumentException("Metal binding shape " + Arrays.toString(binding.layout().shape())
+                    + " does not match destination shape " + Arrays.toString(destinationLayout.shape()) + ".");
+        }
+        if (!Arrays.equals(binding.layout().strides(), destinationLayout.strides())) {
+            throw new IllegalArgumentException("Metal binding strides " + Arrays.toString(binding.layout().strides())
+                    + " do not match destination strides " + Arrays.toString(destinationLayout.strides()) + ".");
+        }
+        if (binding.layout().storageOffset() != destinationLayout.storageOffset()) {
+            throw new IllegalArgumentException("Metal binding storageOffset " + binding.layout().storageOffset()
+                    + " does not match destination storageOffset " + destinationLayout.storageOffset() + ".");
+        }
+        if (binding.layout().logicalElementCount() != destinationLayout.logicalElementCount()) {
+            throw new IllegalArgumentException("Metal binding elementCount " + binding.layout().logicalElementCount()
+                    + " does not match destination elementCount " + destinationLayout.logicalElementCount() + ".");
         }
         if (!destination.isContiguous() || destination.hasStorageOffset()) {
             throw new UnsupportedOperationException(

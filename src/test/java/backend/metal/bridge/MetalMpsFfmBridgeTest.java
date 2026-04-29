@@ -18,7 +18,9 @@ import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
+import tensor.TensorMetadata;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -156,8 +158,8 @@ class MetalMpsFfmBridgeTest {
                     1,
                     new Tensor(new float[]{1.0f, -2.0f}, new int[]{2}, null, "source", DataType.FLOAT32)
             );
-            intermediate = allocator.createOutputBinding(9, DataType.FLOAT32, new int[]{2}, 2);
-            output = allocator.createOutputBinding(10, DataType.FLOAT32, new int[]{2}, 2);
+            intermediate = allocator.createOutputBinding(9, denseF32Layout(new int[]{2}));
+            output = allocator.createOutputBinding(10, denseF32Layout(new int[]{2}));
 
             MetalMpsBridgeExecutionStats firstStats = bridge.executeBuffers(
                     context,
@@ -190,6 +192,11 @@ class MetalMpsFfmBridgeTest {
                 allocator.destroy(output.handle());
             }
         }
+    }
+
+    private static AcceleratorBufferLayout denseF32Layout(int[] shape) {
+        long elements = Arrays.stream(shape).asLongStream().reduce(1L, Math::multiplyExact);
+        return AcceleratorBufferLayout.of(DataType.FLOAT32, shape, TensorMetadata.computeStrides(shape), 0, elements);
     }
 
     private static MetalPartitionPlan reluPlan() {

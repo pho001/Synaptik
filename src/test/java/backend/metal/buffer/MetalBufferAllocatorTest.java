@@ -155,14 +155,14 @@ class MetalBufferAllocatorTest {
             public void destroyBuffer(MetalBufferHandle handle) {
             }
         });
+        Tensor base = new Tensor(new float[]{0f, 0f, 0f, 0f}, new int[]{2, 2}, null, "base", DataType.FLOAT32);
+        Tensor destination = base.permute(1, 0);
         MetalBufferBinding binding = new MetalBufferBinding(
                 7,
-                AcceleratorBufferLayout.of(DataType.FLOAT32, new int[]{2, 2}, new int[]{2, 1}, 0, 4),
+                AcceleratorBufferLayout.fromTensor(destination),
                 new MetalBufferHandle(MemorySegment.ofAddress(7), 16, "shared", "test", false),
                 MetalBufferAccess.READ_WRITE
         );
-        Tensor base = new Tensor(new float[]{0f, 0f, 0f, 0f}, new int[]{2, 2}, null, "base", DataType.FLOAT32);
-        Tensor destination = base.permute(1, 0);
 
         assertThrows(
                 UnsupportedOperationException.class,

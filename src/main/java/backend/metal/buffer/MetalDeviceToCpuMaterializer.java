@@ -1,5 +1,6 @@
 package backend.metal.buffer;
 
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
@@ -33,11 +34,14 @@ public final class MetalDeviceToCpuMaterializer implements DeviceToCpuMaterializ
         if (!(binding instanceof MetalBufferBinding metalBinding) || target == null) {
             return false;
         }
+        AcceleratorBufferLayout targetLayout = AcceleratorBufferLayout.fromTensor(target);
         return metalBinding.available()
                 && metalBinding.layout().dataType() == DataType.FLOAT32
                 && target.getDataType() == DataType.FLOAT32
-                && Arrays.equals(metalBinding.layout().shape(), target.getShape())
-                && metalBinding.layout().logicalElementCount() == target.getFlatDataSize();
+                && Arrays.equals(metalBinding.layout().shape(), targetLayout.shape())
+                && Arrays.equals(metalBinding.layout().strides(), targetLayout.strides())
+                && metalBinding.layout().storageOffset() == targetLayout.storageOffset()
+                && metalBinding.layout().logicalElementCount() == targetLayout.logicalElementCount();
     }
 
     /**
