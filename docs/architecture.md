@@ -345,17 +345,126 @@ without guessing from the selected backend label alone.
 
 ### Metal Buffer Binding Contract
 
-The repository now has a Java-side contract for the future shared-buffer bridge under
+This section is about the contract that will allow Metal execution to move from "copy tensor arrays into native code"
+toward "execute over explicit buffers". It is deliberately split into API and ABI concepts because the two are easy to
+confuse.
+
+**API** is the source-level Java contract. Examples in this repository are `Tensor.add(...)`,
+`CompiledGraph.prepare(...)`, `ExecutionState.attachDeviceBufferBinding(...)`, and the `MetalBufferBinding` record. Java
+callers and Java tests compile against those names and signatures.
+
+**ABI** means application binary interface: the binary/runtime contract at the Java-to-native boundary. In this project
+that boundary is Java FFM calling a symbol exported by the Objective-C Metal shim in
+`src/main/native/apple/synaptik_apple_mps_stub.m`. The ABI answers questions that a Java method signature cannot answer
+by itself:
+
+| ABI question | Why it matters for Metal |
+|---|---|
+| What native symbol is called? | Java FFM needs an exact function name in the loaded `.dylib`. |
+| What primitive argument layout is used? | A pointer, `int`, `long`, and shape array must be interpreted identically by Java and Objective-C. |
+| Who owns a native handle? | A `MTLBuffer` must not be released while MPSGraph still needs it, and it must not leak forever. |
+| What does a pointer mean? | A raw pointer could mean CPU bytes, an array of pointers, or an opaque `id<MTLBuffer>` handle. |
+| What synchronization has happened? | A host-visible buffer can still need command-buffer completion or CPU/GPU visibility rules before the bytes are safe to read. |
+
+The current copy-based ABI is array-oriented. Its mental model is:
+
+```text
+Java tensor arrays
+  -> FFM native memory segments
+  -> Objective-C creates MTLBuffer objects from those bytes
+  -> MPSGraph executes
+  -> Objective-C reads result bytes
+  -> Java copies result bytes into tensor arrays
+```
+
+That ABI is simple and safe because the Java side always ends with CPU-current arrays. It is also expensive because
+every Metal region pays input upload and output download costs.
+
+A future shared-buffer ABI would be buffer-oriented:
+
+```text
+Java execution state owns or references a Metal-compatible buffer
+  -> Java passes buffer descriptors / handles to native code
+  -> Objective-C wraps those handles as MPSGraphTensorData inputs/outputs
+  -> MPSGraph reads and writes those buffers
+  -> Java records residency instead of immediately copying bytes back
+```
+
+The repository now has the Java-side pieces of that future contract under `src/main/java/backend/memory` and
 `src/main/java/backend/metal/buffer`:
 
 - `MetalBufferHandle` is an opaque native handle plus byte length, storage mode, owner label, and lifetime flag.
 - `MetalBufferAccess` distinguishes `READ`, `WRITE`, and `READ_WRITE` intent.
 - `MetalBufferBinding` ties a compiled node id, dtype, shape, element count, handle, and access mode together.
+- `DeviceBufferBinding` is the backend-neutral view used by `ExecutionState`. It exposes only node id, backend id,
+  logical byte length, availability, and a diagnostic description.
 
 This is intentionally not yet a production zero-copy implementation. `MetalMpsGraphBridge.supportsBufferBindings()`
 defaults to `false`, and the current FFM bridge still executes through tensor arrays. The value of the contract is
 architectural: future native ABI work can pass buffer descriptors to the bridge without teaching native code about
 semantic `Tensor` objects or making `Tensor` construction allocate device resources.
+
+The important ownership split is:
+
+| Layer | Knows about | Does not know about |
+|---|---|---|
+| Public `Tensor` | Semantic value, dtype, shape, Java storage arrays | Metal buffer lifetime, native ownership, graph node ids |
+| `ExecutionState` | Runtime node id, runtime tensor, residency, optional `DeviceBufferBinding` | Objective-C object model, MPSGraph encoding details |
+| `MetalBufferBinding` | Node id, dtype, shape, byte count, access intent, opaque handle | Public graph semantics, optimizer policy |
+| Native Metal shim | Native handles, MPSGraphTensorData construction, command execution | Java `Tensor` object graph |
+
+Worked example:
+
+```text
+Compiled node:
+  nodeId = 42
+  dtype = FLOAT32
+  shape = [128, 128]
+  elementCount = 16384
+  logical bytes = 16384 * 4 = 65536
+
+Future shared-buffer binding:
+  MetalBufferBinding(
+    nodeId = 42,
+    dataType = FLOAT32,
+    shape = [128, 128],
+    elementCount = 16384,
+    handle.byteLength = 65536,
+    access = WRITE
+  )
+
+ExecutionState records:
+  TensorResidencyState = HOST_SHARED_DEVICE_BUFFER
+  cpuCurrent = true
+  deviceCurrent = true
+  deviceBackend = GPU_METAL
+  DeviceBufferBinding = the binding above
+```
+
+In that state, graph output publication may read CPU-visible storage without forcing a download because the shared buffer
+contract says the CPU representation is current. By contrast, a `DEVICE_OWNED` binding would set `cpuCurrent=false` and
+`deviceCurrent=true`; graph output publication would then fail until a real materializer performs device-to-CPU
+synchronization.
+
+```mermaid
+flowchart LR
+    JavaTensor["Public Tensor\nsemantic API"]
+    ExecutionState["ExecutionState\nper-run residency"]
+    Binding["DeviceBufferBinding\nbackend-neutral descriptor"]
+    MetalBinding["MetalBufferBinding\nnative handle + access"]
+    NativeAbi["Future native ABI\nbuffer descriptors"]
+    MPS["MPSGraph execution"]
+
+    JavaTensor --> ExecutionState
+    ExecutionState --> Binding
+    Binding --> MetalBinding
+    MetalBinding --> NativeAbi
+    NativeAbi --> MPS
+```
+
+Current limitation: the diagram above documents the intended bridge shape, not current production execution. The
+current `MetalMpsFfmBridge` reports `supportsBufferBindings() == false`, successful Metal execution reports
+`MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY`, and outputs are copied back to Java arrays.
 
 ## Configuration, Profiles, And Tuning
 

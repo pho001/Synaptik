@@ -1024,6 +1024,200 @@ deviceBufferBytes = 65536
 deviceBufferAvailable = true
 ```
 
+#### Residency state machine
+
+The runtime residency mechanism solves a specific problem: the framework needs to know whether a CPU read is safe after
+an accelerator step. Without explicit state, a future Metal path could write only a device buffer while the old Java
+array still contains yesterday's bytes. Then root publication, gradient publication, or a CPU kernel could read stale
+data and silently return the wrong result.
+
+The implementation keeps the state per compiled node inside `ExecutionState`, not on public `Tensor` objects. That is
+why repeated executions can have independent runtime storage even when they reuse the same `PreparedExecution`.
+
+State transitions implemented today:
+
+| Transition API | New residency | CPU current? | Device current? | Binding kept? | Meaning |
+|---|---|---:|---:|---:|---|
+| `markCpuCurrent(nodeId, reason)` | `CPU_ARRAY` | yes | no | no | A CPU kernel or copy-back path wrote Java tensor storage. |
+| `markDeviceCurrent(nodeId, DEVICE_OWNED, backend, reason)` | `DEVICE_OWNED` | no | yes | no | Backend reports a device-only value but no reusable binding is registered. |
+| `attachDeviceBufferBinding(nodeId, binding, HOST_SHARED_DEVICE_BUFFER, reason)` | `HOST_SHARED_DEVICE_BUFFER` | yes | yes | yes | A backend-visible shared buffer is the active value and is also CPU-readable. |
+| `attachDeviceBufferBinding(nodeId, binding, DEVICE_OWNED, reason)` | `DEVICE_OWNED` | no | yes | yes | A backend-visible device buffer is the active value; CPU reads require materialization. |
+| `markMaterializedToCpu(nodeId, reason)` | `CPU_ARRAY` | yes | no | no | A materializer has already synchronized device bytes into CPU storage. |
+
+`markMaterializedToCpu(...)` is intentionally not a copy routine. It must be called only after the actual transfer has
+already happened. Today there is no production Metal device-to-CPU materializer because current Metal execution already
+copies outputs back into Java arrays.
+
+#### Copy-based Metal today
+
+For the current FFM bridge, the state remains simple:
+
+```text
+Before node 42 executes:
+  residency = CPU_ARRAY
+  cpuCurrent = false
+  deviceCurrent = false
+  reason = runtime tensor allocated
+
+MetalMpsFfmBridge.execute(...):
+  copies Java input arrays into native memory
+  native shim creates Metal buffers
+  MPSGraph executes
+  copies native output back to Java float[]
+
+After PreparedExecution marks the step:
+  residency = CPU_ARRAY
+  cpuCurrent = true
+  deviceCurrent = false
+  reason = metal bridge copied output to CPU array
+```
+
+This is why a current Metal benchmark may show `backend=GPU_METAL` while still showing `storageResidency=CPU_ARRAY`.
+That does not mean Metal failed; it means the current bridge is copy-back based.
+
+#### Shared-buffer future path
+
+The Java-side contract added for phase 45 allows a future Metal executable to do this instead:
+
+```text
+nodeId = 42
+shape = [128, 128]
+dtype = FLOAT32
+logical bytes = 128 * 128 * 4 = 65536
+
+binding:
+  backendId = GPU_METAL
+  logicalByteLength = 65536
+  available = true
+
+ExecutionState.attachDeviceBufferBinding(
+  42,
+  binding,
+  HOST_SHARED_DEVICE_BUFFER,
+  "metal shared output"
+)
+```
+
+After that call:
+
+```text
+storageResidency = HOST_SHARED_DEVICE_BUFFER
+storageCpuCurrent = true
+storageDeviceCurrent = true
+storageDeviceBackend = GPU_METAL
+deviceBufferBackend = GPU_METAL
+deviceBufferBytes = 65536
+deviceBufferAvailable = true
+```
+
+The result can be read by a CPU publication point because CPU storage is marked current. It can also be consumed by a
+later Metal step because device storage is marked current and a device buffer binding exists.
+
+#### Device-owned future path
+
+For a GPU-owned output, the transition is different:
+
+```text
+ExecutionState.attachDeviceBufferBinding(
+  42,
+  binding,
+  DEVICE_OWNED,
+  "metal device-owned output"
+)
+```
+
+State:
+
+```text
+storageResidency = DEVICE_OWNED
+storageCpuCurrent = false
+storageDeviceCurrent = true
+storageDeviceBackend = GPU_METAL
+```
+
+Now a CPU publication point asks:
+
+```java
+executionState.requireCpuReadable(42, CpuMaterializationReason.GRAPH_OUTPUT);
+```
+
+Because CPU storage is stale and the device value is current, the method throws instead of allowing stale Java array
+storage to be copied into the public tensor. The future materializer must first synchronize the device buffer into CPU
+storage and then call:
+
+```java
+executionState.markMaterializedToCpu(42, CpuMaterializationReason.GRAPH_OUTPUT);
+```
+
+Only after that transition may `PreparedExecution.syncRootData(...)` safely publish the result.
+
+#### Post-step residency rule
+
+`PreparedExecution.executeSteps(...)` applies one central rule after `ComputeEngine.compute(...)` returns:
+
+```text
+if backend == CPU:
+  mark output CPU_ARRAY/current
+else if backend did not publish any current CPU/device residency:
+  mark output CPU_ARRAY/current
+else:
+  preserve backend-published residency
+```
+
+The second branch preserves current behavior for copy-back Metal and any other accelerator executable that writes Java
+arrays but does not yet publish explicit residency. The third branch is what makes the shared-buffer path possible: if a
+future `PreparedMetalExecutable` attaches a `HOST_SHARED_DEVICE_BUFFER` binding, the execution loop will not overwrite
+that state with `CPU_ARRAY`.
+
+```mermaid
+flowchart TD
+    Step["PreparedExecution step"]
+    Compute["ComputeEngine.compute(...)"]
+    CPU{"Selected backend is CPU?"}
+    Published{"Backend published\ncurrent residency?"}
+    CpuCurrent["markCpuCurrent\nCPU_ARRAY"]
+    Preserve["Preserve backend state\nHOST_SHARED_DEVICE_BUFFER\nor DEVICE_OWNED"]
+    Trace["Build step trace\nstorage + deviceBuffer attrs"]
+
+    Step --> Compute --> CPU
+    CPU -- yes --> CpuCurrent --> Trace
+    CPU -- no --> Published
+    Published -- no --> CpuCurrent
+    Published -- yes --> Preserve --> Trace
+```
+
+#### Materialization reasons in practice
+
+`CpuMaterializationReason` makes forced CPU reads auditable. The values are small, but they encode very different
+runtime situations:
+
+```text
+CPU_CONSUMER:
+  A CPU step is about to read a previous node.
+  Example: node 50 is an accelerator output, node 51 is a CPU-only op.
+
+GRAPH_OUTPUT:
+  The root result is being copied back to the semantic tensor visible to user code.
+
+GRADIENT_PUBLICATION:
+  A runtime gradient tensor is being detached and assigned to a public leaf tensor.
+
+PUBLIC_DATA_ACCESS:
+  Future public tensor data access needs CPU-visible bytes.
+
+CPU_FALLBACK:
+  Accelerator execution fell back and CPU storage became the active representation.
+```
+
+The practical invariant is:
+
+```text
+Every CPU read must be preceded by either:
+  cpuCurrent = true
+or:
+  real materialization has happened, followed by markMaterializedToCpu(...)
+```
+
 ### RuntimeMemoryBinder tracking
 
 `RuntimeMemoryBinder.bind(...)` applies compile-time memory planning to runtime tensors. It is deliberately conservative.
@@ -1534,6 +1728,8 @@ Trace tests verify that:
 | Missing CPU kernel | `CpuNodePreparer` or `CpuBackend` | `IllegalStateException` during prepare or `UnsupportedOperationException` during execute | Add/register the CPU kernel or avoid that operation/backend combination. |
 | Missing prepared fused executable | Fused CPU execution | `IllegalStateException: Missing prepared fused executable in prepared metadata` | Prepare with a runtime config that supports the fused path, or disable/adjust fusion. |
 | Memory binding mistake | `RuntimeMemoryBinder` and `MemoryPlan` | Incorrect output if live ranges alias incorrectly | Inspect memory plan and binding policy. Binder intentionally refuses many unsafe bindings, including mismatched slot sizes and unsupported dtypes. |
+| Device-current value read by CPU without materialization | `ExecutionState.requireCpuReadable(...)`, `PreparedExecution.syncRootData(...)`, `PreparedExecution.publishCompiledGradients(...)`, CPU input guard in `executeSteps(...)` | `IllegalStateException` mentioning `reason=graph_output`, `reason=gradient_publication`, or `reason=cpu_consumer` and no device-to-CPU materializer | Add a real materializer before enabling device-owned execution, or keep the current copy-back path. This failure prevents stale Java arrays from being published. |
+| Invalid device buffer binding | `ExecutionState.attachDeviceBufferBinding(...)` | `IllegalArgumentException` when node ids mismatch, residency is `CPU_ARRAY`, or `binding.available()` is false | Fix the backend binding construction. The binding must represent the same compiled node and cover the logical payload before it can update residency. |
 | OpenCL preparation gap | `BackendPrepareDispatcher` and `OpenClBackend` | Prepared metadata has no CPU plan; execute relies on OpenCL registry | Needs verification: OpenCL appears to be a minimal registry-backed path, not a full prepare/lowering path. |
 | Native bridge availability | `PreparedMetalExecutable` / `PreparedCudaExecutable` | Accelerator executable falls back to CPU when bridge/context/executable is unavailable | Check runtime config, bridge availability, and trace attributes. |
 
@@ -1551,7 +1747,11 @@ Trace tests verify that:
 - [`LoweringPipeline.java`](../src/main/java/backend/lowering/LoweringPipeline.java): optimized region lowering.
 - [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java): CPU kernel/plan/workspace/fused metadata preparation.
 - [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java): run loop, tracing, root publishing, gradient publishing.
-- [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java): per-run tensors, runtime inputs, workspaces, prepared input tensors.
+- [`ExecutionState.java`](../src/main/java/graph/execution/ExecutionState.java): per-run tensors, runtime inputs, workspaces, prepared input tensors, residency state, and device buffer binding registry.
+- [`TensorResidencyState.java`](../src/main/java/backend/memory/TensorResidencyState.java): CPU/device current flags and residency transitions.
+- [`CpuMaterializationReason.java`](../src/main/java/backend/memory/CpuMaterializationReason.java): explicit reasons for forced CPU-readable storage.
+- [`DeviceBufferBinding.java`](../src/main/java/backend/memory/DeviceBufferBinding.java): backend-neutral runtime contract for device-visible buffers.
+- [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java): Metal-specific device buffer binding descriptor.
 - [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/RuntimeMemoryBinder.java): runtime storage aliasing from memory plan.
 - [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java): execution-time backend dispatcher.
 - [`CpuBackend.java`](../src/main/java/backend/cpu/CpuBackend.java): CPU runtime input resolution, layout plan application, dtype kernel dispatch.
