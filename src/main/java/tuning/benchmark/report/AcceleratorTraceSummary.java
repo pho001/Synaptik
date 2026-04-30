@@ -3,6 +3,7 @@ package tuning.benchmark.report;
 import graph.execution.trace.ExecutionStepTrace;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -53,6 +54,9 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
             if (Boolean.TRUE.equals(attrs.get("acceleratorBufferPreparedInputUsed"))) {
                 summary.preparedInputSteps++;
             }
+            addNonBlank(summary.reasonCodes, attrs.get("acceleratorBufferReasonCode"));
+            addNonBlank(summary.fallbackReasons, attrs.get("acceleratorBufferReason"));
+            addNonBlank(summary.fallbackReasons, attrs.get("metalFallbackReason"));
             summary.javaToNativeCopyNs += longAttr(attrs.get("metalJavaToNativeCopyNs"));
             summary.nativeToJavaCopyNs += longAttr(attrs.get("metalNativeToJavaCopyNs"));
             summary.nativeDeviceCopyNs += longAttr(attrs.get("metalNativeDeviceCopyNs"));
@@ -76,6 +80,16 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
         return value instanceof Number number ? number.longValue() : 0L;
     }
 
+    private static void addNonBlank(LinkedHashSet<String> target, Object value) {
+        if (value == null) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!text.isBlank()) {
+            target.add(text);
+        }
+    }
+
     /**
      * Per-backend aggregate counters.
      */
@@ -90,8 +104,14 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
             long outputBytes,
             long javaToNativeCopyNs,
             long nativeToJavaCopyNs,
-            long nativeDeviceCopyNs
+            long nativeDeviceCopyNs,
+            List<String> fallbackReasons,
+            List<String> reasonCodes
     ) {
+        public BackendSummary {
+            fallbackReasons = fallbackReasons == null ? List.of() : List.copyOf(fallbackReasons);
+            reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
+        }
     }
 
     private static final class MutableBackendSummary {
@@ -106,6 +126,8 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
         private long javaToNativeCopyNs;
         private long nativeToJavaCopyNs;
         private long nativeDeviceCopyNs;
+        private final LinkedHashSet<String> fallbackReasons = new LinkedHashSet<>();
+        private final LinkedHashSet<String> reasonCodes = new LinkedHashSet<>();
 
         private BackendSummary toImmutable() {
             return new BackendSummary(
@@ -119,7 +141,9 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
                     outputBytes,
                     javaToNativeCopyNs,
                     nativeToJavaCopyNs,
-                    nativeDeviceCopyNs
+                    nativeDeviceCopyNs,
+                    List.copyOf(fallbackReasons),
+                    List.copyOf(reasonCodes)
             );
         }
     }

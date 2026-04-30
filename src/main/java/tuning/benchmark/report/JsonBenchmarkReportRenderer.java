@@ -164,7 +164,9 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"outputBytes\": ").append(backend.outputBytes()).append(", ")
                     .append("\"javaToNativeCopyNs\": ").append(backend.javaToNativeCopyNs()).append(", ")
                     .append("\"nativeToJavaCopyNs\": ").append(backend.nativeToJavaCopyNs()).append(", ")
-                    .append("\"nativeDeviceCopyNs\": ").append(backend.nativeDeviceCopyNs())
+                    .append("\"nativeDeviceCopyNs\": ").append(backend.nativeDeviceCopyNs()).append(", ")
+                    .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
+                    .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
                     .append("}");
         }
         sb.append('}');
@@ -471,6 +473,21 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append(", ");
             }
             sb.append(values.get(i));
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private static String stringListJson(java.util.List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append('"').append(escape(values.get(i))).append('"');
         }
         sb.append(']');
         return sb.toString();

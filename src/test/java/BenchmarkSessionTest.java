@@ -402,6 +402,99 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void renderersExposeAcceleratorEvidenceContract() {
+        var profile = new ExecutionProfile(
+                "accelerator-evidence-profile",
+                "accelerator-evidence",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "metal_linear",
+                "LINEAR",
+                List.of(16, 16),
+                DataType.FLOAT32,
+                "GPU_METAL",
+                "PreparedMetalExecutable",
+                2_000_000L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.ofEntries(
+                                Map.entry("acceleratorBufferBackend", "GPU_METAL"),
+                                Map.entry("acceleratorBufferMode", "AUTO"),
+                                Map.entry("acceleratorBufferExecutionPath", "BUFFER_BINDING"),
+                                Map.entry("acceleratorBufferReasonCode", "BUFFER_BINDING_AVAILABLE"),
+                                Map.entry("acceleratorBufferReason", "using native buffer bindings"),
+                                Map.entry("acceleratorBufferPreparedInputUsed", true),
+                                Map.entry("metalJavaToNativeCopyNs", 100_000L),
+                                Map.entry("metalNativeToJavaCopyNs", 0L),
+                                Map.entry("metalNativeDeviceCopyNs", 25_000L),
+                                Map.entry("storageResidency", "DEVICE_OWNED"),
+                                Map.entry("storageCpuCurrent", false),
+                                Map.entry("storageDeviceCurrent", true)
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        BenchmarkReport report = BenchmarkReport.of(
+                "accelerator_evidence_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("accelerator-evidence", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
+                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.BackendSelectionTrace.empty()),
+                                        new graph.execution.trace.RunTrace(
+                                                ExecutionMode.FORWARD,
+                                                2_000_000L,
+                                                List.of(step)
+                                        )
+                                ),
+                                new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("accelerator:"));
+        assertTrue(text.contains("backend=GPU_METAL"));
+        assertTrue(text.contains("bufferBindingSteps=1"));
+        assertTrue(text.contains("preparedInputSteps=1"));
+        assertTrue(text.contains("reasonCodes=[BUFFER_BINDING_AVAILABLE]"));
+        assertTrue(text.contains("fallbackReasons=[using native buffer bindings]"));
+        assertTrue(text.contains("javaToNativeMs=0.100000"));
+        assertTrue(text.contains("nativeDeviceCopyMs=0.025000"));
+        assertTrue(text.contains("storageResidency=DEVICE_OWNED"));
+        assertTrue(text.contains("DEVICE_OWNED"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"accelerator\":"));
+        assertTrue(json.contains("\"GPU_METAL\":"));
+        assertTrue(json.contains("\"bufferBindingSteps\": 1"));
+        assertTrue(json.contains("\"preparedInputSteps\": 1"));
+        assertTrue(json.contains("\"reasonCodes\": [\"BUFFER_BINDING_AVAILABLE\"]"));
+        assertTrue(json.contains("\"fallbackReasons\": [\"using native buffer bindings\"]"));
+        assertTrue(json.contains("\"javaToNativeCopyNs\": 100000"));
+        assertTrue(json.contains("\"nativeDeviceCopyNs\": 25000"));
+        assertTrue(json.contains("\"storageResidency\": \"DEVICE_OWNED\""));
+        assertTrue(json.contains("\"storageCpuCurrent\": false"));
+        assertTrue(json.contains("\"storageDeviceCurrent\": true"));
+    }
+
+    @Test
     void renderersExposeMetalBridgeTransferDiagnostics() {
         var profile = new ExecutionProfile(
                 "metal-candidate-profile",
