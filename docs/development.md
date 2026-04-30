@@ -162,6 +162,15 @@ For native or accelerator-adjacent paths:
 ./gradlew metalTest
 ```
 
+- CUDA shim build/probe commands:
+
+```bash
+./gradlew buildCudaGraphShim
+./gradlew cudaTest
+```
+
+`buildCudaGraphShim` calls `scripts/build-cuda-graph-shim.sh` and writes the optional native shim to `build/native/cuda/libsynaptik_cuda_graph.*`. Use it with `-Dsynaptik.cuda.graph.lib=<path>`, `SYNAPTIK_CUDA_GRAPH_LIB`, or the default library name `synaptik_cuda_graph`. CUDA native build is optional; default Java lifecycle tasks stay portable and do not require CUDA toolkit, CUDA hardware, or `nvcc`.
+
 The general native-bridge model, including BLAS/GEMM terminology and Java FFM symbol binding, is documented in
 [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step). Read it before changing `backend.blas`, `OpenBlasFfmBridge`,
 or native dispatch thresholds.
@@ -169,6 +178,18 @@ or native dispatch thresholds.
 `buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
 
 Default Java lifecycle tasks stay portable: `classes`, `build`, and `check` do not depend on Metal native compilation. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior. The native ABI and Objective-C call path are documented in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim).
+
+For CUDA bridge and buffer-policy changes, use focused portable checks first:
+
+```bash
+./gradlew classes
+./gradlew test --tests backend.cuda.bridge.CudaFfmBridgeTest
+./gradlew test --tests backend.cuda.buffer.CudaAcceleratorBufferBinderTest
+./gradlew test --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
+./gradlew test --tests SourceTreeHygieneTest
+```
+
+CUDA buffer decisions use stable reason code strings such as `NATIVE_BUFFER_ABI_UNAVAILABLE`, `INPUT_DTYPE_UNSUPPORTED`, `OUTPUT_LAYOUT_UNSUPPORTED`, and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`. Phase 6 validates dense `AcceleratorBufferLayout` / `AcceleratorBufferDecision` metadata for CUDA; actual CUDA device-buffer execution, materialization, and adjacent handoff belong to Phase 7.
 
 ## Adding Optimizer Rules
 

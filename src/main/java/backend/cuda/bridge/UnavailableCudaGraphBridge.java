@@ -35,6 +35,17 @@ public final class UnavailableCudaGraphBridge implements CudaGraphBridge {
     }
 
     /**
+     * Returns unavailable layered capability state.
+     */
+    @Override
+    public CudaBridgeCapabilities capabilities() {
+        return CudaBridgeCapabilities.unavailable(
+                CudaBridgeCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE,
+                unavailableReason()
+        );
+    }
+
+    /**
      * Returns an unavailable CUDA context instead of throwing.
      */
     @Override

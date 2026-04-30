@@ -19,10 +19,12 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import java.lang.foreign.MemorySegment;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class PreparedCudaExecutableBufferPolicyTest {
     @Test
@@ -77,6 +79,29 @@ class PreparedCudaExecutableBufferPolicyTest {
                 failure.getMessage());
     }
 
+    @Test
+    void requireModeFailsBeforeTensorListExecutionEvenWhenDenseMetadataAccepted() {
+        AtomicBoolean executed = new AtomicBoolean(false);
+        PreparedCudaExecutable executable = new PreparedCudaExecutable(
+                dag(),
+                LoweringFamily.CUDA_GRAPH_REGION,
+                new FakeCudaBridge(true, executed),
+                List.of(),
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(null));
+
+        assertFalse(executed.get());
+        assertEquals(AcceleratorBufferReasonCode.REQUIRED_BUFFER_EXECUTION_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals("Accelerator buffer path is required for GPU_CUDA but unavailable: "
+                        + "REQUIRED_BUFFER_EXECUTION_UNAVAILABLE: CUDA prepared executable does not implement buffer binding execution",
+                failure.getMessage());
+    }
+
     private static AcceleratorDagSpec dag() {
         return new AcceleratorDagSpec(
                 List.of(new AcceleratorDagInput(1, List.of(2), DataType.FLOAT32)),
@@ -101,13 +126,19 @@ class PreparedCudaExecutableBufferPolicyTest {
 
     private static final class FakeCudaBridge implements CudaGraphBridge {
         private final boolean supportsBufferBindings;
+        private final AtomicBoolean executed;
 
         private FakeCudaBridge() {
             this(false);
         }
 
         private FakeCudaBridge(boolean supportsBufferBindings) {
+            this(supportsBufferBindings, new AtomicBoolean(false));
+        }
+
+        private FakeCudaBridge(boolean supportsBufferBindings, AtomicBoolean executed) {
             this.supportsBufferBindings = supportsBufferBindings;
+            this.executed = executed;
         }
 
         @Override
@@ -127,7 +158,16 @@ class PreparedCudaExecutableBufferPolicyTest {
 
         @Override
         public CudaBridgeExecutable compile(CudaBridgeContext bridgeContext, AcceleratorDagSpec dagSpec) {
-            return new CudaBridgeExecutable(true, MemorySegment.ofAddress(2), "", false, List.of(1), List.of(2));
+            return new CudaBridgeExecutable(
+                    true,
+                    MemorySegment.ofAddress(2),
+                    "",
+                    false,
+                    List.of(1),
+                    List.of(DataType.FLOAT32),
+                    List.of(2),
+                    List.of(DataType.FLOAT32)
+            );
         }
 
         @Override
@@ -142,6 +182,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 List<Tensor> externalInputs,
                 List<Tensor> outputs
         ) {
+            executed.set(true);
             throw new AssertionError("REQUIRE mode must fail before tensor-list execution.");
         }
     }

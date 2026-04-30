@@ -28,6 +28,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
  * can fall back to CPU execution.</p>
  */
 public final class CudaFfmBridge implements CudaGraphBridge {
+    private static final boolean CUDA_BUFFER_EXECUTION_ENABLED = false;
     private static final State STATE = init();
     private static volatile CudaBridgeContext SHARED_CONTEXT;
 
@@ -45,6 +46,26 @@ public final class CudaFfmBridge implements CudaGraphBridge {
     @Override
     public String unavailableReason() {
         return STATE.reason;
+    }
+
+    /**
+     * Returns layered CUDA native bridge capability state.
+     */
+    @Override
+    public CudaBridgeCapabilities capabilities() {
+        return STATE.capabilities;
+    }
+
+    /**
+     * Returns whether CUDA native buffer execution symbols and Java support are available.
+     */
+    @Override
+    public boolean supportsBufferBindings() {
+        return STATE.available
+                && CUDA_BUFFER_EXECUTION_ENABLED
+                && STATE.createBufferFn != null
+                && STATE.destroyBufferFn != null
+                && STATE.executePartitionBuffersFn != null;
     }
 
     /**
@@ -182,7 +203,9 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     "",
                     false,
                     dagSpec.externalInputs().stream().map(AcceleratorDagInput::nodeId).toList(),
-                    dagSpec.outputNodeIds()
+                    dagSpec.externalInputs().stream().map(AcceleratorDagInput::dataType).toList(),
+                    dagSpec.outputNodeIds(),
+                    dagSpec.outputNodeIds().stream().map(ignored -> DataType.FLOAT32).toList()
             );
         } catch (Throwable t) {
             return CudaBridgeExecutable.unavailable("compile_partition failed: " + safeMessage(t));
@@ -313,17 +336,35 @@ public final class CudaFfmBridge implements CudaGraphBridge {
     }
 
     private static State init() {
+        Arena arena = Arena.ofShared();
+        SymbolLookup lookup;
         try {
-            Arena arena = Arena.ofShared();
-            SymbolLookup lookup = resolveLookup(arena);
+            lookup = resolveLookup(arena);
+        } catch (Throwable t) {
+            String reason = t.getClass().getSimpleName() + ": " + safeMessage(t);
+            return State.unavailable(CudaBridgeCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, reason, arena);
+        }
+        try {
             Linker linker = Linker.nativeLinker();
 
+            MemorySegment availableSymbol = lookup.find("synaptik_cuda_graph_available").orElse(null);
+            MemorySegment unavailableReasonSymbol = lookup.find("synaptik_cuda_graph_unavailable_reason").orElse(null);
+            if (availableSymbol == null || unavailableReasonSymbol == null) {
+                String missing = availableSymbol == null
+                        ? "synaptik_cuda_graph_available"
+                        : "synaptik_cuda_graph_unavailable_reason";
+                return State.unavailable(
+                        CudaBridgeCapabilityCode.REQUIRED_SYMBOL_MISSING,
+                        "CUDA shim is missing required symbol: " + missing,
+                        arena
+                );
+            }
             MethodHandle availableFn = linker.downcallHandle(
-                    lookup.find("synaptik_cuda_graph_available").orElseThrow(),
+                    availableSymbol,
                     FunctionDescriptor.of(JAVA_INT)
             );
             MethodHandle unavailableReasonFn = linker.downcallHandle(
-                    lookup.find("synaptik_cuda_graph_unavailable_reason").orElseThrow(),
+                    unavailableReasonSymbol,
                     FunctionDescriptor.of(ADDRESS)
             );
             MethodHandle createContextFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_create_context", FunctionDescriptor.of(ADDRESS));
@@ -369,15 +410,77 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             );
             MethodHandle destroyContextFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_destroy_context", FunctionDescriptor.ofVoid(ADDRESS));
             MethodHandle destroyExecutableFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_destroy_executable", FunctionDescriptor.ofVoid(ADDRESS));
+            MethodHandle createBufferFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_create_buffer", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT));
+            MethodHandle destroyBufferFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_destroy_buffer", FunctionDescriptor.ofVoid(ADDRESS));
+            MethodHandle executePartitionBuffersFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_cuda_graph_execute_partition_f32_buffers",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
+            );
 
             int available = (int) availableFn.invokeExact();
-            if (available != 0) {
-                return new State(true, "", arena, createContextFn, compilePartitionFn, executePartitionFn, destroyContextFn, destroyExecutableFn);
+            if (available == 0) {
+                MemorySegment reasonPtr = (MemorySegment) unavailableReasonFn.invokeExact();
+                String reason = cStringOrDefault(reasonPtr, "CUDA shim reported unavailable.");
+                return new State(
+                        false,
+                        reason,
+                        arena,
+                        createContextFn,
+                        compilePartitionFn,
+                        executePartitionFn,
+                        destroyContextFn,
+                        destroyExecutableFn,
+                        createBufferFn,
+                        destroyBufferFn,
+                        executePartitionBuffersFn,
+                        CudaBridgeCapabilities.unavailable(CudaBridgeCapabilityCode.CUDA_RUNTIME_UNAVAILABLE, reason)
+                );
             }
-            MemorySegment reasonPtr = (MemorySegment) unavailableReasonFn.invokeExact();
-            return new State(false, cStringOrDefault(reasonPtr, "CUDA shim reported unavailable."), arena, createContextFn, compilePartitionFn, executePartitionFn, destroyContextFn, destroyExecutableFn);
+            if (createContextFn == null || compilePartitionFn == null || executePartitionFn == null) {
+                String missing = createContextFn == null
+                        ? "synaptik_cuda_graph_create_context"
+                        : compilePartitionFn == null
+                        ? "synaptik_cuda_graph_compile_partition_f32"
+                        : "synaptik_cuda_graph_execute_partition_f32";
+                String reason = "CUDA shim is missing graph execution ABI symbol: " + missing;
+                return new State(
+                        false,
+                        reason,
+                        arena,
+                        createContextFn,
+                        compilePartitionFn,
+                        executePartitionFn,
+                        destroyContextFn,
+                        destroyExecutableFn,
+                        createBufferFn,
+                        destroyBufferFn,
+                        executePartitionBuffersFn,
+                        CudaBridgeCapabilities.unavailable(CudaBridgeCapabilityCode.GRAPH_EXECUTION_ABI_UNAVAILABLE, reason)
+                );
+            }
+            boolean bufferSupported = CUDA_BUFFER_EXECUTION_ENABLED
+                    && createBufferFn != null
+                    && destroyBufferFn != null
+                    && executePartitionBuffersFn != null;
+            return new State(
+                    true,
+                    "",
+                    arena,
+                    createContextFn,
+                    compilePartitionFn,
+                    executePartitionFn,
+                    destroyContextFn,
+                    destroyExecutableFn,
+                    createBufferFn,
+                    destroyBufferFn,
+                    executePartitionBuffersFn,
+                    CudaBridgeCapabilities.available(bufferSupported)
+            );
         } catch (Throwable t) {
-            return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null, null, null, null);
+            String reason = t.getClass().getSimpleName() + ": " + safeMessage(t);
+            return State.unavailable(CudaBridgeCapabilityCode.REQUIRED_SYMBOL_MISSING, reason, arena);
         }
     }
 
@@ -429,6 +532,10 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         private final MethodHandle executePartitionFn;
         private final MethodHandle destroyContextFn;
         private final MethodHandle destroyExecutableFn;
+        private final MethodHandle createBufferFn;
+        private final MethodHandle destroyBufferFn;
+        private final MethodHandle executePartitionBuffersFn;
+        private final CudaBridgeCapabilities capabilities;
 
         private State(
                 boolean available,
@@ -438,7 +545,11 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                 MethodHandle compilePartitionFn,
                 MethodHandle executePartitionFn,
                 MethodHandle destroyContextFn,
-                MethodHandle destroyExecutableFn
+                MethodHandle destroyExecutableFn,
+                MethodHandle createBufferFn,
+                MethodHandle destroyBufferFn,
+                MethodHandle executePartitionBuffersFn,
+                CudaBridgeCapabilities capabilities
         ) {
             this.available = available;
             this.reason = reason == null ? "" : reason;
@@ -448,6 +559,29 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             this.executePartitionFn = executePartitionFn;
             this.destroyContextFn = destroyContextFn;
             this.destroyExecutableFn = destroyExecutableFn;
+            this.createBufferFn = createBufferFn;
+            this.destroyBufferFn = destroyBufferFn;
+            this.executePartitionBuffersFn = executePartitionBuffersFn;
+            this.capabilities = capabilities == null
+                    ? CudaBridgeCapabilities.unavailable(CudaBridgeCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, this.reason)
+                    : capabilities;
+        }
+
+        private static State unavailable(CudaBridgeCapabilityCode code, String reason, Arena arenaRef) {
+            return new State(
+                    false,
+                    reason,
+                    arenaRef,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    CudaBridgeCapabilities.unavailable(code, reason)
+            );
         }
     }
 }

@@ -24,6 +24,19 @@ public interface CudaGraphBridge {
     String unavailableReason();
 
     /**
+     * Returns layered CUDA native bridge capability state.
+     */
+    default CudaBridgeCapabilities capabilities() {
+        if (isAvailable()) {
+            return CudaBridgeCapabilities.available(supportsBufferBindings());
+        }
+        return CudaBridgeCapabilities.unavailable(
+                CudaBridgeCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE,
+                unavailableReason()
+        );
+    }
+
+    /**
      * Creates or returns a native CUDA bridge context.
      */
     CudaBridgeContext createContext();

@@ -3,9 +3,12 @@ package backend.cuda.exec;
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
+import backend.cuda.buffer.CudaAcceleratorBufferBinder;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;
 import backend.cuda.bridge.CudaGraphBridge;
@@ -34,6 +37,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
     private final CudaBridgeExecutable bridgeExecutable;
     private final List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps;
     private final AcceleratorBackendConfig backendConfig;
+    private final CudaAcceleratorBufferBinder bufferBinder;
     private volatile AcceleratorBufferDecision lastAcceleratorBufferDecision =
             AcceleratorBufferDecision.notEvaluated(ComputeBackend.GPU_CUDA);
 
@@ -66,6 +70,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
         this.bridgeExecutable = bridge.compile(bridgeContext, dagSpec);
         this.cpuFallbackSteps = List.copyOf(cpuFallbackSteps == null ? List.of() : cpuFallbackSteps);
         this.backendConfig = backendConfig == null ? AcceleratorBackendConfig.defaults() : backendConfig;
+        this.bufferBinder = new CudaAcceleratorBufferBinder(bridge);
     }
 
     /**
@@ -104,23 +109,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             throw new IllegalStateException("Accelerator buffer path is required for GPU_CUDA but unavailable: "
                     + lastAcceleratorBufferDecision.reasonCode() + ": " + lastAcceleratorBufferDecision.reason());
         }
-        lastAcceleratorBufferDecision = new AcceleratorBufferDecision(
-                ComputeBackend.GPU_CUDA,
-                backendConfig.buffer().bindingMode(),
-                bridge.supportsBufferBindings()
-                        ? AcceleratorBufferExecutionPath.UNAVAILABLE
-                        : AcceleratorBufferExecutionPath.TENSOR_ARRAY,
-                false,
-                false,
-                bridge.supportsBufferBindings()
-                        ? AcceleratorBufferReasonCode.NOT_EVALUATED
-                        : AcceleratorBufferReasonCode.BACKEND_BUFFER_NOT_IMPLEMENTED,
-                bridge.supportsBufferBindings()
-                        ? "CUDA buffer policy not evaluated by tensor-list bridge"
-                        : "CUDA bridge does not support buffer bindings",
-                List.of(),
-                List.of()
-        );
+        lastAcceleratorBufferDecision = bufferDecision(context);
         if (PreparedAcceleratorExecutionSupport.bridgeReady(
                 bridge.isAvailable(),
                 bridgeContext.available(),
@@ -180,5 +169,65 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
      */
     public CudaBridgeExecutable bridgeExecutable() {
         return bridgeExecutable;
+    }
+
+    private AcceleratorBufferDecision bufferDecision(ExecutionContext context) {
+        if (context == null
+                || bridgeExecutable.externalInputNodeIds().isEmpty()
+                || bridgeExecutable.outputNodeIds().isEmpty()) {
+            return new AcceleratorBufferDecision(
+                    ComputeBackend.GPU_CUDA,
+                    backendConfig.buffer().bindingMode(),
+                    bridge.supportsBufferBindings()
+                            ? AcceleratorBufferExecutionPath.UNAVAILABLE
+                            : AcceleratorBufferExecutionPath.TENSOR_ARRAY,
+                    false,
+                    false,
+                    bridge.supportsBufferBindings()
+                            ? AcceleratorBufferReasonCode.NOT_EVALUATED
+                            : AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
+                    bridge.supportsBufferBindings()
+                            ? "CUDA buffer policy not evaluated without runtime tensor context"
+                            : "native CUDA buffer ABI unavailable: bridge does not support buffer bindings",
+                    List.of(),
+                    List.of()
+            );
+        }
+        AcceleratorBufferRequest request = new AcceleratorBufferRequest(
+                ComputeBackend.GPU_CUDA,
+                dagSpec.nodes().size(),
+                bridgeExecutable.externalInputNodeIds(),
+                bridgeExecutable.externalInputDataTypes().isEmpty()
+                        ? bridgeExecutable.externalInputNodeIds().stream().map(ignored -> tensor.DataType.FLOAT32).toList()
+                        : bridgeExecutable.externalInputDataTypes(),
+                layoutsForNodeIds(context, bridgeExecutable.externalInputNodeIds()),
+                bridgeExecutable.outputNodeIds(),
+                bridgeExecutable.outputDataTypes().isEmpty()
+                        ? bridgeExecutable.outputNodeIds().stream().map(ignored -> tensor.DataType.FLOAT32).toList()
+                        : bridgeExecutable.outputDataTypes(),
+                layoutsForNodeIds(context, bridgeExecutable.outputNodeIds()),
+                context.runsBackwardPass()
+        );
+        AcceleratorBufferDecision decision = bufferBinder.decide(request, backendConfig.buffer());
+        if (decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
+            return new AcceleratorBufferDecision(
+                    ComputeBackend.GPU_CUDA,
+                    backendConfig.buffer().bindingMode(),
+                    AcceleratorBufferExecutionPath.TENSOR_ARRAY,
+                    false,
+                    false,
+                    AcceleratorBufferReasonCode.BACKEND_BUFFER_NOT_IMPLEMENTED,
+                    "CUDA dense FLOAT32 buffer metadata accepted; native buffer execution is deferred to Phase 7",
+                    decision.inputs(),
+                    decision.outputs()
+            );
+        }
+        return decision;
+    }
+
+    private static List<AcceleratorBufferLayout> layoutsForNodeIds(ExecutionContext context, List<Integer> nodeIds) {
+        return nodeIds.stream()
+                .map(nodeId -> AcceleratorBufferLayout.fromTensor(context.runtimeTensorForNodeId(nodeId)))
+                .toList();
     }
 }

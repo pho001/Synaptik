@@ -538,6 +538,7 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 |---|---|---|---|
 | `synaptik.testMaxHeap` | `2g` | Overrides Gradle test max heap when non-blank. | `build.gradle` |
 | `os.name` | JVM value | Used by `buildMetalMpsShim`, `nativeBuild`, and `metalTest` to run only on macOS. | `build.gradle` |
+| `nvcc` on `PATH` | absent | Enables optional `buildCudaGraphShim` and `cudaTest`; outputs the shim under `build/native/cuda`. | `build.gradle`, `scripts/build-cuda-graph-shim.sh` |
 
 ### Runtime System Properties
 
@@ -616,6 +617,15 @@ This section covers build, core runtime, optimizer, native bridge, diagnostic, a
 | `OPENBLAS_LIB` | Fallback OpenBLAS library path/name when `openblas.lib` is unset. | `backend/blas/OpenBlasFfmBridge.java` |
 | `SYNAPTIK_METAL_MPS_LIB` | Fallback Metal MPS shim library path/name when `synaptik.metal.mps.lib` is unset. | `backend/metal/bridge/MetalMpsFfmBridge.java` |
 | `SYNAPTIK_CUDA_GRAPH_LIB` | Fallback CUDA graph bridge library path/name when `synaptik.cuda.graph.lib` is unset. | `backend/cuda/bridge/CudaFfmBridge.java` |
+
+Optional CUDA native tasks:
+
+```bash
+./gradlew buildCudaGraphShim
+./gradlew cudaTest
+```
+
+`buildCudaGraphShim` writes `build/native/cuda/libsynaptik_cuda_graph.*`. `cudaTest` sets `synaptik.cuda.graph.lib` to that output path before running CUDA-focused tests, and is skipped when `nvcc` is unavailable.
 
 ## CLI Configuration Behavior
 

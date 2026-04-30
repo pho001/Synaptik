@@ -96,6 +96,11 @@ def isMacOs = {
     System.getProperty('os.name', '').toLowerCase().contains('mac')
 }
 def metalMpsShimLib = layout.buildDirectory.file('native/apple/libsynaptik_apple_mps.dylib')
+def cudaGraphShimLib = layout.buildDirectory.file("native/cuda/${isMacOs() ? 'libsynaptik_cuda_graph.dylib' : 'libsynaptik_cuda_graph.so'}")
+def hasNvcc = {
+    def process = new ProcessBuilder('bash', '-lc', 'command -v nvcc >/dev/null 2>&1').start()
+    process.waitFor() == 0
+}
 
 tasks.register('buildMetalMpsShim', Exec) {
     group = 'build setup'
@@ -111,13 +116,25 @@ tasks.register('buildMetalMpsShim', Exec) {
     }
 }
 
+tasks.register('buildCudaGraphShim', Exec) {
+    group = 'build setup'
+    description = 'Builds the optional CUDA graph shim for FFM loading when nvcc is available.'
+    onlyIf {
+        hasNvcc()
+    }
+    commandLine '/bin/zsh', "${project.projectDir}/scripts/build-cuda-graph-shim.sh"
+    doFirst {
+        if (!hasNvcc()) {
+            throw new GradleException('buildCudaGraphShim requires CUDA nvcc on PATH.')
+        }
+    }
+}
+
 tasks.register('nativeBuild') {
     group = 'build setup'
     description = 'Builds optional native components for the current platform.'
-    onlyIf {
-        isMacOs()
-    }
     dependsOn tasks.named('buildMetalMpsShim')
+    dependsOn tasks.named('buildCudaGraphShim')
 }
 
 tasks.register('metalTest', Test) {
@@ -137,5 +154,23 @@ tasks.register('metalTest', Test) {
         includeTestsMatching 'backend.metal.*'
         includeTestsMatching 'PreparedExecutionBuildTest.gpuMetal*'
         includeTestsMatching '*Metal*Sdpa*'
+    }
+}
+
+tasks.register('cudaTest', Test) {
+    group = 'verification'
+    description = 'Builds the CUDA graph shim when nvcc is available and runs CUDA-specific tests.'
+    onlyIf {
+        hasNvcc()
+    }
+    dependsOn tasks.named('buildCudaGraphShim')
+    shouldRunAfter tasks.named('test')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    doFirst {
+        systemProperty 'synaptik.cuda.graph.lib', cudaGraphShimLib.get().asFile.absolutePath
+    }
+    filter {
+        includeTestsMatching 'backend.cuda.*'
     }
 }

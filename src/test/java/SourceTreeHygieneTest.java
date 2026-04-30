@@ -32,6 +32,15 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void cudaNativeBuildOutputsStayUntracked() throws IOException {
+        String gitignore = Files.readString(Path.of(".gitignore"));
+        assertTrue(gitignore.contains("build/"), "Gradle build output, including build/native/cuda/, must stay ignored.");
+
+        String trackedCudaNative = gitOutput("ls-files", "build/native/cuda");
+        assertTrue(trackedCudaNative.isBlank(), () -> "CUDA native build outputs must not be tracked: " + trackedCudaNative);
+    }
+
+    @Test
     void trackedLocalTuningArtifactsStayExplicit() throws IOException {
         String trackedProfiles = gitOutput("ls-files", "profiles/platform");
         List<String> profileFiles = trackedProfiles.lines()

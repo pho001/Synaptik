@@ -547,7 +547,7 @@ Successful buffer execution leaves the step output `device-owned` in `ExecutionS
 
 Use `acceleratorBufferExecutionPath`, `acceleratorBufferReasonCode`, `storageResidency`, and `nativeDeviceCopyNs` together when diagnosing a run. `nativeDeviceCopyNs` measures the native MPSGraph-result-to-output-buffer copy inside the current Metal ABI; it is not the same as a Java array copy-back. `metalNativeToJavaCopyNs=0` plus a later CPU materialization trace is the expected device-owned path.
 
-CUDA remains capability-gated until a native shim exists. CUDA tests may assert shared policy and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, but this documentation does not claim production CUDA native buffer execution.
+CUDA remains capability-gated until a native shim exists. `CudaBridgeCapabilities` reports native library, CUDA runtime, context, graph ABI, and `bufferExecutionSupported` state. CUDA tests may assert shared policy and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, but this documentation does not claim production CUDA native buffer execution.
 
 Healthy buffer-path trace shape:
 

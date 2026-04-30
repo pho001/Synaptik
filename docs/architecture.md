@@ -306,6 +306,8 @@ Accelerator support is present but not equivalent to the CPU backend.
 
 Needs verification: native Metal/CUDA runtime availability depends on machine-specific bridge loading and external native libraries, which cannot be proven from Java source alone. The source-level integration points are `backend.metal.bridge.*`, `backend.cuda.bridge.*`, and `backend.accelerator.select.AcceleratorRuntimeAvailability`.
 
+CUDA capability probe layers are represented by `CudaBridgeCapabilities`: native library discovery, CUDA runtime availability, context availability, graph execution ABI availability, and buffer execution support. Phase 6 keeps `bufferExecutionSupported` conservative and does not treat graph ABI availability as proof of native CUDA buffer execution.
+
 For the general Java FFM bridge model and the CPU OpenBLAS bridge, see [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 For the detailed Metal runtime, Java FFM, Objective-C shim, buffer ABI, and fallback mechanics, see [Metal Backend: End-To-End Flow](metal-backend.md#end-to-end-flow), [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim), and [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi). This architecture document keeps the high-level boundaries; the Metal document follows the native call path in detail.
 For accelerator ABI, runtime residency, and CPU materialization boundaries, see [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi), [Metal Backend: Buffer Residency And Materialization](metal-backend.md#buffer-residency-and-materialization), and [Metal Backend: Trace Reading](metal-backend.md#trace-reading).
@@ -445,6 +447,10 @@ The repository has the Java-side pieces of that contract under `src/main/java/ba
 `MetalMpsGraphBridge.supportsBufferBindings()` still defaults to `false` for unavailable bridges, but the production
 FFM bridge returns `true` when all buffer ABI symbols are present. The bridge receives only explicit buffer bindings;
 it does not pull arrays out of semantic `Tensor` objects.
+
+CUDA consumes the same `AcceleratorBufferLayout`, `AcceleratorBufferRequest`, and `AcceleratorBufferDecision`
+metadata for dense `FLOAT32` layout preflight. CUDA-specific native handles and lifetimes stay under
+`backend.cuda.*`; actual CUDA device-buffer execution, materialization, and adjacent handoff are Phase 7 work.
 
 The important ownership split is:
 
