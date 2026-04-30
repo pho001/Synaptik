@@ -94,4 +94,33 @@ class MetalBufferBindingTest {
         assertFalse(unavailable.bufferCoversLogicalPayload());
         assertFalse(tooSmall.bufferCoversLogicalPayload());
     }
+
+    @Test
+    void viewOfReusesHandleWithTargetLayoutAndNodeId() {
+        MetalBufferHandle handle = new MetalBufferHandle(MemorySegment.ofAddress(77), 32, "shared", "test", true);
+        AcceleratorBufferLayout sourceLayout = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2, 4},
+                new int[]{4, 1},
+                0,
+                8
+        );
+        AcceleratorBufferLayout targetLayout = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{4, 2},
+                new int[]{1, 4},
+                0,
+                8
+        );
+        MetalBufferBinding source = new MetalBufferBinding(3, sourceLayout, handle, MetalBufferAccess.READ);
+
+        MetalBufferBinding view = MetalBufferBinding.viewOf(9, targetLayout, source, MetalBufferAccess.READ_WRITE);
+
+        assertEquals(9, view.nodeId());
+        assertEquals(targetLayout, view.layout());
+        assertTrue(view.handle() == source.handle());
+        assertEquals(source.nativeHandleIdentity(), view.nativeHandleIdentity());
+        assertTrue(view.available());
+        assertEquals(AcceleratorBufferAccessMode.READ_WRITE, view.accessMode());
+    }
 }
