@@ -178,10 +178,7 @@ public final class JsonBenchmarkReportRenderer {
         var selected = trace.decisions().stream()
                 .filter(decision -> decision.selected() && decision.costSummary() != null)
                 .toList();
-        var finalists = trace.decisions().stream()
-                .flatMap(decision -> decision.finalists().stream())
-                .limit(3)
-                .toList();
+        var finalists = rejectedFinalists(trace);
         if (selected.isEmpty() && finalists.isEmpty()) {
             return "{}";
         }
@@ -216,6 +213,31 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"estimatedComputeWork\": " + summary.estimatedComputeWork() + ", "
                 + "\"preset\": \"" + escape(summary.preset()) + "\""
                 + "}";
+    }
+
+    private static java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> rejectedFinalists(
+            graph.execution.trace.BackendSelectionTrace trace
+    ) {
+        java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> out = new java.util.ArrayList<>();
+        trace.decisions().stream()
+                .flatMap(decision -> decision.finalists().stream())
+                .forEach(out::add);
+        for (var decision : trace.decisions()) {
+            if (decision.selected() || decision.costSummary() == null) {
+                continue;
+            }
+            var summary = decision.costSummary();
+            out.add(new graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace(
+                    decision.nodeIds(),
+                    decision.reason(),
+                    summary.finalScore(),
+                    summary.boundaryCount(),
+                    summary.estimatedTransferBytes(),
+                    summary.estimatedComputeWork(),
+                    summary.preset()
+            ));
+        }
+        return out.stream().limit(3).toList();
     }
 
     private static String finalistJson(graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace finalist) {

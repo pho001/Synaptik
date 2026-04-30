@@ -218,10 +218,26 @@ public final class TextBenchmarkReportRenderer {
     private static java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> rejectedFinalists(
             graph.execution.trace.BackendSelectionTrace trace
     ) {
-        return trace.decisions().stream()
+        java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> out = new java.util.ArrayList<>();
+        trace.decisions().stream()
                 .flatMap(decision -> decision.finalists().stream())
-                .limit(3)
-                .toList();
+                .forEach(out::add);
+        for (var decision : trace.decisions()) {
+            if (decision.selected() || decision.costSummary() == null) {
+                continue;
+            }
+            var summary = decision.costSummary();
+            out.add(new graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace(
+                    decision.nodeIds(),
+                    decision.reason(),
+                    summary.finalScore(),
+                    summary.boundaryCount(),
+                    summary.estimatedTransferBytes(),
+                    summary.estimatedComputeWork(),
+                    summary.preset()
+            ));
+        }
+        return out.stream().limit(3).toList();
     }
 
     private static void appendHotSteps(StringBuilder sb, java.util.List<graph.execution.trace.ExecutionStepTrace> steps, int limit) {

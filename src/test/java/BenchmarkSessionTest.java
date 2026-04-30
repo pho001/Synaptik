@@ -276,16 +276,38 @@ public class BenchmarkSessionTest {
                 1,
                 2,
                 List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
-                        4,
-                        List.of(4, 5, 6),
-                        List.of(ComputeBackend.GPU_METAL),
-                        true,
-                        ComputeBackend.GPU_METAL,
-                        "selected",
-                        8192L,
-                        summary,
-                        finalists
-                ))
+                                4,
+                                List.of(4, 5, 6),
+                                List.of(ComputeBackend.GPU_METAL),
+                                true,
+                                ComputeBackend.GPU_METAL,
+                                "selected",
+                                8192L,
+                                summary,
+                                finalists
+                        ),
+                        new graph.execution.trace.BackendSelectionDecisionTrace(
+                                12,
+                                List.of(12),
+                                List.of(ComputeBackend.GPU_METAL),
+                                false,
+                                null,
+                                "estimated-work-below-minimum",
+                                64L,
+                                new AcceleratorPartitionScoreModel.MaterializationCostSummary(
+                                        "CONSERVATIVE",
+                                        1,
+                                        512L,
+                                        64L,
+                                        0L,
+                                        250.0d,
+                                        -125.0d,
+                                        "rejected-materialization-cost",
+                                        "BUFFER_BINDING",
+                                        "DENSE_PHYSICAL"
+                                ),
+                                List.of()
+                        ))
         );
 
         BenchmarkReport report = BenchmarkReport.of(
@@ -336,6 +358,8 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"estimatedComputeWork\": 8192"));
         assertTrue(json.contains("\"preset\": \"CONSERVATIVE\""));
         assertTrue(json.contains("\"reason\": \"rejected-materialization-cost\""));
+        assertTrue(json.contains("\"nodeIds\": [12]"));
+        assertTrue(json.contains("\"reason\": \"estimated-work-below-minimum\""));
     }
 
     @Test
