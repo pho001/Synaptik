@@ -14,6 +14,8 @@ import graph.execution.trace.RunTrace;
 import graph.execution.trace.StepExecutionMetadata;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
+import tuning.benchmark.report.GpuCoverageBaseline;
+import tuning.benchmark.report.GpuCoverageComparison;
 import tuning.benchmark.report.GpuCoverageSummary;
 
 import java.util.List;
@@ -74,6 +76,45 @@ public class GpuCoverageSummaryTest {
         assertEquals(4096L, coverage.cpuMaterializationBytes());
         assertEquals(250_000L, coverage.cpuMaterializationDurationNs());
         assertEquals(2, coverage.deviceHandoffCount());
+    }
+
+    @Test
+    void comparesCoverageAgainstBaselineWithoutTimingThresholds() {
+        GpuCoverageBaseline baseline = new GpuCoverageBaseline("v1.1", "GPU_METAL", 1, 2, 1, 2);
+        GpuCoverageSummary.BackendCoverage current = new GpuCoverageSummary.BackendCoverage(
+                4,
+                3,
+                0.75d,
+                1,
+                3,
+                3.0d,
+                0,
+                Map.of(),
+                3,
+                0,
+                0,
+                0,
+                1,
+                Map.of("CPU_CONSUMER", 1),
+                4096L,
+                250_000L,
+                325_000L,
+                1,
+                Map.of("DEVICE_OWNED", 3),
+                List.of("BUFFER_BINDING_AVAILABLE"),
+                List.of("using native buffer bindings")
+        );
+
+        GpuCoverageComparison comparison = GpuCoverageComparison.compare(baseline, current);
+
+        assertTrue(comparison.passes());
+        assertEquals("v1.1", comparison.baselineName());
+        assertEquals("GPU_METAL", comparison.backend());
+        assertTrue(comparison.improvements().contains("longer selected region"));
+        assertTrue(comparison.improvements().contains("fewer CPU materializations"));
+        assertTrue(comparison.improvements().contains("fewer fallbacks"));
+        assertTrue(comparison.improvements().contains("fewer device handoffs"));
+        assertTrue(comparison.regressions().isEmpty());
     }
 
     static ExecutionTrace traceFor(String backendName, ComputeBackend backend) {

@@ -38,6 +38,23 @@ public final class JsonBenchmarkSuiteReportRenderer {
             sb.append("}");
         }
         sb.append("\n  ],\n");
+        sb.append("  \"coverageSummary\": [\n");
+        int coverageIndex = 0;
+        for (var entry : report.bestCoverageByBackend().entrySet()) {
+            if (coverageIndex++ > 0) {
+                sb.append(",\n");
+            }
+            var coverage = entry.getValue();
+            sb.append("    {");
+            sb.append("\"backend\": \"").append(escape(entry.getKey())).append("\", ");
+            sb.append("\"gpuCoverageRatio\": ").append(format(coverage.gpuCoverageRatio())).append(", ");
+            sb.append("\"maxSelectedRegionLength\": ").append(coverage.maxSelectedRegionLength()).append(", ");
+            sb.append("\"cpuMaterializationCount\": ").append(coverage.cpuMaterializationCount()).append(", ");
+            sb.append("\"fallbackCount\": ").append(coverage.fallbackCount()).append(", ");
+            sb.append("\"deviceHandoffCount\": ").append(coverage.deviceHandoffCount());
+            sb.append("}");
+        }
+        sb.append("\n  ],\n");
         sb.append("  \"hotspots\": [\n");
         java.util.List<BenchmarkSuiteHotspot> hotspots = report.hotspots(10);
         for (int i = 0; i < hotspots.size(); i++) {

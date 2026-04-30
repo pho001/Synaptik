@@ -69,6 +69,32 @@ public record BenchmarkSuiteReport(
                 .toList();
     }
 
+    public List<GpuCoverageSummary> coverageSummaries() {
+        List<GpuCoverageSummary> summaries = new ArrayList<>();
+        for (BenchmarkReport workloadReport : workloadReports) {
+            for (BenchmarkCandidateReport candidateReport : workloadReport.candidates()) {
+                if (candidateReport.measurement() == null) {
+                    continue;
+                }
+                GpuCoverageSummary summary = GpuCoverageSummary.fromTrace(candidateReport.measurement().trace());
+                if (summary.present()) {
+                    summaries.add(summary);
+                }
+            }
+        }
+        return summaries;
+    }
+
+    public Map<String, GpuCoverageSummary.BackendCoverage> bestCoverageByBackend() {
+        Map<String, GpuCoverageSummary.BackendCoverage> best = new LinkedHashMap<>();
+        for (GpuCoverageSummary summary : coverageSummaries()) {
+            for (var entry : summary.backends().entrySet()) {
+                best.merge(entry.getKey(), entry.getValue(), BenchmarkSuiteReport::betterCoverage);
+            }
+        }
+        return best;
+    }
+
     public List<BenchmarkSuiteHotspot> hotspots(int limit) {
         if (limit <= 0) {
             return List.of();
@@ -105,6 +131,26 @@ public record BenchmarkSuiteReport(
                 .filter(report -> report.entry() != null)
                 .filter(report -> candidateName.equals(report.entry().name()))
                 .toList();
+    }
+
+    private static GpuCoverageSummary.BackendCoverage betterCoverage(
+            GpuCoverageSummary.BackendCoverage left,
+            GpuCoverageSummary.BackendCoverage right
+    ) {
+        int selected = Integer.compare(left.maxSelectedRegionLength(), right.maxSelectedRegionLength());
+        if (selected != 0) {
+            return selected > 0 ? left : right;
+        }
+        int materializations = Integer.compare(left.cpuMaterializationCount(), right.cpuMaterializationCount());
+        if (materializations != 0) {
+            return materializations < 0 ? left : right;
+        }
+        int fallbacks = Integer.compare(left.fallbackCount(), right.fallbackCount());
+        if (fallbacks != 0) {
+            return fallbacks < 0 ? left : right;
+        }
+        int handoffs = Integer.compare(left.deviceHandoffCount(), right.deviceHandoffCount());
+        return handoffs <= 0 ? left : right;
     }
 
     private static final class CandidateAccumulator {

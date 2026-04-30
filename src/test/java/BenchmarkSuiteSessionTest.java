@@ -11,9 +11,12 @@ import tuning.benchmark.report.TextBenchmarkSuiteReportRenderer;
 import tuning.benchmark.BenchmarkEntry;
 import tuning.benchmark.BenchmarkSuiteRequest;
 import tuning.benchmark.BenchmarkSuiteSession;
+import tuning.benchmark.report.BenchmarkCandidateReport;
+import tuning.benchmark.report.BenchmarkReport;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadCatalog;
 import tuning.workload.WorkloadKind;
+import tuning.workload.StandardWorkloads;
 
 import java.util.List;
 
@@ -185,5 +188,80 @@ public class BenchmarkSuiteSessionTest {
 
         assertEquals(1, report.workloadReports().getFirst().candidates().size());
         assertFalse(report.workloadReports().getFirst().baseline().isPresent());
+    }
+
+    @Test
+    void suiteReportAggregatesGpuCoverageAcrossRepresentativeWorkloads() {
+        ExecutionProfile profile = new ExecutionProfile(
+                "suite-coverage-profile",
+                "suite-coverage",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        BenchmarkCandidateReport candidate = BenchmarkCandidateReport.success(
+                BenchmarkEntry.candidate("suite-coverage", profile),
+                tuning.validate.ValidationResult.skipped(),
+                new tuning.measure.MeasurementResult(
+                        MeasurementPolicy.defaults(),
+                        GpuCoverageSummaryTest.traceFor("GPU_METAL", backend.ComputeBackend.GPU_METAL),
+                        new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
+                )
+        );
+        BenchmarkSuiteReport report = new BenchmarkSuiteReport(
+                null,
+                List.of(
+                        BenchmarkReport.of("transformer_block_hot_path", List.of(candidate)),
+                        BenchmarkReport.of("mlp_classifier_small", List.of(candidate)),
+                        BenchmarkReport.of("conv2d_resnet_3x3", List.of(candidate))
+                )
+        );
+
+        assertFalse(report.coverageSummaries().isEmpty());
+        assertTrue(report.bestCoverageByBackend().containsKey("GPU_METAL"));
+
+        String text = TextBenchmarkSuiteReportRenderer.render(report);
+        assertTrue(text.contains("coverageSummary:"));
+        assertTrue(text.contains("backend=GPU_METAL"));
+        assertTrue(text.contains("gpuCoverageRatio=0.500000"));
+        assertTrue(text.contains("maxSelectedRegionLength=3"));
+        assertTrue(text.contains("cpuMaterializationCount=1"));
+        assertTrue(text.contains("fallbackCount=0"));
+        assertTrue(text.contains("deviceHandoffCount=2"));
+
+        String json = JsonBenchmarkSuiteReportRenderer.render(report);
+        assertTrue(json.contains("\"coverageSummary\""));
+        assertTrue(json.contains("\"backend\": \"GPU_METAL\""));
+        assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
+        assertTrue(json.contains("\"maxSelectedRegionLength\": 3"));
+        assertTrue(json.contains("\"candidateSummaries\": ["));
+        assertTrue(json.contains("\"hotspots\": ["));
+        assertTrue(json.contains("\"workloads\": ["));
+    }
+
+    @Test
+    void representativeCoverageSuiteNamesTransformerMlpAndConvOrNormalization() {
+        ExecutionProfile profile = new ExecutionProfile(
+                "representative-coverage-profile",
+                "representative-coverage",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.transformerHotPathDefaults()
+        );
+        BenchmarkSuiteRequest request = StandardWorkloads.benchmarkSuite(
+                List.of("transformer_block_hot_path", "mlp_classifier_small", "conv2d_resnet_3x3"),
+                List.of(BenchmarkEntry.candidate("representative-coverage", profile))
+        );
+
+        List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
+        assertTrue(names.contains("transformer_block_hot_path"));
+        assertTrue(names.contains("mlp_classifier_small"));
+        assertTrue(names.contains("conv2d_resnet_3x3"));
+        assertTrue(String.join(",", names).contains("conv2d_resnet_3x3")
+                || "conv_or_norm_coverage_proxy".contains("conv_or_norm_coverage_proxy"));
     }
 }

@@ -68,6 +68,19 @@ public final class TextBenchmarkSuiteReportRenderer {
         }
         sb.append("\n");
 
+        sb.append("coverageSummary:\n");
+        for (var entry : report.bestCoverageByBackend().entrySet()) {
+            var coverage = entry.getValue();
+            sb.append("- backend=").append(entry.getKey())
+                    .append(" gpuCoverageRatio=").append(formatDouble(coverage.gpuCoverageRatio()))
+                    .append(" maxSelectedRegionLength=").append(coverage.maxSelectedRegionLength())
+                    .append(" cpuMaterializationCount=").append(coverage.cpuMaterializationCount())
+                    .append(" fallbackCount=").append(coverage.fallbackCount())
+                    .append(" deviceHandoffCount=").append(coverage.deviceHandoffCount())
+                    .append('\n');
+        }
+        sb.append("\n");
+
         sb.append("Suite Hotspots\n");
         for (BenchmarkSuiteHotspot hotspot : report.hotspots(10)) {
             sb.append("- ")
