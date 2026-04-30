@@ -12,11 +12,11 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.1 CUDA Native Runtime shipped on 2026-04-30. The project now has a capability-gated CUDA native shim, shared accelerator buffer ABI integration, dense `FLOAT32` CUDA buffer execution, graph-output and CPU-consumer materialization, adjacent CUDA device-buffer handoff, and CUDA trace/report/docs parity with the Metal-era observability contract.
+v1.2 GPU Region Coverage is in progress. Phase 9 shipped native layout ABI v2 metadata/capability contracts for Metal and CUDA, and Phase 10 shipped GPU layout transform/view paths that keep legal metadata-only views device-resident, route dense layout materialization through explicit capability gates, and make fallback/materialization boundaries trace-visible.
 
-- 8 phases, 26 plans, and 69 tasks completed across v1.0 and v1.1.
-- 33/33 accelerator/runtime requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md` and `.planning/milestones/v1.1-REQUIREMENTS.md`.
-- v1.1 phase verification, Nyquist validation, milestone audit, and archival passed.
+- 10 phases and 33 plans completed across v1.0, v1.1, and v1.2 to date.
+- 33/33 accelerator/runtime requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md` and `.planning/milestones/v1.1-REQUIREMENTS.md`; v1.2 has 6/16 requirements complete.
+- v1.1 phase verification, Nyquist validation, milestone audit, and archival passed; v1.2 Phase 9 and Phase 10 verification passed.
 - Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, and narrow CUDA native runtime execution are now validated project state.
 - Real CUDA hardware/native execution remains a residual environment risk because local `nvcc` was unavailable; portable gates and capability-skip behavior passed.
 
@@ -64,11 +64,11 @@ v1.2 should broaden GPU-resident execution coverage so realistic neural-network/
 - ✓ CUDA bridge and prepared executable seams consume shared accelerator buffer layout/access metadata for dense supported layouts without CUDA-specific common-runtime fields — Phase 6 by `.planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md`.
 - ✓ CUDA dense FLOAT32 native buffer execution, graph-output/CPU-consumer materialization, and adjacent CUDA handoff are validated — Phase 7 by `.planning/phases/07-cuda-buffer-execution-and-materialization/07-VERIFICATION.md`.
 - ✓ CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal, with explicit fallback reason codes, docs, and source hygiene gates — validated in Phase 8 by `.planning/phases/08-cuda-observability-and-documentation-closure/08-VERIFICATION.md`.
+- ✓ Native layout ABI v2 carries non-contiguous/view layout metadata across Metal and CUDA native boundaries with capability/version checks and explicit fallback — validated in Phase 9 by `.planning/phases/09-native-layout-abi-v2/09-VERIFICATION.md`.
+- ✓ GPU layout transforms and view-like outputs preserve device residency across compatible Metal and CUDA regions, with CPU parity at graph output/CPU consumer/gradient publication boundaries — validated in Phase 10 by `.planning/phases/10-gpu-layout-transform-and-view-path/10-VERIFICATION.md`.
 
 ### Active
 
-- [ ] Native layout ABI v2 carries non-contiguous/view layout metadata across Metal and CUDA native boundaries with capability/version checks and explicit fallback.
-- [ ] GPU layout transforms and view-like outputs preserve device residency across compatible Metal and CUDA regions.
 - [ ] Metal and CUDA lowering cover a broader set of common NN/tensor operation patterns through a documented support matrix and stable unsupported reasons.
 - [ ] Fused GPU regions execute safe compound patterns without copying CPU fused ASM internals or regressing CPU fused execution.
 - [ ] Trace and benchmark reports quantify GPU region coverage, CPU materialization boundaries, fallbacks, device handoffs, and representative workload improvement.
@@ -132,6 +132,8 @@ The design goal is therefore not "Metal hacks" or "CUDA hacks". The goal is a cl
 | Keep fallback observable in trace and benchmark output | Performance work must distinguish real accelerator execution from CPU replay or tensor-array copies | ✓ Good |
 | Keep CUDA buffer execution narrow until the native runtime path is proven | Dense `FLOAT32` coverage gives a stable correctness and observability base before broad operation expansion | ✓ Good — v1.1 validated execution, materialization, adjacent handoff, and report evidence |
 | Treat native CUDA checks as capability-gated while portable Java gates remain mandatory | Development environments may not have `nvcc` or CUDA hardware, but the runtime must still fail clearly and testably | ✓ Good — v1.1 records native skip evidence and passes portable fallback/required-mode gates |
+| Establish native layout ABI v2 before consuming non-contiguous/view GPU paths | The bridge must carry shape/stride/storage-offset/physical-span metadata safely before broader layout execution can rely on it | ✓ Good — Phase 9 validated ABI v2 metadata, optional symbols, capability checks, and fallback diagnostics |
+| Keep metadata-only view propagation separate from dense GPU materialization | Borrowed-handle views and dense transforms have different safety and capability contracts; conflating them would hide fallback and residency errors | ✓ Good — Phase 10 validated metadata-only view residency, dense materialization gates, and trace-visible fallback |
 | Broaden GPU support by coverage metrics, not by claiming universal operation support | The milestone should measurably reduce CPU exits on representative workloads while preserving explicit fallback for unsupported cases | — Pending |
 | Implement fused GPU regions as backend-specific region execution rather than copying CPU ASM fusion | CPU fused execution depends on JVM bytecode/vector paths; Metal and CUDA need backend-native compound DAG execution and capability gates | — Pending |
 
@@ -153,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after v1.2 milestone start*
+*Last updated: 2026-04-30 after Phase 10 verification*

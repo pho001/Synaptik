@@ -91,4 +91,4 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after Phase 9 verification*
+*Last updated: 2026-04-30 after Phase 10 verification*

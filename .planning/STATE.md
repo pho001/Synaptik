@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
-status: verifying
-last_updated: "2026-04-30T13:20:58.864Z"
+status: ready_to_plan
+last_updated: "2026-04-30T16:09:59.451Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 5
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 10 — GPU Layout Transform And View Path
+**Current focus:** Phase 11 — GPU Lowering Coverage Matrix
 
 ## Project Reference
 
@@ -65,8 +65,8 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 9 — Native Layout ABI v2 | Completed | 3/3 | Passed |
-| 10 — GPU Layout Transform And View Path | Phase complete | 4/4 | Portable passed; native Metal gate open |
-| 11 — GPU Lowering Coverage Matrix | Planned | TBD | Pending |
+| 10 — GPU Layout Transform And View Path | Completed | 4/4 | Passed |
+| 11 — GPU Lowering Coverage Matrix | Ready to plan | TBD | Pending |
 | 12 — Fused GPU Region Execution | Planned | TBD | Pending |
 | 13 — Coverage Benchmark And Regression Gate | Planned | TBD | Pending |
 
@@ -120,7 +120,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 9 context captured in auto mode | ABI v2 is additive, backend-neutral, optional-symbol gated, and limited to metadata/capability/fallback contracts before Phase 10 layout execution. |
 | 2026-04-30 | Phase 9 planning completed | Three plans cover shared ABI v2 metadata, Metal/CUDA optional capability symbols, and ABI-specific fallback/required-mode diagnostics. |
 | 2026-04-30 | Phase 9 verification passed | Shared ABI v2 metadata, Metal/CUDA capability probes, native optional symbols, CUDA ABI-v2 fallback diagnostics, Metal native tests, and portable targeted gates satisfy GPULAYOUT-01/02/03. |
-| 2026-04-30 | Phase 10 plan execution completed with native Metal gate open | Portable layout/view transform gates passed and CUDA native gate capability-skipped successfully; `metalTest` exposed native Metal backward gradient parity failures to resolve before Phase 10 verification. |
+| 2026-04-30 | Phase 10 verification passed | GPU layout/view transforms, metadata-only residency, dense materialization gates, native Metal parity, CUDA capability-gated checks, security, and Nyquist validation are closed. |
 
 ## Recent Sessions
 
@@ -161,7 +161,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 ## Current Position
 
-Phase: 10 (GPU Layout Transform And View Path) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification; native Metal backward gate open
+Phase: 11
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-04-30

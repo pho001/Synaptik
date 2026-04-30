@@ -11,7 +11,7 @@
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | 9 | Native Layout ABI v2 | Extend Metal and CUDA native bridge contracts to carry non-contiguous/view layout metadata with capability/version checks and explicit fallback. | GPULAYOUT-01, GPULAYOUT-02, GPULAYOUT-03 | 5 |
-| 10 | GPU Layout Transform And View Path | 4/4 | Complete   | 2026-04-30 |
+| 10 | GPU Layout Transform And View Path | Keep legal layout transforms and view-like values device-resident across compatible Metal and CUDA regions. | GPUVIEW-01, GPUVIEW-02, GPUVIEW-03 | 5 |
 | 11 | GPU Lowering Coverage Matrix | Broaden Metal/CUDA operation lowering for common NN/tensor patterns and document supported/fallback/unsupported coverage. | GPULOWER-01, GPULOWER-02, GPULOWER-03 | 5 |
 | 12 | Fused GPU Region Execution | Execute safe compound GPU regions for linear+bias+activation, elementwise chains, and reduction-adjacent candidates without CPU round trips. | GPUFUSE-01, GPUFUSE-02, GPUFUSE-03, GPUFUSE-04 | 5 |
 | 13 | Coverage Benchmark And Regression Gate | Prove GPU coverage improvements and prevent hidden CPU exits with trace, benchmark, and regression gates. | GPUCOV-01, GPUCOV-02, GPUCOV-03 | 5 |
