@@ -727,6 +727,10 @@ Current lowerer roles:
 - `MetalRegionLowerer` lowers selected Metal regions to `METAL_GRAPH_REGION` or `METAL_FUSED_ELEMENTWISE_GRAPH`.
 - `CudaRegionLowerer` lowers selected CUDA regions to `CUDA_GRAPH_REGION` or `CUDA_FUSED_ELEMENTWISE_GRAPH`.
 
+GPU compound region lowering is the Metal/CUDA path for named multi-node accelerator regions. It currently reports supported `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN` summaries, while `REDUCTION_ADJACENT` candidates reject explicitly until a verified reduction-adjacent GPU subset exists. `Operation.OpType.FUSED remains CPU-only`; GPU compound lowering does not consume CPU fused ASM/vector operation nodes.
+
+The public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding. A prepared GPU executable may keep intermediate values device-owned inside a selected region, but public `Tensor` objects still publish CPU-readable data at graph output, CPU consumer, or gradient publication boundaries. Metal and CUDA coverage is backend-specific, so the shared compound summary does not override backend capability, ABI, dtype, layout, or buffer-binding gates.
+
 Prepared GPU anchors require both a selected partition plan and a lowered region. Metal and CUDA preparers also prepare CPU fallback steps for the partition.
 
 `BLAS` here means the CPU path may call an external GEMM implementation such as OpenBLAS through Java FFM. It is still

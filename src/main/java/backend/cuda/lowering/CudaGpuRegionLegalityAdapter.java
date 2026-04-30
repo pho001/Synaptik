@@ -62,7 +62,7 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         Operation.OpType opType = node.operation().opType();
         GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
-            return entry.reason().name() + ": operation " + opType + " is not supported by GPU_CUDA lowering";
+            return compoundPatternPrefix(opType) + entry.reason().name() + ": operation " + opType + " is not supported by GPU_CUDA lowering";
         }
         if (hasDirectNonDenseInput(node, context)) {
             return "UNSUPPORTED_LAYOUT: direct non-dense CUDA compute remains conservative until metadata-only view propagation or dense materialization makes the consumer layout legal";
@@ -233,6 +233,13 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         }
         Operation.OpType opType = node.operation().opType();
         return opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR;
+    }
+
+    private static String compoundPatternPrefix(Operation.OpType opType) {
+        return switch (opType) {
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, LAYER_NORM, RMS_NORM -> "REDUCTION_ADJACENT: ";
+            default -> "";
+        };
     }
 
     private static boolean hasDirectNonDenseInput(CompiledNode node, PartitionPlanningContext context) {

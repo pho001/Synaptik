@@ -111,6 +111,31 @@ class GpuCompoundPatternDetectorTest {
     }
 
     @Test
+    void reductionAdjacentLayerNormRejectsWithStableCompoundReason() {
+        for (Operation.OpType opType : List.of(Operation.OpType.LAYER_NORM, Operation.OpType.RMS_NORM)) {
+            AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                    1,
+                    List.of(1),
+                    List.of(new AcceleratorSubgraphOp(1, opType)),
+                    List.of(0),
+                    List.of(1)
+            );
+
+            GpuCompoundRegionSummary summary = GpuCompoundPatternDetector.detect(
+                    ComputeBackend.GPU_CUDA,
+                    subgraph,
+                    singleNodeDag(1, AcceleratorDagNodeType.ADD),
+                    null
+            );
+
+            assertEquals(GpuCompoundPatternType.REDUCTION_ADJACENT, summary.patternType());
+            assertFalse(summary.supported());
+            assertEquals(GpuLoweringUnsupportedReason.COMPOUND_PATTERN_UNSUPPORTED, summary.reason());
+            assertTrue(summary.detail().contains("REDUCTION_ADJACENT"));
+        }
+    }
+
+    @Test
     void rejectsCpuFusedOpTypeForGpuCompoundLowering() {
         AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
                 1,

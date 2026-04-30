@@ -1178,6 +1178,22 @@ These are shared planning/search values. They are not the complete graph policy 
 
 `PartitionPlanningSnapshotBuilder` repeats similar planning after `CompiledNode` snapshots are rebuilt in `GraphCompiler`. It stores compile artifacts such as partitions, attached backend plans, backend selection candidates, and `PartitionCompileTrace`.
 
+### GPU Compound Region Lowering
+
+GPU compound region lowering sits after accelerator partition planning. `PART` decides that a Metal or CUDA partition should own a backend region; backend-specific lowering then decides whether the region is a normal accelerator DAG or a named compound pattern.
+
+Current Phase 12 compound summaries are:
+
+| Pattern | Status | Meaning |
+| --- | --- | --- |
+| `LINEAR_BIAS_ACTIVATION` | supported | Linear or matmul with bias and activation remains one GPU-owned region when backend legality and runtime capability gates pass. |
+| `ELEMENTWISE_CHAIN` | supported | Representative elementwise chains remain one GPU-owned region and publish compound metadata in prepared execution/run traces. |
+| `REDUCTION_ADJACENT` | explicit rejection | Reductions and normalization pieces are recognized, but currently reject with stable reasons such as `COMPOUND_PATTERN_UNSUPPORTED`, `DEFERRED_FUSED_REGION`, or the matrix row's unsupported reason. |
+
+`Operation.OpType.FUSED remains CPU-only`. CPU fused ASM/vector execution is an implementation detail of CPU regions under `FUSE`; Metal and CUDA compound regions lower from normal graph operations through accelerator DAG primitives. The public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding, so optimizer partitions express compile-time ownership rather than public GPU tensor handles.
+
+Metal and CUDA coverage is backend-specific. The shared coverage matrix provides a common semantic vocabulary, but backend adapters may still reject a candidate for native capability, dtype, layout, ABI, or buffer-binding reasons.
+
 ### Greedy Planner Deep Dive
 
 `GreedyMaxRegionPartitionPlanner` is the default planner. It is designed to build large legal regions without exploring an unbounded search space.

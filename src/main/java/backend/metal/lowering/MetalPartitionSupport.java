@@ -64,7 +64,7 @@ public final class MetalPartitionSupport {
         }
         GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType);
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
-            return entry.reason().name() + ": operation " + opType + " is not supported by GPU_METAL lowering";
+            return compoundPatternPrefix(opType) + entry.reason().name() + ": operation " + opType + " is not supported by GPU_METAL lowering";
         }
         return "";
     }
@@ -90,5 +90,12 @@ public final class MetalPartitionSupport {
         }
         Operation.OpType opType = node.operation().opType();
         return opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR;
+    }
+
+    private static String compoundPatternPrefix(Operation.OpType opType) {
+        return switch (opType) {
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, LAYER_NORM, RMS_NORM -> "REDUCTION_ADJACENT: ";
+            default -> "";
+        };
     }
 }

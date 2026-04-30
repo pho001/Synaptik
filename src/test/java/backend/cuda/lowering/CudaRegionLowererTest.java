@@ -31,10 +31,12 @@ import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import graph.optimizer.region.DefaultRegionOptimizer;
 import graph.optimizer.region.OptimizedRegion;
 import graph.optimizer.region.RegionOptimizationContext;
+import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import tensor.TensorPrimitiveBuilder;
 
 import java.util.List;
 import java.util.Set;
@@ -155,6 +157,19 @@ class CudaRegionLowererTest {
 
         assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
         assertTrue(reason.contains("operation LAYER_NORM is not supported by GPU_CUDA lowering"));
+    }
+
+    @Test
+    void cudaGpuFusedOpTypeRejectsWithStableCompoundReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cudaFusedInput", DataType.FLOAT32);
+        Tensor out = TensorPrimitiveBuilder.unary(input, new SyntheticFusedOperation(), "cudaCpuFusedOp", DataType.FLOAT32);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.FUSED)), context);
+
+        assertTrue(reason.contains("CPU_FUSED_OPERATION_UNSUPPORTED"));
+        assertTrue(reason.contains("operation FUSED is not supported by GPU_CUDA lowering"));
     }
 
     @Test
@@ -398,5 +413,17 @@ class CudaRegionLowererTest {
                 .map(CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private record SyntheticFusedOperation() implements Operation {
+        @Override
+        public OpType opType() {
+            return OpType.FUSED;
+        }
+
+        @Override
+        public String getExpression() {
+            return "synthetic_fused";
+        }
     }
 }

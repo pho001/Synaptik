@@ -74,6 +74,27 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
+    void gpuCompoundRejectionTraceNamesReductionAdjacentReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "traceReductionAdjacentInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "traceReductionAdjacentGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "traceReductionAdjacentBeta", DataType.FLOAT32);
+        Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        int layerNormNodeId = nodeId(compiled, operations.Operation.OpType.LAYER_NORM);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, layerNormNodeId), null);
+
+        assertFalse(prepared.prepareTrace().backendSelection().decisions().stream()
+                .anyMatch(decision -> decision.selected()
+                        && decision.selectedBackend() == ComputeBackend.GPU_CUDA
+                        && decision.nodeIds().contains(layerNormNodeId)));
+        assertTrue(reason.contains("REDUCTION_ADJACENT"));
+        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
+    }
+
+    @Test
     void compiledGraphExposesCompilePrepareAndRunTrace() {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{4}, null, "b", DataType.FLOAT64);

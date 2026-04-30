@@ -184,6 +184,19 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void metalGpuFusedOpTypeRejectsWithStableCompoundReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "metalFusedInput", DataType.FLOAT32);
+        Tensor out = TensorPrimitiveBuilder.unary(input, new SyntheticFusedOperation(), "metalCpuFusedOp", DataType.FLOAT32);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.FUSED)), context);
+
+        assertTrue(reason.contains("CPU_FUSED_OPERATION_UNSUPPORTED"));
+        assertTrue(reason.contains("operation FUSED is not supported by GPU_METAL lowering"));
+    }
+
+    @Test
     void metalUnsupportedLossAdjacentUsesSharedUnsupportedReason() {
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalLossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalLossTargets", DataType.INT32);
@@ -628,5 +641,17 @@ class MetalRegionLowererTest {
                 .map(CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private record SyntheticFusedOperation() implements Operation {
+        @Override
+        public OpType opType() {
+            return OpType.FUSED;
+        }
+
+        @Override
+        public String getExpression() {
+            return "synthetic_fused";
+        }
     }
 }

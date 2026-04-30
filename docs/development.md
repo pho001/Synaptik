@@ -235,6 +235,19 @@ Optional native CUDA verification uses:
 
 Native CUDA tests skip when nvcc or CUDA hardware is unavailable. Do not commit local CUDA build outputs or local profile tuning files produced while running these checks.
 
+### GPU compound region checks
+
+Use these focused gates after changing GPU compound region lowering, including `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, `REDUCTION_ADJACENT`, or CPU fused rejection behavior. `Operation.OpType.FUSED remains CPU-only`; the public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding. Metal and CUDA coverage is backend-specific, so run both portable backend tests and optional native gates when the toolchain is available.
+
+```bash
+./gradlew classes
+./gradlew test --tests backend.accelerator.lowering.* --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest
+./gradlew test --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest
+./gradlew test --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
+./gradlew metalTest
+./gradlew buildCudaGraphShim cudaTest
+```
+
 ## Adding Optimizer Rules
 
 Optimizer stages are defined in `src/main/java/config/optimizer/OptimizerStage.java`:

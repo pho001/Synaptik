@@ -1,6 +1,6 @@
 # GPU Lowering Coverage Matrix
 
-This document is the checked-in coverage contract for Phase 11 GPU lowering. It covers `GPULOWER-01`, informs `GPULOWER-02`, and defines the stable reason-code vocabulary required by `GPULOWER-03`.
+This document is the checked-in coverage contract for Phase 11 GPU lowering and Phase 12 GPU compound region lowering. It covers `GPULOWER-01`, informs `GPULOWER-02`, defines the stable reason-code vocabulary required by `GPULOWER-03`, and records Phase 12 `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, and `REDUCTION_ADJACENT` compound behavior.
 
 The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMatrix`. The tables below are intentionally conservative: a `supported` row means the operation family is represented in the shared accelerator DAG and admitted by the current planner contract when dtype, layout, runtime enablement, cost, and backend capability checks also pass. A `fallback` or `unsupported` row must remain visible in traces and reports when backend selection rejects or materializes a boundary.
 
@@ -23,7 +23,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | `UNSUPPORTED_RANK_OR_SHAPE` | The operation rank or shape is outside the native DAG or backend bridge contract. |
 | `CAPABILITY_MISSING` | The semantic operation is known, but the backend native capability is not currently enabled or verified. |
 | `NATIVE_ABI_MISMATCH` | The Java/native ABI version or symbol contract does not match the required lowering path. |
-| `DEFERRED_FUSED_REGION` | Compound fused GPU region execution is deliberately deferred to Phase 12. |
+| `DEFERRED_FUSED_REGION` | Compound fused GPU region execution is recognized but deliberately deferred outside the current supported subset. |
 | `CPU_FUSED_OPERATION_UNSUPPORTED` | CPU `Operation.OpType.FUSED` remains CPU-only and is not consumed by GPU compound lowering. |
 | `COMPOUND_PATTERN_UNSUPPORTED` | A candidate compound region is recognized but not in the current supported GPU compound subset. |
 | `COMPOUND_REGION_SHORTENED` | A supported compound target pattern was shortened before GPU lowering and must fail required-mode checks. |
@@ -73,6 +73,14 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 ## Runtime Boundary
 
 The public `Tensor` remains logical and device residency stays in `ExecutionState` and `DeviceBufferBinding`. The matrix does not grant public device tensors, and it does not bypass backend-owned dtype, layout, cost, capability, or ABI checks.
+
+Metal and CUDA coverage is backend-specific. Shared rows describe the common semantic contract, but each backend can still reject a row through its own native capability, dtype, layout, ABI, or buffer-binding gates.
+
+## GPU Compound Region Lowering
+
+GPU compound region lowering is the Phase 12 path that lets Metal and CUDA execute selected multi-node regions without importing CPU fused ASM/vector internals. Supported compound summaries currently include `LINEAR_BIAS_ACTIVATION` and representative `ELEMENTWISE_CHAIN` regions. `REDUCTION_ADJACENT` candidates such as `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM` are recognized but reject with stable reason codes until a narrow GPU implementation with parity tests exists.
+
+`Operation.OpType.FUSED remains CPU-only`. GPU compound regions lower from normal graph operations through `AcceleratorSubgraphLowerer`, backend-specific Metal/CUDA legality, and backend-specific prepared executables. CPU fused operations remain in the CPU planning and execution path.
 
 ## Planner Rejection Sources
 
