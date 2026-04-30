@@ -27,6 +27,16 @@ Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidate
 - Broader accelerator lowering coverage for neural-network operations and larger fused GPU kernels.
 - Runtime memory scaling for BFLOAT16, INT32, BOOL slot reuse, and checked large-shape arithmetic.
 
+## Current Milestone: v1.1 CUDA Native Runtime
+
+**Goal:** Add a checked-in, capability-gated CUDA native runtime path that consumes the shared accelerator buffer ABI and proves CUDA buffer execution, materialization, adjacent handoff, and report evidence without weakening CPU or Metal safeguards.
+
+**Target features:**
+- Checked-in CUDA native shim, build workflow, and runtime capability probe.
+- CUDA bridge/buffer binding implementation using the shared layout/access ABI.
+- Native CUDA device-to-CPU materialization and adjacent region device-buffer handoff tests.
+- CUDA trace and benchmark evidence aligned with the Metal accelerator report contract.
+
 ## Requirements
 
 ### Validated
@@ -49,7 +59,10 @@ Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidate
 
 ### Active
 
-No active v1 requirements remain after Phase 5 verification.
+- [ ] CUDA native runtime can be built, probed, and capability-gated from the existing Java runtime.
+- [ ] CUDA buffer execution uses the shared accelerator layout/access ABI for supported dense layouts and rejects unsupported capability/layout combinations visibly.
+- [ ] CUDA device-owned results can materialize correctly at graph output, CPU consumer, and adjacent accelerator handoff boundaries.
+- [ ] CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal.
 
 ### Out of Scope
 
@@ -127,4 +140,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after v1.0 milestone*
+*Last updated: 2026-04-30 after starting v1.1 milestone*

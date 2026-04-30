@@ -1,15 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Accelerator Runtime Architecture
-status: milestone_complete
-last_updated: "2026-04-30T08:49:24.253Z"
+milestone: v1.1
+milestone_name: CUDA Native Runtime
+status: planning
+last_updated: "2026-04-30T08:57:35.892Z"
+last_activity: 2026-04-30
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 16
-  completed_plans: 16
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # GSD State
@@ -133,3 +134,10 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 ---
 *Last updated: 2026-04-30 after Phase 5 verification*
+
+## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-30 — Milestone v1.1 started
