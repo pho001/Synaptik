@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_plan
-last_updated: "2026-04-30T06:35:54Z"
+last_updated: "2026-04-30T06:39:34Z"
 progress:
   total_phases: 5
   completed_phases: 4
@@ -55,7 +55,7 @@ Planning agents should read the relevant codebase map documents before proposing
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is available for phase/status mutations; keep manual edits scoped when SDK numbering helpers cannot infer padded phase directories.
-- Phase 4 execution and verification passed; run security/validation closure before Phase 5 planning if following the strict gate sequence.
+- Phase 4 execution, verification, and security passed; run validation closure before Phase 5 planning if following the strict gate sequence.
 
 ## Phase Planning Status
 
@@ -92,6 +92,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Phase 4 runtime-derived accelerator costs completed | Backend selection now uses `PROFILE_DERIVED` summaries from `RuntimeConfig` while preserving CPU safeguards. |
 | 2026-04-30 | Benchmark profile read-only boundary completed | Benchmark command kinds are explicitly read-only while full, calibration, and autotune remain the profile-writing CLI flows. |
 | 2026-04-30 | Phase 4 verification passed | Verifier confirmed 28/28 must-haves across ownership, strict profile IO, runtime-derived costs, and benchmark read-only boundaries. |
+| 2026-04-30 | Phase 4 security passed | Security audit closed 12/12 Phase 4 threats with `threats_open: 0`. |
 
 ## Recent Sessions
 
@@ -117,6 +118,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Completed 04-03-PLAN.md | Ready for 04-04-PLAN.md | .planning/phases/04-tuning-and-profile-ownership-audit/04-03-SUMMARY.md |
 | 2026-04-30 | Completed 04-04-PLAN.md | Ready for Phase 4 review and verification gates | .planning/phases/04-tuning-and-profile-ownership-audit/04-04-SUMMARY.md |
 | 2026-04-30 | Completed and verified Phase 4 | Ready for Phase 4 security/validation closure or Phase 5 planning | .planning/phases/04-tuning-and-profile-ownership-audit/04-VERIFICATION.md |
+| 2026-04-30 | Secured Phase 4 | Ready for `$gsd-validate-phase 04` | .planning/phases/04-tuning-and-profile-ownership-audit/04-SECURITY.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 4 verification*
+*Last updated: 2026-04-30 after Phase 4 security*

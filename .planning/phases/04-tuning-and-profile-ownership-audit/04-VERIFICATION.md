@@ -4,7 +4,7 @@ status: passed
 score: 28/28
 verified: 2026-04-30
 human_verification_required: false
-security_review_required: true
+security_review_required: false
 ---
 
 # Phase 4 Verification: Tuning And Profile Ownership Audit
@@ -70,10 +70,10 @@ None required. The phase is covered by automated tests, source checks, and docum
 
 ## Residual Risk
 
-- Security enforcement is enabled by default and no `04-SECURITY.md` exists yet; run `$gsd-secure-phase 04` before advancing.
+- Security enforcement passed in `04-SECURITY.md` with `threats_open: 0`.
 - Nyquist validation remains a separate project gate; run `$gsd-validate-phase 04` if following the same closure flow used for Phase 3.
 - Existing local tuning profile files under `profiles/platform/.../tuning/abc/*` and `.planning/tmp/` scratch files remain outside Phase 4 commits.
 
 ## Verdict
 
-Phase 4 is ready to mark execution verified, then run the security/validation closure gates before Phase 5 planning.
+Phase 4 is execution-verified and threat-secure; run the validation closure gate before Phase 5 planning if following the strict closure sequence.
