@@ -12,6 +12,38 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class SourceTreeHygieneTest {
 
     @Test
+    void planningTmpScratchIsIgnored() throws IOException {
+        String gitignore = Files.readString(Path.of(".gitignore"));
+        assertTrue(gitignore.contains(".planning/tmp/"), ".planning/tmp/ must stay ignored for local verification scratch files.");
+
+        String trackedScratch = gitOutput("ls-files", ".planning/tmp");
+        assertTrue(trackedScratch.isBlank(), () -> ".planning/tmp/ scratch files must not be tracked: " + trackedScratch);
+
+        String ignoredScratch = gitOutput("check-ignore", "--no-index", ".planning/tmp/phase-05-scratch.txt");
+        assertTrue(ignoredScratch.contains(".planning/tmp/phase-05-scratch.txt"),
+                () -> ".planning/tmp/ scratch files should be ignored, got: " + ignoredScratch);
+    }
+
+    @Test
+    void rootGeneratedClassArtifactsAreIgnored() throws IOException {
+        String gitignore = Files.readString(Path.of(".gitignore"));
+        assertTrue(gitignore.contains("/*.class"), "Root generated .class files must stay ignored.");
+        assertTrue(gitignore.contains("**/*.class"), "Nested generated .class files must stay ignored.");
+    }
+
+    @Test
+    void trackedLocalTuningArtifactsStayExplicit() throws IOException {
+        String trackedProfiles = gitOutput("ls-files", "profiles/platform");
+        List<String> profileFiles = trackedProfiles.lines()
+                .filter(line -> line.contains("/tuning/abc/"))
+                .sorted()
+                .toList();
+        assertTrue(profileFiles.isEmpty() || profileFiles.stream().allMatch(line -> line.startsWith("profiles/platform/")),
+                () -> "Tracked profiles/platform/.../tuning/abc/* files are explicit canonical fixtures; "
+                        + "do not stage local changes accidentally: " + profileFiles);
+    }
+
+    @Test
     void sourceTreeDoesNotContainCompiledOrTempArtifacts() throws IOException {
         List<Path> roots = List.of(Path.of("src"), Path.of("test"));
         try (Stream<Path> paths = roots.stream()
@@ -743,6 +775,24 @@ public class SourceTreeHygieneTest {
                     })
                     .sorted()
                     .toList();
+        }
+    }
+
+    private static String gitOutput(String... args) throws IOException {
+        List<String> command = new java.util.ArrayList<>();
+        command.add("git");
+        command.addAll(List.of(args));
+        Process process = new ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .start();
+        try {
+            String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            int exitCode = process.waitFor();
+            assertTrue(exitCode == 0, () -> String.join(" ", command) + " failed: " + output);
+            return output.trim();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while running " + String.join(" ", command), e);
         }
     }
 }

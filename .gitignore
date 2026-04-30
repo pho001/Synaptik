@@ -37,6 +37,7 @@ build/
 
 ### Local agent / workspace metadata ###
 .oca/
+.planning/tmp/
 
 ### Git (generated artifacts) ###
 /*.class
