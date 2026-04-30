@@ -147,7 +147,7 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 
 **Plans:**
 
-1/4 plans complete
+2/4 plans complete
 
 Wave 1:
 - [11-01 Shared GPU Lowering Coverage Contract](phases/11-gpu-lowering-coverage-matrix/11-01-PLAN.md) - creates backend-neutral coverage statuses, operation families, stable unsupported reasons, matrix tests, and docs for GPULOWER-01/03.
