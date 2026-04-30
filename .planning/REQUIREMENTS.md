@@ -39,8 +39,8 @@ These requirements define the next brownfield milestone. They are intentionally 
 
 - [x] **OBS-01**: Execution traces report accelerator backend, buffer execution path, fallback reason, prepared input usage, CPU materialization count, materialization reason, Java/native copy time, native device copy time, and storage residency.
 - [x] **OBS-02**: Benchmarks include at least one workload that stresses matmul/linear, view/layout transforms, elementwise fusion, reductions, and backward/gradient publication.
-- [ ] **OBS-03**: Tests prove adjacent accelerator regions can pass device buffers without Java array round trips when layout and capability contracts allow it.
-- [ ] **OBS-04**: Regression tests compare CPU and Metal results for representative forward and forward-backward graphs.
+- [x] **OBS-03**: Tests prove adjacent accelerator regions can pass device buffers without Java array round trips when layout and capability contracts allow it.
+- [x] **OBS-04**: Regression tests compare CPU and Metal results for representative forward and forward-backward graphs.
 
 ### Documentation And Maintenance
 
@@ -100,8 +100,8 @@ These requirements define the next brownfield milestone. They are intentionally 
 | TUNE-04 | Phase 4 | Complete |
 | OBS-01 | Phase 5 | Complete |
 | OBS-02 | Phase 5 | Complete |
-| OBS-03 | Phase 5 | Pending |
-| OBS-04 | Phase 5 | Pending |
+| OBS-03 | Phase 5 | Complete |
+| OBS-04 | Phase 5 | Complete |
 | DOC-01 | Phase 5 | Pending |
 | DOC-02 | Phase 5 | Pending |
 | DOC-03 | Phase 5 | Pending |

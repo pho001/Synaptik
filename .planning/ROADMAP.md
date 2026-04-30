@@ -175,7 +175,7 @@ Plans:
 - [x] 05-01-PLAN.md - Lock trace and benchmark report evidence contract.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 05-02-PLAN.md - Prove closure workload, Metal correctness, and buffer handoff.
+- [x] 05-02-PLAN.md - Prove closure workload, Metal correctness, and buffer handoff.
 
 **Wave 3** *(blocked on Waves 1-2 completion)*
 - [ ] 05-03-PLAN.md - Close docs, hygiene, and final verification.
