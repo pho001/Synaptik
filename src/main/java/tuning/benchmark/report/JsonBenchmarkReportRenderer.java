@@ -61,6 +61,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"accelerator\": ").append(acceleratorSummaryJson(
                         AcceleratorTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
+                sb.append("        \"coverage\": ").append(gpuCoverageSummaryJson(
+                        GpuCoverageSummary.fromTrace(trace)
+                )).append(",\n");
                 sb.append("        \"backendSelectionCost\": ")
                         .append(backendSelectionCostJson(trace.prepare().backendSelection()))
                         .append(",\n");
@@ -165,6 +168,49 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"javaToNativeCopyNs\": ").append(backend.javaToNativeCopyNs()).append(", ")
                     .append("\"nativeToJavaCopyNs\": ").append(backend.nativeToJavaCopyNs()).append(", ")
                     .append("\"nativeDeviceCopyNs\": ").append(backend.nativeDeviceCopyNs()).append(", ")
+                    .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
+                    .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
+                    .append("}");
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static String gpuCoverageSummaryJson(GpuCoverageSummary summary) {
+        if (summary == null || !summary.present()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        int i = 0;
+        for (var entry : summary.backends().entrySet()) {
+            if (i++ > 0) {
+                sb.append(", ");
+            }
+            var backend = entry.getValue();
+            sb.append('"').append(escape(entry.getKey())).append("\": {")
+                    .append("\"totalStepCount\": ").append(backend.totalStepCount()).append(", ")
+                    .append("\"acceleratorStepCount\": ").append(backend.acceleratorStepCount()).append(", ")
+                    .append("\"gpuCoverageRatio\": ").append(format(backend.gpuCoverageRatio())).append(", ")
+                    .append("\"selectedRegionCount\": ").append(backend.selectedRegionCount()).append(", ")
+                    .append("\"maxSelectedRegionLength\": ").append(backend.maxSelectedRegionLength()).append(", ")
+                    .append("\"averageSelectedRegionLength\": ")
+                    .append(format(backend.averageSelectedRegionLength())).append(", ")
+                    .append("\"rejectedCandidateCount\": ").append(backend.rejectedCandidateCount()).append(", ")
+                    .append("\"rejectedCandidateReasonCounts\": ")
+                    .append(intMapJson(backend.rejectedCandidateReasonCounts())).append(", ")
+                    .append("\"bufferBindingStepCount\": ").append(backend.bufferBindingStepCount()).append(", ")
+                    .append("\"tensorArrayStepCount\": ").append(backend.tensorArrayStepCount()).append(", ")
+                    .append("\"cpuFallbackStepCount\": ").append(backend.cpuFallbackStepCount()).append(", ")
+                    .append("\"fallbackCount\": ").append(backend.fallbackCount()).append(", ")
+                    .append("\"cpuMaterializationCount\": ").append(backend.cpuMaterializationCount()).append(", ")
+                    .append("\"cpuMaterializationReasonCounts\": ")
+                    .append(intMapJson(backend.cpuMaterializationReasonCounts())).append(", ")
+                    .append("\"cpuMaterializationBytes\": ").append(backend.cpuMaterializationBytes()).append(", ")
+                    .append("\"cpuMaterializationDurationNs\": ")
+                    .append(backend.cpuMaterializationDurationNs()).append(", ")
+                    .append("\"copyDurationNs\": ").append(backend.copyDurationNs()).append(", ")
+                    .append("\"deviceHandoffCount\": ").append(backend.deviceHandoffCount()).append(", ")
+                    .append("\"storageResidencyCounts\": ").append(intMapJson(backend.storageResidencyCounts())).append(", ")
                     .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
                     .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
                     .append("}");
@@ -504,6 +550,22 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append(", ");
             }
             sb.append('"').append(escape(entry.getKey())).append('"').append(": ").append(valueJson(entry.getValue()));
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static String intMapJson(Map<String, Integer> map) {
+        if (map == null || map.isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        int index = 0;
+        for (var entry : map.entrySet()) {
+            if (index++ > 0) {
+                sb.append(", ");
+            }
+            sb.append('"').append(escape(entry.getKey())).append('"').append(": ").append(entry.getValue());
         }
         sb.append('}');
         return sb.toString();

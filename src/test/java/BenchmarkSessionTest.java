@@ -712,4 +712,94 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"sourceResidency\": \"DEVICE_OWNED\""));
         assertTrue(json.contains("\"durationNs\": 250000"));
     }
+
+    @Test
+    void renderersExposeGpuCoverageContract() {
+        var profile = new ExecutionProfile(
+                "gpu-coverage-profile",
+                "gpu-coverage",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        BenchmarkReport report = BenchmarkReport.of(
+                "gpu_coverage_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("gpu-coverage", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                GpuCoverageSummaryTest.traceFor("GPU_METAL", ComputeBackend.GPU_METAL),
+                                new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("coverage:"));
+        assertTrue(text.contains("backend=GPU_METAL"));
+        assertTrue(text.contains("gpuCoverageRatio=0.500000"));
+        assertTrue(text.contains("selectedRegionCount=1"));
+        assertTrue(text.contains("maxSelectedRegionLength=3"));
+        assertTrue(text.contains("averageSelectedRegionLength=3.000000"));
+        assertTrue(text.contains("rejectedCandidateReasonCounts={unsupported-layout=1}"));
+        assertTrue(text.contains("fallbackCount=0"));
+        assertTrue(text.contains("tensorArrayStepCount=0"));
+        assertTrue(text.contains("cpuFallbackStepCount=0"));
+        assertTrue(text.contains("cpuMaterializationReasonCounts={CPU_CONSUMER=1}"));
+        assertTrue(text.contains("deviceHandoffCount=2"));
+        assertTrue(text.contains("storageResidencyCounts={DEVICE_OWNED=1}"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"coverage\""));
+        assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
+        assertTrue(json.contains("\"selectedRegionCount\": 1"));
+        assertTrue(json.contains("\"maxSelectedRegionLength\": 3"));
+        assertTrue(json.contains("\"averageSelectedRegionLength\": 3.000000"));
+        assertTrue(json.contains("\"rejectedCandidateReasonCounts\": {\"unsupported-layout\": 1}"));
+        assertTrue(json.contains("\"fallbackCount\": 0"));
+        assertTrue(json.contains("\"tensorArrayStepCount\": 0"));
+        assertTrue(json.contains("\"cpuFallbackStepCount\": 0"));
+        assertTrue(json.contains("\"cpuMaterializationReasonCounts\": {\"CPU_CONSUMER\": 1}"));
+        assertTrue(json.contains("\"copyDurationNs\": 325000"));
+        assertTrue(json.contains("\"deviceHandoffCount\": 2"));
+        assertTrue(json.contains("\"storageResidencyCounts\": {\"DEVICE_OWNED\": 1}"));
+    }
+
+    @Test
+    void renderersExposeCudaGpuCoverageContract() {
+        var profile = new ExecutionProfile(
+                "cuda-gpu-coverage-profile",
+                "cuda-gpu-coverage",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        BenchmarkReport report = BenchmarkReport.of(
+                "cuda_gpu_coverage_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("cuda-gpu-coverage", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                GpuCoverageSummaryTest.traceFor("GPU_CUDA", ComputeBackend.GPU_CUDA),
+                                new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("backend=GPU_CUDA"));
+        assertTrue(text.contains("gpuCoverageRatio=0.500000"));
+        assertTrue(text.contains("selectedRegionCount=1"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"GPU_CUDA\""));
+        assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
+        assertTrue(json.contains("\"selectedRegionCount\": 1"));
+    }
 }

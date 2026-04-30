@@ -101,6 +101,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  stepCount=").append(trace.run().steps().size()).append('\n');
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
                         appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
+                        appendGpuCoverageSummary(sb, GpuCoverageSummary.fromTrace(trace));
                         appendBackendSelectionCost(sb, trace.prepare().backendSelection());
                         sb.append("  parallelUsed=").append(usesParallel(trace.run().steps())).append('\n');
                         sb.append("  vectorUsed=").append(usesVector(trace.run().steps())).append('\n');
@@ -170,6 +171,40 @@ public final class TextBenchmarkReportRenderer {
                     .append(" javaToNativeMs=").append(formatNsAttr(backend.javaToNativeCopyNs()))
                     .append(" nativeToJavaMs=").append(formatNsAttr(backend.nativeToJavaCopyNs()))
                     .append(" nativeDeviceCopyMs=").append(formatNsAttr(backend.nativeDeviceCopyNs()))
+                    .append('\n');
+        }
+    }
+
+    private static void appendGpuCoverageSummary(StringBuilder sb, GpuCoverageSummary summary) {
+        if (summary == null || !summary.present()) {
+            return;
+        }
+        sb.append("  coverage:\n");
+        for (var entry : summary.backends().entrySet()) {
+            var backend = entry.getValue();
+            sb.append("    - backend=").append(entry.getKey())
+                    .append(" totalStepCount=").append(backend.totalStepCount())
+                    .append(" acceleratorStepCount=").append(backend.acceleratorStepCount())
+                    .append(" gpuCoverageRatio=").append(String.format(Locale.US, "%.6f", backend.gpuCoverageRatio()))
+                    .append(" selectedRegionCount=").append(backend.selectedRegionCount())
+                    .append(" maxSelectedRegionLength=").append(backend.maxSelectedRegionLength())
+                    .append(" averageSelectedRegionLength=")
+                    .append(String.format(Locale.US, "%.6f", backend.averageSelectedRegionLength()))
+                    .append(" rejectedCandidateCount=").append(backend.rejectedCandidateCount())
+                    .append(" rejectedCandidateReasonCounts=").append(backend.rejectedCandidateReasonCounts())
+                    .append(" bufferBindingStepCount=").append(backend.bufferBindingStepCount())
+                    .append(" tensorArrayStepCount=").append(backend.tensorArrayStepCount())
+                    .append(" cpuFallbackStepCount=").append(backend.cpuFallbackStepCount())
+                    .append(" fallbackCount=").append(backend.fallbackCount())
+                    .append(" cpuMaterializationCount=").append(backend.cpuMaterializationCount())
+                    .append(" cpuMaterializationReasonCounts=").append(backend.cpuMaterializationReasonCounts())
+                    .append(" cpuMaterializationBytes=").append(backend.cpuMaterializationBytes())
+                    .append(" cpuMaterializationDurationNs=").append(backend.cpuMaterializationDurationNs())
+                    .append(" copyDurationNs=").append(backend.copyDurationNs())
+                    .append(" deviceHandoffCount=").append(backend.deviceHandoffCount())
+                    .append(" storageResidencyCounts=").append(backend.storageResidencyCounts())
+                    .append(" reasonCodes=").append(backend.reasonCodes())
+                    .append(" fallbackReasons=").append(backend.fallbackReasons())
                     .append('\n');
         }
     }
