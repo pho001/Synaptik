@@ -2,7 +2,7 @@
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Executing Phase 2 — Metal Layout-Aware Device Flow.
+**Current focus:** Phase 2 complete — next focus is Phase 3: Materialization-Aware Region Planning.
 
 ## Project Reference
 
@@ -48,7 +48,8 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 1 — Accelerator Buffer Layout ABI | Complete | 3 of 3 plans complete | `001-VERIFICATION.md` passed 10/10 must-haves on 2026-04-29 |
-| 2 — Metal Layout-Aware Device Flow | In progress | 2 of 3 plans complete | `002-02-SUMMARY.md` completed on 2026-04-30 |
+| 2 — Metal Layout-Aware Device Flow | Complete | 3 of 3 plans complete | `002-VERIFICATION.md` passed 12/12 must-haves on 2026-04-30 |
+| 3 — Materialization-Aware Region Planning | Pending | 0 plans | Not started |
 
 ## Recent Decisions
 
@@ -66,6 +67,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Phase 2 execution started | Execute the verified three-wave plan sequence, beginning with Metal layout policy and binder preflight. |
 | 2026-04-30 | Metal buffer preflight uses explicit layout policy | Plan 002-01 added direct dense, dense physical logical-view, and rejected policy actions while keeping output logical-view execution conservative until allocator/materializer support. |
 | 2026-04-30 | Metal logical-view flow uses dense physical buffers and Java scatter materialization | Plan 002-02 enabled policy-approved logical-view outputs without native layout ABI churn. |
+| 2026-04-30 | Phase 2 verification passed after runtime publication fixes | Plan 002-03 added E2E Metal parity, trace/docs coverage, and fixed accelerator fallback prepared-input allocation plus alias-view output publication. |
 
 ## Recent Sessions
 
@@ -79,6 +81,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Started Phase 2 execution | Wave 1 in progress | .planning/phases/002-metal-layout-aware-device-flow/002-01-PLAN.md |
 | 2026-04-30 | Completed 002-01-PLAN.md | Ready for 002-02-PLAN.md | .planning/phases/002-metal-layout-aware-device-flow/002-01-SUMMARY.md |
 | 2026-04-30 | Completed 002-02-PLAN.md | Ready for 002-03-PLAN.md | .planning/phases/002-metal-layout-aware-device-flow/002-02-SUMMARY.md |
+| 2026-04-30 | Completed and verified Phase 2 | Ready for Phase 3 planning | .planning/phases/002-metal-layout-aware-device-flow/002-VERIFICATION.md |
 
 ---
-*Last updated: 2026-04-30 after 002-02 execution*
+*Last updated: 2026-04-30 after Phase 2 verification*
