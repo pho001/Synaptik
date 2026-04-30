@@ -166,6 +166,20 @@ The stages map through `src/main/java/graph/optimizer/OptimizerFactory.java`:
 
 Partition planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/PartitionPlanningSnapshotBuilder.java` creates backend candidate partitions, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
 
+### Materialization-aware region planning
+
+Phase 3 uses static named presets only. The accelerator planner scores candidate regions with boundary count, estimated transfer bytes, estimated compute work, avoided intermediate bytes, dispatch cost, fallback mode, layout class, final score, and a stable reason code. These values are internal static constants selected through named presets, not profile- or calibration-derived runtime evidence.
+
+Planner summaries live in compile partition traces. `CompileTrace.partitionPlanning()` exposes selected candidates and bounded top rejected finalists through `PartitionDecisionTrace` cost summaries, so planner acceptance, rejection, split, and CPU fallback decisions can be diagnosed without replaying the graph.
+
+Backend selection summaries live in prepare traces. `PrepareTrace.backendSelection()` carries the selected backend candidate, the selected static cost summary, and bounded rejected finalists through `BackendSelectionDecisionTrace`.
+
+Benchmark reports summarize selected candidates and top rejected finalists. Text reports print a compact `backendSelectionCost:` section, and JSON reports expose `trace.backendSelectionCost.selected` plus `trace.backendSelectionCost.rejectedFinalists`.
+
+Runtime step traces remain execution-focused. `ExecutionStepTrace` continues to describe the prepared step that actually ran, including backend, kernel, dispatch, layout, copy/materialization attributes, and duration; planner cost fields are not duplicated onto every runtime step.
+
+Profile/calibration-derived costs are deferred to Phase 4. Phase 4 must audit graph autotune versus platform calibration ownership before profile- or calibration-derived costs are wired into the accelerator cost model.
+
 ## Prepare Pipeline
 
 `src/main/java/backend/prepare/PreparedExecutionBuilder.java` turns compile artifacts into a `PreparedExecution`. Prepare is where runtime policy becomes concrete backend metadata. It does not rewrite graph semantics.

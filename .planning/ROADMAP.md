@@ -95,7 +95,7 @@ Plans:
 - The planner should optimize end-to-end region profitability, not only per-op support.
 - Keep graph autotune able to explore competing region/offload policies.
 
-**Plans:** 3 plans
+Plans: 3 plans
 
 Plans:
 - [x] 003-01-PLAN.md — Add static materialization-aware score summaries and compile-time finalist tracing. Complete: `.planning/phases/003-materialization-aware-region-planning/003-01-SUMMARY.md`
