@@ -136,7 +136,7 @@ Plans:
 - [x] 04-02-PLAN.md — Harden platform runtime profile IO with strict schema/version and accelerator buffer validation.
 
 **Wave 3** *(blocked on Waves 1-2 completion)*
-- [ ] 04-03-PLAN.md — Wire audited profile/calibration-derived accelerator cost factors through `RuntimeConfig` while preserving CPU safeguards.
+- [x] 04-03-PLAN.md — Wire audited profile/calibration-derived accelerator cost factors through `RuntimeConfig` while preserving CPU safeguards.
 
 **Wave 4** *(blocked on Waves 1-3 completion)*
 - [ ] 04-04-PLAN.md — Lock benchmark profile-read-only boundaries, update docs, and run final Phase 4 hygiene verification.

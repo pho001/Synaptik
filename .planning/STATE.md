@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready_to_execute
-last_updated: "2026-04-30T06:22:45.717Z"
+last_updated: "2026-04-30T06:26:21.860Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 13
-  completed_plans: 11
-  percent: 85
+  completed_plans: 12
+  percent: 92
 ---
 
 # GSD State
@@ -64,7 +64,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 1 — Accelerator Buffer Layout ABI | Complete | 3 of 3 plans complete | `001-VERIFICATION.md` passed 10/10 must-haves on 2026-04-29 |
 | 2 — Metal Layout-Aware Device Flow | Complete | 3 of 3 plans complete | `002-VERIFICATION.md` passed 12/12 must-haves on 2026-04-30 |
 | 3 — Materialization-Aware Region Planning | Complete | 3 of 3 plans complete | `003-VERIFICATION.md` passed 29/29 must-haves on 2026-04-30 |
-| 4 — Tuning And Profile Ownership Audit | In Progress | 2 of 4 plans complete | `04-02-SUMMARY.md` completed 2026-04-30 |
+| 4 — Tuning And Profile Ownership Audit | In Progress | 3 of 4 plans complete | `04-03-SUMMARY.md` completed 2026-04-30 |
 
 ## Recent Decisions
 
@@ -89,6 +89,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Phase 4 planning completed with ownership-first waves | Four plans cover tuning knob ownership, strict profile IO, profile-derived cost factors, and benchmark read-only/doc closure. |
 | 2026-04-30 | Phase 4 ownership matrix completed | Graph autotune and platform calibration candidates now validate declared knob assignments against a central ownership registry. |
 | 2026-04-30 | Strict platform runtime profile IO completed | Persisted platform runtime profiles now fail loudly for unsupported schema versions and invalid accelerator buffer modes. |
+| 2026-04-30 | Phase 4 runtime-derived accelerator costs completed | Backend selection now uses `PROFILE_DERIVED` summaries from `RuntimeConfig` while preserving CPU safeguards. |
 
 ## Recent Sessions
 
@@ -111,6 +112,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Planned Phase 4 with 4 ownership/cost/hygiene waves | Ready for Phase 4 execution | .planning/phases/04-tuning-and-profile-ownership-audit/04-01-PLAN.md |
 | 2026-04-30 | Completed 04-01-PLAN.md | Ready for 04-02-PLAN.md | .planning/phases/04-tuning-and-profile-ownership-audit/04-01-SUMMARY.md |
 | 2026-04-30 | Completed 04-02-PLAN.md | Ready for 04-03-PLAN.md | .planning/phases/04-tuning-and-profile-ownership-audit/04-02-SUMMARY.md |
+| 2026-04-30 | Completed 04-03-PLAN.md | Ready for 04-04-PLAN.md | .planning/phases/04-tuning-and-profile-ownership-audit/04-03-SUMMARY.md |
 
 ---
-*Last updated: 2026-04-30 after 04-02 completion*
+*Last updated: 2026-04-30 after 04-03 completion*
