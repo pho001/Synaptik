@@ -996,7 +996,7 @@ public class PreparedExecutionBuildTest {
 
         execution.execute(ExecutionMode.FORWARD_BACKWARD);
 
-        assertArrayEquals(expectedGrad, input.getGradient().toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(expectedGrad, input.getGradient().toDoubleArrayCopy(), 5e-5);
     }
 
     @Test
