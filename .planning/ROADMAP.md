@@ -188,6 +188,29 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 4. Reduction-adjacent fusion candidates are either implemented with parity tests or rejected with coverage-matrix entries and stable unsupported reasons.
 5. CPU fused execution tests continue to pass and CPU hot paths remain independent of GPU fusion changes.
 
+**Plans:**
+
+4/4 plans ready
+
+Wave 1:
+- [12-01 Shared GPU Compound Pattern Contract](phases/12-fused-gpu-region-execution/12-01-PLAN.md) - creates backend-neutral compound summaries, stable reason codes, CPU `FUSED` GPU rejection, and coverage matrix updates for GPUFUSE-03/GPUFUSE-04.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [12-02 Linear Bias Activation Compound Lowering](phases/12-fused-gpu-region-execution/12-02-PLAN.md) - wires `LINEAR_BIAS_ACTIVATION` through accelerator DAG lowering, Metal/CUDA partition plans, and required-mode fallback tests for GPUFUSE-01/GPUFUSE-03.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [12-03 Elementwise Chain Compound Execution Trace](phases/12-fused-gpu-region-execution/12-03-PLAN.md) - exposes `ELEMENTWISE_CHAIN` through prepared accelerator executables, run trace attributes, and device-residency tests for GPUFUSE-02/GPUFUSE-03.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [12-04 Reduction Adjacent And Compound Docs Closure](phases/12-fused-gpu-region-execution/12-04-PLAN.md) - closes reduction-adjacent support/rejection, CPU fused safeguards, docs, verification summary, and hygiene evidence for GPUFUSE-01/02/03/04.
+
+**Cross-cutting constraints:**
+- GPU compound lowering extends `LoweringPipeline`, `AcceleratorSubgraphLowerer`, and Metal/CUDA region lowerers; it is not a parallel CPU-style fusion system.
+- Pattern summary plus accelerator DAG are both required; summaries such as `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, and `REDUCTION_ADJACENT` must not bypass backend legality checks.
+- `Operation.OpType.FUSED` remains CPU-only for Phase 12 and must reject explicitly on GPU paths.
+- Supported compound target patterns must not shorten regions or materialize CPU/tensor-array intermediates between supported fused operations.
+- Metal and CUDA coverage remains backend-specific and trace-visible; CUDA must not claim unsupported broad parity.
+
 **Notes:**
 - This is not a request to copy the CPU fused ASM model; GPU fusion should fit accelerator lowering and native backend capabilities.
 - Start with safe, testable patterns before broadening to larger fused kernels.
