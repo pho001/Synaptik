@@ -104,7 +104,7 @@ Plans:
 
 ### Phase 4: Tuning And Profile Ownership Audit
 
-**Status:** Planned — ready to execute 2026-04-30
+**Status:** Complete — verified 2026-04-30 (`04-VERIFICATION.md`, score 28/28)
 
 **Goal:** Review and clean up tuning/calibration ownership so graph autotune controls graph policy and platform calibration controls hardware/dtype thresholds.
 
@@ -183,10 +183,10 @@ Cross-cutting constraints:
 | PLAN-02 | Phase 3 | Pending |
 | PLAN-03 | Phase 3 | Pending |
 | PLAN-04 | Phase 3 | Pending |
-| TUNE-01 | Phase 4 | Pending |
-| TUNE-02 | Phase 4 | Pending |
-| TUNE-03 | Phase 4 | Pending |
-| TUNE-04 | Phase 4 | Pending |
+| TUNE-01 | Phase 4 | Complete — verified in 04-VERIFICATION |
+| TUNE-02 | Phase 4 | Complete — verified in 04-VERIFICATION |
+| TUNE-03 | Phase 4 | Complete — verified in 04-VERIFICATION |
+| TUNE-04 | Phase 4 | Complete — verified in 04-VERIFICATION |
 | OBS-01 | Phase 5 | Pending |
 | OBS-02 | Phase 5 | Pending |
 | OBS-03 | Phase 5 | Pending |

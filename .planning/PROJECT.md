@@ -27,11 +27,10 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 - ✓ Backend-neutral device buffer layout ABI represents shape, strides, storage offset, dtype, logical element count, byte length, access mode, backend id, and native handle identity for Metal now and CUDA later — validated in Phase 1 by `.planning/phases/001-accelerator-buffer-layout-abi/001-VERIFICATION.md`.
 - ✓ Metal buffer execution can keep legal view-like layout values device-resident through dense physical logical-view buffers, visible fallback, and explicit CPU materialization boundaries — validated in Phase 2 by `.planning/phases/002-metal-layout-aware-device-flow/002-VERIFICATION.md`.
 - ✓ Accelerator region planning and backend selection score static materialization cost, layout fallback cost, upload/download cost, dispatch overhead, expected compute benefit, selected candidates, and rejected finalists while preserving CPU natural/fusion/BLAS safeguards — validated in Phase 3 by `.planning/phases/003-materialization-aware-region-planning/003-VERIFICATION.md`.
+- ✓ Tuning ownership separates graph/workload autotune knobs from platform/dtype calibration thresholds, strict profile IO rejects invalid schema and accelerator buffer fields, runtime-derived accelerator costs enter through `RuntimeConfig`, and benchmark commands remain profile-read-only — validated in Phase 4 by `.planning/phases/04-tuning-and-profile-ownership-audit/04-VERIFICATION.md`.
 
 ### Active
 
-- [ ] Audit graph autotune versus platform calibration knobs so graph-specific policy lives in graph autotune and hardware/dtype policy lives in platform calibration.
-- [ ] Wire profile/calibration-derived costs into the accelerator cost model after graph autotune versus platform calibration ownership is audited.
 - [ ] Add focused tests, traces, benchmark scenarios, and documentation that prove accelerator execution uses longer device-owned flows and avoids accidental CPU round trips.
 
 ### Out of Scope
@@ -86,7 +85,7 @@ The design goal is therefore not "Metal hacks" or "CUDA hacks". The goal is a cl
 |----------|-----------|---------|
 | Keep `Tensor` logical and put backend residency in `ExecutionState` / device buffer bindings | Avoids public API pollution and matches existing compile/prepare/execute architecture | ✓ Good |
 | Treat Metal and CUDA as backend implementations of shared accelerator contracts | Prevents duplicate architecture and keeps future CUDA work aligned with Metal learnings | ✓ Good — Phase 1 ABI validated; native CUDA remains future work |
-| Prioritize longer device-owned flows over buffer-binding micro-optimizations | Recent benchmarks show region/offload policy dominates zero-copy micro-gains | ✓ Good — Phase 3 static cost planning and report surfaces validated; profile/calibration-derived costs deferred to Phase 4 |
+| Prioritize longer device-owned flows over buffer-binding micro-optimizations | Recent benchmarks show region/offload policy dominates zero-copy micro-gains | ✓ Good — Phase 3 static cost planning and report surfaces validated; Phase 4 now derives prepare-time accelerator costs from audited `RuntimeConfig` |
 | Represent view/layout metadata in accelerator buffer ABI before broadening GPU fusion | Non-contiguous/view fallback currently breaks GPU flow and causes CPU materialization | ✓ Good — ABI validated in Phase 1; Metal layout-aware flow validated in Phase 2 |
 | Keep Phase 2 native Metal ABI unchanged for logical-view flow | Dense physical buffers plus Java-owned logical materialization avoid unsafe native stride/offset ABI churn | ✓ Good — future native layout ABI must be optional-symbol/version/capability checked |
 | Keep graph autotune and platform calibration separate | Graph policy is workload-specific; hardware thresholds are platform/dtype-specific | ✓ Good |
@@ -110,4 +109,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after Phase 3 verification*
+*Last updated: 2026-04-30 after Phase 4 verification*
