@@ -130,7 +130,7 @@ Plans:
 Plans:
 
 **Wave 1**
-- [ ] 04-01-PLAN.md — Add the tuning knob ownership matrix and enforce graph/autotune versus platform/calibration candidate boundaries.
+- [x] 04-01-PLAN.md — Add the tuning knob ownership matrix and enforce graph/autotune versus platform/calibration candidate boundaries.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 04-02-PLAN.md — Harden platform runtime profile IO with strict schema/version and accelerator buffer validation.
