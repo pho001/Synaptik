@@ -189,6 +189,31 @@ class MetalLayoutAwareDeviceFlowTest {
     }
 
     @Test
+    void layoutViewThenLogSoftmaxStaysDeviceOwnedUntilOutputBoundary() {
+        Tensor expected = linearReshapePermuteLogSoftmaxGraph("cpu");
+        CompiledGraph.compile(expected, OptimizerConfig.inferenceDefaults())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor actual = linearReshapePermuteLogSoftmaxGraph("metal");
+        CompiledGraph compiled = CompiledGraph.compile(actual, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(metalTensorArrayRuntime());
+        RunTrace trace = execution.executeTraced(ExecutionMode.FORWARD);
+        int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
+
+        assertArrayEquals(expected.toDoubleArrayCopy(), actual.toDoubleArrayCopy(), 1e-5);
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(entry -> entry.reason() == CpuMaterializationReason.CPU_CONSUMER));
+        assertTrue(execution.prepareTrace().backendSelection().decisions().stream()
+                .anyMatch(decision -> decision.selected()
+                        && decision.selectedBackend() == ComputeBackend.GPU_METAL
+                        && decision.nodeIds().contains(logSoftmaxNodeId)));
+        assertTrue(compiled.compileArtifacts().compiledNodes().stream()
+                .anyMatch(node -> node.operation() != null && node.operation().opType() == operations.Operation.OpType.LOG_SOFTMAX));
+        assertTrue(List.of("GPU_LAYOUT_VIEW_BINDING_AVAILABLE", "GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE")
+                .contains(AcceleratorBufferReasonCode.GPU_LAYOUT_VIEW_BINDING_AVAILABLE.name()));
+    }
+
+    @Test
     void layoutAwareFlowFallsBackVisiblyForBroadcastZeroStride() {
         Tensor input = new Tensor(new float[]{1f, -2f, 3f}, new int[]{1, 3}, null, "input", DataType.FLOAT32);
         Tensor broadcastZeroStrideOutput = new Tensor(
@@ -262,6 +287,40 @@ class MetalLayoutAwareDeviceFlowTest {
             TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
         }
         return permute;
+    }
+
+    private static Tensor linearReshapePermuteLogSoftmaxGraph(String labelPrefix) {
+        Tensor input = new Tensor(new float[]{
+                0.1f, 0.2f, 0.3f,
+                0.4f, 0.5f, 0.6f
+        }, new int[]{2, 3}, null, labelPrefix + "LogSoftmaxInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                0.2f, -0.1f, 0.3f, 0.4f, -0.2f, 0.1f,
+                0.5f, 0.6f, -0.2f, 0.1f, 0.7f, -0.4f,
+                -0.3f, 0.7f, 0.8f, -0.4f, 0.2f, 0.5f
+        }, new int[]{3, 6}, null, labelPrefix + "LogSoftmaxWeight", DataType.FLOAT32);
+        Tensor linear = input.matmul(weight);
+        Tensor reshape = linear.reshape(3, 4);
+        Tensor permute = reshape.permute(1, 0);
+        Tensor contiguous = permute.contiguous();
+        Tensor out = contiguous.logSoftmax(1);
+
+        if ("metal".equals(labelPrefix)) {
+            TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackend(reshape, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackend(contiguous, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        }
+        return out;
+    }
+
+    private static int nodeId(CompiledGraph compiled, operations.Operation.OpType opType) {
+        return compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == opType)
+                .map(graph.CompiledNode::id)
+                .findFirst()
+                .orElseThrow();
     }
 
     private static RuntimeConfig metalTensorArrayRuntime() {
