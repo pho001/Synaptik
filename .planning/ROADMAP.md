@@ -87,6 +87,22 @@ Cross-cutting constraints:
 - If native CUDA coverage must start with a narrow operation set, document that explicitly and keep unsupported operations visibly falling back.
 - Avoid benchmark/profile persistence changes in this phase.
 
+**Planned Execution:**
+
+Wave 1:
+- `07-01` — Add native and Java CUDA buffer ABI, allocator, binding, resource, materializer, capability reporting, and portable unit tests.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- `07-02` — Wire prepared CUDA execution to accepted buffer decisions, attach CUDA-owned outputs, and materialize graph-output/CPU-consumer reads through `ExecutionState`.
+
+Wave 3 *(blocked on Wave 2 completion)*:
+- `07-03` — Prove adjacent CUDA handoff, update docs, run portable plus optional native verification, and write final summary.
+
+Cross-cutting constraints:
+- CUDA buffer support stays narrow: dense `FLOAT32`, same CUDA backend, available native buffer ABI, and supported DAG node types.
+- Unsupported CUDA buffer layouts, dtypes, native failures, and required-unavailable paths must remain explicit through stable reason codes.
+- CPU remains the correctness oracle; public `Tensor` remains logical, and CUDA-specific handles/lifetimes stay under `backend.cuda.*`.
+
 ### Phase 8: CUDA Observability And Documentation Closure
 
 **Goal:** Close v1.1 by making CUDA fallback, trace/report evidence, developer docs, source hygiene, and final verification match the observability standard established for Metal.
