@@ -68,6 +68,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Metal buffer preflight uses explicit layout policy | Plan 002-01 added direct dense, dense physical logical-view, and rejected policy actions while keeping output logical-view execution conservative until allocator/materializer support. |
 | 2026-04-30 | Metal logical-view flow uses dense physical buffers and Java scatter materialization | Plan 002-02 enabled policy-approved logical-view outputs without native layout ABI churn. |
 | 2026-04-30 | Phase 2 verification passed after runtime publication fixes | Plan 002-03 added E2E Metal parity, trace/docs coverage, and fixed accelerator fallback prepared-input allocation plus alias-view output publication. |
+| 2026-04-30 | Phase 3 context locks balanced static cost planning | Materialization-aware planning should prefer longer device-owned regions on ties, use full static cost signals, summarize selected/top rejected planner decisions, and preserve CPU hot paths. |
 
 ## Recent Sessions
 
@@ -82,6 +83,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Completed 002-01-PLAN.md | Ready for 002-02-PLAN.md | .planning/phases/002-metal-layout-aware-device-flow/002-01-SUMMARY.md |
 | 2026-04-30 | Completed 002-02-PLAN.md | Ready for 002-03-PLAN.md | .planning/phases/002-metal-layout-aware-device-flow/002-02-SUMMARY.md |
 | 2026-04-30 | Completed and verified Phase 2 | Ready for Phase 3 planning | .planning/phases/002-metal-layout-aware-device-flow/002-VERIFICATION.md |
+| 2026-04-30 | Gathered Phase 3 context | Ready for Phase 3 planning | .planning/phases/003-materialization-aware-region-planning/003-CONTEXT.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 2 verification*
+*Last updated: 2026-04-30 after Phase 3 context gathering*
