@@ -248,6 +248,25 @@ Use these focused gates after changing GPU compound region lowering, including `
 ./gradlew buildCudaGraphShim cudaTest
 ```
 
+### GPU coverage regression checks
+
+Use these focused gates after changing GPU coverage summaries, benchmark report rendering, representative workload
+baselines, or regression gate policy. They validate the checked-in evidence contract without depending on
+machine-local benchmark/calibration output.
+
+```bash
+./gradlew classes
+./gradlew test --tests GpuCoverageSummaryTest --tests GpuCoverageRegressionGateTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests CompiledGraphTraceTest
+./gradlew metalTest
+./gradlew buildCudaGraphShim cudaTest
+git status --short
+```
+
+Treat `profiles/platform/.../tuning/abc/*` as local tuning output unless a plan explicitly promotes a stable fixture.
+Do not commit local tuning artifacts from these paths as Phase 13 evidence. The canonical proof is the checked-in
+tests, docs, and report fields such as `gpuCoverageRatio`, `cpuMaterializationReasonCounts`, and hidden tensor-array
+fallback failures.
+
 ## Adding Optimizer Rules
 
 Optimizer stages are defined in `src/main/java/config/optimizer/OptimizerStage.java`:

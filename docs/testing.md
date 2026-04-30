@@ -284,6 +284,35 @@ CUDA fallback interpretation in test output should use `acceleratorBufferReasonC
 `NATIVE_BUFFER_ABI_UNAVAILABLE`, `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, and `NATIVE_BUFFER_EXECUTION_FAILED` before
 treating a fallback as a regression.
 
+## GPU Coverage Regression Gates
+
+Phase 13 coverage tests verify the GPU coverage summary and regression-gate contract with portable Java tests first.
+Use `GpuCoverageSummaryTest`, `GpuCoverageRegressionGateTest`, `BenchmarkSessionTest`, `BenchmarkSuiteSessionTest`, and
+`CompiledGraphTraceTest` to prove report schema, fallback visibility, and gate failures even when native CUDA is
+capability-skipped.
+
+The coverage report fields include `gpuCoverageRatio`, `selectedRegionCount`, `maxSelectedRegionLength`,
+`rejectedCandidateReasonCounts`, `cpuMaterializationReasonCounts`, and `deviceHandoffCount`. These fields are the
+checked-in evidence contract for coverage/materialization behavior, not raw timing. Native Metal and CUDA tasks add
+native capability-gated evidence, but portable coverage gate behavior must not depend on local GPU availability.
+
+Run the focused gate with:
+
+```bash
+./gradlew test --tests GpuCoverageSummaryTest --tests GpuCoverageRegressionGateTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests CompiledGraphTraceTest
+```
+
+For native slices, run:
+
+```bash
+./gradlew metalTest
+./gradlew buildCudaGraphShim cudaTest
+```
+
+A hidden tensor-array fallback is a regression-gate failure when the policy requires native buffer binding. Local
+`profiles/platform/.../tuning/abc/*` files and other machine-local benchmark/calibration output are not canonical test
+fixtures; do not commit local tuning artifacts unless a plan explicitly says to promote them.
+
 ## Source Hygiene Tests
 
 `SourceTreeHygieneTest` checks architecture and migration boundaries. Notable checks include:

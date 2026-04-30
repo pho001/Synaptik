@@ -104,3 +104,19 @@ Use the regular tensor operation checklist first, then add GPU coverage delibera
 8. Add selected and rejected candidate tests.
 
 Phase 12 owns GPU compound region lowering for patterns such as `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, and `REDUCTION_ADJACENT`. CPU `Operation.OpType.FUSED` remains CPU-only; GPU compound regions arise from normal graph operations lowered through accelerator DAG primitives. Phase 13 owns coverage benchmark gates and report thresholds for GPU region length, fallback counts, CPU materialization counts, and device handoffs.
+
+## Phase 13 Coverage Gates
+
+Phase 11 defines which operation families Metal and CUDA may lower, and Phase 12 defines which multi-node compound
+regions may become GPU-owned regions. Phase 13 turns that support into an auditable GPU coverage summary so benchmark
+and regression reports can prove that selected regions actually stayed on the accelerator path.
+
+The Phase 13 report fields include `gpuCoverageRatio`, `selectedRegionCount`, `maxSelectedRegionLength`,
+`rejectedCandidateReasonCounts`, `cpuMaterializationReasonCounts`, and `deviceHandoffCount`. These fields connect the
+lowering matrix and compound-region decisions to runtime evidence: selected GPU regions, rejected candidates, CPU
+materialization boundaries, tensor-array bridge usage, CPU fallback, and device handoffs.
+
+The portable coverage gate checks coverage/materialization behavior, not raw timing. It is allowed to fail fast on a
+hidden tensor-array fallback even if a benchmark is fast, because tensor-array execution is a CPU-visible bridge path
+rather than native buffer ownership. Native Metal and CUDA checks are native capability-gated evidence; when local CUDA
+is capability-skipped, portable Java tests remain the required proof for schema, fallback, and report contracts.

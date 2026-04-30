@@ -1,10 +1,11 @@
 ---
 phase: 13
 slug: coverage-benchmark-and-regression-gate
-status: draft
-nyquist_compliant: false
+status: verified
+nyquist_compliant: true
 wave_0_complete: true
 created: 2026-04-30
+updated: 2026-05-01
 ---
 
 # Phase 13 - Validation Strategy
@@ -40,14 +41,14 @@ Per-phase validation contract for coverage benchmark and regression gate work.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 13-01-01 | 01 | 1 | GPUCOV-01, GPUCOV-03 | T-13-01 / T-13-02 | Coverage fields cannot silently disappear from report schema. | unit | `./gradlew test --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | pending |
-| 13-01-02 | 01 | 1 | GPUCOV-01 | T-13-03 | Rejected candidate and selected region metrics remain tied to prepare trace source data. | unit | `./gradlew test --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | pending |
-| 13-01-03 | 01 | 1 | GPUCOV-01 | T-13-04 | CPU materialization and device handoff counts are visible and reason-coded. | unit | `./gradlew test --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | pending |
-| 13-02-01 | 02 | 2 | GPUCOV-01, GPUCOV-02 | T-13-05 / T-13-06 | Representative workload coverage is compared to a deterministic baseline contract, not local timing artifacts. | integration | `./gradlew test --tests BenchmarkSuiteSessionTest --tests GpuCoverageSummaryTest` | W0 | pending |
-| 13-02-02 | 02 | 2 | GPUCOV-02 | T-13-07 | Transformer, MLP, and conv/normalization workload names are present in coverage reports. | integration | `./gradlew test --tests BenchmarkSuiteSessionTest` | W0 | pending |
-| 13-03-01 | 03 | 3 | GPUCOV-03 | T-13-08 / T-13-09 | Supported GPU target paths fail on lost coverage or unexpected CPU materialization. | regression | `./gradlew test --tests GpuCoverageRegressionGateTest --tests CompiledGraphTraceTest` | W0 | pending |
-| 13-03-02 | 03 | 3 | GPUCOV-03 | T-13-10 | Tensor-array fallback cannot masquerade as native GPU coverage. | regression | `./gradlew test --tests GpuCoverageRegressionGateTest --tests BenchmarkSessionTest` | W0 | pending |
-| 13-04-01 | 04 | 4 | GPUCOV-01, GPUCOV-02, GPUCOV-03 | T-13-11 / T-13-12 | Docs and native gates separate portable evidence, native evidence, and local artifacts. | docs/native | `./gradlew classes`; `./gradlew metalTest`; `./gradlew buildCudaGraphShim cudaTest`; `git status --short` | W0 | pending |
+| 13-01-01 | 01 | 1 | GPUCOV-01, GPUCOV-03 | T-13-01 / T-13-02 | Coverage fields cannot silently disappear from report schema. | unit | `./gradlew test --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | green |
+| 13-01-02 | 01 | 1 | GPUCOV-01 | T-13-03 | Rejected candidate and selected region metrics remain tied to prepare trace source data. | unit | `./gradlew test --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | green |
+| 13-01-03 | 01 | 1 | GPUCOV-01 | T-13-04 | CPU materialization and device handoff counts are visible and reason-coded. | unit | `./gradlew test --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | green |
+| 13-02-01 | 02 | 2 | GPUCOV-01, GPUCOV-02 | T-13-05 / T-13-06 | Representative workload coverage is compared to a deterministic baseline contract, not local timing artifacts. | integration | `./gradlew test --tests BenchmarkSuiteSessionTest --tests GpuCoverageSummaryTest` | W0 | green |
+| 13-02-02 | 02 | 2 | GPUCOV-02 | T-13-07 | Transformer, MLP, and conv/normalization workload names are present in coverage reports. | integration | `./gradlew test --tests BenchmarkSuiteSessionTest` | W0 | green |
+| 13-03-01 | 03 | 3 | GPUCOV-03 | T-13-08 / T-13-09 | Supported GPU target paths fail on lost coverage or unexpected CPU materialization. | regression | `./gradlew test --tests GpuCoverageRegressionGateTest --tests CompiledGraphTraceTest` | W0 | green |
+| 13-03-02 | 03 | 3 | GPUCOV-03 | T-13-10 | Tensor-array fallback cannot masquerade as native GPU coverage. | regression | `./gradlew test --tests GpuCoverageRegressionGateTest --tests BenchmarkSessionTest` | W0 | green |
+| 13-04-01 | 04 | 4 | GPUCOV-01, GPUCOV-02, GPUCOV-03 | T-13-11 / T-13-12 | Docs and native gates separate portable evidence, native evidence, and local artifacts. | docs/native | `./gradlew classes`; `./gradlew metalTest`; `./gradlew buildCudaGraphShim cudaTest`; `git status --short` | W0 | green |
 
 Status: pending = plan-time contract; green/red recorded during execution or validation audit.
 
@@ -75,15 +76,36 @@ No generated test files are required before Plan 13-01 starts.
 
 Native Metal can be validated with `./gradlew metalTest` on supported macOS hosts.
 
+## Validation Audit 2026-04-30
+
+Requirements audited: GPUCOV-01, GPUCOV-02, GPUCOV-03.
+
+Task rows audited: 8 total, 8 green, 0 red, 0 pending.
+
+Automated evidence:
+
+- `./gradlew classes` passed.
+- `./gradlew test --tests GpuCoverageSummaryTest --tests GpuCoverageRegressionGateTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests CompiledGraphTraceTest` passed.
+- `./gradlew metalTest` passed and built the local Metal shim under `build/native/apple/`.
+- `./gradlew buildCudaGraphShim cudaTest` was capability-skipped after the sandbox lock issue was rerun with Gradle wrapper access.
+- Documentation `rg` checks found `GPU coverage summary`, `gpuCoverageRatio`, `hidden tensor-array fallback`, and `GPU coverage regression checks`.
+- `git status --short` showed only docs/planning edits plus existing unstaged `profiles/platform/.../tuning/abc/*` tuning profile changes.
+
+Gaps found: 0.
+
+Resolved: 0.
+
+Escalated: 0.
+
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify commands or capability-gated native commands.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
+- [x] All tasks have `<automated>` verify commands or capability-gated native commands.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify.
 - [x] Wave 0 covers all missing references.
 - [x] No watch-mode flags.
-- [ ] Feedback latency bounded by focused Gradle filters.
-- [ ] `nyquist_compliant: true` set in frontmatter after execution validation.
+- [x] Feedback latency bounded by focused Gradle filters.
+- [x] `nyquist_compliant: true` set in frontmatter after execution validation.
 
-**Approval:** pending
+**Approval:** verified

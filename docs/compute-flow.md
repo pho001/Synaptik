@@ -1971,6 +1971,28 @@ These fields prevent a common debugging mistake: `backend=GPU_METAL` does not im
 residency. In the current bridge, a real Metal execution can still report large copy-in/copy-out time and
 `storageResidency=CPU_ARRAY` because outputs are copied back at the region boundary.
 
+## GPU coverage summary
+
+Benchmark reports include a backend-neutral GPU coverage summary derived from prepare and run traces. The summary is an
+evidence contract for coverage/materialization behavior, not raw timing: timing can explain a result, but the regression
+gate reads selected region length, native buffer execution, fallback paths, CPU materialization boundaries, and device
+handoffs.
+
+Key fields:
+
+| Field | Meaning |
+|---|---|
+| `gpuCoverageRatio` | Executed accelerator-buffer steps divided by total traced run steps for that backend. |
+| `selectedRegionCount` | Number of backend-selection regions selected for the accelerator backend during prepare. |
+| `maxSelectedRegionLength` | Largest selected accelerator region size, measured in graph node ids. |
+| `rejectedCandidateReasonCounts` | Count of rejected accelerator-compatible candidates by stable planner reason. |
+| `cpuMaterializationReasonCounts` | Count of CPU materialization boundaries by reason, such as graph output or CPU consumer. |
+| `deviceHandoffCount` | Run-step backend transitions involving the accelerator backend, plus CPU materialization exits. |
+
+The portable coverage gate fails on lost GPU coverage, unexpected CPU materialization, hidden tensor-array fallback, and
+unexpected device handoff. Native Metal and CUDA runs provide native capability-gated evidence when the local host can
+execute those tasks; portable Java tests still prove the report schema and fallback semantics when a native task skips.
+
 Trace tests verify that:
 
 - A compiled graph exposes compile, prepare, and run traces.
