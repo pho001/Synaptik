@@ -1,7 +1,9 @@
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.accelerator.select.AcceleratorPlanCostModel;
+import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
 import backend.metal.exec.PreparedMetalExecutable;
+import backend.metal.lowering.MetalPartitionSupport;
 import backend.cuda.exec.PreparedCudaExecutable;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
@@ -173,6 +175,87 @@ public class PreparedExecutionBuildTest {
         assertTrue(decision.costSummary().estimatedTransferBytes() >= 0L);
         assertTrue(decision.costSummary().estimatedComputeWork() >= 0L);
         assertFalse(decision.costSummary().preset().isBlank());
+    }
+
+    @Test
+    void metalSelectionKeepsLinearLogSoftmaxInGpuRegion() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalLinearLogSoftmaxInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "metalLinearLogSoftmaxWeight", DataType.FLOAT32);
+        Tensor matmul = input.matmul(weight);
+        Tensor out = matmul.logSoftmax(1);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int matmulNodeId = nodeId(compiled, Operation.OpType.MATMUL);
+        int logSoftmaxNodeId = nodeId(compiled, Operation.OpType.LOG_SOFTMAX);
+
+        var selected = execution.prepareTrace().backendSelection().decisions().stream()
+                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.nodeIds().contains(matmulNodeId) && decision.nodeIds().contains(logSoftmaxNodeId))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("selected", selected.reason());
+    }
+
+    @Test
+    void cudaSelectionKeepsLinearLogSoftmaxInGpuRegion() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaLinearLogSoftmaxInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "cudaLinearLogSoftmaxWeight", DataType.FLOAT32);
+        Tensor matmul = input.matmul(weight);
+        Tensor out = matmul.logSoftmax(1);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int matmulNodeId = nodeId(compiled, Operation.OpType.MATMUL);
+        int logSoftmaxNodeId = nodeId(compiled, Operation.OpType.LOG_SOFTMAX);
+
+        var selected = execution.prepareTrace().backendSelection().decisions().stream()
+                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_CUDA)
+                .filter(decision -> decision.nodeIds().contains(matmulNodeId) && decision.nodeIds().contains(logSoftmaxNodeId))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("selected", selected.reason());
+    }
+
+    @Test
+    void metalSelectionRejectsUnsupportedLossAdjacentCandidateVisibly() {
+        Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalRejectedLossLogits", DataType.FLOAT32);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalRejectedLossTargets", DataType.INT32);
+        Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int lossNodeId = nodeId(compiled, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
+        String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, lossNodeId), null);
+
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, lossNodeId));
+        assertTrue(plannerReason.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(plannerReason.contains("LOSS") || plannerReason.contains("CROSS_ENTROPY_LOSS_INDICES"));
+        assertCpuPreparedStepAvailable(execution, lossNodeId);
+    }
+
+    @Test
+    void cudaSelectionRejectsUnsupportedReductionCandidateVisibly() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaRejectedReductionInput", DataType.FLOAT32);
+        Tensor out = input.sum(1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int reductionNodeId = nodeId(compiled, Operation.OpType.SUM);
+        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, reductionNodeId), null);
+
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, reductionNodeId));
+        assertTrue(plannerReason.contains("UNSUPPORTED_OPERATION"));
+        assertTrue(plannerReason.contains("SUM") || plannerReason.contains("REDUCTION"));
+        assertCpuPreparedStepAvailable(execution, reductionNodeId);
     }
 
     @Test
@@ -2953,5 +3036,32 @@ public class PreparedExecutionBuildTest {
                 config.optimizer.FuseConfig.inferenceDefaults(),
                 config.optimizer.MemoryConfig.defaults()
         );
+    }
+
+    private static int nodeId(CompiledGraph compiled, Operation.OpType opType) {
+        return compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == opType)
+                .map(graph.CompiledNode::id)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static graph.CompiledNode compiledNode(CompiledGraph compiled, int nodeId) {
+        return compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.id() == nodeId)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static boolean hasSelectedAcceleratorDecisionFor(PreparedExecution execution, ComputeBackend backend, int nodeId) {
+        return execution.prepareTrace().backendSelection().decisions().stream()
+                .anyMatch(decision -> decision.selected()
+                        && decision.selectedBackend() == backend
+                        && decision.nodeIds().contains(nodeId));
+    }
+
+    private static void assertCpuPreparedStepAvailable(PreparedExecution execution, int nodeId) {
+        assertTrue(execution.forwardSteps().stream()
+                .anyMatch(step -> step.compiledNode().id() == nodeId && step.metadata().backend() == ComputeBackend.CPU));
     }
 }
