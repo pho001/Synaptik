@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
 status: executing
-last_updated: "2026-04-30T16:20:12.351Z"
-last_activity: 2026-04-30 -- Phase 11 planning complete
+last_updated: "2026-04-30T16:35:58Z"
+last_activity: 2026-04-30 -- Phase 11 plan 11-01 complete
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 11
-  completed_plans: 7
-  percent: 64
+  completed_plans: 8
+  percent: 73
 ---
 
 # GSD State
@@ -66,7 +66,7 @@ Planning agents should read the relevant codebase map documents before proposing
 |-------|--------|-------|--------------|
 | 9 — Native Layout ABI v2 | Completed | 3/3 | Passed |
 | 10 — GPU Layout Transform And View Path | Completed | 4/4 | Passed |
-| 11 — GPU Lowering Coverage Matrix | Ready to execute | 0/4 | Pending |
+| 11 — GPU Lowering Coverage Matrix | Executing | 1/4 | Pending |
 | 12 — Fused GPU Region Execution | Planned | TBD | Pending |
 | 13 — Coverage Benchmark And Regression Gate | Planned | TBD | Pending |
 
@@ -122,6 +122,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 9 verification passed | Shared ABI v2 metadata, Metal/CUDA capability probes, native optional symbols, CUDA ABI-v2 fallback diagnostics, Metal native tests, and portable targeted gates satisfy GPULAYOUT-01/02/03. |
 | 2026-04-30 | Phase 10 verification passed | GPU layout/view transforms, metadata-only residency, dense materialization gates, native Metal parity, CUDA capability-gated checks, security, and Nyquist validation are closed. |
 | 2026-04-30 | Phase 11 planning completed | Four plans cover the shared lowering coverage matrix, Metal/CUDA legality alignment, softmax-ish lowering expansion, selected/rejected candidate tests, trace/docs closure, and profile artifact hygiene. |
+| 2026-04-30 | Phase 11 shared coverage contract completed | Backend-neutral Metal/CUDA coverage matrix, required family tests, stable unsupported reasons, and docs now cover GPULOWER-01/03 for downstream legality alignment. |
 
 ## Recent Sessions
 
@@ -159,13 +160,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed and verified Phase 10 | Ready for Phase 11 context | .planning/phases/10-gpu-layout-transform-and-view-path/10-VERIFICATION.md |
 | 2026-04-30 | Gathered Phase 11 context | Ready for Phase 11 planning | .planning/phases/11-gpu-lowering-coverage-matrix/11-CONTEXT.md |
 | 2026-04-30 | Planned Phase 11 with 4 verified plans | Ready for Phase 11 execution | .planning/phases/11-gpu-lowering-coverage-matrix/11-01-PLAN.md |
+| 2026-04-30 | Completed 11-01 shared GPU lowering coverage contract | Ready for 11-02 legality alignment | .planning/phases/11-gpu-lowering-coverage-matrix/11-01-SUMMARY.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 11 planning*
+*Last updated: 2026-04-30 after Phase 11 plan 11-01 completion*
 
 ## Current Position
 
 Phase: 11
-Plan: 0/4 complete
-Status: Ready to execute
-Last activity: 2026-04-30 -- Phase 11 planning complete
+Plan: 1/4 complete
+Status: Executing
+Last activity: 2026-04-30 -- Phase 11 plan 11-01 complete
