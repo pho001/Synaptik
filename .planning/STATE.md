@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
 status: verifying
-last_updated: "2026-04-30T19:45:45Z"
+last_updated: "2026-04-30T19:56:01Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 5
@@ -128,6 +128,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 11 trace/docs closure completed | Final portable and optional native gates passed or capability-skipped, docs describe GPU-lowerable extension workflow, and local profile artifacts remained unstaged. |
 | 2026-04-30 | Phase 11 verification passed | Shared coverage matrix, Metal/CUDA legality alignment, LOG_SOFTMAX lowering, trace/docs closure, security, validation, and profile artifact hygiene satisfy GPULOWER-01/02/03. |
 | 2026-04-30 | Phase 12 execution completed | GPU compound lowering now covers `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN`, rejects `REDUCTION_ADJACENT` and CPU `Operation.OpType.FUSED` with stable diagnostics, and records focused verification evidence. |
+| 2026-04-30 | Phase 12 security passed | Security audit closed 13/13 fused GPU region threats with `threats_open: 0`. |
 
 ## Recent Sessions
 
@@ -171,13 +172,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed 11-04 lowering coverage trace and docs closure | Ready for Phase 11 security/validation/verify-work | .planning/phases/11-gpu-lowering-coverage-matrix/11-04-SUMMARY.md |
 | 2026-04-30 | Completed and verified Phase 11 | Ready for Phase 12 planning | .planning/phases/11-gpu-lowering-coverage-matrix/11-VERIFICATION.md |
 | 2026-04-30 | Completed 12-04 reduction-adjacent/docs closure | Ready for Phase 12 security/validation/verify-work | .planning/phases/12-fused-gpu-region-execution/12-04-SUMMARY.md |
+| 2026-04-30 | Secured Phase 12 | Ready for `$gsd-validate-phase 12` | .planning/phases/12-fused-gpu-region-execution/12-SECURITY.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 12 execution*
+*Last updated: 2026-04-30 after Phase 12 security*
 
 ## Current Position
 
 Phase: 12 (fused-gpu-region-execution) — VERIFYING
 Plan: 4 of 4
-Status: Verifying; UAT session started
+Status: Security passed; validation pending
 Last activity: 2026-04-30
