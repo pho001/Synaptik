@@ -107,10 +107,12 @@ public interface MetalMpsGraphBridge {
     /**
      * Executes a compiled Metal graph against explicit native buffer bindings.
      *
-     * <p>The current FFM bridge still uses tensor-array execution and therefore
-     * inherits this unsupported default. Future shared-buffer bridges should
-     * override this method and keep tensor materialization decisions outside the
-     * native bridge.</p>
+     * <p>Buffer bindings supplied to the native bridge must point to dense physical bytes for the logical
+     * tensor shape compiled into the executable. Arbitrary stride and storage-offset semantics are owned by
+     * Java layout policy and materialization, not by the current native buffer ABI.</p>
+     *
+     * <p>The default implementation is unsupported. Shared-buffer bridges should override this method and keep
+     * tensor materialization decisions outside the native bridge.</p>
      *
      * @param bridgeContext native bridge context
      * @param executable compiled native executable

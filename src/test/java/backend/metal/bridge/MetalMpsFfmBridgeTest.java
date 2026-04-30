@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -219,18 +220,55 @@ class MetalMpsFfmBridgeTest {
         assertEquals("Metal buffer output 0 nodeId 99 does not match executable nodeId 2.", failure.getMessage());
     }
 
+    @Test
+    void bufferBindingValidationAcceptsPolicyApprovedLogicalViewMetadataWithoutNativeAbiChange() {
+        MetalMpsBridgeExecutable executable = executableDescriptor(1, 2);
+        MetalBufferBinding input = binding(1, MetalBufferAccess.READ);
+        AcceleratorBufferLayout logicalView = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2, 2},
+                new int[]{1, 2},
+                0,
+                4
+        );
+        MetalBufferBinding output = binding(2, logicalView, MetalBufferAccess.WRITE);
+
+        // native layout ABI not required: Java supplies dense physical buffers and handles logical materialization
+        assertDoesNotThrow(() -> MetalMpsFfmBridge.validateBufferBindings(executable, List.of(input), List.of(output)));
+    }
+
+    @Test
+    void bufferBindingValidationStillRejectsUnsupportedOutputDtype() {
+        MetalMpsBridgeExecutable executable = executableDescriptor(1, 2, DataType.FLOAT64);
+        MetalBufferBinding input = binding(1, MetalBufferAccess.READ);
+        MetalBufferBinding output = binding(
+                2,
+                AcceleratorBufferLayout.of(DataType.FLOAT64, new int[]{2}, new int[]{1}, 0, 2),
+                MetalBufferAccess.WRITE
+        );
+
+        UnsupportedOperationException failure = assertThrows(UnsupportedOperationException.class,
+                () -> MetalMpsFfmBridge.validateBufferBindings(executable, List.of(input), List.of(output)));
+
+        assertEquals("Metal buffer outputs support FLOAT32 only; got FLOAT64.", failure.getMessage());
+    }
+
     private static AcceleratorBufferLayout denseF32Layout(int[] shape) {
         long elements = Arrays.stream(shape).asLongStream().reduce(1L, Math::multiplyExact);
         return AcceleratorBufferLayout.of(DataType.FLOAT32, shape, TensorMetadata.computeStrides(shape), 0, elements);
     }
 
     private static MetalBufferBinding binding(int nodeId, MetalBufferAccess access) {
+        return binding(nodeId, denseF32Layout(new int[]{2}), access);
+    }
+
+    private static MetalBufferBinding binding(int nodeId, AcceleratorBufferLayout layout, MetalBufferAccess access) {
         return new MetalBufferBinding(
                 nodeId,
-                denseF32Layout(new int[]{2}),
+                layout,
                 new backend.metal.buffer.MetalBufferHandle(
                         java.lang.foreign.MemorySegment.ofAddress(nodeId + 1L),
-                        2L * Float.BYTES,
+                        layout.logicalByteLength(),
                         "shared",
                         "test",
                         false
@@ -240,6 +278,10 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static MetalMpsBridgeExecutable executableDescriptor(int inputNodeId, int outputNodeId) {
+        return executableDescriptor(inputNodeId, outputNodeId, DataType.FLOAT32);
+    }
+
+    private static MetalMpsBridgeExecutable executableDescriptor(int inputNodeId, int outputNodeId, DataType outputDType) {
         return new MetalMpsBridgeExecutable(
                 true,
                 java.lang.foreign.MemorySegment.ofAddress(100),
@@ -248,7 +290,7 @@ class MetalMpsFfmBridgeTest {
                 List.of(inputNodeId),
                 List.of(DataType.FLOAT32),
                 List.of(outputNodeId),
-                List.of(DataType.FLOAT32),
+                List.of(outputDType),
                 List.of(0)
         );
     }
