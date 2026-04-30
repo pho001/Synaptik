@@ -108,9 +108,9 @@ public final class GpuLoweringCoverageMatrix {
                 "native accelerator DAG softmax path",
                 Operation.OpType.SOFTMAX);
         add(entries, backend, Operation.OpType.LOG_SOFTMAX, GpuLoweringOperationFamily.SOFTMAX_LIKE,
-                GpuLoweringCoverageStatus.FALLBACK,
-                GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
-                "Phase 11 expands this through SOFTMAX plus LOG lowering");
+                GpuLoweringCoverageStatus.SUPPORTED,
+                GpuLoweringUnsupportedReason.SUPPORTED,
+                "lowered as SOFTMAX followed by LOG using existing accelerator DAG primitives");
         add(entries, backend, Operation.OpType.SUM, GpuLoweringOperationFamily.REDUCTION,
                 GpuLoweringCoverageStatus.FALLBACK,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,

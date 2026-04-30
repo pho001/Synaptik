@@ -22,6 +22,7 @@ import operations.layout.permute;
 import operations.layout.squeeze;
 import operations.reduction.reduceMaxGrad;
 import operations.reduction.reduceMinGrad;
+import operations.reduction.logSoftmax;
 import operations.reduction.logSoftmaxGrad;
 import operations.reduction.softmax;
 import operations.reduction.softmaxGrad;
@@ -204,6 +205,10 @@ public final class AcceleratorSubgraphLowerer {
     }
 
     private AcceleratorDagSpec buildDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
+        AcceleratorDagSpec specializedLogSoftmax = tryBuildLogSoftmaxDagSpec(subgraph, context);
+        if (specializedLogSoftmax != null) {
+            return specializedLogSoftmax;
+        }
         AcceleratorDagSpec specializedSdpaBackward = tryBuildSpecializedSdpaBackwardDagSpec(subgraph, context);
         if (specializedSdpaBackward != null) {
             return specializedSdpaBackward;
@@ -285,6 +290,64 @@ public final class AcceleratorSubgraphLowerer {
             outputNodeIndexes.add(outputNodeIndex);
         }
         return new AcceleratorDagSpec(externalInputs, nodes, outputNodeIndexes, outputNodeIds);
+    }
+
+    private AcceleratorDagSpec tryBuildLogSoftmaxDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
+        if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1) {
+            return null;
+        }
+        int nodeId = subgraph.orderedNodeIds().getFirst();
+        CompiledNode logSoftmaxNode = context.compiledNode(nodeId);
+        if (logSoftmaxNode == null
+                || logSoftmaxNode.operation() == null
+                || logSoftmaxNode.operation().opType() != Operation.OpType.LOG_SOFTMAX
+                || !(logSoftmaxNode.operation() instanceof logSoftmax op)
+                || logSoftmaxNode.inputIds().size() != 1) {
+            return null;
+        }
+        CompiledNode inputNode = context.compiledNode(logSoftmaxNode.inputIds().getFirst());
+        if (inputNode == null) {
+            return null;
+        }
+        int[] inputShape = inputNode.shape();
+        int[] outputShape = logSoftmaxNode.shape();
+        if (inputShape.length < 1 || inputShape.length > 4 || outputShape.length < 1 || outputShape.length > 4) {
+            return null;
+        }
+        AcceleratorDagInput input = new AcceleratorDagInput(
+                inputNode.id(),
+                java.util.Arrays.stream(inputShape).boxed().toList(),
+                inputNode.dataType()
+        );
+        AcceleratorDagNode softmax = new AcceleratorDagNode(
+                logSoftmaxNode.id(),
+                AcceleratorDagNodeType.SOFTMAX,
+                AcceleratorDagValueRef.externalInput(0),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                op.getDimension(),
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1
+        );
+        AcceleratorDagNode log = new AcceleratorDagNode(
+                logSoftmaxNode.id(),
+                AcceleratorDagNodeType.LOG,
+                AcceleratorDagValueRef.nodeOutput(0),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                0,
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1
+        );
+        return new AcceleratorDagSpec(List.of(input), List.of(softmax, log), List.of(1), List.of(logSoftmaxNode.id()));
     }
 
     private AcceleratorDagSpec tryBuildSpecializedSdpaDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
