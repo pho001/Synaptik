@@ -3,6 +3,7 @@ package backend.metal.lowering;
 import backend.ComputeBackend;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
+import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.lowering.BackendCapabilities;
 import backend.lowering.LoweringContext;
 import backend.lowering.LoweringRequest;
@@ -40,8 +41,69 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetalRegionLowererTest {
+    @Test
+    void metalPlannerSupportMatchesSharedCoverageMatrixForForwardOps() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalMatrixA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "metalMatrixB", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        for (Operation.OpType opType : List.of(Operation.OpType.MATMUL, Operation.OpType.RELU, Operation.OpType.EXP)) {
+            assertTrue(GpuLoweringCoverageMatrix.isSupported(ComputeBackend.GPU_METAL, opType));
+            assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, opType)), context));
+        }
+    }
+
+    @Test
+    void metalUnsupportedReductionUsesSharedUnsupportedReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalReductionInput", DataType.FLOAT32);
+        Tensor out = input.sum(1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.SUM)), context);
+
+        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
+        assertTrue(reason.contains("operation SUM is not supported by GPU_METAL lowering"));
+    }
+
+    @Test
+    void metalUnsupportedNormalizationUsesSharedUnsupportedReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalNormInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalNormGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "metalNormBeta", DataType.FLOAT32);
+        Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM)), context);
+
+        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
+        assertTrue(reason.contains("operation LAYER_NORM is not supported by GPU_METAL lowering"));
+    }
+
+    @Test
+    void metalUnsupportedLossAdjacentUsesSharedUnsupportedReason() {
+        Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalLossLogits", DataType.FLOAT32);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalLossTargets", DataType.INT32);
+        Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
+
+        assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(reason.contains("operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering"));
+    }
+
     @Test
     void lowersGpuMetalRegionToMetalGraphRegion() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
