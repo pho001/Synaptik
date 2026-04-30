@@ -231,6 +231,28 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 4. Native Metal/CUDA checks remain capability-gated while portable Java gates prove fallback/report contracts on machines without native tooling.
 5. Documentation and hygiene checks make it clear which benchmark/profile outputs are evidence contracts versus local artifacts that must not be committed.
 
+**Plans:**
+
+0/4 plans executed
+
+Wave 1:
+- [13-01 Coverage Metric Contract And Report Schema](phases/13-coverage-benchmark-and-regression-gate/13-01-PLAN.md) - adds backend-neutral GPU coverage summary fields and text/JSON report rendering for GPUCOV-01/GPUCOV-03.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [13-02 Representative Workload Coverage Benchmarks](phases/13-coverage-benchmark-and-regression-gate/13-02-PLAN.md) - adds deterministic v1.1 coverage baseline comparison and suite evidence for transformer block, MLP, and conv/normalization workloads for GPUCOV-01/GPUCOV-02.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [13-03 Regression Gate And Hidden Exit Failures](phases/13-coverage-benchmark-and-regression-gate/13-03-PLAN.md) - adds fail-fast coverage gates for lost GPU coverage, unexpected CPU materialization, hidden tensor-array fallback, and device handoff regressions for GPUCOV-02/GPUCOV-03.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [13-04 Docs Native Gates And Hygiene Closure](phases/13-coverage-benchmark-and-regression-gate/13-04-PLAN.md) - documents evidence contracts, native capability-gated checks, validation closure, and local artifact hygiene for GPUCOV-01/02/03.
+
+**Cross-cutting constraints:**
+- Coverage and materialization behavior are the milestone gate; raw timing is secondary evidence only.
+- Tensor-array bridge execution must not count as native buffer GPU coverage.
+- Native CUDA checks remain capability-gated; portable Java tests must still prove CUDA report/fallback contracts.
+- Local `profiles/platform/.../tuning/abc/*` artifacts must remain unstaged unless intentionally promoted to stable fixtures.
+
 **Notes:**
 - The milestone success metric is coverage and materialization behavior, not only raw speed.
 - Do not commit machine-local benchmark/calibration output unless intentionally creating stable fixtures.

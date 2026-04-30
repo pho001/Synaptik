@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
 status: planning
-last_updated: "2026-04-30T20:14:16Z"
+last_updated: "2026-04-30T20:34:00Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 15
+  total_plans: 19
   completed_plans: 15
-  percent: 100
+  percent: 80
 ---
 
 # GSD State
@@ -68,7 +68,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 10 — GPU Layout Transform And View Path | Completed | 4/4 | Passed |
 | 11 — GPU Lowering Coverage Matrix | Completed | 4/4 | Passed |
 | 12 — Fused GPU Region Execution | Completed | 4/4 | Passed |
-| 13 — Coverage Benchmark And Regression Gate | Context | TBD | Pending |
+| 13 — Coverage Benchmark And Regression Gate | Planned | 0/4 | Pending |
 
 ## Deferred Items
 
@@ -131,6 +131,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 12 security passed | Security audit closed 13/13 fused GPU region threats with `threats_open: 0`. |
 | 2026-04-30 | Phase 12 Nyquist validation passed | Validation audit found 0 gaps, marked all 7 task verification rows green, and kept CUDA native execution capability-gated. |
 | 2026-04-30 | Phase 13 context captured in auto-routed next mode | Coverage evidence, representative workload, regression gate, and artifact hygiene decisions are ready for planning. |
+| 2026-04-30 | Phase 13 planning completed | Four plans cover the coverage metric/report schema, representative workload baseline comparison, fail-fast hidden-exit regression gates, docs/native gates, validation, and local profile artifact hygiene. |
 
 ## Recent Sessions
 
@@ -177,13 +178,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Secured Phase 12 | Ready for `$gsd-validate-phase 12` | .planning/phases/12-fused-gpu-region-execution/12-SECURITY.md |
 | 2026-04-30 | Validated Phase 12 | Ready for `$gsd-audit-milestone` | .planning/phases/12-fused-gpu-region-execution/12-VALIDATION.md |
 | 2026-04-30 | Gathered Phase 13 context | Ready for `$gsd-plan-phase 13` | .planning/phases/13-coverage-benchmark-and-regression-gate/13-CONTEXT.md |
+| 2026-04-30 | Planned Phase 13 with 4 coverage regression waves | Ready for `$gsd-execute-phase 13` | .planning/phases/13-coverage-benchmark-and-regression-gate/13-01-PLAN.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 13 context*
+*Last updated: 2026-04-30 after Phase 13 planning*
 
 ## Current Position
 
 Phase: 13 (coverage-benchmark-and-regression-gate) — PLANNING
-Plan: 0 of TBD
-Status: Context gathered; ready for phase planning
+Plan: 0 of 4
+Status: Planned; ready for phase execution
 Last activity: 2026-04-30
