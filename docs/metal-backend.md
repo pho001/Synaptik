@@ -436,11 +436,18 @@ When a Metal executable needs an external input:
 When a Metal executable needs an output:
 
 1. `PreparedMetalExecutable` first looks for an existing writable binding.
-2. If none exists, it validates that the destination tensor is contiguous and zero-offset.
-3. `MetalBufferAllocator.createOutputBinding(...)` allocates an unwritten shared `FLOAT32` buffer.
-4. `ExecutionState.reserveDeviceBufferBinding(...)` records it as writable but not current.
-5. After native execution succeeds, `markBufferOutputsCurrent(...)` promotes the binding to active `READ_WRITE`.
-6. The output residency becomes `DEVICE_OWNED`, even though the underlying `MTLBuffer` uses shared storage, because the Java `float[]` has not been updated.
+2. If none exists, `MetalLayoutPolicy.output(...)` classifies the destination layout.
+3. `DENSE_CONTIGUOUS` uses direct dense buffer binding.
+4. `ZERO_OFFSET_VIEW`, `NON_ZERO_OFFSET_VIEW`, and `PERMUTED_OR_STRIDED_VIEW` use dense physical Metal buffers with logical layout metadata when policy and materializer support allow it.
+5. `BROADCAST_ZERO_STRIDE_VIEW` and `UNSUPPORTED` remain rejected with `OUTPUT_LAYOUT_UNSUPPORTED`.
+6. `MetalBufferAllocator.createOutputBinding(...)` allocates an unwritten shared `FLOAT32` buffer sized to the logical byte length.
+7. `ExecutionState.reserveDeviceBufferBinding(...)` records it as writable but not current.
+8. After native execution succeeds, `markBufferOutputsCurrent(...)` promotes the binding to active `READ_WRITE`.
+9. The output residency becomes `DEVICE_OWNED`, even though the underlying `MTLBuffer` uses shared storage, because the Java `float[]` has not been updated.
+
+No native layout ABI was added for this flow. Java passes dense physical buffers to the existing buffer ABI and owns
+logical view materialization. Future native layout ABI additions must be optional-symbol, version, or capability
+checked before execution so an older `.dylib` cannot silently claim layout-aware native behavior.
 
 ### Materialization
 
@@ -617,7 +624,8 @@ Notable current exclusions:
 | Older `.dylib` without buffer symbols | `supportsBufferBindings()` | Legacy tensor-array path may still run; no `BUFFER_BINDING` claim. |
 | Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. |
 | Illegal external `BOOL` role | `MetalMpsCapabilities.supportsExternalInputRole(...)` | Planner rejects candidate. |
-| Non-contiguous or storage-offset output for buffer materialization | `PreparedMetalExecutable.unsupportedBufferOutputLayoutReason(...)` | Buffer path unavailable; tensor-array path or CPU fallback is attempted. |
+| Broadcast zero-stride or unsupported output layout | `MetalLayoutPolicy.output(...)` | Buffer path unavailable with `OUTPUT_LAYOUT_UNSUPPORTED`; tensor-array path or CPU fallback is attempted in `AUTO`, and `REQUIRE` throws. |
+| Non-contiguous legal view output | `MetalLayoutPolicy.output(...)`, `MetalBufferAllocator.createOutputBinding(...)`, `MetalDeviceToCpuMaterializer` | `ZERO_OFFSET_VIEW`, `NON_ZERO_OFFSET_VIEW`, and `PERMUTED_OR_STRIDED_VIEW` use dense physical logical-view buffers when the bridge and materializer support the path. |
 | CPU storage stale and no Metal input binding exists | `resolveOrCreateMetalBufferBindings(...)` | Buffer path unavailable because Java cannot safely upload stale CPU data. |
 | Native buffer execution non-zero status | `MetalMpsFfmBridge.executeBuffers(...)` | Throws; `PreparedMetalExecutable` runs CPU fallback. |
 | Device-owned value requested by CPU without materializer | `ExecutionState.requireCpuReadable(...)` | Fails loudly instead of reading stale Java storage. |
@@ -655,7 +663,8 @@ Relevant tests include:
 | [`PreparedMetalExecutableBufferBindingTest`](../src/test/java/backend/metal/exec/PreparedMetalExecutableBufferBindingTest.java) | Java-side selection of buffer path, fallback reasons, output residency promotion, and binding validation. |
 | [`MetalBufferAllocatorTest`](../src/test/java/backend/metal/buffer/MetalBufferAllocatorTest.java) | Buffer allocation, dtype checks, shape checks, and CPU readback behavior through fake native access. |
 | [`MetalBufferResourceTest`](../src/test/java/backend/metal/buffer/MetalBufferResourceTest.java) | Run-scoped native resource cleanup. |
-| [`MetalBufferTraceSmokeTest`](../src/test/java/backend/metal/MetalBufferTraceSmokeTest.java) | Trace attributes for buffer-backed Metal execution. |
+| [`MetalLayoutAwareDeviceFlowTest`](../src/test/java/backend/metal/MetalLayoutAwareDeviceFlowTest.java) | End-to-end `LINEAR -> RESHAPE -> PERMUTE` CPU parity, visible broadcast-layout fallback, and forward-backward gradient publication behavior. |
+| [`MetalBufferTraceSmokeTest`](../src/test/java/backend/metal/MetalBufferTraceSmokeTest.java) | Trace attributes for buffer-backed Metal execution, logical materialization, CPU consumer materialization, and unsupported layout fallback. |
 | [`MetalRegionLowererTest`](../src/test/java/backend/metal/lowering/MetalRegionLowererTest.java) | Lowering family selection for Metal regions. |
 
 Run the native slice on macOS:

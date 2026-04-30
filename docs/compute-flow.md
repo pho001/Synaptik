@@ -1168,6 +1168,12 @@ deviceBufferBytes = 65536
 deviceBufferAvailable = true
 ```
 
+The buffer layout attached to the binding is backend-neutral. For Metal today, `DENSE_CONTIGUOUS` outputs use direct
+dense buffer binding. Legal view outputs such as `ZERO_OFFSET_VIEW`, `NON_ZERO_OFFSET_VIEW`, and
+`PERMUTED_OR_STRIDED_VIEW` are represented as `DENSE_PHYSICAL_LOGICAL_VIEW`: the native buffer stores dense logical
+values while Java keeps the shape, strides, and storage offset needed for later materialization. Broadcast zero-stride
+and unsupported layouts remain rejected before native buffer execution.
+
 The result can be consumed by a later Metal step because device storage is current and a device buffer binding exists.
 It cannot be published to Java directly yet: root publication or gradient publication must call the Metal
 device-to-CPU materializer, which reads the buffer into the runtime tensor's Java `float[]` and records a
@@ -1900,6 +1906,15 @@ once CUDA grows a real buffer ABI:
 | `acceleratorBufferInputCount`, `acceleratorBufferOutputCount` | Number of inputs and outputs evaluated by buffer policy. |
 
 When layout compatibility drives fallback, accelerator buffer diagnostics include `layoutClass`, `shape`, `strides`, and `storageOffset` details.
+The common Metal buffer reason codes are:
+
+| Reason code | Meaning |
+|---|---|
+| `BUFFER_BINDING_AVAILABLE` | Native buffer binding is legal for the current inputs and outputs. |
+| `INPUT_LAYOUT_UNSUPPORTED` | An external input layout cannot be uploaded or reused safely for Metal buffer execution. |
+| `OUTPUT_LAYOUT_UNSUPPORTED` | The output layout is not supported by Metal buffer execution. |
+| `NATIVE_BUFFER_ABI_UNAVAILABLE` | The active native shim lacks the optional buffer ABI symbols. |
+| `NATIVE_BUFFER_EXECUTION_FAILED` | Buffer execution was selected, but the native call failed and the run fell back according to runtime policy. |
 
 | Attribute | Meaning |
 |---|---|
