@@ -14,7 +14,7 @@
 | 10 | GPU Layout Transform And View Path | Keep legal layout transforms and view-like values device-resident across compatible Metal and CUDA regions. | GPUVIEW-01, GPUVIEW-02, GPUVIEW-03 | 5 |
 | 11 | GPU Lowering Coverage Matrix | Broaden Metal/CUDA operation lowering for common NN/tensor patterns and document supported/fallback/unsupported coverage. | GPULOWER-01, GPULOWER-02, GPULOWER-03 | 5 |
 | 12 | Fused GPU Region Execution | Execute safe compound GPU regions for linear+bias+activation, elementwise chains, and reduction-adjacent candidates without CPU round trips. | GPUFUSE-01, GPUFUSE-02, GPUFUSE-03, GPUFUSE-04 | 5 |
-| 13 | Coverage Benchmark And Regression Gate | 3/4 | In Progress|  |
+| 13 | Coverage Benchmark And Regression Gate | 4/4 | Complete   | 2026-04-30 |
 
 ## Archived Milestones
 
@@ -233,7 +233,7 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 
 **Plans:**
 
-3/4 plans executed
+4/4 plans complete
 
 Wave 1:
 - [13-01 Coverage Metric Contract And Report Schema](phases/13-coverage-benchmark-and-regression-gate/13-01-PLAN.md) - adds backend-neutral GPU coverage summary fields and text/JSON report rendering for GPUCOV-01/GPUCOV-03.
