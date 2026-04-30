@@ -17,9 +17,9 @@ These requirements define the next brownfield milestone. They are intentionally 
 ### Metal Layout Execution
 
 - [x] **METAL-01**: Metal buffer execution can keep legal view-like values device-resident instead of forcing CPU materialization solely because a tensor is non-contiguous or has a storage offset. Covered for policy/binder preflight in `002-01-SUMMARY.md`; allocator/materializer flow continues in Phase 2 follow-up plans.
-- [ ] **METAL-02**: Metal handles `LINEAR -> RESHAPE -> PERMUTE` style accelerator regions without accidental CPU fallback when a safe device layout or device contiguous transform is available.
-- [x] **METAL-03**: Metal capability checks remain conservative for unsupported dtype, rank, layout, and native ABI combinations. Covered for layout and native buffer ABI preflight in `002-01-SUMMARY.md`.
-- [ ] **METAL-04**: Metal device-to-CPU materialization remains correct for graph outputs, CPU consumers, and gradient publication boundaries.
+- [x] **METAL-02**: Metal handles `LINEAR -> RESHAPE -> PERMUTE` style accelerator regions without accidental CPU fallback when a safe device layout or device contiguous transform is available. Dense physical logical-view allocation/materialization is covered in `002-02-SUMMARY.md`; end-to-end trace/parity closure continues in `002-03`.
+- [x] **METAL-03**: Metal capability checks remain conservative for unsupported dtype, rank, layout, and native ABI combinations. Covered for layout/native buffer ABI preflight in `002-01-SUMMARY.md` and no-native-layout-ABI proof in `002-02-SUMMARY.md`.
+- [x] **METAL-04**: Metal device-to-CPU materialization remains correct for graph outputs, CPU consumers, and gradient publication boundaries. Materializer gates and scatter readback are covered in `002-02-SUMMARY.md`; end-to-end publication assertions continue in `002-03`.
 
 ### Accelerator Region Planning
 
@@ -87,9 +87,9 @@ These requirements define the next brownfield milestone. They are intentionally 
 | ABI-03 | Phase 1 | Complete — verified in 001-VERIFICATION |
 | ABI-04 | Phase 1 | Complete — verified in 001-VERIFICATION |
 | METAL-01 | Phase 2 | Complete — policy/binder preflight covered in 002-01-SUMMARY; allocator/materializer flow continues in Phase 2 |
-| METAL-02 | Phase 2 | Pending |
-| METAL-03 | Phase 2 | Complete — conservative layout/native ABI checks covered in 002-01-SUMMARY |
-| METAL-04 | Phase 2 | Pending |
+| METAL-02 | Phase 2 | Complete — dense physical logical-view allocation/materialization covered in 002-02-SUMMARY; end-to-end trace/parity closure continues in 002-03 |
+| METAL-03 | Phase 2 | Complete — conservative layout/native ABI checks covered in 002-01-SUMMARY and no-native-layout-ABI proof covered in 002-02-SUMMARY |
+| METAL-04 | Phase 2 | Complete — graph output, CPU consumer, and gradient publication materializer gates covered in 002-02-SUMMARY; end-to-end publication assertions continue in 002-03 |
 | PLAN-01 | Phase 3 | Pending |
 | PLAN-02 | Phase 3 | Pending |
 | PLAN-03 | Phase 3 | Pending |
@@ -114,4 +114,4 @@ These requirements define the next brownfield milestone. They are intentionally 
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-30 after 002-01 execution*
+*Last updated: 2026-04-30 after 002-02 execution*
