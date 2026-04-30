@@ -3325,6 +3325,10 @@ Benchmark report renderers are separate:
 - `JsonBenchmarkReportRenderer`
 - suite-level text/json renderers
 
+Benchmark reports are explain artifacts, not runtime sources of truth. Their Phase 5 role is a report-contract: prove the report carries enough evidence to diagnose what happened, without treating measured local output as a profile or calibration owner. Autotune and calibration own persistence; benchmark commands remain read-only.
+
+Accelerator benchmark reports expose the selected accelerator candidate, bounded `rejectedFinalists`, and cost fields such as `boundaryCount`, `estimatedTransferBytes`, `estimatedComputeWork`, `finalScore`, and `preset`. The same report should also show accelerator path evidence and materialization evidence so a run can distinguish real device-owned execution from tensor-array copy or CPU fallback.
+
 Search tree-capable strategies can expose tree reports through `TextSearchTreeReportRenderer` and `JsonSearchTreeReportRenderer`.
 
 ## Worked Example: Matmul Calibration

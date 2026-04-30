@@ -308,6 +308,7 @@ Needs verification: native Metal/CUDA runtime availability depends on machine-sp
 
 For the general Java FFM bridge model and the CPU OpenBLAS bridge, see [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 For the detailed Metal runtime, Java FFM, Objective-C shim, buffer ABI, and fallback mechanics, see [Metal Backend: End-To-End Flow](metal-backend.md#end-to-end-flow), [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim), and [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi). This architecture document keeps the high-level boundaries; the Metal document follows the native call path in detail.
+For accelerator ABI, runtime residency, and CPU materialization boundaries, see [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi), [Metal Backend: Buffer Residency And Materialization](metal-backend.md#buffer-residency-and-materialization), and [Metal Backend: Trace Reading](metal-backend.md#trace-reading).
 
 ### Metal MPS Capability Boundary
 

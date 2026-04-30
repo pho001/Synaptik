@@ -527,6 +527,9 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 
 | Trace attribute | Meaning |
 |---|---|
+| `acceleratorBufferExecutionPath` | Backend-neutral path selected by the accelerator buffer decision: `BUFFER_BINDING`, `TENSOR_ARRAY`, `CPU_FALLBACK`, or `UNAVAILABLE`. |
+| `acceleratorBufferReasonCode` | Stable backend-neutral reason code for the selected path or fallback. |
+| `acceleratorBufferPreparedInputUsed` | Whether a prepared contiguous input was used before native buffer execution. |
 | `metalBridgeAvailable` | Whether the bridge reported native availability. |
 | `metalBridgeExecutableAvailable` | Whether compile produced a native executable handle. |
 | `metalSupportsBufferBindings` | Whether all buffer ABI symbols were discovered. |
@@ -538,10 +541,20 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 | `metalNativeDeviceCopyNs` | Native shim copy time from returned MPSGraph result storage into caller-provided output buffers. May be non-zero for the current buffer path. |
 | `storageResidency` | Final residency state for the step output, often `DEVICE_OWNED` for successful buffer execution. |
 
+### Device-owned flow and materialization boundaries
+
+Successful buffer execution leaves the step output `device-owned` in `ExecutionState`: the newest value is in a backend buffer, `storageResidency=DEVICE_OWNED`, and the Java tensor array is not current until a CPU materialization boundary is reached. A CPU materialization boundary is a graph output publication, CPU consumer, or gradient publication site that asks the materializer to synchronize the buffer back to CPU storage.
+
+Use `acceleratorBufferExecutionPath`, `acceleratorBufferReasonCode`, `storageResidency`, and `nativeDeviceCopyNs` together when diagnosing a run. `nativeDeviceCopyNs` measures the native MPSGraph-result-to-output-buffer copy inside the current Metal ABI; it is not the same as a Java array copy-back. `metalNativeToJavaCopyNs=0` plus a later CPU materialization trace is the expected device-owned path.
+
+CUDA remains capability-gated until a native shim exists. CUDA tests may assert shared policy and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, but this documentation does not claim production CUDA native buffer execution.
+
 Healthy buffer-path trace shape:
 
 ```text
 backend = GPU_METAL
+acceleratorBufferExecutionPath = BUFFER_BINDING
+acceleratorBufferReasonCode = BUFFER_BINDING_AVAILABLE
 metalSupportsBufferBindings = true
 metalExecutionPath = BUFFER_BINDING
 metalJavaToNativeCopyNs = 0

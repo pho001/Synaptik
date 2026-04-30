@@ -107,6 +107,15 @@ Run source hygiene checks through the JUnit class:
 ./gradlew test --no-daemon --tests SourceTreeHygieneTest
 ```
 
+Run the Phase 5 accelerator closure verification slices:
+
+```bash
+./gradlew test --tests BenchmarkSessionTest --tests PreparedExecutionBuildTest
+./gradlew test --tests StandardWorkloadsTest --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
+./gradlew metalTest
+./gradlew test --tests SourceTreeHygieneTest
+```
+
 Run the Gradle source artifact task directly:
 
 ```bash

@@ -219,6 +219,24 @@ still become CPU-readable before `compute()` returns. The full call path is desc
 [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and
 [Metal Backend: Trace Reading](metal-backend.md#trace-reading).
 
+## Accelerator Trace Or Benchmark Evidence Missing
+
+Symptoms:
+
+```text
+acceleratorBufferReasonCode is missing
+cpuMaterializationCount is higher than expected
+nativeToJavaCopyNs is nonzero on an expected buffer-binding path
+backendSelectionCost is missing from benchmark reports
+```
+
+Fix path:
+
+1. If `acceleratorBufferReasonCode` is missing, confirm the step came from a prepared accelerator executable. CPU-only steps do not emit accelerator buffer attributes. For Metal, inspect `metalExecutionPath`, `metalBufferBindingDecision`, and `acceleratorBufferExecutionPath`.
+2. If `cpuMaterializationCount` is unexpected, inspect each `CpuMaterializationTrace` reason. `GRAPH_OUTPUT`, `CPU_CONSUMER`, and `GRADIENT_PUBLICATION` are expected CPU materialization boundary reasons; intermediate materialization before an adjacent Metal consumer points to a lost `DEVICE_OWNED` buffer handoff.
+3. If `nativeToJavaCopyNs` is nonzero, the run likely used the tensor-array copy path rather than buffer binding. Check `acceleratorBufferReasonCode`, `metalSupportsBufferBindings`, unsupported dtype/layout reasons, and whether the native shim exports the buffer ABI symbols.
+4. If a benchmark report is missing `backendSelectionCost`, confirm the candidate prepared with a backend selection trace that includes a selected cost summary. Reports can only print selected accelerator candidate and `rejectedFinalists` data when `PrepareTrace.backendSelection()` carries it.
+
 ## CUDA Shim Missing
 
 Symptoms:
