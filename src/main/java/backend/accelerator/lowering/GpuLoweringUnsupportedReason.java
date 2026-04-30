@@ -1,0 +1,15 @@
+package backend.accelerator.lowering;
+
+/**
+ * Stable reason codes for non-supported GPU lowering matrix rows.
+ */
+public enum GpuLoweringUnsupportedReason {
+    SUPPORTED,
+    UNSUPPORTED_OPERATION,
+    UNSUPPORTED_DTYPE,
+    UNSUPPORTED_LAYOUT,
+    UNSUPPORTED_RANK_OR_SHAPE,
+    CAPABILITY_MISSING,
+    NATIVE_ABI_MISMATCH,
+    DEFERRED_FUSED_REGION
+}
