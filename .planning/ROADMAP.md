@@ -111,6 +111,8 @@ Cross-cutting constraints:
 
 **Depends on:** Phase 6, Phase 7.
 
+**Gap Closure:** Closes the v1.1 milestone audit gaps from `.planning/v1.1-MILESTONE-AUDIT.md`: orphaned Phase 8 requirements, missing Phase 7-to-Phase 8 observability integration, and the CUDA native runtime reportability flow.
+
 **Success Criteria:**
 1. CUDA trace and benchmark reports expose backend, buffer path, reason code, fallback reason, prepared input usage, materialization count/reason, copy timing, and storage residency.
 2. Required-mode and fallback failures use stable reason codes for unavailable native runtime, unsupported dtype, unsupported layout, and required-but-unavailable execution.
@@ -121,6 +123,12 @@ Cross-cutting constraints:
 **Notes:**
 - CUDA benchmark evidence is a report contract, not a request to commit measured local benchmark output.
 - Any unavailable local CUDA hardware/tooling must result in explicit skipped native checks plus passing portable checks.
+
+**Gap Closure Tasks To Plan:**
+1. Add CUDA trace/report parity for native buffer, fallback, materialization, copy timing, and storage residency evidence.
+2. Stabilize CUDA fallback and required-mode reason-code coverage for unavailable native runtime, unsupported dtype/layout, and required-unavailable execution.
+3. Update developer docs for CUDA build prerequisites, capability probing, native shim troubleshooting, fallback interpretation, and Metal/CUDA ABI symmetry.
+4. Add hygiene and final verification gates covering CUDA native outputs, local benchmark/profile artifacts, generated native scratch files, portable Java tests, and capability-gated native CUDA checks.
 
 ## Coverage
 
@@ -142,4 +150,4 @@ Cross-cutting constraints:
 - Unmapped: 0
 
 ---
-*Roadmap updated: 2026-04-30 after Phase 7 completion*
+*Roadmap updated: 2026-04-30 after v1.1 gap closure phase setup*

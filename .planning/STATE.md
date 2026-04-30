@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: CUDA Native Runtime
 status: ready_to_plan
-last_updated: "2026-04-30T10:45:18.021Z"
+last_updated: "2026-04-30T11:05:00.000Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 6
   completed_plans: 6
-  percent: 100
+  percent: 67
 ---
 
 # GSD State
@@ -63,8 +63,8 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 6 — CUDA Shim And Capability Probe | Complete | 3 plans | Passed |
-| 7 — CUDA Buffer Execution And Materialization | Not started | 0 plans | Pending |
-| 8 — CUDA Observability And Documentation Closure | Not started | 0 plans | Pending |
+| 7 — CUDA Buffer Execution And Materialization | Complete | 3 plans | Passed |
+| 8 — CUDA Observability And Documentation Closure | Ready to plan | 0 plans | Pending |
 
 ## Deferred Items
 
@@ -106,6 +106,8 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 6 context captured in auto mode | CUDA native shim, capability probe, shared buffer ABI seam, fallback policy, tests, docs, and hygiene decisions are ready for planning. |
 | 2026-04-30 | Phase 6 planning completed | Three plans cover CUDA native shim/build workflow, Java capability diagnostics, and shared buffer ABI prepared-executable seams. |
 | 2026-04-30 | Phase 6 verification passed | CUDA shim, capability diagnostics, shared buffer ABI seam, fallback reason codes, and portable tests satisfy CUDA-01/CUDA-02. |
+| 2026-04-30 | Phase 7 verification passed | CUDA dense FLOAT32 native buffer execution, graph-output/CPU-consumer materialization, and adjacent CUDA handoff satisfy CUDA-03/CUDA-04/CUDA-05. |
+| 2026-04-30 | v1.1 milestone audit found Phase 8 gaps | CUDA-06 and CUDADOC-01/02/03 remain pending because Phase 8 observability closure is not planned or executed yet. |
 
 ## Recent Sessions
 
@@ -139,7 +141,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed and verified Phase 6 | Ready for Phase 7 planning | .planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 7 verification*
+*Last updated: 2026-04-30 after v1.1 gap closure phase setup*
 
 ## Current Position
 

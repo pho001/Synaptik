@@ -12,9 +12,9 @@ These requirements scope the next brownfield milestone after v1.0. They focus on
 
 - [x] **CUDA-01**: CUDA has a checked-in native shim, documented build workflow, and runtime capability probe that fail gracefully when CUDA tooling or hardware is unavailable. Validated in Phase 6.
 - [x] **CUDA-02**: CUDA bridge and prepared executable seams consume the shared accelerator buffer layout/access ABI for supported dense layouts without adding CUDA-specific assumptions to common runtime contracts. Validated in Phase 6.
-- [x] **CUDA-03**: CUDA buffer execution can allocate native device buffers and run at least one representative supported accelerator operation through a capability-gated native path.
-- [x] **CUDA-04**: CUDA native device-to-CPU materialization is correct for graph output and CPU consumer boundaries, with CPU parity tests for supported dtype/layout combinations.
-- [x] **CUDA-05**: Adjacent CUDA accelerator regions can pass device-owned buffers without Java array round trips when layout and capability contracts allow it.
+- [x] **CUDA-03**: CUDA buffer execution can allocate native device buffers and run at least one representative supported accelerator operation through a capability-gated native path. Validated in Phase 7.
+- [x] **CUDA-04**: CUDA native device-to-CPU materialization is correct for graph output and CPU consumer boundaries, with CPU parity tests for supported dtype/layout combinations. Validated in Phase 7.
+- [x] **CUDA-05**: Adjacent CUDA accelerator regions can pass device-owned buffers without Java array round trips when layout and capability contracts allow it. Validated in Phase 7.
 - [ ] **CUDA-06**: CUDA fallback and required-mode failures remain explicit through stable reason codes for unavailable native runtime, unsupported dtype, unsupported layout, and required-but-unavailable buffer execution.
 
 ### CUDA Observability And Documentation
@@ -67,4 +67,4 @@ These requirements scope the next brownfield milestone after v1.0. They focus on
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after Phase 6 verification*
+*Last updated: 2026-04-30 after v1.1 gap closure phase setup*
