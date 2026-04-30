@@ -178,7 +178,7 @@ Plans:
 - [x] 05-02-PLAN.md - Prove closure workload, Metal correctness, and buffer handoff.
 
 **Wave 3** *(blocked on Waves 1-2 completion)*
-- [ ] 05-03-PLAN.md - Close docs, hygiene, and final verification.
+- [x] 05-03-PLAN.md - Close docs, hygiene, and final verification.
 
 Cross-cutting constraints:
 - Core accelerator evidence fields must be asserted in tests, not just rendered.
@@ -207,14 +207,14 @@ Cross-cutting constraints:
 | TUNE-02 | Phase 4 | Complete — verified in 04-VERIFICATION |
 | TUNE-03 | Phase 4 | Complete — verified in 04-VERIFICATION |
 | TUNE-04 | Phase 4 | Complete — verified in 04-VERIFICATION |
-| OBS-01 | Phase 5 | Pending |
-| OBS-02 | Phase 5 | Pending |
-| OBS-03 | Phase 5 | Pending |
-| OBS-04 | Phase 5 | Pending |
-| DOC-01 | Phase 5 | Pending |
-| DOC-02 | Phase 5 | Pending |
-| DOC-03 | Phase 5 | Pending |
-| DOC-04 | Phase 5 | Pending |
+| OBS-01 | Phase 5 | Complete |
+| OBS-02 | Phase 5 | Complete |
+| OBS-03 | Phase 5 | Complete |
+| OBS-04 | Phase 5 | Complete |
+| DOC-01 | Phase 5 | Complete |
+| DOC-02 | Phase 5 | Complete |
+| DOC-03 | Phase 5 | Complete |
+| DOC-04 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 24 total

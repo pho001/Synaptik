@@ -44,10 +44,10 @@ These requirements define the next brownfield milestone. They are intentionally 
 
 ### Documentation And Maintenance
 
-- [ ] **DOC-01**: Documentation explains the backend-neutral accelerator buffer ABI, layout/view handling, CPU materialization boundaries, and Metal/CUDA implementation responsibilities.
-- [ ] **DOC-02**: Documentation distinguishes platform calibration from graph autotune and lists which knobs belong to each.
-- [ ] **DOC-03**: Developer docs describe how to diagnose accelerator fallback and how to interpret trace/benchmark reports.
-- [ ] **DOC-04**: Source hygiene rules prevent accidental commits of local generated classes, debug artifacts, and unintentional calibration/benchmark outputs.
+- [x] **DOC-01**: Documentation explains the backend-neutral accelerator buffer ABI, layout/view handling, CPU materialization boundaries, and Metal/CUDA implementation responsibilities.
+- [x] **DOC-02**: Documentation distinguishes platform calibration from graph autotune and lists which knobs belong to each.
+- [x] **DOC-03**: Developer docs describe how to diagnose accelerator fallback and how to interpret trace/benchmark reports.
+- [x] **DOC-04**: Source hygiene rules prevent accidental commits of local generated classes, debug artifacts, and unintentional calibration/benchmark outputs.
 
 ## v2 Requirements
 
@@ -102,10 +102,10 @@ These requirements define the next brownfield milestone. They are intentionally 
 | OBS-02 | Phase 5 | Complete |
 | OBS-03 | Phase 5 | Complete |
 | OBS-04 | Phase 5 | Complete |
-| DOC-01 | Phase 5 | Pending |
-| DOC-02 | Phase 5 | Pending |
-| DOC-03 | Phase 5 | Pending |
-| DOC-04 | Phase 5 | Pending |
+| DOC-01 | Phase 5 | Complete |
+| DOC-02 | Phase 5 | Complete |
+| DOC-03 | Phase 5 | Complete |
+| DOC-04 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 24 total
