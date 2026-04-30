@@ -4,11 +4,28 @@
 
 Synaptik is a Java tensor and compiled computation graph framework for engineers who need to build, optimize, benchmark, and extend tensor execution internals directly in Java. The project centers on explicit graph construction, staged compilation, reverse-mode autodiff, backend-aware runtime execution, calibration, and graph autotune rather than an eager-only numerical scripting model.
 
-This is an existing brownfield codebase. The next milestone is not to rebuild the framework from scratch; it is to harden the accelerator/runtime architecture so Metal and future CUDA execution behave as clean backend implementations with minimal CPU/GPU boundary overhead.
+This is an existing brownfield codebase. v1.0 shipped the accelerator/runtime architecture hardening needed for Metal and future CUDA execution to behave as clean backend implementations with visible CPU/GPU boundary costs and minimal accidental round trips.
 
 ## Core Value
 
 Synaptik must produce correct tensor results through a clean compiled graph architecture while letting the optimizer and tuning system choose high-performance CPU or accelerator execution without hidden regressions.
+
+## Current State
+
+v1.0 Accelerator Runtime Architecture shipped on 2026-04-30.
+
+- 5 phases, 16 plans, and 41 tasks completed.
+- 24/24 v1 requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`.
+- Phase verification, security, Nyquist validation, UAT diagnosis, and milestone audit all passed.
+- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, and accelerator observability closure are now validated project state.
+
+## Next Milestone Goals
+
+Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidates from the archived v2 backlog:
+
+- CUDA native shim, capability probe, native materialization, and CUDA benchmark trace parity.
+- Broader accelerator lowering coverage for neural-network operations and larger fused GPU kernels.
+- Runtime memory scaling for BFLOAT16, INT32, BOOL slot reuse, and checked large-shape arithmetic.
 
 ## Requirements
 
@@ -110,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after Phase 5 verification*
+*Last updated: 2026-04-30 after v1.0 milestone*

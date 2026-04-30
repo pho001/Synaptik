@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: phase_complete
-last_updated: "2026-04-30T07:32:31.000Z"
+milestone_name: Accelerator Runtime Architecture
+status: milestone_complete
+last_updated: "2026-04-30T08:49:24.253Z"
 progress:
   total_phases: 5
   completed_phases: 5
@@ -16,7 +16,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 05 — Accelerator Verification And Documentation Closure complete
+**Current focus:** Planning next milestone
 
 ## Project Reference
 
@@ -28,13 +28,11 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 See: `.planning/ROADMAP.md`
 
-Current milestone phases:
+Completed milestone:
 
-1. Accelerator Buffer Layout ABI
-2. Metal Layout-Aware Device Flow
-3. Materialization-Aware Region Planning
-4. Tuning And Profile Ownership Audit
-5. Accelerator Verification And Documentation Closure
+- v1.0 Accelerator Runtime Architecture - shipped 2026-04-30
+
+Next milestone requirements are intentionally fresh and should be created with `$gsd-new-milestone`.
 
 ## Codebase Map
 
@@ -55,7 +53,7 @@ Planning agents should read the relevant codebase map documents before proposing
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is available for phase/status mutations; keep manual edits scoped when SDK numbering helpers cannot infer padded phase directories.
-- Phase 5 verification passed with `05-VERIFICATION.md`; the milestone is ready for re-audit or milestone completion.
+- v1.0 milestone audit passed and archive files were created under `.planning/milestones/`.
 
 ## Phase Planning Status
 
@@ -66,6 +64,14 @@ Planning agents should read the relevant codebase map documents before proposing
 | 3 — Materialization-Aware Region Planning | Complete | 3 of 3 plans complete | `003-VERIFICATION.md` passed 29/29 must-haves on 2026-04-30 |
 | 4 — Tuning And Profile Ownership Audit | Complete | 4 of 4 plans complete | `04-VERIFICATION.md` passed 28/28 must-haves on 2026-04-30 |
 | 5 — Accelerator Verification And Documentation Closure | Complete | 3 of 3 plans complete | `05-VERIFICATION.md` passed 30/30 must-haves on 2026-04-30 |
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-04-30:
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat_gap | Phase 05 `05-UAT.md` | diagnosed; 0 pending scenarios |
 
 ## Recent Decisions
 
