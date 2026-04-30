@@ -1,5 +1,9 @@
 package backend.cuda.lowering;
 
+import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuLoweringCoverageEntry;
+import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
+import backend.accelerator.lowering.GpuLoweringCoverageStatus;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionCandidate;
@@ -36,22 +40,34 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
      */
     @Override
     public boolean isNodeSupported(CompiledNode node, PartitionPlanningContext context) {
-        if (node == null
-                || node.backend() != backend.ComputeBackend.GPU_CUDA
-                || node.operation() == null
-                || node.inputIds().isEmpty()) {
-            return false;
+        return plannerUnsupportedReason(node, context).isBlank();
+    }
+
+    /**
+     * Returns a stable diagnostic reason when a node is not currently legal for CUDA planning.
+     */
+    public static String plannerUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (node == null) {
+            return "node is null";
         }
-        if (node.backwardNode()) {
-            return switch (node.operation().opType()) {
-                case MATMUL, LINEAR, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD -> true;
-                default -> false;
-            };
+        if (node.backend() != ComputeBackend.GPU_CUDA) {
+            return "node is not assigned to GPU_CUDA";
         }
-        return switch (node.operation().opType()) {
-            case MATMUL, LINEAR, ADD, SUB, MUL, DIV, RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, LOG, NEG, SQRT, INV, MUL_SCALAR, WHERE, SOFTMAX, CLAMP_MIN, CLAMP_MAX, RESHAPE, CONTIGUOUS, NOOP, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-            default -> false;
-        };
+        if (node.operation() == null) {
+            return "node has no operation";
+        }
+        if (node.inputIds().isEmpty()) {
+            return "leaf nodes are external inputs, not CUDA compute nodes";
+        }
+        Operation.OpType opType = node.operation().opType();
+        GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
+        if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
+            return entry.reason().name() + ": operation " + opType + " is not supported by GPU_CUDA lowering";
+        }
+        if (hasDirectNonDenseInput(node, context)) {
+            return "UNSUPPORTED_LAYOUT: direct non-dense CUDA compute remains conservative until metadata-only view propagation or dense materialization makes the consumer layout legal";
+        }
+        return "";
     }
 
     /**
@@ -216,5 +232,18 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         }
         Operation.OpType opType = node.operation().opType();
         return opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR;
+    }
+
+    private static boolean hasDirectNonDenseInput(CompiledNode node, PartitionPlanningContext context) {
+        if (node == null || node.operation() == null || context == null || node.operation().opType().category() == Operation.OpArityClass.LAYOUT) {
+            return false;
+        }
+        for (int inputId : node.inputIds()) {
+            CompiledNode input = context.compiledNode(inputId);
+            if (input != null && (!input.contiguous() || input.hasStorageOffset())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
