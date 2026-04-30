@@ -104,6 +104,8 @@ Plans:
 
 ### Phase 4: Tuning And Profile Ownership Audit
 
+**Status:** Planned — ready to execute 2026-04-30
+
 **Goal:** Review and clean up tuning/calibration ownership so graph autotune controls graph policy and platform calibration controls hardware/dtype thresholds.
 
 **Requirements:** TUNE-01, TUNE-02, TUNE-03, TUNE-04
@@ -122,6 +124,28 @@ Plans:
 - Keep report output readable and traceable.
 - Avoid duplicate knobs that express the same decision in multiple layers.
 - Phase 4 must include the profile/calibration-derived cost model update deferred from Phase 3 after graph autotune versus platform calibration ownership is audited.
+
+**Plans:** 4 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 04-01-PLAN.md — Add the tuning knob ownership matrix and enforce graph/autotune versus platform/calibration candidate boundaries.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 04-02-PLAN.md — Harden platform runtime profile IO with strict schema/version and accelerator buffer validation.
+
+**Wave 3** *(blocked on Waves 1-2 completion)*
+- [ ] 04-03-PLAN.md — Wire audited profile/calibration-derived accelerator cost factors through `RuntimeConfig` while preserving CPU safeguards.
+
+**Wave 4** *(blocked on Waves 1-3 completion)*
+- [ ] 04-04-PLAN.md — Lock benchmark profile-read-only boundaries, update docs, and run final Phase 4 hygiene verification.
+
+Cross-cutting constraints:
+- Graph/workload tuning decisions stay in graph autotune; platform/dtype runtime thresholds stay in platform calibration.
+- Profile/calibration-derived cost inputs must enter planner/backend cost logic through audited `RuntimeConfig`, not direct local profile file reads.
+- CPU natural regions, CPU fusion, and BLAS safeguards remain intact when accelerator offload is not clearly profitable.
+- Do not stage local `profiles/platform/.../tuning/abc/*` or `.planning/tmp/` artifacts.
 
 ### Phase 5: Accelerator Verification And Documentation Closure
 
