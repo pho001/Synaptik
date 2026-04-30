@@ -20,7 +20,7 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-29)
+See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 **Core value:** Synaptik must produce correct tensor results through a clean compiled graph architecture while letting the optimizer and tuning system choose high-performance CPU or accelerator execution without hidden regressions.
 
@@ -54,7 +54,7 @@ Planning agents should read the relevant codebase map documents before proposing
 
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
-- `gsd-sdk` is not available in the current shell, so initialization artifacts were generated directly from the GSD workflow templates and current repository context.
+- `gsd-sdk` is available for phase/status mutations; keep manual edits scoped when SDK numbering helpers cannot infer padded phase directories.
 - Continue with Phase 4 planning, including the profile/calibration-derived cost model update deferred from Phase 3.
 
 ## Phase Planning Status
