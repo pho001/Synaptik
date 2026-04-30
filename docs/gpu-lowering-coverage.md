@@ -79,4 +79,17 @@ Metal adds backend-owned dtype, external-input role, and SDPA semantic gates bef
 
 `LOG_SOFTMAX` support does not add a native ABI op code. It is lowered as SOFTMAX followed by LOG using existing accelerator DAG primitives.
 
+## Adding A GPU-Lowerable Operation Family
+
+Use the regular tensor operation checklist first, then add GPU coverage deliberately:
+
+1. Add or update the semantic `Operation.OpType`.
+2. Add a `GpuLoweringCoverageMatrix` entry for Metal and CUDA.
+3. Add or update `AcceleratorDagNodeType` only when a native ABI op is truly required.
+4. prefer decomposition through existing DAG primitives where safe.
+5. Update `AcceleratorSubgraphLowerer`.
+6. Update Metal/CUDA planner tests.
+7. Keep backend-specific native capability checks backend-owned.
+8. Add selected and rejected candidate tests.
+
 Phase 12 owns fused GPU compound execution for patterns such as linear plus bias plus activation and longer elementwise chains. Phase 13 owns coverage benchmark gates and report thresholds for GPU region length, fallback counts, CPU materialization counts, and device handoffs.

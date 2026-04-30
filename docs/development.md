@@ -215,6 +215,18 @@ Direct non-dense CUDA compute remains conservative until Phase 11 lowering cover
 `acceleratorBufferReasonCode`, `cudaFallbackReason`, or `CpuMaterializationTrace` evidence visible. The valid CPU
 materialization boundaries are graph output, a CPU consumer, and gradient publication.
 
+### GPU lowering coverage checks
+
+Use these focused gates after changing GPU operation coverage, shared accelerator DAG lowering, or Metal/CUDA legality:
+
+```bash
+./gradlew classes
+./gradlew test --tests backend.accelerator.lowering.* --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest
+./gradlew test --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest
+./gradlew metalTest
+./gradlew buildCudaGraphShim cudaTest
+```
+
 Optional native CUDA verification uses:
 
 ```bash
