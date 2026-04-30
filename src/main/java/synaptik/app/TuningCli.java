@@ -545,12 +545,22 @@ public final class TuningCli {
     }
 
     enum CommandKind {
-        HELP,
-        FULL,
-        CALIBRATION,
-        AUTOTUNE,
-        BENCHMARK_WINNER,
-        BENCHMARK_GRAPH_SPACE
+        HELP(false),
+        FULL(true),
+        CALIBRATION(true),
+        AUTOTUNE(true),
+        BENCHMARK_WINNER(false),
+        BENCHMARK_GRAPH_SPACE(false);
+
+        private final boolean writesProfileArtifacts;
+
+        CommandKind(boolean writesProfileArtifacts) {
+            this.writesProfileArtifacts = writesProfileArtifacts;
+        }
+
+        boolean writesProfileArtifacts() {
+            return writesProfileArtifacts;
+        }
     }
 
     record ParsedCommand(

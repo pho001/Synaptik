@@ -14,10 +14,13 @@ import tuning.benchmark.report.TextBenchmarkReportRenderer;
 import tuning.benchmark.BenchmarkEntry;
 import tuning.benchmark.BenchmarkRequest;
 import tuning.benchmark.BenchmarkSession;
+import tuning.store.PersistencePolicy;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
 
+import java.lang.reflect.RecordComponent;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -70,6 +73,42 @@ public class BenchmarkSessionTest {
         assertTrue(report.candidates().getFirst().measurement().trace().prepare().measured());
         assertTrue(report.candidates().getFirst().measurement().trace().run().durationNs() >= 0L);
         assertTrue(report.candidates().getFirst().measurement().steadyStateStats().medianMs() >= 0.0d);
+    }
+
+    @Test
+    void benchmarkSessionRunsWithoutProfilePersistencePolicy() {
+        TensorRootWorkloadSpec workload = new TensorRootWorkloadSpec(
+                "profile_read_only_benchmark",
+                WorkloadKind.GENERIC,
+                environment -> Tensor.scalar(1.0).add(Tensor.scalar(2.0))
+        );
+
+        ExecutionProfile profile = new ExecutionProfile(
+                "profile-read-only",
+                "profile-read-only",
+                DataType.FLOAT64,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        BenchmarkRequest request = new BenchmarkRequest(
+                workload,
+                List.of(BenchmarkEntry.candidate("profile-read-only", profile)),
+                new tuning.measure.MeasurementPolicy(0, 1, 1, true, true, true, true, false),
+                tuning.validate.ValidationPolicy.disabled(),
+                tuning.reporting.ReportPolicy.defaults()
+        );
+
+        assertTrue(Arrays.stream(BenchmarkRequest.class.getRecordComponents())
+                .map(RecordComponent::getType)
+                .noneMatch(type -> type == PersistencePolicy.class || type.getName().startsWith("tuning.store.")));
+
+        BenchmarkReport report = BenchmarkSession.create(request).run();
+
+        assertEquals("profile_read_only_benchmark", report.workloadName());
+        assertEquals(1, report.candidates().size());
+        assertTrue(report.candidates().getFirst().success());
     }
 
     @Test

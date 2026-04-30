@@ -68,6 +68,37 @@ class TuningCliParsingTest {
     }
 
     @Test
+    void benchmarkCommandsAreProfileReadOnly() {
+        assertEquals(false, TuningCli.CommandKind.HELP.writesProfileArtifacts());
+        assertEquals(false, TuningCli.CommandKind.BENCHMARK_WINNER.writesProfileArtifacts());
+        assertEquals(false, TuningCli.CommandKind.BENCHMARK_GRAPH_SPACE.writesProfileArtifacts());
+
+        assertEquals(false, TuningCli.parseCommand(new String[]{
+                "benchmark.winner", "--dtype", "f64"
+        }).kind().writesProfileArtifacts());
+        assertEquals(false, TuningCli.parseCommand(new String[]{
+                "benchmark.run", "--scenario", "graph-space", "--dtype", "f32"
+        }).kind().writesProfileArtifacts());
+    }
+
+    @Test
+    void autotuneAndCalibrationCommandsWriteProfileArtifacts() {
+        assertEquals(true, TuningCli.CommandKind.FULL.writesProfileArtifacts());
+        assertEquals(true, TuningCli.CommandKind.CALIBRATION.writesProfileArtifacts());
+        assertEquals(true, TuningCli.CommandKind.AUTOTUNE.writesProfileArtifacts());
+
+        assertEquals(true, TuningCli.parseCommand(new String[]{
+                "flow.full", "--dtype", "f64"
+        }).kind().writesProfileArtifacts());
+        assertEquals(true, TuningCli.parseCommand(new String[]{
+                "calibration.run", "--dtype", "f64", "--families", "all"
+        }).kind().writesProfileArtifacts());
+        assertEquals(true, TuningCli.parseCommand(new String[]{
+                "autotune.run", "--dtype", "bf16"
+        }).kind().writesProfileArtifacts());
+    }
+
+    @Test
     void calibrateParsesSingleFamilyCommand() {
         CalibrationCommand command = CalibrationCommand.parse(new String[]{
                 "calibrate", "--dtype", "f64", "--family", "conv2d-gemm-dispatch"
