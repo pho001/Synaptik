@@ -1041,6 +1041,28 @@ string suitable for diagnostics.
 Phase 9 establishes metadata, capability checks, and explicit fallback reasons. Phase 10 owns GPU-side layout/view
 execution and any native transform path that consumes this metadata for actual non-contiguous execution.
 
+## GPU Layout Transform Contract
+
+Phase 10 separates metadata-only views from dense GPU materialization so common layout nodes can stay device-owned
+without turning the public `Tensor` API into a device residency API. Public `Tensor` stays logical; execution residency
+continues to live in `ExecutionState` and backend-neutral `DeviceBufferBinding` records.
+
+Metadata-only views cover `NOOP`, `SELECT`, `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, and contiguous-source
+`RESHAPE`. These paths reuse an existing backend buffer binding with new logical layout metadata when a compatible
+source device binding is available. Dense GPU materialization covers `CONTIGUOUS` and non-contiguous-source `RESHAPE`;
+those paths require the backend to produce a dense destination buffer before a later dense GPU consumer can rely on it.
+
+The common request and decision records carry backend id, source and target node ids, operation type, source and target
+layouts, source binding availability, and stable reason codes. The shared reason codes include
+`GPU_LAYOUT_VIEW_BINDING_AVAILABLE`, `GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE`,
+`GPU_LAYOUT_SOURCE_BINDING_UNAVAILABLE`, `GPU_LAYOUT_BACKEND_MISMATCH`, and
+`GPU_LAYOUT_TRANSFORM_UNSUPPORTED`.
+
+Metal and CUDA own their native handles, layout kernels, allocator details, and capability checks. Shared layout
+transform decisions only classify whether a path is metadata-only, dense materialization, or unsupported. AUTO mode must
+report unsupported paths visibly; REQUIRE mode must fail before a hidden tensor-array or CPU fallback can satisfy the
+operation.
+
 Layout ABI v2 fallback reasons are stable trace/report values:
 
 - `NATIVE_LAYOUT_ABI_UNAVAILABLE`
