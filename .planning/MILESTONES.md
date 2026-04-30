@@ -1,5 +1,26 @@
 # Milestones
 
+## v1.1 CUDA Native Runtime (Shipped: 2026-04-30)
+
+**Phases completed:** 3 phases, 10 plans, 28 tasks
+
+**Archives:**
+
+- `milestones/v1.1-ROADMAP.md`
+- `milestones/v1.1-REQUIREMENTS.md`
+- `milestones/v1.1-MILESTONE-AUDIT.md`
+
+**Key accomplishments:**
+
+- Checked-in CUDA graph shim source with optional Gradle build/probe tasks and portable bridge diagnostics.
+- Layered CUDA capability diagnostics and shared buffer ABI preflight for dense `FLOAT32` metadata with visible fallback and REQUIRED-mode guards.
+- Prepared CUDA execution resolves native buffer bindings, executes accepted dense `FLOAT32` CUDA buffer decisions, and materializes device-owned graph outputs through execution state.
+- Adjacent CUDA buffer handoff is covered by portable tests and docs now describe the narrow dense `FLOAT32` CUDA buffer contract.
+- CUDA native-buffer execution emits trace and benchmark report evidence for path, reason code, bytes, copy timing, and storage residency.
+- CUDA observability closure includes stable required-mode reason-code tests, developer docs, hygiene gates, portable verification, and native CUDA skip evidence.
+
+---
+
 ## v1.0 Accelerator Runtime Architecture (Shipped: 2026-04-30)
 
 **Phases completed:** 5 phases, 16 plans, 41 tasks

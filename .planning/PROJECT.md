@@ -4,7 +4,7 @@
 
 Synaptik is a Java tensor and compiled computation graph framework for engineers who need to build, optimize, benchmark, and extend tensor execution internals directly in Java. The project centers on explicit graph construction, staged compilation, reverse-mode autodiff, backend-aware runtime execution, calibration, and graph autotune rather than an eager-only numerical scripting model.
 
-This is an existing brownfield codebase. v1.0 shipped the accelerator/runtime architecture hardening needed for Metal and future CUDA execution to behave as clean backend implementations with visible CPU/GPU boundary costs and minimal accidental round trips.
+This is an existing brownfield codebase. v1.0 shipped the accelerator/runtime architecture hardening needed for Metal and future CUDA execution to behave as clean backend implementations with visible CPU/GPU boundary costs and minimal accidental round trips. v1.1 shipped the first checked-in CUDA native runtime path for dense `FLOAT32` buffer execution, CPU materialization, adjacent CUDA handoff, and trace/report evidence.
 
 ## Core Value
 
@@ -12,30 +12,21 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.0 Accelerator Runtime Architecture shipped on 2026-04-30. Phase 8 of v1.1 closes CUDA trace/report parity, stable fallback and required-mode reason codes, developer fallback/build docs, and source hygiene gates for CUDA native outputs and local profile artifacts.
+v1.1 CUDA Native Runtime shipped on 2026-04-30. The project now has a capability-gated CUDA native shim, shared accelerator buffer ABI integration, dense `FLOAT32` CUDA buffer execution, graph-output and CPU-consumer materialization, adjacent CUDA device-buffer handoff, and CUDA trace/report/docs parity with the Metal-era observability contract.
 
-- 5 phases, 16 plans, and 41 tasks completed.
-- 24/24 v1 requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`.
-- Phase verification, security, Nyquist validation, UAT diagnosis, and milestone audit all passed.
-- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, and accelerator observability closure are now validated project state.
+- 8 phases, 26 plans, and 69 tasks completed across v1.0 and v1.1.
+- 33/33 accelerator/runtime requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md` and `.planning/milestones/v1.1-REQUIREMENTS.md`.
+- v1.1 phase verification, Nyquist validation, milestone audit, and archival passed.
+- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, and narrow CUDA native runtime execution are now validated project state.
+- Real CUDA hardware/native execution remains a residual environment risk because local `nvcc` was unavailable; portable gates and capability-skip behavior passed.
 
 ## Next Milestone Goals
 
-Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidates from the archived v2 backlog:
+Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidates from the archived future requirements:
 
-- CUDA native shim, capability probe, native materialization, and CUDA benchmark trace parity.
 - Broader accelerator lowering coverage for neural-network operations and larger fused GPU kernels.
+- Higher-rank native shape/layout ABI support where backend runtimes support it.
 - Runtime memory scaling for BFLOAT16, INT32, BOOL slot reuse, and checked large-shape arithmetic.
-
-## Current Milestone: v1.1 CUDA Native Runtime
-
-**Goal:** Add a checked-in, capability-gated CUDA native runtime path that consumes the shared accelerator buffer ABI and proves CUDA buffer execution, materialization, adjacent handoff, and report evidence without weakening CPU or Metal safeguards.
-
-**Target features:**
-- Checked-in CUDA native shim, build workflow, and runtime capability probe.
-- CUDA bridge/buffer binding implementation using the shared layout/access ABI.
-- Native CUDA device-to-CPU materialization and adjacent region device-buffer handoff tests.
-- CUDA trace and benchmark evidence aligned with the Metal accelerator report contract.
 
 ## Requirements
 
@@ -59,13 +50,13 @@ Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidate
 - ✓ CUDA native shim source, optional build/probe workflow, runtime capability probe, and graceful unavailable behavior are validated — Phase 6 by `.planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md`.
 - ✓ CUDA bridge and prepared executable seams consume shared accelerator buffer layout/access metadata for dense supported layouts without CUDA-specific common-runtime fields — Phase 6 by `.planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md`.
 - ✓ CUDA dense FLOAT32 native buffer execution, graph-output/CPU-consumer materialization, and adjacent CUDA handoff are validated — Phase 7 by `.planning/phases/07-cuda-buffer-execution-and-materialization/07-VERIFICATION.md`.
-- ✓ CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal, with explicit fallback reason codes, docs, and source hygiene gates — validated in Phase 8 by `.planning/phases/08-cuda-observability-and-documentation-closure/08-04-SUMMARY.md`.
+- ✓ CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal, with explicit fallback reason codes, docs, and source hygiene gates — validated in Phase 8 by `.planning/phases/08-cuda-observability-and-documentation-closure/08-VERIFICATION.md`.
 
 ### Out of Scope
 
 - Rewriting the public `Tensor` API around user-visible device objects — current direction keeps public tensors logical and puts device residency in runtime execution state.
 - Replacing the CPU backend with accelerator-first execution — CPU remains the correctness baseline and a performance-critical backend.
-- Implementing a full production CUDA native shim in the same first accelerator-layout phase — the shared ABI must be CUDA-ready, but native CUDA implementation can follow separately.
+- Broad CUDA operation, dtype, rank, and fused-kernel production coverage — v1.1 proves the narrow dense `FLOAT32` runtime path first; broader lowering should build on the now-validated runtime contracts.
 - Supporting every dtype/rank/layout combination on Metal immediately — capability checks must stay explicit and conservative.
 - Hiding fallback behavior — accelerator fallback must remain traceable and benchmark-visible.
 - Tracking arbitrary local benchmark/calibration artifacts as project state — only intentional profile fixtures or committed winner profiles should be versioned.
@@ -112,12 +103,14 @@ The design goal is therefore not "Metal hacks" or "CUDA hacks". The goal is a cl
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Keep `Tensor` logical and put backend residency in `ExecutionState` / device buffer bindings | Avoids public API pollution and matches existing compile/prepare/execute architecture | ✓ Good |
-| Treat Metal and CUDA as backend implementations of shared accelerator contracts | Prevents duplicate architecture and keeps future CUDA work aligned with Metal learnings | ✓ Good — Phase 1 ABI validated; native CUDA remains future work |
+| Treat Metal and CUDA as backend implementations of shared accelerator contracts | Prevents duplicate architecture and keeps future CUDA work aligned with Metal learnings | ✓ Good — Phase 1 ABI validated; v1.1 CUDA runtime now consumes the shared ABI |
 | Prioritize longer device-owned flows over buffer-binding micro-optimizations | Recent benchmarks show region/offload policy dominates zero-copy micro-gains | ✓ Good — Phase 3 static cost planning and report surfaces validated; Phase 4 now derives prepare-time accelerator costs from audited `RuntimeConfig` |
 | Represent view/layout metadata in accelerator buffer ABI before broadening GPU fusion | Non-contiguous/view fallback currently breaks GPU flow and causes CPU materialization | ✓ Good — ABI validated in Phase 1; Metal layout-aware flow validated in Phase 2 |
 | Keep Phase 2 native Metal ABI unchanged for logical-view flow | Dense physical buffers plus Java-owned logical materialization avoid unsafe native stride/offset ABI churn | ✓ Good — future native layout ABI must be optional-symbol/version/capability checked |
 | Keep graph autotune and platform calibration separate | Graph policy is workload-specific; hardware thresholds are platform/dtype-specific | ✓ Good |
 | Keep fallback observable in trace and benchmark output | Performance work must distinguish real accelerator execution from CPU replay or tensor-array copies | ✓ Good |
+| Keep CUDA buffer execution narrow until the native runtime path is proven | Dense `FLOAT32` coverage gives a stable correctness and observability base before broad operation expansion | ✓ Good — v1.1 validated execution, materialization, adjacent handoff, and report evidence |
+| Treat native CUDA checks as capability-gated while portable Java gates remain mandatory | Development environments may not have `nvcc` or CUDA hardware, but the runtime must still fail clearly and testably | ✓ Good — v1.1 records native skip evidence and passes portable fallback/required-mode gates |
 
 ## Evolution
 
@@ -137,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after Phase 8 verification evidence*
+*Last updated: 2026-04-30 after v1.1 milestone archival*

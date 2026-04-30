@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: CUDA Native Runtime
-status: ready_for_milestone_audit
-last_updated: "2026-04-30T11:36:00.000Z"
+status: completed
+last_updated: "2026-04-30T11:54:48.837Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 3
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 08 — cuda-observability-and-documentation-closure
+**Current focus:** Planning next milestone after v1.1 archival
 
 ## Project Reference
 
@@ -29,13 +29,14 @@ See: `.planning/PROJECT.md` (updated 2026-04-30)
 
 See: `.planning/ROADMAP.md`
 
-Completed milestone:
+Completed milestones:
 
 - v1.0 Accelerator Runtime Architecture - shipped 2026-04-30
+- v1.1 CUDA Native Runtime - shipped 2026-04-30
 
-Current milestone:
+Next milestone:
 
-- v1.1 CUDA Native Runtime - phases 6-8 implemented and verified; ready for milestone audit
+- Not started. Define fresh requirements with `$gsd-new-milestone`.
 
 ## Codebase Map
 
@@ -56,7 +57,7 @@ Planning agents should read the relevant codebase map documents before proposing
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is available for phase/status mutations; keep manual edits scoped when SDK numbering helpers cannot infer padded phase directories.
-- v1.0 milestone audit passed and archive files were created under `.planning/milestones/`.
+- v1.0 and v1.1 milestone audits passed and archive files were created under `.planning/milestones/`.
 
 ## Phase Planning Status
 
@@ -109,7 +110,9 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 7 verification passed | CUDA dense FLOAT32 native buffer execution, graph-output/CPU-consumer materialization, and adjacent CUDA handoff satisfy CUDA-03/CUDA-04/CUDA-05. |
 | 2026-04-30 | v1.1 milestone audit found Phase 8 gaps | CUDA-06 and CUDADOC-01/02/03 remain pending because Phase 8 observability closure is not planned or executed yet. |
 | 2026-04-30 | Phase 8 final plan evidence passed | CUDA trace/report parity, reason-code coverage, docs, hygiene gates, portable tests, and native CUDA skip status satisfy CUDA-06 and CUDADOC-01/02/03 pending phase verification. |
-| 2026-04-30 | Phase 8 verification passed | Verifier confirmed 12/12 must-haves and all CUDA-06/CUDADOC-01/02/03 requirements; v1.1 is ready for milestone audit, not archived. |
+| 2026-04-30 | Phase 8 verification passed | Verifier confirmed 12/12 must-haves and all CUDA-06/CUDADOC-01/02/03 requirements. |
+| 2026-04-30 | v1.1 milestone audit passed | Requirements, phases, integration, flows, and Nyquist validation all passed with no milestone tech debt. |
+| 2026-04-30 | v1.1 milestone archived | CUDA Native Runtime archives were written under `.planning/milestones/`; fresh requirements should be defined for the next milestone. |
 
 ## Recent Sessions
 
@@ -143,11 +146,11 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed and verified Phase 6 | Ready for Phase 7 planning | .planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 8 verification*
+*Last updated: 2026-04-30 after v1.1 milestone archival*
 
 ## Current Position
 
-Phase: 08
-Plan: 4 of 4
-Status: Phase complete; ready for milestone audit
+Phase: none
+Plan: none
+Status: v1.1 complete; ready for `$gsd-new-milestone`
 Last activity: 2026-04-30
