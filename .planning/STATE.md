@@ -2,21 +2,21 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
+status: ready_to_plan
 last_updated: "2026-04-30T05:33:54.000Z"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 7
-  percent: 78
+  completed_plans: 9
+  percent: 60
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 3 — Materialization-Aware Region Planning execution
+**Current focus:** Phase 4 — Tuning And Profile Ownership Audit planning
 
 ## Project Reference
 
@@ -55,7 +55,7 @@ Planning agents should read the relevant codebase map documents before proposing
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is not available in the current shell, so initialization artifacts were generated directly from the GSD workflow templates and current repository context.
-- Continue with Phase 2 execution, building on the verified Accelerator Buffer Layout ABI.
+- Continue with Phase 4 planning, including the profile/calibration-derived cost model update deferred from Phase 3.
 
 ## Phase Planning Status
 
@@ -63,7 +63,7 @@ Planning agents should read the relevant codebase map documents before proposing
 |-------|--------|-------|--------------|
 | 1 — Accelerator Buffer Layout ABI | Complete | 3 of 3 plans complete | `001-VERIFICATION.md` passed 10/10 must-haves on 2026-04-29 |
 | 2 — Metal Layout-Aware Device Flow | Complete | 3 of 3 plans complete | `002-VERIFICATION.md` passed 12/12 must-haves on 2026-04-30 |
-| 3 — Materialization-Aware Region Planning | Planned | 3 plans | Execution ready for phase verification |
+| 3 — Materialization-Aware Region Planning | Complete | 3 of 3 plans complete | `003-VERIFICATION.md` passed 29/29 must-haves on 2026-04-30 |
 
 ## Recent Decisions
 

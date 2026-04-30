@@ -75,7 +75,7 @@ Plans:
 
 ### Phase 3: Materialization-Aware Region Planning
 
-**Status:** Planned — ready for execution (3 plans)
+**Status:** Complete — verified 2026-04-30 (`003-VERIFICATION.md`, score 29/29)
 
 **Goal:** Make `PART` and backend selection prefer profitable long device-owned flows and avoid short accelerator islands that force expensive CPU materialization.
 
