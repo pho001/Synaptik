@@ -104,6 +104,27 @@ Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
 4. Unsupported view/layout paths fall back visibly with stable reasons and do not corrupt residency state.
 5. Tests cover at least one layout-heavy forward flow and one forward/backward or gradient-publication boundary where applicable.
 
+**Plans:**
+
+Wave 1:
+- [10-01 Shared GPU Layout Transform Contract](phases/10-gpu-layout-transform-and-view-path/10-01-PLAN.md) - creates backend-neutral request/decision records and stable reason codes for GPUVIEW-01 and GPUVIEW-03.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [10-02 Device Layout View Propagation](phases/10-gpu-layout-transform-and-view-path/10-02-PLAN.md) - propagates metadata-only layout/view bindings before CPU materialization for GPUVIEW-01, GPUVIEW-02, and GPUVIEW-03.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [10-03 Dense GPU Layout Materialization](phases/10-gpu-layout-transform-and-view-path/10-03-PLAN.md) - adds capability-gated Metal/CUDA dense materialization for `contiguous()` and non-contiguous-source `reshape`.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [10-04 Layout Transform E2E Verification Closure](phases/10-gpu-layout-transform-and-view-path/10-04-PLAN.md) - closes with layout-heavy forward, gradient publication, trace, docs, and final verification evidence.
+
+**Cross-cutting constraints:**
+- Public `Tensor` stays logical; device residency remains in `ExecutionState` and `DeviceBufferBinding`.
+- Metadata-only view propagation and dense GPU materialization stay separate paths with explicit decision reason codes.
+- Alias/view bindings reuse backend handles without registering duplicate native resources.
+- AUTO fallback must stay visible; REQUIRE mode must fail before hidden CPU fallback.
+- Direct non-dense CUDA compute remains conservative until Phase 11 unless a metadata-only view or dense materialization path has made the flow legal.
+
 **Notes:**
 - Prefer GPU-side layout transform or logical metadata preservation over Java array round trips.
 - CPU remains the correctness oracle for all layout/view parity checks.
