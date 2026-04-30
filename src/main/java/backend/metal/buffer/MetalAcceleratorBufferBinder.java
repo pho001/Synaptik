@@ -6,7 +6,6 @@ import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferInputDecision;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.accelerator.buffer.AcceleratorBufferOutputDecision;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorBufferRequest;
@@ -125,26 +124,35 @@ public final class MetalAcceleratorBufferBinder {
                     : context.runtimeTensorForNodeId(nodeId);
             AcceleratorBufferLayout layout = layoutForInput(request, inputs, context, i, nodeId);
             DataType expected = i < request.externalInputDataTypes().size() ? request.externalInputDataTypes().get(i) : null;
-            String layoutReason = unsupportedBufferLayoutReason(layout);
-            if (!layoutReason.isBlank()) {
-                out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, false,
-                        AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED,
-                        "external input nodeId=" + nodeId + " input tensor layout unsupported: " + layoutReason));
-                continue;
-            }
             DeviceBufferBinding existing = context.deviceBufferBindingForNodeId(nodeId);
             if (existing instanceof MetalBufferBinding metalBinding) {
+                MetalLayoutPolicy.Decision layoutDecision = MetalLayoutPolicy.existingDeviceInput(layout);
+                if (!layoutDecision.accepted()) {
+                    out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, false,
+                            layoutDecision.reasonCode(),
+                            "external input nodeId=" + nodeId + " input tensor layout unsupported: "
+                                    + layoutDecision.reason()));
+                    continue;
+                }
                 String reason = incompatibleBindingReason(layout, metalBinding, MetalBufferAccess.READ, expected);
                 if (reason.isBlank()) {
                     out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, true,
-                            AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, ""));
+                            AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, layoutDecision.reason()));
                     continue;
                 }
             } else if (existing != null) {
                 out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, false,
                         AcceleratorBufferReasonCode.INPUT_BINDING_UNAVAILABLE,
                         "external input nodeId=" + nodeId + " binding is not Metal-compatible: "
-                                + existing.getClass().getSimpleName()));
+                        + existing.getClass().getSimpleName()));
+                continue;
+            }
+            MetalLayoutPolicy.Decision layoutDecision = MetalLayoutPolicy.cpuUploadInput(layout);
+            if (!layoutDecision.accepted()) {
+                out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, false,
+                        layoutDecision.reasonCode(),
+                        "external input nodeId=" + nodeId + " input tensor layout unsupported: "
+                                + layoutDecision.reason()));
                 continue;
             }
             if (prepared && !config.allowPreparedInputMaterialization()) {
@@ -186,11 +194,20 @@ public final class MetalAcceleratorBufferBinder {
             Tensor tensor = context.runtimeTensorForNodeId(nodeId);
             AcceleratorBufferLayout layout = layoutForOutput(request, context, i, nodeId);
             DataType expected = i < request.outputDataTypes().size() ? request.outputDataTypes().get(i) : null;
-            String layoutReason = unsupportedBufferLayoutReason(layout);
-            if (!layoutReason.isBlank()) {
+            MetalLayoutPolicy.Decision layoutDecision = MetalLayoutPolicy.output(layout);
+            if (!layoutDecision.accepted()) {
+                out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
+                        layoutDecision.reasonCode(),
+                        "output nodeId=" + nodeId + " output tensor layout unsupported: "
+                                + layoutDecision.reason()));
+                continue;
+            }
+            if (layoutDecision.requiresDensePhysicalLogicalView()) {
                 out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
                         AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED,
-                        "output nodeId=" + nodeId + " output tensor layout unsupported: " + layoutReason));
+                        "output nodeId=" + nodeId + " output tensor layout requires conservative fallback: "
+                                + layoutDecision.reason()
+                                + ", densePhysicalLogicalViewRequires=MetalBufferAllocator+MetalDeviceToCpuMaterializer support"));
                 continue;
             }
             if (!MetalMpsCapabilities.supportsOutputDType(tensor.getDataType())) {
@@ -207,7 +224,7 @@ public final class MetalAcceleratorBufferBinder {
                 continue;
             }
             out.add(new AcceleratorBufferOutputDecision(nodeId, layout, true,
-                    AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, ""));
+                    AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, layoutDecision.reason()));
         }
         return List.copyOf(out);
     }
@@ -386,13 +403,4 @@ public final class MetalAcceleratorBufferBinder {
         return AcceleratorBufferLayout.fromTensor(context.runtimeTensorForNodeId(nodeId));
     }
 
-    private static String unsupportedBufferLayoutReason(AcceleratorBufferLayout layout) {
-        if (layout.layoutClass() == AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
-            return "";
-        }
-        return "layoutClass=" + layout.layoutClass()
-                + ", shape=" + Arrays.toString(layout.shape())
-                + ", storageOffset=" + layout.storageOffset()
-                + ", strides=" + Arrays.toString(layout.strides());
-    }
 }
