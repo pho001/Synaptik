@@ -27,6 +27,37 @@ public record CudaBufferBinding(
         access = access == null ? CudaBufferAccess.READ_WRITE : access;
     }
 
+    /**
+     * Creates a logical view binding over an existing CUDA handle.
+     *
+     * <p>The returned binding borrows the source handle and does not register or own any native
+     * resource. The allocation that produced {@code source} remains responsible for cleanup.</p>
+     *
+     * @param nodeId target compiled node id
+     * @param layout target logical layout
+     * @param source source binding whose handle is reused
+     * @param access target access mode; defaults to source access when null
+     * @return view binding over the same native handle
+     */
+    public static CudaBufferBinding viewOf(
+            int nodeId,
+            AcceleratorBufferLayout layout,
+            CudaBufferBinding source,
+            CudaBufferAccess access
+    ) {
+        Objects.requireNonNull(layout, "layout cannot be null");
+        Objects.requireNonNull(source, "source cannot be null");
+        if (!source.available()) {
+            throw new IllegalArgumentException("source binding is unavailable: " + source.describe());
+        }
+        return new CudaBufferBinding(
+                nodeId,
+                layout,
+                source.handle(),
+                access == null ? source.access() : access
+        );
+    }
+
     @Override
     public String backendId() {
         return ComputeBackend.GPU_CUDA.name();

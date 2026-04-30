@@ -61,7 +61,7 @@ class DeviceLayoutViewPropagationTest {
 
     @Test
     void contiguousDoesNotUseMetadataOnlyPropagation() {
-        Fixture fixture = fixture(input().permute(1, 0).contiguous(), ComputeBackend.GPU_METAL, true);
+        Fixture fixture = fixture(input().contiguous(), ComputeBackend.GPU_METAL, true);
         fixture.attachMetalSource();
 
         assertFalse(DeviceLayoutViewPropagator.tryPropagate(fixture.step(), fixture.context()));

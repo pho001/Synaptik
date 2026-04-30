@@ -1,0 +1,177 @@
+package graph.execution;
+
+import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
+import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
+import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
+import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
+import backend.cuda.buffer.CudaBufferAccess;
+import backend.cuda.buffer.CudaBufferBinding;
+import backend.memory.DeviceBufferBinding;
+import backend.memory.StorageResidency;
+import backend.metal.buffer.MetalBufferAccess;
+import backend.metal.buffer.MetalBufferBinding;
+import backend.runtime.ExecutionContext;
+import config.runtime.AcceleratorBufferBindingMode;
+import config.runtime.RuntimeConfig;
+import graph.CompiledNode;
+import operations.Operation;
+import tensor.Tensor;
+
+import java.util.List;
+
+/**
+ * Propagates metadata-only accelerator layout views before CPU materialization.
+ */
+final class DeviceLayoutViewPropagator {
+    private DeviceLayoutViewPropagator() {
+    }
+
+    static boolean tryPropagate(PreparedNodeExecution step, ExecutionContext context) {
+        if (step == null || context == null || step.compiledNode() == null) {
+            return false;
+        }
+        Operation operation = step.executionOperation();
+        if (operation == null || !isLayoutTransformCandidate(operation.opType())) {
+            return false;
+        }
+        Integer sourceNodeId = firstInputNodeId(step);
+        if (sourceNodeId == null) {
+            return false;
+        }
+
+        CompiledNode targetNode = step.compiledNode();
+        DeviceBufferBinding sourceBinding = context.deviceBufferBindingForNodeId(sourceNodeId);
+        String backendId = sourceBinding == null ? backendIdFromTarget(targetNode) : sourceBinding.backendId();
+        boolean required = isRequired(context.runtimeConfig(), backendId);
+        if (backendId == null || backendId.isBlank()) {
+            return false;
+        }
+
+        AcceleratorLayoutTransformRequest request = new AcceleratorLayoutTransformRequest(
+                backendId,
+                sourceNodeId,
+                targetNode.id(),
+                operation.opType(),
+                sourceLayout(sourceNodeId, sourceBinding, context),
+                targetLayout(targetNode),
+                sourceBinding,
+                context.runsBackwardPass()
+        );
+        AcceleratorLayoutTransformDecision decision = AcceleratorLayoutTransformPlanner.decide(request);
+        if (!decision.accepted()) {
+            failIfRequired(required, backendId, decision);
+            return false;
+        }
+        if (decision.kind() != AcceleratorLayoutTransformKind.METADATA_ONLY_VIEW) {
+            return false;
+        }
+
+        DeviceBufferBinding targetBinding = viewBinding(targetNode.id(), decision.targetLayout(), sourceBinding, operation.opType());
+        if (targetBinding == null) {
+            failIfRequired(required, backendId, AcceleratorLayoutTransformDecision.rejected(
+                    request,
+                    AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
+                    "GPU layout transform unsupported for source binding type "
+                            + (sourceBinding == null ? "null" : sourceBinding.getClass().getName())
+            ));
+            return false;
+        }
+        context.attachDeviceBufferBinding(
+                targetNode.id(),
+                targetBinding,
+                StorageResidency.DEVICE_OWNED,
+                "device layout view propagation"
+        );
+        return true;
+    }
+
+    private static Integer firstInputNodeId(PreparedNodeExecution step) {
+        List<Integer> inputIds = step.metadata().executionInputNodeIds().isEmpty()
+                ? step.compiledNode().inputIds()
+                : step.metadata().executionInputNodeIds();
+        return inputIds.isEmpty() ? null : inputIds.getFirst();
+    }
+
+    private static AcceleratorBufferLayout sourceLayout(
+            int sourceNodeId,
+            DeviceBufferBinding sourceBinding,
+            ExecutionContext context
+    ) {
+        if (sourceBinding != null) {
+            return sourceBinding.layout();
+        }
+        Tensor source = context.runtimeTensorForNodeId(sourceNodeId);
+        return AcceleratorBufferLayout.fromTensor(source);
+    }
+
+    private static AcceleratorBufferLayout targetLayout(CompiledNode targetNode) {
+        return AcceleratorBufferLayout.of(
+                targetNode.dataType(),
+                targetNode.shape(),
+                targetNode.strides(),
+                targetNode.storageOffset(),
+                targetNode.flatDataSize()
+        );
+    }
+
+    private static DeviceBufferBinding viewBinding(
+            int targetNodeId,
+            AcceleratorBufferLayout targetLayout,
+            DeviceBufferBinding sourceBinding,
+            Operation.OpType opType
+    ) {
+        if (sourceBinding instanceof MetalBufferBinding metal) {
+            MetalBufferAccess access = opType == Operation.OpType.EXPAND
+                    ? MetalBufferAccess.READ
+                    : MetalBufferAccess.READ_WRITE;
+            return MetalBufferBinding.viewOf(targetNodeId, targetLayout, metal, access);
+        }
+        if (sourceBinding instanceof CudaBufferBinding cuda) {
+            CudaBufferAccess access = opType == Operation.OpType.EXPAND
+                    ? CudaBufferAccess.READ
+                    : CudaBufferAccess.READ_WRITE;
+            return CudaBufferBinding.viewOf(targetNodeId, targetLayout, cuda, access);
+        }
+        return null;
+    }
+
+    private static String backendIdFromTarget(CompiledNode targetNode) {
+        ComputeBackend backend = targetNode.backend();
+        if (backend == ComputeBackend.GPU_METAL || backend == ComputeBackend.GPU_CUDA) {
+            return backend.name();
+        }
+        return "";
+    }
+
+    private static boolean isRequired(RuntimeConfig runtimeConfig, String backendId) {
+        if (runtimeConfig == null || backendId == null || backendId.isBlank()) {
+            return false;
+        }
+        if (ComputeBackend.GPU_METAL.name().equals(backendId)) {
+            return runtimeConfig.accelerator().metal().buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE;
+        }
+        if (ComputeBackend.GPU_CUDA.name().equals(backendId)) {
+            return runtimeConfig.accelerator().cuda().buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE;
+        }
+        return false;
+    }
+
+    private static void failIfRequired(boolean required, String backendId, AcceleratorLayoutTransformDecision decision) {
+        if (!required) {
+            return;
+        }
+        throw new IllegalStateException("Accelerator buffer path is required for " + backendId
+                + " but unavailable: " + decision.reasonCode().name()
+                + " - " + decision.reason());
+    }
+
+    private static boolean isLayoutTransformCandidate(Operation.OpType opType) {
+        return switch (opType) {
+            case NOOP, SELECT, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, RESHAPE, CONTIGUOUS -> true;
+            default -> false;
+        };
+    }
+}

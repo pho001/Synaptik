@@ -262,6 +262,12 @@ public final class PreparedExecution {
         for (int i = 0; i < steps.size(); i++) {
             PreparedNodeExecution step = steps.get(i);
             long t0 = captureTrace ? System.nanoTime() : 0L;
+            if (DeviceLayoutViewPropagator.tryPropagate(step, context)) {
+                if (captureTrace) {
+                    traces.add(toStepTrace(startIndex + i, step, System.nanoTime() - t0, context));
+                }
+                continue;
+            }
             requireCpuReadableInputs(step, context);
             ComputeEngine.compute(step.compiledNode(), step.metadata(), context);
             markResidencyAfterStep(step, context);

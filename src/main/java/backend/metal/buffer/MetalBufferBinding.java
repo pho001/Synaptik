@@ -33,6 +33,37 @@ public record MetalBufferBinding(
     }
 
     /**
+     * Creates a logical view binding over an existing Metal handle.
+     *
+     * <p>The returned binding borrows the source handle and does not imply resource ownership. The
+     * allocation that produced {@code source} remains responsible for native lifetime management.</p>
+     *
+     * @param nodeId target compiled node id
+     * @param layout target logical layout
+     * @param source source binding whose handle is reused
+     * @param access target access mode; defaults to source access when null
+     * @return view binding over the same native handle
+     */
+    public static MetalBufferBinding viewOf(
+            int nodeId,
+            AcceleratorBufferLayout layout,
+            MetalBufferBinding source,
+            MetalBufferAccess access
+    ) {
+        Objects.requireNonNull(layout, "layout cannot be null");
+        Objects.requireNonNull(source, "source cannot be null");
+        if (!source.available()) {
+            throw new IllegalArgumentException("source binding is unavailable: " + source.describe());
+        }
+        return new MetalBufferBinding(
+                nodeId,
+                layout,
+                source.handle(),
+                access == null ? source.access() : access
+        );
+    }
+
+    /**
      * Returns the expected byte size implied by the shared layout.
      *
      * @return logical payload byte size

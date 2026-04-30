@@ -29,6 +29,7 @@ import java.util.Objects;
  * lifetime of tensors and workspaces.</p>
  */
 public final class ExecutionContext {
+    private final RuntimeConfig runtimeConfig;
     private final ExecutionMode mode;
     private final boolean useFastExpApprox;
     private final boolean useFastTanhApprox;
@@ -55,6 +56,18 @@ public final class ExecutionContext {
             Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
             ExecutionState executionState
     ) {
+        this(null, mode, useFastExpApprox, useFastTanhApprox, metadataIndex, executionState);
+    }
+
+    private ExecutionContext(
+            RuntimeConfig runtimeConfig,
+            ExecutionMode mode,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox,
+            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            ExecutionState executionState
+    ) {
+        this.runtimeConfig = runtimeConfig;
         this.mode = Objects.requireNonNull(mode, "mode cannot be null");
         this.metadataIndex = Map.copyOf(metadataIndex == null ? Map.of() : metadataIndex);
         this.executionState = executionState;
@@ -94,12 +107,22 @@ public final class ExecutionContext {
         Objects.requireNonNull(mode, "mode cannot be null");
         boolean backwardEnabled = mode == ExecutionMode.FORWARD_BACKWARD;
         return new ExecutionContext(
+                runtimeConfig,
                 mode,
                 runtimeConfig.approximation().useFastExp(backwardEnabled),
                 runtimeConfig.approximation().useFastTanh(backwardEnabled),
                 metadataIndex,
                 executionState
         );
+    }
+
+    /**
+     * Returns the runtime configuration used to create this context, when available.
+     *
+     * @return runtime configuration, or {@code null} for standalone test contexts
+     */
+    public RuntimeConfig runtimeConfig() {
+        return runtimeConfig;
     }
 
     /**
