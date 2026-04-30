@@ -1041,6 +1041,28 @@ string suitable for diagnostics.
 Phase 9 establishes metadata, capability checks, and explicit fallback reasons. Phase 10 owns GPU-side layout/view
 execution and any native transform path that consumes this metadata for actual non-contiguous execution.
 
+Layout ABI v2 fallback reasons are stable trace/report values:
+
+- `NATIVE_LAYOUT_ABI_UNAVAILABLE`
+- `NATIVE_LAYOUT_ABI_VERSION_MISMATCH`
+- `NATIVE_LAYOUT_METADATA_UNSUPPORTED`
+- `NATIVE_LAYOUT_RANK_UNSUPPORTED`
+- `NATIVE_LAYOUT_DTYPE_UNSUPPORTED`
+- `NATIVE_LAYOUT_PHYSICAL_SPAN_OVERFLOW`
+
+AUTO mode falls back visibly with the reason code in accelerator buffer decision metadata. REQUIRE mode fails before
+tensor-array or CPU fallback can satisfy the operation. Missing layout ABI v2 symbols do not block dense v1 buffer
+execution; they only reject layout metadata that needs v2 semantics.
+
+Focused verification commands:
+
+```bash
+./gradlew classes
+./gradlew test --tests backend.accelerator.buffer.AcceleratorLayoutAbiV2DescriptorTest
+./gradlew test --tests backend.metal.bridge.MetalMpsFfmBridgeTest --tests backend.cuda.bridge.CudaFfmBridgeTest
+./gradlew test --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
+```
+
 ## Common Misconceptions
 
 ### "If `OPENBLAS_FFM` is configured, every matmul uses OpenBLAS"

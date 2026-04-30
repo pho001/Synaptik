@@ -78,8 +78,8 @@ class CudaAcceleratorBufferBinderTest {
         AcceleratorBufferDecision decision = new CudaAcceleratorBufferBinder(new FakeBridge(true))
                 .decide(request(strided(DataType.FLOAT32), dense(DataType.FLOAT32)), AcceleratorBufferConfig.defaults());
 
-        assertEquals(AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED, decision.reasonCode());
-        assertEquals(AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED, decision.inputs().getFirst().reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.NATIVE_LAYOUT_ABI_UNAVAILABLE, decision.reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.NATIVE_LAYOUT_ABI_UNAVAILABLE, decision.inputs().getFirst().reasonCode());
     }
 
     @Test
@@ -87,8 +87,23 @@ class CudaAcceleratorBufferBinderTest {
         AcceleratorBufferDecision decision = new CudaAcceleratorBufferBinder(new FakeBridge(true))
                 .decide(request(dense(DataType.FLOAT32), strided(DataType.FLOAT32)), AcceleratorBufferConfig.defaults());
 
-        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, decision.reasonCode());
-        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, decision.outputs().getFirst().reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.NATIVE_LAYOUT_ABI_UNAVAILABLE, decision.reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.NATIVE_LAYOUT_ABI_UNAVAILABLE, decision.outputs().getFirst().reasonCode());
+    }
+
+    @Test
+    void requiredModeRejectsNonDenseLayoutWhenLayoutAbiV2Unavailable() {
+        AcceleratorBufferDecision decision = new CudaAcceleratorBufferBinder(new FakeBridge(true))
+                .decide(
+                        request(strided(DataType.FLOAT32), dense(DataType.FLOAT32)),
+                        AcceleratorBufferConfig.defaults().withBindingMode(AcceleratorBufferBindingMode.REQUIRE)
+                );
+
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, decision.path());
+        assertEquals(AcceleratorBufferReasonCode.NATIVE_LAYOUT_ABI_UNAVAILABLE, decision.reasonCode());
+        assertEquals(true, decision.required());
+        assertEquals(false, decision.allowed());
+        org.junit.jupiter.api.Assertions.assertTrue(decision.reason().contains("layout ABI v2"));
     }
 
     private static AcceleratorBufferRequest request(AcceleratorBufferLayout input, AcceleratorBufferLayout output) {

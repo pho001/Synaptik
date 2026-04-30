@@ -10,6 +10,10 @@ import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.accelerator.buffer.AcceleratorBufferOutputDecision;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorBufferRequest;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2ReasonCodes;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2StatusCode;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
+import backend.cuda.bridge.CudaBridgeCapabilities;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.cuda.bridge.CudaGraphBridge;
 import backend.memory.DeviceBufferBinding;
@@ -155,7 +159,7 @@ public final class CudaAcceleratorBufferBinder {
         return new AcceleratorBufferBindings<>(inputBindings, outputBindings);
     }
 
-    private static List<AcceleratorBufferInputDecision> inputDecisions(
+    private List<AcceleratorBufferInputDecision> inputDecisions(
             AcceleratorBufferRequest request,
             ResolvedAcceleratorInputs inputs,
             AcceleratorBufferConfig config,
@@ -199,10 +203,10 @@ public final class CudaAcceleratorBufferBinder {
                 continue;
             }
             if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
+                AcceleratorBufferReasonCode reasonCode = layoutAbiReasonCode();
                 out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, false,
-                        AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED,
-                        "CUDA buffer input nodeId=" + nodeId + " requires DENSE_CONTIGUOUS layout, got "
-                                + layout.layoutClass()));
+                        reasonCode,
+                        layoutAbiReason("CUDA buffer input nodeId=" + nodeId, layout)));
                 continue;
             }
             if (prepared && !config.allowPreparedInputMaterialization()) {
@@ -234,7 +238,7 @@ public final class CudaAcceleratorBufferBinder {
         return List.copyOf(out);
     }
 
-    private static List<AcceleratorBufferInputDecision> metadataInputDecisions(AcceleratorBufferRequest request) {
+    private List<AcceleratorBufferInputDecision> metadataInputDecisions(AcceleratorBufferRequest request) {
         List<AcceleratorBufferInputDecision> out = new ArrayList<>(request.externalInputNodeIds().size());
         for (int i = 0; i < request.externalInputNodeIds().size(); i++) {
             int nodeId = request.externalInputNodeIds().get(i);
@@ -247,10 +251,10 @@ public final class CudaAcceleratorBufferBinder {
                 continue;
             }
             if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
+                AcceleratorBufferReasonCode reasonCode = layoutAbiReasonCode();
                 out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, false,
-                        AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED,
-                        "CUDA buffer input nodeId=" + nodeId + " requires DENSE_CONTIGUOUS layout, got "
-                                + layout.layoutClass()));
+                        reasonCode,
+                        layoutAbiReason("CUDA buffer input nodeId=" + nodeId, layout)));
                 continue;
             }
             out.add(new AcceleratorBufferInputDecision(nodeId, layout, false, true,
@@ -260,7 +264,7 @@ public final class CudaAcceleratorBufferBinder {
         return List.copyOf(out);
     }
 
-    private static List<AcceleratorBufferOutputDecision> outputDecisions(
+    private List<AcceleratorBufferOutputDecision> outputDecisions(
             AcceleratorBufferRequest request,
             ExecutionContext context
     ) {
@@ -292,10 +296,10 @@ public final class CudaAcceleratorBufferBinder {
                 continue;
             }
             if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
+                AcceleratorBufferReasonCode reasonCode = layoutAbiReasonCode();
                 out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
-                        AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED,
-                        "CUDA buffer output nodeId=" + nodeId + " requires DENSE_CONTIGUOUS layout, got "
-                                + layout.layoutClass()));
+                        reasonCode,
+                        layoutAbiReason("CUDA buffer output nodeId=" + nodeId, layout)));
                 continue;
             }
             out.add(new AcceleratorBufferOutputDecision(nodeId, layout, true,
@@ -305,7 +309,7 @@ public final class CudaAcceleratorBufferBinder {
         return List.copyOf(out);
     }
 
-    private static List<AcceleratorBufferOutputDecision> metadataOutputDecisions(AcceleratorBufferRequest request) {
+    private List<AcceleratorBufferOutputDecision> metadataOutputDecisions(AcceleratorBufferRequest request) {
         List<AcceleratorBufferOutputDecision> out = new ArrayList<>(request.outputNodeIds().size());
         for (int i = 0; i < request.outputNodeIds().size(); i++) {
             int nodeId = request.outputNodeIds().get(i);
@@ -318,10 +322,10 @@ public final class CudaAcceleratorBufferBinder {
                 continue;
             }
             if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
+                AcceleratorBufferReasonCode reasonCode = layoutAbiReasonCode();
                 out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
-                        AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED,
-                        "CUDA buffer output nodeId=" + nodeId + " requires DENSE_CONTIGUOUS layout, got "
-                                + layout.layoutClass()));
+                        reasonCode,
+                        layoutAbiReason("CUDA buffer output nodeId=" + nodeId, layout)));
                 continue;
             }
             out.add(new AcceleratorBufferOutputDecision(nodeId, layout, true,
@@ -395,6 +399,41 @@ public final class CudaAcceleratorBufferBinder {
         return mode == AcceleratorBufferBindingMode.REQUIRE
                 ? AcceleratorBufferExecutionPath.UNAVAILABLE
                 : AcceleratorBufferExecutionPath.TENSOR_ARRAY;
+    }
+
+    private AcceleratorBufferReasonCode layoutAbiReasonCode() {
+        CudaBridgeCapabilities capabilities = bridge.capabilities();
+        if (capabilities.layoutAbiV2Supported()) {
+            return AcceleratorLayoutAbiV2ReasonCodes.fromLayoutAbiV2Status(
+                    AcceleratorLayoutAbiV2StatusCode.METADATA_UNSUPPORTED
+            );
+        }
+        if (capabilities.layoutAbiV2Version() > 0
+                && capabilities.layoutAbiV2Version() != AcceleratorLayoutAbiV2Support.REQUIRED_VERSION) {
+            return AcceleratorLayoutAbiV2ReasonCodes.fromLayoutAbiV2Status(
+                    AcceleratorLayoutAbiV2StatusCode.VERSION_MISMATCH
+            );
+        }
+        return AcceleratorLayoutAbiV2ReasonCodes.fromLayoutAbiV2Status(
+                AcceleratorLayoutAbiV2StatusCode.LAYOUT_ABI_UNAVAILABLE
+        );
+    }
+
+    private String layoutAbiReason(String prefix, AcceleratorBufferLayout layout) {
+        CudaBridgeCapabilities capabilities = bridge.capabilities();
+        if (capabilities.layoutAbiV2Supported()) {
+            return prefix + " layout ABI v2 metadata unsupported for native CUDA execution: layoutClass="
+                    + layout.layoutClass();
+        }
+        if (capabilities.layoutAbiV2Version() > 0
+                && capabilities.layoutAbiV2Version() != AcceleratorLayoutAbiV2Support.REQUIRED_VERSION) {
+            return prefix + " layout ABI v2 version mismatch: expected "
+                    + AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
+                    + ", got "
+                    + capabilities.layoutAbiV2Version();
+        }
+        return prefix + " requires layout ABI v2 for non-dense CUDA metadata; layout ABI v2 unavailable: layoutClass="
+                + layout.layoutClass();
     }
 
     private static AcceleratorBufferDecision decision(

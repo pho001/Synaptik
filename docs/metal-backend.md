@@ -366,6 +366,18 @@ ABI means application binary interface: the binary contract between Java FFM and
 Layout ABI v2 symbols are optional-symbol gated. Missing layout ABI v2 symbols disable only layout ABI v2 capability;
 they do not disable the existing dense v1 buffer execution path.
 
+Layout ABI v2 rejection uses stable accelerator buffer reason codes:
+
+- `NATIVE_LAYOUT_ABI_UNAVAILABLE`
+- `NATIVE_LAYOUT_ABI_VERSION_MISMATCH`
+- `NATIVE_LAYOUT_METADATA_UNSUPPORTED`
+- `NATIVE_LAYOUT_RANK_UNSUPPORTED`
+- `NATIVE_LAYOUT_DTYPE_UNSUPPORTED`
+- `NATIVE_LAYOUT_PHYSICAL_SPAN_OVERFLOW`
+
+AUTO mode records the reason code in trace metadata and falls back visibly. REQUIRE mode fails before tensor-array or
+CPU fallback. GPU-side layout transform execution remains Phase 10 scope.
+
 ### `execute_partition_f32_buffers(...)`
 
 The buffer execution ABI is:
