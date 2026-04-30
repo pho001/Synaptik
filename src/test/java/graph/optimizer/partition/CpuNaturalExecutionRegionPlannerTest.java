@@ -104,6 +104,22 @@ class CpuNaturalExecutionRegionPlannerTest {
     }
 
     @Test
+    void cpuNaturalRegionsRemainAvailableWhenAcceleratorBenefitIsAmbiguous() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
+        Tensor root = a.add(b).relu().sum();
+
+        CompiledGraph compiled = CompiledGraph.compile(
+                root,
+                OptimizerConfig.inferenceDefaults().withOffload(OffloadConfig.acceleratorScored())
+        );
+
+        assertTrue(compiled.compileArtifacts().partitions().stream()
+                .anyMatch(partition -> partition.plannerStrategy()
+                        == PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION));
+    }
+
+    @Test
     void elementwiseIslandPolicyDoesNotAbsorbUnitKernelBoundaries() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);

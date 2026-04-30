@@ -4,6 +4,7 @@ import backend.runtime.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dLoweringMode;
+import config.optimizer.OffloadConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import config.optimizer.RewriteConfig;
@@ -165,6 +166,27 @@ public class BFloat16BlasDispatchTest {
         assertTrue("GEMM".equals(conv.metadata().conv().executionKind()));
         assertTrue(!conv.metadata().conv().blasUsed());
         assertTrue("NONE".equals(conv.metadata().conv().blasProvider()));
+    }
+
+    @Test
+    void blasDispatchRemainsAvailableWithAcceleratorOffloadPolicy() {
+        Tensor a = new Tensor(random(64 * 64), new int[]{64, 64}, null, "a", DataType.BFLOAT16);
+        Tensor b = new Tensor(random(64 * 96), new int[]{64, 96}, null, "b", DataType.BFLOAT16);
+        Tensor out = a.matmul(b);
+
+        var execution = CompiledGraph.compile(
+                        out,
+                        OptimizerConfig.inferenceDefaults().withOffload(OffloadConfig.acceleratorScored())
+                )
+                .prepare(blasRuntime(1L));
+
+        var matmul = execution.forwardSteps().stream()
+                .filter(step -> step.node().getOperation() != null
+                        && step.node().getOperation().opType() == operations.Operation.OpType.MATMUL)
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue("CPU_MATMUL_BLAS".equals(matmul.metadata().cpuPlan().computeContract().backend().name()));
     }
 
     private static RuntimeConfig blasRuntime(long minWork) {

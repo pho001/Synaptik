@@ -1,5 +1,6 @@
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
+import backend.accelerator.select.AcceleratorPlanCostModel;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.cuda.exec.PreparedCudaExecutable;
 import backend.runtime.ExecutionMode;
@@ -18,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1797,6 +1800,60 @@ public class PreparedExecutionBuildTest {
         assertTrue(decision.estimatedWork() > 0L);
         assertNotNull(decision.costSummary());
         assertEquals("CONSERVATIVE", decision.costSummary().preset());
+    }
+
+    @Test
+    void staticCostDoesNotSelectAcceleratorWhenCpuPathIsClearlyCompetitive() {
+        graph.optimizer.partition.PartitionPlan tinyBoundaryHeavyPlan = new graph.optimizer.partition.PartitionPlan() {
+            @Override
+            public ComputeBackend backend() {
+                return ComputeBackend.GPU_METAL;
+            }
+
+            @Override
+            public int anchorNodeId() {
+                return 10;
+            }
+
+            @Override
+            public List<Integer> nodeIds() {
+                return List.of(10);
+            }
+
+            @Override
+            public List<Integer> externalInputNodeIds() {
+                return List.of(1, 2, 3, 4, 5, 6, 7, 8);
+            }
+
+            @Override
+            public List<Integer> producedOutputNodeIds() {
+                return List.of(10, 11, 12, 13, 14, 15, 16, 17);
+            }
+
+            @Override
+            public long estimatedWork() {
+                return 1L;
+            }
+        };
+
+        AcceleratorPlanCostModel.Decision decision = AcceleratorPlanCostModel.decide(
+                tinyBoundaryHeavyPlan,
+                RuntimeConfig.inferenceDefaults()
+        );
+
+        assertFalse(decision.accepted());
+        assertEquals("rejected-materialization-cost", decision.reason());
+        assertNotNull(decision.costSummary());
+
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
+        Tensor out = a.add(b).relu();
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        assertTrue(execution.forwardSteps().stream()
+                .anyMatch(step -> step.metadata().backend() == ComputeBackend.CPU));
     }
 
     @Test

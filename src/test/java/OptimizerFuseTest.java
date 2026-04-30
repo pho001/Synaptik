@@ -1,3 +1,4 @@
+import config.optimizer.OffloadConfig;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OptimizerStage;
 import graph.CompiledGraph;
@@ -179,6 +180,21 @@ public class OptimizerFuseTest {
         Tensor fusedInput = compiledGraph.getCompiledGraphAsList().get(fusedStep.metadata().executionInputNodeIds().getFirst());
         assertNotNull(fusedInput.getOperation());
         assertEquals(Operation.OpType.MATMUL, fusedInput.getOperation().opType());
+    }
+
+    @Test
+    public void cpuFusionRemainsAvailableWithAcceleratorOffloadPolicy() {
+        Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "a");
+        Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{4}, null, "b");
+        Tensor out = a.add(b).relu().exp();
+
+        OptimizerConfig optimizer = fuseOnlyInferenceConfig().withOffload(OffloadConfig.acceleratorScored());
+        PreparedExecution prepared = CompiledGraph.compile(out, optimizer)
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()
+                        .withAccelerator(config.runtime.AcceleratorConfig.disabled()));
+
+        assertTrue(prepared.forwardSteps().stream()
+                .anyMatch(step -> step.metadata().fusedExecutable() != null));
     }
 
     private static OptimizerConfig fuseOnlyInferenceConfig() {
