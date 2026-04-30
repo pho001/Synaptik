@@ -194,22 +194,6 @@ public final class MetalAcceleratorBufferBinder {
             Tensor tensor = context.runtimeTensorForNodeId(nodeId);
             AcceleratorBufferLayout layout = layoutForOutput(request, context, i, nodeId);
             DataType expected = i < request.outputDataTypes().size() ? request.outputDataTypes().get(i) : null;
-            MetalLayoutPolicy.Decision layoutDecision = MetalLayoutPolicy.output(layout);
-            if (!layoutDecision.accepted()) {
-                out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
-                        layoutDecision.reasonCode(),
-                        "output nodeId=" + nodeId + " output tensor layout unsupported: "
-                                + layoutDecision.reason()));
-                continue;
-            }
-            if (layoutDecision.requiresDensePhysicalLogicalView()) {
-                out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
-                        AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED,
-                        "output nodeId=" + nodeId + " output tensor layout requires conservative fallback: "
-                                + layoutDecision.reason()
-                                + ", densePhysicalLogicalViewRequires=MetalBufferAllocator+MetalDeviceToCpuMaterializer support"));
-                continue;
-            }
             if (!MetalMpsCapabilities.supportsOutputDType(tensor.getDataType())) {
                 out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
                         AcceleratorBufferReasonCode.OUTPUT_DTYPE_UNSUPPORTED,
@@ -221,6 +205,14 @@ public final class MetalAcceleratorBufferBinder {
                         AcceleratorBufferReasonCode.OUTPUT_DTYPE_UNSUPPORTED,
                         "output nodeId=" + nodeId + " tensor dtype " + tensor.getDataType()
                                 + " does not match executable dtype " + expected));
+                continue;
+            }
+            MetalLayoutPolicy.Decision layoutDecision = MetalLayoutPolicy.output(layout);
+            if (!layoutDecision.accepted()) {
+                out.add(new AcceleratorBufferOutputDecision(nodeId, layout, false,
+                        layoutDecision.reasonCode(),
+                        "output nodeId=" + nodeId + " output tensor layout unsupported: "
+                                + layoutDecision.reason()));
                 continue;
             }
             out.add(new AcceleratorBufferOutputDecision(nodeId, layout, true,

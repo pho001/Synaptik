@@ -426,9 +426,15 @@ class PreparedMetalExecutableBufferBindingTest {
                 firstFixture.context().runtimeTensorForNodeId(firstFixture.outputNode().id()),
                 output
         );
+        MetalBufferBinding secondInputBinding = new MetalBufferBinding(
+                secondFixture.inputNode().id(),
+                intermediate.layout(),
+                intermediate.handle(),
+                MetalBufferAccess.READ_WRITE
+        );
         secondFixture.state().attachDeviceBufferBinding(
                 secondFixture.inputNode().id(),
-                intermediate,
+                secondInputBinding,
                 StorageResidency.DEVICE_OWNED,
                 "logical-view intermediate"
         );
@@ -438,7 +444,7 @@ class PreparedMetalExecutableBufferBindingTest {
 
         assertEquals(2, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
-        assertEquals(intermediate, bridge.lastBufferInputs.getFirst());
+        assertEquals(secondInputBinding, bridge.lastBufferInputs.getFirst());
         assertTrue(firstFixture.state().cpuMaterializationTraces().isEmpty());
         assertTrue(secondFixture.state().cpuMaterializationTraces().isEmpty());
         assertEquals(StorageResidency.DEVICE_OWNED, secondFixture.state()
@@ -446,7 +452,7 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void fallsBackBeforeReservingBufferForPermutedOutputTensor() {
+    void permutedOutputReservesDensePhysicalLogicalViewBuffer() {
         Fixture fixture = nonContiguousOutputFixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
@@ -454,23 +460,25 @@ class PreparedMetalExecutableBufferBindingTest {
 
         executable.execute(fixture.context());
 
-        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(1, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
-        assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
-        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+        assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, executable.lastAcceleratorBufferDecision().reasonCode());
         assertEquals(
                 AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
                 executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass()
         );
-        assertTrue(executable.lastBufferBindingDecision().contains("policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"));
-        assertTrue(executable.lastBufferBindingDecision().contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
-        assertTrue(executable.lastBufferBindingDecision().contains("storageOffset=0"));
-        assertTrue(executable.lastBufferBindingDecision().contains("strides=[1, 2]"));
-        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+        assertTrue(executable.lastAcceleratorBufferDecision().outputs().getFirst().reason()
+                .contains("policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"));
+        assertEquals(
+                AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
+                bridge.lastBufferOutputs.getFirst().layout().layoutClass()
+        );
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
     }
 
     @Test
-    void requiredBufferModeConvertsUnsupportedOutputLayoutToUnavailableBeforeTensorArrayExecution() {
+    void requiredBufferModeUsesPermutedOutputBufferBinding() {
         Fixture fixture = nonContiguousOutputFixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(
@@ -483,40 +491,33 @@ class PreparedMetalExecutableBufferBindingTest {
                 )
         );
 
-        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+        executable.execute(fixture.context());
 
-        assertTrue(failure.getMessage().contains("OUTPUT_LAYOUT_UNSUPPORTED"));
-        assertTrue(failure.getMessage().contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
-        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(1, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
-        assertEquals(0, bridge.bufferAllocations);
-        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
         assertTrue(executable.lastAcceleratorBufferDecision().required());
-        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, executable.lastAcceleratorBufferDecision().reasonCode());
         assertEquals(
                 AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
                 executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass()
         );
-        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
     }
 
     @Test
     void reportsZeroOffsetViewOutputLayoutClass() {
-        assertOutputLayoutFallback(
+        assertLogicalViewOutputUsesBufferBinding(
                 zeroOffsetViewOutputFixture(),
-                AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW,
-                "policyAction=DENSE_PHYSICAL_LOGICAL_VIEW",
-                "layoutClass=ZERO_OFFSET_VIEW"
+                AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW
         );
     }
 
     @Test
     void reportsNonZeroOffsetViewOutputLayoutClass() {
-        assertOutputLayoutFallback(
+        assertLogicalViewOutputUsesBufferBinding(
                 nonZeroOffsetOutputFixture(),
-                AcceleratorBufferLayoutClass.NON_ZERO_OFFSET_VIEW,
-                "policyAction=DENSE_PHYSICAL_LOGICAL_VIEW",
-                "layoutClass=NON_ZERO_OFFSET_VIEW"
+                AcceleratorBufferLayoutClass.NON_ZERO_OFFSET_VIEW
         );
     }
 

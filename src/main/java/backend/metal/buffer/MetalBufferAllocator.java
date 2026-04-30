@@ -150,9 +150,10 @@ public final class MetalBufferAllocator {
         if (layout.logicalElementCount() <= 0) {
             throw new IllegalArgumentException("Metal output elementCount must be positive.");
         }
-        if (layout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
+        MetalLayoutPolicy.Decision layoutDecision = MetalLayoutPolicy.output(layout);
+        if (!layoutDecision.accepted() || !supportsOutputAllocation(layout.layoutClass())) {
             throw new UnsupportedOperationException(
-                    "Metal buffer outputs require DENSE_CONTIGUOUS layout in this phase; got " + layout.layoutClass()
+                    "Metal buffer output layout unsupported: " + layoutDecision.reason()
             );
         }
         MetalBufferHandle handle = nativeAccess.createBuffer(layout.logicalByteLength(), STORAGE_MODE_SHARED, MemorySegment.NULL, 0L);
@@ -252,6 +253,13 @@ public final class MetalBufferAllocator {
         if (tensor.hasStorageOffset()) {
             throw new UnsupportedOperationException("Metal buffer input tensor has storage offset.");
         }
+    }
+
+    private static boolean supportsOutputAllocation(AcceleratorBufferLayoutClass layoutClass) {
+        return switch (layoutClass) {
+            case DENSE_CONTIGUOUS, ZERO_OFFSET_VIEW, NON_ZERO_OFFSET_VIEW, PERMUTED_OR_STRIDED_VIEW -> true;
+            case BROADCAST_ZERO_STRIDE_VIEW, UNSUPPORTED -> false;
+        };
     }
 
     private static MetalBufferBinding binding(int nodeId, Tensor tensor, MetalBufferHandle handle, MetalBufferAccess access) {
