@@ -318,6 +318,112 @@ extern "C" void synaptik_cuda_graph_destroy_buffer(void* buffer) {
     delete cudaBuffer;
 }
 
+__global__ void layout_contiguous_f32_kernel(
+        const float* source,
+        float* destination,
+        int64_t logicalElementCount,
+        int rank,
+        const int64_t* shape,
+        const int64_t* strides,
+        int64_t storageOffset
+) {
+    int64_t linear = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (linear >= logicalElementCount) {
+        return;
+    }
+    int64_t sourceIndex = storageOffset;
+    int64_t remaining = linear;
+    for (int dim = rank - 1; dim >= 0; dim--) {
+        int64_t coordinate = remaining % shape[dim];
+        remaining /= shape[dim];
+        sourceIndex += coordinate * strides[dim];
+    }
+    destination[linear] = source[sourceIndex];
+}
+
+extern "C" int synaptik_cuda_graph_layout_contiguous_f32_buffer(
+        void* context,
+        void* sourceBuffer,
+        void* destinationBuffer,
+        int rank,
+        int64_t* shape,
+        int64_t* strides,
+        int64_t storageOffset,
+        int64_t logicalElementCount,
+        int64_t sourcePhysicalByteSpan,
+        int64_t destinationByteLength
+) {
+    if (context == nullptr || sourceBuffer == nullptr || destinationBuffer == nullptr) {
+        stable_reason("CUDA layout materialization requires context and buffers.");
+        return 1;
+    }
+    if (rank <= 0 || rank > 8 || shape == nullptr || strides == nullptr) {
+        stable_reason("CUDA layout materialization received invalid rank metadata.");
+        return 2;
+    }
+    if (storageOffset < 0 || logicalElementCount < 0 || sourcePhysicalByteSpan < 0 || destinationByteLength < 0) {
+        stable_reason("CUDA layout materialization received negative layout metadata.");
+        return 3;
+    }
+    if (destinationByteLength < logicalElementCount * static_cast<int64_t>(sizeof(float))) {
+        stable_reason("CUDA layout materialization destination buffer is too small.");
+        return 4;
+    }
+    auto* source = static_cast<SynaptikCudaBuffer*>(sourceBuffer);
+    auto* destination = static_cast<SynaptikCudaBuffer*>(destinationBuffer);
+    if (!validate_buffer(source, static_cast<int>(sourcePhysicalByteSpan))
+            || !validate_buffer(destination, static_cast<int>(destinationByteLength))) {
+        stable_reason("CUDA layout materialization received invalid buffers.");
+        return 5;
+    }
+    for (int i = 0; i < rank; i++) {
+        if (shape[i] <= 0 || strides[i] < 0) {
+            stable_reason("CUDA layout materialization received unsupported shape/stride metadata.");
+            return 6;
+        }
+    }
+    int64_t metadataBytes = static_cast<int64_t>(rank) * static_cast<int64_t>(sizeof(int64_t));
+    int64_t* deviceShape = nullptr;
+    int64_t* deviceStrides = nullptr;
+    cudaError_t status = cudaMalloc(&deviceShape, static_cast<size_t>(metadataBytes));
+    if (status != cudaSuccess) {
+        stable_reason(std::string("CUDA layout materialization shape allocation failed: ") + cudaGetErrorString(status));
+        return 7;
+    }
+    status = cudaMalloc(&deviceStrides, static_cast<size_t>(metadataBytes));
+    if (status != cudaSuccess) {
+        cudaFree(deviceShape);
+        stable_reason(std::string("CUDA layout materialization stride allocation failed: ") + cudaGetErrorString(status));
+        return 8;
+    }
+    cudaMemcpy(deviceShape, shape, static_cast<size_t>(metadataBytes), cudaMemcpyHostToDevice);
+    cudaMemcpy(deviceStrides, strides, static_cast<size_t>(metadataBytes), cudaMemcpyHostToDevice);
+    int threads = 256;
+    int blocks = static_cast<int>((logicalElementCount + threads - 1) / threads);
+    layout_contiguous_f32_kernel<<<blocks, threads>>>(
+            static_cast<const float*>(source->data),
+            static_cast<float*>(destination->data),
+            logicalElementCount,
+            rank,
+            deviceShape,
+            deviceStrides,
+            storageOffset
+    );
+    status = cudaGetLastError();
+    cudaFree(deviceShape);
+    cudaFree(deviceStrides);
+    if (status != cudaSuccess) {
+        stable_reason(std::string("CUDA layout materialization kernel launch failed: ") + cudaGetErrorString(status));
+        return 9;
+    }
+    status = cudaDeviceSynchronize();
+    if (status != cudaSuccess) {
+        stable_reason(std::string("CUDA layout materialization kernel execution failed: ") + cudaGetErrorString(status));
+        return 10;
+    }
+    return 0;
+}
+
 extern "C" int synaptik_cuda_graph_execute_partition_f32_buffers(
         void* context,
         void* executable,

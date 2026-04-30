@@ -79,6 +79,24 @@ public interface CudaGraphBridge {
     }
 
     /**
+     * Returns whether this bridge can materialize a logical source layout into a dense destination buffer.
+     */
+    default boolean supportsLayoutMaterialization() {
+        return false;
+    }
+
+    /**
+     * Materializes a source layout binding into a dense destination binding.
+     */
+    default void materializeLayout(
+            CudaBridgeContext context,
+            CudaBufferBinding source,
+            CudaBufferBinding destination
+    ) {
+        throw new UnsupportedOperationException("CUDA bridge does not support GPU layout materialization.");
+    }
+
+    /**
      * Executes a compiled CUDA graph against native CUDA buffer bindings.
      */
     default void executeBuffers(

@@ -1,6 +1,7 @@
 package backend.metal.bridge;
 
 import backend.metal.MetalMpsCapabilities;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.lowering.AcceleratorSubgraphSignature;
@@ -327,6 +328,11 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 && STATE.executePartitionBuffersFn != null;
     }
 
+    @Override
+    public boolean supportsLayoutMaterialization() {
+        return STATE.available && STATE.layoutContiguousF32BufferFn != null;
+    }
+
     /**
      * Creates a Metal buffer allocator backed by this FFM bridge.
      */
@@ -380,6 +386,45 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 }
             }
         });
+    }
+
+    @Override
+    public void materializeLayout(
+            MetalMpsBridgeContext context,
+            MetalBufferBinding source,
+            MetalBufferBinding destination
+    ) {
+        if (!supportsLayoutMaterialization()) {
+            throw new UnsupportedOperationException("Metal layout materialization symbol is unavailable.");
+        }
+        if (context == null || !context.available()) {
+            throw new UnsupportedOperationException(context == null ? "Missing Metal bridge context." : context.reason());
+        }
+        if (source == null || !source.available() || destination == null || !destination.available()) {
+            throw new UnsupportedOperationException("Metal layout materialization requires available source and destination bindings.");
+        }
+        AcceleratorLayoutAbiV2Descriptor descriptor = AcceleratorLayoutAbiV2Descriptor.fromBinding(source);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment shape = longArray(arena, descriptor.shape());
+            MemorySegment strides = longArray(arena, descriptor.strides());
+            int status = (int) STATE.layoutContiguousF32BufferFn.invokeExact(
+                    context.handle(),
+                    source.handle().nativeHandle(),
+                    destination.handle().nativeHandle(),
+                    descriptor.rank(),
+                    shape,
+                    strides,
+                    (long) descriptor.storageOffset(),
+                    descriptor.logicalElementCount(),
+                    descriptor.physicalByteSpan(),
+                    destination.logicalByteLength()
+            );
+            if (status != 0) {
+                throw new UnsupportedOperationException("Metal layout materialization returned non-zero status: " + status);
+            }
+        } catch (Throwable t) {
+            throw new UnsupportedOperationException("Metal layout materialization failed: " + safeMessage(t), t);
+        }
     }
 
     /**
@@ -820,6 +865,12 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                             ADDRESS
                     )
             );
+            MethodHandle layoutContiguousF32BufferFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_layout_contiguous_f32_buffer",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG)
+            );
             int layoutAbiV2Version = layoutAbiVersion(layoutAbiVersionFn);
             boolean layoutAbiV2Supported = layoutAbiV2Version == AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
                     && validateLayoutAbiV2Fn != null;
@@ -843,7 +894,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 );
                 return new State(true, null, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
                         executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
-                        executePartitionBuffersFn, destroyContextFn, destroyExecutableFn, capabilities);
+                        executePartitionBuffersFn, destroyContextFn, destroyExecutableFn, layoutContiguousF32BufferFn, capabilities);
             }
 
             MemorySegment reasonPtr = (MemorySegment) unavailableReasonFn.invokeExact();
@@ -861,13 +912,21 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             );
             return new State(false, reason, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
                     executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
-                    executePartitionBuffersFn, destroyContextFn, destroyExecutableFn, capabilities);
+                    executePartitionBuffersFn, destroyContextFn, destroyExecutableFn, layoutContiguousF32BufferFn, capabilities);
         } catch (Throwable t) {
             String reason = t.getClass().getSimpleName() + ": " + safeMessage(t);
             return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null,
-                    null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, null, null,
                     MetalMpsBridgeCapabilities.unavailable(MetalMpsCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, reason));
         }
+    }
+
+    private static MemorySegment longArray(Arena arena, int[] values) {
+        long[] out = new long[values.length];
+        for (int i = 0; i < values.length; i++) {
+            out[i] = values[i];
+        }
+        return out.length == 0 ? MemorySegment.NULL : arena.allocateFrom(JAVA_LONG, out);
     }
 
     private static MethodHandle optionalHandle(
@@ -962,6 +1021,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         private final MethodHandle executePartitionBuffersFn;
         private final MethodHandle destroyContextFn;
         private final MethodHandle destroyExecutableFn;
+        private final MethodHandle layoutContiguousF32BufferFn;
         private final MetalMpsBridgeCapabilities capabilities;
 
         private State(
@@ -980,6 +1040,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 MethodHandle executePartitionBuffersFn,
                 MethodHandle destroyContextFn,
                 MethodHandle destroyExecutableFn,
+                MethodHandle layoutContiguousF32BufferFn,
                 MetalMpsBridgeCapabilities capabilities
         ) {
             this.available = available;
@@ -997,6 +1058,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             this.executePartitionBuffersFn = executePartitionBuffersFn;
             this.destroyContextFn = destroyContextFn;
             this.destroyExecutableFn = destroyExecutableFn;
+            this.layoutContiguousF32BufferFn = layoutContiguousF32BufferFn;
             this.capabilities = capabilities == null
                     ? MetalMpsBridgeCapabilities.unavailable(MetalMpsCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, this.reason)
                     : capabilities;

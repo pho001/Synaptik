@@ -95,6 +95,24 @@ public interface MetalMpsGraphBridge {
     }
 
     /**
+     * Returns whether this bridge can materialize a logical source layout into a dense destination buffer.
+     */
+    default boolean supportsLayoutMaterialization() {
+        return false;
+    }
+
+    /**
+     * Materializes a source layout binding into a dense destination binding.
+     */
+    default void materializeLayout(
+            MetalMpsBridgeContext context,
+            MetalBufferBinding source,
+            MetalBufferBinding destination
+    ) {
+        throw new UnsupportedOperationException("Metal bridge does not support GPU layout materialization.");
+    }
+
+    /**
      * Executes a compiled Metal graph against already resolved runtime tensors.
      *
      * <p>The current FFM implementation materializes inputs from Java tensor arrays and copies outputs back into

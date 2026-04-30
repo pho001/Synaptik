@@ -59,6 +59,58 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PreparedCudaExecutableBufferPolicyTest {
     @Test
+    void contiguousViewMaterializesDenseDeviceOutputWithoutCpuRoundTrip() {
+        AcceleratorBufferLayout sourceLayout = new AcceleratorBufferLayout(
+                DataType.FLOAT32,
+                new int[]{3, 2},
+                new int[]{1, 3},
+                0,
+                6,
+                24,
+                backend.accelerator.buffer.AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW
+        );
+        AcceleratorBufferLayout targetLayout = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{3, 2},
+                new int[]{2, 1},
+                0,
+                6
+        );
+        CudaBufferBinding source = new CudaBufferBinding(
+                1,
+                sourceLayout,
+                new CudaBufferHandle(MemorySegment.ofAddress(123), 24, false),
+                CudaBufferAccess.READ
+        );
+
+        var decision = backend.accelerator.buffer.AcceleratorLayoutTransformPlanner.decide(
+                new backend.accelerator.buffer.AcceleratorLayoutTransformRequest(
+                        backend.ComputeBackend.GPU_CUDA.name(),
+                        1,
+                        2,
+                        Operation.OpType.CONTIGUOUS,
+                        sourceLayout,
+                        targetLayout,
+                        source,
+                        false
+                ));
+
+        assertEquals(backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION, decision.kind());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE, decision.reasonCode());
+    }
+
+    @Test
+    void contiguousViewFallsBackVisiblyWhenLayoutTransformUnavailable() {
+        CudaGraphBridge bridge = new FakeCudaBridge(true);
+
+        assertFalse(bridge.supportsLayoutMaterialization());
+        UnsupportedOperationException failure = assertThrows(UnsupportedOperationException.class,
+                () -> bridge.materializeLayout(CudaBridgeContext.unavailable("test"), null, null));
+        assertTrue(failure.getMessage().contains("GPU layout materialization")
+                || failure.getMessage().contains("layout materialization"));
+    }
+
+    @Test
     void cudaBufferPathExecutesWithoutTensorArrayBridge() {
         Fixture fixture = fixture();
         FakeCudaBridge bridge = new FakeCudaBridge(true);

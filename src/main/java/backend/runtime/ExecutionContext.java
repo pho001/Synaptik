@@ -37,6 +37,7 @@ public final class ExecutionContext {
     private final ExecutionState executionState;
     private final Map<Tensor, Object> runtimeStateIndex;
     private final Map<Integer, ConvTraceMetadata> convTraceIndex;
+    private final Map<Class<?>, Object> runtimeServices;
 
     /**
      * Creates a standalone context without prepared execution state.
@@ -73,6 +74,7 @@ public final class ExecutionContext {
         this.executionState = executionState;
         this.runtimeStateIndex = Collections.synchronizedMap(new IdentityHashMap<>());
         this.convTraceIndex = Collections.synchronizedMap(new java.util.HashMap<>());
+        this.runtimeServices = Collections.synchronizedMap(new java.util.HashMap<>());
         this.useFastExpApprox = useFastExpApprox;
         this.useFastTanhApprox = useFastTanhApprox;
     }
@@ -374,6 +376,27 @@ public final class ExecutionContext {
         if (tensor != null) {
             runtimeStateIndex.remove(tensor);
         }
+    }
+
+    /**
+     * Registers a run-scoped service object.
+     */
+    public <T> void registerRuntimeService(Class<T> type, T service) {
+        Objects.requireNonNull(type, "type cannot be null");
+        if (service == null) {
+            runtimeServices.remove(type);
+            return;
+        }
+        runtimeServices.put(type, type.cast(service));
+    }
+
+    /**
+     * Returns a run-scoped service object.
+     */
+    public <T> T runtimeService(Class<T> type) {
+        Objects.requireNonNull(type, "type cannot be null");
+        Object service = runtimeServices.get(type);
+        return type.isInstance(service) ? type.cast(service) : null;
     }
 
     public void mirrorRuntimeState(Tensor source, Tensor target) {

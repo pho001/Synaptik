@@ -3,6 +3,7 @@ package backend.cuda.bridge;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagSpec;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
 import backend.cuda.buffer.CudaBufferAllocator;
 import backend.cuda.buffer.CudaBufferBinding;
@@ -72,6 +73,11 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                 && STATE.readBufferFn != null
                 && STATE.destroyBufferFn != null
                 && STATE.executePartitionBuffersFn != null;
+    }
+
+    @Override
+    public boolean supportsLayoutMaterialization() {
+        return STATE.available && STATE.layoutContiguousF32BufferFn != null;
     }
 
     /**
@@ -389,6 +395,45 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         });
     }
 
+    @Override
+    public void materializeLayout(
+            CudaBridgeContext context,
+            CudaBufferBinding source,
+            CudaBufferBinding destination
+    ) {
+        if (!supportsLayoutMaterialization()) {
+            throw new UnsupportedOperationException("CUDA layout materialization symbol is unavailable.");
+        }
+        if (context == null || !context.available()) {
+            throw new UnsupportedOperationException(context == null ? "Missing CUDA bridge context." : context.reason());
+        }
+        if (source == null || !source.available() || destination == null || !destination.available()) {
+            throw new UnsupportedOperationException("CUDA layout materialization requires available source and destination bindings.");
+        }
+        AcceleratorLayoutAbiV2Descriptor descriptor = AcceleratorLayoutAbiV2Descriptor.fromBinding(source);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment shape = longArray(arena, descriptor.shape());
+            MemorySegment strides = longArray(arena, descriptor.strides());
+            int status = (int) STATE.layoutContiguousF32BufferFn.invokeExact(
+                    context.handle(),
+                    source.handle().handle(),
+                    destination.handle().handle(),
+                    descriptor.rank(),
+                    shape,
+                    strides,
+                    (long) descriptor.storageOffset(),
+                    descriptor.logicalElementCount(),
+                    descriptor.physicalByteSpan(),
+                    destination.logicalByteLength()
+            );
+            if (status != 0) {
+                throw new UnsupportedOperationException("CUDA layout materialization returned non-zero status: " + status);
+            }
+        } catch (Throwable t) {
+            throw new UnsupportedOperationException("CUDA layout materialization failed: " + safeMessage(t), t);
+        }
+    }
+
     /**
      * Executes a compiled CUDA DAG using native buffer handles.
      */
@@ -566,6 +611,12 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                             ADDRESS
                     )
             );
+            MethodHandle layoutContiguousF32BufferFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_cuda_graph_layout_contiguous_f32_buffer",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG)
+            );
             int layoutAbiV2Version = layoutAbiVersion(layoutAbiVersionFn);
             boolean layoutAbiV2Supported = layoutAbiV2Version == AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
                     && validateLayoutAbiV2Fn != null;
@@ -587,6 +638,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                         readBufferFn,
                         destroyBufferFn,
                         executePartitionBuffersFn,
+                        layoutContiguousF32BufferFn,
                         new CudaBridgeCapabilities(
                                 true,
                                 false,
@@ -620,6 +672,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                         readBufferFn,
                         destroyBufferFn,
                         executePartitionBuffersFn,
+                        layoutContiguousF32BufferFn,
                         new CudaBridgeCapabilities(
                                 true,
                                 true,
@@ -651,6 +704,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     readBufferFn,
                     destroyBufferFn,
                     executePartitionBuffersFn,
+                    layoutContiguousF32BufferFn,
                     new CudaBridgeCapabilities(
                             true,
                             true,
@@ -677,6 +731,14 @@ public final class CudaFfmBridge implements CudaGraphBridge {
     ) {
         MemorySegment segment = lookup.find(symbol).orElse(null);
         return segment == null ? null : linker.downcallHandle(segment, descriptor);
+    }
+
+    private static MemorySegment longArray(Arena arena, int[] values) {
+        long[] out = new long[values.length];
+        for (int i = 0; i < values.length; i++) {
+            out[i] = values[i];
+        }
+        return out.length == 0 ? MemorySegment.NULL : arena.allocateFrom(JAVA_LONG, out);
     }
 
     private static int layoutAbiVersion(MethodHandle layoutAbiVersionFn) {
@@ -777,6 +839,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         private final MethodHandle readBufferFn;
         private final MethodHandle destroyBufferFn;
         private final MethodHandle executePartitionBuffersFn;
+        private final MethodHandle layoutContiguousF32BufferFn;
         private final CudaBridgeCapabilities capabilities;
 
         private State(
@@ -792,6 +855,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                 MethodHandle readBufferFn,
                 MethodHandle destroyBufferFn,
                 MethodHandle executePartitionBuffersFn,
+                MethodHandle layoutContiguousF32BufferFn,
                 CudaBridgeCapabilities capabilities
         ) {
             this.available = available;
@@ -806,6 +870,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             this.readBufferFn = readBufferFn;
             this.destroyBufferFn = destroyBufferFn;
             this.executePartitionBuffersFn = executePartitionBuffersFn;
+            this.layoutContiguousF32BufferFn = layoutContiguousF32BufferFn;
             this.capabilities = capabilities == null
                     ? CudaBridgeCapabilities.unavailable(CudaBridgeCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, this.reason)
                     : capabilities;
@@ -825,6 +890,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     false,
                     reason,
                     arenaRef,
+                    null,
                     null,
                     null,
                     null,

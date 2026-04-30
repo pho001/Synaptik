@@ -943,6 +943,69 @@ int32_t synaptik_apple_mps_execute_partition_f32_buffers(
     }
 }
 
+int synaptik_apple_mps_layout_contiguous_f32_buffer(
+        void *context,
+        void *source_buffer,
+        void *destination_buffer,
+        int32_t rank,
+        int64_t *shape,
+        int64_t *strides,
+        int64_t storage_offset,
+        int64_t logical_element_count,
+        int64_t source_physical_byte_span,
+        int64_t destination_byte_length
+) {
+    if (context == NULL || source_buffer == NULL || destination_buffer == NULL) {
+        return 1;
+    }
+    if (rank <= 0 || rank > 8 || shape == NULL || strides == NULL) {
+        return 2;
+    }
+    if (storage_offset < 0 || logical_element_count < 0 || source_physical_byte_span < 0 || destination_byte_length < 0) {
+        return 3;
+    }
+    if (destination_byte_length < logical_element_count * (int64_t) sizeof(float)) {
+        return 4;
+    }
+    @autoreleasepool {
+        SynaptikAppleMpsContextBox *contextBox = SynaptikUnboxContext(context);
+        SynaptikAppleMpsBufferBox *sourceBox = SynaptikUnboxBuffer(source_buffer);
+        SynaptikAppleMpsBufferBox *destinationBox = SynaptikUnboxBuffer(destination_buffer);
+        if (contextBox == nil || sourceBox == nil || destinationBox == nil
+                || sourceBox.buffer == nil || destinationBox.buffer == nil) {
+            return 5;
+        }
+        if (sourceBox.byteLength < (NSUInteger) source_physical_byte_span
+                || destinationBox.byteLength < (NSUInteger) destination_byte_length) {
+            return 6;
+        }
+        float *source = (float *) sourceBox.buffer.contents;
+        float *destination = (float *) destinationBox.buffer.contents;
+        if (source == NULL || destination == NULL) {
+            return 7;
+        }
+        for (int64_t linear = 0; linear < logical_element_count; linear++) {
+            int64_t sourceIndex = storage_offset;
+            int64_t remaining = linear;
+            for (int32_t dim = rank - 1; dim >= 0; dim--) {
+                if (shape[dim] <= 0 || strides[dim] < 0) {
+                    return 8;
+                }
+                int64_t coordinate = remaining % shape[dim];
+                remaining /= shape[dim];
+                sourceIndex += coordinate * strides[dim];
+            }
+            int64_t sourceByteOffset = sourceIndex * (int64_t) sizeof(float);
+            if (sourceByteOffset < 0 || sourceByteOffset + (int64_t) sizeof(float) > source_physical_byte_span) {
+                return 9;
+            }
+            destination[linear] = source[sourceIndex];
+        }
+        (void) contextBox;
+        return 0;
+    }
+}
+
 void synaptik_apple_mps_destroy_executable(void *executable) {
     if (executable == NULL) {
         return;

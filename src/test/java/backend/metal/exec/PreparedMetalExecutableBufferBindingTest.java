@@ -66,6 +66,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PreparedMetalExecutableBufferBindingTest {
     @Test
+    void contiguousViewMaterializesDenseDeviceOutputWithoutCpuRoundTrip() {
+        AcceleratorBufferLayout sourceLayout = layout(
+                AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
+                new int[]{3, 2},
+                new int[]{1, 3},
+                0
+        );
+        AcceleratorBufferLayout targetLayout = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{3, 2},
+                new int[]{2, 1},
+                0,
+                6
+        );
+
+        var decision = backend.accelerator.buffer.AcceleratorLayoutTransformPlanner.decide(
+                new backend.accelerator.buffer.AcceleratorLayoutTransformRequest(
+                        ComputeBackend.GPU_METAL.name(),
+                        1,
+                        2,
+                        Operation.OpType.CONTIGUOUS,
+                        sourceLayout,
+                        targetLayout,
+                        binding(1, MetalBufferAccess.READ, 24, sourceLayout),
+                        false
+                ));
+
+        assertEquals(backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION, decision.kind());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE, decision.reasonCode());
+    }
+
+    @Test
+    void contiguousViewFallsBackVisiblyWhenLayoutTransformUnavailable() {
+        MetalMpsGraphBridge bridge = new FakeBridge(true);
+
+        assertFalse(bridge.supportsLayoutMaterialization());
+        UnsupportedOperationException failure = assertThrows(UnsupportedOperationException.class,
+                () -> bridge.materializeLayout(MetalMpsBridgeContext.unavailable("test"), null, null));
+        assertTrue(failure.getMessage().contains("GPU layout materialization")
+                || failure.getMessage().contains("layout materialization"));
+    }
+
+    @Test
     void layoutPolicyClassifiesDenseOutputAsDirectDenseBuffer() throws Exception {
         Object decision = metalLayoutPolicyDecision("output", layout(
                 AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS,

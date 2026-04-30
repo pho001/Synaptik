@@ -65,6 +65,33 @@ final class DeviceLayoutViewPropagator {
             failIfRequired(required, backendId, decision);
             return false;
         }
+        if (decision.kind() == AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION) {
+            DeviceLayoutMaterializer materializer = context.runtimeService(DeviceLayoutMaterializer.class);
+            if (materializer == null) {
+                failIfRequired(required, backendId, AcceleratorLayoutTransformDecision.rejected(
+                        request,
+                        AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
+                        "GPU layout transform unsupported: no dense layout materializer registered"
+                ));
+                return false;
+            }
+            DeviceBufferBinding materialized = materializer.materialize(decision, sourceBinding, context);
+            if (materialized == null || !materialized.available()) {
+                failIfRequired(required, backendId, AcceleratorLayoutTransformDecision.rejected(
+                        request,
+                        AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
+                        "GPU layout transform unsupported: dense layout materializer produced no binding"
+                ));
+                return false;
+            }
+            context.attachDeviceBufferBinding(
+                    targetNode.id(),
+                    materialized,
+                    StorageResidency.DEVICE_OWNED,
+                    materializationReason(backendId)
+            );
+            return true;
+        }
         if (decision.kind() != AcceleratorLayoutTransformKind.METADATA_ONLY_VIEW) {
             return false;
         }
@@ -157,6 +184,16 @@ final class DeviceLayoutViewPropagator {
             return runtimeConfig.accelerator().cuda().buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE;
         }
         return false;
+    }
+
+    private static String materializationReason(String backendId) {
+        if (ComputeBackend.GPU_METAL.name().equals(backendId)) {
+            return "metal gpu layout materialization";
+        }
+        if (ComputeBackend.GPU_CUDA.name().equals(backendId)) {
+            return "cuda gpu layout materialization";
+        }
+        return "gpu layout materialization";
     }
 
     private static void failIfRequired(boolean required, String backendId, AcceleratorLayoutTransformDecision decision) {
