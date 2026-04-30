@@ -130,16 +130,16 @@ Plans:
 Plans:
 
 **Wave 1**
-- [x] 04-01-PLAN.md — Add the tuning knob ownership matrix and enforce graph/autotune versus platform/calibration candidate boundaries.
+- [x] 04-01-PLAN.md - Establish test-enforced knob ownership matrix.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [x] 04-02-PLAN.md — Harden platform runtime profile IO with strict schema/version and accelerator buffer validation.
+- [x] 04-02-PLAN.md - Harden platform profile IO and schema validation.
 
 **Wave 3** *(blocked on Waves 1-2 completion)*
-- [x] 04-03-PLAN.md — Wire audited profile/calibration-derived accelerator cost factors through `RuntimeConfig` while preserving CPU safeguards.
+- [x] 04-03-PLAN.md - Wire audited runtime/profile-derived accelerator costs.
 
 **Wave 4** *(blocked on Waves 1-3 completion)*
-- [ ] 04-04-PLAN.md — Lock benchmark profile-read-only boundaries, update docs, and run final Phase 4 hygiene verification.
+- [ ] 04-04-PLAN.md - Lock benchmark read-only profile boundary and docs.
 
 Cross-cutting constraints:
 - Graph/workload tuning decisions stay in graph autotune; platform/dtype runtime thresholds stay in platform calibration.

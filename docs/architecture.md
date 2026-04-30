@@ -178,7 +178,7 @@ Benchmark reports summarize selected candidates and top rejected finalists. Text
 
 Runtime step traces remain execution-focused. `ExecutionStepTrace` continues to describe the prepared step that actually ran, including backend, kernel, dispatch, layout, copy/materialization attributes, and duration; planner cost fields are not duplicated onto every runtime step.
 
-Profile/calibration-derived costs are deferred to Phase 4. Phase 4 must audit graph autotune versus platform calibration ownership before profile- or calibration-derived costs are wired into the accelerator cost model.
+Profile-derived accelerator costs now enter prepare-time backend selection through audited `RuntimeConfig` values, not direct profile file reads. Graph autotune remains workload policy; platform calibration remains the owner of hardware, dtype, execution-mode, and runtime thresholds.
 
 ## Prepare Pipeline
 
@@ -547,6 +547,13 @@ The tuning package at `src/main/java/tuning` measures and persists those real ex
 - autotune a graph/workload through `tuning.autotune`
 - calibrate platform runtime defaults through `tuning.calibration`
 - persist winners and histories through `tuning.store`
+
+### Tuning Ownership And Persistence Boundaries
+
+The detailed tuning ownership matrix lives in `src/main/java/tuning/ARCHITECTURE.md`, and the persistence/read-only
+boundary lives in `src/main/java/tuning/PERSISTENCE.md`. In short, graph autotune owns graph/workload policy, platform
+calibration owns platform/dtype runtime thresholds, benchmark commands are profile-read-only, and reports are explain
+artifacts rather than runtime sources of truth.
 
 The CLI in `src/main/java/synaptik/app/TuningCli.java` wires these flows. The
 `src/main/java/synaptik/app/Main.java` entry point shows the same calibration and benchmark building

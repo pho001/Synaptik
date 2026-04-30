@@ -169,6 +169,21 @@ Meaning:
 - diagnostic and explain data
 - not execution source of truth
 
+## Benchmark commands are profile-read-only
+
+CLI benchmark commands such as `benchmark-winner` and `benchmark-graph-space`
+load already selected profiles, validate and measure explicit entries, and render
+reports. They do not create best-profile records, append tuning history, update
+calibration profiles, or persist benchmark reports as part of benchmark session
+execution.
+
+Autotune and calibration are the only profile-writing CLI flows.
+
+Benchmark reports are explain artifacts, not runtime sources of truth. A report
+can diagnose a selected candidate, backend path, cost summary, or fallback
+reason, but later execution must use real `ExecutionProfile` /
+`PlatformRuntimeProfile` artifacts rather than replaying report data.
+
 ## Worked Example
 
 Suppose:
