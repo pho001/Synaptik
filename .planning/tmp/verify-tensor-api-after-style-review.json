@@ -1,0 +1,97 @@
+{
+  "doc_path": "docs/tensor-api.md",
+  "claims_checked": 603,
+  "claims_passed": 603,
+  "claims_failed": 0,
+  "failures": [],
+  "checks": [
+    {
+      "category": "source_and_file_references",
+      "claims_checked": 116,
+      "claims_passed": 116,
+      "claims_failed": 0
+    },
+    {
+      "category": "public_constructor_and_factory_signatures",
+      "claims_checked": 31,
+      "claims_passed": 31,
+      "claims_failed": 0
+    },
+    {
+      "category": "metadata_and_lifecycle_method_signatures",
+      "claims_checked": 45,
+      "claims_passed": 45,
+      "claims_failed": 0
+    },
+    {
+      "category": "public_operation_signatures",
+      "claims_checked": 173,
+      "claims_passed": 173,
+      "claims_failed": 0
+    },
+    {
+      "category": "dtype_defaults_and_storage_rules",
+      "claims_checked": 8,
+      "claims_passed": 8,
+      "claims_failed": 0
+    },
+    {
+      "category": "forward_formulas_and_operation_semantics",
+      "claims_checked": 68,
+      "claims_passed": 68,
+      "claims_failed": 0
+    },
+    {
+      "category": "gradient_formulas_and_backward_behavior",
+      "claims_checked": 70,
+      "claims_passed": 70,
+      "claims_failed": 0
+    },
+    {
+      "category": "concrete_java_examples",
+      "claims_checked": 25,
+      "claims_passed": 25,
+      "claims_failed": 0
+    },
+    {
+      "category": "operation_subsection_java_comment_style",
+      "claims_checked": 67,
+      "claims_passed": 67,
+      "claims_failed": 0
+    }
+  ],
+  "evidence": {
+    "primary_files_checked": [
+      "src/main/java/tensor/Tensor.java",
+      "src/main/java/tensor/TensorOps.java",
+      "src/main/java/tensor/TensorMetadata.java",
+      "src/main/java/tensor/DataType.java",
+      "src/main/java/tensor/TensorDataFactory.java",
+      "src/main/java/tensor/TensorStorageSupport.java",
+      "src/main/java/tensor/TensorDataTypeUtil.java",
+      "src/main/java/tensor/TensorBroadcastOps.java",
+      "src/main/java/tensor/TensorPiecewiseOps.java",
+      "src/main/java/tensor/ops/layout/TensorLayoutOps.java",
+      "src/main/java/tensor/ops/binary/TensorBinaryOps.java",
+      "src/main/java/tensor/ops/compare/TensorCompareOps.java",
+      "src/main/java/tensor/ops/bool/TensorBoolOps.java",
+      "src/main/java/tensor/ops/select/TensorSelectOps.java",
+      "src/main/java/tensor/ops/index/TensorIndexOps.java",
+      "src/main/java/tensor/ops/unary/TensorUnaryOps.java",
+      "src/main/java/tensor/ops/reduction/TensorReduceOps.java",
+      "src/main/java/tensor/ops/linalg/TensorMatMulOps.java",
+      "src/main/java/tensor/ops/linalg/TensorLinearOps.java",
+      "src/main/java/tensor/ops/linalg/TensorAttentionOps.java",
+      "src/main/java/tensor/ops/conv/TensorConvOps.java",
+      "src/main/java/tensor/ops/pool/TensorPoolOps.java",
+      "src/main/java/tensor/ops/normalization/TensorNormalizationOps.java",
+      "src/main/java/tensor/ops/loss/TensorLossOps.java",
+      "src/main/java/tensor/ops/loss/LossSupport.java",
+      "src/main/java/tensor/options/Conv2dOptions.java",
+      "src/main/java/tensor/options/Pool2dOptions.java",
+      "src/main/java/tensor/loss/LossReduction.java"
+    ],
+    "style_check": "All Java operation example blocks use Java line comments for formulas, expected values, and gradient notes; no non-comment expected-output blocks were found.",
+    "execution_note": "No documentation commands were executed. Verification used filesystem reads and code inspection only."
+  }
+}
