@@ -7,6 +7,10 @@ Chapters: [Why Native Bridges Exist](#why-native-bridges-exist) | [Term Map At A
 
 This document explains two related but distinct concepts used by Synaptik's runtime: BLAS as an optimized native math library for matrix multiplication, and Java FFM as the Java-to-native bridge used to call libraries such as OpenBLAS, Metal, and CUDA shims.
 
+## GPU Lowering Coverage Matrix
+
+The checked-in [GPU Lowering Coverage Matrix](gpu-lowering-coverage.md) records Metal and CUDA operation-family support for `GPULOWER-01` through `GPULOWER-03`. Unsupported paths must stay trace-visible: planner rejection, fallback, native ABI mismatch, and CPU materialization boundaries are diagnostics, not hidden behavior.
+
 ## Table Of Contents
 
 - [Why Native Bridges Exist](#why-native-bridges-exist)
