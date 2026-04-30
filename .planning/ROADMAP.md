@@ -145,6 +145,27 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 4. Portable tests prove lowering decisions and CPU fallback safeguards for both selected and rejected candidates.
 5. Documentation explains how to add new GPU-lowerable operation families without duplicating backend-neutral planning logic.
 
+**Plans:**
+
+Wave 1:
+- [11-01 Shared GPU Lowering Coverage Contract](phases/11-gpu-lowering-coverage-matrix/11-01-PLAN.md) - creates backend-neutral coverage statuses, operation families, stable unsupported reasons, matrix tests, and docs for GPULOWER-01/03.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [11-02 Metal/CUDA Legality Coverage Alignment](phases/11-gpu-lowering-coverage-matrix/11-02-PLAN.md) - wires Metal and CUDA legality adapters through the shared coverage matrix while preserving backend-owned dtype/layout/capability gates.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [11-03 Softmax-Ish Lowering Expansion](phases/11-gpu-lowering-coverage-matrix/11-03-PLAN.md) - supports `LOG_SOFTMAX` as `SOFTMAX` followed by `LOG` using existing accelerator DAG primitives and adds selected/rejected candidate tests.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [11-04 Lowering Coverage Trace And Docs Closure](phases/11-gpu-lowering-coverage-matrix/11-04-PLAN.md) - closes with trace visibility, layout-heavy flow coverage, developer docs, focused verification commands, and profile artifact hygiene.
+
+**Cross-cutting constraints:**
+- Public `Tensor` stays logical; residency stays in `ExecutionState` and `DeviceBufferBinding`.
+- Metal and CUDA share semantic coverage classifications, but backend-specific native capability, dtype, layout ABI, and bridge checks remain backend-owned.
+- CUDA direct non-dense compute remains conservative unless Phase 10 metadata-only view propagation or dense materialization makes the consumer layout legal.
+- Reductions, normalization, and loss-adjacent flows must be explicit matrix entries and visibly rejected unless a narrow safe implementation is added.
+- Phase 12 owns fused GPU compound execution; Phase 13 owns coverage benchmark ratios and regression gates.
+
 **Notes:**
 - Prioritize operation patterns that unlock longer representative regions rather than chasing isolated low-impact ops.
 - Keep operation semantics in descriptors/public tensor ops; lowering should consume existing semantics.
