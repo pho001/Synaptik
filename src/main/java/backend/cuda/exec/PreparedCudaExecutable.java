@@ -1,22 +1,31 @@
 package backend.cuda.exec;
 
 import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferBindings;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
+import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.cuda.buffer.CudaAcceleratorBufferBinder;
+import backend.cuda.buffer.CudaBufferAccess;
+import backend.cuda.buffer.CudaBufferAllocator;
+import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;
 import backend.cuda.bridge.CudaGraphBridge;
 import backend.lowering.LoweringFamily;
+import backend.memory.CpuMaterializationReason;
+import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
+import tensor.Tensor;
 
 import java.util.List;
 import java.util.Objects;
@@ -91,44 +100,96 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
      */
     @Override
     public void execute(ExecutionContext context) {
-        if (backendConfig.buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE) {
-            String reason = bridge.supportsBufferBindings()
-                    ? "CUDA prepared executable does not implement buffer binding execution"
-                    : "CUDA bridge does not support required buffer bindings";
-            lastAcceleratorBufferDecision = new AcceleratorBufferDecision(
+        String bridgeUnavailableReason = cudaBridgeUnavailableReason();
+        if (!bridgeUnavailableReason.isBlank()) {
+            AcceleratorBufferDecision decision = bridgeUnavailableDecision(bridgeUnavailableReason);
+            publishDecision(decision);
+            requireBufferOrThrow(decision);
+            PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+            return;
+        }
+        if (context == null) {
+            AcceleratorBufferDecision decision = new AcceleratorBufferDecision(
                     ComputeBackend.GPU_CUDA,
                     backendConfig.buffer().bindingMode(),
-                    AcceleratorBufferExecutionPath.UNAVAILABLE,
+                    backendConfig.buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE
+                            ? AcceleratorBufferExecutionPath.UNAVAILABLE
+                            : AcceleratorBufferExecutionPath.TENSOR_ARRAY,
                     false,
-                    true,
+                    backendConfig.buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE,
                     AcceleratorBufferReasonCode.REQUIRED_BUFFER_EXECUTION_UNAVAILABLE,
-                    reason,
+                    "CUDA buffer execution requires runtime tensor context",
                     List.of(),
                     List.of()
             );
-            throw new IllegalStateException("Accelerator buffer path is required for GPU_CUDA but unavailable: "
-                    + lastAcceleratorBufferDecision.reasonCode() + ": " + lastAcceleratorBufferDecision.reason());
+            publishDecision(decision);
+            requireBufferOrThrow(decision);
         }
-        lastAcceleratorBufferDecision = bufferDecision(context);
-        if (PreparedAcceleratorExecutionSupport.bridgeReady(
-                bridge.isAvailable(),
-                bridgeContext.available(),
-                bridgeExecutable.available())) {
+
+        ResolvedAcceleratorInputs resolvedInputs = AcceleratorPreparedInputResolver.resolve(
+                cpuFallbackSteps,
+                bridgeExecutable.externalInputNodeIds(),
+                context
+        );
+        AcceleratorBufferRequest request = bufferRequest(context);
+        AcceleratorBufferDecision decision = bufferBinder.decide(
+                request,
+                resolvedInputs,
+                backendConfig.buffer(),
+                context
+        );
+        publishDecision(decision);
+        requireBufferOrThrow(decision);
+
+        if (decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
+            try {
+                CudaBufferAllocator allocator = bridge.createBufferAllocator(bridgeContext);
+                AcceleratorBufferBindings<CudaBufferBinding> bindings = bufferBinder.resolve(
+                        request,
+                        resolvedInputs,
+                        decision,
+                        context,
+                        allocator
+                );
+                bridge.executeBuffers(bridgeContext, bridgeExecutable, bindings.inputs(), bindings.outputs());
+                markBufferOutputsCurrent(context, bindings.outputs());
+            } catch (RuntimeException ex) {
+                AcceleratorBufferDecision failure = new AcceleratorBufferDecision(
+                        ComputeBackend.GPU_CUDA,
+                        backendConfig.buffer().bindingMode(),
+                        backendConfig.buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE
+                                ? AcceleratorBufferExecutionPath.UNAVAILABLE
+                                : AcceleratorBufferExecutionPath.CPU_FALLBACK,
+                        false,
+                        backendConfig.buffer().bindingMode() == AcceleratorBufferBindingMode.REQUIRE,
+                        AcceleratorBufferReasonCode.NATIVE_BUFFER_EXECUTION_FAILED,
+                        "CUDA buffer binding execution failed: " + safeMessage(ex),
+                        decision.inputs(),
+                        decision.outputs()
+                );
+                publishDecision(failure);
+                requireBufferOrThrow(failure);
+                PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+            }
+            return;
+        }
+
+        if (decision.path() == AcceleratorBufferExecutionPath.CPU_FALLBACK) {
+            PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+            return;
+        }
+
+        ensureTensorArrayInputsCpuReadable(context);
+        try {
             bridge.execute(
                     bridgeContext,
                     bridgeExecutable,
-                    PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(
-                            bridgeExecutable.externalInputNodeIds(),
-                            context
-                    ),
-                    PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(
-                            bridgeExecutable.outputNodeIds(),
-                            context
-                    )
+                    resolvedInputs.executionExternalInputs(),
+                    outputTensors(context)
             );
-            return;
+        } catch (RuntimeException ex) {
+            PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
         }
-        PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
     }
 
     @Override
@@ -171,29 +232,8 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
         return bridgeExecutable;
     }
 
-    private AcceleratorBufferDecision bufferDecision(ExecutionContext context) {
-        if (context == null
-                || bridgeExecutable.externalInputNodeIds().isEmpty()
-                || bridgeExecutable.outputNodeIds().isEmpty()) {
-            return new AcceleratorBufferDecision(
-                    ComputeBackend.GPU_CUDA,
-                    backendConfig.buffer().bindingMode(),
-                    bridge.supportsBufferBindings()
-                            ? AcceleratorBufferExecutionPath.UNAVAILABLE
-                            : AcceleratorBufferExecutionPath.TENSOR_ARRAY,
-                    false,
-                    false,
-                    bridge.supportsBufferBindings()
-                            ? AcceleratorBufferReasonCode.NOT_EVALUATED
-                            : AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
-                    bridge.supportsBufferBindings()
-                            ? "CUDA buffer policy not evaluated without runtime tensor context"
-                            : "native CUDA buffer ABI unavailable: bridge does not support buffer bindings",
-                    List.of(),
-                    List.of()
-            );
-        }
-        AcceleratorBufferRequest request = new AcceleratorBufferRequest(
+    private AcceleratorBufferRequest bufferRequest(ExecutionContext context) {
+        return new AcceleratorBufferRequest(
                 ComputeBackend.GPU_CUDA,
                 dagSpec.nodes().size(),
                 bridgeExecutable.externalInputNodeIds(),
@@ -208,26 +248,105 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
                 layoutsForNodeIds(context, bridgeExecutable.outputNodeIds()),
                 context.runsBackwardPass()
         );
-        AcceleratorBufferDecision decision = bufferBinder.decide(request, backendConfig.buffer());
-        if (decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
-            return new AcceleratorBufferDecision(
-                    ComputeBackend.GPU_CUDA,
-                    backendConfig.buffer().bindingMode(),
-                    AcceleratorBufferExecutionPath.TENSOR_ARRAY,
-                    false,
-                    false,
-                    AcceleratorBufferReasonCode.BACKEND_BUFFER_NOT_IMPLEMENTED,
-                    "CUDA dense FLOAT32 buffer metadata accepted; native buffer execution is deferred to Phase 7",
-                    decision.inputs(),
-                    decision.outputs()
-            );
-        }
-        return decision;
     }
 
     private static List<AcceleratorBufferLayout> layoutsForNodeIds(ExecutionContext context, List<Integer> nodeIds) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return List.of();
+        }
         return nodeIds.stream()
                 .map(nodeId -> AcceleratorBufferLayout.fromTensor(context.runtimeTensorForNodeId(nodeId)))
                 .toList();
+    }
+
+    private List<Tensor> outputTensors(ExecutionContext context) {
+        return bridgeExecutable.outputNodeIds().isEmpty()
+                ? List.of()
+                : PreparedAcceleratorExecutionSupport.resolveRuntimeTensors(bridgeExecutable.outputNodeIds(), context);
+    }
+
+    private void ensureTensorArrayInputsCpuReadable(ExecutionContext context) {
+        for (int nodeId : bridgeExecutable.externalInputNodeIds()) {
+            context.requireCpuReadable(nodeId, CpuMaterializationReason.CPU_CONSUMER);
+        }
+    }
+
+    private AcceleratorBufferDecision bridgeUnavailableDecision(String reason) {
+        AcceleratorBufferBindingMode mode = backendConfig.buffer().bindingMode();
+        return new AcceleratorBufferDecision(
+                ComputeBackend.GPU_CUDA,
+                mode,
+                mode == AcceleratorBufferBindingMode.REQUIRE
+                        ? AcceleratorBufferExecutionPath.UNAVAILABLE
+                        : AcceleratorBufferExecutionPath.CPU_FALLBACK,
+                false,
+                mode == AcceleratorBufferBindingMode.REQUIRE,
+                AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
+                reason,
+                List.of(),
+                List.of()
+        );
+    }
+
+    private void publishDecision(AcceleratorBufferDecision decision) {
+        lastAcceleratorBufferDecision = decision == null
+                ? AcceleratorBufferDecision.notEvaluated(ComputeBackend.GPU_CUDA)
+                : decision;
+    }
+
+    private static void requireBufferOrThrow(AcceleratorBufferDecision decision) {
+        if (decision != null && decision.required() && decision.path() != AcceleratorBufferExecutionPath.BUFFER_BINDING) {
+            throw new IllegalStateException("Accelerator buffer path is required for "
+                    + decision.backend() + " but unavailable: "
+                    + decision.reasonCode() + ": " + decision.reason());
+        }
+    }
+
+    private String cudaBridgeUnavailableReason() {
+        if (!bridge.isAvailable()) {
+            return "bridge unavailable: " + bridge.unavailableReason();
+        }
+        if (!bridgeContext.available()) {
+            return "bridge context unavailable: " + bridgeContext.reason();
+        }
+        if (!bridgeExecutable.available()) {
+            return "bridge executable unavailable: " + bridgeExecutable.reason();
+        }
+        return "";
+    }
+
+    private static void markBufferOutputsCurrent(ExecutionContext context, List<CudaBufferBinding> outputBindings) {
+        if (context == null || outputBindings == null || outputBindings.isEmpty()) {
+            return;
+        }
+        for (CudaBufferBinding binding : outputBindings) {
+            CudaBufferBinding activeBinding = readableAfterWrite(binding);
+            context.attachDeviceBufferBinding(
+                    activeBinding.nodeId(),
+                    activeBinding,
+                    StorageResidency.DEVICE_OWNED,
+                    "cuda buffer binding output"
+            );
+        }
+    }
+
+    private static CudaBufferBinding readableAfterWrite(CudaBufferBinding binding) {
+        if (binding.access() == CudaBufferAccess.READ_WRITE) {
+            return binding;
+        }
+        return new CudaBufferBinding(
+                binding.nodeId(),
+                binding.layout(),
+                binding.handle(),
+                CudaBufferAccess.READ_WRITE
+        );
+    }
+
+    private static String safeMessage(RuntimeException ex) {
+        if (ex == null) {
+            return "unknown error";
+        }
+        String message = ex.getMessage();
+        return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
     }
 }
