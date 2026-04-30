@@ -2,6 +2,7 @@ package graph.execution;
 
 import backend.ComputeBackend;
 import backend.ComputeEngine;
+import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.kernels.CpuDTypeOps;
 import backend.memory.CpuMaterializationReason;
@@ -428,6 +429,16 @@ public final class PreparedExecution {
             attrs.put("acceleratorBufferPreparedInputUsed", decision.preparedInputUsed());
             attrs.put("acceleratorBufferInputCount", decision.inputs().size());
             attrs.put("acceleratorBufferOutputCount", decision.outputs().size());
+            var compoundSummary = metadata.acceleratorExecutable().compoundSummary();
+            if (compoundSummary != null && compoundSummary.patternType() != GpuCompoundPatternType.NONE) {
+                attrs.put("gpuCompoundPattern", compoundSummary.patternType().name());
+                attrs.put("gpuCompoundSupported", compoundSummary.supported());
+                attrs.put("gpuCompoundReason", compoundSummary.reason().name());
+                attrs.put("gpuCompoundNodeCount", compoundSummary.orderedNodeIds().size());
+                attrs.put("gpuCompoundOrderedNodeIds", compoundSummary.orderedNodeIds());
+                attrs.put("gpuCompoundDagNodeTypes", compoundSummary.dagNodeTypes());
+                attrs.put("gpuCompoundPostOps", compoundSummary.postOps());
+            }
         }
         var layoutTransformDecision = context.layoutTransformDecisionForNodeId(node.id());
         if (layoutTransformDecision != null) {

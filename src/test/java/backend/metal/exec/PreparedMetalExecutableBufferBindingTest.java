@@ -18,6 +18,8 @@ import backend.accelerator.exec.AcceleratorPreparedInputSite;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
+import backend.accelerator.lowering.GpuCompoundPatternType;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.kernels.elementwise.strided.StridedLayoutDecision;
@@ -249,6 +251,24 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
         assertTrue(fixture.state().requiresCpuMaterialization(fixture.outputNode().id()));
         assertTrue(fixture.state().cpuMaterializationTraces().isEmpty());
+    }
+
+    @Test
+    void elementwiseChainBufferBindingKeepsIntermediatesDeviceOwnedWithoutCpuConsumerMaterialization() {
+        ElementwiseChainFixture fixture = elementwiseChainFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = elementwiseChainExecutable(fixture, bridge);
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.expNode().id()).residency());
+        assertTrue(fixture.state().cpuMaterializationTraces().stream().noneMatch(trace ->
+                (trace.nodeId() == fixture.addNode().id() || trace.nodeId() == fixture.reluNode().id())
+                        && trace.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
     }
 
     @Test
@@ -840,6 +860,19 @@ class PreparedMetalExecutableBufferBindingTest {
         return executable(fixture.inputNode(), fixture.outputNode(), bridge);
     }
 
+    private static PreparedMetalExecutable elementwiseChainExecutable(
+            ElementwiseChainFixture fixture,
+            MetalMpsGraphBridge bridge
+    ) {
+        return new PreparedMetalExecutable(
+                elementwiseChainPlan(fixture),
+                backend.lowering.LoweringFamily.METAL_GRAPH_REGION,
+                bridge,
+                List.of(),
+                AcceleratorBackendConfig.defaults()
+        );
+    }
+
     private static PreparedMetalExecutable executable(
             CompiledNode inputNode,
             CompiledNode outputNode,
@@ -907,6 +940,33 @@ class PreparedMetalExecutableBufferBindingTest {
                 state
         );
         return new TwoStageFixture(inputNode, middleNode, outputNode, state, context, metadata);
+    }
+
+    private static ElementwiseChainFixture elementwiseChainFixture() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "chain_a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "chain_b", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor exp = relu.exp();
+        CompiledGraph compiled = CompiledGraph.compile(exp, OptimizerConfig.noOptimization());
+        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        CompiledNode addNode = operationNode(nodes, Operation.OpType.ADD);
+        CompiledNode reluNode = operationNode(nodes, Operation.OpType.RELU);
+        CompiledNode expNode = operationNode(nodes, Operation.OpType.EXP);
+        CompiledNode inputA = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(0)).findFirst().orElseThrow();
+        CompiledNode inputB = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(1)).findFirst().orElseThrow();
+        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
+            metadata.put(step.compiledNode().id(), step.metadata());
+        }
+        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(
+                RuntimeConfig.inferenceDefaults(),
+                ExecutionMode.FORWARD,
+                metadata,
+                state
+        );
+        return new ElementwiseChainFixture(inputA, inputB, addNode, reluNode, expNode, state, context);
     }
 
     private static Fixture nonContiguousInputFixture() {
@@ -1135,6 +1195,58 @@ class PreparedMetalExecutableBufferBindingTest {
         );
     }
 
+    private static MetalPartitionPlan elementwiseChainPlan(ElementwiseChainFixture fixture) {
+        List<Integer> orderedNodeIds = List.of(fixture.addNode().id(), fixture.reluNode().id(), fixture.expNode().id());
+        List<Integer> externalInputIds = List.of(fixture.inputA().id(), fixture.inputB().id());
+        List<Integer> outputNodeIds = List.of(fixture.expNode().id());
+        AcceleratorDagSpec dag = new AcceleratorDagSpec(
+                List.of(
+                        new AcceleratorDagInput(fixture.inputA().id(), shapeList(fixture.inputA().shape()), fixture.inputA().dataType()),
+                        new AcceleratorDagInput(fixture.inputB().id(), shapeList(fixture.inputB().shape()), fixture.inputB().dataType())
+                ),
+                List.of(
+                        new AcceleratorDagNode(fixture.addNode().id(), AcceleratorDagNodeType.ADD, AcceleratorDagValueRef.externalInput(0), AcceleratorDagValueRef.externalInput(1), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), 0, 1, fixture.expNode().flatDataSize(), 1, 1, 1),
+                        new AcceleratorDagNode(fixture.reluNode().id(), AcceleratorDagNodeType.RELU, AcceleratorDagValueRef.nodeOutput(0), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), 0, 1, fixture.expNode().flatDataSize(), 1, 1, 1),
+                        new AcceleratorDagNode(fixture.expNode().id(), AcceleratorDagNodeType.EXP, AcceleratorDagValueRef.nodeOutput(1), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), 0, 1, fixture.expNode().flatDataSize(), 1, 1, 1)
+                ),
+                List.of(2),
+                outputNodeIds
+        );
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                fixture.addNode().id(),
+                orderedNodeIds,
+                List.of(
+                        new AcceleratorSubgraphOp(fixture.addNode().id(), Operation.OpType.ADD),
+                        new AcceleratorSubgraphOp(fixture.reluNode().id(), Operation.OpType.RELU),
+                        new AcceleratorSubgraphOp(fixture.expNode().id(), Operation.OpType.EXP)
+                ),
+                externalInputIds,
+                outputNodeIds
+        );
+        GpuCompoundRegionSummary summary = GpuCompoundRegionSummary.supported(
+                ComputeBackend.GPU_METAL,
+                GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                orderedNodeIds,
+                externalInputIds,
+                outputNodeIds,
+                List.of("ADD", "RELU", "EXP"),
+                List.of(),
+                "test elementwise chain"
+        );
+        return new MetalPartitionPlan(
+                fixture.expNode().id(),
+                subgraph,
+                new AcceleratorSubgraphLoweringResult(fixture.addNode().id(), null, dag, fixture.expNode().flatDataSize(), summary)
+        );
+    }
+
+    private static CompiledNode operationNode(List<CompiledNode> nodes, Operation.OpType opType) {
+        return nodes.stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == opType)
+                .findFirst()
+                .orElseThrow();
+    }
+
     private static MetalBufferBinding binding(int nodeId, MetalBufferAccess access, long bytes) {
         return binding(nodeId, access, bytes, new int[]{2}, 2);
     }
@@ -1271,6 +1383,17 @@ class PreparedMetalExecutableBufferBindingTest {
             ExecutionState state,
             ExecutionContext context,
             Map<Integer, CompiledNodeExecutionMetadata> metadata
+    ) {
+    }
+
+    private record ElementwiseChainFixture(
+            CompiledNode inputA,
+            CompiledNode inputB,
+            CompiledNode addNode,
+            CompiledNode reluNode,
+            CompiledNode expNode,
+            ExecutionState state,
+            ExecutionContext context
     ) {
     }
 

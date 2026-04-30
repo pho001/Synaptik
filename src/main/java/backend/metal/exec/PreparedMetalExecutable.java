@@ -473,6 +473,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     /**
      * Returns the compound GPU summary associated with this prepared Metal executable.
      */
+    @Override
     public GpuCompoundRegionSummary compoundSummary() {
         return plan.lowering().compoundSummary();
     }

@@ -3,6 +3,7 @@ import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
+import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionMode;
 import backend.ComputeBackend;
 import backend.runtime.ExecutionContext;
@@ -258,6 +259,40 @@ public class CompiledGraphTraceTest {
         assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
         assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
         assertEquals("CPU_ARRAY", attrs.get("storageResidency"));
+    }
+
+    @Test
+    void gpuCompoundElementwiseTraceContainsPatternAndDagNodeTypes() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "traceChainA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "traceChainB", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        int addNodeId = nodeId(compiled, operations.Operation.OpType.ADD);
+        int reluNodeId = nodeId(compiled, operations.Operation.OpType.RELU);
+        var trace = prepared.executeTraced(ExecutionMode.FORWARD);
+        var gpuStep = trace.steps().stream()
+                .filter(step -> "GPU_CUDA".equals(step.backend()))
+                .findFirst()
+                .orElseThrow();
+        var attrs = gpuStep.metadata().attributes();
+
+        assertEquals("ELEMENTWISE_CHAIN", attrs.get("gpuCompoundPattern"));
+        assertEquals(true, attrs.get("gpuCompoundSupported"));
+        assertEquals("SUPPORTED", attrs.get("gpuCompoundReason"));
+        assertTrue(((List<?>) attrs.get("gpuCompoundOrderedNodeIds")).containsAll(List.of(addNodeId, reluNodeId)));
+        assertTrue(((List<?>) attrs.get("gpuCompoundDagNodeTypes")).containsAll(List.of("ADD", "RELU", "EXP")));
+        if ("BUFFER_BINDING".equals(attrs.get("acceleratorBufferExecutionPath"))) {
+            assertFalse(trace.cpuMaterializations().stream().anyMatch(materialization ->
+                    (materialization.nodeId() == addNodeId || materialization.nodeId() == reluNodeId)
+                            && materialization.reason() == CpuMaterializationReason.CPU_CONSUMER));
+        }
     }
 
     private record SyntheticAcceleratorExecutable(int nodeId) implements PreparedAcceleratorExecutable {

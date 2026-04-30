@@ -11,6 +11,8 @@ import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.PartitionExecutionRole;
+import backend.accelerator.lowering.GpuCompoundPatternType;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;
 import backend.cuda.bridge.CudaGraphBridge;
@@ -132,6 +134,24 @@ class PreparedCudaExecutableBufferPolicyTest {
         assertEquals(StorageResidency.DEVICE_OWNED,
                 fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
         assertTrue(fixture.state().requiresCpuMaterialization(fixture.outputNode().id()));
+    }
+
+    @Test
+    void elementwiseChainBufferBindingKeepsIntermediatesDeviceOwnedWithoutCpuConsumerMaterialization() {
+        ElementwiseChainFixture fixture = elementwiseChainFixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(true);
+        PreparedCudaExecutable executable = elementwiseChainExecutable(fixture, bridge, AcceleratorBackendConfig.defaults());
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.expNode().id()).residency());
+        assertTrue(fixture.state().cpuMaterializationTraces().stream().noneMatch(trace ->
+                (trace.nodeId() == fixture.addNode().id() || trace.nodeId() == fixture.reluNode().id())
+                        && trace.reason() == CpuMaterializationReason.CPU_CONSUMER));
     }
 
     @Test
@@ -442,6 +462,31 @@ class PreparedCudaExecutableBufferPolicyTest {
         return executable(fixture.inputNode(), fixture.outputNode(), fixture.metadata(), bridge, backendConfig);
     }
 
+    private static PreparedCudaExecutable elementwiseChainExecutable(
+            ElementwiseChainFixture fixture,
+            CudaGraphBridge bridge,
+            AcceleratorBackendConfig backendConfig
+    ) {
+        AcceleratorDagSpec dag = elementwiseChainDag(fixture);
+        return new PreparedCudaExecutable(
+                dag,
+                LoweringFamily.CUDA_GRAPH_REGION,
+                bridge,
+                List.of(),
+                backendConfig,
+                GpuCompoundRegionSummary.supported(
+                        backend.ComputeBackend.GPU_CUDA,
+                        GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                        List.of(fixture.addNode().id(), fixture.reluNode().id(), fixture.expNode().id()),
+                        List.of(fixture.inputA().id(), fixture.inputB().id()),
+                        List.of(fixture.expNode().id()),
+                        List.of("ADD", "RELU", "EXP"),
+                        List.of(),
+                        "test elementwise chain"
+                )
+        );
+    }
+
     private static PreparedCudaExecutable executable(
             CompiledNode inputNode,
             CompiledNode outputNode,
@@ -518,6 +563,33 @@ class PreparedCudaExecutableBufferPolicyTest {
         return new TwoStageFixture(inputNode, middleNode, outputNode, metadata, state, context);
     }
 
+    private static ElementwiseChainFixture elementwiseChainFixture() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "chain_a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "chain_b", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor exp = relu.exp();
+        CompiledGraph compiled = CompiledGraph.compile(exp, OptimizerConfig.noOptimization());
+        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        CompiledNode addNode = operationNode(nodes, Operation.OpType.ADD);
+        CompiledNode reluNode = operationNode(nodes, Operation.OpType.RELU);
+        CompiledNode expNode = operationNode(nodes, Operation.OpType.EXP);
+        CompiledNode inputA = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(0)).findFirst().orElseThrow();
+        CompiledNode inputB = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(1)).findFirst().orElseThrow();
+        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
+            metadata.put(step.compiledNode().id(), step.metadata());
+        }
+        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(
+                RuntimeConfig.inferenceDefaults(),
+                ExecutionMode.FORWARD,
+                metadata,
+                state
+        );
+        return new ElementwiseChainFixture(inputA, inputB, addNode, reluNode, expNode, state, context);
+    }
+
     private static AcceleratorDagSpec dag(CompiledNode inputNode, CompiledNode outputNode) {
         AcceleratorDagInput input = new AcceleratorDagInput(
                 inputNode.id(),
@@ -541,6 +613,29 @@ class PreparedCudaExecutableBufferPolicyTest {
         return new AcceleratorDagSpec(List.of(input), List.of(node), List.of(0), List.of(outputNode.id()));
     }
 
+    private static AcceleratorDagSpec elementwiseChainDag(ElementwiseChainFixture fixture) {
+        return new AcceleratorDagSpec(
+                List.of(
+                        new AcceleratorDagInput(fixture.inputA().id(), Arrays.stream(fixture.inputA().shape()).boxed().toList(), fixture.inputA().dataType()),
+                        new AcceleratorDagInput(fixture.inputB().id(), Arrays.stream(fixture.inputB().shape()).boxed().toList(), fixture.inputB().dataType())
+                ),
+                List.of(
+                        new AcceleratorDagNode(fixture.addNode().id(), AcceleratorDagNodeType.ADD, AcceleratorDagValueRef.externalInput(0), AcceleratorDagValueRef.externalInput(1), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), 0, 1, fixture.expNode().flatDataSize(), 1, 1, 1),
+                        new AcceleratorDagNode(fixture.reluNode().id(), AcceleratorDagNodeType.RELU, AcceleratorDagValueRef.nodeOutput(0), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), 0, 1, fixture.expNode().flatDataSize(), 1, 1, 1),
+                        new AcceleratorDagNode(fixture.expNode().id(), AcceleratorDagNodeType.EXP, AcceleratorDagValueRef.nodeOutput(1), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), AcceleratorDagValueRef.none(), 0, 1, fixture.expNode().flatDataSize(), 1, 1, 1)
+                ),
+                List.of(2),
+                List.of(fixture.expNode().id())
+        );
+    }
+
+    private static CompiledNode operationNode(List<CompiledNode> nodes, Operation.OpType opType) {
+        return nodes.stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == opType)
+                .findFirst()
+                .orElseThrow();
+    }
+
     private record Fixture(
             Tensor inputTensor,
             Tensor rootTensor,
@@ -558,6 +653,17 @@ class PreparedCudaExecutableBufferPolicyTest {
             CompiledNode middleNode,
             CompiledNode outputNode,
             Map<Integer, CompiledNodeExecutionMetadata> metadata,
+            ExecutionState state,
+            ExecutionContext context
+    ) {
+    }
+
+    private record ElementwiseChainFixture(
+            CompiledNode inputA,
+            CompiledNode inputB,
+            CompiledNode addNode,
+            CompiledNode reluNode,
+            CompiledNode expNode,
             ExecutionState state,
             ExecutionContext context
     ) {

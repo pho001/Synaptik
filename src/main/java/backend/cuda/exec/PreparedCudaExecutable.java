@@ -296,6 +296,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
     /**
      * Returns the compound GPU summary associated with this prepared CUDA executable.
      */
+    @Override
     public GpuCompoundRegionSummary compoundSummary() {
         return compoundSummary;
     }

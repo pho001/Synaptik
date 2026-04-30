@@ -388,6 +388,62 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void gpuMetalElementwiseChainPublishesCompoundSummary() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "metalChainA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "metalChainB", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int addNodeId = nodeId(compiled, Operation.OpType.ADD);
+        int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
+        int expNodeId = nodeId(compiled, Operation.OpType.EXP);
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+
+        assertEquals(1, gpuSteps.size());
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
+        assertTrue(executable.compoundSummary().supported());
+        assertTrue(executable.compoundSummary().orderedNodeIds().containsAll(List.of(addNodeId, reluNodeId, expNodeId)));
+        assertTrue(executable.compoundSummary().dagNodeTypes().containsAll(List.of("ADD", "RELU", "EXP")));
+    }
+
+    @Test
+    void gpuCudaElementwiseChainPublishesCompoundSummary() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "cudaChainA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "cudaChainB", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int addNodeId = nodeId(compiled, Operation.OpType.ADD);
+        int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
+        int expNodeId = nodeId(compiled, Operation.OpType.EXP);
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
+                .toList();
+
+        assertEquals(1, gpuSteps.size());
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
+        assertTrue(executable.compoundSummary().supported());
+        assertTrue(executable.compoundSummary().orderedNodeIds().containsAll(List.of(addNodeId, reluNodeId, expNodeId)));
+        assertTrue(executable.compoundSummary().dagNodeTypes().containsAll(List.of("ADD", "RELU", "EXP")));
+    }
+
+    @Test
     void scoredAcceleratorPlanningRecordsCostSummaryAndBoundedFinalists() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);

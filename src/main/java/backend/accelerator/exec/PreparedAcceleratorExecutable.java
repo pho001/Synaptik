@@ -2,6 +2,7 @@ package backend.accelerator.exec;
 
 import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.runtime.ExecutionContext;
 
 import java.util.List;
@@ -44,5 +45,17 @@ public interface PreparedAcceleratorExecutable {
      */
     default AcceleratorBufferDecision lastAcceleratorBufferDecision() {
         return AcceleratorBufferDecision.notEvaluated(backend());
+    }
+
+    /**
+     * Returns compound GPU region metadata for this executable.
+     *
+     * <p>The default is a non-compound summary so existing accelerator executables can opt in
+     * without changing their runtime behavior.</p>
+     *
+     * @return compound summary, or a non-compound summary when none was lowered
+     */
+    default GpuCompoundRegionSummary compoundSummary() {
+        return GpuCompoundRegionSummary.none(backend(), List.of());
     }
 }
