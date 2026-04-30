@@ -390,6 +390,7 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"selected\": ["));
         assertTrue(json.contains("\"rejectedFinalists\": ["));
         assertTrue(json.contains("\"nodeIds\": [4, 5, 6]"));
+        assertTrue(json.contains("\"selectedBackend\": \"GPU_METAL\""));
         assertTrue(json.contains("\"reason\": \"selected\""));
         assertTrue(json.contains("\"finalScore\": 7780.000000"));
         assertTrue(json.contains("\"boundaryCount\": 2"));
@@ -586,5 +587,6 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"reason\": \"GRAPH_OUTPUT\""));
         assertTrue(json.contains("\"materializedFrom\": \"GPU_METAL\""));
         assertTrue(json.contains("\"sourceResidency\": \"DEVICE_OWNED\""));
+        assertTrue(json.contains("\"durationNs\": 250000"));
     }
 }

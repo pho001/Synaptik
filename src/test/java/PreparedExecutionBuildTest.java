@@ -152,6 +152,30 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void prepareTraceSelectedAcceleratorDecisionCarriesPlannerEvidence() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b).relu();
+
+        OptimizerConfig optimizerConfig = OptimizerConfig.inferenceDefaults()
+                .withOffload(OffloadConfig.acceleratorGreedy());
+        PreparedExecution execution = CompiledGraph.compile(out, optimizerConfig)
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var decision = execution.prepareTrace().backendSelection().decisions().stream()
+                .filter(candidate -> candidate.selected()
+                        && candidate.selectedBackend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+
+        assertNotNull(decision.costSummary());
+        assertTrue(decision.costSummary().boundaryCount() >= 0);
+        assertTrue(decision.costSummary().estimatedTransferBytes() >= 0L);
+        assertTrue(decision.costSummary().estimatedComputeWork() >= 0L);
+        assertFalse(decision.costSummary().preset().isBlank());
+    }
+
+    @Test
     void scoredAcceleratorPlanningRecordsCostSummaryAndBoundedFinalists() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
