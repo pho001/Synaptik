@@ -219,6 +219,31 @@ public class ExecutionProfileIoTest {
     }
 
     @Test
+    void legacyExecutionProfileInvalidBufferModeStillUsesDefaultUntilStrictExecutionProfileIoExists() {
+        ExecutionProfile fallback = defaultProfile();
+        String json = """
+                {
+                  "dataType": "FLOAT32",
+                  "mode": "FORWARD",
+                  "profileName": "legacy",
+                  "candidateName": "legacy",
+                  "runtime": {
+                    "accelerator": {
+                      "metalBufferBindingMode": "BROKEN"
+                    }
+                  }
+                }
+                """;
+
+        ExecutionProfile actual = ExecutionProfileIO.fromJsonOrDefault(json, fallback);
+
+        assertEquals(
+                fallback.runtime().accelerator().metal().buffer().bindingMode(),
+                actual.runtime().accelerator().metal().buffer().bindingMode()
+        );
+    }
+
+    @Test
     void oldProfilesFallbackAttentionMatmulMicroKernelToGenericMatmulMicroKernel() {
         ExecutionProfile fallback = defaultProfile();
         String json = """

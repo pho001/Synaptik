@@ -280,7 +280,7 @@ public final class TuningCli {
                 "fallback",
                 seed
         );
-        return PlatformRuntimeProfileIO.loadOrDefault(path, fallback);
+        return PlatformRuntimeProfileIO.loadStrict(path, fallback);
     }
 
     private static ExecutionProfile baselineProfile(DTypeTarget dtype, WorkloadTarget workload, WorkloadShape shape) {

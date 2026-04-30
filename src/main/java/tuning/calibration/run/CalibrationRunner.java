@@ -123,7 +123,7 @@ public final class CalibrationRunner {
         if (!Files.exists(latest)) {
             return fallback;
         }
-        return PlatformRuntimeProfileIO.loadOrDefault(latest, fallback);
+        return PlatformRuntimeProfileIO.loadStrict(latest, fallback);
     }
 
     private static PlatformCalibrationProgressListener progressListener(CalibrationCommand command) {
