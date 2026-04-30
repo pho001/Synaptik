@@ -172,7 +172,7 @@ Cross-cutting constraints:
 Plans:
 
 **Wave 1**
-- [ ] 05-01-PLAN.md - Lock trace and benchmark report evidence contract.
+- [x] 05-01-PLAN.md - Lock trace and benchmark report evidence contract.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 05-02-PLAN.md - Prove closure workload, Metal correctness, and buffer handoff.
