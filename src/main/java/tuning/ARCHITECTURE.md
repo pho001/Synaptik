@@ -100,15 +100,14 @@ calibration do not search the same decision from different directions.
 
 | Owner | Meaning | Examples |
 |---|---|---|
-| Graph/workload-owned | Workload-specific optimizer or graph policy selected by graph autotune. | graph offload policy, accelerator region strategy, CPU region policy, CPU fusion policy |
-| Platform/dtype-owned | Hardware, dtype, execution-mode, and runtime thresholds selected by platform calibration. | BLAS thresholds, vector/parallel thresholds, fused dispatch widths, scheduler thresholds, `ACCELERATOR_BUFFER_MODE`, `METAL_SELECTION` |
+| Graph/workload-owned | Workload-specific optimizer or graph policy selected by graph autotune. | graph offload policy, accelerator region strategy, CPU region policy, CPU fusion policy, `ACCELERATOR_BUFFER_MODE`, `MetalTransferModel` |
+| Platform/dtype-owned | Hardware, dtype, execution-mode, and runtime thresholds selected by platform calibration. | BLAS thresholds, vector/parallel thresholds, fused dispatch widths, scheduler thresholds, `METAL_SELECTION` |
 | Obsolete | Historical knobs that must not re-enter production candidate spaces. | duplicate graph/runtime aliases and legacy report-derived policy |
 
 `METAL_SELECTION` is explicit accelerator opt-in calibration, not default CPU
-calibration. Accelerator transfer estimates such as `MetalTransferModel` and
-runtime thresholds belong to platform/dtype-owned runtime policy. Graph autotune
-may select graph policies that make accelerator regions possible, but it must not
-rewrite platform calibration thresholds.
+calibration. Graph autotune may select graph policies that make accelerator
+regions possible, including `ACCELERATOR_BUFFER_MODE` and `MetalTransferModel`,
+but it must not rewrite platform calibration thresholds.
 
 Profile-derived accelerator costs enter through RuntimeConfig, not profile file reads.
 
