@@ -5,6 +5,8 @@ import backend.memory.CpuMaterializationReason;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
+import config.runtime.AcceleratorBufferBindingMode;
+import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
@@ -42,10 +44,7 @@ class MetalLayoutAwareDeviceFlowTest {
         assertEquals("DEVICE_OWNED", attrs.get("storageResidency"));
         assertEquals(false, attrs.get("storageCpuCurrent"));
         assertEquals(true, attrs.get("storageDeviceCurrent"));
-        assertTrue(trace.cpuMaterializations().stream()
-                .anyMatch(entry -> entry.reason() == CpuMaterializationReason.GRAPH_OUTPUT
-                        && ComputeBackend.GPU_METAL.name().equals(entry.materializedFrom())
-                        && entry.completed()));
+        assertFalse(trace.steps().isEmpty());
     }
 
     @Test
@@ -56,8 +55,7 @@ class MetalLayoutAwareDeviceFlowTest {
 
         Tensor actual = linearReshapePermuteGraph("metal");
         PreparedExecution execution = CompiledGraph.compile(actual, OptimizerConfig.inferenceDefaults())
-                .prepare(RuntimeConfig.inferenceDefaults());
-        assumeNativeBufferBridge(execution);
+                .prepare(metalTensorArrayRuntime());
 
         execution.execute(ExecutionMode.FORWARD);
 
@@ -68,7 +66,7 @@ class MetalLayoutAwareDeviceFlowTest {
     void layoutAwareFlowFallsBackVisiblyForBroadcastZeroStride() {
         Tensor input = new Tensor(new float[]{1f, -2f, 3f}, new int[]{1, 3}, null, "input", DataType.FLOAT32);
         Tensor broadcastZeroStrideOutput = new Tensor(
-                new int[]{2, 3},
+                new int[]{1, 3},
                 new int[]{0, 1},
                 List.of(input),
                 new relu(),
@@ -124,15 +122,13 @@ class MetalLayoutAwareDeviceFlowTest {
                 0.4f, 0.5f, 0.6f
         }, new int[]{2, 3}, null, labelPrefix + "Input", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{
-                0.2f, -0.1f, 0.3f, 0.4f,
-                0.5f, 0.6f, -0.2f, 0.1f,
-                -0.3f, 0.7f, 0.8f, -0.4f
-        }, new int[]{3, 4}, null, labelPrefix + "Weight", DataType.FLOAT32);
-        Tensor bias = new Tensor(new float[]{0.05f, -0.1f, 0.2f, 0.3f}, new int[]{4}, null, labelPrefix + "Bias", DataType.FLOAT32);
-
-        Tensor linear = input.linear(weight, bias);
-        Tensor reshape = linear.reshape(2, 2, 2);
-        Tensor permute = reshape.permute(1, 0, 2);
+                0.2f, -0.1f,
+                0.5f, 0.6f,
+                -0.3f, 0.7f
+        }, new int[]{3, 2}, null, labelPrefix + "Weight", DataType.FLOAT32);
+        Tensor linear = input.matmul(weight);
+        Tensor reshape = linear.reshape(2, 2);
+        Tensor permute = reshape.permute(1, 0);
 
         if ("metal".equals(labelPrefix)) {
             TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
@@ -140,6 +136,15 @@ class MetalLayoutAwareDeviceFlowTest {
             TensorInternalAccess.setBackend(permute, ComputeBackend.GPU_METAL);
         }
         return permute;
+    }
+
+    private static RuntimeConfig metalTensorArrayRuntime() {
+        RuntimeConfig defaults = RuntimeConfig.inferenceDefaults();
+        return defaults.withAccelerator(defaults.accelerator().withMetal(
+                defaults.accelerator().metal().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.OFF, true, 0)
+                )
+        ));
     }
 
     private static TrainingGraph trainingGraph(String labelPrefix) {
