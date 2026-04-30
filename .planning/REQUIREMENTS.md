@@ -15,13 +15,13 @@ These requirements scope the next brownfield milestone after v1.0. They focus on
 - [x] **CUDA-03**: CUDA buffer execution can allocate native device buffers and run at least one representative supported accelerator operation through a capability-gated native path. Validated in Phase 7.
 - [x] **CUDA-04**: CUDA native device-to-CPU materialization is correct for graph output and CPU consumer boundaries, with CPU parity tests for supported dtype/layout combinations. Validated in Phase 7.
 - [x] **CUDA-05**: Adjacent CUDA accelerator regions can pass device-owned buffers without Java array round trips when layout and capability contracts allow it. Validated in Phase 7.
-- [ ] **CUDA-06**: CUDA fallback and required-mode failures remain explicit through stable reason codes for unavailable native runtime, unsupported dtype, unsupported layout, and required-but-unavailable buffer execution.
+- [x] **CUDA-06**: CUDA fallback and required-mode failures remain explicit through stable reason codes for unavailable native runtime, unsupported dtype, unsupported layout, and required-but-unavailable buffer execution. Validated in Phase 8.
 
 ### CUDA Observability And Documentation
 
-- [ ] **CUDADOC-01**: CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal: backend, buffer execution path, reason code, fallback reason, prepared input usage, CPU materialization count/reason, copy timing, and storage residency.
-- [ ] **CUDADOC-02**: Developer documentation explains CUDA build prerequisites, capability probing, native shim troubleshooting, fallback interpretation, and how CUDA differs from Metal while sharing the same accelerator ABI.
-- [ ] **CUDADOC-03**: Source hygiene and verification gates prevent accidental commits of local CUDA build outputs, machine-local benchmark/profile artifacts, and generated native scratch files.
+- [x] **CUDADOC-01**: CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal: backend, buffer execution path, reason code, fallback reason, prepared input usage, CPU materialization count/reason, copy timing, and storage residency. Validated in Phase 8.
+- [x] **CUDADOC-02**: Developer documentation explains CUDA build prerequisites, capability probing, native shim troubleshooting, fallback interpretation, and how CUDA differs from Metal while sharing the same accelerator ABI. Validated in Phase 8.
+- [x] **CUDADOC-03**: Source hygiene and verification gates prevent accidental commits of local CUDA build outputs, machine-local benchmark/profile artifacts, and generated native scratch files. Validated in Phase 8.
 
 ## Future Requirements
 
@@ -55,10 +55,10 @@ These requirements scope the next brownfield milestone after v1.0. They focus on
 | CUDA-03 | Phase 7 | Complete |
 | CUDA-04 | Phase 7 | Complete |
 | CUDA-05 | Phase 7 | Complete |
-| CUDA-06 | Phase 8 | Pending |
-| CUDADOC-01 | Phase 8 | Pending |
-| CUDADOC-02 | Phase 8 | Pending |
-| CUDADOC-03 | Phase 8 | Pending |
+| CUDA-06 | Phase 8 | Complete |
+| CUDADOC-01 | Phase 8 | Complete |
+| CUDADOC-02 | Phase 8 | Complete |
+| CUDADOC-03 | Phase 8 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 9 total
@@ -67,4 +67,4 @@ These requirements scope the next brownfield milestone after v1.0. They focus on
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after v1.1 gap closure phase setup*
+*Last updated: 2026-04-30 after Phase 8 verification evidence*

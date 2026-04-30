@@ -3,7 +3,7 @@
 ## Milestones
 
 - **v1.0 Accelerator Runtime Architecture** - Phases 1-5 shipped 2026-04-30. Full archive: [v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
-- **v1.1 CUDA Native Runtime** - Phases 6-8 planned. Scope: checked-in CUDA native runtime path, shared ABI buffer execution, materialization, handoff, observability, and documentation.
+- **v1.1 CUDA Native Runtime** - Phases 6-8 implemented and ready for milestone audit. Scope: checked-in CUDA native runtime path, shared ABI buffer execution, materialization, handoff, observability, and documentation.
 
 ## Summary
 
@@ -139,10 +139,10 @@ Cross-cutting constraints:
 | CUDA-03 | Phase 7 | Complete |
 | CUDA-04 | Phase 7 | Complete |
 | CUDA-05 | Phase 7 | Complete |
-| CUDA-06 | Phase 8 | Pending |
-| CUDADOC-01 | Phase 8 | Pending |
-| CUDADOC-02 | Phase 8 | Pending |
-| CUDADOC-03 | Phase 8 | Pending |
+| CUDA-06 | Phase 8 | Complete |
+| CUDADOC-01 | Phase 8 | Complete |
+| CUDADOC-02 | Phase 8 | Complete |
+| CUDADOC-03 | Phase 8 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 9 total
@@ -150,4 +150,4 @@ Cross-cutting constraints:
 - Unmapped: 0
 
 ---
-*Roadmap updated: 2026-04-30 after v1.1 gap closure phase setup*
+*Roadmap updated: 2026-04-30 after Phase 8 verification evidence*

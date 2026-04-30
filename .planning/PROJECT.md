@@ -12,7 +12,7 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.0 Accelerator Runtime Architecture shipped on 2026-04-30. Phase 7 of v1.1 is complete: CUDA now has a checked-in native shim source, optional build/probe workflow, Java capability diagnostics, shared buffer ABI preflight, dense FLOAT32 native buffer execution, device-to-CPU materialization, and adjacent CUDA buffer handoff.
+v1.0 Accelerator Runtime Architecture shipped on 2026-04-30. Phase 8 of v1.1 closes CUDA trace/report parity, stable fallback and required-mode reason codes, developer fallback/build docs, and source hygiene gates for CUDA native outputs and local profile artifacts.
 
 - 5 phases, 16 plans, and 41 tasks completed.
 - 24/24 v1 requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`.
@@ -59,10 +59,7 @@ Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidate
 - ✓ CUDA native shim source, optional build/probe workflow, runtime capability probe, and graceful unavailable behavior are validated — Phase 6 by `.planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md`.
 - ✓ CUDA bridge and prepared executable seams consume shared accelerator buffer layout/access metadata for dense supported layouts without CUDA-specific common-runtime fields — Phase 6 by `.planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md`.
 - ✓ CUDA dense FLOAT32 native buffer execution, graph-output/CPU-consumer materialization, and adjacent CUDA handoff are validated — Phase 7 by `.planning/phases/07-cuda-buffer-execution-and-materialization/07-VERIFICATION.md`.
-
-### Active
-
-- [ ] CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal.
+- ✓ CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal, with explicit fallback reason codes, docs, and source hygiene gates — validated in Phase 8 by `.planning/phases/08-cuda-observability-and-documentation-closure/08-04-SUMMARY.md`.
 
 ### Out of Scope
 
@@ -140,4 +137,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after Phase 7 completion*
+*Last updated: 2026-04-30 after Phase 8 verification evidence*
