@@ -1,6 +1,7 @@
 package backend.metal.lowering;
 
 import backend.ComputeBackend;
+import backend.accelerator.dag.AcceleratorDagNodeType;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
@@ -102,6 +103,75 @@ class MetalRegionLowererTest {
 
         assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
         assertTrue(reason.contains("operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering"));
+    }
+
+    @Test
+    void acceptsLogSoftmaxAsSoftmaxLikeGpuRegion() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalLogSoftmaxInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "metalLogSoftmaxWeight", DataType.FLOAT32);
+        Tensor matmul = input.matmul(weight);
+        Tensor out = matmul.logSoftmax(1);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        int matmulNodeId = nodeId(context, Operation.OpType.MATMUL);
+        int logSoftmaxNodeId = nodeId(context, Operation.OpType.LOG_SOFTMAX);
+        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
+        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+                Set.of(matmulNodeId, logSoftmaxNodeId),
+                context,
+                Set.of(PartitionValueRef.ofNode(logSoftmaxNodeId))
+        );
+        assertNotNull(candidate);
+
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+
+        assertNotNull(plan);
+        List<AcceleratorDagNodeType> types = plan.lowering().dagSpec().nodes().stream()
+                .map(backend.accelerator.dag.AcceleratorDagNode::type)
+                .toList();
+        assertTrue(types.contains(AcceleratorDagNodeType.SOFTMAX));
+        assertTrue(types.contains(AcceleratorDagNodeType.LOG));
+    }
+
+    @Test
+    void rejectsSumReductionWithStableCoverageReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalStableReductionInput", DataType.FLOAT32);
+        Tensor out = input.sum(1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.SUM)), context);
+
+        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
+    }
+
+    @Test
+    void rejectsLayerNormWithStableCoverageReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalStableNormInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalStableNormGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "metalStableNormBeta", DataType.FLOAT32);
+        Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.LAYER_NORM)), context);
+
+        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
+    }
+
+    @Test
+    void rejectsCrossEntropyLossWithStableCoverageReason() {
+        Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalStableLossLogits", DataType.FLOAT32);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalStableLossTargets", DataType.INT32);
+        Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
+
+        assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
     }
 
     @Test

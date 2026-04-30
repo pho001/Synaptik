@@ -56,14 +56,10 @@ class CudaRegionLowererTest {
         TensorInternalAccess.setBackend(logSoftmax, ComputeBackend.GPU_CUDA);
 
         PartitionPlanningContext context = planningContext(logSoftmax);
-        for (operations.Operation.OpType opType : List.of(operations.Operation.OpType.MATMUL, operations.Operation.OpType.RELU, operations.Operation.OpType.EXP)) {
+        for (operations.Operation.OpType opType : List.of(operations.Operation.OpType.MATMUL, operations.Operation.OpType.RELU, operations.Operation.OpType.EXP, operations.Operation.OpType.LOG_SOFTMAX)) {
             assertTrue(GpuLoweringCoverageMatrix.isSupported(ComputeBackend.GPU_CUDA, opType));
             assertEquals("", CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, opType)), context));
         }
-        assertEquals(
-                "UNSUPPORTED_OPERATION: operation LOG_SOFTMAX is not supported by GPU_CUDA lowering",
-                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.LOG_SOFTMAX)), context)
-        );
     }
 
     @Test
@@ -123,6 +119,75 @@ class CudaRegionLowererTest {
                 "UNSUPPORTED_LAYOUT: direct non-dense CUDA compute remains conservative until metadata-only view propagation or dense materialization makes the consumer layout legal",
                 reason
         );
+    }
+
+    @Test
+    void acceptsLogSoftmaxAsSoftmaxLikeGpuRegion() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaLogSoftmaxInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "cudaLogSoftmaxWeight", DataType.FLOAT32);
+        Tensor matmul = input.matmul(weight);
+        Tensor out = matmul.logSoftmax(1);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        int matmulNodeId = nodeId(context, operations.Operation.OpType.MATMUL);
+        int logSoftmaxNodeId = nodeId(context, operations.Operation.OpType.LOG_SOFTMAX);
+        CudaGpuRegionLegalityAdapter adapter = new CudaGpuRegionLegalityAdapter();
+        var candidate = adapter.tryCreateStructuralCandidate(
+                Set.of(matmulNodeId, logSoftmaxNodeId),
+                context,
+                Set.of(PartitionValueRef.ofNode(logSoftmaxNodeId))
+        );
+        assertNotNull(candidate);
+
+        CudaGpuPartitionPlan plan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, context);
+
+        assertNotNull(plan);
+        List<AcceleratorDagNodeType> types = plan.dagSpec().nodes().stream()
+                .map(AcceleratorDagNode::type)
+                .toList();
+        assertTrue(types.contains(AcceleratorDagNodeType.SOFTMAX));
+        assertTrue(types.contains(AcceleratorDagNodeType.LOG));
+    }
+
+    @Test
+    void rejectsSumReductionWithStableCoverageReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaStableReductionInput", DataType.FLOAT32);
+        Tensor out = input.sum(1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.SUM)), context);
+
+        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
+    }
+
+    @Test
+    void rejectsLayerNormWithStableCoverageReason() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaStableNormInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaStableNormGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaStableNormBeta", DataType.FLOAT32);
+        Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.LAYER_NORM)), context);
+
+        assertTrue(reason.contains("DEFERRED_FUSED_REGION"));
+    }
+
+    @Test
+    void rejectsCrossEntropyLossWithStableCoverageReason() {
+        Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "cudaStableLossLogits", DataType.FLOAT32);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cudaStableLossTargets", DataType.INT32);
+        Tensor out = logits.crossEntropyLossFromIndices(targetIndices, 1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), context);
+
+        assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
     }
 
     @Test

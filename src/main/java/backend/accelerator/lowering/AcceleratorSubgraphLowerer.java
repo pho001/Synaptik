@@ -240,10 +240,6 @@ public final class AcceleratorSubgraphLowerer {
             if (node == null || node.operation() == null) {
                 return null;
             }
-            AcceleratorDagNodeType type = resolveDagNodeType(node.operation().opType());
-            if (type == null) {
-                return null;
-            }
             AcceleratorDagValueRef input0 = resolveDagValueRef(node.inputIds(), 0, externalInputIndex, loweredNodeIndex);
             AcceleratorDagValueRef input1 = resolveDagValueRef(node.inputIds(), 1, externalInputIndex, loweredNodeIndex);
             AcceleratorDagValueRef input2 = resolveDagValueRef(node.inputIds(), 2, externalInputIndex, loweredNodeIndex);
@@ -256,6 +252,45 @@ public final class AcceleratorSubgraphLowerer {
             }
             int[] shape = node.shape();
             if (shape.length < 1 || shape.length > 4) {
+                return null;
+            }
+            if (node.operation().opType() == Operation.OpType.LOG_SOFTMAX) {
+                if (!(node.operation() instanceof logSoftmax op) || node.inputIds().size() != 1) {
+                    return null;
+                }
+                nodes.add(new AcceleratorDagNode(
+                        nodeId,
+                        AcceleratorDagNodeType.SOFTMAX,
+                        input0,
+                        AcceleratorDagValueRef.none(),
+                        AcceleratorDagValueRef.none(),
+                        AcceleratorDagValueRef.none(),
+                        op.getDimension(),
+                        shape.length,
+                        shape[0],
+                        shape.length >= 2 ? shape[1] : 1,
+                        shape.length >= 3 ? shape[2] : 1,
+                        shape.length >= 4 ? shape[3] : 1
+                ));
+                nodes.add(new AcceleratorDagNode(
+                        nodeId,
+                        AcceleratorDagNodeType.LOG,
+                        AcceleratorDagValueRef.nodeOutput(nodes.size() - 1),
+                        AcceleratorDagValueRef.none(),
+                        AcceleratorDagValueRef.none(),
+                        AcceleratorDagValueRef.none(),
+                        0,
+                        shape.length,
+                        shape[0],
+                        shape.length >= 2 ? shape[1] : 1,
+                        shape.length >= 3 ? shape[2] : 1,
+                        shape.length >= 4 ? shape[3] : 1
+                ));
+                loweredNodeIndex.put(nodeId, nodes.size() - 1);
+                continue;
+            }
+            AcceleratorDagNodeType type = resolveDagNodeType(node.operation().opType());
+            if (type == null) {
                 return null;
             }
             int scalarValueBits = resolveScalarValueBits(node);
