@@ -24,6 +24,9 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | `CAPABILITY_MISSING` | The semantic operation is known, but the backend native capability is not currently enabled or verified. |
 | `NATIVE_ABI_MISMATCH` | The Java/native ABI version or symbol contract does not match the required lowering path. |
 | `DEFERRED_FUSED_REGION` | Compound fused GPU region execution is deliberately deferred to Phase 12. |
+| `CPU_FUSED_OPERATION_UNSUPPORTED` | CPU `Operation.OpType.FUSED` remains CPU-only and is not consumed by GPU compound lowering. |
+| `COMPOUND_PATTERN_UNSUPPORTED` | A candidate compound region is recognized but not in the current supported GPU compound subset. |
+| `COMPOUND_REGION_SHORTENED` | A supported compound target pattern was shortened before GPU lowering and must fail required-mode checks. |
 
 ## Metal
 
@@ -44,7 +47,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | index/scatter/gather | `GATHER`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_OPERATION` |
 | compare/bool | `GT`, `EQ` | unsupported | `UNSUPPORTED_DTYPE` |
 | backward-adjacent | `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`, `MAX_GRAD` | supported | `SUPPORTED` |
-| fused compound patterns | `FUSED` | fallback | `DEFERRED_FUSED_REGION` |
+| fused compound patterns | `FUSED` | unsupported | `CPU_FUSED_OPERATION_UNSUPPORTED`; CPU `Operation.OpType.FUSED` remains CPU-only for Phase 12 |
 
 ## CUDA
 
@@ -65,7 +68,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | index/scatter/gather | `GATHER`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_OPERATION` |
 | compare/bool | `GT`, `EQ` | unsupported | `UNSUPPORTED_DTYPE` |
 | backward-adjacent | `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`, `MAX_GRAD` | supported | `SUPPORTED` |
-| fused compound patterns | `FUSED` | fallback | `DEFERRED_FUSED_REGION` |
+| fused compound patterns | `FUSED` | unsupported | `CPU_FUSED_OPERATION_UNSUPPORTED`; CPU `Operation.OpType.FUSED` remains CPU-only for Phase 12 |
 
 ## Runtime Boundary
 
@@ -92,4 +95,4 @@ Use the regular tensor operation checklist first, then add GPU coverage delibera
 7. Keep backend-specific native capability checks backend-owned.
 8. Add selected and rejected candidate tests.
 
-Phase 12 owns fused GPU compound execution for patterns such as linear plus bias plus activation and longer elementwise chains. Phase 13 owns coverage benchmark gates and report thresholds for GPU region length, fallback counts, CPU materialization counts, and device handoffs.
+Phase 12 owns GPU compound region lowering for patterns such as `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, and `REDUCTION_ADJACENT`. CPU `Operation.OpType.FUSED` remains CPU-only; GPU compound regions arise from normal graph operations lowered through accelerator DAG primitives. Phase 13 owns coverage benchmark gates and report thresholds for GPU region length, fallback counts, CPU materialization counts, and device handoffs.

@@ -202,9 +202,9 @@ public final class GpuLoweringCoverageMatrix {
                 Operation.OpType.MIN_GRAD,
                 Operation.OpType.MAX_GRAD);
         add(entries, backend, Operation.OpType.FUSED, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
-                GpuLoweringCoverageStatus.FALLBACK,
-                GpuLoweringUnsupportedReason.DEFERRED_FUSED_REGION,
-                "Phase 12 owns compound fused GPU region execution");
+                GpuLoweringCoverageStatus.UNSUPPORTED,
+                GpuLoweringUnsupportedReason.CPU_FUSED_OPERATION_UNSUPPORTED,
+                "CPU Operation.OpType.FUSED remains CPU-only for Phase 12; GPU compound regions lower from normal graph operations");
     }
 
     private static void addSupported(

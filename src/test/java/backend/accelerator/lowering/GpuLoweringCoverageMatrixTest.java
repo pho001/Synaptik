@@ -78,6 +78,18 @@ class GpuLoweringCoverageMatrixTest {
         assertTrue(docs.contains("unsupported"));
     }
 
+    @Test
+    void compoundFusedRowsExposeStablePhaseTwelveReasons() {
+        for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+            GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.FUSED);
+
+            assertFalse(entry.status() == GpuLoweringCoverageStatus.SUPPORTED);
+            assertFalse(entry.reason() == GpuLoweringUnsupportedReason.SUPPORTED);
+            assertEquals(GpuLoweringUnsupportedReason.CPU_FUSED_OPERATION_UNSUPPORTED, entry.reason());
+            assertTrue(entry.note().contains("CPU Operation.OpType.FUSED remains CPU-only for Phase 12"));
+        }
+    }
+
     private static void assertRequiredFamiliesCovered(ComputeBackend backend) {
         List<GpuLoweringCoverageEntry> entries = GpuLoweringCoverageMatrix.entriesFor(backend);
         Set<GpuLoweringOperationFamily> coveredFamilies = entries.stream()

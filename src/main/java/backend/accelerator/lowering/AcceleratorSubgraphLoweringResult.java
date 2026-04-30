@@ -2,6 +2,7 @@ package backend.accelerator.lowering;
 
 import backend.accelerator.dag.AcceleratorDagSpec;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -16,10 +17,23 @@ public record AcceleratorSubgraphLoweringResult(
         int computeNodeId,
         AcceleratorMatMulSpec matMulSpec,
         AcceleratorDagSpec dagSpec,
-        long estimatedWork
+        long estimatedWork,
+        GpuCompoundRegionSummary compoundSummary
 ) {
     public AcceleratorSubgraphLoweringResult {
         Objects.requireNonNull(dagSpec, "dagSpec cannot be null");
         estimatedWork = Math.max(0L, estimatedWork);
+        compoundSummary = compoundSummary == null
+                ? GpuCompoundRegionSummary.none(null, List.of())
+                : compoundSummary;
+    }
+
+    public AcceleratorSubgraphLoweringResult(
+            int computeNodeId,
+            AcceleratorMatMulSpec matMulSpec,
+            AcceleratorDagSpec dagSpec,
+            long estimatedWork
+    ) {
+        this(computeNodeId, matMulSpec, dagSpec, estimatedWork, null);
     }
 }
