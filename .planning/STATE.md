@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
-status: verifying
-last_updated: "2026-04-30T20:00:07Z"
+status: planning
+last_updated: "2026-04-30T20:14:16Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 5
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 12 — fused-gpu-region-execution
+**Current focus:** Phase 13 — coverage-benchmark-and-regression-gate
 
 ## Project Reference
 
@@ -68,7 +68,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 10 — GPU Layout Transform And View Path | Completed | 4/4 | Passed |
 | 11 — GPU Lowering Coverage Matrix | Completed | 4/4 | Passed |
 | 12 — Fused GPU Region Execution | Completed | 4/4 | Passed |
-| 13 — Coverage Benchmark And Regression Gate | Planned | TBD | Pending |
+| 13 — Coverage Benchmark And Regression Gate | Context | TBD | Pending |
 
 ## Deferred Items
 
@@ -130,6 +130,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 12 execution completed | GPU compound lowering now covers `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN`, rejects `REDUCTION_ADJACENT` and CPU `Operation.OpType.FUSED` with stable diagnostics, and records focused verification evidence. |
 | 2026-04-30 | Phase 12 security passed | Security audit closed 13/13 fused GPU region threats with `threats_open: 0`. |
 | 2026-04-30 | Phase 12 Nyquist validation passed | Validation audit found 0 gaps, marked all 7 task verification rows green, and kept CUDA native execution capability-gated. |
+| 2026-04-30 | Phase 13 context captured in auto-routed next mode | Coverage evidence, representative workload, regression gate, and artifact hygiene decisions are ready for planning. |
 
 ## Recent Sessions
 
@@ -175,13 +176,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed 12-04 reduction-adjacent/docs closure | Ready for Phase 12 security/validation/verify-work | .planning/phases/12-fused-gpu-region-execution/12-04-SUMMARY.md |
 | 2026-04-30 | Secured Phase 12 | Ready for `$gsd-validate-phase 12` | .planning/phases/12-fused-gpu-region-execution/12-SECURITY.md |
 | 2026-04-30 | Validated Phase 12 | Ready for `$gsd-audit-milestone` | .planning/phases/12-fused-gpu-region-execution/12-VALIDATION.md |
+| 2026-04-30 | Gathered Phase 13 context | Ready for `$gsd-plan-phase 13` | .planning/phases/13-coverage-benchmark-and-regression-gate/13-CONTEXT.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 12 validation*
+*Last updated: 2026-04-30 after Phase 13 context*
 
 ## Current Position
 
-Phase: 12 (fused-gpu-region-execution) — VERIFYING
-Plan: 4 of 4
-Status: Security and Nyquist validation passed; ready for milestone audit
+Phase: 13 (coverage-benchmark-and-regression-gate) — PLANNING
+Plan: 0 of TBD
+Status: Context gathered; ready for phase planning
 Last activity: 2026-04-30
