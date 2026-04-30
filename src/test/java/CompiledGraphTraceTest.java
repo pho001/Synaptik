@@ -2,6 +2,7 @@ import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
+import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
 import backend.runtime.ExecutionMode;
 import backend.ComputeBackend;
 import backend.runtime.ExecutionContext;
@@ -22,8 +23,55 @@ import tensor.TensorInternalAccess;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class CompiledGraphTraceTest {
+    @Test
+    void gpuLoweringCoverageSelectionTraceNamesSupportedLogSoftmaxRegion() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "traceLogSoftmaxInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "traceLogSoftmaxWeight", DataType.FLOAT32);
+        Tensor matmul = input.matmul(weight);
+        Tensor out = matmul.logSoftmax(1);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        int matmulNodeId = nodeId(compiled, operations.Operation.OpType.MATMUL);
+        int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
+
+        var selected = prepared.prepareTrace().backendSelection().decisions().stream()
+                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.nodeIds().contains(matmulNodeId) && decision.nodeIds().contains(logSoftmaxNodeId))
+                .findFirst()
+                .orElseThrow();
+        List<String> selectedOpNames = selected.nodeIds().stream()
+                .map(nodeId -> compiledNode(compiled, nodeId).operation().opType().name())
+                .toList();
+
+        assertEquals("selected", selected.reason());
+        assertTrue(selectedOpNames.contains("MATMUL") || selectedOpNames.contains("LINEAR"));
+        assertTrue(selectedOpNames.contains("LOG_SOFTMAX"));
+    }
+
+    @Test
+    void gpuLoweringCoverageRejectionTraceNamesUnsupportedReduction() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "traceReductionInput", DataType.FLOAT32);
+        Tensor out = input.sum(1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        int sumNodeId = nodeId(compiled, operations.Operation.OpType.SUM);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, sumNodeId), null);
+
+        assertFalse(prepared.prepareTrace().backendSelection().decisions().stream()
+                .anyMatch(decision -> decision.selected()
+                        && decision.selectedBackend() == ComputeBackend.GPU_CUDA
+                        && decision.nodeIds().contains(sumNodeId)));
+        assertTrue(reason.contains("UNSUPPORTED_OPERATION"));
+    }
+
     @Test
     void compiledGraphExposesCompilePrepareAndRunTrace() {
         Tensor a = new Tensor(new double[]{1, 2, 3, 4}, new int[]{4}, null, "a", DataType.FLOAT64);
@@ -237,5 +285,20 @@ public class CompiledGraphTraceTest {
                     List.of()
             );
         }
+    }
+
+    private static int nodeId(graph.CompiledGraph compiled, operations.Operation.OpType opType) {
+        return compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == opType)
+                .map(CompiledNode::id)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static CompiledNode compiledNode(graph.CompiledGraph compiled, int nodeId) {
+        return compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.id() == nodeId)
+                .findFirst()
+                .orElseThrow();
     }
 }
