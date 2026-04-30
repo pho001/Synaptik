@@ -100,7 +100,7 @@ Plans: 3 plans
 Plans:
 - [x] 003-01-PLAN.md — Add static materialization-aware score summaries and compile-time finalist tracing. Complete: `.planning/phases/003-materialization-aware-region-planning/003-01-SUMMARY.md`
 - [x] 003-02-PLAN.md — Apply static cost summaries to backend selection and benchmark reports.
-- [ ] 003-03-PLAN.md — Lock CPU safeguards, documentation, and Phase 4 cost-model ownership notes.
+- [x] 003-03-PLAN.md — Lock CPU safeguards, documentation, and Phase 4 cost-model ownership notes.
 
 ### Phase 4: Tuning And Profile Ownership Audit
 

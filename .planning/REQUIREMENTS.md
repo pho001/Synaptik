@@ -24,9 +24,9 @@ These requirements define the next brownfield milestone. They are intentionally 
 ### Accelerator Region Planning
 
 - [x] **PLAN-01**: Accelerator region planning scores CPU materialization cost, device upload/download cost, tensor-array copy fallback, layout fallback, dispatch overhead, and estimated compute work.
-- [ ] **PLAN-02**: The planner prefers longer profitable device-owned regions over short accelerator islands when that reduces CPU/GPU boundaries.
+- [x] **PLAN-02**: The planner prefers longer profitable device-owned regions over short accelerator islands when that reduces CPU/GPU boundaries.
 - [x] **PLAN-03**: The planner rejects or splits accelerator regions when expected materialization or layout costs erase the compute benefit.
-- [ ] **PLAN-04**: CPU natural regions and CPU fused execution remain available and competitive when GPU offload is not profitable.
+- [x] **PLAN-04**: CPU natural regions and CPU fused execution remain available and competitive when GPU offload is not profitable.
 
 ### Tuning And Profiles
 
@@ -91,9 +91,9 @@ These requirements define the next brownfield milestone. They are intentionally 
 | METAL-03 | Phase 2 | Complete — verified in 002-VERIFICATION |
 | METAL-04 | Phase 2 | Complete — verified in 002-VERIFICATION |
 | PLAN-01 | Phase 3 | Complete |
-| PLAN-02 | Phase 3 | Pending |
+| PLAN-02 | Phase 3 | Complete |
 | PLAN-03 | Phase 3 | Complete |
-| PLAN-04 | Phase 3 | Pending |
+| PLAN-04 | Phase 3 | Complete |
 | TUNE-01 | Phase 4 | Pending |
 | TUNE-02 | Phase 4 | Pending |
 | TUNE-03 | Phase 4 | Pending |
