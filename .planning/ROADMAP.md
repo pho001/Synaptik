@@ -67,7 +67,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 002-01-PLAN.md — Add Metal layout decision policy and Java-side buffer preflight classification.
+- [x] 002-01-PLAN.md — Add Metal layout decision policy and Java-side buffer preflight classification. Complete: `.planning/phases/002-metal-layout-aware-device-flow/002-01-SUMMARY.md`
 - [ ] 002-02-PLAN.md — Implement safe dense-physical logical-view Metal allocation/materialization without native ABI churn.
 - [ ] 002-03-PLAN.md — Add end-to-end Metal flow tests, trace assertions, docs, and CPU parity gates.
 
@@ -139,9 +139,9 @@ Plans:
 | ABI-02 | Phase 1 | Complete — verified in 001-VERIFICATION |
 | ABI-03 | Phase 1 | Complete — verified in 001-VERIFICATION |
 | ABI-04 | Phase 1 | Complete — verified in 001-VERIFICATION |
-| METAL-01 | Phase 2 | Pending |
+| METAL-01 | Phase 2 | Complete — policy/binder preflight covered in 002-01-SUMMARY; allocator/materializer flow continues in Phase 2 |
 | METAL-02 | Phase 2 | Pending |
-| METAL-03 | Phase 2 | Pending |
+| METAL-03 | Phase 2 | Complete — conservative layout/native ABI checks covered in 002-01-SUMMARY |
 | METAL-04 | Phase 2 | Pending |
 | PLAN-01 | Phase 3 | Pending |
 | PLAN-02 | Phase 3 | Pending |
