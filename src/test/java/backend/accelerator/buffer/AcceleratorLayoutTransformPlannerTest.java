@@ -136,7 +136,15 @@ class AcceleratorLayoutTransformPlannerTest {
     }
 
     private static AcceleratorBufferLayout layout(int[] shape, int[] strides) {
-        return AcceleratorBufferLayout.of(DataType.FLOAT32, shape, strides, 0, 6);
+        return AcceleratorBufferLayout.of(DataType.FLOAT32, shape, strides, 0, elementCount(shape));
+    }
+
+    private static long elementCount(int[] shape) {
+        long count = 1L;
+        for (int dimension : shape) {
+            count *= dimension;
+        }
+        return count;
     }
 
     private static DeviceBufferBinding binding(AcceleratorBufferLayout layout) {
