@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: CUDA Native Runtime
-status: verifying
-last_updated: "2026-04-30T11:31:00.000Z"
+status: ready_for_milestone_audit
+last_updated: "2026-04-30T11:36:00.000Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
   completed_plans: 10
-  percent: 95
+  percent: 100
 ---
 
 # GSD State
@@ -35,7 +35,7 @@ Completed milestone:
 
 Current milestone:
 
-- v1.1 CUDA Native Runtime - phases 6-8 implemented; Phase 8 verification in progress
+- v1.1 CUDA Native Runtime - phases 6-8 implemented and verified; ready for milestone audit
 
 ## Codebase Map
 
@@ -64,7 +64,7 @@ Planning agents should read the relevant codebase map documents before proposing
 |-------|--------|-------|--------------|
 | 6 — CUDA Shim And Capability Probe | Complete | 3 plans | Passed |
 | 7 — CUDA Buffer Execution And Materialization | Complete | 3 plans | Passed |
-| 8 — CUDA Observability And Documentation Closure | Plans complete | 4 plans | Pending |
+| 8 — CUDA Observability And Documentation Closure | Complete | 4 plans | Passed |
 
 ## Deferred Items
 
@@ -109,6 +109,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 7 verification passed | CUDA dense FLOAT32 native buffer execution, graph-output/CPU-consumer materialization, and adjacent CUDA handoff satisfy CUDA-03/CUDA-04/CUDA-05. |
 | 2026-04-30 | v1.1 milestone audit found Phase 8 gaps | CUDA-06 and CUDADOC-01/02/03 remain pending because Phase 8 observability closure is not planned or executed yet. |
 | 2026-04-30 | Phase 8 final plan evidence passed | CUDA trace/report parity, reason-code coverage, docs, hygiene gates, portable tests, and native CUDA skip status satisfy CUDA-06 and CUDADOC-01/02/03 pending phase verification. |
+| 2026-04-30 | Phase 8 verification passed | Verifier confirmed 12/12 must-haves and all CUDA-06/CUDADOC-01/02/03 requirements; v1.1 is ready for milestone audit, not archived. |
 
 ## Recent Sessions
 
@@ -142,11 +143,11 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed and verified Phase 6 | Ready for Phase 7 planning | .planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 8 final plan evidence*
+*Last updated: 2026-04-30 after Phase 8 verification*
 
 ## Current Position
 
-Phase: 08 (cuda-observability-and-documentation-closure) — EXECUTING
+Phase: 08
 Plan: 4 of 4
-Status: Plans complete; phase verification pending
+Status: Phase complete; ready for milestone audit
 Last activity: 2026-04-30
