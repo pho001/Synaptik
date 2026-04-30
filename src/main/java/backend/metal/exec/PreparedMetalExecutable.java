@@ -99,6 +99,11 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         return ComputeBackend.GPU_METAL;
     }
 
+    @Override
+    public List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps() {
+        return cpuFallbackSteps;
+    }
+
     /**
      * Executes through the Metal bridge when available and compatible, otherwise runs CPU fallback steps.
      *

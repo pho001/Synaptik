@@ -4,6 +4,8 @@ import backend.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.runtime.ExecutionContext;
 
+import java.util.List;
+
 /**
  * Prepared runtime artifact for an accelerator-backed partition.
  *
@@ -23,6 +25,17 @@ public interface PreparedAcceleratorExecutable {
      * @param context runtime tensor lookup and execution flags for the current graph run
      */
     void execute(ExecutionContext context);
+
+    /**
+     * Returns CPU fallback steps prepared for this accelerator executable.
+     *
+     * <p>Runtime state uses these plans to allocate per-run prepared-input tensors for
+     * accelerator partitions whose CPU fallback metadata can also be used to prepare
+     * external inputs for native execution.</p>
+     */
+    default List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps() {
+        return List.of();
+    }
 
     /**
      * Returns buffer-binding diagnostics from the most recent execution attempt.

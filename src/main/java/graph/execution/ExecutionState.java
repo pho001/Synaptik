@@ -1,6 +1,7 @@
 package graph.execution;
 
 import backend.cpu.kernels.CpuNodeWorkspace;
+import backend.cpu.kernels.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuPreparedInput;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
@@ -120,6 +121,17 @@ public final class ExecutionState {
             }
             TensorInternalAccess.setPrevTensors(runtimeTensors.get(node.id()), runtimeInputs);
         }
+        for (CompiledNode node : compiledNodes) {
+            if (node.inputIds().isEmpty() || !isCpuAliasView(node, runtimeTensors)) {
+                continue;
+            }
+            int sourceNodeId = node.inputIds().getFirst();
+            TensorResidencyState sourceResidency = residency.get(sourceNodeId);
+            if (sourceResidency != null && sourceResidency.cpuCurrent()) {
+                TensorInternalAccess.aliasRuntimeFrom(runtimeTensors.get(node.id()), runtimeTensors.get(sourceNodeId));
+                residency.get(node.id()).markCpuCurrent("alias view runtime binding");
+            }
+        }
 
         Map<Integer, CpuNodeWorkspace> workspaces = new HashMap<>();
         Map<CpuNodeWorkspace, CpuNodeWorkspace> runtimeWorkspaceByTemplate = new IdentityHashMap<>();
@@ -130,24 +142,52 @@ public final class ExecutionState {
                 CpuNodeWorkspace runtimeWorkspace = runtimeWorkspaceByTemplate.computeIfAbsent(workspace, ignored -> workspace.fork());
                 workspaces.put(entry.getKey(), runtimeWorkspace);
             }
-            if (entry.getValue().cpuPlan() != null) {
-                for (CpuPreparedInput preparedInput : entry.getValue().cpuPlan().layoutPlan().preparedInputs()) {
-                    Tensor template = preparedInput.runtimeTensor();
-                    Tensor runtimePrepared = new Tensor(
-                            template.getShapeUnsafe().clone(),
-                            template.getStridesUnsafe().clone(),
-                            template.getStorageOffsetUnsafe(),
-                            null,
-                            null,
-                            template.getLabel(),
-                            template.getDataType()
-                    );
-                    runtimePrepared.setRequiresGrad(template.getRequiresGrad());
-                    preparedInputs.put(new PreparedInputKey(entry.getKey(), preparedInput.inputIndex()), runtimePrepared);
+            allocatePreparedInputs(entry.getKey(), entry.getValue().cpuPlan(), preparedInputs);
+            if (entry.getValue().acceleratorExecutable() != null) {
+                for (var fallbackStep : entry.getValue().acceleratorExecutable().cpuFallbackSteps()) {
+                    allocatePreparedInputs(fallbackStep.node().id(), fallbackStep.metadata().cpuPlan(), preparedInputs);
                 }
             }
         }
         return new ExecutionState(runtimeTensors, workspaces, preparedInputs, runtimeNodeIds, residency, Map.of());
+    }
+
+    private static void allocatePreparedInputs(
+            int nodeId,
+            CpuNodeExecutionPlan cpuPlan,
+            Map<PreparedInputKey, Tensor> preparedInputs
+    ) {
+        if (cpuPlan == null || cpuPlan.layoutPlan().preparedInputs().isEmpty()) {
+            return;
+        }
+        for (CpuPreparedInput preparedInput : cpuPlan.layoutPlan().preparedInputs()) {
+            Tensor template = preparedInput.runtimeTensor();
+            Tensor runtimePrepared = new Tensor(
+                    template.getShapeUnsafe().clone(),
+                    template.getStridesUnsafe().clone(),
+                    template.getStorageOffsetUnsafe(),
+                    null,
+                    null,
+                    template.getLabel(),
+                    template.getDataType()
+            );
+            runtimePrepared.setRequiresGrad(template.getRequiresGrad());
+            preparedInputs.put(new PreparedInputKey(nodeId, preparedInput.inputIndex()), runtimePrepared);
+        }
+    }
+
+    private static boolean isCpuAliasView(CompiledNode node, Map<Integer, Tensor> runtimeTensors) {
+        if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
+            return false;
+        }
+        return switch (node.operation().opType()) {
+            case NOOP, EXPAND, SELECT, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
+            case RESHAPE -> {
+                Tensor source = runtimeTensors.get(node.inputIds().getFirst());
+                yield source != null && source.isContiguous();
+            }
+            default -> false;
+        };
     }
 
     /**

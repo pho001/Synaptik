@@ -469,9 +469,17 @@ public final class PreparedExecution {
     }
 
     private void syncRootData(ExecutionMode mode, ExecutionState executionState) {
+        Integer semanticRootNodeId = nodeIdForSemanticTensor(rootTensor);
+        int actualRootNodeId = semanticRootNodeId == null ? resolveForwardRuntimeRootNodeId() : semanticRootNodeId;
         Tensor publishTarget = resolveSemanticPublishTarget(rootTensor);
         Integer publishNodeId = nodeIdForSemanticTensor(publishTarget);
         if (publishNodeId != null) {
+            if (publishNodeId != actualRootNodeId
+                    && shouldPublishActualRootForAlias(executionState, publishNodeId, actualRootNodeId)) {
+                publishRuntimeTensor(mode, executionState, rootTensor, actualRootNodeId);
+                repairSemanticAliasChain(rootTensor);
+                return;
+            }
             executionState.requireCpuReadable(publishNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
             Tensor runtimePublished = executionState.runtimeTensorForNodeId(publishNodeId);
             if (publishTarget.getStorage() == runtimePublished.getStorage()) {
@@ -485,13 +493,32 @@ public final class PreparedExecution {
             return;
         }
 
-        int actualRootNodeId = resolveForwardRuntimeRootNodeId();
-        executionState.requireCpuReadable(actualRootNodeId, CpuMaterializationReason.GRAPH_OUTPUT);
-        Tensor actualRoot = executionState.runtimeTensorForNodeId(actualRootNodeId);
-        if (mode == ExecutionMode.FORWARD_BACKWARD || actualRoot != rootTensor) {
-            rootTensor.copyDataFrom(actualRoot);
-        }
+        publishRuntimeTensor(mode, executionState, rootTensor, actualRootNodeId);
         repairSemanticAliasChain(rootTensor);
+    }
+
+    private static boolean shouldPublishActualRootForAlias(
+            ExecutionState executionState,
+            int publishNodeId,
+            int actualRootNodeId
+    ) {
+        var publishState = executionState.residencyForNodeId(publishNodeId);
+        var actualRootState = executionState.residencyForNodeId(actualRootNodeId);
+        return !publishState.cpuCurrent()
+                && (actualRootState.cpuCurrent() || actualRootState.requiresCpuMaterialization());
+    }
+
+    private static void publishRuntimeTensor(
+            ExecutionMode mode,
+            ExecutionState executionState,
+            Tensor publishTarget,
+            int nodeId
+    ) {
+        executionState.requireCpuReadable(nodeId, CpuMaterializationReason.GRAPH_OUTPUT);
+        Tensor runtimeTensor = executionState.runtimeTensorForNodeId(nodeId);
+        if (mode == ExecutionMode.FORWARD_BACKWARD || runtimeTensor != publishTarget) {
+            publishTarget.copyDataFrom(runtimeTensor);
+        }
     }
 
     private Tensor resolveSemanticPublishTarget(Tensor tensor) {

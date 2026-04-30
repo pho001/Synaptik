@@ -76,6 +76,11 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
         return ComputeBackend.GPU_CUDA;
     }
 
+    @Override
+    public List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps() {
+        return cpuFallbackSteps;
+    }
+
     /**
      * Executes through the CUDA graph bridge when available, otherwise runs CPU fallback steps.
      */
