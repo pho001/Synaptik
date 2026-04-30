@@ -12,7 +12,7 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.0 Accelerator Runtime Architecture shipped on 2026-04-30.
+v1.0 Accelerator Runtime Architecture shipped on 2026-04-30. Phase 6 of v1.1 is complete: CUDA now has a checked-in native shim source, optional build/probe workflow, Java capability diagnostics, and a shared buffer ABI preflight seam.
 
 - 5 phases, 16 plans, and 41 tasks completed.
 - 24/24 v1 requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`.
@@ -56,11 +56,11 @@ Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidate
 - ✓ Accelerator region planning and backend selection score static materialization cost, layout fallback cost, upload/download cost, dispatch overhead, expected compute benefit, selected candidates, and rejected finalists while preserving CPU natural/fusion/BLAS safeguards — validated in Phase 3 by `.planning/phases/003-materialization-aware-region-planning/003-VERIFICATION.md`.
 - ✓ Tuning ownership separates graph/workload autotune knobs from platform/dtype calibration thresholds, strict profile IO rejects invalid schema and accelerator buffer fields, runtime-derived accelerator costs enter through `RuntimeConfig`, and benchmark commands remain profile-read-only — validated in Phase 4 by `.planning/phases/04-tuning-and-profile-ownership-audit/04-VERIFICATION.md`.
 - ✓ Focused tests, traces, benchmark scenarios, documentation, and hygiene checks prove longer device-owned accelerator flows and visible CPU materialization boundaries — validated in Phase 5 by `.planning/phases/05-accelerator-verification-and-documentation-closure/05-VERIFICATION.md`.
+- ✓ CUDA native shim source, optional build/probe workflow, runtime capability probe, and graceful unavailable behavior are validated — Phase 6 by `.planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md`.
+- ✓ CUDA bridge and prepared executable seams consume shared accelerator buffer layout/access metadata for dense supported layouts without CUDA-specific common-runtime fields — Phase 6 by `.planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md`.
 
 ### Active
 
-- [ ] CUDA native runtime can be built, probed, and capability-gated from the existing Java runtime.
-- [ ] CUDA buffer execution uses the shared accelerator layout/access ABI for supported dense layouts and rejects unsupported capability/layout combinations visibly.
 - [ ] CUDA device-owned results can materialize correctly at graph output, CPU consumer, and adjacent accelerator handoff boundaries.
 - [ ] CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal.
 
@@ -140,4 +140,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after starting v1.1 milestone*
+*Last updated: 2026-04-30 after Phase 6 completion*

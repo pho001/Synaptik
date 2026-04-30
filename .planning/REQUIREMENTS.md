@@ -10,8 +10,8 @@ These requirements scope the next brownfield milestone after v1.0. They focus on
 
 ### CUDA Native Runtime
 
-- [ ] **CUDA-01**: CUDA has a checked-in native shim, documented build workflow, and runtime capability probe that fail gracefully when CUDA tooling or hardware is unavailable.
-- [ ] **CUDA-02**: CUDA bridge and prepared executable seams consume the shared accelerator buffer layout/access ABI for supported dense layouts without adding CUDA-specific assumptions to common runtime contracts.
+- [x] **CUDA-01**: CUDA has a checked-in native shim, documented build workflow, and runtime capability probe that fail gracefully when CUDA tooling or hardware is unavailable. Validated in Phase 6.
+- [x] **CUDA-02**: CUDA bridge and prepared executable seams consume the shared accelerator buffer layout/access ABI for supported dense layouts without adding CUDA-specific assumptions to common runtime contracts. Validated in Phase 6.
 - [ ] **CUDA-03**: CUDA buffer execution can allocate native device buffers and run at least one representative supported accelerator operation through a capability-gated native path.
 - [ ] **CUDA-04**: CUDA native device-to-CPU materialization is correct for graph output and CPU consumer boundaries, with CPU parity tests for supported dtype/layout combinations.
 - [ ] **CUDA-05**: Adjacent CUDA accelerator regions can pass device-owned buffers without Java array round trips when layout and capability contracts allow it.
@@ -50,8 +50,8 @@ These requirements scope the next brownfield milestone after v1.0. They focus on
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CUDA-01 | Phase 6 | Pending |
-| CUDA-02 | Phase 6 | Pending |
+| CUDA-01 | Phase 6 | Complete |
+| CUDA-02 | Phase 6 | Complete |
 | CUDA-03 | Phase 7 | Pending |
 | CUDA-04 | Phase 7 | Pending |
 | CUDA-05 | Phase 7 | Pending |
@@ -67,4 +67,4 @@ These requirements scope the next brownfield milestone after v1.0. They focus on
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after v1.1 definition*
+*Last updated: 2026-04-30 after Phase 6 verification*

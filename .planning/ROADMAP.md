@@ -110,8 +110,8 @@ Cross-cutting constraints:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CUDA-01 | Phase 6 | Pending |
-| CUDA-02 | Phase 6 | Pending |
+| CUDA-01 | Phase 6 | Complete |
+| CUDA-02 | Phase 6 | Complete |
 | CUDA-03 | Phase 7 | Pending |
 | CUDA-04 | Phase 7 | Pending |
 | CUDA-05 | Phase 7 | Pending |
@@ -126,4 +126,4 @@ Cross-cutting constraints:
 - Unmapped: 0
 
 ---
-*Roadmap updated: 2026-04-30 for v1.1 CUDA Native Runtime*
+*Roadmap updated: 2026-04-30 after Phase 6 completion*
