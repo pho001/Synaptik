@@ -69,16 +69,90 @@ public final class AcceleratorPartitionScoreModel {
             PlannerPolicy policy,
             TransferPolicy transferPolicy
     ) {
-        double base = acceptedScore(metrics, estimatedWork, policy);
-        if (!Double.isFinite(base)) {
-            return base;
-        }
         TransferMetrics resolvedTransfers = transfers == null ? TransferMetrics.none() : transfers;
         TransferPolicy resolvedPolicy = transferPolicy == null ? TransferPolicy.defaults() : transferPolicy;
-        return base
-                - resolvedTransfers.inputBytes() * resolvedPolicy.inputBytePenalty()
-                - resolvedTransfers.outputBytes() * resolvedPolicy.outputBytePenalty()
-                + resolvedTransfers.avoidedIntermediateBytes() * resolvedPolicy.avoidedIntermediateByteCredit();
+        return scoreMaterializationAware(
+                metrics,
+                estimatedWork,
+                new MaterializationSignals(
+                        0,
+                        resolvedTransfers.inputBytes(),
+                        resolvedTransfers.outputBytes(),
+                        0L,
+                        0L,
+                        resolvedTransfers.avoidedIntermediateBytes(),
+                        "TRANSFER_ONLY",
+                        ""
+                ),
+                policy,
+                StaticCostPreset.fromTransferPolicy("TRANSFER_POLICY", resolvedPolicy)
+        ).finalScore();
+    }
+
+    /**
+     * Scores a lowered accelerator candidate with static materialization, fallback, and dispatch signals.
+     *
+     * @param metrics candidate structural metrics
+     * @param estimatedWork backend work estimate
+     * @param signals static materialization and fallback signals
+     * @param plannerPolicy structural/work score policy
+     * @param preset named static cost preset
+     * @return explainable score summary
+     */
+    public static MaterializationCostSummary scoreMaterializationAware(
+            CandidateMetrics metrics,
+            long estimatedWork,
+            MaterializationSignals signals,
+            PlannerPolicy plannerPolicy,
+            StaticCostPreset preset
+    ) {
+        MaterializationSignals resolvedSignals = signals == null ? MaterializationSignals.none() : signals;
+        StaticCostPreset resolvedPreset = preset == null ? StaticCostPreset.conservative() : preset;
+        if (metrics == null || plannerPolicy == null || estimatedWork <= 0L) {
+            return new MaterializationCostSummary(
+                    resolvedPreset.name(),
+                    resolvedSignals.boundaryCount(),
+                    resolvedSignals.estimatedTransferBytes(),
+                    Math.max(0L, estimatedWork),
+                    resolvedSignals.avoidedIntermediateBytes(),
+                    resolvedPreset.dispatchOverhead(),
+                    Double.NEGATIVE_INFINITY,
+                    "rejected-non-positive-work",
+                    resolvedSignals.fallbackMode(),
+                    resolvedSignals.layoutClass()
+            );
+        }
+        double structural = structuralScore(metrics, plannerPolicy);
+        double finalScore = structural
+                + estimatedWork * plannerPolicy.workWeight() * resolvedPreset.computeWorkCredit()
+                + resolvedSignals.avoidedIntermediateBytes() * resolvedPreset.avoidedIntermediateByteCredit()
+                - resolvedSignals.boundaryCount() * resolvedPreset.boundaryPenalty()
+                - resolvedSignals.uploadBytes() * resolvedPreset.uploadBytePenalty()
+                - resolvedSignals.downloadBytes() * resolvedPreset.downloadBytePenalty()
+                - resolvedSignals.tensorArrayFallbackBytes() * resolvedPreset.tensorArrayFallbackBytePenalty()
+                - resolvedSignals.layoutFallbackBytes() * resolvedPreset.layoutFallbackBytePenalty()
+                - resolvedPreset.dispatchOverhead();
+        String reason;
+        if (!Double.isFinite(finalScore)) {
+            reason = "rejected-non-finite-score";
+            finalScore = Double.NEGATIVE_INFINITY;
+        } else if (finalScore <= 0.0d) {
+            reason = "rejected-materialization-cost";
+        } else {
+            reason = "accepted-static-profitable";
+        }
+        return new MaterializationCostSummary(
+                resolvedPreset.name(),
+                resolvedSignals.boundaryCount(),
+                resolvedSignals.estimatedTransferBytes(),
+                estimatedWork,
+                resolvedSignals.avoidedIntermediateBytes(),
+                resolvedPreset.dispatchOverhead(),
+                finalScore,
+                reason,
+                resolvedSignals.fallbackMode(),
+                resolvedSignals.layoutClass()
+        );
     }
 
     /**
@@ -178,6 +252,191 @@ public final class AcceleratorPartitionScoreModel {
                     resolved.outputBytePenalty(),
                     resolved.avoidedIntermediateByteCredit()
             );
+        }
+    }
+
+    /**
+     * Static materialization and fallback signals used by the accelerator score model.
+     *
+     * @param boundaryCount number of CPU/accelerator boundaries
+     * @param uploadBytes estimated bytes copied into the accelerator region
+     * @param downloadBytes estimated bytes copied out of the accelerator region
+     * @param tensorArrayFallbackBytes bytes exposed to tensor-array fallback paths
+     * @param layoutFallbackBytes bytes affected by layout fallback
+     * @param avoidedIntermediateBytes bytes kept inside the accelerator region
+     * @param fallbackMode fallback mode name
+     * @param layoutClass layout class name
+     */
+    public record MaterializationSignals(
+            int boundaryCount,
+            long uploadBytes,
+            long downloadBytes,
+            long tensorArrayFallbackBytes,
+            long layoutFallbackBytes,
+            long avoidedIntermediateBytes,
+            String fallbackMode,
+            String layoutClass
+    ) {
+        public MaterializationSignals {
+            boundaryCount = Math.max(0, boundaryCount);
+            uploadBytes = Math.max(0L, uploadBytes);
+            downloadBytes = Math.max(0L, downloadBytes);
+            tensorArrayFallbackBytes = Math.max(0L, tensorArrayFallbackBytes);
+            layoutFallbackBytes = Math.max(0L, layoutFallbackBytes);
+            avoidedIntermediateBytes = Math.max(0L, avoidedIntermediateBytes);
+            fallbackMode = fallbackMode == null ? "" : fallbackMode;
+            layoutClass = layoutClass == null ? "" : layoutClass;
+        }
+
+        /**
+         * Returns estimated transfer bytes crossing the accelerator boundary.
+         *
+         * @return upload plus download bytes
+         */
+        public long estimatedTransferBytes() {
+            return uploadBytes + downloadBytes;
+        }
+
+        /**
+         * Returns zeroed materialization signals.
+         *
+         * @return empty signal value
+         */
+        public static MaterializationSignals none() {
+            return new MaterializationSignals(0, 0L, 0L, 0L, 0L, 0L, "", "");
+        }
+    }
+
+    /**
+     * Named static cost preset. Values are internal constants, not profile-derived costs.
+     *
+     * @param name preset name surfaced in traces
+     * @param boundaryPenalty score penalty per CPU/accelerator boundary
+     * @param uploadBytePenalty score penalty per uploaded byte
+     * @param downloadBytePenalty score penalty per downloaded byte
+     * @param tensorArrayFallbackBytePenalty score penalty per tensor-array fallback byte
+     * @param layoutFallbackBytePenalty score penalty per layout fallback byte
+     * @param avoidedIntermediateByteCredit score credit per avoided intermediate byte
+     * @param dispatchOverhead fixed accelerator dispatch cost
+     * @param computeWorkCredit multiplier for estimated compute work
+     */
+    public record StaticCostPreset(
+            String name,
+            double boundaryPenalty,
+            double uploadBytePenalty,
+            double downloadBytePenalty,
+            double tensorArrayFallbackBytePenalty,
+            double layoutFallbackBytePenalty,
+            double avoidedIntermediateByteCredit,
+            double dispatchOverhead,
+            double computeWorkCredit
+    ) {
+        public StaticCostPreset {
+            name = name == null || name.isBlank() ? "CONSERVATIVE" : name;
+            boundaryPenalty = Math.max(0.0d, boundaryPenalty);
+            uploadBytePenalty = Math.max(0.0d, uploadBytePenalty);
+            downloadBytePenalty = Math.max(0.0d, downloadBytePenalty);
+            tensorArrayFallbackBytePenalty = Math.max(0.0d, tensorArrayFallbackBytePenalty);
+            layoutFallbackBytePenalty = Math.max(0.0d, layoutFallbackBytePenalty);
+            avoidedIntermediateByteCredit = Math.max(0.0d, avoidedIntermediateByteCredit);
+            dispatchOverhead = Math.max(0.0d, dispatchOverhead);
+            computeWorkCredit = Math.max(0.0d, computeWorkCredit);
+        }
+
+        /**
+         * Returns the conservative static preset for current copy-heavy accelerator execution.
+         *
+         * @return conservative preset
+         */
+        public static StaticCostPreset conservative() {
+            return new StaticCostPreset("CONSERVATIVE", 250.0d, 0.05d, 0.10d, 0.10d, 0.08d, 0.025d, 500.0d, 1.0d);
+        }
+
+        /**
+         * Returns the measured static preset for lower assumed boundary pressure.
+         *
+         * @return measured preset
+         */
+        public static StaticCostPreset measured() {
+            return new StaticCostPreset("MEASURED", 125.0d, 0.025d, 0.05d, 0.05d, 0.04d, 0.05d, 250.0d, 1.0d);
+        }
+
+        /**
+         * Returns the aggressive static preset for exploring longer accelerator regions.
+         *
+         * @return aggressive preset
+         */
+        public static StaticCostPreset aggressive() {
+            return new StaticCostPreset("AGGRESSIVE", 60.0d, 0.01d, 0.02d, 0.02d, 0.02d, 0.10d, 125.0d, 1.0d);
+        }
+
+        /**
+         * Builds a static preset from the graph-level Metal transfer model.
+         *
+         * @param model transfer model
+         * @return matching static preset
+         */
+        public static StaticCostPreset fromMetalTransferModel(MetalTransferModel model) {
+            MetalTransferModel resolved = model == null ? MetalTransferModel.CONSERVATIVE : model;
+            return switch (resolved) {
+                case CONSERVATIVE -> conservative();
+                case MEASURED -> measured();
+                case AGGRESSIVE -> aggressive();
+            };
+        }
+
+        private static StaticCostPreset fromTransferPolicy(String name, TransferPolicy transferPolicy) {
+            TransferPolicy resolved = transferPolicy == null ? TransferPolicy.defaults() : transferPolicy;
+            return new StaticCostPreset(
+                    name,
+                    0.0d,
+                    resolved.inputBytePenalty(),
+                    resolved.outputBytePenalty(),
+                    0.0d,
+                    0.0d,
+                    resolved.avoidedIntermediateByteCredit(),
+                    0.0d,
+                    1.0d
+            );
+        }
+    }
+
+    /**
+     * Explainable static score summary for traces and reports.
+     *
+     * @param preset selected static preset name
+     * @param boundaryCount CPU/accelerator boundary count
+     * @param estimatedTransferBytes upload plus download bytes
+     * @param estimatedComputeWork backend work estimate
+     * @param avoidedIntermediateBytes bytes kept inside the accelerator region
+     * @param dispatchCost fixed dispatch cost applied
+     * @param finalScore final static score
+     * @param reasonCode stable accepted/rejected reason code
+     * @param fallbackMode fallback mode name
+     * @param layoutClass layout class name
+     */
+    public record MaterializationCostSummary(
+            String preset,
+            int boundaryCount,
+            long estimatedTransferBytes,
+            long estimatedComputeWork,
+            long avoidedIntermediateBytes,
+            double dispatchCost,
+            double finalScore,
+            String reasonCode,
+            String fallbackMode,
+            String layoutClass
+    ) {
+        public MaterializationCostSummary {
+            preset = preset == null ? "" : preset;
+            boundaryCount = Math.max(0, boundaryCount);
+            estimatedTransferBytes = Math.max(0L, estimatedTransferBytes);
+            estimatedComputeWork = Math.max(0L, estimatedComputeWork);
+            avoidedIntermediateBytes = Math.max(0L, avoidedIntermediateBytes);
+            dispatchCost = Math.max(0.0d, dispatchCost);
+            reasonCode = reasonCode == null ? "" : reasonCode;
+            fallbackMode = fallbackMode == null ? "" : fallbackMode;
+            layoutClass = layoutClass == null ? "" : layoutClass;
         }
     }
 
