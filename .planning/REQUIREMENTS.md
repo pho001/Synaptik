@@ -17,7 +17,7 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 ### GPU Layout Transform And View Path
 
 - [x] **GPUVIEW-01**: `reshape`, `permute`, `expand`, `contiguous`, alias outputs, and legal view-like values can remain device-resident across compatible Metal and CUDA regions when layout and capability contracts allow it.
-- [ ] **GPUVIEW-02**: GPU-side layout transform or logical-view materialization produces CPU-parity graph outputs and CPU-consumer values while avoiding intermediate CPU materialization between accelerator-compatible nodes.
+- [x] **GPUVIEW-02**: GPU-side layout transform or logical-view materialization produces CPU-parity graph outputs and CPU-consumer values while avoiding intermediate CPU materialization between accelerator-compatible nodes.
 - [x] **GPUVIEW-03**: Metal and CUDA share backend-neutral layout transform/request/decision records while native handles, layout kernels, and capability details remain backend-owned.
 
 ### GPU Lowering Coverage
@@ -71,7 +71,7 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 | GPULAYOUT-02 | Phase 9 | Complete |
 | GPULAYOUT-03 | Phase 9 | Complete |
 | GPUVIEW-01 | Phase 10 | Complete |
-| GPUVIEW-02 | Phase 10 | Pending |
+| GPUVIEW-02 | Phase 10 | Complete |
 | GPUVIEW-03 | Phase 10 | Complete |
 | GPULOWER-01 | Phase 11 | Pending |
 | GPULOWER-02 | Phase 11 | Pending |
