@@ -139,7 +139,7 @@ Plans:
 - [x] 04-03-PLAN.md - Wire audited runtime/profile-derived accelerator costs.
 
 **Wave 4** *(blocked on Waves 1-3 completion)*
-- [ ] 04-04-PLAN.md - Lock benchmark read-only profile boundary and docs.
+- [x] 04-04-PLAN.md - Lock benchmark read-only profile boundary and docs.
 
 Cross-cutting constraints:
 - Graph/workload tuning decisions stay in graph autotune; platform/dtype runtime thresholds stay in platform calibration.

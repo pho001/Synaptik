@@ -30,10 +30,10 @@ These requirements define the next brownfield milestone. They are intentionally 
 
 ### Tuning And Profiles
 
-- [ ] **TUNE-01**: Graph autotune owns graph/workload-specific decisions such as offload policy, accelerator region strategy, CPU region policy, fusion policy, and layout/materialization policy.
-- [ ] **TUNE-02**: Platform calibration owns hardware/dtype-specific thresholds such as BLAS, CPU vector/parallel, fused ASM, reduction, scheduler, and accelerator runtime thresholds.
-- [ ] **TUNE-03**: Profile persistence validates schema/version fields and does not silently default unsupported accelerator buffer or layout settings.
-- [ ] **TUNE-04**: Benchmark commands remain read-only; autotune/calibration are the only flows that intentionally persist profile results.
+- [x] **TUNE-01**: Graph autotune owns graph/workload-specific decisions such as offload policy, accelerator region strategy, CPU region policy, fusion policy, and layout/materialization policy.
+- [x] **TUNE-02**: Platform calibration owns hardware/dtype-specific thresholds such as BLAS, CPU vector/parallel, fused ASM, reduction, scheduler, and accelerator runtime thresholds.
+- [x] **TUNE-03**: Profile persistence validates schema/version fields and does not silently default unsupported accelerator buffer or layout settings.
+- [x] **TUNE-04**: Benchmark commands remain read-only; autotune/calibration are the only flows that intentionally persist profile results.
 
 ### Verification And Observability
 
@@ -94,10 +94,10 @@ These requirements define the next brownfield milestone. They are intentionally 
 | PLAN-02 | Phase 3 | Complete |
 | PLAN-03 | Phase 3 | Complete |
 | PLAN-04 | Phase 3 | Complete |
-| TUNE-01 | Phase 4 | Pending |
-| TUNE-02 | Phase 4 | Pending |
-| TUNE-03 | Phase 4 | Pending |
-| TUNE-04 | Phase 4 | Pending |
+| TUNE-01 | Phase 4 | Complete |
+| TUNE-02 | Phase 4 | Complete |
+| TUNE-03 | Phase 4 | Complete |
+| TUNE-04 | Phase 4 | Complete |
 | OBS-01 | Phase 5 | Pending |
 | OBS-02 | Phase 5 | Pending |
 | OBS-03 | Phase 5 | Pending |
