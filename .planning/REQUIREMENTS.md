@@ -35,9 +35,9 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 
 ### Coverage Benchmark And Regression Gates
 
-- [ ] **GPUCOV-01**: Trace and benchmark reports expose GPU coverage ratio, selected region length, rejected candidate reasons, fallback counts, CPU materialization count/reason, copy timing, storage residency, and device handoff counts for Metal and CUDA.
-- [ ] **GPUCOV-02**: Representative workloads such as transformer block, MLP, and a convolution- or normalization-heavy graph demonstrate fewer GPU-to-CPU exits or longer GPU-covered regions than the v1.1 baseline.
-- [ ] **GPUCOV-03**: Regression gates fail when supported target workloads lose GPU coverage, add unexpected CPU materialization boundaries, or hide fallback behind tensor-array execution.
+- [x] **GPUCOV-01**: Trace and benchmark reports expose GPU coverage ratio, selected region length, rejected candidate reasons, fallback counts, CPU materialization count/reason, copy timing, storage residency, and device handoff counts for Metal and CUDA.
+- [x] **GPUCOV-02**: Representative workloads such as transformer block, MLP, and a convolution- or normalization-heavy graph demonstrate fewer GPU-to-CPU exits or longer GPU-covered regions than the v1.1 baseline.
+- [x] **GPUCOV-03**: Regression gates fail when supported target workloads lose GPU coverage, add unexpected CPU materialization boundaries, or hide fallback behind tensor-array execution.
 
 ## Future Requirements
 
@@ -80,9 +80,9 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 | GPUFUSE-02 | Phase 12 | Complete |
 | GPUFUSE-03 | Phase 12 | Complete |
 | GPUFUSE-04 | Phase 12 | Complete |
-| GPUCOV-01 | Phase 13 | Pending |
-| GPUCOV-02 | Phase 13 | Pending |
-| GPUCOV-03 | Phase 13 | Pending |
+| GPUCOV-01 | Phase 13 | Complete |
+| GPUCOV-02 | Phase 13 | Complete |
+| GPUCOV-03 | Phase 13 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 16 total
