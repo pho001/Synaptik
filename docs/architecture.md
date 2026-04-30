@@ -306,7 +306,7 @@ Accelerator support is present but not equivalent to the CPU backend.
 
 Needs verification: native Metal/CUDA runtime availability depends on machine-specific bridge loading and external native libraries, which cannot be proven from Java source alone. The source-level integration points are `backend.metal.bridge.*`, `backend.cuda.bridge.*`, and `backend.accelerator.select.AcceleratorRuntimeAvailability`.
 
-CUDA capability probe layers are represented by `CudaBridgeCapabilities`: native library discovery, CUDA runtime availability, context availability, graph execution ABI availability, and buffer execution support. Phase 6 keeps `bufferExecutionSupported` conservative and does not treat graph ABI availability as proof of native CUDA buffer execution.
+CUDA capability probe layers are represented by `CudaBridgeCapabilities`: native library discovery, CUDA runtime availability, context availability, graph execution ABI availability, and buffer execution support. CUDA dense FLOAT32 buffer execution is capability-gated: `CudaFfmBridge.supportsBufferBindings()` reports support only when the loaded shim exports create, read, destroy, and execute-buffer symbols.
 
 For the general Java FFM bridge model and the CPU OpenBLAS bridge, see [Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step).
 For the detailed Metal runtime, Java FFM, Objective-C shim, buffer ABI, and fallback mechanics, see [Metal Backend: End-To-End Flow](metal-backend.md#end-to-end-flow), [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim), and [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi). This architecture document keeps the high-level boundaries; the Metal document follows the native call path in detail.
@@ -450,7 +450,12 @@ it does not pull arrays out of semantic `Tensor` objects.
 
 CUDA consumes the same `AcceleratorBufferLayout`, `AcceleratorBufferRequest`, and `AcceleratorBufferDecision`
 metadata for dense `FLOAT32` layout preflight. CUDA-specific native handles and lifetimes stay under
-`backend.cuda.*`; actual CUDA device-buffer execution, materialization, and adjacent handoff are Phase 7 work.
+`backend.cuda.*`. Phase 7 adds a narrow CUDA dense FLOAT32 buffer execution path: `CudaBufferAllocator` creates
+run-scoped native CUDA buffers, `PreparedCudaExecutable` calls `CudaGraphBridge.executeBuffers(...)`, successful
+outputs are attached as `StorageResidency.DEVICE_OWNED`, and `CudaDeviceToCpuMaterializer` reads graph-output or
+CPU-consumer values back through `ExecutionState.requireCpuReadable(...)`. Adjacent CUDA handoff reuses a compatible
+`CudaBufferBinding` when backend id, dtype, shape, strides, storage offset, logical element count, handle
+availability, and access mode match. Unsupported paths are explicit: unsupported CUDA buffer layouts and dtypes fall back visibly. This is not broad CUDA operation coverage, and CPU remains the correctness oracle. CUDA trace/report parity remains Phase 8 work.
 
 The important ownership split is:
 
@@ -593,7 +598,7 @@ transition happened. The residency enum is:
 |---|---|---|
 | `CPU_ARRAY` | The current value is in normal typed Java tensor storage. This is the state produced by CPU kernels and by the legacy Metal copy-back path. | Baseline representation and materialization target for public tensor reads. |
 | `HOST_SHARED_DEVICE_BUFFER` | A host-visible buffer and Java CPU storage are both current. Metal uses this for uploaded inputs whose Java arrays are already current. | Shared input representation where the CPU representation is genuinely current. |
-| `DEVICE_OWNED` | The newest value is in a device/backend buffer and Java CPU arrays are stale. Metal buffer outputs use this state even when the underlying `MTLBuffer` is shared. | Device residency with explicit CPU materialization. |
+| `DEVICE_OWNED` | The newest value is in a device/backend buffer and Java CPU arrays are stale. Metal and CUDA buffer outputs use this state even when the underlying native buffer may be host-visible. | Device residency with explicit CPU materialization. |
 
 The important design point is that residency is per execution run, not part of the semantic graph. A `Tensor` still
 means "this value in the user's graph"; residency means "where this run currently has the newest materialized bytes for
@@ -604,10 +609,10 @@ buffer-binding Metal path, `PreparedMetalExecutable` attaches a device binding a
 
 CPU publication points now check residency before reading runtime tensor arrays. The relevant reasons are encoded in
 `CpuMaterializationReason`: `GRAPH_OUTPUT`, `GRADIENT_PUBLICATION`, `CPU_CONSUMER`, `PUBLIC_DATA_ACCESS`, and
-`CPU_FALLBACK`. This is now both a guardrail and a transfer engine for Metal: if a Metal buffer output is
-`DEVICE_OWNED` and CPU-stale, `PreparedExecution` asks the registered Metal materializer to read the native buffer into
-the runtime tensor's Java array before publishing the root tensor or gradients. If the materializer is absent or rejects
-the binding, execution throws rather than publishing stale CPU data.
+`CPU_FALLBACK`. This is now both a guardrail and a transfer engine for native buffer paths: if a Metal or CUDA buffer
+output is `DEVICE_OWNED` and CPU-stale, `PreparedExecution` asks the registered backend materializer to read the native
+buffer into the runtime tensor's Java array before publishing the root tensor or gradients. If the materializer is
+absent or rejects the binding, execution throws rather than publishing stale CPU data.
 
 Those guardrails now feed run-level observability. `RunTrace.cpuMaterializations()` returns `CpuMaterializationTrace`
 entries for failed CPU-read requests and completed device-to-CPU synchronizations. A failed entry records the requested
@@ -622,21 +627,23 @@ materializer with the binding, target runtime tensor, and materialization reason
 bytes into CPU-visible tensor storage before returning `CpuMaterializationResult`; execution state then records the
 trace and marks CPU storage current. The Metal implementation is `MetalDeviceToCpuMaterializer`, backed by
 `MetalBufferAllocator.readToCpu(...)` and the native `synaptik_apple_mps_read_buffer(...)` ABI.
+The CUDA implementation is `CudaDeviceToCpuMaterializer`, backed by `CudaBufferAllocator.readToCpu(...)` and the native
+`synaptik_cuda_graph_read_buffer(...)` ABI.
 
 The next Java-side contract is `DeviceBufferBinding`. It is backend-neutral and deliberately small: node id, backend
 id, logical byte length, availability, and a diagnostic description. `MetalBufferBinding` implements that contract and
-keeps Metal-specific native handle details in `backend.metal.buffer`. `ExecutionState` can now register such a binding
-per compiled node. Reserving a binding only says that a writable backend buffer exists for a future output; it does not
-change residency and cannot be read as current data. Attaching a `HOST_SHARED_DEVICE_BUFFER` binding after execution
-marks both CPU and device representations current; attaching a `DEVICE_OWNED` binding marks CPU stale and device
-current. Metal output promotion uses `DEVICE_OWNED` because the Java tensor array is not updated until materialization.
+keeps Metal-specific native handle details in `backend.metal.buffer`; `CudaBufferBinding` does the same for CUDA under
+`backend.cuda.buffer`. `ExecutionState` can now register such a binding per compiled node. Reserving a binding only
+says that a writable backend buffer exists for a future output; it does not change residency and cannot be read as
+current data. Attaching a `HOST_SHARED_DEVICE_BUFFER` binding after execution marks both CPU and device representations
+current; attaching a `DEVICE_OWNED` binding marks CPU stale and device current. Metal and CUDA output promotion use
+`DEVICE_OWNED` because the Java tensor array is not updated until materialization.
 A later CPU write or completed CPU materialization clears the active/reserved binding, because the previous device
 handle can no longer be treated as the active value.
 
 This also changes the default post-step residency rule. CPU backend steps are still marked CPU-current after execution.
 Accelerator steps are marked CPU-current only when they did not publish any residency state themselves. That preserves
-the legacy copy-back Metal behavior while letting buffer-binding Metal executable keep its output
-device-resident.
+legacy copy-back behavior while letting buffer-binding Metal and CUDA executables keep their outputs device-resident.
 
 ## Tracing And Observability
 

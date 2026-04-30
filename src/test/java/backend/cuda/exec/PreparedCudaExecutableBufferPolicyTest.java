@@ -1,5 +1,7 @@
 package backend.cuda.exec;
 
+import backend.accelerator.buffer.AcceleratorBufferAccessMode;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.dag.AcceleratorDagInput;
@@ -11,11 +13,13 @@ import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;
 import backend.cuda.bridge.CudaGraphBridge;
+import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferAllocator;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
 import backend.lowering.LoweringFamily;
 import backend.memory.CpuMaterializationReason;
+import backend.memory.DeviceBufferBinding;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -140,18 +144,121 @@ class PreparedCudaExecutableBufferPolicyTest {
         assertTrue(failure.getMessage().contains("CUDA buffer binding execution failed:"));
     }
 
+    @Test
+    void adjacentCudaRegionsReuseDeviceBufferBinding() {
+        TwoStageFixture fixture = twoStageFixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(true);
+        PreparedCudaExecutable first = executable(
+                fixture.inputNode(),
+                fixture.middleNode(),
+                fixture.metadata(),
+                bridge,
+                AcceleratorBackendConfig.defaults()
+        );
+        PreparedCudaExecutable second = executable(
+                fixture.middleNode(),
+                fixture.outputNode(),
+                fixture.metadata(),
+                bridge,
+                AcceleratorBackendConfig.defaults()
+        );
+
+        first.execute(fixture.context());
+        CudaBufferBinding middleBinding = (CudaBufferBinding) fixture.state()
+                .deviceBufferBindingForNodeId(fixture.middleNode().id());
+        second.execute(fixture.context());
+
+        assertEquals(2, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(middleBinding.nativeHandleIdentity(), bridge.lastBufferInputs.getFirst().nativeHandleIdentity());
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, second.lastAcceleratorBufferDecision().path());
+        assertTrue(fixture.state().cpuMaterializationTraces().isEmpty());
+    }
+
+    @Test
+    void adjacentCudaRegionRejectsDifferentBackendBinding() {
+        Fixture fixture = fixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(true);
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                new NonCudaBinding(fixture.inputNode().id(), layout(fixture.inputNode())),
+                StorageResidency.DEVICE_OWNED,
+                "foreign device binding"
+        );
+        PreparedCudaExecutable executable = executable(
+                fixture,
+                bridge,
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferReasonCode.INPUT_BINDING_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode());
+        assertTrue(failure.getMessage().contains("INPUT_BINDING_UNAVAILABLE"));
+    }
+
+    @Test
+    void adjacentCudaRegionRejectsMismatchedLayoutBinding() {
+        Fixture fixture = fixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(true);
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                new CudaBufferBinding(
+                        fixture.inputNode().id(),
+                        AcceleratorBufferLayout.of(DataType.FLOAT32, new int[]{1}, new int[]{1}, 0, 1),
+                        new CudaBufferHandle(MemorySegment.ofAddress(50_000), Float.BYTES, false),
+                        CudaBufferAccess.READ_WRITE
+                ),
+                StorageResidency.DEVICE_OWNED,
+                "mismatched CUDA binding"
+        );
+        PreparedCudaExecutable executable = executable(
+                fixture,
+                bridge,
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferReasonCode.INPUT_BINDING_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode());
+        assertTrue(failure.getMessage().contains("INPUT_BINDING_UNAVAILABLE"));
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains("does not match expected shape"));
+    }
+
     private static PreparedCudaExecutable executable(
             Fixture fixture,
             CudaGraphBridge bridge,
             AcceleratorBackendConfig backendConfig
     ) {
+        return executable(fixture.inputNode(), fixture.outputNode(), fixture.metadata(), bridge, backendConfig);
+    }
+
+    private static PreparedCudaExecutable executable(
+            CompiledNode inputNode,
+            CompiledNode outputNode,
+            Map<Integer, CompiledNodeExecutionMetadata> metadata,
+            CudaGraphBridge bridge,
+            AcceleratorBackendConfig backendConfig
+    ) {
         return new PreparedCudaExecutable(
-                dag(fixture.inputNode(), fixture.outputNode()),
+                dag(inputNode, outputNode),
                 LoweringFamily.CUDA_GRAPH_REGION,
                 bridge,
                 List.of(new PreparedAcceleratorExecutionSupport.CpuFallbackStep(
-                        fixture.outputNode(),
-                        fixture.metadata().get(fixture.outputNode().id())
+                        outputNode,
+                        metadata.get(outputNode.id())
                 )),
                 backendConfig
         );
@@ -184,6 +291,36 @@ class PreparedCudaExecutableBufferPolicyTest {
         return new Fixture(inputNode, outputNode, metadata, state, context);
     }
 
+    private static TwoStageFixture twoStageFixture() {
+        Tensor input = new Tensor(new float[]{-2f, 3f}, new int[]{2}, null, "input", DataType.FLOAT32);
+        Tensor middle = input.relu();
+        Tensor output = middle.relu();
+        CompiledGraph compiled = CompiledGraph.compile(output, OptimizerConfig.noOptimization());
+        List<CompiledNode> nodes = compiled.compileArtifacts().compiledNodes();
+        List<CompiledNode> reluNodes = nodes.stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.RELU)
+                .sorted(java.util.Comparator.comparingInt(CompiledNode::id))
+                .toList();
+        CompiledNode middleNode = reluNodes.get(0);
+        CompiledNode outputNode = reluNodes.get(1);
+        CompiledNode inputNode = nodes.stream()
+                .filter(node -> node.id() == middleNode.inputIds().getFirst())
+                .findFirst()
+                .orElseThrow();
+        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        for (PreparedNodeExecution step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
+            metadata.put(step.compiledNode().id(), step.metadata());
+        }
+        ExecutionState state = ExecutionState.create(nodes, metadata, compiled.compileArtifacts().forwardOutputNode().id());
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(
+                RuntimeConfig.inferenceDefaults(),
+                ExecutionMode.FORWARD,
+                metadata,
+                state
+        );
+        return new TwoStageFixture(inputNode, middleNode, outputNode, metadata, state, context);
+    }
+
     private static AcceleratorDagSpec dag(CompiledNode inputNode, CompiledNode outputNode) {
         AcceleratorDagInput input = new AcceleratorDagInput(
                 inputNode.id(),
@@ -214,6 +351,53 @@ class PreparedCudaExecutableBufferPolicyTest {
             ExecutionState state,
             ExecutionContext context
     ) {
+    }
+
+    private record TwoStageFixture(
+            CompiledNode inputNode,
+            CompiledNode middleNode,
+            CompiledNode outputNode,
+            Map<Integer, CompiledNodeExecutionMetadata> metadata,
+            ExecutionState state,
+            ExecutionContext context
+    ) {
+    }
+
+    private record NonCudaBinding(int nodeId, AcceleratorBufferLayout layout) implements DeviceBufferBinding {
+        @Override
+        public String backendId() {
+            return "GPU_TEST";
+        }
+
+        @Override
+        public AcceleratorBufferAccessMode accessMode() {
+            return AcceleratorBufferAccessMode.READ_WRITE;
+        }
+
+        @Override
+        public String nativeHandleIdentity() {
+            return "test-non-cuda-" + nodeId;
+        }
+
+        @Override
+        public boolean available() {
+            return true;
+        }
+
+        @Override
+        public String describe() {
+            return "NonCudaBinding{nodeId=" + nodeId + '}';
+        }
+    }
+
+    private static AcceleratorBufferLayout layout(CompiledNode node) {
+        return AcceleratorBufferLayout.of(
+                node.dataType(),
+                node.shape(),
+                node.strides(),
+                node.storageOffset(),
+                node.flatDataSize()
+        );
     }
 
     private static final class FakeCudaBridge implements CudaGraphBridge {

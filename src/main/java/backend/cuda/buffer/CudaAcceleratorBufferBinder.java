@@ -181,6 +181,10 @@ public final class CudaAcceleratorBufferBinder {
                             "CUDA dense FLOAT32 input binding accepted"));
                     continue;
                 }
+                out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, false,
+                        AcceleratorBufferReasonCode.INPUT_BINDING_UNAVAILABLE,
+                        "external input nodeId=" + nodeId + " CUDA binding is incompatible: " + reason));
+                continue;
             } else if (existing != null) {
                 out.add(new AcceleratorBufferInputDecision(nodeId, layout, prepared, false,
                         AcceleratorBufferReasonCode.INPUT_BINDING_UNAVAILABLE,

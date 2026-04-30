@@ -185,11 +185,21 @@ For CUDA bridge and buffer-policy changes, use focused portable checks first:
 ./gradlew classes
 ./gradlew test --tests backend.cuda.bridge.CudaFfmBridgeTest
 ./gradlew test --tests backend.cuda.buffer.CudaAcceleratorBufferBinderTest
+./gradlew test --tests backend.cuda.buffer.CudaBufferAllocatorTest
+./gradlew test --tests backend.cuda.buffer.CudaDeviceToCpuMaterializerTest
 ./gradlew test --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
 ./gradlew test --tests SourceTreeHygieneTest
 ```
 
-CUDA buffer decisions use stable reason code strings such as `NATIVE_BUFFER_ABI_UNAVAILABLE`, `INPUT_DTYPE_UNSUPPORTED`, `OUTPUT_LAYOUT_UNSUPPORTED`, and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`. Phase 6 validates dense `AcceleratorBufferLayout` / `AcceleratorBufferDecision` metadata for CUDA; actual CUDA device-buffer execution, materialization, and adjacent handoff belong to Phase 7.
+CUDA buffer decisions use stable reason code strings such as `NATIVE_BUFFER_ABI_UNAVAILABLE`, `INPUT_DTYPE_UNSUPPORTED`, `OUTPUT_LAYOUT_UNSUPPORTED`, `INPUT_BINDING_UNAVAILABLE`, `INPUT_NOT_CPU_CURRENT`, `NATIVE_BUFFER_EXECUTION_FAILED`, and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`. Phase 7 proves CUDA dense FLOAT32 buffer execution, `CudaBufferAllocator`, `CudaDeviceToCpuMaterializer`, `StorageResidency.DEVICE_OWNED`, and adjacent CUDA handoff for compatible `CudaBufferBinding` instances. Unsupported CUDA buffer layouts and dtypes fall back visibly, and CPU remains the correctness oracle for every portable CUDA result. This is narrow dense `FLOAT32` CUDA buffer coverage, not broad CUDA operation coverage.
+
+Optional native CUDA verification uses:
+
+```bash
+./gradlew buildCudaGraphShim cudaTest
+```
+
+Native CUDA tests skip when nvcc or CUDA hardware is unavailable. Do not commit local CUDA build outputs or local profile tuning files produced while running these checks.
 
 ## Adding Optimizer Rules
 
