@@ -1023,6 +1023,24 @@ OpenBLAS FFM and Metal FFM use the same Java mechanism, but the execution model 
 
 The shared concept is the ABI: Java and native code must agree exactly on symbol names, primitive argument layout, pointer meaning, ownership, and lifetime. For the Metal-specific ABI, see [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
+## Layout ABI v2 Metadata
+
+Layout ABI v2 is additive beside the existing dense native buffer execution path. A backend can continue to execute
+the v1 dense Metal or CUDA buffer ABI when layout ABI v2 symbols are absent. The v2 contract exists so later GPU layout
+and view work can reason about non-contiguous buffers without changing the public `Tensor` API.
+
+The shared Java metadata includes rank, shape, strides, storage offset, logical element count, logical byte length,
+physical byte span, access mode, backend id, dtype, layout class, and native handle identity. Physical byte span is
+distinct from logical byte length: logical bytes describe the tensor payload, while physical byte span describes the
+backing storage extent implied by strides and storage offset.
+
+Common records do not expose `MemorySegment`, `MTLBuffer`, CUDA pointers, or any public device tensor object. Metal and
+CUDA remain responsible for native handle ownership and lifetime; shared code only sees an opaque native handle identity
+string suitable for diagnostics.
+
+Phase 9 establishes metadata, capability checks, and explicit fallback reasons. Phase 10 owns GPU-side layout/view
+execution and any native transform path that consumes this metadata for actual non-contiguous execution.
+
 ## Common Misconceptions
 
 ### "If `OPENBLAS_FFM` is configured, every matmul uses OpenBLAS"
