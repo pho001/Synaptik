@@ -356,7 +356,8 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                 return State.unavailable(
                         CudaBridgeCapabilityCode.REQUIRED_SYMBOL_MISSING,
                         "CUDA shim is missing required symbol: " + missing,
-                        arena
+                        arena,
+                        true
                 );
             }
             MethodHandle availableFn = linker.downcallHandle(
@@ -435,7 +436,15 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                         createBufferFn,
                         destroyBufferFn,
                         executePartitionBuffersFn,
-                        CudaBridgeCapabilities.unavailable(CudaBridgeCapabilityCode.CUDA_RUNTIME_UNAVAILABLE, reason)
+                        new CudaBridgeCapabilities(
+                                true,
+                                false,
+                                false,
+                                false,
+                                false,
+                                CudaBridgeCapabilityCode.CUDA_RUNTIME_UNAVAILABLE,
+                                reason
+                        )
                 );
             }
             if (createContextFn == null || compilePartitionFn == null || executePartitionFn == null) {
@@ -457,7 +466,15 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                         createBufferFn,
                         destroyBufferFn,
                         executePartitionBuffersFn,
-                        CudaBridgeCapabilities.unavailable(CudaBridgeCapabilityCode.GRAPH_EXECUTION_ABI_UNAVAILABLE, reason)
+                        new CudaBridgeCapabilities(
+                                true,
+                                true,
+                                createContextFn != null,
+                                false,
+                                false,
+                                CudaBridgeCapabilityCode.GRAPH_EXECUTION_ABI_UNAVAILABLE,
+                                reason
+                        )
                 );
             }
             boolean bufferSupported = CUDA_BUFFER_EXECUTION_ENABLED
@@ -480,7 +497,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             );
         } catch (Throwable t) {
             String reason = t.getClass().getSimpleName() + ": " + safeMessage(t);
-            return State.unavailable(CudaBridgeCapabilityCode.REQUIRED_SYMBOL_MISSING, reason, arena);
+            return State.unavailable(CudaBridgeCapabilityCode.REQUIRED_SYMBOL_MISSING, reason, arena, true);
         }
     }
 
@@ -568,6 +585,15 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         }
 
         private static State unavailable(CudaBridgeCapabilityCode code, String reason, Arena arenaRef) {
+            return unavailable(code, reason, arenaRef, false);
+        }
+
+        private static State unavailable(
+                CudaBridgeCapabilityCode code,
+                String reason,
+                Arena arenaRef,
+                boolean nativeLibraryAvailable
+        ) {
             return new State(
                     false,
                     reason,
@@ -580,7 +606,15 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     null,
                     null,
                     null,
-                    CudaBridgeCapabilities.unavailable(code, reason)
+                    new CudaBridgeCapabilities(
+                            nativeLibraryAvailable,
+                            false,
+                            false,
+                            false,
+                            false,
+                            code,
+                            reason
+                    )
             );
         }
     }
