@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-04-30T08:57:35.892Z"
 last_activity: 2026-04-30
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Planning next milestone
+**Current focus:** Phase 6 — CUDA Shim And Capability Probe
 
 ## Project Reference
 
@@ -33,7 +33,9 @@ Completed milestone:
 
 - v1.0 Accelerator Runtime Architecture - shipped 2026-04-30
 
-Next milestone requirements are intentionally fresh and should be created with `$gsd-new-milestone`.
+Current milestone:
+
+- v1.1 CUDA Native Runtime - planned phases 6-8
 
 ## Codebase Map
 
@@ -60,11 +62,9 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 1 — Accelerator Buffer Layout ABI | Complete | 3 of 3 plans complete | `001-VERIFICATION.md` passed 10/10 must-haves on 2026-04-29 |
-| 2 — Metal Layout-Aware Device Flow | Complete | 3 of 3 plans complete | `002-VERIFICATION.md` passed 12/12 must-haves on 2026-04-30 |
-| 3 — Materialization-Aware Region Planning | Complete | 3 of 3 plans complete | `003-VERIFICATION.md` passed 29/29 must-haves on 2026-04-30 |
-| 4 — Tuning And Profile Ownership Audit | Complete | 4 of 4 plans complete | `04-VERIFICATION.md` passed 28/28 must-haves on 2026-04-30 |
-| 5 — Accelerator Verification And Documentation Closure | Complete | 3 of 3 plans complete | `05-VERIFICATION.md` passed 30/30 must-haves on 2026-04-30 |
+| 6 — CUDA Shim And Capability Probe | Not started | 0 plans | Pending |
+| 7 — CUDA Buffer Execution And Materialization | Not started | 0 plans | Pending |
+| 8 — CUDA Observability And Documentation Closure | Not started | 0 plans | Pending |
 
 ## Deferred Items
 
@@ -137,7 +137,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 6 — CUDA Shim And Capability Probe
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-30 — Milestone v1.1 started
+Status: Roadmap ready
+Last activity: 2026-04-30 — Milestone v1.1 requirements and roadmap created
