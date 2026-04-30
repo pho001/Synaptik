@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
-status: ready_to_plan
-last_updated: "2026-04-30T16:09:59.451Z"
+status: planning
+last_updated: "2026-04-30T16:11:57.444Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 5
@@ -155,9 +155,11 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Gathered Phase 9 context | Ready for Phase 9 planning | .planning/phases/09-native-layout-abi-v2/09-CONTEXT.md |
 | 2026-04-30 | Planned Phase 9 with 3 verified plans | Ready for Phase 9 execution | .planning/phases/09-native-layout-abi-v2/09-01-PLAN.md |
 | 2026-04-30 | Completed and verified Phase 9 | Ready for Phase 10 planning | .planning/phases/09-native-layout-abi-v2/09-VERIFICATION.md |
+| 2026-04-30 | Completed and verified Phase 10 | Ready for Phase 11 context | .planning/phases/10-gpu-layout-transform-and-view-path/10-VERIFICATION.md |
+| 2026-04-30 | Gathered Phase 11 context | Ready for Phase 11 planning | .planning/phases/11-gpu-lowering-coverage-matrix/11-CONTEXT.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 10 plan execution*
+*Last updated: 2026-04-30 after Phase 11 context capture*
 
 ## Current Position
 
