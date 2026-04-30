@@ -52,6 +52,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 
+import java.lang.reflect.Method;
 import java.lang.foreign.MemorySegment;
 import java.util.HashMap;
 import java.util.List;
@@ -64,6 +65,96 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PreparedMetalExecutableBufferBindingTest {
+    @Test
+    void layoutPolicyClassifiesDenseOutputAsDirectDenseBuffer() throws Exception {
+        Object decision = metalLayoutPolicyDecision("output", layout(
+                AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS,
+                new int[]{2},
+                new int[]{1},
+                0
+        ));
+
+        assertTrue(policyAccepted(decision));
+        assertFalse(policyRequiresDensePhysicalLogicalView(decision));
+        assertEquals("DIRECT_DENSE_BUFFER", policyAction(decision));
+        assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, policyReasonCode(decision));
+        assertEquals("", policyReason(decision));
+    }
+
+    @Test
+    void layoutPolicyClassifiesZeroOffsetOutputAsDensePhysicalLogicalView() throws Exception {
+        Object decision = metalLayoutPolicyDecision("output", layout(
+                AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW,
+                new int[]{2, 2},
+                new int[]{2, 1},
+                0
+        ));
+
+        assertTrue(policyAccepted(decision));
+        assertTrue(policyRequiresDensePhysicalLogicalView(decision));
+        assertEquals("DENSE_PHYSICAL_LOGICAL_VIEW", policyAction(decision));
+        assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, policyReasonCode(decision));
+        assertTrue(policyReason(decision).contains("policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"));
+        assertTrue(policyReason(decision).contains("layoutClass=ZERO_OFFSET_VIEW"));
+    }
+
+    @Test
+    void layoutPolicyClassifiesPermutedOutputAsDensePhysicalLogicalView() throws Exception {
+        Object decision = metalLayoutPolicyDecision("output", layout(
+                AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
+                new int[]{2, 2},
+                new int[]{1, 2},
+                0
+        ));
+
+        assertTrue(policyAccepted(decision));
+        assertTrue(policyRequiresDensePhysicalLogicalView(decision));
+        assertEquals("DENSE_PHYSICAL_LOGICAL_VIEW", policyAction(decision));
+        assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, policyReasonCode(decision));
+        assertTrue(policyReason(decision).contains("policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"));
+        assertTrue(policyReason(decision).contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
+    }
+
+    @Test
+    void layoutPolicyRejectsBroadcastOutputBeforeNativeExecution() throws Exception {
+        Object decision = metalLayoutPolicyDecision("output", layout(
+                AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW,
+                new int[]{3, 2},
+                new int[]{0, 1},
+                0
+        ));
+
+        assertFalse(policyAccepted(decision));
+        assertFalse(policyRequiresDensePhysicalLogicalView(decision));
+        assertEquals("REJECT", policyAction(decision));
+        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, policyReasonCode(decision));
+        assertTrue(policyReason(decision).contains("broadcast zero-stride layout is not supported by Metal buffer execution"));
+        assertTrue(policyReason(decision).contains("policyAction=REJECT"));
+        assertTrue(policyReason(decision).contains("layoutClass=BROADCAST_ZERO_STRIDE_VIEW"));
+        assertTrue(policyReason(decision).contains("storageOffset=0"));
+        assertTrue(policyReason(decision).contains("strides=[0, 1]"));
+    }
+
+    @Test
+    void layoutPolicyRejectsCpuUploadForNonDenseInput() throws Exception {
+        Object decision = metalLayoutPolicyDecision("cpuUploadInput", layout(
+                AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW,
+                new int[]{2, 2},
+                new int[]{2, 1},
+                0
+        ));
+
+        assertFalse(policyAccepted(decision));
+        assertFalse(policyRequiresDensePhysicalLogicalView(decision));
+        assertEquals("REJECT", policyAction(decision));
+        assertEquals(AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED, policyReasonCode(decision));
+        assertTrue(policyReason(decision).contains("cpuUploadRequires=DENSE_CONTIGUOUS"));
+        assertTrue(policyReason(decision).contains("policyAction=REJECT"));
+        assertTrue(policyReason(decision).contains("layoutClass=ZERO_OFFSET_VIEW"));
+        assertTrue(policyReason(decision).contains("storageOffset=0"));
+        assertTrue(policyReason(decision).contains("strides=[2, 1]"));
+    }
+
     @Test
     void usesBufferBindingPathWhenBridgeAndAllBindingsAreAvailable() {
         Fixture fixture = fixture();
@@ -848,6 +939,64 @@ class PreparedMetalExecutableBufferBindingTest {
 
     private static int[] denseStrides(int[] shape) {
         return tensor.TensorMetadata.computeStrides(shape);
+    }
+
+    private static AcceleratorBufferLayout layout(
+            AcceleratorBufferLayoutClass layoutClass,
+            int[] shape,
+            int[] strides,
+            int storageOffset
+    ) {
+        long elementCount = 1;
+        for (int extent : shape) {
+            elementCount = Math.multiplyExact(elementCount, extent);
+        }
+        return new AcceleratorBufferLayout(
+                DataType.FLOAT32,
+                shape,
+                strides,
+                storageOffset,
+                elementCount,
+                AcceleratorBufferLayout.byteLength(DataType.FLOAT32, elementCount),
+                layoutClass
+        );
+    }
+
+    private static Object metalLayoutPolicyDecision(String methodName, AcceleratorBufferLayout layout) throws Exception {
+        Class<?> policyClass = Class.forName("backend.metal.buffer.MetalLayoutPolicy");
+        Method method = policyClass.getDeclaredMethod(methodName, AcceleratorBufferLayout.class);
+        method.setAccessible(true);
+        return method.invoke(null, layout);
+    }
+
+    private static boolean policyAccepted(Object decision) throws Exception {
+        Method method = decision.getClass().getDeclaredMethod("accepted");
+        method.setAccessible(true);
+        return (boolean) method.invoke(decision);
+    }
+
+    private static boolean policyRequiresDensePhysicalLogicalView(Object decision) throws Exception {
+        Method method = decision.getClass().getDeclaredMethod("requiresDensePhysicalLogicalView");
+        method.setAccessible(true);
+        return (boolean) method.invoke(decision);
+    }
+
+    private static String policyAction(Object decision) throws Exception {
+        Method method = decision.getClass().getDeclaredMethod("action");
+        method.setAccessible(true);
+        return method.invoke(decision).toString();
+    }
+
+    private static AcceleratorBufferReasonCode policyReasonCode(Object decision) throws Exception {
+        Method method = decision.getClass().getDeclaredMethod("reasonCode");
+        method.setAccessible(true);
+        return (AcceleratorBufferReasonCode) method.invoke(decision);
+    }
+
+    private static String policyReason(Object decision) throws Exception {
+        Method method = decision.getClass().getDeclaredMethod("reason");
+        method.setAccessible(true);
+        return (String) method.invoke(decision);
     }
 
     private static List<Integer> shapeList(int[] shape) {
