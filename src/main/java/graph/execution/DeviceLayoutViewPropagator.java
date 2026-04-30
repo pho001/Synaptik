@@ -114,10 +114,18 @@ final class DeviceLayoutViewPropagator {
         context.attachDeviceBufferBinding(
                 targetNode.id(),
                 targetBinding,
-                StorageResidency.DEVICE_OWNED,
+                metadataOnlyViewResidency(sourceNodeId, context),
                 "device layout view propagation"
         );
         return true;
+    }
+
+    private static StorageResidency metadataOnlyViewResidency(int sourceNodeId, ExecutionContext context) {
+        var sourceResidency = context.residencyForNodeId(sourceNodeId);
+        if (sourceResidency != null && sourceResidency.cpuCurrent()) {
+            return StorageResidency.HOST_SHARED_DEVICE_BUFFER;
+        }
+        return StorageResidency.DEVICE_OWNED;
     }
 
     private static Integer firstInputNodeId(PreparedNodeExecution step) {

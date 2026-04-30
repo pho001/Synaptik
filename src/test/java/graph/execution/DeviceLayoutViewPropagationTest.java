@@ -45,6 +45,25 @@ class DeviceLayoutViewPropagationTest {
     }
 
     @Test
+    void metadataOnlyViewOverHostSharedSourceStaysCpuReadable() {
+        Fixture fixture = fixture(input().permute(1, 0), ComputeBackend.GPU_METAL, false);
+        fixture.attachHostSharedMetalSource();
+
+        assertTrue(DeviceLayoutViewPropagator.tryPropagate(fixture.step(), fixture.context()));
+
+        var targetResidency = fixture.state().residencyForNodeId(fixture.targetNode().id());
+        assertEquals(StorageResidency.HOST_SHARED_DEVICE_BUFFER, targetResidency.residency());
+        assertTrue(targetResidency.cpuCurrent());
+        assertTrue(targetResidency.deviceCurrent());
+
+        fixture.context().requireCpuReadable(
+                fixture.targetNode().id(),
+                backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT
+        );
+        assertEquals(0, fixture.state().cpuMaterializationTraces().size());
+    }
+
+    @Test
     void expandViewPropagatesReadOnlyDeviceBinding() {
         Tensor source = new Tensor(new float[]{1f, 2f, 3f}, new int[]{1, 3}, null, "input", DataType.FLOAT32);
         Tensor view = source.expand(2, 3);
@@ -174,6 +193,22 @@ class DeviceLayoutViewPropagationTest {
                     MetalBufferAccess.READ_WRITE
             );
             state.attachDeviceBufferBinding(sourceNode.id(), binding, StorageResidency.DEVICE_OWNED, "test source");
+        }
+
+        void attachHostSharedMetalSource() {
+            MetalBufferBinding binding = new MetalBufferBinding(
+                    sourceNode.id(),
+                    backend.accelerator.buffer.AcceleratorBufferLayout.of(
+                            sourceNode.dataType(),
+                            sourceNode.shape(),
+                            sourceNode.strides(),
+                            sourceNode.storageOffset(),
+                            sourceNode.flatDataSize()
+                    ),
+                    new MetalBufferHandle(MemorySegment.ofAddress(150), 64, "shared", "test", true),
+                    MetalBufferAccess.READ_WRITE
+            );
+            state.attachDeviceBufferBinding(sourceNode.id(), binding, StorageResidency.HOST_SHARED_DEVICE_BUFFER, "test shared source");
         }
 
         void attachCudaSource() {
