@@ -443,7 +443,8 @@ class PreparedMetalExecutableBufferBindingTest {
         assertOutputLayoutFallback(
                 zeroOffsetViewOutputFixture(),
                 AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW,
-                "policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"
+                "policyAction=DENSE_PHYSICAL_LOGICAL_VIEW",
+                "layoutClass=ZERO_OFFSET_VIEW"
         );
     }
 
@@ -452,25 +453,46 @@ class PreparedMetalExecutableBufferBindingTest {
         assertOutputLayoutFallback(
                 nonZeroOffsetOutputFixture(),
                 AcceleratorBufferLayoutClass.NON_ZERO_OFFSET_VIEW,
-                "policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"
+                "policyAction=DENSE_PHYSICAL_LOGICAL_VIEW",
+                "layoutClass=NON_ZERO_OFFSET_VIEW"
         );
     }
 
     @Test
-    void reportsBroadcastZeroStrideOutputLayoutClass() {
+    void broadcastZeroStrideOutputFallsBackWithOutputLayoutUnsupported() {
         assertOutputLayoutFallback(
                 broadcastOutputFixture(),
                 AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW,
-                "policyAction=REJECT"
+                "policyAction=REJECT",
+                "layoutClass=BROADCAST_ZERO_STRIDE_VIEW"
         );
     }
 
     @Test
-    void reportsUnsupportedOutputLayoutClass() {
+    void unsupportedOutputLayoutFallsBackWithOutputLayoutUnsupported() {
         assertOutputLayoutFallback(
                 unsupportedOutputFixture(),
                 AcceleratorBufferLayoutClass.UNSUPPORTED,
-                "policyAction=REJECT"
+                "policyAction=REJECT",
+                "layoutClass=UNSUPPORTED"
+        );
+    }
+
+    @Test
+    void requiredBufferModeRejectsBroadcastOutputBeforeTensorArrayExecution() {
+        assertRequiredOutputLayoutUnavailable(
+                broadcastOutputFixture(),
+                AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW,
+                "layoutClass=BROADCAST_ZERO_STRIDE_VIEW"
+        );
+    }
+
+    @Test
+    void requiredBufferModeRejectsUnsupportedOutputBeforeTensorArrayExecution() {
+        assertRequiredOutputLayoutUnavailable(
+                unsupportedOutputFixture(),
+                AcceleratorBufferLayoutClass.UNSUPPORTED,
+                "layoutClass=UNSUPPORTED"
         );
     }
 
@@ -817,7 +839,8 @@ class PreparedMetalExecutableBufferBindingTest {
     private static void assertOutputLayoutFallback(
             Fixture fixture,
             AcceleratorBufferLayoutClass layoutClass,
-            String expectedPolicyAction
+            String expectedPolicyAction,
+            String expectedLayoutClassText
     ) {
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
@@ -827,12 +850,52 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(0, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
         assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
+        assertEquals(AcceleratorBufferExecutionPath.TENSOR_ARRAY, executable.lastAcceleratorBufferDecision().path());
         assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
         assertEquals(layoutClass, executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass());
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains(expectedPolicyAction));
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains(expectedLayoutClassText));
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains("storageOffset="));
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains("strides="));
         assertTrue(executable.lastBufferBindingDecision().contains(expectedPolicyAction));
-        assertTrue(executable.lastBufferBindingDecision().contains("layoutClass=" + layoutClass));
+        assertTrue(executable.lastBufferBindingDecision().contains(expectedLayoutClassText));
         assertTrue(executable.lastBufferBindingDecision().contains("storageOffset="));
         assertTrue(executable.lastBufferBindingDecision().contains("strides=["));
+        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+    }
+
+    private static void assertRequiredOutputLayoutUnavailable(
+            Fixture fixture,
+            AcceleratorBufferLayoutClass layoutClass,
+            String expectedLayoutClassText
+    ) {
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(
+                fixture.inputNode(),
+                fixture.outputNode(),
+                bridge,
+                List.of(),
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertTrue(failure.getMessage().contains("OUTPUT_LAYOUT_UNSUPPORTED"));
+        assertTrue(failure.getMessage().contains("policyAction=REJECT"));
+        assertTrue(failure.getMessage().contains(expectedLayoutClassText));
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(0, bridge.bufferAllocations);
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertTrue(executable.lastAcceleratorBufferDecision().required());
+        assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(layoutClass, executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass());
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains("policyAction=REJECT"));
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains(expectedLayoutClassText));
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains("storageOffset="));
+        assertTrue(executable.lastAcceleratorBufferDecision().reason().contains("strides="));
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
     }
 
