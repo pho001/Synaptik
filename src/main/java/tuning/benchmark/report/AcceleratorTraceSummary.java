@@ -57,11 +57,11 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
             addNonBlank(summary.reasonCodes, attrs.get("acceleratorBufferReasonCode"));
             addNonBlank(summary.fallbackReasons, attrs.get("acceleratorBufferReason"));
             addNonBlank(summary.fallbackReasons, attrs.get("metalFallbackReason"));
-            summary.javaToNativeCopyNs += longAttr(attrs.get("metalJavaToNativeCopyNs"));
-            summary.nativeToJavaCopyNs += longAttr(attrs.get("metalNativeToJavaCopyNs"));
-            summary.nativeDeviceCopyNs += longAttr(attrs.get("metalNativeDeviceCopyNs"));
-            summary.inputBytes += longAttr(attrs.get("metalInputBytes"));
-            summary.outputBytes += longAttr(attrs.get("metalOutputBytes"));
+            summary.javaToNativeCopyNs += firstLongAttr(attrs, "acceleratorJavaToNativeCopyNs", "metalJavaToNativeCopyNs");
+            summary.nativeToJavaCopyNs += firstLongAttr(attrs, "acceleratorNativeToJavaCopyNs", "metalNativeToJavaCopyNs");
+            summary.nativeDeviceCopyNs += firstLongAttr(attrs, "acceleratorNativeDeviceCopyNs", "metalNativeDeviceCopyNs");
+            summary.inputBytes += firstLongAttr(attrs, "acceleratorInputBytes", "metalInputBytes");
+            summary.outputBytes += firstLongAttr(attrs, "acceleratorOutputBytes", "metalOutputBytes");
         }
 
         LinkedHashMap<String, BackendSummary> out = new LinkedHashMap<>();
@@ -78,6 +78,14 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
 
     private static long longAttr(Object value) {
         return value instanceof Number number ? number.longValue() : 0L;
+    }
+
+    private static long firstLongAttr(Map<String, Object> attrs, String preferredKey, String fallbackKey) {
+        if (attrs == null) {
+            return 0L;
+        }
+        Object preferred = attrs.get(preferredKey);
+        return preferred instanceof Number ? ((Number) preferred).longValue() : longAttr(attrs.get(fallbackKey));
     }
 
     private static void addNonBlank(LinkedHashSet<String> target, Object value) {

@@ -17,6 +17,7 @@ import backend.cuda.buffer.CudaBufferAllocator;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;
+import backend.cuda.bridge.CudaBridgeExecutionStats;
 import backend.cuda.bridge.CudaGraphBridge;
 import backend.lowering.LoweringFamily;
 import backend.memory.CpuMaterializationReason;
@@ -26,6 +27,7 @@ import backend.accelerator.dag.AcceleratorDagSpec;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import tensor.Tensor;
+import tensor.DataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -49,6 +51,13 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
     private final CudaAcceleratorBufferBinder bufferBinder;
     private volatile AcceleratorBufferDecision lastAcceleratorBufferDecision =
             AcceleratorBufferDecision.notEvaluated(ComputeBackend.GPU_CUDA);
+    private volatile CudaBridgeExecutionStats lastExecutionStats = CudaBridgeExecutionStats.fallback(
+            "not executed yet",
+            0,
+            0,
+            0L,
+            0L
+    );
 
     /**
      * Creates a prepared CUDA executable around a lowered DAG and fallback plan.
@@ -105,6 +114,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             AcceleratorBufferDecision decision = bridgeUnavailableDecision(bridgeUnavailableReason);
             publishDecision(decision);
             requireBufferOrThrow(decision);
+            lastExecutionStats = CudaBridgeExecutionStats.fallback(bridgeUnavailableReason, 0, 0, 0L, 0L);
             PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
             return;
         }
@@ -124,6 +134,9 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             );
             publishDecision(decision);
             requireBufferOrThrow(decision);
+            lastExecutionStats = CudaBridgeExecutionStats.fallback(decision.reason(), 0, 0, 0L, 0L);
+            PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
+            return;
         }
 
         ResolvedAcceleratorInputs resolvedInputs = AcceleratorPreparedInputResolver.resolve(
@@ -151,7 +164,23 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
                         context,
                         allocator
                 );
+                long startNs = System.nanoTime();
                 bridge.executeBuffers(bridgeContext, bridgeExecutable, bindings.inputs(), bindings.outputs());
+                long elapsedNs = System.nanoTime() - startNs;
+                lastExecutionStats = new CudaBridgeExecutionStats(
+                        false,
+                        "",
+                        AcceleratorBufferExecutionPath.BUFFER_BINDING,
+                        bindings.inputs().size(),
+                        bindings.outputs().size(),
+                        logicalBytes(bindings.inputs()),
+                        logicalBytes(bindings.outputs()),
+                        0L,
+                        elapsedNs,
+                        0L,
+                        0L,
+                        elapsedNs
+                );
                 markBufferOutputsCurrent(context, bindings.outputs());
             } catch (RuntimeException ex) {
                 AcceleratorBufferDecision failure = new AcceleratorBufferDecision(
@@ -169,25 +198,66 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
                 );
                 publishDecision(failure);
                 requireBufferOrThrow(failure);
+                lastExecutionStats = CudaBridgeExecutionStats.fallback(
+                        failure.reason(),
+                        failure.inputs().size(),
+                        failure.outputs().size(),
+                        logicalBytesFromInputs(failure.inputs()),
+                        logicalBytesFromOutputs(failure.outputs())
+                );
                 PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
             }
             return;
         }
 
         if (decision.path() == AcceleratorBufferExecutionPath.CPU_FALLBACK) {
+            List<Tensor> resolvedExternalInputs = resolvedInputs.executionExternalInputs();
+            List<Tensor> outputs = outputTensors(context);
+            lastExecutionStats = CudaBridgeExecutionStats.fallback(
+                    decision.reason(),
+                    resolvedExternalInputs.size(),
+                    outputs.size(),
+                    byteSize(resolvedExternalInputs),
+                    byteSize(outputs)
+            );
             PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
             return;
         }
 
         ensureTensorArrayInputsCpuReadable(context);
+        List<Tensor> resolvedExternalInputs = resolvedInputs.executionExternalInputs();
+        List<Tensor> outputs = outputTensors(context);
         try {
+            long startNs = System.nanoTime();
             bridge.execute(
                     bridgeContext,
                     bridgeExecutable,
-                    resolvedInputs.executionExternalInputs(),
-                    outputTensors(context)
+                    resolvedExternalInputs,
+                    outputs
+            );
+            long elapsedNs = System.nanoTime() - startNs;
+            lastExecutionStats = new CudaBridgeExecutionStats(
+                    false,
+                    "",
+                    AcceleratorBufferExecutionPath.TENSOR_ARRAY,
+                    resolvedExternalInputs.size(),
+                    outputs.size(),
+                    byteSize(resolvedExternalInputs),
+                    byteSize(outputs),
+                    0L,
+                    elapsedNs,
+                    0L,
+                    0L,
+                    elapsedNs
             );
         } catch (RuntimeException ex) {
+            lastExecutionStats = CudaBridgeExecutionStats.fallback(
+                    "tensor-array bridge execution failed: " + safeMessage(ex),
+                    resolvedExternalInputs.size(),
+                    outputs.size(),
+                    byteSize(resolvedExternalInputs),
+                    byteSize(outputs)
+            );
             PreparedAcceleratorExecutionSupport.executeCpuFallback(cpuFallbackSteps, context);
         }
     }
@@ -230,6 +300,18 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
      */
     public CudaBridgeExecutable bridgeExecutable() {
         return bridgeExecutable;
+    }
+
+    /**
+     * Returns diagnostics captured during the most recent CUDA execution attempt.
+     *
+     * <p>The value is updated for CUDA buffer execution, tensor-array bridge execution,
+     * and CPU fallback paths so trace rendering can explain the actual runtime path.</p>
+     *
+     * @return latest bridge execution diagnostics
+     */
+    public CudaBridgeExecutionStats lastExecutionStats() {
+        return lastExecutionStats;
     }
 
     private AcceleratorBufferRequest bufferRequest(ExecutionContext context) {
@@ -340,6 +422,71 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
                 binding.handle(),
                 CudaBufferAccess.READ_WRITE
         );
+    }
+
+    private static long logicalBytes(List<CudaBufferBinding> bindings) {
+        long bytes = 0L;
+        if (bindings == null) {
+            return 0L;
+        }
+        for (CudaBufferBinding binding : bindings) {
+            if (binding != null) {
+                bytes += binding.logicalByteLength();
+            }
+        }
+        return bytes;
+    }
+
+    private static long logicalBytesFromInputs(List<backend.accelerator.buffer.AcceleratorBufferInputDecision> inputs) {
+        long bytes = 0L;
+        if (inputs == null) {
+            return 0L;
+        }
+        for (var input : inputs) {
+            if (input != null && input.layout() != null) {
+                bytes += input.layout().logicalByteLength();
+            }
+        }
+        return bytes;
+    }
+
+    private static long logicalBytesFromOutputs(List<backend.accelerator.buffer.AcceleratorBufferOutputDecision> outputs) {
+        long bytes = 0L;
+        if (outputs == null) {
+            return 0L;
+        }
+        for (var output : outputs) {
+            if (output != null && output.layout() != null) {
+                bytes += output.layout().logicalByteLength();
+            }
+        }
+        return bytes;
+    }
+
+    private static long byteSize(List<Tensor> tensors) {
+        long bytes = 0L;
+        if (tensors == null) {
+            return 0L;
+        }
+        for (Tensor tensor : tensors) {
+            if (tensor != null) {
+                bytes += (long) tensor.getFlatDataSize() * elementByteSize(tensor.getDataType());
+            }
+        }
+        return bytes;
+    }
+
+    private static int elementByteSize(DataType dataType) {
+        if (dataType == null) {
+            return 0;
+        }
+        return switch (dataType) {
+            case FLOAT64 -> Double.BYTES;
+            case FLOAT32 -> Float.BYTES;
+            case BFLOAT16 -> Short.BYTES;
+            case BOOL -> Byte.BYTES;
+            case INT32 -> Integer.BYTES;
+        };
     }
 
     private static String safeMessage(RuntimeException ex) {

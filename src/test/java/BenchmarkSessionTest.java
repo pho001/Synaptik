@@ -497,6 +497,99 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void benchmarkSessionReportsCudaAcceleratorEvidenceContract() {
+        var profile = new ExecutionProfile(
+                "cuda-accelerator-evidence-profile",
+                "cuda-accelerator-evidence",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var step = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "cuda_linear",
+                "LINEAR",
+                List.of(16, 16),
+                DataType.FLOAT32,
+                "GPU_CUDA",
+                "PreparedCudaExecutable",
+                2_000_000L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.ofEntries(
+                                Map.entry("acceleratorBufferBackend", "GPU_CUDA"),
+                                Map.entry("acceleratorBufferMode", "AUTO"),
+                                Map.entry("acceleratorBufferExecutionPath", "BUFFER_BINDING"),
+                                Map.entry("acceleratorBufferReasonCode", "BUFFER_BINDING_AVAILABLE"),
+                                Map.entry("acceleratorBufferReason", "using native CUDA buffer bindings"),
+                                Map.entry("acceleratorBufferPreparedInputUsed", true),
+                                Map.entry("acceleratorInputBytes", 2048L),
+                                Map.entry("acceleratorOutputBytes", 1024L),
+                                Map.entry("acceleratorJavaToNativeCopyNs", 100_000L),
+                                Map.entry("acceleratorNativeToJavaCopyNs", 0L),
+                                Map.entry("acceleratorNativeDeviceCopyNs", 25_000L),
+                                Map.entry("storageResidency", "DEVICE_OWNED"),
+                                Map.entry("storageCpuCurrent", false),
+                                Map.entry("storageDeviceCurrent", true)
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+
+        BenchmarkReport report = BenchmarkReport.of(
+                "cuda_accelerator_evidence_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("cuda-accelerator-evidence", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
+                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.BackendSelectionTrace.empty()),
+                                        new graph.execution.trace.RunTrace(
+                                                ExecutionMode.FORWARD,
+                                                2_000_000L,
+                                                List.of(step)
+                                        )
+                                ),
+                                new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("backend=GPU_CUDA"));
+        assertTrue(text.contains("bufferBindingSteps=1"));
+        assertTrue(text.contains("preparedInputSteps=1"));
+        assertTrue(text.contains("reasonCodes=[BUFFER_BINDING_AVAILABLE]"));
+        assertTrue(text.contains("fallbackReasons=[using native CUDA buffer bindings]"));
+        assertTrue(text.contains("bytes=2048->1024"));
+        assertTrue(text.contains("javaToNativeMs=0.100000"));
+        assertTrue(text.contains("nativeDeviceCopyMs=0.025000"));
+        assertTrue(text.contains("storageResidency=DEVICE_OWNED"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"GPU_CUDA\""));
+        assertTrue(json.contains("\"bufferBindingSteps\": 1"));
+        assertTrue(json.contains("\"preparedInputSteps\": 1"));
+        assertTrue(json.contains("\"reasonCodes\": [\"BUFFER_BINDING_AVAILABLE\"]"));
+        assertTrue(json.contains("\"fallbackReasons\": [\"using native CUDA buffer bindings\"]"));
+        assertTrue(json.contains("\"inputBytes\": 2048"));
+        assertTrue(json.contains("\"outputBytes\": 1024"));
+        assertTrue(json.contains("\"javaToNativeCopyNs\": 100000"));
+        assertTrue(json.contains("\"nativeDeviceCopyNs\": 25000"));
+        assertTrue(json.contains("\"storageResidency\": \"DEVICE_OWNED\""));
+    }
+
+    @Test
     void benchmarkSessionReportsClosureTransformerBlockTraceContract() {
         var profile = new ExecutionProfile(
                 "accelerator-closure-transformer-block",

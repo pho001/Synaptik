@@ -68,6 +68,9 @@ class PreparedCudaExecutableBufferPolicyTest {
         assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
         assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE,
                 executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+        assertTrue(executable.lastExecutionStats().inputBytes() > 0L);
+        assertTrue(executable.lastExecutionStats().outputBytes() > 0L);
         assertEquals(fixture.inputNode().id(), bridge.lastBufferInputs.getFirst().nodeId());
         assertEquals(fixture.outputNode().id(), bridge.lastBufferOutputs.getFirst().nodeId());
         assertNotNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
