@@ -3,6 +3,7 @@ package backend.cuda.bridge;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagSpec;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
 import backend.cuda.buffer.CudaBufferAllocator;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
@@ -21,6 +22,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 /**
  * CUDA graph bridge backed by the Java Foreign Function and Memory API.
@@ -536,6 +538,37 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     "synaptik_cuda_graph_execute_partition_f32_buffers",
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
             );
+            MethodHandle layoutAbiVersionFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_cuda_graph_layout_abi_version",
+                    FunctionDescriptor.of(JAVA_INT)
+            );
+            MethodHandle validateLayoutAbiV2Fn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_cuda_graph_validate_layout_abi_v2",
+                    FunctionDescriptor.of(
+                            JAVA_INT,
+                            JAVA_INT,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS
+                    )
+            );
+            int layoutAbiV2Version = layoutAbiVersion(layoutAbiVersionFn);
+            boolean layoutAbiV2Supported = layoutAbiV2Version == AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
+                    && validateLayoutAbiV2Fn != null;
 
             int available = (int) availableFn.invokeExact();
             if (available == 0) {
@@ -560,6 +593,8 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                                 false,
                                 false,
                                 false,
+                                layoutAbiV2Supported,
+                                layoutAbiV2Version,
                                 CudaBridgeCapabilityCode.CUDA_RUNTIME_UNAVAILABLE,
                                 reason
                         )
@@ -591,6 +626,8 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                                 createContextFn != null,
                                 false,
                                 false,
+                                layoutAbiV2Supported,
+                                layoutAbiV2Version,
                                 CudaBridgeCapabilityCode.GRAPH_EXECUTION_ABI_UNAVAILABLE,
                                 reason
                         )
@@ -614,7 +651,17 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     readBufferFn,
                     destroyBufferFn,
                     executePartitionBuffersFn,
-                    CudaBridgeCapabilities.available(bufferSupported)
+                    new CudaBridgeCapabilities(
+                            true,
+                            true,
+                            true,
+                            true,
+                            bufferSupported,
+                            layoutAbiV2Supported,
+                            layoutAbiV2Version,
+                            cudaCapabilityCode(layoutAbiV2Version, layoutAbiV2Supported),
+                            cudaCapabilityReason(layoutAbiV2Version, layoutAbiV2Supported)
+                    )
             );
         } catch (Throwable t) {
             String reason = t.getClass().getSimpleName() + ": " + safeMessage(t);
@@ -630,6 +677,40 @@ public final class CudaFfmBridge implements CudaGraphBridge {
     ) {
         MemorySegment segment = lookup.find(symbol).orElse(null);
         return segment == null ? null : linker.downcallHandle(segment, descriptor);
+    }
+
+    private static int layoutAbiVersion(MethodHandle layoutAbiVersionFn) {
+        if (layoutAbiVersionFn == null) {
+            return 0;
+        }
+        try {
+            return Math.max(0, (int) layoutAbiVersionFn.invokeExact());
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static CudaBridgeCapabilityCode cudaCapabilityCode(int layoutAbiV2Version, boolean layoutAbiV2Supported) {
+        if (layoutAbiV2Supported) {
+            return CudaBridgeCapabilityCode.AVAILABLE;
+        }
+        if (layoutAbiV2Version == 0) {
+            return CudaBridgeCapabilityCode.LAYOUT_ABI_V2_UNAVAILABLE;
+        }
+        return CudaBridgeCapabilityCode.LAYOUT_ABI_V2_VERSION_MISMATCH;
+    }
+
+    private static String cudaCapabilityReason(int layoutAbiV2Version, boolean layoutAbiV2Supported) {
+        if (layoutAbiV2Supported) {
+            return "";
+        }
+        if (layoutAbiV2Version == 0) {
+            return "CUDA layout ABI v2 symbols unavailable";
+        }
+        return "CUDA layout ABI v2 version mismatch: expected "
+                + AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
+                + ", got "
+                + layoutAbiV2Version;
     }
 
     private static MemorySegment bufferHandleArray(Arena arena, java.util.List<CudaBufferBinding> bindings) {
@@ -759,6 +840,8 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                             false,
                             false,
                             false,
+                            false,
+                            0,
                             code,
                             reason
                     )

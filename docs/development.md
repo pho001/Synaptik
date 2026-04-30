@@ -179,6 +179,10 @@ or native dispatch thresholds.
 
 Default Java lifecycle tasks stay portable: `classes`, `build`, and `check` do not depend on Metal native compilation. Use `nativeBuild` or `metalTest` when a change touches `src/main/native/apple`, `src/main/java/backend/metal`, or Metal partition/lowering behavior. The native ABI and Objective-C call path are documented in [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim).
 
+Layout ABI v2 capability checks are optional-symbol gated for both Metal and CUDA. Portable bridge tests cover
+missing-symbol behavior without requiring hardware; native tasks such as `./gradlew metalTest` and
+`./gradlew buildCudaGraphShim cudaTest` verify local shim exports when the toolchain is available.
+
 For CUDA bridge and buffer-policy changes, use focused portable checks first:
 
 ```bash

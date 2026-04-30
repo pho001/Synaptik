@@ -1,6 +1,7 @@
 package backend.metal.bridge;
 
 import backend.metal.MetalMpsCapabilities;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.lowering.AcceleratorSubgraphSignature;
 import backend.accelerator.dag.AcceleratorDagInput;
@@ -56,6 +57,14 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
     @Override
     public String unavailableReason() {
         return STATE.reason == null ? "" : STATE.reason;
+    }
+
+    /**
+     * Returns layered Metal native bridge capability state.
+     */
+    @Override
+    public MetalMpsBridgeCapabilities capabilities() {
+        return STATE.capabilities;
     }
 
     /**
@@ -783,22 +792,81 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     "synaptik_apple_mps_destroy_executable",
                     FunctionDescriptor.ofVoid(ADDRESS)
             );
+            MethodHandle layoutAbiVersionFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_layout_abi_version",
+                    FunctionDescriptor.of(JAVA_INT)
+            );
+            MethodHandle validateLayoutAbiV2Fn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_validate_layout_abi_v2",
+                    FunctionDescriptor.of(
+                            JAVA_INT,
+                            JAVA_INT,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS
+                    )
+            );
+            int layoutAbiV2Version = layoutAbiVersion(layoutAbiVersionFn);
+            boolean layoutAbiV2Supported = layoutAbiV2Version == AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
+                    && validateLayoutAbiV2Fn != null;
 
             int available = (int) availableFn.invokeExact();
+            boolean bufferSupported = createBufferFn != null
+                    && readBufferFn != null
+                    && destroyBufferFn != null
+                    && executePartitionBuffersFn != null;
             if (available != 0) {
+                MetalMpsBridgeCapabilities capabilities = new MetalMpsBridgeCapabilities(
+                        true,
+                        true,
+                        createContextFn != null,
+                        compilePartitionFn != null && executePartitionFn != null,
+                        bufferSupported,
+                        layoutAbiV2Supported,
+                        layoutAbiV2Version,
+                        metalCapabilityCode(layoutAbiV2Version, layoutAbiV2Supported),
+                        metalCapabilityReason(layoutAbiV2Version, layoutAbiV2Supported)
+                );
                 return new State(true, null, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
                         executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
-                        executePartitionBuffersFn, destroyContextFn, destroyExecutableFn);
+                        executePartitionBuffersFn, destroyContextFn, destroyExecutableFn, capabilities);
             }
 
             MemorySegment reasonPtr = (MemorySegment) unavailableReasonFn.invokeExact();
             String reason = cStringOrDefault(reasonPtr, "Metal MPS shim reported unavailable.");
+            MetalMpsBridgeCapabilities capabilities = new MetalMpsBridgeCapabilities(
+                    true,
+                    false,
+                    false,
+                    false,
+                    bufferSupported,
+                    layoutAbiV2Supported,
+                    layoutAbiV2Version,
+                    MetalMpsCapabilityCode.RUNTIME_UNAVAILABLE,
+                    reason
+            );
             return new State(false, reason, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
                     executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
-                    executePartitionBuffersFn, destroyContextFn, destroyExecutableFn);
+                    executePartitionBuffersFn, destroyContextFn, destroyExecutableFn, capabilities);
         } catch (Throwable t) {
+            String reason = t.getClass().getSimpleName() + ": " + safeMessage(t);
             return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null,
-                    null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null,
+                    MetalMpsBridgeCapabilities.unavailable(MetalMpsCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, reason));
         }
     }
 
@@ -810,6 +878,40 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
     ) {
         MemorySegment segment = lookup.find(symbol).orElse(null);
         return segment == null ? null : linker.downcallHandle(segment, descriptor);
+    }
+
+    private static int layoutAbiVersion(MethodHandle layoutAbiVersionFn) {
+        if (layoutAbiVersionFn == null) {
+            return 0;
+        }
+        try {
+            return Math.max(0, (int) layoutAbiVersionFn.invokeExact());
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    private static MetalMpsCapabilityCode metalCapabilityCode(int layoutAbiV2Version, boolean layoutAbiV2Supported) {
+        if (layoutAbiV2Supported) {
+            return MetalMpsCapabilityCode.AVAILABLE;
+        }
+        if (layoutAbiV2Version == 0) {
+            return MetalMpsCapabilityCode.LAYOUT_ABI_V2_UNAVAILABLE;
+        }
+        return MetalMpsCapabilityCode.LAYOUT_ABI_V2_VERSION_MISMATCH;
+    }
+
+    private static String metalCapabilityReason(int layoutAbiV2Version, boolean layoutAbiV2Supported) {
+        if (layoutAbiV2Supported) {
+            return "";
+        }
+        if (layoutAbiV2Version == 0) {
+            return "Metal layout ABI v2 symbols unavailable";
+        }
+        return "Metal layout ABI v2 version mismatch: expected "
+                + AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
+                + ", got "
+                + layoutAbiV2Version;
     }
 
     private static SymbolLookup resolveLookup(Arena arena) {
@@ -860,6 +962,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         private final MethodHandle executePartitionBuffersFn;
         private final MethodHandle destroyContextFn;
         private final MethodHandle destroyExecutableFn;
+        private final MetalMpsBridgeCapabilities capabilities;
 
         private State(
                 boolean available,
@@ -876,7 +979,8 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 MethodHandle destroyBufferFn,
                 MethodHandle executePartitionBuffersFn,
                 MethodHandle destroyContextFn,
-                MethodHandle destroyExecutableFn
+                MethodHandle destroyExecutableFn,
+                MetalMpsBridgeCapabilities capabilities
         ) {
             this.available = available;
             this.reason = reason;
@@ -893,6 +997,9 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             this.executePartitionBuffersFn = executePartitionBuffersFn;
             this.destroyContextFn = destroyContextFn;
             this.destroyExecutableFn = destroyExecutableFn;
+            this.capabilities = capabilities == null
+                    ? MetalMpsBridgeCapabilities.unavailable(MetalMpsCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, this.reason)
+                    : capabilities;
         }
     }
 }

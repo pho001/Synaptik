@@ -30,6 +30,16 @@ public interface MetalMpsGraphBridge {
     String unavailableReason();
 
     /**
+     * Returns layered Metal native bridge capability state.
+     */
+    default MetalMpsBridgeCapabilities capabilities() {
+        return MetalMpsBridgeCapabilities.unavailable(
+                MetalMpsCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE,
+                unavailableReason()
+        );
+    }
+
+    /**
      * Creates or returns a native Metal bridge context.
      *
      * @return native bridge context; unavailable implementations return an unavailable context

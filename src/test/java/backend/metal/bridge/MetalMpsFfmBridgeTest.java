@@ -7,6 +7,7 @@ import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
+import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.memory.CpuMaterializationReason;
@@ -45,6 +46,21 @@ class MetalMpsFfmBridgeTest {
             assertFalse(bridgeContext.available());
         } else {
             assertTrue(bridge.isAvailable());
+        }
+    }
+
+    @Test
+    void capabilitiesReportLayoutAbiV2StateWithoutThrowing() {
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+
+        MetalMpsBridgeCapabilities capabilities = bridge.capabilities();
+
+        assertNotNull(capabilities);
+        assertNotNull(capabilities.reason());
+        assertEquals(bridge.supportsBufferBindings(), capabilities.bufferExecutionSupported());
+        assertTrue(capabilities.layoutAbiV2Version() >= 0);
+        if (capabilities.layoutAbiV2Version() < AcceleratorLayoutAbiV2Support.REQUIRED_VERSION) {
+            assertFalse(capabilities.layoutAbiV2Supported());
         }
     }
 

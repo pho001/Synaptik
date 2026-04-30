@@ -1,14 +1,13 @@
-package backend.cuda.bridge;
+package backend.metal.bridge;
 
 /**
- * Stable CUDA native bridge capability codes.
+ * Stable Metal native bridge capability codes.
  */
-public enum CudaBridgeCapabilityCode {
+public enum MetalMpsCapabilityCode {
     AVAILABLE,
     NATIVE_LIBRARY_UNAVAILABLE,
     REQUIRED_SYMBOL_MISSING,
-    CUDA_RUNTIME_UNAVAILABLE,
-    CONTEXT_UNAVAILABLE,
+    RUNTIME_UNAVAILABLE,
     GRAPH_EXECUTION_ABI_UNAVAILABLE,
     BUFFER_ABI_UNAVAILABLE,
     LAYOUT_ABI_V2_UNAVAILABLE,

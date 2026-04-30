@@ -97,6 +97,46 @@ extern "C" const char* synaptik_cuda_graph_unavailable_reason(void) {
     return g_unavailable_reason.c_str();
 }
 
+extern "C" int synaptik_cuda_graph_layout_abi_version(void) {
+    return 2;
+}
+
+extern "C" int synaptik_cuda_graph_validate_layout_abi_v2(
+        int binding_count,
+        const int* ranks,
+        const int* dtypes,
+        const long long* storage_offsets,
+        const long long* logical_element_counts,
+        const long long* logical_byte_lengths,
+        const long long* physical_byte_spans,
+        const int* access_modes,
+        const int* layout_classes,
+        const void* const* native_handles,
+        const int* shape_offsets,
+        const long long* shape_values,
+        const int* stride_offsets,
+        const long long* stride_values) {
+    if (binding_count < 0) {
+        return 1;
+    }
+    if (binding_count == 0) {
+        return 0;
+    }
+    if (ranks == nullptr || dtypes == nullptr || storage_offsets == nullptr
+            || logical_element_counts == nullptr || logical_byte_lengths == nullptr
+            || physical_byte_spans == nullptr || access_modes == nullptr || layout_classes == nullptr
+            || native_handles == nullptr || shape_offsets == nullptr || shape_values == nullptr
+            || stride_offsets == nullptr || stride_values == nullptr) {
+        return 1;
+    }
+    for (int i = 0; i < binding_count; i++) {
+        if (ranks[i] <= 0 || physical_byte_spans[i] < 0 || native_handles[i] == nullptr) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 extern "C" void* synaptik_cuda_graph_create_context(void) {
     if (!cuda_runtime_available()) {
         return nullptr;

@@ -164,6 +164,46 @@ const char *synaptik_apple_mps_unavailable_reason(void) {
     }
 }
 
+int32_t synaptik_apple_mps_layout_abi_version(void) {
+    return 2;
+}
+
+int32_t synaptik_apple_mps_validate_layout_abi_v2(
+        int32_t binding_count,
+        const int32_t *ranks,
+        const int32_t *dtypes,
+        const int64_t *storage_offsets,
+        const int64_t *logical_element_counts,
+        const int64_t *logical_byte_lengths,
+        const int64_t *physical_byte_spans,
+        const int32_t *access_modes,
+        const int32_t *layout_classes,
+        const void * const *native_handles,
+        const int32_t *shape_offsets,
+        const int64_t *shape_values,
+        const int32_t *stride_offsets,
+        const int64_t *stride_values) {
+    if (binding_count < 0) {
+        return 1;
+    }
+    if (binding_count == 0) {
+        return 0;
+    }
+    if (ranks == NULL || dtypes == NULL || storage_offsets == NULL
+            || logical_element_counts == NULL || logical_byte_lengths == NULL
+            || physical_byte_spans == NULL || access_modes == NULL || layout_classes == NULL
+            || native_handles == NULL || shape_offsets == NULL || shape_values == NULL
+            || stride_offsets == NULL || stride_values == NULL) {
+        return 1;
+    }
+    for (int32_t i = 0; i < binding_count; i++) {
+        if (ranks[i] <= 0 || physical_byte_spans[i] < 0 || native_handles[i] == NULL) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 void *synaptik_apple_mps_create_context(void) {
     @autoreleasepool {
         id<MTLDevice> device = MTLCreateSystemDefaultDevice();

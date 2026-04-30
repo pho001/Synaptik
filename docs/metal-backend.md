@@ -360,6 +360,11 @@ ABI means application binary interface: the binary contract between Java FFM and
 | `synaptik_apple_mps_destroy_buffer` | `MetalBufferResource.close()` | Releases a buffer box. |
 | `synaptik_apple_mps_execute_partition_f32_buffers` | `executeBuffers(...)` | Executes over explicit input/output buffer handles. |
 | `synaptik_apple_mps_destroy_executable` | discovered, but cached executables are retained for reuse | Releases an executable box. |
+| `synaptik_apple_mps_layout_abi_version` | `MetalMpsFfmBridge.capabilities()` | Optional layout ABI v2 version probe. |
+| `synaptik_apple_mps_validate_layout_abi_v2` | layout ABI v2 capability checks | Optional metadata-only layout descriptor validation. |
+
+Layout ABI v2 symbols are optional-symbol gated. Missing layout ABI v2 symbols disable only layout ABI v2 capability;
+they do not disable the existing dense v1 buffer execution path.
 
 ### `execute_partition_f32_buffers(...)`
 
