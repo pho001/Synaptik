@@ -11,7 +11,7 @@
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | 9 | Native Layout ABI v2 | Extend Metal and CUDA native bridge contracts to carry non-contiguous/view layout metadata with capability/version checks and explicit fallback. | GPULAYOUT-01, GPULAYOUT-02, GPULAYOUT-03 | 5 |
-| 10 | GPU Layout Transform And View Path | Keep legal layout transforms and view-like values device-resident across compatible Metal and CUDA regions. | GPUVIEW-01, GPUVIEW-02, GPUVIEW-03 | 5 |
+| 10 | GPU Layout Transform And View Path | 1/4 | In Progress|  |
 | 11 | GPU Lowering Coverage Matrix | Broaden Metal/CUDA operation lowering for common NN/tensor patterns and document supported/fallback/unsupported coverage. | GPULOWER-01, GPULOWER-02, GPULOWER-03 | 5 |
 | 12 | Fused GPU Region Execution | Execute safe compound GPU regions for linear+bias+activation, elementwise chains, and reduction-adjacent candidates without CPU round trips. | GPUFUSE-01, GPUFUSE-02, GPUFUSE-03, GPUFUSE-04 | 5 |
 | 13 | Coverage Benchmark And Regression Gate | Prove GPU coverage improvements and prevent hidden CPU exits with trace, benchmark, and regression gates. | GPUCOV-01, GPUCOV-02, GPUCOV-03 | 5 |
@@ -106,7 +106,7 @@ Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
 
 **Plans:**
 
-Wave 1:
+1/4 plans executed
 - [10-01 Shared GPU Layout Transform Contract](phases/10-gpu-layout-transform-and-view-path/10-01-PLAN.md) - creates backend-neutral request/decision records and stable reason codes for GPUVIEW-01 and GPUVIEW-03.
 
 Wave 2 *(blocked on Wave 1 completion)*:
