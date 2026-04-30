@@ -6,7 +6,11 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.calibration.family.CalibrationFamilyRegistry;
 import tuning.calibration.run.CalibrationSuite;
+import tuning.ownership.TuningKnobOwner;
+import tuning.ownership.TuningKnobOwnership;
 import tuning.preset.TuningPreset;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class CalibrationCandidateOwnershipTest {
     @Test
@@ -23,6 +27,8 @@ public class CalibrationCandidateOwnershipTest {
                     var candidates = step.candidateSpaceFactory().create(seed).generate(step.workloads().getFirst());
                     for (var candidate : candidates) {
                         CalibrationFamilyRegistry.validateCandidateChanges(step.family(), candidate.knobAssignments());
+                        candidate.knobAssignments().keySet().forEach(knob ->
+                                assertEquals(TuningKnobOwner.PLATFORM_DTYPE, TuningKnobOwnership.ownerOf(knob)));
                     }
                 }
             }

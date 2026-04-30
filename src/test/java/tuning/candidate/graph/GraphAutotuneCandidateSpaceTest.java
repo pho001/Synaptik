@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.autotune.GraphAutotuneMode;
 import tuning.candidate.CandidateKind;
+import tuning.ownership.TuningKnobOwner;
+import tuning.ownership.TuningKnobOwnership;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -39,6 +41,49 @@ class GraphAutotuneCandidateSpaceTest {
         assertTrue(candidates.stream()
                 .filter(candidate -> "ACCELERATOR_BUFFER_MODE".equals(candidate.metadata().attributes().get("graphParameter")))
                 .allMatch(candidate -> "accelerator-buffer".equals(candidate.metadata().parameterFamily())));
+        assertTrue(candidates.stream().allMatch(candidate ->
+                "GRAPH_WORKLOAD".equals(candidate.metadata().attributes().get("knobOwner"))));
+    }
+
+    @Test
+    void standardGraphAutotuneCandidatesOnlyMutateGraphOwnedKnobs() {
+        var candidates = new GraphAutotuneCandidateSpace(
+                "abc",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD_BACKWARD,
+                runtimeProfile(),
+                GraphExecutionPolicy.trainingDefaults(),
+                GraphAutotuneMode.STANDARD
+        ).generate(null);
+
+        for (var candidate : candidates) {
+            String assignments = candidate.metadata().attributes().getOrDefault("knobAssignments", "");
+            if (assignments.isBlank()) {
+                continue;
+            }
+            for (String knob : assignments.split(",")) {
+                assertEquals(TuningKnobOwner.GRAPH_WORKLOAD, TuningKnobOwnership.ownerOf(knob));
+            }
+        }
+    }
+
+    @Test
+    void graphAutotuneMarksAcceleratorBufferModeAsGraphOwned() {
+        var candidate = new GraphAutotuneCandidateSpace(
+                "abc",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD_BACKWARD,
+                runtimeProfile(),
+                GraphExecutionPolicy.trainingDefaults(),
+                GraphAutotuneMode.STANDARD
+        ).generate(null).stream()
+                .filter(generated -> generated.name().equals("acceleratorBuffer=auto"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("GRAPH_WORKLOAD", candidate.metadata().attributes().get("knobOwner"));
+        assertTrue(candidate.metadata().attributes().get("knobAssignments")
+                .contains("runtime.accelerator.metal.buffer.bindingMode"));
     }
 
     @Test

@@ -10,6 +10,7 @@ import config.optimizer.PiecewiseLoweringConfig;
 import config.profile.GraphExecutionPolicy;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public final class GraphPolicyMutators {
@@ -19,12 +20,22 @@ public final class GraphPolicyMutators {
     public record GraphPolicyVariant(
             String name,
             GraphAutotuneParameter parameter,
-            GraphExecutionPolicy policy
+            GraphExecutionPolicy policy,
+            Map<String, String> knobAssignments
     ) {
         public GraphPolicyVariant {
             name = name == null || name.isBlank() ? "graphPolicy=current" : name;
             Objects.requireNonNull(parameter, "parameter cannot be null");
             Objects.requireNonNull(policy, "policy cannot be null");
+            knobAssignments = knobAssignments == null ? Map.of() : Map.copyOf(knobAssignments);
+        }
+
+        public GraphPolicyVariant(
+                String name,
+                GraphAutotuneParameter parameter,
+                GraphExecutionPolicy policy
+        ) {
+            this(name, parameter, policy, Map.of());
         }
     }
 
@@ -43,7 +54,8 @@ public final class GraphPolicyMutators {
                         GraphExecutionPolicy.of(optimizer
                                 .withOffload(OffloadConfig.defaults())
                                 .withCpuRegion(CpuRegionConfig.defaults())
-                                .withCpuFusion(CpuFusionConfig.defaults()))
+                                .withCpuFusion(CpuFusionConfig.defaults())),
+                        graphKnobs(OffloadConfig.defaults(), CpuRegionConfig.defaults(), CpuFusionConfig.defaults())
                 ),
                 new GraphPolicyVariant(
                         "offload=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced",
@@ -51,7 +63,8 @@ public final class GraphPolicyMutators {
                         GraphExecutionPolicy.of(optimizer
                                 .withOffload(OffloadConfig.defaults())
                                 .withCpuRegion(CpuRegionConfig.elementwiseIslands())
-                                .withCpuFusion(CpuFusionConfig.defaults()))
+                                .withCpuFusion(CpuFusionConfig.defaults())),
+                        graphKnobs(OffloadConfig.defaults(), CpuRegionConfig.elementwiseIslands(), CpuFusionConfig.defaults())
                 ),
                 new GraphPolicyVariant(
                         "offload=cpu-only+cpuRegion=natural+cpuFusion=aggressive",
@@ -59,7 +72,8 @@ public final class GraphPolicyMutators {
                         GraphExecutionPolicy.of(optimizer
                                 .withOffload(OffloadConfig.defaults())
                                 .withCpuRegion(CpuRegionConfig.defaults())
-                                .withCpuFusion(CpuFusionConfig.aggressive()))
+                                .withCpuFusion(CpuFusionConfig.aggressive())),
+                        graphKnobs(OffloadConfig.defaults(), CpuRegionConfig.defaults(), CpuFusionConfig.aggressive())
                 ),
                 new GraphPolicyVariant(
                         "offload=accelerator-profitable+accelRegion=greedy+cpuRegion=natural+cpuFusion=balanced",
@@ -67,7 +81,8 @@ public final class GraphPolicyMutators {
                         GraphExecutionPolicy.of(optimizer
                                 .withOffload(OffloadConfig.acceleratorGreedy())
                                 .withCpuRegion(CpuRegionConfig.defaults())
-                                .withCpuFusion(CpuFusionConfig.defaults()))
+                                .withCpuFusion(CpuFusionConfig.defaults())),
+                        graphKnobs(OffloadConfig.acceleratorGreedy(), CpuRegionConfig.defaults(), CpuFusionConfig.defaults())
                 ),
                 new GraphPolicyVariant(
                         "offload=accelerator-profitable+accelRegion=scored+cpuRegion=natural+cpuFusion=balanced",
@@ -75,7 +90,8 @@ public final class GraphPolicyMutators {
                         GraphExecutionPolicy.of(optimizer
                                 .withOffload(OffloadConfig.acceleratorScored())
                                 .withCpuRegion(CpuRegionConfig.defaults())
-                                .withCpuFusion(CpuFusionConfig.defaults()))
+                                .withCpuFusion(CpuFusionConfig.defaults())),
+                        graphKnobs(OffloadConfig.acceleratorScored(), CpuRegionConfig.defaults(), CpuFusionConfig.defaults())
                 )
         );
     }
@@ -133,29 +149,60 @@ public final class GraphPolicyMutators {
                         GraphAutotuneParameter.RESEARCH_METAL_TRANSFER_MODEL,
                         GraphExecutionPolicy.of(optimizer
                                 .withOffload(OffloadConfig.acceleratorScored())
-                                .withPartition(optimizer.partition().withMetalTransferModel(MetalTransferModel.MEASURED)))
+                                .withPartition(optimizer.partition().withMetalTransferModel(MetalTransferModel.MEASURED))),
+                        transferKnobs(OffloadConfig.acceleratorScored(), MetalTransferModel.MEASURED)
                 ),
                 new GraphPolicyVariant(
                         "metalTransfer=aggressive+accelRegion=scored",
                         GraphAutotuneParameter.RESEARCH_METAL_TRANSFER_MODEL,
                         GraphExecutionPolicy.of(optimizer
                                 .withOffload(OffloadConfig.acceleratorScored())
-                                .withPartition(optimizer.partition().withMetalTransferModel(MetalTransferModel.AGGRESSIVE)))
+                                .withPartition(optimizer.partition().withMetalTransferModel(MetalTransferModel.AGGRESSIVE))),
+                        transferKnobs(OffloadConfig.acceleratorScored(), MetalTransferModel.AGGRESSIVE)
                 ),
                 new GraphPolicyVariant(
                         "research:cpuRegion=off+cpuFusion=off",
                         GraphAutotuneParameter.CPU_REGION_POLICY,
                         GraphExecutionPolicy.of(optimizer
                                 .withCpuRegion(CpuRegionConfig.off())
-                                .withCpuFusion(CpuFusionConfig.off()))
+                                .withCpuFusion(CpuFusionConfig.off())),
+                        cpuKnobs(CpuRegionConfig.off(), CpuFusionConfig.off())
                 ),
                 new GraphPolicyVariant(
                         "research:cpuRegion=aggressive+cpuFusion=aggressive",
                         GraphAutotuneParameter.CPU_REGION_POLICY,
                         GraphExecutionPolicy.of(optimizer
                                 .withCpuRegion(CpuRegionConfig.aggressive())
-                                .withCpuFusion(CpuFusionConfig.aggressive()))
+                                .withCpuFusion(CpuFusionConfig.aggressive())),
+                        cpuKnobs(CpuRegionConfig.aggressive(), CpuFusionConfig.aggressive())
                 )
+        );
+    }
+
+    private static Map<String, String> graphKnobs(
+            OffloadConfig offload,
+            CpuRegionConfig cpuRegion,
+            CpuFusionConfig cpuFusion
+    ) {
+        return Map.of(
+                "optimizer.offload.policy", offload.policy().name(),
+                "optimizer.offload.acceleratorRegionPolicy", offload.acceleratorRegionPolicy().name(),
+                "optimizer.cpuRegion.policy", cpuRegion.policy().name(),
+                "optimizer.cpuFusion.mode", cpuFusion.mode().name()
+        );
+    }
+
+    private static Map<String, String> transferKnobs(OffloadConfig offload, MetalTransferModel transferModel) {
+        return Map.of(
+                "optimizer.offload.acceleratorRegionPolicy", offload.acceleratorRegionPolicy().name(),
+                "optimizer.partition.metalTransferModel", transferModel.name()
+        );
+    }
+
+    private static Map<String, String> cpuKnobs(CpuRegionConfig cpuRegion, CpuFusionConfig cpuFusion) {
+        return Map.of(
+                "optimizer.cpuRegion.policy", cpuRegion.policy().name(),
+                "optimizer.cpuFusion.mode", cpuFusion.mode().name()
         );
     }
 }

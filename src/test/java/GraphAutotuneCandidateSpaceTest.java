@@ -6,6 +6,8 @@ import tensor.DataType;
 import tuning.autotune.GraphAutotuneMode;
 import tuning.candidate.CandidateKind;
 import tuning.candidate.graph.GraphAutotuneCandidateSpace;
+import tuning.ownership.TuningKnobOwner;
+import tuning.ownership.TuningKnobOwnership;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 
@@ -74,6 +76,9 @@ public class GraphAutotuneCandidateSpaceTest {
         assertEquals("accelerator-buffer", off.metadata().parameterFamily());
         assertEquals("buffer-off", off.metadata().parameterVariant());
         assertEquals("OFF", off.metadata().attributes().get("acceleratorBufferBindingMode"));
+        assertEquals("GRAPH_WORKLOAD", off.metadata().attributes().get("knobOwner"));
+        assertTrue(off.metadata().attributes().get("knobAssignments")
+                .contains("runtime.accelerator.metal.buffer.bindingMode"));
         assertEquals(config.runtime.AcceleratorBufferBindingMode.OFF,
                 off.profile().runtime().accelerator().metal().buffer().bindingMode());
         assertEquals(config.runtime.AcceleratorBufferBindingMode.AUTO,
@@ -108,6 +113,53 @@ public class GraphAutotuneCandidateSpaceTest {
                 candidate.profile().runtime().cpuKernelConfig().cheapVectorMinSize()
         );
         assertEquals(policy.optimizer(), candidate.profile().optimizer());
+    }
+
+    @Test
+    void standardGraphAutotuneCandidatesOnlyMutateGraphOwnedKnobs() {
+        var seed = seedProfile();
+        var candidates = new GraphAutotuneCandidateSpace(
+                "graph-standard",
+                seed.dataType(),
+                seed.mode(),
+                PlatformRuntimeProfile.fromExecutionProfile("platform", "hardware", "TEST", seed),
+                GraphExecutionPolicy.fromExecutionProfile(seed),
+                GraphAutotuneMode.STANDARD
+        ).generate(workload());
+
+        for (var candidate : candidates) {
+            String assignments = candidate.metadata().attributes().getOrDefault("knobAssignments", "");
+            if (assignments.isBlank()) {
+                continue;
+            }
+            for (String knob : assignments.split(",")) {
+                assertEquals(TuningKnobOwner.GRAPH_WORKLOAD, TuningKnobOwnership.ownerOf(knob));
+            }
+        }
+    }
+
+    @Test
+    void graphAutotuneMarksAcceleratorBufferModeAsGraphOwned() {
+        var seed = seedProfile();
+        var candidate = new GraphAutotuneCandidateSpace(
+                "graph-standard",
+                seed.dataType(),
+                seed.mode(),
+                PlatformRuntimeProfile.fromExecutionProfile("platform", "hardware", "TEST", seed),
+                GraphExecutionPolicy.fromExecutionProfile(seed),
+                GraphAutotuneMode.STANDARD
+        ).generate(workload()).stream()
+                .filter(generated -> generated.name().equals("acceleratorBuffer=auto"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals("GRAPH_WORKLOAD", candidate.metadata().attributes().get("knobOwner"));
+        assertTrue(candidate.metadata().attributes().get("knobAssignments")
+                .contains("runtime.accelerator.cuda.buffer.bindingMode"));
+        assertTrue(candidate.metadata().attributes().get("knobAssignments")
+                .contains("runtime.accelerator.opencl.buffer.bindingMode"));
+        assertTrue(candidate.metadata().attributes().get("knobAssignments")
+                .contains("runtime.accelerator.metal.buffer.bindingMode"));
     }
 
     @Test

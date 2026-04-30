@@ -19,6 +19,7 @@ import java.util.Objects;
  * @param runtimeOverride function applied to the calibrated runtime config
  * @param graphPolicyMutated whether graph policy differs from the seed
  * @param runtimeMutated whether runtime config differs intentionally from the calibrated seed
+ * @param knobAssignments tuning knob keys intentionally changed by this variant
  * @param metadata additional candidate attributes
  */
 public record GraphRuntimePolicyVariant(
@@ -28,6 +29,7 @@ public record GraphRuntimePolicyVariant(
         RuntimeConfigOverride runtimeOverride,
         boolean graphPolicyMutated,
         boolean runtimeMutated,
+        Map<String, String> knobAssignments,
         Map<String, String> metadata
 ) {
     public GraphRuntimePolicyVariant {
@@ -35,6 +37,7 @@ public record GraphRuntimePolicyVariant(
         Objects.requireNonNull(parameter, "parameter cannot be null");
         Objects.requireNonNull(policy, "policy cannot be null");
         runtimeOverride = runtimeOverride == null ? RuntimeConfigOverride.identity() : runtimeOverride;
+        knobAssignments = knobAssignments == null ? Map.of() : Map.copyOf(knobAssignments);
         metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
     }
 
@@ -50,6 +53,7 @@ public record GraphRuntimePolicyVariant(
                 RuntimeConfigOverride.identity(),
                 !variant.policy().equals(seed),
                 false,
+                variant.knobAssignments(),
                 Map.of()
         );
     }

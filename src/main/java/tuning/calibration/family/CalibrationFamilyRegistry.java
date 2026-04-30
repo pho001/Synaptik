@@ -1,6 +1,7 @@
 package tuning.calibration.family;
 
 import tensor.DataType;
+import tuning.ownership.TuningKnobOwnership;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -93,6 +94,7 @@ public final class CalibrationFamilyRegistry {
                     "Calibration family " + id + " candidate changed knobs outside its ownership: " + offenders
             );
         }
+        TuningKnobOwnership.validatePlatformDtype(changes, id.name());
     }
 
     private static Map<CalibrationFamilyId, CalibrationFamilySpec> buildSpecs() {

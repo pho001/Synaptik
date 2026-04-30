@@ -10,11 +10,13 @@ import tuning.candidate.Candidate;
 import tuning.candidate.CandidateKind;
 import tuning.candidate.CandidateMetadata;
 import tuning.candidate.CandidateSpace;
+import tuning.ownership.TuningKnobOwnership;
 import tuning.workload.WorkloadSpec;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Candidate space used by graph autotune.
@@ -83,6 +85,7 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
     }
 
     private Candidate candidate(GraphRuntimePolicyVariant variant) {
+        TuningKnobOwnership.validateGraphWorkload(variant.knobAssignments(), variant.name());
         boolean standard = mode == GraphAutotuneMode.STANDARD;
         var profile = GraphPolicyCandidateAssembler.assemble(
                 profileName,
@@ -102,12 +105,18 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                 );
         var optimizer = variant.policy().optimizer();
         CandidateMetadata enriched = metadata.withAttribute("graphParameter", variant.parameter().name())
+                .withAttribute("knobOwner", "GRAPH_WORKLOAD")
                 .withAttribute("offloadPolicy", optimizer.offload().policy().name())
                 .withAttribute("acceleratorRegionPolicy", optimizer.offload().acceleratorRegionPolicy().name())
                 .withAttribute("metalTransferModel", optimizer.partition().metalTransferModel().name())
                 .withAttribute("cpuRegionPolicy", optimizer.cpuRegion().policy().name())
                 .withAttribute("cpuFusionPolicy", optimizer.cpuFusion().mode().name())
                 .withAttribute("productionEligible", Boolean.toString(standard));
+        if (!variant.knobAssignments().isEmpty()) {
+            enriched = enriched.withAttribute("knobAssignments", variant.knobAssignments().keySet().stream()
+                    .sorted()
+                    .collect(Collectors.joining(",")));
+        }
         for (var entry : variant.metadata().entrySet()) {
             enriched = enriched.withAttribute(entry.getKey(), entry.getValue());
         }
@@ -127,6 +136,11 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                 AcceleratorRuntimeOverrides.bufferBindingMode(modeName),
                 false,
                 true,
+                java.util.Map.of(
+                        "runtime.accelerator.cuda.buffer.bindingMode", modeName,
+                        "runtime.accelerator.opencl.buffer.bindingMode", modeName,
+                        "runtime.accelerator.metal.buffer.bindingMode", modeName
+                ),
                 java.util.Map.of(
                         "acceleratorBufferBindingMode", modeName
                 )
