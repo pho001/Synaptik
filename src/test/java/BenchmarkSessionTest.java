@@ -9,6 +9,9 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.benchmark.report.BenchmarkReport;
+import tuning.benchmark.report.GpuCoverageGatePolicy;
+import tuning.benchmark.report.GpuCoverageRegressionGate;
+import tuning.benchmark.report.GpuCoverageSummary;
 import tuning.benchmark.report.JsonBenchmarkReportRenderer;
 import tuning.benchmark.report.TextBenchmarkReportRenderer;
 import tuning.benchmark.BenchmarkEntry;
@@ -28,6 +31,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BenchmarkSessionTest {
@@ -801,5 +805,35 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"GPU_CUDA\""));
         assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
         assertTrue(json.contains("\"selectedRegionCount\": 1"));
+    }
+
+    @Test
+    void coverageGateRejectsHiddenCpuExitInBenchmarkTrace() {
+        GpuCoverageSummary summary = GpuCoverageSummary.fromTrace(
+                GpuCoverageSummaryTest.traceFor("GPU_METAL", ComputeBackend.GPU_METAL)
+        );
+        GpuCoverageGatePolicy policy = GpuCoverageGatePolicy.nativeBufferTarget("GPU_METAL", 0.5d, 3);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> GpuCoverageRegressionGate.requirePass(summary, policy)
+        );
+
+        assertTrue(failure.getMessage().contains("unexpected CPU materialization"));
+    }
+
+    @Test
+    void coverageGateChecksPortableCudaBenchmarkTrace() {
+        GpuCoverageSummary summary = GpuCoverageSummary.fromTrace(
+                GpuCoverageSummaryTest.traceFor("GPU_CUDA", ComputeBackend.GPU_CUDA)
+        );
+        GpuCoverageGatePolicy policy = GpuCoverageGatePolicy.nativeBufferTarget("GPU_CUDA", 0.5d, 3);
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> GpuCoverageRegressionGate.requirePass(summary, policy)
+        );
+
+        assertTrue(failure.getMessage().contains("unexpected CPU materialization"));
     }
 }
