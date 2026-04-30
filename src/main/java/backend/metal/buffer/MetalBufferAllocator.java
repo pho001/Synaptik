@@ -204,19 +204,32 @@ public final class MetalBufferAllocator {
             throw new IllegalArgumentException("Metal binding elementCount " + binding.layout().logicalElementCount()
                     + " does not match destination elementCount " + destinationLayout.logicalElementCount() + ".");
         }
-        if (!destination.isContiguous() || destination.hasStorageOffset()) {
-            throw new UnsupportedOperationException(
-                    "Metal read_buffer materialization requires a contiguous, zero-offset destination tensor.");
-        }
         float[] data = destination.getFloat32Data();
         if (data == null) {
             throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
         }
         long start = System.nanoTime();
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativeDestination = arena.allocate(JAVA_FLOAT, data.length);
-            nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
-            MemorySegment.ofArray(data).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+        if (destination.isContiguous() && !destination.hasStorageOffset()) {
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment nativeDestination = arena.allocate(JAVA_FLOAT, data.length);
+                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
+                MemorySegment.ofArray(data).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            }
+        } else {
+            int logicalElements = checkedLogicalElementCount(binding.layout().logicalElementCount());
+            float[] dense = new float[logicalElements];
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment nativeDestination = arena.allocate(JAVA_FLOAT, logicalElements);
+                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
+                MemorySegment.ofArray(dense).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            }
+            scatterDenseLogicalToDestination(
+                    dense,
+                    data,
+                    destinationLayout.shape(),
+                    destinationLayout.strides(),
+                    destinationLayout.storageOffset()
+            );
         }
         destination.markDataViewStale();
         return new CpuMaterializationResult(
@@ -260,6 +273,72 @@ public final class MetalBufferAllocator {
             case DENSE_CONTIGUOUS, ZERO_OFFSET_VIEW, NON_ZERO_OFFSET_VIEW, PERMUTED_OR_STRIDED_VIEW -> true;
             case BROADCAST_ZERO_STRIDE_VIEW, UNSUPPORTED -> false;
         };
+    }
+
+    private static int checkedLogicalElementCount(long logicalElementCount) {
+        if (logicalElementCount > Integer.MAX_VALUE) {
+            throw new UnsupportedOperationException(
+                    "Metal logical-view materialization supports at most "
+                            + Integer.MAX_VALUE + " logical elements."
+            );
+        }
+        return (int) logicalElementCount;
+    }
+
+    private static void scatterDenseLogicalToDestination(
+            float[] dense,
+            float[] destination,
+            int[] shape,
+            int[] strides,
+            int storageOffset
+    ) {
+        Objects.requireNonNull(dense, "dense cannot be null");
+        Objects.requireNonNull(destination, "destination cannot be null");
+        Objects.requireNonNull(shape, "shape cannot be null");
+        Objects.requireNonNull(strides, "strides cannot be null");
+        if (shape.length != strides.length) {
+            throw new IllegalArgumentException("shape and strides must have the same length.");
+        }
+        if (shape.length > 4) {
+            throw new UnsupportedOperationException("Metal logical-view materialization supports rank <= 4");
+        }
+        int expectedElements = checkedShapeElementCount(shape);
+        if (dense.length != expectedElements) {
+            throw new IllegalArgumentException(
+                    "Dense logical readback length " + dense.length
+                            + " does not match destination element count " + expectedElements + "."
+            );
+        }
+        for (int linear = 0; linear < dense.length; linear++) {
+            int storageIndex = storageOffset;
+            int remaining = linear;
+            for (int dim = shape.length - 1; dim >= 0; dim--) {
+                int coordinate = remaining % shape[dim];
+                remaining /= shape[dim];
+                storageIndex += coordinate * strides[dim];
+            }
+            if (storageIndex < 0 || storageIndex >= destination.length) {
+                throw new IndexOutOfBoundsException(
+                        "Metal logical-view materialization storage index " + storageIndex
+                                + " outside destination storage length " + destination.length + "."
+                );
+            }
+            destination[storageIndex] = dense[linear];
+        }
+    }
+
+    private static int checkedShapeElementCount(int[] shape) {
+        long elements = 1L;
+        for (int dimension : shape) {
+            elements = Math.multiplyExact(elements, dimension);
+            if (elements > Integer.MAX_VALUE) {
+                throw new UnsupportedOperationException(
+                        "Metal logical-view materialization supports at most "
+                                + Integer.MAX_VALUE + " logical elements."
+                );
+            }
+        }
+        return (int) elements;
     }
 
     private static MetalBufferBinding binding(int nodeId, Tensor tensor, MetalBufferHandle handle, MetalBufferAccess access) {

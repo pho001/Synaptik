@@ -1,6 +1,7 @@
 package backend.metal.buffer;
 
 import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
@@ -35,13 +36,19 @@ public final class MetalDeviceToCpuMaterializer implements DeviceToCpuMaterializ
             return false;
         }
         AcceleratorBufferLayout targetLayout = AcceleratorBufferLayout.fromTensor(target);
+        AcceleratorBufferLayout bindingLayout = metalBinding.layout();
+        AcceleratorBufferLayoutClass layoutClass = bindingLayout.layoutClass();
+        MetalLayoutPolicy.Decision layoutDecision = MetalLayoutPolicy.output(bindingLayout);
         return metalBinding.available()
-                && metalBinding.layout().dataType() == DataType.FLOAT32
+                && bindingLayout.dataType() == DataType.FLOAT32
                 && target.getDataType() == DataType.FLOAT32
-                && Arrays.equals(metalBinding.layout().shape(), targetLayout.shape())
-                && Arrays.equals(metalBinding.layout().strides(), targetLayout.strides())
-                && metalBinding.layout().storageOffset() == targetLayout.storageOffset()
-                && metalBinding.layout().logicalElementCount() == targetLayout.logicalElementCount();
+                && Arrays.equals(bindingLayout.shape(), targetLayout.shape())
+                && Arrays.equals(bindingLayout.strides(), targetLayout.strides())
+                && bindingLayout.storageOffset() == targetLayout.storageOffset()
+                && bindingLayout.logicalElementCount() == targetLayout.logicalElementCount()
+                && layoutDecision.accepted()
+                && layoutClass != AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW
+                && layoutClass != AcceleratorBufferLayoutClass.UNSUPPORTED;
     }
 
     /**
