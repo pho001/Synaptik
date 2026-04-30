@@ -4,6 +4,8 @@ import backend.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNodeType;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
+import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
+import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.lowering.BackendCapabilities;
 import backend.lowering.LoweringContext;
@@ -45,6 +47,96 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetalRegionLowererTest {
+    @Test
+    void metalLowersLinearBiasReluAsLinearBiasActivationCompoundRegion() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalLinearInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "metalLinearWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "metalLinearBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        List<Tensor> graph = out.topologicalSort();
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        PartitionPlanningContext context = new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                compiledNodes,
+                consumers(compiledNodes)
+        );
+        int linearNodeId = nodeId(context, Operation.OpType.LINEAR);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
+        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+                Set.of(linearNodeId, reluNodeId),
+                context,
+                Set.of(PartitionValueRef.ofNode(reluNodeId))
+        );
+        assertNotNull(candidate);
+        MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+
+        assertNotNull(attachedPlan);
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, attachedPlan.lowering().compoundSummary().patternType());
+        assertTrue(attachedPlan.lowering().compoundSummary().supported());
+        assertTrue(attachedPlan.nodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+        assertTrue(attachedPlan.lowering().dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.LINEAR));
+        assertTrue(attachedPlan.lowering().dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.RELU));
+        assertTrue(attachedPlan.matMulSpec().biasInputNodeId() >= 0);
+        assertTrue(attachedPlan.matMulSpec().postOps().stream()
+                .anyMatch(postOp -> postOp.type() == backend.accelerator.dag.AcceleratorPostOpType.RELU));
+
+        Partition partition = new Partition(
+                "metal-linear-bias-activation",
+                PartitionTarget.GPU_METAL,
+                candidate.orderedNodeIds(),
+                candidate.orderedNodeIds().stream().map(id -> new PartitionValue(PartitionValueRef.ofNode(id), id)).toList(),
+                List.of(new PartitionEdge(linearNodeId, reluNodeId)),
+                candidate.externalInputIds(),
+                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
+                candidate.anchorNodeId(),
+                List.of(PartitionValueRef.ofNode(reluNodeId)),
+                List.of(),
+                List.of(PartitionBoundaryReason.NONE),
+                attachedPlan.estimatedWork(),
+                new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
+                PartitionPlannerStrategy.GREEDY_MAX_REGION,
+                new PartitionDecisionTrace(
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
+                        PartitionTarget.GPU_METAL,
+                        candidate.anchorNodeId(),
+                        true,
+                        "test",
+                        candidate.orderedNodeIds(),
+                        candidate.orderedNodeIds(),
+                        List.of("LINEAR", "RELU"),
+                        attachedPlan.estimatedWork(),
+                        0.0d,
+                        0.0d,
+                        0,
+                        false,
+                        -1
+                )
+        );
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+
+        LoweringResult result = new MetalRegionLowerer().lower(new LoweringRequest(
+                region,
+                MemoryPlanner.plan(graph),
+                new BackendCapabilities(Set.of(ComputeBackend.GPU_METAL)),
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), attachedPlan))
+        ));
+
+        assertNotNull(result);
+        GpuCompoundLoweringArtifact artifact = result.loweredRegion().units().getFirst().requireArtifact(GpuCompoundLoweringArtifact.class);
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, artifact.summary().patternType());
+        assertTrue(artifact.summary().orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+    }
+
     @Test
     void metalPlannerSupportMatchesSharedCoverageMatrixForForwardOps() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalMatrixA", DataType.FLOAT32);

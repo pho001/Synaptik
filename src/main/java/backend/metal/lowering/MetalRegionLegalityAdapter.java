@@ -1,5 +1,6 @@
 package backend.metal.lowering;
 
+import backend.ComputeBackend;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import graph.optimizer.partition.PartitionPlanningContext;
@@ -196,7 +197,7 @@ public final class MetalRegionLegalityAdapter implements RegionLegalityAdapter {
                 candidate.externalInputIds(),
                 candidate.outputNodeIds()
         );
-        AcceleratorSubgraphLoweringResult lowering = lowerer.tryLower(subgraph, context);
+        AcceleratorSubgraphLoweringResult lowering = lowerer.tryLower(ComputeBackend.GPU_METAL, subgraph, context);
         if (lowering == null) {
             return null;
         }

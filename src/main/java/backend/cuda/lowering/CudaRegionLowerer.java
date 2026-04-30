@@ -1,6 +1,9 @@
 package backend.cuda.lowering;
 
 import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
+import backend.accelerator.lowering.GpuCompoundPatternType;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
@@ -29,10 +32,11 @@ public final class CudaRegionLowerer implements RegionLowerer {
             return null;
         }
         var selectedPlan = request.context().partitionPlanFor(request.region().sourcePartition().partitionId());
-        if (selectedPlan == null || selectedPlan.backend() != ComputeBackend.GPU_CUDA) {
+        if (!(selectedPlan instanceof CudaGpuPartitionPlan cudaPlan) || cudaPlan.backend() != ComputeBackend.GPU_CUDA) {
             return null;
         }
         LoweringFamily loweringFamily = resolveLoweringFamily(request.region().executionUnits());
+        GpuCompoundRegionSummary summary = cudaPlan.compoundSummary();
         return new LoweringResult(
                 new LoweredRegion(
                         request.region().regionId(),
@@ -40,7 +44,9 @@ public final class CudaRegionLowerer implements RegionLowerer {
                         List.of(new LoweredExecutionUnit(
                                 request.region().regionId() + "-cuda-graph",
                                 loweringFamily,
-                                request.region().sourcePartition().orderedNodeIds()
+                                request.region().sourcePartition().orderedNodeIds(),
+                                cudaPlan.externalInputNodeIds(),
+                                compoundArtifact(summary)
                         ))
                 ),
                 List.of()
@@ -55,5 +61,12 @@ public final class CudaRegionLowerer implements RegionLowerer {
             return LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH;
         }
         return LoweringFamily.CUDA_GRAPH_REGION;
+    }
+
+    private static GpuCompoundLoweringArtifact compoundArtifact(GpuCompoundRegionSummary summary) {
+        if (summary == null || summary.patternType() == GpuCompoundPatternType.NONE) {
+            return null;
+        }
+        return new GpuCompoundLoweringArtifact(summary);
     }
 }

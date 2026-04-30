@@ -1,6 +1,8 @@
 package backend.accelerator.lowering;
 
+import backend.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNodeType;
+import backend.accelerator.dag.AcceleratorPostOpType;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import config.runtime.RuntimeConfig;
@@ -14,9 +16,52 @@ import tensor.Tensor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AcceleratorSubgraphLowererTest {
+    @Test
+    void linearBiasReluProducesLinearBiasActivationSummary() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "linearInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "linearWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "linearBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        PartitionPlanningContext context = planningContext(out);
+        int linearNodeId = nodeId(context, Operation.OpType.LINEAR);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        CompiledNode linearNode = context.compiledNode(linearNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        linearNodeId,
+                        List.of(linearNodeId, reluNodeId),
+                        List.of(
+                                new AcceleratorSubgraphOp(linearNodeId, Operation.OpType.LINEAR),
+                                new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU)
+                        ),
+                        linearNode.inputIds(),
+                        List.of(reluNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, result.compoundSummary().patternType());
+        assertTrue(result.compoundSummary().supported());
+        assertTrue(result.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.LINEAR));
+        assertTrue(result.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.RELU));
+        assertNotNull(result.matMulSpec());
+        assertTrue(result.matMulSpec().biasInputNodeId() >= 0);
+        assertTrue(result.matMulSpec().postOps().stream().anyMatch(postOp -> postOp.type() == AcceleratorPostOpType.RELU));
+    }
+
     @Test
     void logSoftmaxLowersAsSoftmaxThenLog() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "logSoftmaxInput", DataType.FLOAT32);

@@ -1,6 +1,8 @@
 package backend.cuda.lowering;
 
 import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
+import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.lowering.BackendCapabilities;
 import backend.lowering.LoweringContext;
@@ -42,6 +44,71 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CudaRegionLowererTest {
+    @Test
+    void cudaLowersLinearBiasReluAsLinearBiasActivationCompoundRegion() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaLinearInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "cudaLinearWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cudaLinearBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        List<Tensor> graph = out.topologicalSort();
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        PartitionPlanningContext context = new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                compiledNodes,
+                consumers(compiledNodes)
+        );
+        int linearNodeId = nodeId(context, operations.Operation.OpType.LINEAR);
+        int reluNodeId = nodeId(context, operations.Operation.OpType.RELU);
+        CudaGpuRegionLegalityAdapter adapter = new CudaGpuRegionLegalityAdapter();
+        var candidate = adapter.tryCreateStructuralCandidate(
+                Set.of(linearNodeId, reluNodeId),
+                context,
+                Set.of(PartitionValueRef.ofNode(reluNodeId))
+        );
+        assertNotNull(candidate);
+        CudaGpuPartitionPlan plan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, context);
+
+        assertNotNull(plan);
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, plan.compoundSummary().patternType());
+        assertTrue(plan.compoundSummary().supported());
+        assertTrue(plan.nodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+        assertTrue(plan.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.LINEAR));
+        assertTrue(plan.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.RELU));
+
+        Partition partition = partition(
+                "cuda-linear-bias-activation",
+                PartitionTarget.GPU_CUDA,
+                candidate.orderedNodeIds(),
+                candidate.externalInputIds(),
+                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
+                List.of(PartitionValueRef.ofNode(reluNodeId))
+        );
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+        );
+        LoweringResult result = new CudaRegionLowerer().lower(new LoweringRequest(
+                region,
+                MemoryPlanner.plan(graph),
+                new BackendCapabilities(Set.of(ComputeBackend.GPU_CUDA)),
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), plan))
+        ));
+
+        assertNotNull(result);
+        GpuCompoundLoweringArtifact artifact = result.loweredRegion().units().getFirst().requireArtifact(GpuCompoundLoweringArtifact.class);
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, artifact.summary().patternType());
+        assertTrue(artifact.summary().orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+    }
+
     @Test
     void cudaPlannerSupportMatchesSharedCoverageMatrixForForwardOps() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaMatrixA", DataType.FLOAT32);

@@ -160,7 +160,7 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
                 candidate.externalInputIds(),
                 candidate.outputNodeIds()
         );
-        var lowering = lowerer.tryLower(subgraph, context);
+        var lowering = lowerer.tryLower(ComputeBackend.GPU_CUDA, subgraph, context);
         if (lowering == null) {
             return null;
         }
@@ -168,7 +168,8 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
                 candidate.anchorNodeId(),
                 subgraph,
                 lowering.dagSpec(),
-                lowering.estimatedWork()
+                lowering.estimatedWork(),
+                lowering.compoundSummary()
         );
     }
 

@@ -10,6 +10,7 @@ import backend.accelerator.buffer.AcceleratorBufferRequest;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.memory.StorageResidency;
@@ -467,6 +468,13 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
      */
     public MetalPartitionPlan plan() {
         return plan;
+    }
+
+    /**
+     * Returns the compound GPU summary associated with this prepared Metal executable.
+     */
+    public GpuCompoundRegionSummary compoundSummary() {
+        return plan.lowering().compoundSummary();
     }
 
     /**

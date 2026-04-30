@@ -1,6 +1,7 @@
 package backend.cuda.lowering;
 
 import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import graph.optimizer.partition.PartitionPlan;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
@@ -15,20 +16,34 @@ import java.util.Objects;
  * @param subgraph original accelerator subgraph candidate
  * @param dagSpec lowered DAG consumed by the CUDA bridge
  * @param estimatedWork planner work estimate used by backend selection
+ * @param compoundSummary stable compound GPU pattern summary for trace and preparation metadata
  */
 public record CudaGpuPartitionPlan(
         int anchorNodeId,
         AcceleratorSubgraphSpec subgraph,
         AcceleratorDagSpec dagSpec,
-        long estimatedWork
+        long estimatedWork,
+        GpuCompoundRegionSummary compoundSummary
 ) implements PartitionPlan {
     public CudaGpuPartitionPlan {
         Objects.requireNonNull(subgraph, "subgraph cannot be null");
         Objects.requireNonNull(dagSpec, "dagSpec cannot be null");
         estimatedWork = Math.max(0L, estimatedWork);
+        compoundSummary = compoundSummary == null
+                ? GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, subgraph.orderedNodeIds())
+                : compoundSummary;
         if (!subgraph.orderedNodeIds().contains(anchorNodeId)) {
             throw new IllegalArgumentException("anchorNodeId must be part of nodeIds");
         }
+    }
+
+    public CudaGpuPartitionPlan(
+            int anchorNodeId,
+            AcceleratorSubgraphSpec subgraph,
+            AcceleratorDagSpec dagSpec,
+            long estimatedWork
+    ) {
+        this(anchorNodeId, subgraph, dagSpec, estimatedWork, null);
     }
 
     /**

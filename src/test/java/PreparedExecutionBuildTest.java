@@ -1,5 +1,6 @@
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
+import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.select.AcceleratorPlanCostModel;
 import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
 import backend.metal.exec.PreparedMetalExecutable;
@@ -10,6 +11,8 @@ import config.optimizer.OptimizerConfig;
 import config.optimizer.OffloadConfig;
 import config.optimizer.PartitionConfig;
 import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorBufferBindingMode;
+import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.RuntimeConfig;
 import config.runtime.FusedExecutionPolicy;
@@ -256,6 +259,132 @@ public class PreparedExecutionBuildTest {
         assertTrue(plannerReason.contains("UNSUPPORTED_OPERATION"));
         assertTrue(plannerReason.contains("SUM") || plannerReason.contains("REDUCTION"));
         assertCpuPreparedStepAvailable(execution, reductionNodeId);
+    }
+
+    @Test
+    void gpuMetalLinearBiasReluCompilesAsOneCompoundRegion() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuMetalLinearInput", DataType.FLOAT32);
+        Tensor cpuWeight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "cpuMetalLinearWeight", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cpuMetalLinearBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).relu();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalCompoundInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "metalCompoundWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "metalCompoundBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int linearNodeId = nodeId(compiled, Operation.OpType.LINEAR);
+        int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .toList();
+
+        assertEquals(1, gpuSteps.size());
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, executable.compoundSummary().patternType());
+        assertTrue(executable.compoundSummary().supported());
+        assertTrue(executable.plan().nodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.LINEAR));
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.RELU));
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuCudaLinearBiasReluCompilesAsOneCompoundRegion() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuCudaLinearInput", DataType.FLOAT32);
+        Tensor cpuWeight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "cpuCudaLinearWeight", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cpuCudaLinearBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).relu();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaCompoundInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "cudaCompoundWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cudaCompoundBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int linearNodeId = nodeId(compiled, Operation.OpType.LINEAR);
+        int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
+        var gpuSteps = execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
+                .toList();
+
+        assertEquals(1, gpuSteps.size());
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, executable.compoundSummary().patternType());
+        assertTrue(executable.compoundSummary().supported());
+        assertTrue(executable.compoundSummary().orderedNodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+        assertTrue(executable.dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.LINEAR));
+        assertTrue(executable.dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.RELU));
+
+        execution.execute(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
+    void gpuLinearBiasReluRequiredBufferModeFailsBeforeHiddenCpuFallbackWhenUnavailable() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "requiredMetalInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "requiredMetalWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "requiredMetalBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        RuntimeConfig defaults = RuntimeConfig.inferenceDefaults();
+        RuntimeConfig runtime = defaults.withAccelerator(defaults.accelerator().withMetal(
+                defaults.accelerator().metal().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, Long.MAX_VALUE)
+                )
+        ));
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(runtime);
+
+        assertEquals(1, execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .count());
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> execution.execute(ExecutionMode.FORWARD));
+
+        assertTrue(failure.getMessage().contains("Accelerator buffer path is required"));
     }
 
     @Test

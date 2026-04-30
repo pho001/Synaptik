@@ -11,6 +11,7 @@ import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.cuda.buffer.CudaAcceleratorBufferBinder;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferAllocator;
@@ -42,6 +43,7 @@ import java.util.Objects;
  */
 public final class PreparedCudaExecutable implements PreparedAcceleratorExecutable {
     private final AcceleratorDagSpec dagSpec;
+    private final GpuCompoundRegionSummary compoundSummary;
     private final LoweringFamily loweringFamily;
     private final CudaGraphBridge bridge;
     private final CudaBridgeContext bridgeContext;
@@ -68,7 +70,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             CudaGraphBridge bridge,
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps
     ) {
-        this(dagSpec, loweringFamily, bridge, cpuFallbackSteps, AcceleratorBackendConfig.defaults());
+        this(dagSpec, loweringFamily, bridge, cpuFallbackSteps, AcceleratorBackendConfig.defaults(), null);
     }
 
     /**
@@ -81,7 +83,24 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
             AcceleratorBackendConfig backendConfig
     ) {
+        this(dagSpec, loweringFamily, bridge, cpuFallbackSteps, backendConfig, null);
+    }
+
+    /**
+     * Creates a prepared CUDA executable with an explicit backend runtime policy and compound summary.
+     */
+    public PreparedCudaExecutable(
+            AcceleratorDagSpec dagSpec,
+            LoweringFamily loweringFamily,
+            CudaGraphBridge bridge,
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
+            AcceleratorBackendConfig backendConfig,
+            GpuCompoundRegionSummary compoundSummary
+    ) {
         this.dagSpec = Objects.requireNonNull(dagSpec, "dagSpec cannot be null");
+        this.compoundSummary = compoundSummary == null
+                ? GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, dagSpec.outputNodeIds())
+                : compoundSummary;
         this.loweringFamily = Objects.requireNonNull(loweringFamily, "loweringFamily cannot be null");
         this.bridge = Objects.requireNonNull(bridge, "bridge cannot be null");
         this.bridgeContext = bridge.createContext();
@@ -272,6 +291,13 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
      */
     public AcceleratorDagSpec dagSpec() {
         return dagSpec;
+    }
+
+    /**
+     * Returns the compound GPU summary associated with this prepared CUDA executable.
+     */
+    public GpuCompoundRegionSummary compoundSummary() {
+        return compoundSummary;
     }
 
     /**

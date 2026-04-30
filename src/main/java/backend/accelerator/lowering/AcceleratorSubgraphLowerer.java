@@ -1,5 +1,6 @@
 package backend.accelerator.lowering;
 
+import backend.ComputeBackend;
 import graph.optimizer.partition.PartitionPlanningContext;
 import graph.CompiledNode;
 import backend.accelerator.dag.AcceleratorDagInput;
@@ -50,6 +51,22 @@ public final class AcceleratorSubgraphLowerer {
      * @return lowered DAG result, or {@code null} when the candidate is unsupported
      */
     public AcceleratorSubgraphLoweringResult tryLower(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
+        return tryLower(null, subgraph, context);
+    }
+
+    /**
+     * Attempts to lower a candidate subgraph into an accelerator DAG for a concrete backend.
+     *
+     * @param backend backend that owns the selected accelerator region
+     * @param subgraph candidate partition produced by accelerator legality planning
+     * @param context compiled graph lookup used to inspect shapes, dtypes, and inputs
+     * @return lowered DAG result, or {@code null} when the candidate is unsupported
+     */
+    public AcceleratorSubgraphLoweringResult tryLower(
+            ComputeBackend backend,
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context
+    ) {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().isEmpty()) {
             return null;
         }
@@ -64,12 +81,20 @@ public final class AcceleratorSubgraphLowerer {
         }
         AcceleratorMatMulSpec matMulSpec = tryBuildLegacyMatMulSpec(subgraph, context, compute);
         long estimatedWork = estimateWork(subgraph, context, matMulSpec, dagSpec);
+        GpuCompoundRegionSummary compoundSummary = GpuCompoundPatternDetector.detect(
+                backend,
+                subgraph,
+                context,
+                dagSpec,
+                matMulSpec
+        );
 
         return new AcceleratorSubgraphLoweringResult(
                 compute.id(),
                 matMulSpec,
                 dagSpec,
-                estimatedWork
+                estimatedWork,
+                compoundSummary
         );
     }
 
