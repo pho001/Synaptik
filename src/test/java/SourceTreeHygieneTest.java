@@ -38,6 +38,13 @@ public class SourceTreeHygieneTest {
 
         String trackedCudaNative = gitOutput("ls-files", "build/native/cuda");
         assertTrue(trackedCudaNative.isBlank(), () -> "CUDA native build outputs must not be tracked: " + trackedCudaNative);
+
+        List<String> trackedCudaNativePaths = gitOutput("ls-files").lines()
+                .filter(line -> line.contains("build/native/cuda/"))
+                .sorted()
+                .toList();
+        assertTrue(trackedCudaNativePaths.isEmpty(),
+                () -> "CUDA native build outputs must not appear in tracked paths: " + trackedCudaNativePaths);
     }
 
     @Test
@@ -49,7 +56,7 @@ public class SourceTreeHygieneTest {
                 .toList();
         assertTrue(profileFiles.isEmpty() || profileFiles.stream().allMatch(line -> line.startsWith("profiles/platform/")),
                 () -> "Tracked profiles/platform/.../tuning/abc/* files are explicit canonical fixtures; "
-                        + "do not stage local changes accidentally: " + profileFiles);
+                        + "do not stage local profile tuning changes accidentally: " + profileFiles);
     }
 
     @Test
