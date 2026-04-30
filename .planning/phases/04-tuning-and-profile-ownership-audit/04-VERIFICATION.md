@@ -71,9 +71,9 @@ None required. The phase is covered by automated tests, source checks, and docum
 ## Residual Risk
 
 - Security enforcement passed in `04-SECURITY.md` with `threats_open: 0`.
-- Nyquist validation remains a separate project gate; run `$gsd-validate-phase 04` if following the same closure flow used for Phase 3.
+- Nyquist validation passed in `04-VALIDATION.md` with 0 gaps found and all task verification rows green.
 - Existing local tuning profile files under `profiles/platform/.../tuning/abc/*` and `.planning/tmp/` scratch files remain outside Phase 4 commits.
 
 ## Verdict
 
-Phase 4 is execution-verified and threat-secure; run the validation closure gate before Phase 5 planning if following the strict closure sequence.
+Phase 4 is execution-verified, threat-secure, and Nyquist-compliant. Phase 5 is ready for planning.
