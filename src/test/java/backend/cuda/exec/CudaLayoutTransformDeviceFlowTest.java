@@ -73,7 +73,7 @@ class CudaLayoutTransformDeviceFlowTest {
         assertEquals("GPU_CUDA", attrs.get("acceleratorBufferBackend"));
         assertEquals("GPU_LAYOUT_VIEW_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
         assertEquals("METADATA_ONLY_VIEW", attrs.get("gpuLayoutTransformKind"));
-        assertEquals("DEVICE_OWNED", attrs.get("storageResidency"));
+        assertEquals("HOST_SHARED_DEVICE_BUFFER", attrs.get("storageResidency"));
         assertEquals("GPU_CUDA", attrs.get("deviceBufferBackend"));
     }
 

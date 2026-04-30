@@ -1,7 +1,7 @@
 ---
 phase: 10-gpu-layout-transform-and-view-path
 plan: "04"
-status: completed-with-native-metal-gate-open
+status: completed
 completed: 2026-04-30
 requirements: [GPUVIEW-01, GPUVIEW-02, GPUVIEW-03]
 ---
@@ -46,12 +46,7 @@ Native Metal verification:
 ./gradlew metalTest
 ```
 
-Result: FAIL. The shim built successfully, but two native Metal backward gradient parity tests failed:
-
-- `PreparedExecutionBuildTest.gpuMetalBackwardMatmulCanPrepareAndMatchCpuGradients`: expected gradient index 0 `15.0`, actual `17.0`.
-- `MetalLayoutAwareDeviceFlowTest.forwardBackwardLayoutAwareGraphPublishesGradientsWithCpuParity`: expected gradient index 0 `0.800000011920929`, actual `1.100000023841858`.
-
-This is recorded as an open native Metal backward gate, not a portable layout-transform regression. The portable Phase 10 layout/view checks pass.
+Result: PASS after UAT fix `da40d03` preserved host-shared residency for metadata-only layout views. The native Metal backward parity gate now passes alongside the portable layout/view checks.
 
 Native CUDA verification:
 
