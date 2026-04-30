@@ -141,6 +141,27 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void scoredAcceleratorPlanningRecordsCostSummaryAndBoundedFinalists() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b).relu();
+
+        OptimizerConfig optimizerConfig = OptimizerConfig.inferenceDefaults()
+                .withOffload(OffloadConfig.acceleratorScored());
+        CompiledGraph compiled = CompiledGraph.compile(out, optimizerConfig);
+
+        var scoredDecision = compiled.compileTrace().partitionPlanning().decisions().stream()
+                .filter(decision -> decision.costSummary() != null)
+                .findFirst()
+                .orElseThrow();
+
+        assertFalse(scoredDecision.costSummary().preset().isBlank());
+        assertTrue(scoredDecision.costSummary().estimatedTransferBytes() >= 0L);
+        assertTrue(scoredDecision.costSummary().estimatedComputeWork() >= 0L);
+        assertTrue(scoredDecision.finalists().size() <= 3);
+    }
+
+    @Test
     void bfloat16FusedPrepareSkipsCompiledAsmKernel() {
         Tensor a = new Tensor(new double[]{1.0, 2.0, 3.0, 4.0}, new int[]{4}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new double[]{0.5, 1.5, -2.0, 3.0}, new int[]{4}, null, "b", DataType.BFLOAT16);

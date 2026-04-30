@@ -31,10 +31,12 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             PartitionCandidate bestAccepted,
             double bestAcceptedScore,
             long bestAcceptedWork,
+            AcceleratorPartitionScoreModel.MaterializationCostSummary bestAcceptedCostSummary,
             PartitionCandidate bestStructural,
             double bestStructuralScore,
             int exploredCandidates,
-            boolean searchBudgetHit
+            boolean searchBudgetHit,
+            List<PartitionDecisionTrace.CandidateCostTrace> topRejectedFinalists
     ) {
     }
 
@@ -156,7 +158,9 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                             Double.NEGATIVE_INFINITY,
                             search.exploredCandidates(),
                             search.searchBudgetHit(),
-                            -1
+                            -1,
+                            null,
+                            search.topRejectedFinalists()
                     )
             );
         }
@@ -178,7 +182,9 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                             search.bestStructuralScore(),
                             search.exploredCandidates(),
                             search.searchBudgetHit(),
-                            -1
+                            -1,
+                            null,
+                            search.topRejectedFinalists()
                     )
             );
         }
@@ -213,7 +219,9 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                         "lowered",
                         -1,
                         search.exploredCandidates(),
-                        search.searchBudgetHit()
+                        search.searchBudgetHit(),
+                        search.bestAcceptedCostSummary(),
+                        search.topRejectedFinalists()
                 ),
                 plan,
                 new PartitionDecisionTrace(
@@ -230,7 +238,9 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                         search.bestStructuralScore(),
                         search.exploredCandidates(),
                         search.searchBudgetHit(),
-                        -1
+                        -1,
+                        search.bestAcceptedCostSummary(),
+                        search.topRejectedFinalists()
                 )
         );
     }
@@ -244,10 +254,12 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                 accumulator.bestAccepted,
                 accumulator.bestAcceptedScore,
                 accumulator.bestAcceptedWork,
+                accumulator.bestAcceptedCostSummary,
                 accumulator.bestStructural,
                 accumulator.bestStructuralScore,
                 accumulator.exploredCandidates,
-                accumulator.searchBudgetHit
+                accumulator.searchBudgetHit,
+                accumulator.topRejectedFinalists()
         );
     }
 
@@ -281,8 +293,14 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             }
             PartitionPlan acceptedPlan = request.adapter().tryCreatePlan(structural, request.context());
             if (acceptedPlan != null) {
-                double acceptedScore = acceptedScore(structural, acceptedPlan, metrics, request);
-                if (isBetterAccepted(
+                AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary =
+                        costSummaryFor(structural, acceptedPlan, metrics, request);
+                double acceptedScore = costSummary.finalScore();
+                if ("rejected-materialization-cost".equals(costSummary.reasonCode())) {
+                    accumulator.addFinalist(structural, "rejected-materialization-cost", costSummary);
+                } else if (!"accepted-static-profitable".equals(costSummary.reasonCode())) {
+                    accumulator.addFinalist(structural, costSummary.reasonCode(), costSummary);
+                } else if (isBetterAccepted(
                         structural,
                         acceptedScore,
                         acceptedPlan.estimatedWork(),
@@ -290,9 +308,19 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                         accumulator.bestAcceptedScore,
                         accumulator.bestAcceptedWork
                 )) {
+                    if (accumulator.bestAccepted != null) {
+                        accumulator.addFinalist(
+                                accumulator.bestAccepted,
+                                "not-selected-lower-score",
+                                accumulator.bestAcceptedCostSummary
+                        );
+                    }
                     accumulator.bestAccepted = structural;
                     accumulator.bestAcceptedScore = acceptedScore;
                     accumulator.bestAcceptedWork = acceptedPlan.estimatedWork();
+                    accumulator.bestAcceptedCostSummary = costSummary;
+                } else {
+                    accumulator.addFinalist(structural, "not-selected-lower-score", costSummary);
                 }
             }
         }
@@ -308,21 +336,21 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
         }
     }
 
-    private double acceptedScore(
+    private AcceleratorPartitionScoreModel.MaterializationCostSummary costSummaryFor(
             PartitionCandidate candidate,
             PartitionPlan acceptedPlan,
             AcceleratorPartitionScoreModel.CandidateMetrics metrics,
             PartitionPlanningRequest request
     ) {
-        if (request.target() != PartitionTarget.GPU_METAL) {
-            return AcceleratorPartitionScoreModel.acceptedScore(metrics, acceptedPlan.estimatedWork(), request.policy());
-        }
-        return AcceleratorPartitionScoreModel.acceptedScore(
+        AcceleratorPartitionScoreModel.StaticCostPreset preset = request.target() == PartitionTarget.GPU_METAL
+                ? AcceleratorPartitionScoreModel.StaticCostPreset.fromMetalTransferModel(request.metalTransferModel())
+                : AcceleratorPartitionScoreModel.StaticCostPreset.conservative();
+        return AcceleratorPartitionScoreModel.scoreMaterializationAware(
                 metrics,
                 acceptedPlan.estimatedWork(),
-                transferMetricsFor(candidate, request.context()),
+                materializationSignalsFor(candidate, request.context()),
                 request.policy(),
-                AcceleratorPartitionScoreModel.TransferPolicy.fromMetalTransferModel(request.metalTransferModel())
+                preset
         );
     }
 
@@ -413,6 +441,58 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
         return new AcceleratorPartitionScoreModel.TransferMetrics(inputBytes, outputBytes, avoidedIntermediateBytes);
     }
 
+    private AcceleratorPartitionScoreModel.MaterializationSignals materializationSignalsFor(
+            PartitionCandidate candidate,
+            PartitionPlanningContext context
+    ) {
+        AcceleratorPartitionScoreModel.TransferMetrics transfers = transferMetricsFor(candidate, context);
+        return new AcceleratorPartitionScoreModel.MaterializationSignals(
+                candidate.externalInputIds().size() + candidate.outputNodeIds().size(),
+                transfers.inputBytes(),
+                transfers.outputBytes(),
+                0L,
+                layoutFallbackBytesFor(candidate, context),
+                transfers.avoidedIntermediateBytes(),
+                "BUFFER_BINDING",
+                layoutClassFor(candidate, context)
+        );
+    }
+
+    private long layoutFallbackBytesFor(PartitionCandidate candidate, PartitionPlanningContext context) {
+        long bytes = 0L;
+        for (int nodeId : candidate.outputNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node != null && (!node.contiguous() || node.hasStorageOffset())) {
+                bytes += nodeBytes(node);
+            }
+        }
+        return bytes;
+    }
+
+    private String layoutClassFor(PartitionCandidate candidate, PartitionPlanningContext context) {
+        boolean hasStrided = false;
+        boolean hasOffset = false;
+        for (int nodeId : candidate.outputNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            if (!node.contiguous()) {
+                hasStrided = true;
+            }
+            if (node.hasStorageOffset()) {
+                hasOffset = true;
+            }
+        }
+        if (hasStrided) {
+            return "PERMUTED_OR_STRIDED_VIEW";
+        }
+        if (hasOffset) {
+            return "NON_ZERO_OFFSET_VIEW";
+        }
+        return "DENSE_CONTIGUOUS";
+    }
+
     private static long nodeBytes(CompiledNode node) {
         if (node == null) {
             return 0L;
@@ -498,7 +578,9 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             String reason,
             int rejectedNodeId,
             int explored,
-            boolean budgetHit
+            boolean budgetHit,
+            AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary,
+            List<PartitionDecisionTrace.CandidateCostTrace> finalists
     ) {
         PartitionPlanningContext context = request.context();
         List<PartitionEdge> internalEdges = internalEdges(candidate.orderedNodeIds(), context);
@@ -528,7 +610,9 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                 Double.NEGATIVE_INFINITY,
                 explored,
                 budgetHit,
-                rejectedNodeId
+                rejectedNodeId,
+                costSummary,
+                finalists
         );
         return new Partition(
                 partitionId(request.target(), candidate.anchorNodeId()),
@@ -597,9 +681,40 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
         private PartitionCandidate bestAccepted;
         private double bestAcceptedScore = Double.NEGATIVE_INFINITY;
         private long bestAcceptedWork;
+        private AcceleratorPartitionScoreModel.MaterializationCostSummary bestAcceptedCostSummary;
         private PartitionCandidate bestStructural;
         private double bestStructuralScore = Double.NEGATIVE_INFINITY;
         private int exploredCandidates;
         private boolean searchBudgetHit;
+        private final List<PartitionDecisionTrace.CandidateCostTrace> topRejectedFinalists = new ArrayList<>();
+
+        private void addFinalist(
+                PartitionCandidate candidate,
+                String reason,
+                AcceleratorPartitionScoreModel.MaterializationCostSummary summary
+        ) {
+            if (candidate == null || summary == null) {
+                return;
+            }
+            topRejectedFinalists.add(new PartitionDecisionTrace.CandidateCostTrace(
+                    candidate.orderedNodeIds(),
+                    reason,
+                    summary.finalScore(),
+                    summary.boundaryCount(),
+                    summary.estimatedTransferBytes(),
+                    summary.estimatedComputeWork(),
+                    summary.preset()
+            ));
+            topRejectedFinalists.sort(
+                    Comparator.comparingDouble(PartitionDecisionTrace.CandidateCostTrace::finalScore).reversed()
+            );
+            while (topRejectedFinalists.size() > 3) {
+                topRejectedFinalists.removeLast();
+            }
+        }
+
+        private List<PartitionDecisionTrace.CandidateCostTrace> topRejectedFinalists() {
+            return List.copyOf(topRejectedFinalists);
+        }
     }
 }
