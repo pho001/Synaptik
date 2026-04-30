@@ -61,6 +61,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"accelerator\": ").append(acceleratorSummaryJson(
                         AcceleratorTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
+                sb.append("        \"backendSelectionCost\": ")
+                        .append(backendSelectionCostJson(trace.prepare().backendSelection()))
+                        .append(",\n");
                 sb.append("        \"cpuMaterializations\": [\n");
                 var materializations = trace.run().cpuMaterializations();
                 for (int j = 0; j < materializations.size(); j++) {
@@ -166,6 +169,65 @@ public final class JsonBenchmarkReportRenderer {
         }
         sb.append('}');
         return sb.toString();
+    }
+
+    private static String backendSelectionCostJson(graph.execution.trace.BackendSelectionTrace trace) {
+        if (trace == null || trace.decisions().isEmpty()) {
+            return "{}";
+        }
+        var selected = trace.decisions().stream()
+                .filter(decision -> decision.selected() && decision.costSummary() != null)
+                .toList();
+        var finalists = trace.decisions().stream()
+                .flatMap(decision -> decision.finalists().stream())
+                .limit(3)
+                .toList();
+        if (selected.isEmpty() && finalists.isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        sb.append("\"selected\": [");
+        for (int i = 0; i < selected.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(selectedDecisionJson(selected.get(i)));
+        }
+        sb.append("], \"rejectedFinalists\": [");
+        for (int i = 0; i < finalists.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(finalistJson(finalists.get(i)));
+        }
+        sb.append("]}");
+        return sb.toString();
+    }
+
+    private static String selectedDecisionJson(graph.execution.trace.BackendSelectionDecisionTrace decision) {
+        var summary = decision.costSummary();
+        return "{"
+                + "\"nodeIds\": " + intListJson(decision.nodeIds()) + ", "
+                + "\"selectedBackend\": \"" + escape(String.valueOf(decision.selectedBackend())) + "\", "
+                + "\"reason\": \"" + escape(decision.reason()) + "\", "
+                + "\"finalScore\": " + format(summary.finalScore()) + ", "
+                + "\"boundaryCount\": " + summary.boundaryCount() + ", "
+                + "\"estimatedTransferBytes\": " + summary.estimatedTransferBytes() + ", "
+                + "\"estimatedComputeWork\": " + summary.estimatedComputeWork() + ", "
+                + "\"preset\": \"" + escape(summary.preset()) + "\""
+                + "}";
+    }
+
+    private static String finalistJson(graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace finalist) {
+        return "{"
+                + "\"nodeIds\": " + intListJson(finalist.nodeIds()) + ", "
+                + "\"reason\": \"" + escape(finalist.reason()) + "\", "
+                + "\"finalScore\": " + format(finalist.finalScore()) + ", "
+                + "\"boundaryCount\": " + finalist.boundaryCount() + ", "
+                + "\"estimatedTransferBytes\": " + finalist.estimatedTransferBytes() + ", "
+                + "\"estimatedComputeWork\": " + finalist.estimatedComputeWork() + ", "
+                + "\"preset\": \"" + escape(finalist.preset()) + "\""
+                + "}";
     }
 
     private static boolean usesParallel(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {

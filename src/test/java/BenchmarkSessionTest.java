@@ -1,8 +1,10 @@
+import backend.ComputeBackend;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
+import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -224,6 +226,116 @@ public class BenchmarkSessionTest {
         assertDoesNotThrow(() -> TextBenchmarkReportRenderer.render(report));
         String json = assertDoesNotThrow(() -> JsonBenchmarkReportRenderer.render(report));
         assertTrue(json.contains("\"vsBaseline\": null"));
+    }
+
+    @Test
+    void renderersExposeBackendSelectionCostDiagnostics() {
+        var profile = new ExecutionProfile(
+                "cost-candidate-profile",
+                "cost-candidate",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var summary = new AcceleratorPartitionScoreModel.MaterializationCostSummary(
+                "CONSERVATIVE",
+                2,
+                3072L,
+                8192L,
+                1024L,
+                250.0d,
+                7780.0d,
+                "accepted-static-profitable",
+                "BUFFER_BINDING",
+                "DENSE_PHYSICAL"
+        );
+        var finalists = List.of(
+                new graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace(
+                        List.of(7, 8),
+                        "rejected-materialization-cost",
+                        -12.5d,
+                        4,
+                        8192L,
+                        256L,
+                        "CONSERVATIVE"
+                ),
+                new graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace(
+                        List.of(9),
+                        "not-selected-lower-score",
+                        120.0d,
+                        1,
+                        2048L,
+                        512L,
+                        "MEASURED"
+                )
+        );
+        var selection = new graph.execution.trace.BackendSelectionTrace(
+                3,
+                1,
+                2,
+                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                        4,
+                        List.of(4, 5, 6),
+                        List.of(ComputeBackend.GPU_METAL),
+                        true,
+                        ComputeBackend.GPU_METAL,
+                        "selected",
+                        8192L,
+                        summary,
+                        finalists
+                ))
+        );
+
+        BenchmarkReport report = BenchmarkReport.of(
+                "cost_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("cost-candidate", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        new graph.execution.trace.CompileTrace(
+                                                true,
+                                                1L,
+                                                0,
+                                                0,
+                                                false,
+                                                graph.execution.trace.PartitionCompileTrace.empty()
+                                        ),
+                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
+                                        graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("backendSelectionCost:"));
+        assertTrue(text.contains("selectedBackend=GPU_METAL"));
+        assertTrue(text.contains("preset=CONSERVATIVE"));
+        assertTrue(text.contains("finalScore=7780.000000"));
+        assertTrue(text.contains("boundaryCount=2"));
+        assertTrue(text.contains("estimatedTransferBytes=3072"));
+        assertTrue(text.contains("estimatedComputeWork=8192"));
+        assertTrue(text.contains("reason=selected"));
+        assertTrue(text.contains("rejectedFinalists:"));
+        assertTrue(text.contains("reason=rejected-materialization-cost"));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"backendSelectionCost\":"));
+        assertTrue(json.contains("\"selected\": ["));
+        assertTrue(json.contains("\"rejectedFinalists\": ["));
+        assertTrue(json.contains("\"nodeIds\": [4, 5, 6]"));
+        assertTrue(json.contains("\"reason\": \"selected\""));
+        assertTrue(json.contains("\"finalScore\": 7780.000000"));
+        assertTrue(json.contains("\"boundaryCount\": 2"));
+        assertTrue(json.contains("\"estimatedTransferBytes\": 3072"));
+        assertTrue(json.contains("\"estimatedComputeWork\": 8192"));
+        assertTrue(json.contains("\"preset\": \"CONSERVATIVE\""));
+        assertTrue(json.contains("\"reason\": \"rejected-materialization-cost\""));
     }
 
     @Test

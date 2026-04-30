@@ -101,6 +101,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  stepCount=").append(trace.run().steps().size()).append('\n');
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
                         appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
+                        appendBackendSelectionCost(sb, trace.prepare().backendSelection());
                         sb.append("  parallelUsed=").append(usesParallel(trace.run().steps())).append('\n');
                         sb.append("  vectorUsed=").append(usesVector(trace.run().steps())).append('\n');
                         sb.append("  steadyStateMeanMs=").append(String.format(Locale.US, "%.6f", stats.meanMs())).append('\n');
@@ -169,6 +170,58 @@ public final class TextBenchmarkReportRenderer {
                     .append(" nativeDeviceCopyMs=").append(formatNsAttr(backend.nativeDeviceCopyNs()))
                     .append('\n');
         }
+    }
+
+    private static void appendBackendSelectionCost(
+            StringBuilder sb,
+            graph.execution.trace.BackendSelectionTrace trace
+    ) {
+        if (trace == null || trace.decisions().isEmpty()) {
+            return;
+        }
+        java.util.List<graph.execution.trace.BackendSelectionDecisionTrace> selected = trace.decisions().stream()
+                .filter(decision -> decision.selected() && decision.costSummary() != null)
+                .toList();
+        java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> finalists =
+                rejectedFinalists(trace);
+        if (selected.isEmpty() && finalists.isEmpty()) {
+            return;
+        }
+        sb.append("  backendSelectionCost:\n");
+        for (var decision : selected) {
+            var summary = decision.costSummary();
+            sb.append("    selectedBackend=").append(decision.selectedBackend())
+                    .append(" nodeIds=").append(decision.nodeIds())
+                    .append(" preset=").append(summary.preset())
+                    .append(" finalScore=").append(formatScore(summary.finalScore()))
+                    .append(" boundaryCount=").append(summary.boundaryCount())
+                    .append(" estimatedTransferBytes=").append(summary.estimatedTransferBytes())
+                    .append(" estimatedComputeWork=").append(summary.estimatedComputeWork())
+                    .append(" reason=").append(decision.reason())
+                    .append('\n');
+        }
+        if (!finalists.isEmpty()) {
+            sb.append("    rejectedFinalists:\n");
+            for (var finalist : finalists) {
+                sb.append("      - nodeIds=").append(finalist.nodeIds())
+                        .append(" preset=").append(finalist.preset())
+                        .append(" finalScore=").append(formatScore(finalist.finalScore()))
+                        .append(" boundaryCount=").append(finalist.boundaryCount())
+                        .append(" estimatedTransferBytes=").append(finalist.estimatedTransferBytes())
+                        .append(" estimatedComputeWork=").append(finalist.estimatedComputeWork())
+                        .append(" reason=").append(finalist.reason())
+                        .append('\n');
+            }
+        }
+    }
+
+    private static java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> rejectedFinalists(
+            graph.execution.trace.BackendSelectionTrace trace
+    ) {
+        return trace.decisions().stream()
+                .flatMap(decision -> decision.finalists().stream())
+                .limit(3)
+                .toList();
     }
 
     private static void appendHotSteps(StringBuilder sb, java.util.List<graph.execution.trace.ExecutionStepTrace> steps, int limit) {
@@ -306,6 +359,10 @@ public final class TextBenchmarkReportRenderer {
 
     private static String formatRatio(double ratio) {
         return Double.isFinite(ratio) ? String.format(Locale.US, "%.3fx", ratio) : "n/a";
+    }
+
+    private static String formatScore(double value) {
+        return Double.isFinite(value) ? String.format(Locale.US, "%.6f", value) : "null";
     }
 
     private static String formatStageOrder(BenchmarkCandidateReport candidate) {
