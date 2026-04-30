@@ -7,6 +7,8 @@ import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OffloadConfig;
 import config.optimizer.PartitionConfig;
+import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorConfig;
 import config.runtime.RuntimeConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
@@ -141,6 +143,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
         assertNotNull(selectedDecision.costSummary());
+        assertEquals("PROFILE_DERIVED", selectedDecision.costSummary().preset());
         assertFalse(selectedDecision.costSummary().preset().isBlank());
         assertTrue(selectedDecision.costSummary().estimatedTransferBytes() >= 0L);
         assertTrue(execution.forwardSteps().stream()
@@ -1799,7 +1802,76 @@ public class PreparedExecutionBuildTest {
         assertEquals("estimated-work-below-minimum", decision.reason());
         assertTrue(decision.estimatedWork() > 0L);
         assertNotNull(decision.costSummary());
-        assertEquals("CONSERVATIVE", decision.costSummary().preset());
+        assertEquals("PROFILE_DERIVED", decision.costSummary().preset());
+    }
+
+    @Test
+    void backendSelectionUsesProfileDerivedCostPreset() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
+        Tensor out = a.matmul(b).relu();
+
+        PreparedExecution execution = CompiledGraph.compile(
+                        out,
+                        OptimizerConfig.inferenceDefaults().withOffload(OffloadConfig.acceleratorGreedy())
+                )
+                .prepare(RuntimeConfig.inferenceDefaults());
+
+        var selectedDecision = execution.prepareTrace().backendSelection().decisions().stream()
+                .filter(decision -> decision.selected()
+                        && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+
+        assertNotNull(selectedDecision.costSummary());
+        assertEquals("PROFILE_DERIVED", selectedDecision.costSummary().preset());
+    }
+
+    @Test
+    void minimumWorkRejectionStillWinsOverProfileDerivedCost() {
+        graph.optimizer.partition.PartitionPlan plan = new graph.optimizer.partition.PartitionPlan() {
+            @Override
+            public ComputeBackend backend() {
+                return ComputeBackend.GPU_METAL;
+            }
+
+            @Override
+            public int anchorNodeId() {
+                return 1;
+            }
+
+            @Override
+            public List<Integer> nodeIds() {
+                return List.of(1, 2, 3);
+            }
+
+            @Override
+            public List<Integer> externalInputNodeIds() {
+                return List.of(0);
+            }
+
+            @Override
+            public List<Integer> producedOutputNodeIds() {
+                return List.of(3);
+            }
+
+            @Override
+            public long estimatedWork() {
+                return 10L;
+            }
+        };
+        RuntimeConfig runtime = RuntimeConfig.inferenceDefaults().withAccelerator(new AcceleratorConfig(
+                AcceleratorBackendConfig.disabled(),
+                AcceleratorBackendConfig.disabled(),
+                new AcceleratorBackendConfig(true, false, 1_000_000L)
+        ));
+
+        AcceleratorPlanCostModel.Decision decision = AcceleratorPlanCostModel.decide(plan, runtime);
+
+        assertFalse(decision.accepted());
+        assertEquals("estimated-work-below-minimum", decision.reason());
+        assertNotNull(decision.costSummary());
+        assertEquals("PROFILE_DERIVED", decision.costSummary().preset());
     }
 
     @Test

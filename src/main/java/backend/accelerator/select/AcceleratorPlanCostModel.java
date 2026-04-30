@@ -8,6 +8,8 @@ import graph.optimizer.partition.PartitionPlan;
  * Cost gate used before accepting an accelerator partition plan.
  */
 public final class AcceleratorPlanCostModel {
+    private static final String PROFILE_DERIVED_PRESET = "PROFILE_DERIVED";
+
     private AcceleratorPlanCostModel() {
     }
 
@@ -18,7 +20,7 @@ public final class AcceleratorPlanCostModel {
         if (plan == null) {
             return Decision.reject("missing-plan");
         }
-        AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary = summarize(plan);
+        AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary = summarize(plan, runtimeConfig);
         if (plan.estimatedWork() <= 0L) {
             return Decision.reject("non-positive-estimated-work", costSummary);
         }
@@ -41,6 +43,30 @@ public final class AcceleratorPlanCostModel {
      * @return static cost summary, or {@code null} for missing plans
      */
     public static AcceleratorPartitionScoreModel.MaterializationCostSummary summarize(PartitionPlan plan) {
+        return summarize(plan, AcceleratorPartitionScoreModel.StaticCostPreset.conservative());
+    }
+
+    /**
+     * Builds a runtime-aware prepare-time cost summary for a partition plan using the PROFILE_DERIVED preset.
+     *
+     * @param plan partition plan
+     * @param runtimeConfig audited runtime config assembled before preparation
+     * @return runtime-derived cost summary, or {@code null} for missing plans
+     */
+    public static AcceleratorPartitionScoreModel.MaterializationCostSummary summarize(PartitionPlan plan, RuntimeConfig runtimeConfig) {
+        if (plan == null) {
+            return null;
+        }
+        return summarize(
+                plan,
+                ProfileDerivedAcceleratorCostFactors.fromRuntimeConfig(runtimeConfig, plan.backend()).toStaticCostPreset()
+        );
+    }
+
+    private static AcceleratorPartitionScoreModel.MaterializationCostSummary summarize(
+            PartitionPlan plan,
+            AcceleratorPartitionScoreModel.StaticCostPreset preset
+    ) {
         if (plan == null) {
             return null;
         }
@@ -67,7 +93,7 @@ public final class AcceleratorPlanCostModel {
                 plan.estimatedWork(),
                 signals,
                 AcceleratorPartitionScoreModel.PlannerPolicy.defaults(),
-                AcceleratorPartitionScoreModel.StaticCostPreset.conservative()
+                preset
         );
     }
 
