@@ -132,9 +132,14 @@ public class PreparedExecutionBuildTest {
 
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
 
-        assertTrue(execution.prepareTrace().backendSelection().decisions().stream()
-                .anyMatch(decision -> decision.selected()
-                        && decision.selectedBackend() == ComputeBackend.GPU_METAL));
+        var selectedDecision = execution.prepareTrace().backendSelection().decisions().stream()
+                .filter(decision -> decision.selected()
+                        && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow();
+        assertNotNull(selectedDecision.costSummary());
+        assertFalse(selectedDecision.costSummary().preset().isBlank());
+        assertTrue(selectedDecision.costSummary().estimatedTransferBytes() >= 0L);
         assertTrue(execution.forwardSteps().stream()
                 .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL
                         && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable));
@@ -1787,7 +1792,11 @@ public class PreparedExecutionBuildTest {
         assertEquals(0, gpuSteps.size());
         assertEquals(0, execution.prepareTrace().backendSelection().selectedCount());
         assertEquals(1, execution.prepareTrace().backendSelection().rejectedCount());
-        assertEquals("estimated-work-below-minimum", execution.prepareTrace().backendSelection().decisions().getFirst().reason());
+        var decision = execution.prepareTrace().backendSelection().decisions().getFirst();
+        assertEquals("estimated-work-below-minimum", decision.reason());
+        assertTrue(decision.estimatedWork() > 0L);
+        assertNotNull(decision.costSummary());
+        assertEquals("CONSERVATIVE", decision.costSummary().preset());
     }
 
     @Test

@@ -349,7 +349,7 @@ public final class AcceleratorPartitionScoreModel {
          * @return conservative preset
          */
         public static StaticCostPreset conservative() {
-            return new StaticCostPreset("CONSERVATIVE", 250.0d, 0.05d, 0.10d, 0.10d, 0.08d, 0.025d, 500.0d, 1.0d);
+            return new StaticCostPreset("CONSERVATIVE", 125.0d, 0.05d, 0.10d, 0.10d, 0.08d, 0.025d, 250.0d, 1.0d);
         }
 
         /**
@@ -358,7 +358,7 @@ public final class AcceleratorPartitionScoreModel {
          * @return measured preset
          */
         public static StaticCostPreset measured() {
-            return new StaticCostPreset("MEASURED", 125.0d, 0.025d, 0.05d, 0.05d, 0.04d, 0.05d, 250.0d, 1.0d);
+            return new StaticCostPreset("MEASURED", 75.0d, 0.025d, 0.05d, 0.05d, 0.04d, 0.05d, 125.0d, 1.0d);
         }
 
         /**
@@ -367,7 +367,7 @@ public final class AcceleratorPartitionScoreModel {
          * @return aggressive preset
          */
         public static StaticCostPreset aggressive() {
-            return new StaticCostPreset("AGGRESSIVE", 60.0d, 0.01d, 0.02d, 0.02d, 0.02d, 0.10d, 125.0d, 1.0d);
+            return new StaticCostPreset("AGGRESSIVE", 40.0d, 0.01d, 0.02d, 0.02d, 0.02d, 0.10d, 60.0d, 1.0d);
         }
 
         /**

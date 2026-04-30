@@ -59,6 +59,7 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                 continue;
             }
             if (!candidate.compatibleBackends().contains(plan.backend())) {
+                var summary = AcceleratorPlanCostModel.summarize(plan);
                 decisions.add(new BackendSelectionDecisionTrace(
                         candidate.anchorNodeId(),
                         candidate.nodeIds(),
@@ -66,11 +67,14 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         false,
                         null,
                         "backend-not-compatible",
-                        plan.estimatedWork()
+                        plan.estimatedWork(),
+                        summary,
+                        List.of()
                 ));
                 continue;
             }
             if (runtimeConfig != null && !runtimeConfig.accelerator().forBackend(plan.backend()).enabled()) {
+                var summary = AcceleratorPlanCostModel.summarize(plan);
                 decisions.add(new BackendSelectionDecisionTrace(
                         candidate.anchorNodeId(),
                         candidate.nodeIds(),
@@ -78,7 +82,9 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         false,
                         null,
                         "backend-disabled",
-                        plan.estimatedWork()
+                        plan.estimatedWork(),
+                        summary,
+                        List.of()
                 ));
                 continue;
             }
@@ -86,6 +92,7 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                     && runtimeConfig.accelerator().forBackend(plan.backend()).requireRuntimeAvailability();
             boolean available = !requireAvailability || AcceleratorRuntimeAvailability.isAvailable(plan.backend());
             if (!available) {
+                var summary = AcceleratorPlanCostModel.summarize(plan);
                 decisions.add(new BackendSelectionDecisionTrace(
                         candidate.anchorNodeId(),
                         candidate.nodeIds(),
@@ -93,7 +100,9 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         false,
                         null,
                         "runtime-unavailable",
-                        plan.estimatedWork()
+                        plan.estimatedWork(),
+                        summary,
+                        List.of()
                 ));
                 continue;
             }
@@ -107,7 +116,9 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         true,
                         plan.backend(),
                         "selected",
-                        plan.estimatedWork()
+                        plan.estimatedWork(),
+                        decision.costSummary(),
+                        List.of()
                 ));
             } else {
                 decisions.add(new BackendSelectionDecisionTrace(
@@ -117,7 +128,9 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         false,
                         null,
                         decision.reason(),
-                        plan.estimatedWork()
+                        plan.estimatedWork(),
+                        decision.costSummary(),
+                        List.of()
                 ));
             }
         }

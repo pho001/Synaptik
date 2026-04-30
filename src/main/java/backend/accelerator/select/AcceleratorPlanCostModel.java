@@ -1,6 +1,7 @@
 package backend.accelerator.select;
 
 import config.runtime.RuntimeConfig;
+import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 import graph.optimizer.partition.PartitionPlan;
 
 /**
@@ -17,16 +18,57 @@ public final class AcceleratorPlanCostModel {
         if (plan == null) {
             return Decision.reject("missing-plan");
         }
+        AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary = summarize(plan);
         if (plan.estimatedWork() <= 0L) {
-            return Decision.reject("non-positive-estimated-work");
+            return Decision.reject("non-positive-estimated-work", costSummary);
         }
         long minimumEstimatedWork = runtimeConfig == null
                 ? 0L
                 : runtimeConfig.accelerator().forBackend(plan.backend()).minimumEstimatedWork();
         if (minimumEstimatedWork > 0L && plan.estimatedWork() < minimumEstimatedWork) {
-            return Decision.reject("estimated-work-below-minimum");
+            return Decision.reject("estimated-work-below-minimum", costSummary);
         }
-        return Decision.accept("accepted");
+        if ("rejected-materialization-cost".equals(costSummary.reasonCode())) {
+            return Decision.reject("rejected-materialization-cost", costSummary);
+        }
+        return Decision.accept("accepted", costSummary);
+    }
+
+    /**
+     * Builds the static prepare-time cost summary for a partition plan.
+     *
+     * @param plan partition plan
+     * @return static cost summary, or {@code null} for missing plans
+     */
+    public static AcceleratorPartitionScoreModel.MaterializationCostSummary summarize(PartitionPlan plan) {
+        if (plan == null) {
+            return null;
+        }
+        int nodeCount = plan.nodeIds().size();
+        var metrics = new AcceleratorPartitionScoreModel.CandidateMetrics(
+                nodeCount,
+                Math.max(0, nodeCount - 1),
+                plan.externalInputNodeIds().size(),
+                0,
+                Math.max(0, nodeCount - 1)
+        );
+        var signals = new AcceleratorPartitionScoreModel.MaterializationSignals(
+                plan.externalInputNodeIds().size() + plan.producedOutputNodeIds().size(),
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                "BUFFER_BINDING",
+                "UNKNOWN"
+        );
+        return AcceleratorPartitionScoreModel.scoreMaterializationAware(
+                metrics,
+                plan.estimatedWork(),
+                signals,
+                AcceleratorPartitionScoreModel.PlannerPolicy.defaults(),
+                AcceleratorPartitionScoreModel.StaticCostPreset.conservative()
+        );
     }
 
     /**
@@ -34,27 +76,53 @@ public final class AcceleratorPlanCostModel {
      *
      * @param accepted whether the partition should use the accelerator backend
      * @param reason stable diagnostic reason for the decision
+     * @param costSummary static cost summary, if a plan was available
      */
     public record Decision(
             boolean accepted,
-            String reason
+            String reason,
+            AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary
     ) {
         public Decision {
             reason = reason == null ? "" : reason;
+        }
+
+        public Decision(boolean accepted, String reason) {
+            this(accepted, reason, null);
         }
 
         /**
          * Creates an accepted decision with a diagnostic reason.
          */
         public static Decision accept(String reason) {
-            return new Decision(true, reason);
+            return new Decision(true, reason, null);
+        }
+
+        /**
+         * Creates an accepted decision with a diagnostic reason and summary.
+         */
+        public static Decision accept(
+                String reason,
+                AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary
+        ) {
+            return new Decision(true, reason, costSummary);
         }
 
         /**
          * Creates a rejected decision with a diagnostic reason.
          */
         public static Decision reject(String reason) {
-            return new Decision(false, reason);
+            return new Decision(false, reason, null);
+        }
+
+        /**
+         * Creates a rejected decision with a diagnostic reason and summary.
+         */
+        public static Decision reject(
+                String reason,
+                AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary
+        ) {
+            return new Decision(false, reason, costSummary);
         }
     }
 }

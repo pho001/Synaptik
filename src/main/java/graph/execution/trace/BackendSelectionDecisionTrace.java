@@ -1,6 +1,7 @@
 package graph.execution.trace;
 
 import backend.ComputeBackend;
+import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 
 import java.util.List;
 
@@ -14,6 +15,8 @@ import java.util.List;
  * @param selectedBackend backend chosen for execution, if selected
  * @param reason diagnostic reason
  * @param estimatedWork backend work estimate
+ * @param costSummary static materialization-aware cost summary, if available
+ * @param finalists bounded rejected finalist summaries
  */
 public record BackendSelectionDecisionTrace(
         int anchorNodeId,
@@ -22,12 +25,39 @@ public record BackendSelectionDecisionTrace(
         boolean selected,
         ComputeBackend selectedBackend,
         String reason,
-        long estimatedWork
+        long estimatedWork,
+        AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary,
+        List<PartitionDecisionTrace.CandidateCostTrace> finalists
 ) {
+    public BackendSelectionDecisionTrace(
+            int anchorNodeId,
+            List<Integer> nodeIds,
+            List<ComputeBackend> compatibleBackends,
+            boolean selected,
+            ComputeBackend selectedBackend,
+            String reason,
+            long estimatedWork
+    ) {
+        this(
+                anchorNodeId,
+                nodeIds,
+                compatibleBackends,
+                selected,
+                selectedBackend,
+                reason,
+                estimatedWork,
+                null,
+                List.of()
+        );
+    }
+
     public BackendSelectionDecisionTrace {
         nodeIds = List.copyOf(nodeIds == null ? List.of() : nodeIds);
         compatibleBackends = List.copyOf(compatibleBackends == null ? List.of() : compatibleBackends);
         reason = reason == null ? "" : reason;
         estimatedWork = Math.max(0L, estimatedWork);
+        finalists = List.copyOf(finalists == null ? List.of() : finalists).stream()
+                .limit(3)
+                .toList();
     }
 }
