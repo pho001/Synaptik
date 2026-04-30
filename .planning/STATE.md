@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
 status: executing
-last_updated: "2026-04-30T19:33:51.884Z"
+last_updated: "2026-04-30T19:41:08Z"
 last_activity: 2026-04-30
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 15
-  completed_plans: 14
-  percent: 93
+  completed_plans: 15
+  percent: 100
 ---
 
 # GSD State
@@ -67,7 +67,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 9 — Native Layout ABI v2 | Completed | 3/3 | Passed |
 | 10 — GPU Layout Transform And View Path | Completed | 4/4 | Passed |
 | 11 — GPU Lowering Coverage Matrix | Completed | 4/4 | Passed |
-| 12 — Fused GPU Region Execution | Ready to execute | 4/4 | Pending |
+| 12 — Fused GPU Region Execution | Executed | 4/4 | Pending |
 | 13 — Coverage Benchmark And Regression Gate | Planned | TBD | Pending |
 
 ## Deferred Items
@@ -127,6 +127,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 11 softmax-ish lowering completed | LOG_SOFTMAX lowers as SOFTMAX followed by LOG for Metal/CUDA regions without adding a native ABI op code, while unsupported reductions/losses remain visible. |
 | 2026-04-30 | Phase 11 trace/docs closure completed | Final portable and optional native gates passed or capability-skipped, docs describe GPU-lowerable extension workflow, and local profile artifacts remained unstaged. |
 | 2026-04-30 | Phase 11 verification passed | Shared coverage matrix, Metal/CUDA legality alignment, LOG_SOFTMAX lowering, trace/docs closure, security, validation, and profile artifact hygiene satisfy GPULOWER-01/02/03. |
+| 2026-04-30 | Phase 12 execution completed | GPU compound lowering now covers `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN`, rejects `REDUCTION_ADJACENT` and CPU `Operation.OpType.FUSED` with stable diagnostics, and records focused verification evidence. |
 
 ## Recent Sessions
 
@@ -169,13 +170,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed 11-03 softmax-ish lowering expansion | Ready for 11-04 trace and docs closure | .planning/phases/11-gpu-lowering-coverage-matrix/11-03-SUMMARY.md |
 | 2026-04-30 | Completed 11-04 lowering coverage trace and docs closure | Ready for Phase 11 security/validation/verify-work | .planning/phases/11-gpu-lowering-coverage-matrix/11-04-SUMMARY.md |
 | 2026-04-30 | Completed and verified Phase 11 | Ready for Phase 12 planning | .planning/phases/11-gpu-lowering-coverage-matrix/11-VERIFICATION.md |
+| 2026-04-30 | Completed 12-04 reduction-adjacent/docs closure | Ready for Phase 12 security/validation/verify-work | .planning/phases/12-fused-gpu-region-execution/12-04-SUMMARY.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 11 verification*
+*Last updated: 2026-04-30 after Phase 12 execution*
 
 ## Current Position
 
 Phase: 12 (fused-gpu-region-execution) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Executed; ready for security, validation, and verify-work
 Last activity: 2026-04-30

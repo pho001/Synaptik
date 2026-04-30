@@ -190,7 +190,7 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 
 **Plans:**
 
-3/4 plans executed
+4/4 plans executed
 
 Wave 1:
 - [12-01 Shared GPU Compound Pattern Contract](phases/12-fused-gpu-region-execution/12-01-PLAN.md) - creates backend-neutral compound summaries, stable reason codes, CPU `FUSED` GPU rejection, and coverage matrix updates for GPUFUSE-03/GPUFUSE-04.
@@ -252,7 +252,7 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 | GPUFUSE-01 | Phase 12 | Complete |
 | GPUFUSE-02 | Phase 12 | Complete |
 | GPUFUSE-03 | Phase 12 | Complete |
-| GPUFUSE-04 | Phase 12 | Pending |
+| GPUFUSE-04 | Phase 12 | Complete |
 | GPUCOV-01 | Phase 13 | Pending |
 | GPUCOV-02 | Phase 13 | Pending |
 | GPUCOV-03 | Phase 13 | Pending |
@@ -263,4 +263,4 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 - Unmapped: 0
 
 ---
-*Roadmap updated: 2026-04-30 after Phase 11 verification*
+*Roadmap updated: 2026-04-30 after Phase 12 execution*
