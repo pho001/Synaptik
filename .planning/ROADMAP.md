@@ -53,6 +53,20 @@ Archives:
 - Do not broaden operation coverage yet beyond what is needed to prove the runtime path.
 - Preserve existing CPU and Metal behavior while CUDA support is unavailable.
 
+**Planned Execution:**
+
+Wave 1:
+- `06-01` — Add checked-in CUDA native shim source, optional build/probe workflow, Gradle tasks, docs, and portable bridge tests.
+- `06-02` — Add Java CUDA capability model and reason-coded bridge diagnostics while keeping buffer support conservative.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- `06-03` — Wire CUDA prepared execution to the shared accelerator buffer ABI for dense supported layouts and preserve REQUIRED-mode failure semantics.
+
+Cross-cutting constraints:
+- Default Java lifecycle tasks remain CUDA-independent.
+- `supportsBufferBindings()` stays false until Java and native CUDA buffer execution are both safe to claim.
+- CUDA-specific native handles and lifetimes stay under `backend.cuda.*`; shared accelerator records and public `Tensor` API remain backend-neutral.
+
 ### Phase 7: CUDA Buffer Execution And Materialization
 
 **Goal:** Prove CUDA native device buffers can run a representative accelerator operation, materialize correct CPU-visible results, and hand device-owned buffers to adjacent CUDA work without Java array round trips.
