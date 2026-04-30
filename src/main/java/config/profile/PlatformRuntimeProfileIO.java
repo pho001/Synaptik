@@ -15,6 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class PlatformRuntimeProfileIO {
+    public static final String SUPPORTED_PLANNER_SCHEMA_VERSION = "1";
+    public static final String SUPPORTED_PERSISTENCE_SCHEMA_VERSION = "1";
+
     private PlatformRuntimeProfileIO() {
     }
 
@@ -153,6 +156,22 @@ public final class PlatformRuntimeProfileIO {
             return fromJsonOrDefault(json, fallback);
         } catch (IOException e) {
             return fallback;
+        }
+    }
+
+    public static PlatformRuntimeProfile loadStrict(Path path, PlatformRuntimeProfile fallback) {
+        if (path == null) {
+            throw new IllegalArgumentException("path cannot be null");
+        }
+        if (!Files.exists(path)) {
+            throw new IllegalArgumentException("Platform runtime profile does not exist: " + path);
+        }
+        try {
+            return fromJsonStrict(Files.readString(path, StandardCharsets.UTF_8), fallback);
+        } catch (IOException e) {
+            throw new IllegalStateException("Invalid platform runtime profile at " + path + ": " + e.getMessage(), e);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Invalid platform runtime profile at " + path + ": " + e.getMessage(), e);
         }
     }
 
@@ -344,6 +363,20 @@ public final class PlatformRuntimeProfileIO {
         }
     }
 
+    public static PlatformRuntimeProfile fromJsonStrict(String json, PlatformRuntimeProfile fallback) {
+        if (json == null || json.isBlank()) {
+            throw new IllegalArgumentException("Platform runtime profile JSON is blank");
+        }
+        if (fallback == null) {
+            throw new IllegalArgumentException("fallback cannot be null");
+        }
+        validateSupportedSchemaVersions(json, fallback.metadata());
+        validateBufferBindingMode(json, "cudaBufferBindingMode");
+        validateBufferBindingMode(json, "openclBufferBindingMode");
+        validateBufferBindingMode(json, "metalBufferBindingMode");
+        return fromJsonOrDefault(json, fallback);
+    }
+
     private static String findString(String json, String key, String fallback) {
         int idx = json.indexOf("\"" + key + "\"");
         if (idx < 0) {
@@ -372,6 +405,41 @@ public final class PlatformRuntimeProfileIO {
                 ),
                 findLong(json, prefix + "BufferMinimumEstimatedWork", resolved.minimumEstimatedWork())
         );
+    }
+
+    private static void validateSupportedSchemaVersions(String json, PlatformProfileMetadata fallback) {
+        String plannerSchemaVersion = findString(json, "plannerSchemaVersion", fallback.plannerSchemaVersion());
+        if (!SUPPORTED_PLANNER_SCHEMA_VERSION.equals(plannerSchemaVersion)) {
+            throw new IllegalArgumentException(
+                    "Unsupported plannerSchemaVersion: " + plannerSchemaVersion
+            );
+        }
+        String persistenceSchemaVersion = findString(
+                json,
+                "persistenceSchemaVersion",
+                fallback.persistenceSchemaVersion()
+        );
+        if (!SUPPORTED_PERSISTENCE_SCHEMA_VERSION.equals(persistenceSchemaVersion)) {
+            throw new IllegalArgumentException(
+                    "Unsupported persistenceSchemaVersion: " + persistenceSchemaVersion
+            );
+        }
+    }
+
+    private static void validateBufferBindingMode(String json, String key) {
+        if (!hasKey(json, key)) {
+            return;
+        }
+        String value = findString(json, key, null);
+        try {
+            AcceleratorBufferBindingMode.valueOf(value);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Invalid " + key + ": " + value, e);
+        }
+    }
+
+    private static boolean hasKey(String json, String key) {
+        return json.indexOf("\"" + key + "\"") >= 0;
     }
 
     private static int findInt(String json, String key, int fallback) {

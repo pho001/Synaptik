@@ -22,6 +22,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PlatformCalibrationSessionTest {
@@ -217,6 +218,63 @@ public class PlatformCalibrationSessionTest {
 
         assertFalse(float32Request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.METAL_SELECTION));
         assertFalse(float64Request.steps().stream().anyMatch(step -> step.family() == CalibrationFamilyId.METAL_SELECTION));
+    }
+
+    @Test
+    void strictPlatformProfileLoaderRejectsInvalidAcceleratorBufferMode() {
+        PlatformRuntimeProfile fallback = PlatformRuntimeProfile.fromExecutionProfile(
+                "fallback",
+                "fallback",
+                "TEST",
+                defaultSeed()
+        );
+        String json = PlatformRuntimeProfileIO.toJson(fallback)
+                .replace("\"metalBufferBindingMode\": \"AUTO\"", "\"metalBufferBindingMode\": \"BROKEN\"");
+
+        IllegalArgumentException thrown = assertThrows(
+                IllegalArgumentException.class,
+                () -> PlatformRuntimeProfileIO.fromJsonStrict(json, fallback)
+        );
+
+        assertTrue(thrown.getMessage().contains("metalBufferBindingMode"));
+    }
+
+    @Test
+    void strictPlatformProfileLoaderRejectsUnsupportedPersistenceSchemaVersion() {
+        PlatformRuntimeProfile fallback = PlatformRuntimeProfile.fromExecutionProfile(
+                "fallback",
+                "fallback",
+                "TEST",
+                defaultSeed()
+        );
+        String json = PlatformRuntimeProfileIO.toJson(fallback)
+                .replace("\"persistenceSchemaVersion\": \"1\"", "\"persistenceSchemaVersion\": \"2\"");
+
+        IllegalArgumentException thrown = assertThrows(
+                IllegalArgumentException.class,
+                () -> PlatformRuntimeProfileIO.fromJsonStrict(json, fallback)
+        );
+
+        assertTrue(thrown.getMessage().contains("Unsupported persistenceSchemaVersion"));
+    }
+
+    @Test
+    void strictPlatformProfileLoaderKeepsLegacyMissingBufferDefaults() {
+        PlatformRuntimeProfile fallback = PlatformRuntimeProfile.fromExecutionProfile(
+                "fallback",
+                "fallback",
+                "TEST",
+                defaultSeed()
+        );
+        String json = PlatformRuntimeProfileIO.toJson(fallback)
+                .replace("    \"metalBufferBindingMode\": \"AUTO\",\n", "");
+
+        PlatformRuntimeProfile loaded = PlatformRuntimeProfileIO.fromJsonStrict(json, fallback);
+
+        assertEquals(
+                config.runtime.AcceleratorBufferConfig.defaults().bindingMode(),
+                loaded.accelerator().metal().buffer().bindingMode()
+        );
     }
 
     private static ExecutionProfile defaultSeed() {
