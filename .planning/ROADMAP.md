@@ -133,7 +133,7 @@ Plans:
 - [x] 04-01-PLAN.md — Add the tuning knob ownership matrix and enforce graph/autotune versus platform/calibration candidate boundaries.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 04-02-PLAN.md — Harden platform runtime profile IO with strict schema/version and accelerator buffer validation.
+- [x] 04-02-PLAN.md — Harden platform runtime profile IO with strict schema/version and accelerator buffer validation.
 
 **Wave 3** *(blocked on Waves 1-2 completion)*
 - [ ] 04-03-PLAN.md — Wire audited profile/calibration-derived accelerator cost factors through `RuntimeConfig` while preserving CPU safeguards.
