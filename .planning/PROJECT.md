@@ -28,10 +28,11 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 - ✓ Metal buffer execution can keep legal view-like layout values device-resident through dense physical logical-view buffers, visible fallback, and explicit CPU materialization boundaries — validated in Phase 2 by `.planning/phases/002-metal-layout-aware-device-flow/002-VERIFICATION.md`.
 - ✓ Accelerator region planning and backend selection score static materialization cost, layout fallback cost, upload/download cost, dispatch overhead, expected compute benefit, selected candidates, and rejected finalists while preserving CPU natural/fusion/BLAS safeguards — validated in Phase 3 by `.planning/phases/003-materialization-aware-region-planning/003-VERIFICATION.md`.
 - ✓ Tuning ownership separates graph/workload autotune knobs from platform/dtype calibration thresholds, strict profile IO rejects invalid schema and accelerator buffer fields, runtime-derived accelerator costs enter through `RuntimeConfig`, and benchmark commands remain profile-read-only — validated in Phase 4 by `.planning/phases/04-tuning-and-profile-ownership-audit/04-VERIFICATION.md`.
+- ✓ Focused tests, traces, benchmark scenarios, documentation, and hygiene checks prove longer device-owned accelerator flows and visible CPU materialization boundaries — validated in Phase 5 by `.planning/phases/05-accelerator-verification-and-documentation-closure/05-VERIFICATION.md`.
 
 ### Active
 
-- [ ] Add focused tests, traces, benchmark scenarios, and documentation that prove accelerator execution uses longer device-owned flows and avoids accidental CPU round trips.
+No active v1 requirements remain after Phase 5 verification.
 
 ### Out of Scope
 
@@ -109,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after Phase 4 verification*
+*Last updated: 2026-04-30 after Phase 5 verification*

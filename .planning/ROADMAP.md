@@ -149,6 +149,8 @@ Cross-cutting constraints:
 
 ### Phase 5: Accelerator Verification And Documentation Closure
 
+**Status:** Complete — verified 2026-04-30 (`05-VERIFICATION.md`, score 30/30)
+
 **Goal:** Close the milestone with focused tests, benchmark evidence, trace checks, docs, and hygiene rules proving the new accelerator flow works and remains maintainable.
 
 **Requirements:** OBS-01, OBS-02, OBS-03, OBS-04, DOC-01, DOC-02, DOC-03, DOC-04
@@ -199,22 +201,22 @@ Cross-cutting constraints:
 | METAL-02 | Phase 2 | Complete — verified in 002-VERIFICATION |
 | METAL-03 | Phase 2 | Complete — verified in 002-VERIFICATION |
 | METAL-04 | Phase 2 | Complete — verified in 002-VERIFICATION |
-| PLAN-01 | Phase 3 | Pending |
-| PLAN-02 | Phase 3 | Pending |
-| PLAN-03 | Phase 3 | Pending |
-| PLAN-04 | Phase 3 | Pending |
+| PLAN-01 | Phase 3 | Complete — verified in 003-VERIFICATION |
+| PLAN-02 | Phase 3 | Complete — verified in 003-VERIFICATION |
+| PLAN-03 | Phase 3 | Complete — verified in 003-VERIFICATION |
+| PLAN-04 | Phase 3 | Complete — verified in 003-VERIFICATION |
 | TUNE-01 | Phase 4 | Complete — verified in 04-VERIFICATION |
 | TUNE-02 | Phase 4 | Complete — verified in 04-VERIFICATION |
 | TUNE-03 | Phase 4 | Complete — verified in 04-VERIFICATION |
 | TUNE-04 | Phase 4 | Complete — verified in 04-VERIFICATION |
-| OBS-01 | Phase 5 | Complete |
-| OBS-02 | Phase 5 | Complete |
-| OBS-03 | Phase 5 | Complete |
-| OBS-04 | Phase 5 | Complete |
-| DOC-01 | Phase 5 | Complete |
-| DOC-02 | Phase 5 | Complete |
-| DOC-03 | Phase 5 | Complete |
-| DOC-04 | Phase 5 | Complete |
+| OBS-01 | Phase 5 | Complete — verified in 05-VERIFICATION |
+| OBS-02 | Phase 5 | Complete — verified in 05-VERIFICATION |
+| OBS-03 | Phase 5 | Complete — verified in 05-VERIFICATION |
+| OBS-04 | Phase 5 | Complete — verified in 05-VERIFICATION |
+| DOC-01 | Phase 5 | Complete — verified in 05-VERIFICATION |
+| DOC-02 | Phase 5 | Complete — verified in 05-VERIFICATION |
+| DOC-03 | Phase 5 | Complete — verified in 05-VERIFICATION |
+| DOC-04 | Phase 5 | Complete — verified in 05-VERIFICATION |
 
 **Coverage:**
 - v1 requirements: 24 total

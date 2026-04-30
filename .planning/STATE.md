@@ -55,7 +55,7 @@ Planning agents should read the relevant codebase map documents before proposing
 - This repository has existing uncommitted profile changes under `profiles/platform/.../tuning/abc/*`; they are not part of project initialization.
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is available for phase/status mutations; keep manual edits scoped when SDK numbering helpers cannot infer padded phase directories.
-- Phase 5 execution passed final targeted Java and Metal verification; the milestone is ready for Phase 5 review/verification gates or milestone completion.
+- Phase 5 verification passed with `05-VERIFICATION.md`; the milestone is ready for re-audit or milestone completion.
 
 ## Phase Planning Status
 
@@ -65,7 +65,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2 — Metal Layout-Aware Device Flow | Complete | 3 of 3 plans complete | `002-VERIFICATION.md` passed 12/12 must-haves on 2026-04-30 |
 | 3 — Materialization-Aware Region Planning | Complete | 3 of 3 plans complete | `003-VERIFICATION.md` passed 29/29 must-haves on 2026-04-30 |
 | 4 — Tuning And Profile Ownership Audit | Complete | 4 of 4 plans complete | `04-VERIFICATION.md` passed 28/28 must-haves on 2026-04-30 |
-| 5 — Accelerator Verification And Documentation Closure | Complete | 3 of 3 plans complete | Final targeted verification and `metalTest` passed on 2026-04-30 |
+| 5 — Accelerator Verification And Documentation Closure | Complete | 3 of 3 plans complete | `05-VERIFICATION.md` passed 30/30 must-haves on 2026-04-30 |
 
 ## Recent Decisions
 
@@ -123,7 +123,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 2026-04-30 | Completed and verified Phase 4 | Ready for Phase 4 security/validation closure or Phase 5 planning | .planning/phases/04-tuning-and-profile-ownership-audit/04-VERIFICATION.md |
 | 2026-04-30 | Secured Phase 4 | Ready for `$gsd-validate-phase 04` | .planning/phases/04-tuning-and-profile-ownership-audit/04-SECURITY.md |
 | 2026-04-30 | Validated Phase 4 | Ready for Phase 5 planning | .planning/phases/04-tuning-and-profile-ownership-audit/04-VALIDATION.md |
-| 2026-04-30 | Completed Phase 5 execution | Ready for Phase 5 verification/review or milestone completion | .planning/phases/05-accelerator-verification-and-documentation-closure/05-03-SUMMARY.md |
+| 2026-04-30 | Completed and verified Phase 5 | Ready for milestone re-audit or completion | .planning/phases/05-accelerator-verification-and-documentation-closure/05-VERIFICATION.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 5 execution*
+*Last updated: 2026-04-30 after Phase 5 verification*
