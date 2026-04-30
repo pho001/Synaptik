@@ -10,6 +10,7 @@ import backend.accelerator.dag.AcceleratorDagNodeType;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
+import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;
 import backend.cuda.bridge.CudaGraphBridge;
@@ -32,7 +33,9 @@ import graph.CompiledGraph;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
+import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
+import graph.execution.trace.RunTrace;
 import graph.execution.trace.CpuMaterializationTrace;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
@@ -145,6 +148,145 @@ class PreparedCudaExecutableBufferPolicyTest {
                 executable.lastAcceleratorBufferDecision().reasonCode());
         assertTrue(failure.getMessage().contains("NATIVE_BUFFER_EXECUTION_FAILED"));
         assertTrue(failure.getMessage().contains("CUDA buffer binding execution failed:"));
+    }
+
+    @Test
+    void requiredModeBridgeUnavailableThrowsBridgeUnavailableBeforeTensorArray() {
+        Fixture fixture = fixture();
+        FakeCudaBridge bridge = FakeCudaBridge.unavailableBridge("synthetic CUDA unavailable");
+        PreparedCudaExecutable executable = executable(
+                fixture,
+                bridge,
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferReasonCode.BRIDGE_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode());
+        assertTrue(failure.getMessage().contains("Accelerator buffer path is required for GPU_CUDA but unavailable:"));
+        assertTrue(failure.getMessage().contains("BRIDGE_UNAVAILABLE"));
+    }
+
+    @Test
+    void requiredModeNativeBufferAbiUnavailableThrowsBeforeTensorArray() {
+        Fixture fixture = fixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(false);
+        PreparedCudaExecutable executable = executable(
+                fixture,
+                bridge,
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().reasonCode());
+        assertTrue(failure.getMessage().contains("Accelerator buffer path is required for GPU_CUDA but unavailable:"));
+        assertTrue(failure.getMessage().contains("NATIVE_BUFFER_ABI_UNAVAILABLE"));
+    }
+
+    @Test
+    void requiredModeNativeBufferFailureThrowsNativeBufferExecutionFailed() {
+        Fixture fixture = fixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(true, true);
+        PreparedCudaExecutable executable = executable(
+                fixture,
+                bridge,
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.UNAVAILABLE, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferReasonCode.NATIVE_BUFFER_EXECUTION_FAILED,
+                executable.lastAcceleratorBufferDecision().reasonCode());
+        assertTrue(failure.getMessage().contains("Accelerator buffer path is required for GPU_CUDA but unavailable:"));
+        assertTrue(failure.getMessage().contains("NATIVE_BUFFER_EXECUTION_FAILED"));
+    }
+
+    @Test
+    void requiredModeMissingBindingAndStaleCpuThrowsInputNotCpuCurrent() {
+        Fixture fixture = fixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(true);
+        fixture.state().markDeviceCurrent(
+                fixture.inputNode().id(),
+                StorageResidency.DEVICE_OWNED,
+                "GPU_CUDA",
+                "synthetic stale host input"
+        );
+        PreparedCudaExecutable executable = executable(
+                fixture,
+                bridge,
+                AcceleratorBackendConfig.defaults().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, 0)
+                )
+        );
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
+
+        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferReasonCode.INPUT_NOT_CPU_CURRENT,
+                executable.lastAcceleratorBufferDecision().reasonCode());
+        assertTrue(failure.getMessage().contains("INPUT_NOT_CPU_CURRENT"));
+    }
+
+    @Test
+    void tracedCudaBufferExecutionPublishesReasonAndStatsAttributes() {
+        Fixture fixture = fixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(true);
+        PreparedCudaExecutable executable = executable(fixture, bridge, AcceleratorBackendConfig.defaults());
+        var acceleratorMetadata = new CompiledNodeExecutionMetadata(
+                backend.ComputeBackend.GPU_CUDA,
+                null,
+                null,
+                null,
+                null,
+                executable,
+                null,
+                List.of(),
+                PartitionExecutionRole.NONE
+        );
+        PreparedExecution prepared = new PreparedExecution(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                List.of(new PreparedNodeExecution(fixture.outputNode(), acceleratorMetadata)),
+                List.of(new PreparedNodeExecution(fixture.outputNode(), acceleratorMetadata)),
+                List.of(),
+                fixture.nodes(),
+                Map.of(),
+                fixture.rootTensor(),
+                fixture.outputNode(),
+                null,
+                null,
+                graph.execution.trace.PrepareTrace.skipped()
+        );
+
+        RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);
+
+        Map<String, Object> attrs = trace.steps().getFirst().metadata().attributes();
+        assertEquals("GPU_CUDA", attrs.get("acceleratorBufferBackend"));
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
+        assertEquals("CUDA dense FLOAT32 buffer metadata accepted", attrs.get("acceleratorBufferReason"));
+        assertEquals("BUFFER_BINDING", attrs.get("cudaExecutionPath"));
+        assertEquals("", attrs.get("cudaFallbackReason"));
+        assertTrue(((Number) attrs.get("acceleratorInputBytes")).longValue() > 0L);
     }
 
     @Test
@@ -291,7 +433,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 metadata,
                 state
         );
-        return new Fixture(inputNode, outputNode, metadata, state, context);
+        return new Fixture(input, output, nodes, inputNode, outputNode, metadata, state, context);
     }
 
     private static TwoStageFixture twoStageFixture() {
@@ -348,6 +490,9 @@ class PreparedCudaExecutableBufferPolicyTest {
     }
 
     private record Fixture(
+            Tensor inputTensor,
+            Tensor rootTensor,
+            List<CompiledNode> nodes,
             CompiledNode inputNode,
             CompiledNode outputNode,
             Map<Integer, CompiledNodeExecutionMetadata> metadata,
@@ -406,6 +551,10 @@ class PreparedCudaExecutableBufferPolicyTest {
     private static final class FakeCudaBridge implements CudaGraphBridge {
         private final boolean supportsBufferBindings;
         private final boolean failBufferExecution;
+        private final boolean bridgeAvailable;
+        private final boolean contextAvailable;
+        private final boolean executableAvailable;
+        private final String unavailableReason;
         private final Map<Long, float[]> buffers = new HashMap<>();
         private long nextHandle = 10_000L;
         private int tensorExecutions;
@@ -414,31 +563,55 @@ class PreparedCudaExecutableBufferPolicyTest {
         private List<CudaBufferBinding> lastBufferOutputs = List.of();
 
         private FakeCudaBridge(boolean supportsBufferBindings) {
-            this(supportsBufferBindings, false);
+            this(supportsBufferBindings, false, true, true, true, "");
         }
 
         private FakeCudaBridge(boolean supportsBufferBindings, boolean failBufferExecution) {
+            this(supportsBufferBindings, failBufferExecution, true, true, true, "");
+        }
+
+        private FakeCudaBridge(
+                boolean supportsBufferBindings,
+                boolean failBufferExecution,
+                boolean bridgeAvailable,
+                boolean contextAvailable,
+                boolean executableAvailable,
+                String unavailableReason
+        ) {
             this.supportsBufferBindings = supportsBufferBindings;
             this.failBufferExecution = failBufferExecution;
+            this.bridgeAvailable = bridgeAvailable;
+            this.contextAvailable = contextAvailable;
+            this.executableAvailable = executableAvailable;
+            this.unavailableReason = unavailableReason == null ? "" : unavailableReason;
+        }
+
+        private static FakeCudaBridge unavailableBridge(String reason) {
+            return new FakeCudaBridge(true, false, false, false, false, reason);
         }
 
         @Override
         public boolean isAvailable() {
-            return true;
+            return bridgeAvailable;
         }
 
         @Override
         public String unavailableReason() {
-            return "";
+            return unavailableReason;
         }
 
         @Override
         public CudaBridgeContext createContext() {
-            return new CudaBridgeContext(true, MemorySegment.ofAddress(1), "");
+            return contextAvailable
+                    ? new CudaBridgeContext(true, MemorySegment.ofAddress(1), "")
+                    : CudaBridgeContext.unavailable("synthetic CUDA context unavailable");
         }
 
         @Override
         public CudaBridgeExecutable compile(CudaBridgeContext bridgeContext, AcceleratorDagSpec dagSpec) {
+            if (!executableAvailable) {
+                return CudaBridgeExecutable.unavailable("synthetic CUDA executable unavailable");
+            }
             return new CudaBridgeExecutable(
                     true,
                     MemorySegment.ofAddress(2),
