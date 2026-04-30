@@ -1,5 +1,9 @@
 package backend.metal.lowering;
 
+import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuLoweringCoverageEntry;
+import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
+import backend.accelerator.lowering.GpuLoweringCoverageStatus;
 import backend.metal.MetalMpsCapabilities;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
@@ -58,8 +62,9 @@ public final class MetalPartitionSupport {
         if (node.backwardNode() && opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
             return "forward SDPA nodes are not legal inside Metal backward regions";
         }
-        if (!isOperationSupported(node)) {
-            return "operation " + opType + " is not in the tested Metal planner allowlist";
+        GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType);
+        if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
+            return entry.reason().name() + ": operation " + opType + " is not supported by GPU_METAL lowering";
         }
         return "";
     }
@@ -74,19 +79,6 @@ public final class MetalPartitionSupport {
      */
     public static boolean isExternalInputSupported(CompiledNode producer, CompiledNode consumer, int inputIndex) {
         return MetalMpsCapabilities.supportsExternalInputRole(producer, consumer, inputIndex);
-    }
-
-    private static boolean isOperationSupported(CompiledNode node) {
-        if (node.backwardNode()) {
-            return switch (node.operation().opType()) {
-                case MATMUL, LINEAR, SOFTMAX_GRAD, LOG_SOFTMAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD, SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> true;
-                default -> false;
-            };
-        }
-        return switch (node.operation().opType()) {
-            case MATMUL, LINEAR, ADD, SUB, MUL, DIV, RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, LOG, NEG, SQRT, INV, MUL_SCALAR, WHERE, SOFTMAX, CLAMP_MIN, CLAMP_MAX, RESHAPE, CONTIGUOUS, NOOP, PERMUTE, EXPAND_DIMS, SQUEEZE -> true;
-            default -> false;
-        };
     }
 
     /**
