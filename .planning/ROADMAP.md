@@ -66,6 +66,24 @@ Archives:
 4. Unsupported layout metadata, dtype, rank, aliasing, or ABI mismatch uses stable reason codes in AUTO and REQUIRED modes.
 5. Focused portable tests cover supported metadata, missing-symbol fallback, ABI mismatch, and required-mode failure for both Metal and CUDA seams.
 
+**Plans:**
+
+Wave 1:
+- [09-01 Shared ABI v2 Metadata Contract](phases/09-native-layout-abi-v2/09-01-PLAN.md) — creates backend-neutral descriptor/status records and physical-span tests for GPULAYOUT-01.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [09-02 Metal/CUDA Layout ABI v2 Capability Handshake](phases/09-native-layout-abi-v2/09-02-PLAN.md) — adds optional-symbol capability/version discovery and native stub symbols for GPULAYOUT-02.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [09-03 ABI v2 Fallback And Required-Mode Diagnostics](phases/09-native-layout-abi-v2/09-03-PLAN.md) — maps unsupported metadata and ABI mismatch to stable AUTO/REQUIRE reason codes for GPULAYOUT-03.
+
+**Cross-cutting constraints:**
+- Layout ABI v2 is additive; existing dense Metal/CUDA buffer execution must keep working when v2 symbols are absent.
+- Shared contracts stay backend-neutral and do not expose Metal/CUDA native handle objects or a public device tensor API.
+- Capability records distinguish native library, graph ABI, v1 buffer ABI, and layout ABI v2 support.
+- AUTO fallback must be visible in decisions/traces; REQUIRE must fail before hidden tensor-array or CPU fallback.
+- Portable Java tests are required; native Metal/CUDA checks remain capability-gated.
+
 **Notes:**
 - Native handle lifetimes stay backend-owned; common contracts describe metadata and capability only.
 - Do not force all operations to consume layout ABI v2 in this phase; establish the bridge contract first.

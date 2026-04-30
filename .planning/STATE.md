@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
-status: Ready for Phase 9 planning
-last_updated: "2026-04-30T12:15:30.300Z"
-last_activity: 2026-04-30 — Phase 9 context gathered
+status: executing
+last_updated: "2026-04-30T12:20:41.915Z"
+last_activity: 2026-04-30 -- Phase 09 planning complete
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -64,7 +64,7 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 9 — Native Layout ABI v2 | Context captured | TBD | Pending |
+| 9 — Native Layout ABI v2 | Planned | 3/3 | Pending |
 | 10 — GPU Layout Transform And View Path | Planned | TBD | Pending |
 | 11 — GPU Lowering Coverage Matrix | Planned | TBD | Pending |
 | 12 — Fused GPU Region Execution | Planned | TBD | Pending |
@@ -118,6 +118,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | v1.1 milestone archived | CUDA Native Runtime archives were written under `.planning/milestones/`; fresh requirements should be defined for the next milestone. |
 | 2026-04-30 | v1.2 milestone started | GPU Region Coverage will target non-contiguous/view Metal and CUDA paths, broader lowering, fused GPU regions, and coverage regression gates. |
 | 2026-04-30 | Phase 9 context captured in auto mode | ABI v2 is additive, backend-neutral, optional-symbol gated, and limited to metadata/capability/fallback contracts before Phase 10 layout execution. |
+| 2026-04-30 | Phase 9 planning completed | Three plans cover shared ABI v2 metadata, Metal/CUDA optional capability symbols, and ABI-specific fallback/required-mode diagnostics. |
 
 ## Recent Sessions
 
@@ -150,13 +151,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Planned Phase 6 with 3 verified plans | Ready for Phase 6 execution | .planning/phases/06-cuda-shim-and-capability-probe/06-01-PLAN.md |
 | 2026-04-30 | Completed and verified Phase 6 | Ready for Phase 7 planning | .planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md |
 | 2026-04-30 | Gathered Phase 9 context | Ready for Phase 9 planning | .planning/phases/09-native-layout-abi-v2/09-CONTEXT.md |
+| 2026-04-30 | Planned Phase 9 with 3 verified plans | Ready for Phase 9 execution | .planning/phases/09-native-layout-abi-v2/09-01-PLAN.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 9 context capture*
+*Last updated: 2026-04-30 after Phase 9 planning*
 
 ## Current Position
 
 Phase: 9 — Native Layout ABI v2
 Plan: —
-Status: Ready for Phase 9 planning
-Last activity: 2026-04-30 — Phase 9 context gathered
+Status: Ready to execute
+Last activity: 2026-04-30 -- Phase 09 planning complete
