@@ -5,7 +5,7 @@ Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-ap
 
 Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core-artifact-boundaries) | [Graph Construction](#graph-construction) | [Compile Pipeline](#compile-pipeline) | [Optimizer And Partitioning](#optimizer-and-partitioning) | [Prepare Pipeline](#prepare-pipeline) | [Execution Pipeline](#execution-pipeline) | [CPU Backend](#cpu-backend) | [Accelerator Scaffolding](#accelerator-scaffolding) | [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning) | [Memory And Layout Model](#memory-and-layout-model) | [Tracing And Observability](#tracing-and-observability) | [Numerics Harness](#numerics-harness) | [Verification Anchors](#verification-anchors)
 
-Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested `FLOAT32` subset, including native buffer binding between adjacent Metal regions; CUDA has region lowering and executable scaffolding; OpenCL currently exposes only a minimal no-op registry path.
+Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested `FLOAT32` subset, including native buffer binding between adjacent Metal regions; CUDA has a narrow dense `FLOAT32` native-buffer path with explicit fallback, trace, and benchmark-report evidence; OpenCL currently exposes only a minimal no-op registry path.
 
 ## Table Of Contents
 
@@ -448,14 +448,21 @@ The repository has the Java-side pieces of that contract under `src/main/java/ba
 FFM bridge returns `true` when all buffer ABI symbols are present. The bridge receives only explicit buffer bindings;
 it does not pull arrays out of semantic `Tensor` objects.
 
-CUDA consumes the same `AcceleratorBufferLayout`, `AcceleratorBufferRequest`, and `AcceleratorBufferDecision`
-metadata for dense `FLOAT32` layout preflight. CUDA-specific native handles and lifetimes stay under
-`backend.cuda.*`. Phase 7 adds a narrow CUDA dense FLOAT32 buffer execution path: `CudaBufferAllocator` creates
+CUDA consumes the same shared accelerator buffer ABI as Metal while CUDA-specific native handles and lifetimes stay
+under `backend.cuda.*`. The Java-side policy uses `AcceleratorBufferLayout`, `AcceleratorBufferRequest`, and
+`AcceleratorBufferDecision` metadata for dense `FLOAT32` layout preflight. Phase 7 adds a narrow CUDA dense FLOAT32 buffer execution path: `CudaBufferAllocator` creates
 run-scoped native CUDA buffers, `PreparedCudaExecutable` calls `CudaGraphBridge.executeBuffers(...)`, successful
 outputs are attached as `StorageResidency.DEVICE_OWNED`, and `CudaDeviceToCpuMaterializer` reads graph-output or
 CPU-consumer values back through `ExecutionState.requireCpuReadable(...)`. Adjacent CUDA handoff reuses a compatible
 `CudaBufferBinding` when backend id, dtype, shape, strides, storage offset, logical element count, handle
-availability, and access mode match. Unsupported paths are explicit: unsupported CUDA buffer layouts and dtypes fall back visibly. This is not broad CUDA operation coverage, and CPU remains the correctness oracle. CUDA trace/report parity remains Phase 8 work.
+availability, and access mode match. Unsupported paths are explicit: unsupported CUDA buffer layouts and dtypes fall back visibly. This is not broad CUDA operation coverage, and CPU remains the correctness oracle.
+
+CUDA trace and benchmark reports now expose the same accelerator evidence contract as Metal for this narrow path.
+`PreparedExecution` emits `GPU_CUDA`, `cudaExecutionPath`, `cudaFallbackReason`, `acceleratorBufferReasonCode`,
+`acceleratorInputBytes`, `acceleratorNativeDeviceCopyNs`, and `StorageResidency.DEVICE_OWNED` when the run records
+device-owned CUDA output. CUDA timing fields are Java-observed boundary timings; native device sub-timers can be `0`
+when the shim does not expose them. `RunTrace.cpuMaterializations()` remains the source for graph-output and
+CPU-consumer materialization reasons, and benchmark reports summarize `cpuMaterializationCount`.
 
 The important ownership split is:
 

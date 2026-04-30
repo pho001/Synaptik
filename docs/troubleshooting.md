@@ -236,6 +236,7 @@ Fix path:
 2. If `cpuMaterializationCount` is unexpected, inspect each `CpuMaterializationTrace` reason. `GRAPH_OUTPUT`, `CPU_CONSUMER`, and `GRADIENT_PUBLICATION` are expected CPU materialization boundary reasons; intermediate materialization before an adjacent Metal consumer points to a lost `DEVICE_OWNED` buffer handoff.
 3. If `nativeToJavaCopyNs` is nonzero, the run likely used the tensor-array copy path rather than buffer binding. Check `acceleratorBufferReasonCode`, `metalSupportsBufferBindings`, unsupported dtype/layout reasons, and whether the native shim exports the buffer ABI symbols.
 4. If a benchmark report is missing `backendSelectionCost`, confirm the candidate prepared with a backend selection trace that includes a selected cost summary. Reports can only print selected accelerator candidate and `rejectedFinalists` data when `PrepareTrace.backendSelection()` carries it.
+5. CUDA fallback interpretation uses `acceleratorBufferReasonCode`, `cudaFallbackReason`, and CUDA trace and benchmark reports fields such as `cudaExecutionPath`, `acceleratorInputBytes`, and `acceleratorNativeDeviceCopyNs`. For graph-output reads, check `RunTrace.cpuMaterializations()` and `cpuMaterializationCount`.
 
 ## CUDA Shim Missing
 
@@ -260,13 +261,21 @@ Run the bridge availability test:
 ./gradlew test --no-daemon --tests backend.cuda.bridge.CudaFfmBridgeTest
 ```
 
+Build and run the optional native shim tests when local CUDA capability exists:
+
+```bash
+./gradlew buildCudaGraphShim cudaTest
+```
+
 Run it with an explicit library:
 
 ```bash
 ./gradlew test --no-daemon --tests backend.cuda.bridge.CudaFfmBridgeTest -Dsynaptik.cuda.graph.lib=/absolute/path/to/libsynaptik_cuda_graph.so
 ```
 
-Needs verification: no CUDA native build script was found under `scripts/` or `src/main/native`.
+If `nvcc` is missing from `PATH`, install/configure the CUDA toolkit or treat the native CUDA test slice as capability-skipped. Native CUDA tests skip when nvcc or CUDA hardware is unavailable; portable Java CUDA checks must still pass.
+
+For native lookup failures, set `SYNAPTIK_CUDA_GRAPH_LIB` or `-Dsynaptik.cuda.graph.lib=<path>`. For required native-buffer failures, inspect `acceleratorBufferReasonCode` and `cudaFallbackReason`; common stable codes include `NATIVE_BUFFER_ABI_UNAVAILABLE`, `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, and `NATIVE_BUFFER_EXECUTION_FAILED`.
 
 ## Validation Mismatch In Benchmark Or Autotune
 

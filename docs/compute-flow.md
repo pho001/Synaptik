@@ -1892,8 +1892,7 @@ When a step is an accelerator anchor, the attributes map can include bridge and 
 For Metal anchors, the attributes map also exposes bridge transfer diagnostics from
 `MetalMpsBridgeExecutionStats`:
 
-Common accelerator buffer attributes are emitted for every accelerator executable, including Metal today and CUDA
-once CUDA grows a real buffer ABI:
+Common accelerator buffer attributes are emitted for every accelerator executable, including Metal and CUDA:
 
 | Attribute | Meaning |
 |---|---|
@@ -1906,7 +1905,7 @@ once CUDA grows a real buffer ABI:
 | `acceleratorBufferInputCount`, `acceleratorBufferOutputCount` | Number of inputs and outputs evaluated by buffer policy. |
 
 When layout compatibility drives fallback, accelerator buffer diagnostics include `layoutClass`, `shape`, `strides`, and `storageOffset` details.
-The common Metal buffer reason codes are:
+The common Metal and CUDA buffer reason codes are:
 
 | Reason code | Meaning |
 |---|---|
@@ -1930,6 +1929,29 @@ The common Metal buffer reason codes are:
 | `metalNativeDeviceCopyNs` | Native shim time spent copying MPSGraph result storage into caller-provided output buffers. |
 | `metalNativeToJavaCopyNs` | Time spent copying native output memory back into Java tensor arrays. |
 | `metalBridgeTotalNs` | Total measured bridge-boundary time. |
+
+CUDA trace and benchmark reports use the same accelerator summary contract. For the narrow dense `FLOAT32` native
+buffer path, CUDA steps can expose:
+
+| Attribute | Meaning |
+|---|---|
+| `cudaUsedCpuFallback` | `true` when `PreparedCudaExecutable` served the step through CPU fallback. |
+| `cudaFallbackReason` | Reason for fallback, including bridge, native ABI, dtype/layout, or native execution failure. |
+| `cudaExecutionPath` | Runtime path used for the attempt: `CPU_FALLBACK`, `TENSOR_ARRAY`, or `BUFFER_BINDING`. |
+| `cudaSupportsBufferBindings` | Whether the active CUDA bridge supports explicit native buffer bindings. |
+| `cudaExternalInputCount`, `cudaOutputCount` | Number of external input tensors/buffers and output tensors/buffers resolved for CUDA. |
+| `cudaInputBytes`, `cudaOutputBytes` | Logical payload bytes crossing the current CUDA bridge boundary. |
+| `cudaJavaToNativeCopyNs` | Java-observed time spent copying Java tensors into native bridge memory when measured. |
+| `cudaNativeExecuteNs` | Java-observed time inside the native CUDA execute call. |
+| `cudaNativeDeviceCopyNs` | Native device copy timing when the shim exposes it; currently may be `0`. |
+| `cudaNativeToJavaCopyNs` | Time spent copying native outputs back into Java tensors when measured. |
+| `cudaBridgeTotalNs` | Total measured CUDA bridge-boundary time. |
+
+Backend-neutral report fields prefer `acceleratorInputBytes`, `acceleratorOutputBytes`,
+`acceleratorJavaToNativeCopyNs`, `acceleratorNativeToJavaCopyNs`, and `acceleratorNativeDeviceCopyNs`; Metal-specific
+`metal*` fields remain a compatibility fallback. CUDA fallback interpretation starts with `acceleratorBufferReasonCode`
+and `cudaFallbackReason`, then checks `RunTrace.cpuMaterializations()` for `GRAPH_OUTPUT`, `CPU_CONSUMER`, and
+`GRADIENT_PUBLICATION` boundaries.
 
 Storage residency appears in the same attributes map:
 

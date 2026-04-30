@@ -348,8 +348,10 @@ Current capability note: CPU remains the broadest backend. Metal has a real MPSG
 subset, including native buffer binding when the shim exports the current buffer ABI. CUDA now has CUDA dense FLOAT32
 buffer execution for the narrow native-buffer path: `CudaBufferAllocator`, `CudaDeviceToCpuMaterializer`,
 `StorageResidency.DEVICE_OWNED`, and adjacent CUDA handoff are supported when the CUDA graph shim exposes the required
-buffer symbols. Unsupported CUDA buffer layouts and dtypes fall back visibly, and CUDA trace/report parity remains a
-later observability task. The detailed Metal capability boundary, supported dtypes, buffer ABI, and fallback rules are in
+buffer symbols. Unsupported CUDA buffer layouts and dtypes fall back visibly, and CUDA trace and benchmark reports
+publish `GPU_CUDA`, `cudaExecutionPath`, `cudaFallbackReason`, `acceleratorBufferReasonCode`, `acceleratorInputBytes`,
+`acceleratorNativeDeviceCopyNs`, and `cpuMaterializationCount` evidence for that path. The detailed Metal capability
+boundary, supported dtypes, buffer ABI, and fallback rules are in
 [Metal Backend: Supported Operations And DTypes](metal-backend.md#supported-operations-and-dtypes).
 
 ## Execution Profiles
@@ -626,11 +628,14 @@ Optional CUDA native tasks:
 ```bash
 ./gradlew buildCudaGraphShim
 ./gradlew cudaTest
+./gradlew buildCudaGraphShim cudaTest
 ```
 
 `buildCudaGraphShim` writes `build/native/cuda/libsynaptik_cuda_graph.*`. `cudaTest` sets `synaptik.cuda.graph.lib` to that output path before running CUDA-focused tests, and is skipped when `nvcc` is unavailable.
 Native CUDA tests skip when nvcc or CUDA hardware is unavailable. The portable Java gates for CUDA buffer execution do
 not require CUDA hardware; use `./gradlew buildCudaGraphShim cudaTest` only when validating the optional native shim.
+CUDA fallback interpretation uses `acceleratorBufferReasonCode`, `cudaFallbackReason`, and stable reason codes such as
+`NATIVE_BUFFER_ABI_UNAVAILABLE`, `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, and `NATIVE_BUFFER_EXECUTION_FAILED`.
 
 ## CLI Configuration Behavior
 

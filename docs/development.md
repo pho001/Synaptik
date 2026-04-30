@@ -193,6 +193,8 @@ For CUDA bridge and buffer-policy changes, use focused portable checks first:
 
 CUDA buffer decisions use stable reason code strings such as `NATIVE_BUFFER_ABI_UNAVAILABLE`, `INPUT_DTYPE_UNSUPPORTED`, `OUTPUT_LAYOUT_UNSUPPORTED`, `INPUT_BINDING_UNAVAILABLE`, `INPUT_NOT_CPU_CURRENT`, `NATIVE_BUFFER_EXECUTION_FAILED`, and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`. Phase 7 proves CUDA dense FLOAT32 buffer execution, `CudaBufferAllocator`, `CudaDeviceToCpuMaterializer`, `StorageResidency.DEVICE_OWNED`, and adjacent CUDA handoff for compatible `CudaBufferBinding` instances. Unsupported CUDA buffer layouts and dtypes fall back visibly, and CPU remains the correctness oracle for every portable CUDA result. This is narrow dense `FLOAT32` CUDA buffer coverage, not broad CUDA operation coverage.
 
+CUDA fallback interpretation starts with `acceleratorBufferReasonCode` and `cudaFallbackReason` in the run trace or benchmark report. The shared accelerator buffer ABI used by Metal and CUDA keeps public `Tensor` objects logical while `backend.cuda.*` owns CUDA handles and lifetimes.
+
 Optional native CUDA verification uses:
 
 ```bash

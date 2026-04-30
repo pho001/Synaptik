@@ -268,7 +268,21 @@ The task filters to Metal-specific tests, including `backend.metal.*` and `Prepa
 For what each Metal test proves, including the native buffer ABI and adjacent-region buffer handoff, see
 [Metal Backend: Tests](metal-backend.md#tests).
 
-Needs verification: CUDA shim build instructions are not present in the repository; only the Java bridge and tests were found.
+Build and run the optional CUDA graph shim tests when `nvcc` and CUDA hardware are available:
+
+```bash
+./gradlew buildCudaGraphShim cudaTest
+```
+
+The task writes `build/native/cuda/libsynaptik_cuda_graph.*`, sets `-Dsynaptik.cuda.graph.lib=` for the CUDA-focused
+test slice, and uses the same lookup path as `SYNAPTIK_CUDA_GRAPH_LIB`. Native CUDA tests skip when nvcc or CUDA
+hardware is unavailable. A skip is acceptable only when portable Java gates such as
+`backend.cuda.bridge.CudaFfmBridgeTest`, `backend.cuda.buffer.CudaAcceleratorBufferBinderTest`, and
+`backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest` pass.
+
+CUDA fallback interpretation in test output should use `acceleratorBufferReasonCode`, `cudaFallbackReason`,
+`NATIVE_BUFFER_ABI_UNAVAILABLE`, `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, and `NATIVE_BUFFER_EXECUTION_FAILED` before
+treating a fallback as a regression.
 
 ## Source Hygiene Tests
 
