@@ -52,7 +52,7 @@ v1.2 should broaden GPU-resident execution coverage so realistic neural-network/
 - ✓ CPU fused execution can use generated ASM/vector/parallel paths governed by runtime profile knobs — existing.
 - ✓ Platform calibration, graph autotune, benchmark reporting, profile persistence, and fluent tuning APIs exist — existing.
 - ✓ Metal backend has native MPS bridge support, native build workflow, buffer-binding execution, device-to-CPU materialization, and trace diagnostics for accelerator paths — existing.
-- ✓ CUDA backend has shared accelerator scaffolding, bridge interfaces, prepared executable policy seams, and tests for buffer-policy behavior, but no checked-in native CUDA shim yet — existing.
+- ✓ CUDA backend has a checked-in native shim, bridge capability probe, prepared executable policy seams, dense `FLOAT32` buffer execution, materialization, handoff, and trace/report diagnostics — validated in v1.1.
 - ✓ Documentation exists under `docs/` for architecture, compute flow, optimizer stages, tensor API, calibration/autotune, Metal backend, native bridges, testing, and extension workflows — existing.
 - ✓ `.planning/codebase/` contains a current brownfield codebase map for stack, architecture, structure, conventions, testing, integrations, and concerns — existing.
 - ✓ Backend-neutral device buffer layout ABI represents shape, strides, storage offset, dtype, logical element count, byte length, access mode, backend id, and native handle identity for Metal now and CUDA later — validated in Phase 1 by `.planning/phases/001-accelerator-buffer-layout-abi/001-VERIFICATION.md`.
