@@ -173,9 +173,9 @@ Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GPULAYOUT-01 | Phase 9 | Pending |
-| GPULAYOUT-02 | Phase 9 | Pending |
-| GPULAYOUT-03 | Phase 9 | Pending |
+| GPULAYOUT-01 | Phase 9 | Complete |
+| GPULAYOUT-02 | Phase 9 | Complete |
+| GPULAYOUT-03 | Phase 9 | Complete |
 | GPUVIEW-01 | Phase 10 | Pending |
 | GPUVIEW-02 | Phase 10 | Pending |
 | GPUVIEW-03 | Phase 10 | Pending |

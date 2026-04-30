@@ -10,9 +10,9 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 
 ### Native Layout ABI
 
-- [ ] **GPULAYOUT-01**: Metal and CUDA native bridge contracts can describe rank, shape, strides, storage offset, logical element count, physical byte span, access mode, backend id, and native handle identity for non-contiguous/view-capable accelerator buffers.
-- [ ] **GPULAYOUT-02**: Metal and CUDA expose capability/version checks for layout ABI v2 so Java can select native non-contiguous support only when the backend advertises matching symbols and semantics.
-- [ ] **GPULAYOUT-03**: Unsupported layout metadata, rank, dtype, aliasing, or native ABI mismatch produces stable fallback/required-mode reason codes instead of silent CPU materialization.
+- [x] **GPULAYOUT-01**: Metal and CUDA native bridge contracts can describe rank, shape, strides, storage offset, logical element count, physical byte span, access mode, backend id, and native handle identity for non-contiguous/view-capable accelerator buffers.
+- [x] **GPULAYOUT-02**: Metal and CUDA expose capability/version checks for layout ABI v2 so Java can select native non-contiguous support only when the backend advertises matching symbols and semantics.
+- [x] **GPULAYOUT-03**: Unsupported layout metadata, rank, dtype, aliasing, or native ABI mismatch produces stable fallback/required-mode reason codes instead of silent CPU materialization.
 
 ### GPU Layout Transform And View Path
 
@@ -67,9 +67,9 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GPULAYOUT-01 | Phase 9 | Pending |
-| GPULAYOUT-02 | Phase 9 | Pending |
-| GPULAYOUT-03 | Phase 9 | Pending |
+| GPULAYOUT-01 | Phase 9 | Complete |
+| GPULAYOUT-02 | Phase 9 | Complete |
+| GPULAYOUT-03 | Phase 9 | Complete |
 | GPUVIEW-01 | Phase 10 | Pending |
 | GPUVIEW-02 | Phase 10 | Pending |
 | GPUVIEW-03 | Phase 10 | Pending |
@@ -91,4 +91,4 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after v1.2 milestone start*
+*Last updated: 2026-04-30 after Phase 9 verification*

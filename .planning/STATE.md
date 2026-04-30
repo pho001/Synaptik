@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
-status: executing
-last_updated: "2026-04-30T12:22:18.968Z"
-last_activity: 2026-04-30 -- Phase 09 execution started
+status: ready_to_plan
+last_updated: "2026-04-30T14:33:23+02:00"
+last_activity: 2026-04-30 -- Phase 09 verified; ready for Phase 10 planning
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 0
-  percent: 0
+  completed_plans: 3
+  percent: 20
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 09 — Native Layout ABI v2
+**Current focus:** Phase 10 — GPU Layout Transform And View Path
 
 ## Project Reference
 
@@ -64,8 +64,8 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 9 — Native Layout ABI v2 | Planned | 3/3 | Pending |
-| 10 — GPU Layout Transform And View Path | Planned | TBD | Pending |
+| 9 — Native Layout ABI v2 | Completed | 3/3 | Passed |
+| 10 — GPU Layout Transform And View Path | Ready to plan | TBD | Pending |
 | 11 — GPU Lowering Coverage Matrix | Planned | TBD | Pending |
 | 12 — Fused GPU Region Execution | Planned | TBD | Pending |
 | 13 — Coverage Benchmark And Regression Gate | Planned | TBD | Pending |
@@ -119,6 +119,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | v1.2 milestone started | GPU Region Coverage will target non-contiguous/view Metal and CUDA paths, broader lowering, fused GPU regions, and coverage regression gates. |
 | 2026-04-30 | Phase 9 context captured in auto mode | ABI v2 is additive, backend-neutral, optional-symbol gated, and limited to metadata/capability/fallback contracts before Phase 10 layout execution. |
 | 2026-04-30 | Phase 9 planning completed | Three plans cover shared ABI v2 metadata, Metal/CUDA optional capability symbols, and ABI-specific fallback/required-mode diagnostics. |
+| 2026-04-30 | Phase 9 verification passed | Shared ABI v2 metadata, Metal/CUDA capability probes, native optional symbols, CUDA ABI-v2 fallback diagnostics, Metal native tests, and portable targeted gates satisfy GPULAYOUT-01/02/03. |
 
 ## Recent Sessions
 
@@ -152,13 +153,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed and verified Phase 6 | Ready for Phase 7 planning | .planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md |
 | 2026-04-30 | Gathered Phase 9 context | Ready for Phase 9 planning | .planning/phases/09-native-layout-abi-v2/09-CONTEXT.md |
 | 2026-04-30 | Planned Phase 9 with 3 verified plans | Ready for Phase 9 execution | .planning/phases/09-native-layout-abi-v2/09-01-PLAN.md |
+| 2026-04-30 | Completed and verified Phase 9 | Ready for Phase 10 planning | .planning/phases/09-native-layout-abi-v2/09-VERIFICATION.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 9 planning*
+*Last updated: 2026-04-30 after Phase 9 verification*
 
 ## Current Position
 
-Phase: 09 (Native Layout ABI v2) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 09
-Last activity: 2026-04-30 -- Phase 09 execution started
+Phase: 10
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-04-30
