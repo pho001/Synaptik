@@ -384,6 +384,68 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void zeroOffsetViewOutputUsesBufferBindingWhenLogicalViewMaterializationIsSupported() {
+        assertLogicalViewOutputUsesBufferBinding(
+                zeroOffsetViewOutputFixture(),
+                AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW
+        );
+    }
+
+    @Test
+    void permutedOutputUsesBufferBindingWhenDensePhysicalLogicalViewIsSupported() {
+        assertLogicalViewOutputUsesBufferBinding(
+                nonContiguousOutputFixture(),
+                AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW
+        );
+    }
+
+    @Test
+    void nonZeroOffsetViewOutputUsesBufferBindingWhenDensePhysicalLogicalViewIsSupported() {
+        assertLogicalViewOutputUsesBufferBinding(
+                nonZeroOffsetOutputFixture(),
+                AcceleratorBufferLayoutClass.NON_ZERO_OFFSET_VIEW
+        );
+    }
+
+    @Test
+    void existingLogicalViewDeviceBindingFeedsAdjacentMetalExecutableWithoutCpuMaterialization() {
+        Fixture firstFixture = nonContiguousOutputFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable first = executable(firstFixture, bridge);
+
+        first.execute(firstFixture.context());
+
+        MetalBufferBinding intermediate = (MetalBufferBinding) firstFixture.state()
+                .deviceBufferBindingForNodeId(firstFixture.outputNode().id());
+        assertEquals(AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW, intermediate.layout().layoutClass());
+        assertEquals(StorageResidency.DEVICE_OWNED, firstFixture.state()
+                .residencyForNodeId(firstFixture.outputNode().id()).residency());
+
+        Tensor output = firstFixture.context().runtimeTensorForNodeId(firstFixture.outputNode().id()).relu();
+        Fixture secondFixture = fixture(
+                firstFixture.context().runtimeTensorForNodeId(firstFixture.outputNode().id()),
+                output
+        );
+        secondFixture.state().attachDeviceBufferBinding(
+                secondFixture.inputNode().id(),
+                intermediate,
+                StorageResidency.DEVICE_OWNED,
+                "logical-view intermediate"
+        );
+        PreparedMetalExecutable second = executable(secondFixture, bridge);
+
+        second.execute(secondFixture.context());
+
+        assertEquals(2, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(intermediate, bridge.lastBufferInputs.getFirst());
+        assertTrue(firstFixture.state().cpuMaterializationTraces().isEmpty());
+        assertTrue(secondFixture.state().cpuMaterializationTraces().isEmpty());
+        assertEquals(StorageResidency.DEVICE_OWNED, secondFixture.state()
+                .residencyForNodeId(secondFixture.outputNode().id()).residency());
+    }
+
+    @Test
     void fallsBackBeforeReservingBufferForPermutedOutputTensor() {
         Fixture fixture = nonContiguousOutputFixture();
         FakeBridge bridge = new FakeBridge(true);
@@ -864,6 +926,34 @@ class PreparedMetalExecutableBufferBindingTest {
         assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
     }
 
+    private static void assertLogicalViewOutputUsesBufferBinding(
+            Fixture fixture,
+            AcceleratorBufferLayoutClass expectedLayoutClass
+    ) {
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(expectedLayoutClass, executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass());
+        assertTrue(executable.lastAcceleratorBufferDecision().outputs().getFirst().accepted());
+        assertTrue(executable.lastAcceleratorBufferDecision().outputs().getFirst().reason()
+                .contains("policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"));
+        MetalBufferBinding outputBinding = (MetalBufferBinding) fixture.state()
+                .deviceBufferBindingForNodeId(fixture.outputNode().id());
+        assertEquals(expectedLayoutClass, outputBinding.layout().layoutClass());
+        assertEquals(outputBinding.layout().logicalByteLength(), outputBinding.handle().byteLength());
+        assertEquals(outputBinding, bridge.lastBufferOutputs.getFirst());
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
+        assertTrue(fixture.state().requiresCpuMaterialization(fixture.outputNode().id()));
+        assertTrue(fixture.state().cpuMaterializationTraces().isEmpty());
+    }
+
     private static void assertRequiredOutputLayoutUnavailable(
             Fixture fixture,
             AcceleratorBufferLayoutClass layoutClass,
@@ -1159,6 +1249,7 @@ class PreparedMetalExecutableBufferBindingTest {
         private int bufferExecutions;
         private int bufferAllocations;
         private List<MetalBufferBinding> lastBufferInputs = List.of();
+        private List<MetalBufferBinding> lastBufferOutputs = List.of();
 
         private FakeBridge(boolean supportsBufferBindings) {
             this(supportsBufferBindings, false, false);
@@ -1264,6 +1355,7 @@ class PreparedMetalExecutableBufferBindingTest {
         ) {
             bufferExecutions++;
             lastBufferInputs = List.copyOf(externalInputs);
+            lastBufferOutputs = List.copyOf(outputs);
             if (failBufferExecution) {
                 throw new UnsupportedOperationException("synthetic buffer bridge failure");
             }
