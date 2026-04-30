@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
-status: executing
-last_updated: "2026-04-30T16:54:38Z"
-last_activity: 2026-04-30 -- Phase 11 plan 11-04 complete
+status: planning
+last_updated: "2026-04-30T18:33:54Z"
+last_activity: 2026-04-30 -- Phase 11 verification passed
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 11
   completed_plans: 11
   percent: 100
@@ -66,7 +66,7 @@ Planning agents should read the relevant codebase map documents before proposing
 |-------|--------|-------|--------------|
 | 9 — Native Layout ABI v2 | Completed | 3/3 | Passed |
 | 10 — GPU Layout Transform And View Path | Completed | 4/4 | Passed |
-| 11 — GPU Lowering Coverage Matrix | Executed | 4/4 | Pending verification |
+| 11 — GPU Lowering Coverage Matrix | Completed | 4/4 | Passed |
 | 12 — Fused GPU Region Execution | Planned | TBD | Pending |
 | 13 — Coverage Benchmark And Regression Gate | Planned | TBD | Pending |
 
@@ -126,6 +126,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 11 legality alignment completed | Metal and CUDA planner legality now consume the shared coverage matrix while CUDA exposes stable unsupported reasons and conservative non-dense layout rejection. |
 | 2026-04-30 | Phase 11 softmax-ish lowering completed | LOG_SOFTMAX lowers as SOFTMAX followed by LOG for Metal/CUDA regions without adding a native ABI op code, while unsupported reductions/losses remain visible. |
 | 2026-04-30 | Phase 11 trace/docs closure completed | Final portable and optional native gates passed or capability-skipped, docs describe GPU-lowerable extension workflow, and local profile artifacts remained unstaged. |
+| 2026-04-30 | Phase 11 verification passed | Shared coverage matrix, Metal/CUDA legality alignment, LOG_SOFTMAX lowering, trace/docs closure, security, validation, and profile artifact hygiene satisfy GPULOWER-01/02/03. |
 
 ## Recent Sessions
 
@@ -167,13 +168,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed 11-02 Metal/CUDA legality coverage alignment | Ready for 11-03 softmax-ish lowering expansion | .planning/phases/11-gpu-lowering-coverage-matrix/11-02-SUMMARY.md |
 | 2026-04-30 | Completed 11-03 softmax-ish lowering expansion | Ready for 11-04 trace and docs closure | .planning/phases/11-gpu-lowering-coverage-matrix/11-03-SUMMARY.md |
 | 2026-04-30 | Completed 11-04 lowering coverage trace and docs closure | Ready for Phase 11 security/validation/verify-work | .planning/phases/11-gpu-lowering-coverage-matrix/11-04-SUMMARY.md |
+| 2026-04-30 | Completed and verified Phase 11 | Ready for Phase 12 planning | .planning/phases/11-gpu-lowering-coverage-matrix/11-VERIFICATION.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 11 plan 11-04 completion*
+*Last updated: 2026-04-30 after Phase 11 verification*
 
 ## Current Position
 
-Phase: 11
-Plan: 4/4 complete
-Status: Executed, pending Phase 11 security/validation/verify-work
-Last activity: 2026-04-30 -- Phase 11 plan 11-04 complete
+Phase: 12
+Plan: 0/0 complete
+Status: Phase 11 verified; ready for Phase 12 planning
+Last activity: 2026-04-30 -- Phase 11 verification passed

@@ -22,9 +22,9 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 
 ### GPU Lowering Coverage
 
-- [ ] **GPULOWER-01**: A checked-in Metal/CUDA operation coverage matrix classifies common NN/tensor patterns as supported, fallback, or unsupported with stable reason codes.
-- [ ] **GPULOWER-02**: The lowering pipeline can keep supported matmul/linear, elementwise-chain, reduction, softmax-like, normalization, and loss-adjacent patterns in GPU regions when layout, dtype, and backend capability contracts are satisfied.
-- [ ] **GPULOWER-03**: Backend selection and lowering tests prove unsupported operations, dtypes, layouts, or backend capability gaps reject cleanly without regressing CPU, Metal, or CUDA fallback safeguards.
+- [x] **GPULOWER-01**: A checked-in Metal/CUDA operation coverage matrix classifies common NN/tensor patterns as supported, fallback, or unsupported with stable reason codes.
+- [x] **GPULOWER-02**: The lowering pipeline can keep supported matmul/linear, elementwise-chain, reduction, softmax-like, normalization, and loss-adjacent patterns in GPU regions when layout, dtype, and backend capability contracts are satisfied.
+- [x] **GPULOWER-03**: Backend selection and lowering tests prove unsupported operations, dtypes, layouts, or backend capability gaps reject cleanly without regressing CPU, Metal, or CUDA fallback safeguards.
 
 ### Fused GPU Region Execution
 
@@ -73,9 +73,9 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 | GPUVIEW-01 | Phase 10 | Complete |
 | GPUVIEW-02 | Phase 10 | Complete |
 | GPUVIEW-03 | Phase 10 | Complete |
-| GPULOWER-01 | Phase 11 | Pending |
-| GPULOWER-02 | Phase 11 | Pending |
-| GPULOWER-03 | Phase 11 | Pending |
+| GPULOWER-01 | Phase 11 | Complete |
+| GPULOWER-02 | Phase 11 | Complete |
+| GPULOWER-03 | Phase 11 | Complete |
 | GPUFUSE-01 | Phase 12 | Pending |
 | GPUFUSE-02 | Phase 12 | Pending |
 | GPUFUSE-03 | Phase 12 | Pending |
@@ -91,4 +91,4 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 
 ---
 *Requirements defined: 2026-04-30*
-*Last updated: 2026-04-30 after Phase 10 verification*
+*Last updated: 2026-04-30 after Phase 11 verification*

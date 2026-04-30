@@ -223,9 +223,9 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 | GPUVIEW-01 | Phase 10 | Complete |
 | GPUVIEW-02 | Phase 10 | Complete |
 | GPUVIEW-03 | Phase 10 | Complete |
-| GPULOWER-01 | Phase 11 | Pending |
-| GPULOWER-02 | Phase 11 | Pending |
-| GPULOWER-03 | Phase 11 | Pending |
+| GPULOWER-01 | Phase 11 | Complete |
+| GPULOWER-02 | Phase 11 | Complete |
+| GPULOWER-03 | Phase 11 | Complete |
 | GPUFUSE-01 | Phase 12 | Pending |
 | GPUFUSE-02 | Phase 12 | Pending |
 | GPUFUSE-03 | Phase 12 | Pending |
@@ -240,4 +240,4 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 - Unmapped: 0
 
 ---
-*Roadmap updated: 2026-04-30 after v1.2 milestone start*
+*Roadmap updated: 2026-04-30 after Phase 11 verification*
