@@ -33,7 +33,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | elementwise chains | `ADD`, `SUB`, `MUL`, `DIV`, `RELU`, `TANH`, `SIGMOID`, `ABS`, `EXP`, `LOG`, `NEG`, `SQRT`, `INV`, `MUL_SCALAR`, `WHERE`, `CLAMP_MIN`, `CLAMP_MAX` | supported | `SUPPORTED` |
 | layout/view-adjacent nodes | `RESHAPE`, `CONTIGUOUS`, `NOOP`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `SOFTMAX` | supported | `SUPPORTED` |
-| softmax/log-softmax-ish flows | `LOG_SOFTMAX` | fallback | `UNSUPPORTED_OPERATION` |
+| softmax/log-softmax-ish flows | `LOG_SOFTMAX` | supported | `SUPPORTED`; lowered as SOFTMAX followed by LOG |
 | reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | fallback | `UNSUPPORTED_OPERATION` |
 | normalization pieces | `LAYER_NORM`, `RMS_NORM` | fallback | `DEFERRED_FUSED_REGION` |
 | loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `UNSUPPORTED_OPERATION` |
@@ -54,7 +54,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | elementwise chains | `ADD`, `SUB`, `MUL`, `DIV`, `RELU`, `TANH`, `SIGMOID`, `ABS`, `EXP`, `LOG`, `NEG`, `SQRT`, `INV`, `MUL_SCALAR`, `WHERE`, `CLAMP_MIN`, `CLAMP_MAX` | supported | `SUPPORTED` |
 | layout/view-adjacent nodes | `RESHAPE`, `CONTIGUOUS`, `NOOP`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `SOFTMAX` | supported | `SUPPORTED` |
-| softmax/log-softmax-ish flows | `LOG_SOFTMAX` | fallback | `UNSUPPORTED_OPERATION` |
+| softmax/log-softmax-ish flows | `LOG_SOFTMAX` | supported | `SUPPORTED`; lowered as SOFTMAX followed by LOG |
 | reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | fallback | `UNSUPPORTED_OPERATION` |
 | normalization pieces | `LAYER_NORM`, `RMS_NORM` | fallback | `DEFERRED_FUSED_REGION` |
 | loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `UNSUPPORTED_OPERATION` |
@@ -76,5 +76,7 @@ The public `Tensor` remains logical and device residency stays in `ExecutionStat
 Shared matrix entries classify semantic support for operation families and provide the stable fallback or unsupported reason code used by Metal and CUDA planner diagnostics.
 
 Metal adds backend-owned dtype, external-input role, and SDPA semantic gates before it accepts a matrix-supported operation. CUDA keeps direct non-dense CUDA compute remains conservative unless Phase 10 metadata-only view propagation or dense materialization makes the layout legal for the consumer. Backend runtime capability and native ABI checks remain backend-owned and can still reject a matrix-supported row at prepare or execution time.
+
+`LOG_SOFTMAX` support does not add a native ABI op code. It is lowered as SOFTMAX followed by LOG using existing accelerator DAG primitives.
 
 Phase 12 owns fused GPU compound execution for patterns such as linear plus bias plus activation and longer elementwise chains. Phase 13 owns coverage benchmark gates and report thresholds for GPU region length, fallback counts, CPU materialization counts, and device handoffs.
