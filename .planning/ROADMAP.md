@@ -167,6 +167,26 @@ Cross-cutting constraints:
 - This is the closure phase for making the architectural shift observable.
 - If native CUDA implementation is started before this phase, keep it behind capability checks and separate tests.
 
+**Plans:** 3 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 05-01-PLAN.md - Lock trace and benchmark report evidence contract.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 05-02-PLAN.md - Prove closure workload, Metal correctness, and buffer handoff.
+
+**Wave 3** *(blocked on Waves 1-2 completion)*
+- [ ] 05-03-PLAN.md - Close docs, hygiene, and final verification.
+
+Cross-cutting constraints:
+- Core accelerator evidence fields must be asserted in tests, not just rendered.
+- Benchmark evidence remains report-contract only; do not commit measured local benchmark output.
+- Evidence includes ROADMAP minimum plus selected candidate, rejected finalists, cost summary, and region boundary counts.
+- Metal-specific meaningful values are verified through capability-gated `metalTest` coverage.
+- Do not stage local `profiles/platform/.../tuning/abc/*` or `.planning/tmp/` artifacts.
+
 ## Coverage
 
 | Requirement | Phase | Status |
