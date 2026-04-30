@@ -12,6 +12,9 @@ import tuning.workload.WorkloadCatalog;
 import tuning.workload.WorkloadEnvironment;
 import tuning.workload.WorkloadInstance;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,6 +55,37 @@ public class StandardWorkloadsTest {
         assertEquals(1, instance.root().getShapeUnsafe().length);
         assertEquals(ValidationTargetKind.ROOT, instance.validationTarget().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, instance.reference().kind());
+    }
+
+    @Test
+    void transformerBlockClosureWorkloadCoversAcceleratorEvidenceFamilies() throws Exception {
+        ExecutionProfile profile = new ExecutionProfile(
+                "accelerator-closure-transformer-block",
+                "accelerator-closure-transformer-block",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD_BACKWARD,
+                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.runtime.RuntimeConfig.trainingDefaults(),
+                StandardWorkloads.transformerHotPathDefaults()
+        );
+
+        WorkloadInstance instance = StandardWorkloads.transformerBlockHotPath("accelerator_closure_transformer_block")
+                .instantiate(new WorkloadEnvironment(profile));
+
+        assertEquals("accelerator_closure_transformer_block", instance.metadata().name());
+        assertEquals(tuning.workload.WorkloadKind.TRANSFORMER_HOT_PATH, instance.metadata().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, instance.reference().kind());
+        assertEquals(ValidationTargetKind.ROOT, instance.validationTarget().kind());
+        assertEquals(1, instance.root().getShapeUnsafe().length);
+
+        String source = Files.readString(Path.of("src/main/java/tuning/workload/TransformerBlockHotPathWorkloadSpec.java"));
+        assertTrue(source.contains("linear"));
+        assertTrue(source.contains("reshape"));
+        assertTrue(source.contains("permute"));
+        assertTrue(source.contains("scaledDotProductAttention"));
+        assertTrue(source.contains("tanh"));
+        assertTrue(source.contains("mean"));
+        assertTrue(source.contains("gradientLabels"));
     }
 
     @Test

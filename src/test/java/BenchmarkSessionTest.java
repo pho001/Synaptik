@@ -15,6 +15,7 @@ import tuning.benchmark.BenchmarkEntry;
 import tuning.benchmark.BenchmarkRequest;
 import tuning.benchmark.BenchmarkSession;
 import tuning.store.PersistencePolicy;
+import tuning.workload.StandardWorkloads;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
@@ -493,6 +494,35 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"storageResidency\": \"DEVICE_OWNED\""));
         assertTrue(json.contains("\"storageCpuCurrent\": false"));
         assertTrue(json.contains("\"storageDeviceCurrent\": true"));
+    }
+
+    @Test
+    void benchmarkSessionReportsClosureTransformerBlockTraceContract() {
+        var profile = new ExecutionProfile(
+                "accelerator-closure-transformer-block",
+                "accelerator-closure-transformer-block",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD_BACKWARD,
+                config.optimizer.OptimizerConfig.trainingDefaults(),
+                config.runtime.RuntimeConfig.trainingDefaults(),
+                StandardWorkloads.transformerHotPathDefaults()
+        );
+        BenchmarkReport report = BenchmarkSession.create(new BenchmarkRequest(
+                StandardWorkloads.transformerBlockHotPath("accelerator_closure_transformer_block"),
+                List.of(BenchmarkEntry.candidate("accelerator-closure", profile)),
+                new tuning.measure.MeasurementPolicy(0, 1, 1, true, true, true, true, false),
+                tuning.validate.ValidationPolicy.disabled(),
+                tuning.reporting.ReportPolicy.defaults()
+        )).run();
+
+        assertEquals("accelerator_closure_transformer_block", report.workloadName());
+        assertTrue(report.candidates().getFirst().success());
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        assertTrue(text.contains("cpuMaterializationCount="));
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+        assertTrue(json.contains("\"trace\": {"));
     }
 
     @Test
