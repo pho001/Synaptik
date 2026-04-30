@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -11,8 +12,21 @@ struct SynaptikCudaContext {
 };
 
 struct SynaptikCudaExecutable {
-    int nodeCount;
-    int outputCount;
+    struct Node {
+        int type;
+        int input0Kind;
+        int input0Index;
+        int input1Kind;
+        int input1Index;
+        int elementCount;
+    };
+    std::vector<Node> nodes;
+    std::vector<int> outputNodeIndices;
+};
+
+struct SynaptikCudaBuffer {
+    void* data;
+    int byteLength;
 };
 
 static std::string g_unavailable_reason = "CUDA runtime has not been probed.";
@@ -35,6 +49,39 @@ bool cuda_runtime_available() {
     }
     stable_reason("");
     return true;
+}
+
+int element_count(int rank, int dim0, int dim1, int dim2, int dim3) {
+    int count = dim0;
+    if (rank >= 2) {
+        count *= dim1;
+    }
+    if (rank >= 3) {
+        count *= dim2;
+    }
+    if (rank >= 4) {
+        count *= dim3;
+    }
+    return count;
+}
+
+__global__ void relu_kernel(const float* input, float* output, int count) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < count) {
+        float value = input[idx];
+        output[idx] = value > 0.0f ? value : 0.0f;
+    }
+}
+
+__global__ void add_kernel(const float* left, const float* right, float* output, int count) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < count) {
+        output[idx] = left[idx] + right[idx];
+    }
+}
+
+bool validate_buffer(SynaptikCudaBuffer* buffer, int byteLength) {
+    return buffer != nullptr && buffer->data != nullptr && buffer->byteLength >= byteLength;
 }
 
 } // namespace
@@ -110,12 +157,6 @@ extern "C" void* synaptik_cuda_graph_compile_partition_f32(
     (void) input3Kinds;
     (void) input3Indices;
     (void) scalarValues;
-    (void) outputRanks;
-    (void) outputDim0;
-    (void) outputDim1;
-    (void) outputDim2;
-    (void) outputDim3;
-    (void) outputNodeIndices;
     if (context == nullptr) {
         stable_reason("CUDA compile requested without a context.");
         return nullptr;
@@ -125,8 +166,27 @@ extern "C" void* synaptik_cuda_graph_compile_partition_f32(
         return nullptr;
     }
     auto* executable = new SynaptikCudaExecutable();
-    executable->nodeCount = nodeCount;
-    executable->outputCount = outputCount;
+    executable->nodes.reserve(nodeCount);
+    for (int i = 0; i < nodeCount; i++) {
+        SynaptikCudaExecutable::Node node{};
+        node.type = nodeTypes == nullptr ? 0 : nodeTypes[i];
+        node.input0Kind = input0Kinds == nullptr ? 0 : input0Kinds[i];
+        node.input0Index = input0Indices == nullptr ? -1 : input0Indices[i];
+        node.input1Kind = input1Kinds == nullptr ? 0 : input1Kinds[i];
+        node.input1Index = input1Indices == nullptr ? -1 : input1Indices[i];
+        node.elementCount = element_count(
+                outputRanks == nullptr ? 1 : outputRanks[i],
+                outputDim0 == nullptr ? 1 : outputDim0[i],
+                outputDim1 == nullptr ? 1 : outputDim1[i],
+                outputDim2 == nullptr ? 1 : outputDim2[i],
+                outputDim3 == nullptr ? 1 : outputDim3[i]
+        );
+        executable->nodes.push_back(node);
+    }
+    executable->outputNodeIndices.reserve(outputCount);
+    for (int i = 0; i < outputCount; i++) {
+        executable->outputNodeIndices.push_back(outputNodeIndices == nullptr ? i : outputNodeIndices[i]);
+    }
     return executable;
 }
 
@@ -148,6 +208,166 @@ extern "C" int synaptik_cuda_graph_execute_partition_f32(
     }
     stable_reason("CUDA graph execution is not implemented by the Phase 6 probe shim.");
     return 1;
+}
+
+extern "C" void* synaptik_cuda_graph_create_buffer(
+        void* context,
+        const void* initialData,
+        int byteLength
+) {
+    if (context == nullptr) {
+        stable_reason("CUDA create_buffer requested without a context.");
+        return nullptr;
+    }
+    if (byteLength <= 0) {
+        stable_reason("CUDA create_buffer requires positive byte length.");
+        return nullptr;
+    }
+    auto* buffer = new SynaptikCudaBuffer();
+    buffer->data = nullptr;
+    buffer->byteLength = byteLength;
+    cudaError_t status = cudaMalloc(&buffer->data, static_cast<size_t>(byteLength));
+    if (status != cudaSuccess) {
+        stable_reason(std::string("CUDA buffer allocation failed: ") + cudaGetErrorString(status));
+        delete buffer;
+        return nullptr;
+    }
+    if (initialData != nullptr) {
+        status = cudaMemcpy(buffer->data, initialData, static_cast<size_t>(byteLength), cudaMemcpyHostToDevice);
+        if (status != cudaSuccess) {
+            stable_reason(std::string("CUDA buffer upload failed: ") + cudaGetErrorString(status));
+            cudaFree(buffer->data);
+            delete buffer;
+            return nullptr;
+        }
+    }
+    return buffer;
+}
+
+extern "C" int synaptik_cuda_graph_read_buffer(
+        void* context,
+        void* buffer,
+        void* destination,
+        int byteLength
+) {
+    if (context == nullptr || buffer == nullptr || destination == nullptr) {
+        stable_reason("CUDA read_buffer requested without context, buffer, or destination.");
+        return 2;
+    }
+    auto* cudaBuffer = static_cast<SynaptikCudaBuffer*>(buffer);
+    if (!validate_buffer(cudaBuffer, byteLength)) {
+        stable_reason("CUDA read_buffer requested with invalid or undersized buffer.");
+        return 3;
+    }
+    cudaError_t status = cudaMemcpy(destination, cudaBuffer->data, static_cast<size_t>(byteLength), cudaMemcpyDeviceToHost);
+    if (status != cudaSuccess) {
+        stable_reason(std::string("CUDA read_buffer failed: ") + cudaGetErrorString(status));
+        return 4;
+    }
+    return 0;
+}
+
+extern "C" void synaptik_cuda_graph_destroy_buffer(void* buffer) {
+    if (buffer == nullptr) {
+        return;
+    }
+    auto* cudaBuffer = static_cast<SynaptikCudaBuffer*>(buffer);
+    if (cudaBuffer->data != nullptr) {
+        cudaFree(cudaBuffer->data);
+    }
+    delete cudaBuffer;
+}
+
+extern "C" int synaptik_cuda_graph_execute_partition_f32_buffers(
+        void* context,
+        void* executable,
+        void** inputBuffers,
+        int inputCount,
+        void** outputBuffers,
+        int outputCount
+) {
+    if (context == nullptr || executable == nullptr) {
+        stable_reason("CUDA buffer execute requested without context or executable.");
+        return 2;
+    }
+    if (outputBuffers == nullptr || outputCount <= 0) {
+        stable_reason("CUDA buffer execute requires at least one output buffer.");
+        return 3;
+    }
+    auto* cudaExecutable = static_cast<SynaptikCudaExecutable*>(executable);
+    std::vector<SynaptikCudaBuffer*> nodeOutputs(cudaExecutable->nodes.size(), nullptr);
+    for (int i = 0; i < static_cast<int>(cudaExecutable->nodes.size()); i++) {
+        const auto& node = cudaExecutable->nodes[i];
+        if (i >= outputCount) {
+            stable_reason("CUDA buffer execute currently expects one output buffer per node.");
+            return 4;
+        }
+        auto* output = static_cast<SynaptikCudaBuffer*>(outputBuffers[i]);
+        if (!validate_buffer(output, node.elementCount * static_cast<int>(sizeof(float)))) {
+            stable_reason("CUDA buffer execute received invalid output buffer.");
+            return 5;
+        }
+        const float* input0 = nullptr;
+        const float* input1 = nullptr;
+        if (node.input0Kind == 1) {
+            if (inputBuffers == nullptr || node.input0Index < 0 || node.input0Index >= inputCount) {
+                stable_reason("CUDA buffer execute input0 external index is invalid.");
+                return 6;
+            }
+            auto* input = static_cast<SynaptikCudaBuffer*>(inputBuffers[node.input0Index]);
+            if (!validate_buffer(input, node.elementCount * static_cast<int>(sizeof(float)))) {
+                stable_reason("CUDA buffer execute received invalid input0 buffer.");
+                return 7;
+            }
+            input0 = static_cast<const float*>(input->data);
+        } else if (node.input0Kind == 2) {
+            if (node.input0Index < 0 || node.input0Index >= static_cast<int>(nodeOutputs.size()) || nodeOutputs[node.input0Index] == nullptr) {
+                stable_reason("CUDA buffer execute input0 node index is invalid.");
+                return 8;
+            }
+            input0 = static_cast<const float*>(nodeOutputs[node.input0Index]->data);
+        }
+        if (node.input1Kind == 1) {
+            if (inputBuffers == nullptr || node.input1Index < 0 || node.input1Index >= inputCount) {
+                stable_reason("CUDA buffer execute input1 external index is invalid.");
+                return 9;
+            }
+            auto* input = static_cast<SynaptikCudaBuffer*>(inputBuffers[node.input1Index]);
+            if (!validate_buffer(input, node.elementCount * static_cast<int>(sizeof(float)))) {
+                stable_reason("CUDA buffer execute received invalid input1 buffer.");
+                return 10;
+            }
+            input1 = static_cast<const float*>(input->data);
+        } else if (node.input1Kind == 2) {
+            if (node.input1Index < 0 || node.input1Index >= static_cast<int>(nodeOutputs.size()) || nodeOutputs[node.input1Index] == nullptr) {
+                stable_reason("CUDA buffer execute input1 node index is invalid.");
+                return 11;
+            }
+            input1 = static_cast<const float*>(nodeOutputs[node.input1Index]->data);
+        }
+        int threads = 256;
+        int blocks = (node.elementCount + threads - 1) / threads;
+        if (node.type == 7 && input0 != nullptr) {
+            relu_kernel<<<blocks, threads>>>(input0, static_cast<float*>(output->data), node.elementCount);
+        } else if (node.type == 3 && input0 != nullptr && input1 != nullptr) {
+            add_kernel<<<blocks, threads>>>(input0, input1, static_cast<float*>(output->data), node.elementCount);
+        } else {
+            stable_reason("CUDA buffer execute supports only RELU and ADD in Phase 7.");
+            return 12;
+        }
+        cudaError_t status = cudaGetLastError();
+        if (status != cudaSuccess) {
+            stable_reason(std::string("CUDA kernel launch failed: ") + cudaGetErrorString(status));
+            return 13;
+        }
+        status = cudaDeviceSynchronize();
+        if (status != cudaSuccess) {
+            stable_reason(std::string("CUDA kernel execution failed: ") + cudaGetErrorString(status));
+            return 14;
+        }
+        nodeOutputs[i] = output;
+    }
+    return 0;
 }
 
 extern "C" void synaptik_cuda_graph_destroy_context(void* context) {

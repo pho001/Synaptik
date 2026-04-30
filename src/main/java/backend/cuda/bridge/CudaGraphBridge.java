@@ -1,6 +1,8 @@
 package backend.cuda.bridge;
 
 import backend.accelerator.dag.AcceleratorDagSpec;
+import backend.cuda.buffer.CudaBufferAllocator;
+import backend.cuda.buffer.CudaBufferBinding;
 import tensor.Tensor;
 
 import java.util.List;
@@ -67,6 +69,25 @@ public interface CudaGraphBridge {
      */
     default boolean supportsBufferBindings() {
         return false;
+    }
+
+    /**
+     * Creates a run-scoped CUDA buffer allocator for native buffer execution.
+     */
+    default CudaBufferAllocator createBufferAllocator(CudaBridgeContext bridgeContext) {
+        return CudaBufferAllocator.unavailable("CUDA bridge does not support native buffer allocation.");
+    }
+
+    /**
+     * Executes a compiled CUDA graph against native CUDA buffer bindings.
+     */
+    default void executeBuffers(
+            CudaBridgeContext bridgeContext,
+            CudaBridgeExecutable executable,
+            List<CudaBufferBinding> inputs,
+            List<CudaBufferBinding> outputs
+    ) {
+        throw new UnsupportedOperationException("CUDA bridge does not support native buffer execution.");
     }
 
     /**

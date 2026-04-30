@@ -3,6 +3,9 @@ package backend.cuda.bridge;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagSpec;
+import backend.cuda.buffer.CudaBufferAllocator;
+import backend.cuda.buffer.CudaBufferBinding;
+import backend.cuda.buffer.CudaBufferHandle;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -28,7 +31,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
  * can fall back to CPU execution.</p>
  */
 public final class CudaFfmBridge implements CudaGraphBridge {
-    private static final boolean CUDA_BUFFER_EXECUTION_ENABLED = false;
+    private static final boolean CUDA_BUFFER_EXECUTION_ENABLED = true;
     private static final State STATE = init();
     private static volatile CudaBridgeContext SHARED_CONTEXT;
 
@@ -64,6 +67,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         return STATE.available
                 && CUDA_BUFFER_EXECUTION_ENABLED
                 && STATE.createBufferFn != null
+                && STATE.readBufferFn != null
                 && STATE.destroyBufferFn != null
                 && STATE.executePartitionBuffersFn != null;
     }
@@ -319,6 +323,113 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         }
     }
 
+    /**
+     * Creates a run-scoped CUDA buffer allocator backed by native FFM calls.
+     */
+    @Override
+    public CudaBufferAllocator createBufferAllocator(CudaBridgeContext bridgeContext) {
+        if (!STATE.available || bridgeContext == null || !bridgeContext.available()) {
+            return CudaBufferAllocator.unavailable("CUDA bridge context is unavailable.");
+        }
+        if (!supportsBufferBindings()) {
+            return CudaBufferAllocator.unavailable("native CUDA buffer ABI unavailable: bridge does not support buffer bindings");
+        }
+        return CudaBufferAllocator.available(new CudaBufferAllocator.NativeAccess() {
+            @Override
+            public CudaBufferHandle createBuffer(long byteLength, MemorySegment initialData, long initialDataBytes) {
+                try {
+                    int bytes = checkedInt(byteLength, "byteLength");
+                    MemorySegment data = initialData == null ? MemorySegment.NULL : initialData;
+                    MemorySegment handle = (MemorySegment) STATE.createBufferFn.invokeExact(
+                            bridgeContext.handle(),
+                            data,
+                            bytes
+                    );
+                    if (handle == null || handle.equals(MemorySegment.NULL)) {
+                        throw new UnsupportedOperationException("CUDA create_buffer returned a null handle.");
+                    }
+                    return new CudaBufferHandle(handle, byteLength, true);
+                } catch (Throwable t) {
+                    throw new UnsupportedOperationException("CUDA create_buffer failed: " + safeMessage(t), t);
+                }
+            }
+
+            @Override
+            public void readBuffer(CudaBufferHandle handle, MemorySegment destination, long byteLength) {
+                if (handle == null || !handle.available()) {
+                    throw new UnsupportedOperationException("CUDA read_buffer requires an available handle.");
+                }
+                try {
+                    int status = (int) STATE.readBufferFn.invokeExact(
+                            bridgeContext.handle(),
+                            handle.handle(),
+                            destination,
+                            checkedInt(byteLength, "byteLength")
+                    );
+                    if (status != 0) {
+                        throw new UnsupportedOperationException("CUDA read_buffer returned non-zero status: " + status);
+                    }
+                } catch (Throwable t) {
+                    throw new UnsupportedOperationException("CUDA read_buffer failed: " + safeMessage(t), t);
+                }
+            }
+
+            @Override
+            public void destroyBuffer(CudaBufferHandle handle) {
+                if (handle == null || !handle.available()) {
+                    return;
+                }
+                try {
+                    STATE.destroyBufferFn.invokeExact(handle.handle());
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+    }
+
+    /**
+     * Executes a compiled CUDA DAG using native buffer handles.
+     */
+    @Override
+    public void executeBuffers(
+            CudaBridgeContext bridgeContext,
+            CudaBridgeExecutable executable,
+            java.util.List<CudaBufferBinding> inputs,
+            java.util.List<CudaBufferBinding> outputs
+    ) {
+        if (!STATE.available) {
+            throw new UnsupportedOperationException(unavailableReason());
+        }
+        if (bridgeContext == null || !bridgeContext.available()) {
+            throw new UnsupportedOperationException(bridgeContext == null ? "Missing CUDA bridge context." : bridgeContext.reason());
+        }
+        if (executable == null || !executable.available()) {
+            throw new UnsupportedOperationException(executable == null ? "Missing CUDA bridge executable." : executable.reason());
+        }
+        if (!supportsBufferBindings()) {
+            throw new UnsupportedOperationException("native CUDA buffer ABI unavailable: bridge does not support buffer bindings");
+        }
+        java.util.List<CudaBufferBinding> resolvedInputs = inputs == null ? java.util.List.of() : java.util.List.copyOf(inputs);
+        java.util.List<CudaBufferBinding> resolvedOutputs = outputs == null ? java.util.List.of() : java.util.List.copyOf(outputs);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment inputHandles = bufferHandleArray(arena, resolvedInputs);
+            MemorySegment outputHandles = bufferHandleArray(arena, resolvedOutputs);
+            int status = (int) STATE.executePartitionBuffersFn.invokeExact(
+                    bridgeContext.handle(),
+                    executable.handle(),
+                    inputHandles,
+                    resolvedInputs.size(),
+                    outputHandles,
+                    resolvedOutputs.size()
+            );
+            if (status != 0) {
+                throw new UnsupportedOperationException("CUDA execute_partition_f32_buffers returned non-zero status: " + status);
+            }
+        } catch (Throwable t) {
+            throw new UnsupportedOperationException("CUDA execute_partition_f32_buffers failed: " + safeMessage(t), t);
+        }
+    }
+
     private static MemorySegment intArrayOrNull(Arena arena, int[] values) {
         return values == null || values.length == 0 ? MemorySegment.NULL : arena.allocateFrom(JAVA_INT, values);
     }
@@ -412,6 +523,12 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             MethodHandle destroyContextFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_destroy_context", FunctionDescriptor.ofVoid(ADDRESS));
             MethodHandle destroyExecutableFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_destroy_executable", FunctionDescriptor.ofVoid(ADDRESS));
             MethodHandle createBufferFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_create_buffer", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT));
+            MethodHandle readBufferFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_cuda_graph_read_buffer",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT)
+            );
             MethodHandle destroyBufferFn = optionalHandle(linker, lookup, "synaptik_cuda_graph_destroy_buffer", FunctionDescriptor.ofVoid(ADDRESS));
             MethodHandle executePartitionBuffersFn = optionalHandle(
                     linker,
@@ -434,6 +551,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                         destroyContextFn,
                         destroyExecutableFn,
                         createBufferFn,
+                        readBufferFn,
                         destroyBufferFn,
                         executePartitionBuffersFn,
                         new CudaBridgeCapabilities(
@@ -464,6 +582,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                         destroyContextFn,
                         destroyExecutableFn,
                         createBufferFn,
+                        readBufferFn,
                         destroyBufferFn,
                         executePartitionBuffersFn,
                         new CudaBridgeCapabilities(
@@ -479,6 +598,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             }
             boolean bufferSupported = CUDA_BUFFER_EXECUTION_ENABLED
                     && createBufferFn != null
+                    && readBufferFn != null
                     && destroyBufferFn != null
                     && executePartitionBuffersFn != null;
             return new State(
@@ -491,6 +611,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     destroyContextFn,
                     destroyExecutableFn,
                     createBufferFn,
+                    readBufferFn,
                     destroyBufferFn,
                     executePartitionBuffersFn,
                     CudaBridgeCapabilities.available(bufferSupported)
@@ -509,6 +630,28 @@ public final class CudaFfmBridge implements CudaGraphBridge {
     ) {
         MemorySegment segment = lookup.find(symbol).orElse(null);
         return segment == null ? null : linker.downcallHandle(segment, descriptor);
+    }
+
+    private static MemorySegment bufferHandleArray(Arena arena, java.util.List<CudaBufferBinding> bindings) {
+        if (bindings == null || bindings.isEmpty()) {
+            return MemorySegment.NULL;
+        }
+        MemorySegment handles = arena.allocate(ADDRESS, bindings.size());
+        for (int i = 0; i < bindings.size(); i++) {
+            CudaBufferBinding binding = bindings.get(i);
+            if (binding == null || !binding.available()) {
+                throw new UnsupportedOperationException("CUDA buffer binding " + i + " is unavailable.");
+            }
+            handles.setAtIndex(ADDRESS, i, binding.handle().handle());
+        }
+        return handles;
+    }
+
+    private static int checkedInt(long value, String label) {
+        if (value < 0L || value > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(label + " out of int range: " + value);
+        }
+        return (int) value;
     }
 
     private static SymbolLookup resolveLookup(Arena arena) {
@@ -550,6 +693,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
         private final MethodHandle destroyContextFn;
         private final MethodHandle destroyExecutableFn;
         private final MethodHandle createBufferFn;
+        private final MethodHandle readBufferFn;
         private final MethodHandle destroyBufferFn;
         private final MethodHandle executePartitionBuffersFn;
         private final CudaBridgeCapabilities capabilities;
@@ -564,6 +708,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                 MethodHandle destroyContextFn,
                 MethodHandle destroyExecutableFn,
                 MethodHandle createBufferFn,
+                MethodHandle readBufferFn,
                 MethodHandle destroyBufferFn,
                 MethodHandle executePartitionBuffersFn,
                 CudaBridgeCapabilities capabilities
@@ -577,6 +722,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
             this.destroyContextFn = destroyContextFn;
             this.destroyExecutableFn = destroyExecutableFn;
             this.createBufferFn = createBufferFn;
+            this.readBufferFn = readBufferFn;
             this.destroyBufferFn = destroyBufferFn;
             this.executePartitionBuffersFn = executePartitionBuffersFn;
             this.capabilities = capabilities == null
@@ -598,6 +744,7 @@ public final class CudaFfmBridge implements CudaGraphBridge {
                     false,
                     reason,
                     arenaRef,
+                    null,
                     null,
                     null,
                     null,
