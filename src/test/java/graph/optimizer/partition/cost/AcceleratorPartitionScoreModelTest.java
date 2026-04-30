@@ -1,6 +1,14 @@
 package graph.optimizer.partition.cost;
 
+import backend.ComputeBackend;
+import backend.accelerator.select.ProfileDerivedAcceleratorCostFactors;
+import config.backend.CpuKernelConfig;
 import config.optimizer.MetalTransferModel;
+import config.runtime.AcceleratorBackendConfig;
+import config.runtime.AcceleratorConfig;
+import config.runtime.ApproximationConfig;
+import config.runtime.BlasConfig;
+import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -231,5 +239,52 @@ class AcceleratorPartitionScoreModelTest {
         assertTrue(aggressive.uploadBytePenalty() < conservative.uploadBytePenalty());
         assertTrue(aggressive.downloadBytePenalty() < conservative.downloadBytePenalty());
         assertTrue(aggressive.avoidedIntermediateByteCredit() > conservative.avoidedIntermediateByteCredit());
+    }
+
+    @Test
+    void profileDerivedCostFactorsUseRuntimeThresholds() {
+        RuntimeConfig runtime = new RuntimeConfig(
+                new CpuKernelConfig(1, 16, 16, 16, 1024, 1024, 2048),
+                ApproximationConfig.defaults(),
+                BlasConfig.disabled()
+        ).withAccelerator(new AcceleratorConfig(
+                AcceleratorBackendConfig.disabled(),
+                AcceleratorBackendConfig.disabled(),
+                new AcceleratorBackendConfig(true, false, 2_000_000L)
+        ));
+
+        var factors = ProfileDerivedAcceleratorCostFactors.fromRuntimeConfig(runtime, ComputeBackend.GPU_METAL);
+        var conservative = AcceleratorPartitionScoreModel.StaticCostPreset.conservative();
+
+        assertEquals("PROFILE_DERIVED", factors.presetName());
+        assertEquals(2_000_000L, factors.minimumEstimatedWork());
+        assertEquals(2048, factors.contiguousMaterializeThreshold());
+        assertEquals(conservative.dispatchOverhead() + 2_000.0d, factors.dispatchOverhead(), 0.0001);
+        assertEquals(conservative.uploadBytePenalty() * 2.0d, factors.uploadBytePenalty(), 0.0001);
+        assertEquals(conservative.downloadBytePenalty() * 2.0d, factors.downloadBytePenalty(), 0.0001);
+        assertEquals(conservative.layoutFallbackBytePenalty() * 2.0d, factors.layoutFallbackBytePenalty(), 0.0001);
+    }
+
+    @Test
+    void profileDerivedPresetKeepsConservativeReasonCodes() {
+        RuntimeConfig runtime = RuntimeConfig.trainingDefaults().withAccelerator(new AcceleratorConfig(
+                AcceleratorBackendConfig.disabled(),
+                AcceleratorBackendConfig.disabled(),
+                new AcceleratorBackendConfig(true, false, 1_000_000L)
+        ));
+        var preset = ProfileDerivedAcceleratorCostFactors
+                .fromRuntimeConfig(runtime, ComputeBackend.GPU_METAL)
+                .toStaticCostPreset();
+        var summary = AcceleratorPartitionScoreModel.scoreMaterializationAware(
+                new AcceleratorPartitionScoreModel.CandidateMetrics(1, 0, 1, 0, 0),
+                100L,
+                AcceleratorPartitionScoreModel.MaterializationSignals.none(),
+                new AcceleratorPartitionScoreModel.PlannerPolicy(16, 512, 10.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+                preset
+        );
+
+        assertEquals("PROFILE_DERIVED", preset.name());
+        assertEquals("rejected-materialization-cost", summary.reasonCode());
+        assertEquals("PROFILE_DERIVED", summary.preset());
     }
 }
