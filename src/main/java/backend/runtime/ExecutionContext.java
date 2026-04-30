@@ -6,6 +6,7 @@ import backend.memory.DeviceToCpuMaterializer;
 import backend.memory.ExecutionResource;
 import backend.memory.StorageResidency;
 import backend.memory.TensorResidencyState;
+import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
 import config.runtime.RuntimeConfig;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
@@ -37,6 +38,7 @@ public final class ExecutionContext {
     private final ExecutionState executionState;
     private final Map<Tensor, Object> runtimeStateIndex;
     private final Map<Integer, ConvTraceMetadata> convTraceIndex;
+    private final Map<Integer, AcceleratorLayoutTransformDecision> layoutTransformDecisionIndex;
     private final Map<Class<?>, Object> runtimeServices;
 
     /**
@@ -74,6 +76,7 @@ public final class ExecutionContext {
         this.executionState = executionState;
         this.runtimeStateIndex = Collections.synchronizedMap(new IdentityHashMap<>());
         this.convTraceIndex = Collections.synchronizedMap(new java.util.HashMap<>());
+        this.layoutTransformDecisionIndex = Collections.synchronizedMap(new java.util.HashMap<>());
         this.runtimeServices = Collections.synchronizedMap(new java.util.HashMap<>());
         this.useFastExpApprox = useFastExpApprox;
         this.useFastTanhApprox = useFastTanhApprox;
@@ -423,5 +426,23 @@ public final class ExecutionContext {
             return;
         }
         convTraceIndex.put(nodeId, trace);
+    }
+
+    /**
+     * Publishes the layout-transform decision observed for a node during this run.
+     */
+    public void publishLayoutTransformDecision(int nodeId, AcceleratorLayoutTransformDecision decision) {
+        if (decision == null) {
+            layoutTransformDecisionIndex.remove(nodeId);
+            return;
+        }
+        layoutTransformDecisionIndex.put(nodeId, decision);
+    }
+
+    /**
+     * Returns the layout-transform decision observed for a node during this run.
+     */
+    public AcceleratorLayoutTransformDecision layoutTransformDecisionForNodeId(int nodeId) {
+        return layoutTransformDecisionIndex.get(nodeId);
     }
 }

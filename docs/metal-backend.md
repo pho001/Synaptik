@@ -477,6 +477,21 @@ Materialization reasons are explained in [Compute Flow: Device-owned materializa
 - `CPU_CONSUMER`: a later CPU step needs an accelerator-produced value
 - `PUBLIC_DATA_ACCESS`: a public read needs current CPU bytes
 
+### GPU layout transform and view path
+
+The GPU layout transform and view path lets Metal preserve device bindings through metadata-only views before a CPU
+materialization boundary is reached. `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `SELECT`, `NOOP`, and
+contiguous-source `RESHAPE` can reuse the same `MetalBufferBinding` handle with updated shape, stride, storage-offset,
+and rank metadata. These metadata-only views do not allocate a Java array and do not copy bytes back to CPU storage.
+
+Dense GPU materialization covers `contiguous()` and non-contiguous-source `reshape` only when the Metal bridge exposes
+the optional layout materialization capability and the prepared run registers the backend-owned materializer service.
+Without that service, AUTO mode falls back visibly and REQUIRE mode fails with `GPU_LAYOUT_TRANSFORM_UNSUPPORTED`.
+
+For Phase 10, the accepted CPU materialization boundaries are graph output publication, a real CPU consumer, and
+gradient publication. A supported Metal layout chain should not produce a `CPU_CONSUMER` materialization between
+metadata-only view nodes.
+
 ## Worked Example
 
 Consider two adjacent Metal regions inside one prepared execution:

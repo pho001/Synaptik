@@ -1,14 +1,25 @@
+import backend.accelerator.buffer.AcceleratorBufferDecision;
+import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.runtime.ExecutionMode;
 import backend.ComputeBackend;
+import backend.runtime.ExecutionContext;
+import config.runtime.AcceleratorBufferBindingMode;
 import config.optimizer.OptimizerConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
+import graph.CompiledNode;
+import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.PreparedExecution;
+import graph.execution.PreparedNodeExecution;
 import graph.optimizer.partition.PartitionTarget;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
+import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -152,5 +163,79 @@ public class CompiledGraphTraceTest {
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
 
         assertEquals(PartitionTarget.GPU_METAL, compiled.compileTrace().partitionPlanning().target());
+    }
+
+    @Test
+    void acceleratorTraceAttributesIncludeBufferReasonAndStorageResidency() {
+        Tensor a = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "traceA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{3f, 4f}, new int[]{2}, null, "traceB", DataType.FLOAT32);
+        Tensor out = a.add(b);
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .findFirst()
+                .orElseThrow();
+        SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id());
+        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+                ComputeBackend.GPU_CUDA,
+                null,
+                null,
+                null,
+                null,
+                executable,
+                null,
+                List.of(),
+                backend.accelerator.exec.PartitionExecutionRole.NONE
+        );
+        PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
+        PreparedExecution prepared = new PreparedExecution(
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                false,
+                List.of(step),
+                List.of(step),
+                List.of(),
+                compiled.compileArtifacts().compiledNodes(),
+                java.util.Map.of(),
+                out,
+                outputNode,
+                null,
+                null,
+                graph.execution.trace.PrepareTrace.skipped()
+        );
+
+        var trace = prepared.executeTraced(ExecutionMode.FORWARD);
+        var attrs = trace.steps().getFirst().metadata().attributes();
+
+        assertEquals("GPU_CUDA", attrs.get("acceleratorBufferBackend"));
+        assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("CPU_ARRAY", attrs.get("storageResidency"));
+    }
+
+    private record SyntheticAcceleratorExecutable(int nodeId) implements PreparedAcceleratorExecutable {
+        @Override
+        public ComputeBackend backend() {
+            return ComputeBackend.GPU_CUDA;
+        }
+
+        @Override
+        public void execute(ExecutionContext context) {
+            context.markCpuCurrent(nodeId, "synthetic accelerator trace output");
+        }
+
+        @Override
+        public AcceleratorBufferDecision lastAcceleratorBufferDecision() {
+            return new AcceleratorBufferDecision(
+                    ComputeBackend.GPU_CUDA,
+                    AcceleratorBufferBindingMode.AUTO,
+                    AcceleratorBufferExecutionPath.BUFFER_BINDING,
+                    true,
+                    false,
+                    AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE,
+                    "synthetic accelerator buffer trace",
+                    List.of(),
+                    List.of()
+            );
+        }
     }
 }

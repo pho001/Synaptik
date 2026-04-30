@@ -1,8 +1,15 @@
 package backend.metal;
 
 import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferLayout;
+import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
+import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
 import backend.memory.CpuMaterializationReason;
 import backend.metal.exec.PreparedMetalExecutable;
+import backend.metal.buffer.MetalBufferAccess;
+import backend.metal.buffer.MetalBufferBinding;
+import backend.metal.buffer.MetalBufferHandle;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.runtime.AcceleratorBufferBindingMode;
@@ -20,6 +27,7 @@ import tensor.TensorInternalAccess;
 
 import java.util.List;
 import java.util.Map;
+import java.lang.foreign.MemorySegment;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +37,120 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class MetalLayoutAwareDeviceFlowTest {
+    @Test
+    void reshapePermuteContiguousFlowAvoidsIntermediateCpuMaterialization() {
+        AcceleratorBufferLayout dense = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2, 3},
+                new int[]{3, 1},
+                0,
+                6
+        );
+        AcceleratorBufferLayout reshaped = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{3, 2},
+                new int[]{2, 1},
+                0,
+                6
+        );
+        AcceleratorBufferLayout permuted = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2, 3},
+                new int[]{1, 2},
+                0,
+                6
+        );
+        MetalBufferBinding source = new MetalBufferBinding(
+                1,
+                dense,
+                new MetalBufferHandle(MemorySegment.ofAddress(40_001), dense.logicalByteLength(), "shared", "test", true),
+                MetalBufferAccess.READ_WRITE
+        );
+
+        var reshape = AcceleratorLayoutTransformPlanner.decide(new AcceleratorLayoutTransformRequest(
+                ComputeBackend.GPU_METAL.name(),
+                1,
+                2,
+                operations.Operation.OpType.RESHAPE,
+                dense,
+                reshaped,
+                source,
+                false
+        ));
+        var permute = AcceleratorLayoutTransformPlanner.decide(new AcceleratorLayoutTransformRequest(
+                ComputeBackend.GPU_METAL.name(),
+                2,
+                3,
+                operations.Operation.OpType.PERMUTE,
+                reshaped,
+                permuted,
+                MetalBufferBinding.viewOf(2, reshaped, source, MetalBufferAccess.READ_WRITE),
+                false
+        ));
+        var contiguous = AcceleratorLayoutTransformPlanner.decide(new AcceleratorLayoutTransformRequest(
+                ComputeBackend.GPU_METAL.name(),
+                3,
+                4,
+                operations.Operation.OpType.CONTIGUOUS,
+                permuted,
+                AcceleratorBufferLayout.of(DataType.FLOAT32, new int[]{2, 3}, new int[]{3, 1}, 0, 6),
+                MetalBufferBinding.viewOf(3, permuted, source, MetalBufferAccess.READ_WRITE),
+                false
+        ));
+
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_VIEW_BINDING_AVAILABLE, reshape.reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_VIEW_BINDING_AVAILABLE, permute.reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE, contiguous.reasonCode());
+    }
+
+    @Test
+    void expandContiguousFlowAvoidsIntermediateCpuMaterialization() {
+        AcceleratorBufferLayout sourceLayout = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{1, 3},
+                new int[]{3, 1},
+                0,
+                3
+        );
+        AcceleratorBufferLayout expanded = AcceleratorBufferLayout.of(
+                DataType.FLOAT32,
+                new int[]{2, 3},
+                new int[]{0, 1},
+                0,
+                6
+        );
+        MetalBufferBinding source = new MetalBufferBinding(
+                1,
+                sourceLayout,
+                new MetalBufferHandle(MemorySegment.ofAddress(40_002), expanded.logicalByteLength(), "shared", "test", true),
+                MetalBufferAccess.READ_WRITE
+        );
+
+        var expand = AcceleratorLayoutTransformPlanner.decide(new AcceleratorLayoutTransformRequest(
+                ComputeBackend.GPU_METAL.name(),
+                1,
+                2,
+                operations.Operation.OpType.EXPAND,
+                sourceLayout,
+                expanded,
+                source,
+                false
+        ));
+        var contiguous = AcceleratorLayoutTransformPlanner.decide(new AcceleratorLayoutTransformRequest(
+                ComputeBackend.GPU_METAL.name(),
+                2,
+                3,
+                operations.Operation.OpType.CONTIGUOUS,
+                expanded,
+                AcceleratorBufferLayout.of(DataType.FLOAT32, new int[]{2, 3}, new int[]{3, 1}, 0, 6),
+                MetalBufferBinding.viewOf(2, expanded, source, MetalBufferAccess.READ),
+                false
+        ));
+
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_VIEW_BINDING_AVAILABLE, expand.reasonCode());
+        assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE, contiguous.reasonCode());
+    }
+
     @Test
     void linearReshapePermuteKeepsDeviceOwnedUntilGraphOutputMaterialization() {
         Tensor out = linearReshapePermuteGraph("metal");

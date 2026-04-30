@@ -1043,6 +1043,9 @@ execution and any native transform path that consumes this metadata for actual n
 
 ## GPU Layout Transform Contract
 
+The GPU layout transform and view path is the shared contract that keeps view-like layout operations on an accelerator
+when the backend can describe or materialize the layout safely.
+
 Phase 10 separates metadata-only views from dense GPU materialization so common layout nodes can stay device-owned
 without turning the public `Tensor` API into a device residency API. Public `Tensor` stays logical; execution residency
 continues to live in `ExecutionState` and backend-neutral `DeviceBufferBinding` records.
@@ -1058,10 +1061,18 @@ layouts, source binding availability, and stable reason codes. The shared reason
 `GPU_LAYOUT_SOURCE_BINDING_UNAVAILABLE`, `GPU_LAYOUT_BACKEND_MISMATCH`, and
 `GPU_LAYOUT_TRANSFORM_UNSUPPORTED`.
 
-Metal and CUDA own their native handles, layout kernels, allocator details, and capability checks. Shared layout
-transform decisions only classify whether a path is metadata-only, dense materialization, or unsupported. AUTO mode must
-report unsupported paths visibly; REQUIRE mode must fail before a hidden tensor-array or CPU fallback can satisfy the
-operation.
+Metal and CUDA own their native handles, layout kernels, allocator details, and capability checks. Metadata-only views
+can preserve device bindings without Java array materialization. Dense GPU materialization covers `contiguous()` and
+non-contiguous-source `reshape` when a backend capability and run-scoped materialization service exist. Direct
+non-dense CUDA compute remains conservative until Phase 11 lowering coverage; CUDA should either preserve a
+metadata-only view, materialize a dense GPU buffer through an explicit capability, or fall back with a visible reason.
+Shared layout transform decisions only classify whether a path is metadata-only, dense materialization, or unsupported.
+AUTO mode must report unsupported paths visibly; REQUIRE mode must fail before a hidden tensor-array or CPU fallback can
+satisfy the operation.
+
+The valid CPU materialization boundaries are graph output publication, an explicit CPU consumer, and gradient
+publication. Any earlier device-to-CPU copy in a supported layout chain is a regression and should show up in
+`CpuMaterializationTrace`.
 
 Layout ABI v2 fallback reasons are stable trace/report values:
 
@@ -1080,9 +1091,11 @@ Focused verification commands:
 
 ```bash
 ./gradlew classes
-./gradlew test --tests backend.accelerator.buffer.AcceleratorLayoutAbiV2DescriptorTest
-./gradlew test --tests backend.metal.bridge.MetalMpsFfmBridgeTest --tests backend.cuda.bridge.CudaFfmBridgeTest
+./gradlew test --tests backend.accelerator.buffer.AcceleratorLayoutTransformPlannerTest --tests graph.execution.DeviceLayoutViewPropagationTest
 ./gradlew test --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
+./gradlew test --tests backend.metal.MetalLayoutAwareDeviceFlowTest --tests backend.cuda.exec.CudaLayoutTransformDeviceFlowTest
+./gradlew metalTest
+./gradlew buildCudaGraphShim cudaTest
 ```
 
 ## Common Misconceptions

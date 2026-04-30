@@ -61,6 +61,7 @@ final class DeviceLayoutViewPropagator {
                 context.runsBackwardPass()
         );
         AcceleratorLayoutTransformDecision decision = AcceleratorLayoutTransformPlanner.decide(request);
+        context.publishLayoutTransformDecision(targetNode.id(), decision);
         if (!decision.accepted()) {
             failIfRequired(required, backendId, decision);
             return false;
@@ -68,20 +69,24 @@ final class DeviceLayoutViewPropagator {
         if (decision.kind() == AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION) {
             DeviceLayoutMaterializer materializer = context.runtimeService(DeviceLayoutMaterializer.class);
             if (materializer == null) {
-                failIfRequired(required, backendId, AcceleratorLayoutTransformDecision.rejected(
+                AcceleratorLayoutTransformDecision rejected = AcceleratorLayoutTransformDecision.rejected(
                         request,
                         AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
                         "GPU layout transform unsupported: no dense layout materializer registered"
-                ));
+                );
+                context.publishLayoutTransformDecision(targetNode.id(), rejected);
+                failIfRequired(required, backendId, rejected);
                 return false;
             }
             DeviceBufferBinding materialized = materializer.materialize(decision, sourceBinding, context);
             if (materialized == null || !materialized.available()) {
-                failIfRequired(required, backendId, AcceleratorLayoutTransformDecision.rejected(
+                AcceleratorLayoutTransformDecision rejected = AcceleratorLayoutTransformDecision.rejected(
                         request,
                         AcceleratorBufferReasonCode.GPU_LAYOUT_TRANSFORM_UNSUPPORTED,
                         "GPU layout transform unsupported: dense layout materializer produced no binding"
-                ));
+                );
+                context.publishLayoutTransformDecision(targetNode.id(), rejected);
+                failIfRequired(required, backendId, rejected);
                 return false;
             }
             context.attachDeviceBufferBinding(

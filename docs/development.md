@@ -199,6 +199,22 @@ CUDA buffer decisions use stable reason code strings such as `NATIVE_BUFFER_ABI_
 
 CUDA fallback interpretation starts with `acceleratorBufferReasonCode` and `cudaFallbackReason` in the run trace or benchmark report. The shared accelerator buffer ABI used by Metal and CUDA keeps public `Tensor` objects logical while `backend.cuda.*` owns CUDA handles and lifetimes.
 
+For the GPU layout transform and view path, use the shared planner and trace checks before native-only gates:
+
+```bash
+./gradlew classes
+./gradlew test --tests backend.accelerator.buffer.AcceleratorLayoutTransformPlannerTest --tests graph.execution.DeviceLayoutViewPropagationTest
+./gradlew test --tests backend.metal.MetalLayoutAwareDeviceFlowTest --tests backend.cuda.exec.CudaLayoutTransformDeviceFlowTest
+./gradlew metalTest
+./gradlew buildCudaGraphShim cudaTest
+```
+
+Metadata-only views can preserve device bindings without Java array materialization. Dense GPU materialization covers
+`contiguous()` and non-contiguous-source `reshape` only when backend capability and run-scoped service wiring exist.
+Direct non-dense CUDA compute remains conservative until Phase 11 lowering coverage; fallback must keep
+`acceleratorBufferReasonCode`, `cudaFallbackReason`, or `CpuMaterializationTrace` evidence visible. The valid CPU
+materialization boundaries are graph output, a CPU consumer, and gradient publication.
+
 Optional native CUDA verification uses:
 
 ```bash

@@ -429,6 +429,20 @@ public final class PreparedExecution {
             attrs.put("acceleratorBufferInputCount", decision.inputs().size());
             attrs.put("acceleratorBufferOutputCount", decision.outputs().size());
         }
+        var layoutTransformDecision = context.layoutTransformDecisionForNodeId(node.id());
+        if (layoutTransformDecision != null) {
+            attrs.put("gpuLayoutTransformKind", layoutTransformDecision.kind().name());
+            attrs.put("gpuLayoutTransformOp", layoutTransformDecision.opType().name());
+            attrs.put("gpuLayoutTransformSourceNodeId", layoutTransformDecision.sourceNodeId());
+            attrs.put("gpuLayoutTransformAccepted", layoutTransformDecision.accepted());
+            attrs.putIfAbsent("acceleratorBufferBackend", layoutTransformDecision.backendId());
+            attrs.putIfAbsent("acceleratorBufferDecision", layoutTransformDecision.kind().name());
+            attrs.putIfAbsent("acceleratorBufferExecutionPath", layoutTransformDecision.accepted()
+                    ? layoutTransformDecision.kind().name()
+                    : "UNAVAILABLE");
+            attrs.putIfAbsent("acceleratorBufferReasonCode", layoutTransformDecision.reasonCode().name());
+            attrs.putIfAbsent("acceleratorBufferReason", layoutTransformDecision.reason());
+        }
 
         if (metadata.acceleratorExecutable() instanceof backend.metal.exec.PreparedMetalExecutable metal) {
             var metalStats = metal.lastExecutionStats();

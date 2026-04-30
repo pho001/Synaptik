@@ -11,7 +11,7 @@
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | 9 | Native Layout ABI v2 | Extend Metal and CUDA native bridge contracts to carry non-contiguous/view layout metadata with capability/version checks and explicit fallback. | GPULAYOUT-01, GPULAYOUT-02, GPULAYOUT-03 | 5 |
-| 10 | GPU Layout Transform And View Path | 3/4 | In Progress|  |
+| 10 | GPU Layout Transform And View Path | 4/4 | Complete   | 2026-04-30 |
 | 11 | GPU Lowering Coverage Matrix | Broaden Metal/CUDA operation lowering for common NN/tensor patterns and document supported/fallback/unsupported coverage. | GPULOWER-01, GPULOWER-02, GPULOWER-03 | 5 |
 | 12 | Fused GPU Region Execution | Execute safe compound GPU regions for linear+bias+activation, elementwise chains, and reduction-adjacent candidates without CPU round trips. | GPUFUSE-01, GPUFUSE-02, GPUFUSE-03, GPUFUSE-04 | 5 |
 | 13 | Coverage Benchmark And Regression Gate | Prove GPU coverage improvements and prevent hidden CPU exits with trace, benchmark, and regression gates. | GPUCOV-01, GPUCOV-02, GPUCOV-03 | 5 |
@@ -106,7 +106,7 @@ Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
 
 **Plans:**
 
-3/4 plans executed
+4/4 plans complete
 - [10-01 Shared GPU Layout Transform Contract](phases/10-gpu-layout-transform-and-view-path/10-01-PLAN.md) - creates backend-neutral request/decision records and stable reason codes for GPUVIEW-01 and GPUVIEW-03.
 
 Wave 2 *(blocked on Wave 1 completion)*:
@@ -197,9 +197,9 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 | GPULAYOUT-01 | Phase 9 | Complete |
 | GPULAYOUT-02 | Phase 9 | Complete |
 | GPULAYOUT-03 | Phase 9 | Complete |
-| GPUVIEW-01 | Phase 10 | Pending |
-| GPUVIEW-02 | Phase 10 | Pending |
-| GPUVIEW-03 | Phase 10 | Pending |
+| GPUVIEW-01 | Phase 10 | Complete |
+| GPUVIEW-02 | Phase 10 | Complete |
+| GPUVIEW-03 | Phase 10 | Complete |
 | GPULOWER-01 | Phase 11 | Pending |
 | GPULOWER-02 | Phase 11 | Pending |
 | GPULOWER-03 | Phase 11 | Pending |
