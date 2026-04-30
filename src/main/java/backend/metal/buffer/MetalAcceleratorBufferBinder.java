@@ -275,6 +275,8 @@ public final class MetalAcceleratorBufferBinder {
                 bindings.add(metalBinding);
                 continue;
             }
+            // Policy-approved DENSE_PHYSICAL_LOGICAL_VIEW outputs allocate dense physical bytes while
+            // retaining logical layout metadata for later CPU materialization.
             MetalBufferBinding created = resolvedAllocator.createOutputBinding(
                     nodeId,
                     layout
