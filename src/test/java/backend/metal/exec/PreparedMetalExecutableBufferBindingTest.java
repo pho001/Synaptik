@@ -287,7 +287,7 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
-    void nonDenseExistingBindingStillFallsBackConservatively() {
+    void existingDeviceInputWithPermutedLayoutUsesDensePhysicalLogicalViewPolicy() {
         Fixture fixture = nonContiguousInputFixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
@@ -314,14 +314,21 @@ class PreparedMetalExecutableBufferBindingTest {
 
         executable.execute(fixture.context());
 
-        assertEquals(0, bridge.bufferExecutions);
+        assertEquals(1, bridge.bufferExecutions);
         assertEquals(0, bridge.tensorExecutions);
-        assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
-        assertEquals(AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
-        assertTrue(executable.lastBufferBindingDecision().contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
-        assertTrue(executable.lastBufferBindingDecision().contains("storageOffset=0"));
-        assertTrue(executable.lastBufferBindingDecision().contains("strides=[1, 2]"));
-        assertNull(fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
+        assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, executable.lastExecutionStats().executionPath());
+        assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
+        assertTrue(executable.lastAcceleratorBufferDecision().inputs().getFirst().accepted());
+        assertTrue(executable.lastAcceleratorBufferDecision().inputs().getFirst().reason()
+                .contains("policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"));
+        assertTrue(executable.lastAcceleratorBufferDecision().inputs().getFirst().reason()
+                .contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
+        assertEquals(
+                AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
+                bridge.lastBufferInputs.getFirst().layout().layoutClass()
+        );
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
     }
 
     @Test
@@ -393,6 +400,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW,
                 executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass()
         );
+        assertTrue(executable.lastBufferBindingDecision().contains("policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"));
         assertTrue(executable.lastBufferBindingDecision().contains("layoutClass=PERMUTED_OR_STRIDED_VIEW"));
         assertTrue(executable.lastBufferBindingDecision().contains("storageOffset=0"));
         assertTrue(executable.lastBufferBindingDecision().contains("strides=[1, 2]"));
@@ -432,22 +440,38 @@ class PreparedMetalExecutableBufferBindingTest {
 
     @Test
     void reportsZeroOffsetViewOutputLayoutClass() {
-        assertOutputLayoutFallback(zeroOffsetViewOutputFixture(), AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW);
+        assertOutputLayoutFallback(
+                zeroOffsetViewOutputFixture(),
+                AcceleratorBufferLayoutClass.ZERO_OFFSET_VIEW,
+                "policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"
+        );
     }
 
     @Test
     void reportsNonZeroOffsetViewOutputLayoutClass() {
-        assertOutputLayoutFallback(nonZeroOffsetOutputFixture(), AcceleratorBufferLayoutClass.NON_ZERO_OFFSET_VIEW);
+        assertOutputLayoutFallback(
+                nonZeroOffsetOutputFixture(),
+                AcceleratorBufferLayoutClass.NON_ZERO_OFFSET_VIEW,
+                "policyAction=DENSE_PHYSICAL_LOGICAL_VIEW"
+        );
     }
 
     @Test
     void reportsBroadcastZeroStrideOutputLayoutClass() {
-        assertOutputLayoutFallback(broadcastOutputFixture(), AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW);
+        assertOutputLayoutFallback(
+                broadcastOutputFixture(),
+                AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW,
+                "policyAction=REJECT"
+        );
     }
 
     @Test
     void reportsUnsupportedOutputLayoutClass() {
-        assertOutputLayoutFallback(unsupportedOutputFixture(), AcceleratorBufferLayoutClass.UNSUPPORTED);
+        assertOutputLayoutFallback(
+                unsupportedOutputFixture(),
+                AcceleratorBufferLayoutClass.UNSUPPORTED,
+                "policyAction=REJECT"
+        );
     }
 
     @Test
@@ -790,7 +814,11 @@ class PreparedMetalExecutableBufferBindingTest {
         return new Fixture(inputNode, outputNode, state, context);
     }
 
-    private static void assertOutputLayoutFallback(Fixture fixture, AcceleratorBufferLayoutClass layoutClass) {
+    private static void assertOutputLayoutFallback(
+            Fixture fixture,
+            AcceleratorBufferLayoutClass layoutClass,
+            String expectedPolicyAction
+    ) {
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
 
@@ -801,6 +829,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(MetalMpsBridgeExecutionPath.CPU_FALLBACK, executable.lastExecutionStats().executionPath());
         assertEquals(AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED, executable.lastAcceleratorBufferDecision().reasonCode());
         assertEquals(layoutClass, executable.lastAcceleratorBufferDecision().outputs().getFirst().layout().layoutClass());
+        assertTrue(executable.lastBufferBindingDecision().contains(expectedPolicyAction));
         assertTrue(executable.lastBufferBindingDecision().contains("layoutClass=" + layoutClass));
         assertTrue(executable.lastBufferBindingDecision().contains("storageOffset="));
         assertTrue(executable.lastBufferBindingDecision().contains("strides=["));
