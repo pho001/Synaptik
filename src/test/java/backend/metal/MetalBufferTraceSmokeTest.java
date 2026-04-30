@@ -47,7 +47,11 @@ class MetalBufferTraceSmokeTest {
         Map<String, Object> attrs = metalStep.metadata().attributes();
 
         assertEquals(true, attrs.get("metalSupportsBufferBindings"));
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
+        assertTrue(attrs.containsKey("acceleratorBufferPreparedInputUsed"));
         assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
+        assertTrue(attrs.containsKey("metalNativeDeviceCopyNs"));
         assertEquals(0L, attrs.get("metalNativeToJavaCopyNs"));
         assertEquals("DEVICE_OWNED", attrs.get("storageResidency"));
         assertEquals(false, attrs.get("storageCpuCurrent"));
@@ -74,7 +78,11 @@ class MetalBufferTraceSmokeTest {
         RunTrace trace = execution.executeTraced(ExecutionMode.FORWARD);
         Map<String, Object> attrs = firstMetalStep(trace).metadata().attributes();
 
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
+        assertTrue(attrs.containsKey("acceleratorBufferPreparedInputUsed"));
         assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
+        assertTrue(attrs.containsKey("metalNativeDeviceCopyNs"));
         assertEquals(0L, attrs.get("metalNativeToJavaCopyNs"));
         assertEquals("DEVICE_OWNED", attrs.get("storageResidency"));
         assertEquals(false, attrs.get("storageCpuCurrent"));

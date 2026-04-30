@@ -182,6 +182,33 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void adjacentDeviceOwnedInputUsesBufferBindingWithoutCpuMaterialization() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+        fixture.state().attachDeviceBufferBinding(
+                fixture.inputNode().id(),
+                binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
+                StorageResidency.DEVICE_OWNED,
+                "adjacent device-owned input"
+        );
+        fixture.state().reserveDeviceBufferBinding(
+                fixture.outputNode().id(),
+                binding(fixture.outputNode().id(), MetalBufferAccess.READ_WRITE, 8)
+        );
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE, executable.lastAcceleratorBufferDecision().reasonCode());
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
+        assertTrue(fixture.state().requiresCpuMaterialization(fixture.outputNode().id()));
+        assertTrue(fixture.state().cpuMaterializationTraces().isEmpty());
+    }
+
+    @Test
     void bufferOffUsesTensorArrayWithoutAllocatorPreflight() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);

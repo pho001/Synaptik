@@ -45,6 +45,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 AcceleratorBufferReasonCode.REQUIRED_BUFFER_EXECUTION_UNAVAILABLE,
                 executable.lastAcceleratorBufferDecision().reasonCode()
         );
+        assertEquals("GPU_CUDA", executable.lastAcceleratorBufferDecision().backend().name());
         assertEquals("Accelerator buffer path is required for GPU_CUDA but unavailable: "
                 + "REQUIRED_BUFFER_EXECUTION_UNAVAILABLE: CUDA bridge does not support required buffer bindings",
                 failure.getMessage());
@@ -70,6 +71,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 AcceleratorBufferReasonCode.REQUIRED_BUFFER_EXECUTION_UNAVAILABLE,
                 executable.lastAcceleratorBufferDecision().reasonCode()
         );
+        assertEquals("GPU_CUDA", executable.lastAcceleratorBufferDecision().backend().name());
         assertEquals("Accelerator buffer path is required for GPU_CUDA but unavailable: "
                         + "REQUIRED_BUFFER_EXECUTION_UNAVAILABLE: CUDA prepared executable does not implement buffer binding execution",
                 failure.getMessage());

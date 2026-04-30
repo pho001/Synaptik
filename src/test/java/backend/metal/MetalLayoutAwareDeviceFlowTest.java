@@ -40,7 +40,11 @@ class MetalLayoutAwareDeviceFlowTest {
         ExecutionStepTrace metal = firstMetalStep(trace);
         Map<String, Object> attrs = metal.metadata().attributes();
 
+        assertEquals("AUTO", attrs.get("acceleratorBufferMode"));
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
         assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
+        assertTrue(attrs.containsKey("metalNativeDeviceCopyNs"));
         assertEquals("DEVICE_OWNED", attrs.get("storageResidency"));
         assertEquals(false, attrs.get("storageCpuCurrent"));
         assertEquals(true, attrs.get("storageDeviceCurrent"));
