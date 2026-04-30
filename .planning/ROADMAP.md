@@ -13,7 +13,7 @@
 | 9 | Native Layout ABI v2 | Extend Metal and CUDA native bridge contracts to carry non-contiguous/view layout metadata with capability/version checks and explicit fallback. | GPULAYOUT-01, GPULAYOUT-02, GPULAYOUT-03 | 5 |
 | 10 | GPU Layout Transform And View Path | Keep legal layout transforms and view-like values device-resident across compatible Metal and CUDA regions. | GPUVIEW-01, GPUVIEW-02, GPUVIEW-03 | 5 |
 | 11 | GPU Lowering Coverage Matrix | Broaden Metal/CUDA operation lowering for common NN/tensor patterns and document supported/fallback/unsupported coverage. | GPULOWER-01, GPULOWER-02, GPULOWER-03 | 5 |
-| 12 | Fused GPU Region Execution | 2/4 | In Progress|  |
+| 12 | Fused GPU Region Execution | 3/4 | In Progress|  |
 | 13 | Coverage Benchmark And Regression Gate | Prove GPU coverage improvements and prevent hidden CPU exits with trace, benchmark, and regression gates. | GPUCOV-01, GPUCOV-02, GPUCOV-03 | 5 |
 
 ## Archived Milestones
@@ -190,7 +190,7 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 
 **Plans:**
 
-2/4 plans executed
+3/4 plans executed
 
 Wave 1:
 - [12-01 Shared GPU Compound Pattern Contract](phases/12-fused-gpu-region-execution/12-01-PLAN.md) - creates backend-neutral compound summaries, stable reason codes, CPU `FUSED` GPU rejection, and coverage matrix updates for GPUFUSE-03/GPUFUSE-04.
@@ -250,7 +250,7 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 | GPULOWER-02 | Phase 11 | Complete |
 | GPULOWER-03 | Phase 11 | Complete |
 | GPUFUSE-01 | Phase 12 | Complete |
-| GPUFUSE-02 | Phase 12 | Pending |
+| GPUFUSE-02 | Phase 12 | Complete |
 | GPUFUSE-03 | Phase 12 | Complete |
 | GPUFUSE-04 | Phase 12 | Pending |
 | GPUCOV-01 | Phase 13 | Pending |

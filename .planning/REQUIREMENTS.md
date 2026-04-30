@@ -29,7 +29,7 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 ### Fused GPU Region Execution
 
 - [x] **GPUFUSE-01**: Metal and CUDA can execute at least one linear + bias + activation fused GPU region without Java array round trips between the fused operations.
-- [ ] **GPUFUSE-02**: Metal and CUDA can execute representative elementwise-chain fused GPU regions and preserve device-owned intermediate values through region execution.
+- [x] **GPUFUSE-02**: Metal and CUDA can execute representative elementwise-chain fused GPU regions and preserve device-owned intermediate values through region execution.
 - [x] **GPUFUSE-03**: Fused GPU region planning is implemented as backend-specific compound DAG execution and does not depend on or regress the CPU fused ASM/vector execution path.
 - [ ] **GPUFUSE-04**: Reduction-adjacent fusion candidates are either implemented with CPU parity tests or explicitly rejected with stable unsupported reason codes and coverage matrix entries.
 
@@ -77,7 +77,7 @@ These requirements scope the next brownfield milestone after v1.1. They focus on
 | GPULOWER-02 | Phase 11 | Complete |
 | GPULOWER-03 | Phase 11 | Complete |
 | GPUFUSE-01 | Phase 12 | Complete |
-| GPUFUSE-02 | Phase 12 | Pending |
+| GPUFUSE-02 | Phase 12 | Complete |
 | GPUFUSE-03 | Phase 12 | Complete |
 | GPUFUSE-04 | Phase 12 | Pending |
 | GPUCOV-01 | Phase 13 | Pending |
