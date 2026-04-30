@@ -75,6 +75,8 @@ Plans:
 
 ### Phase 3: Materialization-Aware Region Planning
 
+**Status:** Planned — ready for execution (3 plans)
+
 **Goal:** Make `PART` and backend selection prefer profitable long device-owned flows and avoid short accelerator islands that force expensive CPU materialization.
 
 **Requirements:** PLAN-01, PLAN-02, PLAN-03, PLAN-04
@@ -92,6 +94,13 @@ Plans:
 - This phase should not turn every supported op into a GPU op by default.
 - The planner should optimize end-to-end region profitability, not only per-op support.
 - Keep graph autotune able to explore competing region/offload policies.
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 003-01-PLAN.md — Add static materialization-aware score summaries and compile-time finalist tracing.
+- [ ] 003-02-PLAN.md — Apply static cost summaries to backend selection and benchmark reports.
+- [ ] 003-03-PLAN.md — Lock CPU safeguards, documentation, and Phase 4 cost-model ownership notes.
 
 ### Phase 4: Tuning And Profile Ownership Audit
 
@@ -112,6 +121,7 @@ Plans:
 - Preserve historical profiles only when they remain schema-compatible or are migrated intentionally.
 - Keep report output readable and traceable.
 - Avoid duplicate knobs that express the same decision in multiple layers.
+- Phase 4 must include the profile/calibration-derived cost model update deferred from Phase 3 after graph autotune versus platform calibration ownership is audited.
 
 ### Phase 5: Accelerator Verification And Documentation Closure
 
