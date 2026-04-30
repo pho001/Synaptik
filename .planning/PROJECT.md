@@ -22,11 +22,24 @@ v1.1 CUDA Native Runtime shipped on 2026-04-30. The project now has a capability
 
 ## Next Milestone Goals
 
-Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidates from the archived future requirements:
+v1.2 should broaden GPU-resident execution coverage so realistic neural-network/tensor workloads leave Metal or CUDA less often:
 
+- Non-contiguous/view layout support for Metal and CUDA through native layout ABI v2 or explicit GPU-side layout transforms.
 - Broader accelerator lowering coverage for neural-network operations and larger fused GPU kernels.
+- Fused GPU region execution for common patterns so longer graph sections stay device-owned.
+- Trace and benchmark coverage metrics that make CPU materialization boundaries, fallbacks, region length, and device handoffs measurable.
 - Higher-rank native shape/layout ABI support where backend runtimes support it.
-- Runtime memory scaling for BFLOAT16, INT32, BOOL slot reuse, and checked large-shape arithmetic.
+
+## Current Milestone: v1.2 GPU Region Coverage
+
+**Goal:** Expand Metal and CUDA from narrow buffer execution into broader GPU-resident region coverage by supporting non-contiguous/view paths, operation lowering, fused GPU regions, and coverage regression gates that minimize unnecessary GPU-to-CPU exits.
+
+**Target features:**
+- Native layout ABI v2 for Metal and CUDA, carrying rank, shape, strides, storage offset, physical byte span, access metadata, and backend capability/version checks.
+- GPU-side layout transform and view paths for `reshape`, `permute`, `expand`, `contiguous`, alias outputs, and view-like graph values without CPU materialization between compatible accelerator regions.
+- Operation lowering coverage matrix and implementation for common NN/tensor patterns such as matmul/linear, elementwise chains, reductions, softmax-like flows, normalization pieces, and loss-adjacent operations.
+- Fused GPU region execution for safe compound patterns such as linear + bias + activation, elementwise chains, and selected reduction-adjacent flows.
+- Trace, benchmark, and regression gates that report GPU coverage ratio, region length, fallback counts, CPU materialization boundaries, copy timing, and device handoffs on representative workloads.
 
 ## Requirements
 
@@ -52,11 +65,19 @@ Fresh requirements should be defined with `$gsd-new-milestone`. Likely candidate
 - ✓ CUDA dense FLOAT32 native buffer execution, graph-output/CPU-consumer materialization, and adjacent CUDA handoff are validated — Phase 7 by `.planning/phases/07-cuda-buffer-execution-and-materialization/07-VERIFICATION.md`.
 - ✓ CUDA traces and benchmark reports expose the same accelerator evidence contract as Metal, with explicit fallback reason codes, docs, and source hygiene gates — validated in Phase 8 by `.planning/phases/08-cuda-observability-and-documentation-closure/08-VERIFICATION.md`.
 
+### Active
+
+- [ ] Native layout ABI v2 carries non-contiguous/view layout metadata across Metal and CUDA native boundaries with capability/version checks and explicit fallback.
+- [ ] GPU layout transforms and view-like outputs preserve device residency across compatible Metal and CUDA regions.
+- [ ] Metal and CUDA lowering cover a broader set of common NN/tensor operation patterns through a documented support matrix and stable unsupported reasons.
+- [ ] Fused GPU regions execute safe compound patterns without copying CPU fused ASM internals or regressing CPU fused execution.
+- [ ] Trace and benchmark reports quantify GPU region coverage, CPU materialization boundaries, fallbacks, device handoffs, and representative workload improvement.
+
 ### Out of Scope
 
 - Rewriting the public `Tensor` API around user-visible device objects — current direction keeps public tensors logical and puts device residency in runtime execution state.
 - Replacing the CPU backend with accelerator-first execution — CPU remains the correctness baseline and a performance-critical backend.
-- Broad CUDA operation, dtype, rank, and fused-kernel production coverage — v1.1 proves the narrow dense `FLOAT32` runtime path first; broader lowering should build on the now-validated runtime contracts.
+- Unlimited CUDA/Metal operation, dtype, rank, and fused-kernel coverage in one milestone — v1.2 should broaden high-value paths first and keep unsupported cases explicit.
 - Supporting every dtype/rank/layout combination on Metal immediately — capability checks must stay explicit and conservative.
 - Hiding fallback behavior — accelerator fallback must remain traceable and benchmark-visible.
 - Tracking arbitrary local benchmark/calibration artifacts as project state — only intentional profile fixtures or committed winner profiles should be versioned.
@@ -111,6 +132,8 @@ The design goal is therefore not "Metal hacks" or "CUDA hacks". The goal is a cl
 | Keep fallback observable in trace and benchmark output | Performance work must distinguish real accelerator execution from CPU replay or tensor-array copies | ✓ Good |
 | Keep CUDA buffer execution narrow until the native runtime path is proven | Dense `FLOAT32` coverage gives a stable correctness and observability base before broad operation expansion | ✓ Good — v1.1 validated execution, materialization, adjacent handoff, and report evidence |
 | Treat native CUDA checks as capability-gated while portable Java gates remain mandatory | Development environments may not have `nvcc` or CUDA hardware, but the runtime must still fail clearly and testably | ✓ Good — v1.1 records native skip evidence and passes portable fallback/required-mode gates |
+| Broaden GPU support by coverage metrics, not by claiming universal operation support | The milestone should measurably reduce CPU exits on representative workloads while preserving explicit fallback for unsupported cases | — Pending |
+| Implement fused GPU regions as backend-specific region execution rather than copying CPU ASM fusion | CPU fused execution depends on JVM bytecode/vector paths; Metal and CUDA need backend-native compound DAG execution and capability gates | — Pending |
 
 ## Evolution
 
@@ -130,4 +153,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-04-30 after v1.1 milestone archival*
+*Last updated: 2026-04-30 after v1.2 milestone start*

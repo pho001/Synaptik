@@ -1,23 +1,23 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: CUDA Native Runtime
-status: completed
-last_updated: "2026-04-30T11:54:48.837Z"
+milestone: v1.2
+milestone_name: GPU Region Coverage
+status: planning
+last_updated: "2026-04-30T12:09:48.301Z"
 last_activity: 2026-04-30
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_phases: 5
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Planning next milestone after v1.1 archival
+**Current focus:** Phase 9 — Native Layout ABI v2
 
 ## Project Reference
 
@@ -34,9 +34,9 @@ Completed milestones:
 - v1.0 Accelerator Runtime Architecture - shipped 2026-04-30
 - v1.1 CUDA Native Runtime - shipped 2026-04-30
 
-Next milestone:
+Current milestone:
 
-- Not started. Define fresh requirements with `$gsd-new-milestone`.
+- v1.2 GPU Region Coverage - defining requirements and roadmap for broader Metal/CUDA GPU-resident region coverage.
 
 ## Codebase Map
 
@@ -58,14 +58,17 @@ Planning agents should read the relevant codebase map documents before proposing
 - `.planning/tmp/` contains temporary verification artifacts and is not part of the initialized roadmap.
 - `gsd-sdk` is available for phase/status mutations; keep manual edits scoped when SDK numbering helpers cannot infer padded phase directories.
 - v1.0 and v1.1 milestone audits passed and archive files were created under `.planning/milestones/`.
+- v1.1 phase execution directories were archived to `.planning/milestones/v1.1-phases/` before starting v1.2.
 
 ## Phase Planning Status
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 6 — CUDA Shim And Capability Probe | Complete | 3 plans | Passed |
-| 7 — CUDA Buffer Execution And Materialization | Complete | 3 plans | Passed |
-| 8 — CUDA Observability And Documentation Closure | Complete | 4 plans | Passed |
+| 9 — Native Layout ABI v2 | Planned | TBD | Pending |
+| 10 — GPU Layout Transform And View Path | Planned | TBD | Pending |
+| 11 — GPU Lowering Coverage Matrix | Planned | TBD | Pending |
+| 12 — Fused GPU Region Execution | Planned | TBD | Pending |
+| 13 — Coverage Benchmark And Regression Gate | Planned | TBD | Pending |
 
 ## Deferred Items
 
@@ -113,6 +116,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 8 verification passed | Verifier confirmed 12/12 must-haves and all CUDA-06/CUDADOC-01/02/03 requirements. |
 | 2026-04-30 | v1.1 milestone audit passed | Requirements, phases, integration, flows, and Nyquist validation all passed with no milestone tech debt. |
 | 2026-04-30 | v1.1 milestone archived | CUDA Native Runtime archives were written under `.planning/milestones/`; fresh requirements should be defined for the next milestone. |
+| 2026-04-30 | v1.2 milestone started | GPU Region Coverage will target non-contiguous/view Metal and CUDA paths, broader lowering, fused GPU regions, and coverage regression gates. |
 
 ## Recent Sessions
 
@@ -146,11 +150,11 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Completed and verified Phase 6 | Ready for Phase 7 planning | .planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md |
 
 ---
-*Last updated: 2026-04-30 after v1.1 milestone archival*
+*Last updated: 2026-04-30 after v1.2 milestone start*
 
 ## Current Position
 
-Phase: none
-Plan: none
-Status: v1.1 complete; ready for `$gsd-new-milestone`
-Last activity: 2026-04-30
+Phase: 9 — Native Layout ABI v2
+Plan: —
+Status: Ready for phase discussion
+Last activity: 2026-04-30 — Milestone v1.2 started
