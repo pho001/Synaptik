@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Coverage-Driven GPU Region Expansion
-status: ready_to_execute
-last_updated: "2026-05-01T09:15:00Z"
-last_activity: 2026-05-01 -- Phase 17 planned
+status: executing
+last_updated: "2026-05-01T09:19:18.453Z"
+last_activity: 2026-05-01 -- Phase 17 execution started
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 16
   completed_plans: 12
-  percent: 43
+  percent: 75
 ---
 
 # GSD State
@@ -203,7 +203,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 ## Current Position
 
-Phase: 17
-Plan: 17-01
-Status: Ready to execute
-Last activity: 2026-05-01
+Phase: 17 (Normalization Reduction And Loss-Adjacent Lowering) — EXECUTING
+Plan: 2 of 4
+Status: Executing Phase 17
+Last activity: 2026-05-01 -- Phase 17 plans 17-01 and 17-02 complete
