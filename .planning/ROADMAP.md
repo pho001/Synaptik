@@ -5,7 +5,7 @@
 - ✅ **v1.0 Accelerator Runtime Architecture** - Phases 1-5 shipped 2026-04-30. Full archive: [v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 CUDA Native Runtime** - Phases 6-8 shipped 2026-04-30. Full archive: [v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - ✅ **v1.2 GPU Region Coverage** - Phases 9-13 shipped 2026-05-01. Full archive: [v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
-- 🚧 **v1.3 Coverage-Driven GPU Region Expansion** - Phases 14-20 planned. Scope: coverage-driven hot-path triage, GPU internal lowered DAGs, dtype/storage residency, broader lowering, region-internal fusion, multi-op GPU region execution, and hard coverage gates.
+- ✅ **v1.3 Coverage-Driven GPU Region Expansion** - Phases 14-21 shipped 2026-05-01. Scope: coverage-driven hot-path triage, GPU internal lowered DAGs, dtype/storage residency, broader lowering, region-internal fusion, multi-op GPU region execution, hard coverage gates, and milestone audit evidence closure.
 
 ## Summary
 
@@ -17,8 +17,8 @@
 | 17 | Normalization Reduction And Loss-Adjacent Lowering | Expand or explicitly reject high-impact normalization, reduction, softmax-ish, and loss-adjacent GPU lowering gaps under a shared Metal/CUDA contract. | GPUNORM-01, GPUNORM-02, GPUNORM-03 (Complete 2026-05-01) | 5 |
 | 18 | Fused Elementwise And Epilogue Subregions | Add region-internal GPU fusion for elementwise chains and linear/matmul epilogues without reusing CPU fused ASM nodes. | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 (Complete 2026-05-01) | 5 |
 | 19 | Multi-Op GPU Region Execution | Execute longer GPU regions containing multiple lowered operations, layout/view steps, elementwise chains, and selected softmax-ish or normalization primitives. | GPUMULTI-01, GPUMULTI-02, GPUMULTI-03 (Complete 2026-05-01) | 5 |
-| 20 | Coverage Regression Hardening | 4/4 | Complete    | 2026-05-01 |
-| 21 | Milestone Verification Evidence Closure | 1/1 | Complete    | 2026-05-01 |
+| 20 | Coverage Regression Hardening | Harden GPU coverage reports and regression gates so target hot paths prove accelerator residency and fail hidden exits. | GPUHARDEN-01, GPUHARDEN-02, GPUHARDEN-03 (Complete 2026-05-01) | 5 |
+| 21 | Milestone Verification Evidence Closure | Close v1.3 audit evidence gaps for Phase 14, Phase 18, and Phase 20 so the milestone can pass requirement proof. | GPUAUDIT-01, GPUAUDIT-02, GPUAUDIT-03 (Complete 2026-05-01) | 5 |
 
 ## Milestone Rule
 
