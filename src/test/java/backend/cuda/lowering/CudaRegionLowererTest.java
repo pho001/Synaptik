@@ -83,6 +83,8 @@ class CudaRegionLowererTest {
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, plan.compoundSummary().patternType());
         assertTrue(plan.compoundSummary().supported());
         assertTrue(plan.nodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+        assertEquals(ComputeBackend.GPU_CUDA, plan.manifest().backend());
+        assertTrue(!plan.manifest().loweredPrimitives().isEmpty());
         assertTrue(plan.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.LINEAR));
         assertTrue(plan.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.RELU));
 

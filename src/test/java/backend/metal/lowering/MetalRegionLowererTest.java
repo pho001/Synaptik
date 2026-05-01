@@ -84,6 +84,8 @@ class MetalRegionLowererTest {
         assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, attachedPlan.lowering().compoundSummary().patternType());
         assertTrue(attachedPlan.lowering().compoundSummary().supported());
         assertTrue(attachedPlan.nodeIds().containsAll(List.of(linearNodeId, reluNodeId)));
+        assertEquals(ComputeBackend.GPU_METAL, attachedPlan.manifest().backend());
+        assertTrue(attachedPlan.manifest().selectedRegionLength() >= attachedPlan.nodeIds().size());
         assertTrue(attachedPlan.lowering().dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.LINEAR));
         assertTrue(attachedPlan.lowering().dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.RELU));
         assertTrue(attachedPlan.matMulSpec().biasInputNodeId() >= 0);

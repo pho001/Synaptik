@@ -169,7 +169,8 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
                 subgraph,
                 lowering.dagSpec(),
                 lowering.estimatedWork(),
-                lowering.compoundSummary()
+                lowering.compoundSummary(),
+                lowering.manifest()
         );
     }
 
