@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Coverage-Driven GPU Region Expansion
-status: ready_to_plan
-last_updated: "2026-05-01T08:22:55Z"
-last_activity: 2026-05-01
+status: executing
+last_updated: "2026-05-01T08:30:00.489Z"
+last_activity: 2026-05-01 -- Phase 16 planning complete
 progress:
   total_phases: 7
-  completed_phases: 3
-  total_plans: 8
+  completed_phases: 2
+  total_plans: 12
   completed_plans: 8
-  percent: 43
+  percent: 67
 ---
 
 # GSD State
@@ -68,7 +68,7 @@ Planning agents should read the relevant codebase map documents before proposing
 |-------|--------|-------|--------------|
 | 14 — Coverage Gap Triage And Hot Path Targets | Complete | 4/4 | Verified |
 | 15 — GPU Region Internal Lowered DAG Contract | Complete | 4/4 | Verified |
-| 16 — DType And Storage Residency Expansion | Not started | 0/? | Pending |
+| 16 — DType And Storage Residency Expansion | Ready to execute | 0/4 | Pending |
 | 17 — Normalization Reduction And Loss-Adjacent Lowering | Not started | 0/? | Pending |
 | 18 — Fused Elementwise And Epilogue Subregions | Not started | 0/? | Pending |
 | 19 — Multi-Op GPU Region Execution | Not started | 0/? | Pending |
@@ -193,13 +193,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Gathered Phase 15 context | Ready for `$gsd-plan-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-CONTEXT.md |
 | 2026-05-01 | Planned Phase 15 with 4 lowered-region manifest waves | Ready for `$gsd-execute-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-01-PLAN.md |
 | 2026-05-01 | Completed and verified Phase 15 | Ready for `$gsd-discuss-phase 16 --auto` or `$gsd-plan-phase 16 --auto` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-VERIFICATION.md |
+| 2026-05-01 | Planned Phase 16 with 4 dtype residency waves | Ready for `$gsd-execute-phase 16` | .planning/phases/16-dtype-and-storage-residency-expansion/16-01-PLAN.md |
 
 ---
-*Last updated: 2026-05-01 after Phase 15 verification*
+*Last updated: 2026-05-01 after Phase 16 planning*
 
 ## Current Position
 
 Phase: 16
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-01
+Status: Ready to execute
+Last activity: 2026-05-01 -- Phase 16 planning complete

@@ -181,10 +181,29 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 4. CPU parity tests cover true output/consumer materialization boundaries for supported non-FLOAT32/FLOAT64 flows.
 5. CPU memory reuse and hot-path dispatch are not regressed by accelerator dtype residency changes.
 
+**Plans:**
+
+**Status:** Planned — 4 plans ready as of 2026-05-01.
+
+Wave 1:
+- [16-01 Runtime Typed Slot Binding](phases/16-dtype-and-storage-residency-expansion/16-01-PLAN.md) - adds BFLOAT16, INT32, and BOOL runtime slot binding plus focused reuse/parity tests for GPUSTORAGE-01/03.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [16-02 Accelerator DType Residency Decisions](phases/16-dtype-and-storage-residency-expansion/16-02-PLAN.md) - adds backend-neutral dtype residency decisions and Metal/CUDA capability diagnostics for GPUSTORAGE-01/02.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [16-03 DType Residency Trace And Report Evidence](phases/16-dtype-and-storage-residency-expansion/16-03-PLAN.md) - renders dtype residency assumptions, unsupported reasons, and materialization evidence in traces/reports for GPUSTORAGE-02/03.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [16-04 Docs Validation And Residency Closure](phases/16-dtype-and-storage-residency-expansion/16-04-PLAN.md) - closes docs, final focused verification, validation evidence, and artifact hygiene for GPUSTORAGE-01/02/03.
+
 **Cross-cutting constraints:**
 - Dtype residency does not imply universal native arithmetic support; execution legality remains per operation, layout, dtype, and backend capability.
 - BFLOAT16, INT32, and BOOL should be added where they close measured region gaps, not as an all-combinations promise.
 - Existing FLOAT32/FLOAT64 behavior must remain stable.
+- Public `Tensor` remains logical; dtype residency belongs to compile/prepare/execute runtime state.
+- Metal/CUDA dtype diagnostics must be backend-specific and stable, not generic silent CPU replay.
+- Local tuning profile artifacts are not canonical coverage evidence.
 
 **Notes:**
 - This phase should focus on residency and binding first; operation-specific dtype support belongs to the lowering phases that consume it.
