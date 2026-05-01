@@ -222,7 +222,31 @@ public final class TextBenchmarkReportRenderer {
                 backend.dtypeResidencyReasons().forEach((reason, count) ->
                         sb.append("        - count=").append(count).append(" ").append(reason).append('\n'));
             }
+            GpuCoverageGateResult gate = GpuCoverageRegressionGate.evaluate(
+                    summary,
+                    GpuCoverageGatePolicy.nativeBufferTarget(entry.getKey(), 0.0d, 0)
+            );
+            sb.append("      coverageGate backend=").append(entry.getKey())
+                    .append(" gatePassed=").append(gate.passed())
+                    .append(" gateFailures=").append(gate.failures())
+                    .append('\n');
+            GpuCoverageNativeEvidence nativeEvidence = nativeEvidence(entry.getKey(), backend);
+            sb.append("      nativeEvidence backend=").append(nativeEvidence.backend())
+                    .append(" nativeStatus=").append(nativeEvidence.nativeStatus())
+                    .append(" detail=").append(nativeEvidence.detail())
+                    .append(" capabilitySkipped=").append("capabilitySkipped".equals(nativeEvidence.nativeStatus()))
+                    .append('\n');
         }
+    }
+
+    static GpuCoverageNativeEvidence nativeEvidence(
+            String backend,
+            GpuCoverageSummary.BackendCoverage coverage
+    ) {
+        if (coverage != null && coverage.nativeBufferStepCount() > 0) {
+            return GpuCoverageNativeEvidence.passed(backend, "native buffer binding observed");
+        }
+        return GpuCoverageNativeEvidence.capabilitySkipped(backend, "native buffer evidence not available in this report");
     }
 
     private static void appendBackendSelectionCost(

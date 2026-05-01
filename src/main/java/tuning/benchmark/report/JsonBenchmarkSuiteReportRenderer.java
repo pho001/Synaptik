@@ -38,6 +38,25 @@ public final class JsonBenchmarkSuiteReportRenderer {
             sb.append("}");
         }
         sb.append("\n  ],\n");
+        sb.append("  \"targetCoverageGates\": [\n");
+        java.util.List<GpuCoverageHotPathExpectation> expectations = GpuHotPathCoverageTargets.defaultExpectations();
+        java.util.List<GpuCoverageGateResult> targetGates = GpuCoverageRegressionGate.evaluateTargets(report, expectations);
+        for (int i = 0; i < expectations.size(); i++) {
+            if (i > 0) {
+                sb.append(",\n");
+            }
+            GpuCoverageHotPathExpectation expectation = expectations.get(i);
+            GpuCoverageGateResult gate = targetGates.get(i);
+            sb.append("    {");
+            sb.append("\"workloadName\": \"").append(escape(expectation.workloadName())).append("\", ");
+            sb.append("\"backend\": \"").append(escape(expectation.backend())).append("\", ");
+            sb.append("\"coverageGate\": {");
+            sb.append("\"gatePassed\": ").append(gate.passed()).append(", ");
+            sb.append("\"gateFailures\": ").append(stringListJson(gate.failures()));
+            sb.append("}");
+            sb.append("}");
+        }
+        sb.append("\n  ],\n");
         sb.append("  \"coverageSummary\": [\n");
         int coverageIndex = 0;
         for (var entry : report.bestCoverageByBackend().entrySet()) {
@@ -45,13 +64,20 @@ public final class JsonBenchmarkSuiteReportRenderer {
                 sb.append(",\n");
             }
             var coverage = entry.getValue();
+            GpuCoverageNativeEvidence nativeEvidence = TextBenchmarkReportRenderer.nativeEvidence(entry.getKey(), coverage);
             sb.append("    {");
             sb.append("\"backend\": \"").append(escape(entry.getKey())).append("\", ");
             sb.append("\"gpuCoverageRatio\": ").append(format(coverage.gpuCoverageRatio())).append(", ");
             sb.append("\"maxSelectedRegionLength\": ").append(coverage.maxSelectedRegionLength()).append(", ");
             sb.append("\"cpuMaterializationCount\": ").append(coverage.cpuMaterializationCount()).append(", ");
             sb.append("\"fallbackCount\": ").append(coverage.fallbackCount()).append(", ");
-            sb.append("\"deviceHandoffCount\": ").append(coverage.deviceHandoffCount());
+            sb.append("\"deviceHandoffCount\": ").append(coverage.deviceHandoffCount()).append(", ");
+            sb.append("\"nativeEvidence\": {");
+            sb.append("\"backend\": \"").append(escape(nativeEvidence.backend())).append("\", ");
+            sb.append("\"nativeStatus\": \"").append(escape(nativeEvidence.nativeStatus())).append("\", ");
+            sb.append("\"capabilitySkipped\": ").append("capabilitySkipped".equals(nativeEvidence.nativeStatus())).append(", ");
+            sb.append("\"detail\": \"").append(escape(nativeEvidence.detail())).append("\"");
+            sb.append("}");
             sb.append("}");
         }
         sb.append("\n  ],\n");
@@ -90,5 +116,20 @@ public final class JsonBenchmarkSuiteReportRenderer {
 
     private static String escape(String value) {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static String stringListJson(java.util.List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append('"').append(escape(values.get(i))).append('"');
+        }
+        sb.append(']');
+        return sb.toString();
     }
 }

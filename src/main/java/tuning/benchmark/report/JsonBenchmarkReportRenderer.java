@@ -194,6 +194,11 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append(", ");
             }
             var backend = entry.getValue();
+            GpuCoverageGateResult gate = GpuCoverageRegressionGate.evaluate(
+                    summary,
+                    GpuCoverageGatePolicy.nativeBufferTarget(entry.getKey(), 0.0d, 0)
+            );
+            GpuCoverageNativeEvidence nativeEvidence = TextBenchmarkReportRenderer.nativeEvidence(entry.getKey(), backend);
             sb.append('"').append(escape(entry.getKey())).append("\": {")
                     .append("\"totalStepCount\": ").append(backend.totalStepCount()).append(", ")
                     .append("\"acceleratorStepCount\": ").append(backend.acceleratorStepCount()).append(", ")
@@ -228,11 +233,32 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"gpuFusedSubpatternLoweredPrimitiveCount\": ").append(backend.gpuFusedSubpatternLoweredPrimitiveCount()).append(", ")
                     .append("\"gpuFusedSubpatternReasons\": ").append(stringListJson(backend.gpuFusedSubpatternReasons())).append(", ")
                     .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
-                    .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
+                    .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons())).append(", ")
+                    .append("\"coverageGate\": ").append(gateResultJson(gate)).append(", ")
+                    .append("\"nativeEvidence\": ").append(nativeEvidenceJson(nativeEvidence))
                     .append("}");
         }
         sb.append('}');
         return sb.toString();
+    }
+
+    private static String gateResultJson(GpuCoverageGateResult result) {
+        return "{"
+                + "\"gatePassed\": " + (result != null && result.passed()) + ", "
+                + "\"gateFailures\": " + stringListJson(result == null ? java.util.List.of() : result.failures())
+                + "}";
+    }
+
+    private static String nativeEvidenceJson(GpuCoverageNativeEvidence evidence) {
+        if (evidence == null) {
+            evidence = GpuCoverageNativeEvidence.capabilitySkipped("", "native evidence unavailable");
+        }
+        return "{"
+                + "\"backend\": \"" + escape(evidence.backend()) + "\", "
+                + "\"nativeStatus\": \"" + escape(evidence.nativeStatus()) + "\", "
+                + "\"capabilitySkipped\": " + "capabilitySkipped".equals(evidence.nativeStatus()) + ", "
+                + "\"detail\": \"" + escape(evidence.detail()) + "\""
+                + "}";
     }
 
     private static String backendSelectionCostJson(graph.execution.trace.BackendSelectionTrace trace) {

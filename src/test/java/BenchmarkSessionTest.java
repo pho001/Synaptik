@@ -18,6 +18,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tuning.benchmark.report.BenchmarkReport;
 import tuning.benchmark.report.GpuCoverageGatePolicy;
+import tuning.benchmark.report.GpuCoverageNativeEvidence;
 import tuning.benchmark.report.GpuCoverageRegressionGate;
 import tuning.benchmark.report.GpuCoverageSummary;
 import tuning.benchmark.report.JsonBenchmarkReportRenderer;
@@ -903,6 +904,44 @@ public class BenchmarkSessionTest {
 
         assertTrue(json.contains("\"nativeBufferStepCount\": 1"));
         assertTrue(json.contains("\"tensorArrayStepCount\": 0"));
+    }
+
+    @Test
+    void phaseTwentyBenchmarkReportRendersCoverageGateResult() {
+        BenchmarkReport report = gpuCoverageBenchmarkReport("phase20_coverage_gate_report");
+
+        String text = TextBenchmarkReportRenderer.render(report);
+
+        assertTrue(text.contains("coverageGate"));
+        assertTrue(text.contains("gatePassed="));
+        assertTrue(text.contains("gateFailures="));
+        assertTrue(text.contains("nativeEvidence"));
+        assertTrue(text.contains("nativeStatus="));
+    }
+
+    @Test
+    void phaseTwentyBenchmarkJsonRendersCoverageGateResult() {
+        BenchmarkReport report = gpuCoverageBenchmarkReport("phase20_coverage_gate_json_report");
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+
+        assertTrue(json.contains("\"coverageGate\""));
+        assertTrue(json.contains("\"gatePassed\""));
+        assertTrue(json.contains("\"gateFailures\""));
+        assertTrue(json.contains("\"nativeEvidence\""));
+        assertTrue(json.contains("\"nativeStatus\""));
+    }
+
+    @Test
+    void phaseTwentyNativeEvidenceCanRenderCapabilitySkippedStatus() {
+        GpuCoverageNativeEvidence evidence = GpuCoverageNativeEvidence.capabilitySkipped(
+                "GPU_CUDA",
+                "CUDA device unavailable"
+        );
+
+        assertEquals("GPU_CUDA", evidence.backend());
+        assertEquals("capabilitySkipped", evidence.nativeStatus());
+        assertEquals("CUDA device unavailable", evidence.detail());
     }
 
     @Test

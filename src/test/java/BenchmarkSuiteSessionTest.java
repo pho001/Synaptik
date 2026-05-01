@@ -332,6 +332,28 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(missing.getFirst().failures().contains("missing target coverage summary"));
     }
 
+    @Test
+    void phaseTwentySuiteReportRendersTargetGateResults() {
+        BenchmarkSuiteReport report = suiteReportFor("transformer_block_hot_path", "GPU_METAL");
+
+        String text = TextBenchmarkSuiteReportRenderer.render(report);
+        String json = JsonBenchmarkSuiteReportRenderer.render(report);
+
+        assertTrue(text.contains("targetCoverageGates"));
+        assertTrue(text.contains("coverageGate"));
+        assertTrue(text.contains("gatePassed="));
+        assertTrue(text.contains("gateFailures="));
+        assertTrue(text.contains("nativeEvidence="));
+        assertTrue(text.contains("nativeStatus="));
+        assertTrue(json.contains("\"targetCoverageGates\""));
+        assertTrue(json.contains("\"coverageGate\""));
+        assertTrue(json.contains("\"gatePassed\""));
+        assertTrue(json.contains("\"gateFailures\""));
+        assertTrue(json.contains("\"nativeEvidence\""));
+        assertTrue(json.contains("\"nativeStatus\""));
+        assertTrue(json.contains("\"capabilitySkipped\""));
+    }
+
     private static BenchmarkSuiteReport suiteReportFor(String workloadName, String backendName) {
         ExecutionProfile profile = new ExecutionProfile(
                 "phase20-target-profile",

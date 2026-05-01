@@ -71,12 +71,34 @@ public final class TextBenchmarkSuiteReportRenderer {
         sb.append("coverageSummary:\n");
         for (var entry : report.bestCoverageByBackend().entrySet()) {
             var coverage = entry.getValue();
+            GpuCoverageNativeEvidence nativeEvidence = TextBenchmarkReportRenderer.nativeEvidence(entry.getKey(), coverage);
             sb.append("- backend=").append(entry.getKey())
                     .append(" gpuCoverageRatio=").append(formatDouble(coverage.gpuCoverageRatio()))
                     .append(" maxSelectedRegionLength=").append(coverage.maxSelectedRegionLength())
                     .append(" cpuMaterializationCount=").append(coverage.cpuMaterializationCount())
                     .append(" fallbackCount=").append(coverage.fallbackCount())
                     .append(" deviceHandoffCount=").append(coverage.deviceHandoffCount())
+                    .append(" nativeEvidence=").append(nativeEvidence.nativeStatus())
+                    .append(" nativeStatus=").append(nativeEvidence.nativeStatus())
+                    .append(" capabilitySkipped=").append("capabilitySkipped".equals(nativeEvidence.nativeStatus()))
+                    .append('\n');
+        }
+        sb.append("\n");
+
+        sb.append("targetCoverageGates:\n");
+        var targetGates = GpuCoverageRegressionGate.evaluateTargets(
+                report,
+                GpuHotPathCoverageTargets.defaultExpectations()
+        );
+        var expectations = GpuHotPathCoverageTargets.defaultExpectations();
+        for (int i = 0; i < expectations.size(); i++) {
+            var expectation = expectations.get(i);
+            var gate = targetGates.get(i);
+            sb.append("- workload=").append(expectation.workloadName())
+                    .append(" backend=").append(expectation.backend())
+                    .append(" coverageGate")
+                    .append(" gatePassed=").append(gate.passed())
+                    .append(" gateFailures=").append(gate.failures())
                     .append('\n');
         }
         sb.append("\n");
