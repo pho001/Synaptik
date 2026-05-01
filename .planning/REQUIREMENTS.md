@@ -21,9 +21,9 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 
 ### DType And Storage Residency
 
-- [ ] **GPUSTORAGE-01**: BFLOAT16, INT32, and BOOL device residency is represented in memory binding, slot reuse, and device buffer metadata where those dtypes currently force CPU exits.
-- [ ] **GPUSTORAGE-02**: Metal and CUDA residency decisions for non-FLOAT32/FLOAT64 values are capability-gated and report stable backend-specific unsupported reasons when native execution is not legal.
-- [ ] **GPUSTORAGE-03**: Focused tests prove supported dtype residency, CPU parity at true materialization boundaries, and no hidden CPU materialization for supported internal GPU-region values.
+- [x] **GPUSTORAGE-01**: BFLOAT16, INT32, and BOOL device residency is represented in memory binding, slot reuse, and device buffer metadata where those dtypes currently force CPU exits.
+- [x] **GPUSTORAGE-02**: Metal and CUDA residency decisions for non-FLOAT32/FLOAT64 values are capability-gated and report stable backend-specific unsupported reasons when native execution is not legal.
+- [x] **GPUSTORAGE-03**: Focused tests prove supported dtype residency, CPU parity at true materialization boundaries, and no hidden CPU materialization for supported internal GPU-region values.
 
 ### Normalization, Reduction, And Loss-Adjacent Lowering
 
@@ -88,9 +88,9 @@ Which phases cover which requirements. Updated during phase execution as require
 | GPUDAG-01 | Phase 15 | Complete |
 | GPUDAG-02 | Phase 15 | Complete |
 | GPUDAG-03 | Phase 15 | Complete |
-| GPUSTORAGE-01 | Phase 16 | Pending |
-| GPUSTORAGE-02 | Phase 16 | Pending |
-| GPUSTORAGE-03 | Phase 16 | Pending |
+| GPUSTORAGE-01 | Phase 16 | Complete |
+| GPUSTORAGE-02 | Phase 16 | Complete |
+| GPUSTORAGE-03 | Phase 16 | Complete |
 | GPUNORM-01 | Phase 17 | Pending |
 | GPUNORM-02 | Phase 17 | Pending |
 | GPUNORM-03 | Phase 17 | Pending |
