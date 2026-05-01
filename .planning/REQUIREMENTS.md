@@ -39,9 +39,9 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 
 ### Multi-Op GPU Region Execution
 
-- [ ] **GPUMULTI-01**: A selected GPU region can execute multiple lowered operations, including matmul/linear, layout/view steps, elementwise chains, and selected softmax-ish or normalization primitives.
-- [ ] **GPUMULTI-02**: Supported internal steps hand off device-owned values through `ExecutionState` and device buffer bindings without CPU materialization until a true CPU consumer, graph output, or gradient publication boundary.
-- [ ] **GPUMULTI-03**: Multi-op GPU region execution remains backend-neutral at the planning contract level while allowing Metal and CUDA to choose backend-specific primitive execution strategies.
+- [x] **GPUMULTI-01**: A selected GPU region can execute multiple lowered operations, including matmul/linear, layout/view steps, elementwise chains, and selected softmax-ish or normalization primitives.
+- [x] **GPUMULTI-02**: Supported internal steps hand off device-owned values through `ExecutionState` and device buffer bindings without CPU materialization until a true CPU consumer, graph output, or gradient publication boundary.
+- [x] **GPUMULTI-03**: Multi-op GPU region execution remains backend-neutral at the planning contract level while allowing Metal and CUDA to choose backend-specific primitive execution strategies.
 
 ### Coverage Regression Hardening
 
@@ -97,9 +97,9 @@ Which phases cover which requirements. Updated during phase execution as require
 | GPUFUSEX-01 | Phase 18 | Complete |
 | GPUFUSEX-02 | Phase 18 | Complete |
 | GPUFUSEX-03 | Phase 18 | Complete |
-| GPUMULTI-01 | Phase 19 | Pending |
-| GPUMULTI-02 | Phase 19 | Pending |
-| GPUMULTI-03 | Phase 19 | Pending |
+| GPUMULTI-01 | Phase 19 | Complete |
+| GPUMULTI-02 | Phase 19 | Complete |
+| GPUMULTI-03 | Phase 19 | Complete |
 | GPUHARDEN-01 | Phase 20 | Pending |
 | GPUHARDEN-02 | Phase 20 | Pending |
 | GPUHARDEN-03 | Phase 20 | Pending |
@@ -111,4 +111,4 @@ Which phases cover which requirements. Updated during phase execution as require
 
 ---
 *Requirements defined: 2026-05-01*
-*Last updated: 2026-05-01 after v1.3 milestone start*
+*Last updated: 2026-05-01 after Phase 19 verification*

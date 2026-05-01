@@ -16,7 +16,7 @@
 | 16 | DType And Storage Residency Expansion | Extend device residency, memory binding, slot reuse, and fallback diagnostics for BFLOAT16, INT32, and BOOL where they block GPU regions. | GPUSTORAGE-01, GPUSTORAGE-02, GPUSTORAGE-03 (Complete 2026-05-01) | 5 |
 | 17 | Normalization Reduction And Loss-Adjacent Lowering | Expand or explicitly reject high-impact normalization, reduction, softmax-ish, and loss-adjacent GPU lowering gaps under a shared Metal/CUDA contract. | GPUNORM-01, GPUNORM-02, GPUNORM-03 (Complete 2026-05-01) | 5 |
 | 18 | Fused Elementwise And Epilogue Subregions | Add region-internal GPU fusion for elementwise chains and linear/matmul epilogues without reusing CPU fused ASM nodes. | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 (Complete 2026-05-01) | 5 |
-| 19 | Multi-Op GPU Region Execution | Execute longer GPU regions containing multiple lowered operations, layout/view steps, elementwise chains, and selected softmax-ish or normalization primitives. | GPUMULTI-01, GPUMULTI-02, GPUMULTI-03 | 5 |
+| 19 | Multi-Op GPU Region Execution | Execute longer GPU regions containing multiple lowered operations, layout/view steps, elementwise chains, and selected softmax-ish or normalization primitives. | GPUMULTI-01, GPUMULTI-02, GPUMULTI-03 (Complete 2026-05-01) | 5 |
 | 20 | Coverage Regression Hardening | Harden reports and gates so hot paths staying on GPU becomes an auditable invariant, not a performance impression. | GPUHARDEN-01, GPUHARDEN-02, GPUHARDEN-03 | 5 |
 
 ## Milestone Rule
