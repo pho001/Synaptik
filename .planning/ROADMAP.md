@@ -267,10 +267,31 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 4. GPU fusion explicitly rejects CPU `Operation.OpType.FUSED` and never depends on CPU fused ASM/vector internals.
 5. CPU fused execution tests continue to pass unchanged, proving GPU fusion did not invade CPU backend contracts.
 
+**Plans:**
+
+**Status:** Planned - ready to execute.
+
+4/4 plans created
+
+Wave 1:
+- [18-01 Shared Fusion Subpattern Metadata Contract](phases/18-fused-elementwise-and-epilogue-subregions/18-01-PLAN.md) - adds list-capable GPU fusion subpattern metadata, manifest attachment, detector tests, and docs for GPUFUSEX-01/02/03.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [18-02 Elementwise Chain Subregions](phases/18-fused-elementwise-and-epilogue-subregions/18-02-PLAN.md) - builds region-internal elementwise subchain units and Metal/CUDA metadata/runtime evidence for GPUFUSEX-01/03.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [18-03 Matmul And Linear Epilogue Subregions](phases/18-fused-elementwise-and-epilogue-subregions/18-03-PLAN.md) - adds matmul/linear + bias + activation epilogue subpattern detection, legality evidence, and parity tests for GPUFUSEX-02/03.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [18-04 Trace Report And CPU Fusion Isolation Closure](phases/18-fused-elementwise-and-epilogue-subregions/18-04-PLAN.md) - renders fused subpattern trace/report fields and verifies CPU fused isolation, docs, validation, and artifact hygiene for GPUFUSEX-01/02/03.
+
 **Cross-cutting constraints:**
 - Fusion is an optimization inside a selected GPU region, not an alternate public operation model.
 - Fused subpatterns must not shorten regions or hide fallback.
 - CPU and GPU fusion can share semantic operation knowledge, but not CPU implementation internals.
+- GPU fusion metadata must preserve selected region evidence, fallback reasons, and CPU materialization visibility.
+- Public `Tensor` remains logical; region-internal fusion belongs to compile/prepare/execute internals.
+- Local tuning profile artifacts are not canonical coverage evidence.
 
 **Notes:**
 - This phase deepens the Phase 12 compound-region direction into a general region-internal fusion contract.
