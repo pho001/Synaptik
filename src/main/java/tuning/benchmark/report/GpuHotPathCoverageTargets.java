@@ -50,7 +50,61 @@ public final class GpuHotPathCoverageTargets {
         return defaults().stream().map(GpuHotPathCoverageTarget::workloadName).toList();
     }
 
+    public static List<GpuCoverageHotPathExpectation> defaultExpectations() {
+        return expectationsForBackend("GPU_METAL");
+    }
+
+    public static List<GpuCoverageHotPathExpectation> expectationsForBackend(String backend) {
+        String resolvedBackend = backend == null || backend.isBlank() ? "GPU_METAL" : backend;
+        return List.of(
+                new GpuCoverageHotPathExpectation(
+                        "transformer_block_hot_path",
+                        resolvedBackend,
+                        GpuCoverageGatePolicy.hotPathTarget(resolvedBackend, 0.5d, 3, 1, 1, 1),
+                        List.of(),
+                        true
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "mlp_classifier_small",
+                        resolvedBackend,
+                        GpuCoverageGatePolicy.hotPathTarget(resolvedBackend, 0.5d, 2, 1, 1, 1),
+                        List.of(),
+                        true
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "conv2d_resnet_3x3",
+                        resolvedBackend,
+                        partialBlockerPolicy(resolvedBackend),
+                        List.of("unsupported-layout", "CONV", "DAG_CANDIDATE_SHORTENED"),
+                        false
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "layer_norm_small",
+                        resolvedBackend,
+                        partialBlockerPolicy(resolvedBackend),
+                        List.of("NORMALIZATION", "REDUCTION_ADJACENT", "unsupported-layout"),
+                        false
+                )
+        );
+    }
+
     public static BenchmarkSuiteRequest benchmarkSuite(List<BenchmarkEntry> entries) {
         return StandardWorkloads.benchmarkSuite(defaultWorkloadNames(), entries);
+    }
+
+    private static GpuCoverageGatePolicy partialBlockerPolicy(String backend) {
+        return new GpuCoverageGatePolicy(
+                backend,
+                0.0d,
+                0,
+                0,
+                0,
+                0,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                false
+        );
     }
 }

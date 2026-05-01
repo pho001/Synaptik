@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.benchmark.BenchmarkEntry;
 import tuning.benchmark.BenchmarkSuiteRequest;
+import tuning.benchmark.report.GpuCoverageHotPathExpectation;
 import tuning.benchmark.report.GpuHotPathCoverageTarget;
 import tuning.benchmark.report.GpuHotPathCoverageTargets;
 import tuning.workload.StandardWorkloads;
@@ -70,6 +71,33 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(targets.stream().anyMatch(target -> target.requirementFamilies().contains("GPUHARDEN")));
         assertEquals(19, targets.getFirst().ownerPhase());
         assertEquals(17, targets.getLast().ownerPhase());
+    }
+
+    @Test
+    void phaseTwentyTargetsHaveHardeningPolicies() {
+        List<GpuCoverageHotPathExpectation> expectations = GpuHotPathCoverageTargets.defaultExpectations();
+
+        assertEquals(4, expectations.size());
+        assertTrue(expectations.stream().allMatch(expectation -> "GPU_METAL".equals(expectation.backend())));
+        assertTrue(expectations.stream().allMatch(expectation -> expectation.policy() != null));
+        assertTrue(GpuHotPathCoverageTargets.defaults().stream()
+                .allMatch(target -> target.requirementFamilies().contains("GPUHARDEN")));
+    }
+
+    @Test
+    void phaseTwentyTargetPoliciesUsePhaseFourteenWorkloadNames() {
+        List<String> expectationNames = GpuHotPathCoverageTargets.defaultExpectations()
+                .stream()
+                .map(GpuCoverageHotPathExpectation::workloadName)
+                .toList();
+
+        assertEquals(GpuHotPathCoverageTargets.defaultWorkloadNames(), expectationNames);
+        assertEquals(List.of(
+                "transformer_block_hot_path",
+                "mlp_classifier_small",
+                "conv2d_resnet_3x3",
+                "layer_norm_small"
+        ), expectationNames);
     }
 
     private static ExecutionProfile profile() {

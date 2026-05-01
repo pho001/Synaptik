@@ -6,6 +6,9 @@ import tensor.DataType;
 import tensor.Tensor;
 import tuning.measure.MeasurementPolicy;
 import tuning.benchmark.report.BenchmarkSuiteReport;
+import tuning.benchmark.report.GpuCoverageGateResult;
+import tuning.benchmark.report.GpuCoverageRegressionGate;
+import tuning.benchmark.report.GpuCoverageHotPathExpectation;
 import tuning.benchmark.report.GpuHotPathCoverageTargets;
 import tuning.benchmark.report.JsonBenchmarkSuiteReportRenderer;
 import tuning.benchmark.report.TextBenchmarkSuiteReportRenderer;
@@ -289,5 +292,65 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(names.contains("conv2d_resnet_3x3"));
         assertTrue(names.contains("layer_norm_small"));
         assertTrue(request.entries().stream().anyMatch(entry -> entry.name().equals("phase14-target-coverage")));
+    }
+
+    @Test
+    void phaseTwentySuiteGateFailsWhenTargetCoverageRegresses() {
+        BenchmarkSuiteReport report = suiteReportFor("transformer_block_hot_path", "GPU_METAL");
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
+                .stream()
+                .filter(target -> target.workloadName().equals("transformer_block_hot_path"))
+                .findFirst()
+                .orElseThrow();
+
+        List<GpuCoverageGateResult> results = GpuCoverageRegressionGate.evaluateTargets(report, List.of(expectation));
+
+        assertEquals(1, results.size());
+        assertTrue(results.getFirst().failures().contains("lost lowered primitive coverage"));
+        assertTrue(results.getFirst().failures().contains("lost fused subpattern coverage"));
+    }
+
+    @Test
+    void phaseTwentyPartialTargetsRequireVisibleBlockerEvidence() {
+        BenchmarkSuiteReport report = suiteReportFor("conv2d_resnet_3x3", "GPU_METAL");
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
+                .stream()
+                .filter(target -> target.workloadName().equals("conv2d_resnet_3x3"))
+                .findFirst()
+                .orElseThrow();
+
+        List<GpuCoverageGateResult> results = GpuCoverageRegressionGate.evaluateTargets(report, List.of(expectation));
+
+        assertEquals(1, results.size());
+        assertTrue(results.getFirst().passed());
+        assertTrue(expectation.expectedVisibleReasons().contains("unsupported-layout"));
+
+        List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
+                new BenchmarkSuiteReport(null, List.of()),
+                List.of(expectation)
+        );
+        assertTrue(missing.getFirst().failures().contains("missing target coverage summary"));
+    }
+
+    private static BenchmarkSuiteReport suiteReportFor(String workloadName, String backendName) {
+        ExecutionProfile profile = new ExecutionProfile(
+                "phase20-target-profile",
+                "phase20-target-coverage",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.transformerHotPathDefaults()
+        );
+        BenchmarkCandidateReport candidate = BenchmarkCandidateReport.success(
+                BenchmarkEntry.candidate("phase20-target-coverage", profile),
+                tuning.validate.ValidationResult.skipped(),
+                new tuning.measure.MeasurementResult(
+                        MeasurementPolicy.defaults(),
+                        GpuCoverageSummaryTest.traceFor(backendName, backend.ComputeBackend.valueOf(backendName)),
+                        new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
+                )
+        );
+        return new BenchmarkSuiteReport(null, List.of(BenchmarkReport.of(workloadName, List.of(candidate))));
     }
 }

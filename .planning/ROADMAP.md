@@ -17,7 +17,7 @@
 | 17 | Normalization Reduction And Loss-Adjacent Lowering | Expand or explicitly reject high-impact normalization, reduction, softmax-ish, and loss-adjacent GPU lowering gaps under a shared Metal/CUDA contract. | GPUNORM-01, GPUNORM-02, GPUNORM-03 (Complete 2026-05-01) | 5 |
 | 18 | Fused Elementwise And Epilogue Subregions | Add region-internal GPU fusion for elementwise chains and linear/matmul epilogues without reusing CPU fused ASM nodes. | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 (Complete 2026-05-01) | 5 |
 | 19 | Multi-Op GPU Region Execution | Execute longer GPU regions containing multiple lowered operations, layout/view steps, elementwise chains, and selected softmax-ish or normalization primitives. | GPUMULTI-01, GPUMULTI-02, GPUMULTI-03 (Complete 2026-05-01) | 5 |
-| 20 | Coverage Regression Hardening | 1/4 | In Progress|  |
+| 20 | Coverage Regression Hardening | 2/4 | In Progress|  |
 
 ## Milestone Rule
 
