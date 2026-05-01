@@ -18,7 +18,7 @@
 | 18 | Fused Elementwise And Epilogue Subregions | Add region-internal GPU fusion for elementwise chains and linear/matmul epilogues without reusing CPU fused ASM nodes. | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 (Complete 2026-05-01) | 5 |
 | 19 | Multi-Op GPU Region Execution | Execute longer GPU regions containing multiple lowered operations, layout/view steps, elementwise chains, and selected softmax-ish or normalization primitives. | GPUMULTI-01, GPUMULTI-02, GPUMULTI-03 (Complete 2026-05-01) | 5 |
 | 20 | Coverage Regression Hardening | 4/4 | Complete    | 2026-05-01 |
-| 21 | Milestone Verification Evidence Closure | Close v1.3 milestone-audit evidence gaps by adding missing Phase 14/18 verification reports and hardening Phase 20 validation metadata. | GPUAUDIT-01, GPUAUDIT-02, GPUAUDIT-03 | 3 |
+| 21 | Milestone Verification Evidence Closure | 1/1 | Complete    | 2026-05-01 |
 
 ## Milestone Rule
 

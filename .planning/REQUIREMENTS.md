@@ -51,9 +51,9 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 
 ### Milestone Verification Evidence Closure
 
-- [ ] **GPUAUDIT-01**: Phase 14 has a verification report that proves `GPUTRIAGE-01`, `GPUTRIAGE-02`, and `GPUTRIAGE-03` from existing summaries, validation evidence, docs, and focused test commands.
-- [ ] **GPUAUDIT-02**: Phase 18 has a verification report that proves `GPUFUSEX-01`, `GPUFUSEX-02`, and `GPUFUSEX-03` from existing summaries, validation evidence, docs, and focused test commands.
-- [ ] **GPUAUDIT-03**: The v1.3 milestone audit can pass without stale missing-phase findings, and Phase 20 validation metadata is either Nyquist-compliant or explicitly documented as strategy-only.
+- [x] **GPUAUDIT-01**: Phase 14 has a verification report that proves `GPUTRIAGE-01`, `GPUTRIAGE-02`, and `GPUTRIAGE-03` from existing summaries, validation evidence, docs, and focused test commands.
+- [x] **GPUAUDIT-02**: Phase 18 has a verification report that proves `GPUFUSEX-01`, `GPUFUSEX-02`, and `GPUFUSEX-03` from existing summaries, validation evidence, docs, and focused test commands.
+- [x] **GPUAUDIT-03**: The v1.3 milestone audit can pass without stale missing-phase findings, and Phase 20 validation metadata is either Nyquist-compliant or explicitly documented as strategy-only.
 
 ## Future Requirements
 
@@ -109,9 +109,9 @@ Which phases cover which requirements. Updated during phase execution as require
 | GPUHARDEN-01 | Phase 20 | Complete |
 | GPUHARDEN-02 | Phase 20 | Complete |
 | GPUHARDEN-03 | Phase 20 | Complete |
-| GPUAUDIT-01 | Phase 21 | Pending |
-| GPUAUDIT-02 | Phase 21 | Pending |
-| GPUAUDIT-03 | Phase 21 | Pending |
+| GPUAUDIT-01 | Phase 21 | Complete |
+| GPUAUDIT-02 | Phase 21 | Complete |
+| GPUAUDIT-03 | Phase 21 | Complete |
 
 **Coverage:**
 - v1.3 requirements: 24 total
