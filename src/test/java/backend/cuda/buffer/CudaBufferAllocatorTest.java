@@ -72,6 +72,23 @@ class CudaBufferAllocatorTest {
         assertEquals("missing CUDA buffer ABI", failure.getMessage());
     }
 
+    @Test
+    void cudaRejectsNonFloat32NativeBufferResidencyWithStableUnsupportedDTypeReason() {
+        CudaBufferAllocator allocator = CudaBufferAllocator.available(new RecordingNativeAccess());
+
+        UnsupportedOperationException inputFailure = assertThrows(
+                UnsupportedOperationException.class,
+                () -> allocator.createInputBinding(1, new Tensor(new short[]{1, 2, 3, 4}, new int[]{4}, null, "bf16", DataType.BFLOAT16))
+        );
+        assertTrue(inputFailure.getMessage().contains("CUDA buffer inputs support FLOAT32 only; got BFLOAT16"));
+
+        UnsupportedOperationException outputFailure = assertThrows(
+                UnsupportedOperationException.class,
+                () -> allocator.createOutputBinding(2, AcceleratorBufferLayout.of(DataType.BOOL, new int[]{4}, new int[]{1}, 0, 4))
+        );
+        assertTrue(outputFailure.getMessage().contains("CUDA buffer outputs support FLOAT32 only; got BOOL"));
+    }
+
     private static Tensor tensor(float[] data) {
         return new Tensor(data.clone(), new int[]{data.length}, null, "x", DataType.FLOAT32);
     }
