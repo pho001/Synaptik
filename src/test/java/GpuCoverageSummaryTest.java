@@ -215,6 +215,75 @@ public class GpuCoverageSummaryTest {
         assertTrue(reasons.contains("dtype=BOOL"));
     }
 
+    @Test
+    void coverageSummaryCountsPhaseSeventeenNormAndLossReasons() {
+        String normReason = "REDUCTION_ADJACENT: DEFERRED_FUSED_REGION: operation LAYER_NORM is not supported by GPU_METAL lowering family=NORMALIZATION status=fallback note=normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small";
+        String lossReason = "UNSUPPORTED_DTYPE: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path";
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-metal-region-phase17",
+                ComputeBackend.GPU_METAL,
+                40,
+                List.of(40, 41),
+                List.of(30),
+                List.of(41),
+                2,
+                List.of(new GpuLoweredRegionOriginalOp(
+                        41,
+                        "LOG_SOFTMAX",
+                        List.of(40),
+                        List.of(41),
+                        DataType.FLOAT32,
+                        List.of(2, 3),
+                        List.of("p0", "p1"),
+                        List.of()
+                )),
+                List.of(
+                        new GpuLoweredPrimitiveManifest(
+                                "p0",
+                                "SOFTMAX",
+                                List.of(41),
+                                List.of("external:0"),
+                                "node:0",
+                                DataType.FLOAT32,
+                                List.of(2, 3),
+                                List.of()
+                        ),
+                        new GpuLoweredPrimitiveManifest(
+                                "p1",
+                                "LOG",
+                                List.of(41),
+                                List.of("node:0"),
+                                "node:1",
+                                DataType.FLOAT32,
+                                List.of(2, 3),
+                                List.of()
+                        )
+                ),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.none(ComputeBackend.GPU_METAL, List.of(40, 41)),
+                List.of(),
+                GpuLoweredRegionCandidateSpan.none(List.of(40, 41)),
+                Map.of()
+        );
+        ExecutionTrace trace = traceWithPhaseSeventeenEvidence("GPU_METAL", ComputeBackend.GPU_METAL, manifest, normReason, lossReason);
+
+        GpuCoverageSummary.BackendCoverage coverage = GpuCoverageSummary.fromTrace(trace).backends().get("GPU_METAL");
+        String manifestText = backend.accelerator.lowering.GpuLoweredRegionManifestRenderer.renderCompact(manifest);
+
+        assertEquals(1, coverage.selectedRegionCount());
+        assertEquals(2, coverage.rejectedCandidateCount());
+        assertEquals(1, coverage.rejectedCandidateReasonCounts().get(normReason));
+        assertEquals(1, coverage.rejectedCandidateReasonCounts().get(lossReason));
+        assertTrue(manifestText.contains("LOG_SOFTMAX"));
+        assertTrue(manifestText.contains("SOFTMAX"));
+        assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("family=NORMALIZATION"));
+        assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("family=LOSS_ADJACENT"));
+        assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("UNSUPPORTED_DTYPE"));
+        assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("target=layer_norm_small"));
+        assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("target=transformer_block_hot_path"));
+    }
+
     static ExecutionTrace traceFor(String backendName, ComputeBackend backend) {
         ExecutionStepTrace gpuStep = new ExecutionStepTrace(
                 0,
@@ -296,6 +365,58 @@ public class GpuCoverageSummaryTest {
                 new CompileTrace(true, 1L, 0, 0, false, PartitionCompileTrace.empty()),
                 new PrepareTrace(true, 1L, 0, 0, selection),
                 new RunTrace(ExecutionMode.FORWARD, 3_000_000L, List.of(gpuStep, cpuStep), List.of(materialization))
+        );
+    }
+
+    private static ExecutionTrace traceWithPhaseSeventeenEvidence(
+            String backendName,
+            ComputeBackend backend,
+            GpuLoweredRegionManifest manifest,
+            String normReason,
+            String lossReason
+    ) {
+        ExecutionTrace trace = traceFor(backendName, backend);
+        BackendSelectionTrace selection = new BackendSelectionTrace(
+                3,
+                1,
+                2,
+                List.of(
+                        new BackendSelectionDecisionTrace(
+                                40,
+                                List.of(40, 41),
+                                List.of(backend),
+                                true,
+                                backend,
+                                "selected",
+                                4096L,
+                                null,
+                                List.of(),
+                                manifest
+                        ),
+                        new BackendSelectionDecisionTrace(
+                                90,
+                                List.of(90),
+                                List.of(backend),
+                                false,
+                                null,
+                                normReason,
+                                1024L
+                        ),
+                        new BackendSelectionDecisionTrace(
+                                91,
+                                List.of(91),
+                                List.of(backend),
+                                false,
+                                null,
+                                lossReason,
+                                1024L
+                        )
+                )
+        );
+        return new ExecutionTrace(
+                trace.compile(),
+                new PrepareTrace(true, 1L, 0, 0, selection),
+                trace.run()
         );
     }
 

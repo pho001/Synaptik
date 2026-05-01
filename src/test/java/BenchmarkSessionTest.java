@@ -477,6 +477,29 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void benchmarkReportsRenderPhaseSeventeenNormAndLossEvidence() {
+        BenchmarkReport report = reportWithGpuLoweredRegionManifest();
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        String json = JsonBenchmarkReportRenderer.render(report);
+
+        assertTrue(text.contains("LOG_SOFTMAX"));
+        assertTrue(text.contains("SOFTMAX"));
+        assertTrue(text.contains("family=NORMALIZATION"));
+        assertTrue(text.contains("family=LOSS_ADJACENT"));
+        assertTrue(text.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(text.contains("target=layer_norm_small"));
+        assertTrue(text.contains("target=transformer_block_hot_path"));
+        assertTrue(json.contains("LOG_SOFTMAX"));
+        assertTrue(json.contains("SOFTMAX"));
+        assertTrue(json.contains("family=NORMALIZATION"));
+        assertTrue(json.contains("family=LOSS_ADJACENT"));
+        assertTrue(json.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(json.contains("target=layer_norm_small"));
+        assertTrue(json.contains("target=transformer_block_hot_path"));
+    }
+
+    @Test
     void renderersExposeAcceleratorEvidenceContract() {
         var profile = new ExecutionProfile(
                 "accelerator-evidence-profile",
@@ -1042,14 +1065,32 @@ public class BenchmarkSessionTest {
                         List.of("LOG"),
                         "benchmark manifest fixture"
                 ),
-                List.of(new GpuLoweredRegionRejection(
-                        "primitive",
-                        4,
-                        "p0",
-                        "",
-                        GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
-                        "dtypeResidency backend=GPU_CUDA role=compute dtype=INT32 unsupported"
-                )),
+                List.of(
+                        new GpuLoweredRegionRejection(
+                                "primitive",
+                                4,
+                                "p0",
+                                "",
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                                "dtypeResidency backend=GPU_CUDA role=compute dtype=INT32 unsupported"
+                        ),
+                        new GpuLoweredRegionRejection(
+                                "planner.normalization",
+                                90,
+                                "",
+                                "",
+                                GpuLoweringUnsupportedReason.DEFERRED_FUSED_REGION,
+                                "REDUCTION_ADJACENT: DEFERRED_FUSED_REGION: operation LAYER_NORM is not supported by GPU_METAL lowering family=NORMALIZATION status=fallback note=normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small"
+                        ),
+                        new GpuLoweredRegionRejection(
+                                "planner.loss",
+                                91,
+                                "",
+                                "",
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                                "UNSUPPORTED_DTYPE: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path"
+                        )
+                ),
                 GpuLoweredRegionCandidateSpan.none(List.of(4, 5, 6)),
                 Map.of(
                         "dagNodeCount", "2",
