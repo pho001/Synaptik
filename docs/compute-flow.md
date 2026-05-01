@@ -2025,6 +2025,14 @@ Trace tests verify that:
 - BF16 elementwise and reduction traces report `F32` compute over `BFLOAT16` storage with CPU backend families such as `CPU_ELEMENTWISE` and `CPU_REDUCTION`.
 - Partition planning traces record CPU or accelerator targets and candidate decisions.
 
+### Visible fallback for numerically sensitive GPU gaps
+
+Numerically sensitive accelerator gaps must be correct and diagnosable. `LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`, but loss-adjacent index-target flows, reductions, and normalization blockers can still exit to CPU when the shared matrix marks them as fallback or unsupported.
+
+For those cases, `CPU parity remained the correctness oracle`. Accelerator-configured execution is compared to a CPU-only graph, and the fallback reason must remain visible in planner diagnostics, prepare traces, coverage summaries, or benchmark reports. In particular, `loss-adjacent fallback remained visible` through `UNSUPPORTED_DTYPE`, `family=LOSS_ADJACENT`, and `target=transformer_block_hot_path`.
+
+`native reduction and normalization support is not implied by a fallback row`. Rows such as `LAYER_NORM`, `RMS_NORM`, `SUM`, and `MEAN` are explicit blockers for `target=layer_norm_small`; they require future lowering, legality, trace/report, and parity evidence before they can be treated as native Metal or CUDA execution.
+
 ## Failure Modes
 
 | Failure mode | Where it appears | Typical symptom | Response |

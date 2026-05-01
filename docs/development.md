@@ -235,6 +235,12 @@ Optional native CUDA verification uses:
 
 Native CUDA tests skip when nvcc or CUDA hardware is unavailable. Do not commit local CUDA build outputs or local profile tuning files produced while running these checks.
 
+For Phase 17 normalization, reduction, and loss-adjacent closure, use the focused portable command below. It proves that `LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`, `loss-adjacent fallback remained visible`, `CPU parity remained the correctness oracle`, and `native reduction and normalization support is not implied by a fallback row`.
+
+```bash
+./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest
+```
+
 ### GPU compound region checks
 
 Use these focused gates after changing GPU compound region lowering, including `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, `REDUCTION_ADJACENT`, or CPU fused rejection behavior. `Operation.OpType.FUSED remains CPU-only`; the public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding. Metal and CUDA coverage is backend-specific, so run both portable backend tests and optional native gates when the toolchain is available.
