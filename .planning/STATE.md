@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Coverage-Driven GPU Region Expansion
-status: planning
-last_updated: "2026-05-01T07:14:33.612Z"
-last_activity: 2026-05-01 -- Phase 15 context gathered
+status: executing
+last_updated: "2026-05-01T07:40:06.773Z"
+last_activity: 2026-05-01 -- Phase 15 planning complete
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 4
+  total_plans: 8
   completed_plans: 4
-  percent: 14
+  percent: 50
 ---
 
 # GSD State
@@ -67,7 +67,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 14 — Coverage Gap Triage And Hot Path Targets | Complete | 4/4 | Verified |
-| 15 — GPU Region Internal Lowered DAG Contract | Context gathered | 0/? | Pending |
+| 15 — GPU Region Internal Lowered DAG Contract | Planned | 0/4 | Pending |
 | 16 — DType And Storage Residency Expansion | Not started | 0/? | Pending |
 | 17 — Normalization Reduction And Loss-Adjacent Lowering | Not started | 0/? | Pending |
 | 18 — Fused Elementwise And Epilogue Subregions | Not started | 0/? | Pending |
@@ -139,6 +139,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | v1.3 milestone started | Coverage-Driven GPU Region Expansion will use v1.2 coverage evidence to expand lowered multi-op GPU regions, region-internal fusion, dtype/storage residency, and hard coverage gates. |
 | 2026-05-01 | Phase 14 execution completed | GPU coverage gaps, hot-path target registry, triage report renderers, docs, and validation evidence are complete; Phase 15 is ready to plan. |
 | 2026-05-01 | Phase 15 context gathered | GPU lowered-region manifest decisions are captured; Phase 15 is ready to plan. |
+| 2026-05-01 | Phase 15 planning completed | Four plans cover manifest model/reason vocabulary, lowerer/backend plan construction, trace/report contracts, docs, validation, and artifact hygiene. |
 
 ## Recent Sessions
 
@@ -189,6 +190,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Completed v1.2 milestone archive | Ready for `$gsd-new-milestone` | .planning/milestones/v1.2-ROADMAP.md |
 | 2026-05-01 | Planned Phase 14 with 4 coverage triage waves | Ready for `$gsd-execute-phase 14` | .planning/phases/14-coverage-gap-triage-and-hot-path-targets/14-01-PLAN.md |
 | 2026-05-01 | Gathered Phase 15 context | Ready for `$gsd-plan-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-CONTEXT.md |
+| 2026-05-01 | Planned Phase 15 with 4 lowered-region manifest waves | Ready for `$gsd-execute-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-01-PLAN.md |
 
 ---
 *Last updated: 2026-05-01 after Phase 15 context gathering*
@@ -197,5 +199,5 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 Phase: 15
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-01 -- Phase 15 context gathered
+Status: Ready to execute
+Last activity: 2026-05-01 -- Phase 15 planning complete

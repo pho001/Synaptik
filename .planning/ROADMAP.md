@@ -136,10 +136,30 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 4. Trace/debug output renders the internal DAG in a stable format suitable for tests and benchmark reports.
 5. Existing CPU execution, CPU fusion, and public tensor semantics remain unchanged.
 
+**Plans:**
+
+**Status:** 0/4 plans complete as of 2026-05-01.
+
+Wave 1:
+- [15-01 Manifest Model And Reason Vocabulary](phases/15-gpu-region-internal-lowered-dag-contract/15-01-PLAN.md) - adds the Java-side lowered-region manifest records and stable DAG-level reason codes for GPUDAG-01/02/03.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [15-02 Manifest Construction And Backend Plan Exposure](phases/15-gpu-region-internal-lowered-dag-contract/15-02-PLAN.md) - builds manifests from shared accelerator lowering and exposes them through selected Metal/CUDA plans for GPUDAG-01/02.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [15-03 Trace And Report Manifest Contract](phases/15-gpu-region-internal-lowered-dag-contract/15-03-PLAN.md) - attaches selected manifests to prepare/backend-selection trace and renders stable text/JSON report fields for GPUDAG-02/03.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [15-04 Docs Validation And Manifest Closure](phases/15-gpu-region-internal-lowered-dag-contract/15-04-PLAN.md) - closes docs, final focused verification, validation evidence, and artifact hygiene for GPUDAG-01/02/03.
+
 **Cross-cutting constraints:**
 - Public `Tensor` remains logical; lowered DAG state belongs to compile/prepare/execute internals.
 - Metal and CUDA share the DAG metadata contract, but backend-specific primitives remain backend-owned.
 - Stable reason codes are required before broadening execution so failures are diagnosable.
+- The manifest is Java-side metadata and must not change the Metal or CUDA native ABI.
+- Prepare/backend-selection trace is the source of truth for structured manifests; run trace should reference only compact region id/runtime outcome evidence.
+- GPU fusion metadata is region-internal lowering/fusion metadata, not CPU `Operation.OpType.FUSED`.
+- Local tuning profile artifacts are not canonical coverage evidence.
 
 **Notes:**
 - This is the architectural bridge between v1.2 compound summaries and v1.3 longer multi-op GPU regions.
