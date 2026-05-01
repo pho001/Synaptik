@@ -267,6 +267,19 @@ Do not commit local tuning artifacts from these paths as Phase 13 evidence. The 
 tests, docs, and report fields such as `gpuCoverageRatio`, `cpuMaterializationReasonCounts`, and hidden tensor-array
 fallback failures.
 
+### GPU coverage triage checks
+
+Use these focused gates after changing Phase 14 GPU coverage triage, hot-path target selection, or triage report
+rendering:
+
+```bash
+./gradlew test --tests GpuCoverageGapTriageTest --tests GpuHotPathCoverageTargetsTest --tests GpuCoverageTriageReportTest
+./gradlew classes
+```
+
+These checks prove the portable triage/report contract. Native Metal and CUDA execution remains capability-gated and
+does not replace the checked target list in `.planning/phases/14-coverage-gap-triage-and-hot-path-targets/14-HOT-PATH-TARGETS.md`.
+
 ## Adding Optimizer Rules
 
 Optimizer stages are defined in `src/main/java/config/optimizer/OptimizerStage.java`:

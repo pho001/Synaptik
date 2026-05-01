@@ -313,6 +313,21 @@ A hidden tensor-array fallback is a regression-gate failure when the policy requ
 `profiles/platform/.../tuning/abc/*` files and other machine-local benchmark/calibration output are not canonical test
 fixtures; do not commit local tuning artifacts unless a plan explicitly says to promote them.
 
+### Phase 14 GPU coverage triage
+
+Phase 14 GPU coverage triage is portable Java tests and report-contract evidence. It does not require a native Metal
+or CUDA device to prove the target registry, gap ranking, text renderer, or JSON renderer contract.
+
+Run:
+
+```bash
+./gradlew test --tests GpuCoverageGapTriageTest --tests GpuHotPathCoverageTargetsTest --tests GpuCoverageTriageReportTest
+```
+
+Use `BenchmarkSuiteSessionTest` and `GpuCoverageSummaryTest` with those tests for final phase closure. Native Metal and
+CUDA results are capability-gated native evidence and should be treated as additive proof, not as a replacement for
+the portable Java tests.
+
 ## Source Hygiene Tests
 
 `SourceTreeHygieneTest` checks architecture and migration boundaries. Notable checks include:

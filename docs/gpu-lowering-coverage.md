@@ -105,6 +105,17 @@ Use the regular tensor operation checklist first, then add GPU coverage delibera
 
 Phase 12 owns GPU compound region lowering for patterns such as `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, and `REDUCTION_ADJACENT`. CPU `Operation.OpType.FUSED` remains CPU-only; GPU compound regions arise from normal graph operations lowered through accelerator DAG primitives. Phase 13 owns coverage benchmark gates and report thresholds for GPU region length, fallback counts, CPU materialization counts, and device handoffs.
 
+## Coverage-Driven Expansion
+
+Phase 14 adds coverage triage on top of the Phase 13 report contract. `GpuCoverageGapTriage`,
+`GpuCoverageTriageReport`, and `GpuHotPathCoverageTargets` rank measured GPU exits before later phases add broader
+lowering, storage, fusion, or multi-op execution support.
+
+The source-of-truth target list is
+`.planning/phases/14-coverage-gap-triage-and-hot-path-targets/14-HOT-PATH-TARGETS.md`. Later lowering and fusion work
+should close ranked gaps for `transformer_block_hot_path`, `mlp_classifier_small`, `conv2d_resnet_3x3`, and
+`layer_norm_small` before adding speculative operation coverage.
+
 ## Phase 13 Coverage Gates
 
 Phase 11 defines which operation families Metal and CUDA may lower, and Phase 12 defines which multi-node compound
