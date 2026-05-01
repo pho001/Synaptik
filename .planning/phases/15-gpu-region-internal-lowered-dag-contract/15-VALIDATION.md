@@ -60,11 +60,23 @@ All Phase 15 behaviors have automated verification. Native CUDA execution remain
 |---------|--------|
 | `./gradlew classes` | Passed |
 | `./gradlew test --tests backend.accelerator.lowering.GpuLoweredRegionManifestTest --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests CompiledGraphTraceTest --tests BenchmarkSessionTest --tests GpuCoverageSummaryTest --tests SourceTreeHygieneTest` | Passed |
-| `git status --short` | Passed; docs and planning changes staged for Phase 15 closure, profiles/platform/.../tuning/abc/* remained unstaged |
+| `git status --short` | Passed; only local `profiles/platform/.../tuning/abc/*` calibration artifacts remain modified and unstaged |
 
 Covered test classes: `GpuLoweredRegionManifestTest`, `AcceleratorSubgraphLowererTest`, `MetalRegionLowererTest`, `CudaRegionLowererTest`, `CompiledGraphTraceTest`, `BenchmarkSessionTest`, `GpuCoverageSummaryTest`, and `SourceTreeHygieneTest`.
 
 `profiles/platform/.../tuning/abc/* remained unstaged`.
+
+## Validation Audit 2026-05-01
+
+| Metric | Count |
+|--------|-------|
+| Requirements audited | 3 |
+| Task coverage groups audited | 6 |
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+Phase 15 remains Nyquist-compliant: `GPUDAG-01`, `GPUDAG-02`, and `GPUDAG-03` are covered by automated model, lowerer, backend-plan, trace/report, docs, and hygiene tests.
 
 ## Validation Sign-Off
 
