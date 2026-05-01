@@ -90,6 +90,94 @@ class GpuLoweringCoverageMatrixTest {
         }
     }
 
+    @Test
+    void phaseSeventeenMatrixCoversNormalizationReductionSoftmaxAndLossRows() {
+        List<Operation.OpType> phaseSeventeenOps = List.of(
+                Operation.OpType.LAYER_NORM,
+                Operation.OpType.RMS_NORM,
+                Operation.OpType.SUM,
+                Operation.OpType.MEAN,
+                Operation.OpType.REDUCE_MIN,
+                Operation.OpType.REDUCE_MAX,
+                Operation.OpType.SOFTMAX,
+                Operation.OpType.LOG_SOFTMAX,
+                Operation.OpType.NLL_LOSS,
+                Operation.OpType.CROSS_ENTROPY_LOSS,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
+                Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                Operation.OpType.CONV2D
+        );
+
+        for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+            for (Operation.OpType opType : phaseSeventeenOps) {
+                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
+
+                assertEquals(backend, entry.backend());
+                assertEquals(opType, entry.opType());
+                assertFalse(entry.opType() == Operation.OpType.UNKNOWN,
+                        () -> backend + " must list Phase 17 op " + opType);
+            }
+
+            assertEquals(GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SOFTMAX).status());
+            assertEquals(GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.LOG_SOFTMAX).status());
+            for (Operation.OpType opType : List.of(
+                    Operation.OpType.SUM,
+                    Operation.OpType.MEAN,
+                    Operation.OpType.REDUCE_MIN,
+                    Operation.OpType.REDUCE_MAX,
+                    Operation.OpType.LAYER_NORM,
+                    Operation.OpType.RMS_NORM
+            )) {
+                assertFalse(GpuLoweringCoverageMatrix.entryFor(backend, opType).status() == GpuLoweringCoverageStatus.SUPPORTED,
+                        () -> opType + " must remain explicit fallback until execution support is proven");
+            }
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).reason());
+            assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                    GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).reason());
+        }
+    }
+
+    @Test
+    void phaseSeventeenCoverageRowsTieToHotPathTargets() {
+        String notes = GpuLoweringCoverageMatrix.entries().stream()
+                .map(GpuLoweringCoverageEntry::note)
+                .collect(Collectors.joining("\n"));
+
+        assertTrue(notes.contains("target=layer_norm_small"));
+        assertTrue(notes.contains("target=conv2d_resnet_3x3"));
+        assertTrue(notes.contains("target=transformer_block_hot_path"));
+    }
+
+    @Test
+    void phaseSeventeenNonSupportedRowsUseStableReasonCodes() {
+        for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+            for (Operation.OpType opType : List.of(
+                    Operation.OpType.SUM,
+                    Operation.OpType.MEAN,
+                    Operation.OpType.REDUCE_MIN,
+                    Operation.OpType.REDUCE_MAX,
+                    Operation.OpType.LAYER_NORM,
+                    Operation.OpType.RMS_NORM,
+                    Operation.OpType.NLL_LOSS,
+                    Operation.OpType.CROSS_ENTROPY_LOSS,
+                    Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
+                    Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                    Operation.OpType.CONV2D
+            )) {
+                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
+
+                assertFalse(entry.status() == GpuLoweringCoverageStatus.SUPPORTED,
+                        () -> opType + " should not be claimed supported by Phase 17 matrix contract alone");
+                assertNotNull(entry.reason());
+                assertFalse(entry.reason() == GpuLoweringUnsupportedReason.SUPPORTED,
+                        () -> opType + " must keep a stable non-supported reason");
+            }
+        }
+    }
+
     private static void assertRequiredFamiliesCovered(ComputeBackend backend) {
         List<GpuLoweringCoverageEntry> entries = GpuLoweringCoverageMatrix.entriesFor(backend);
         Set<GpuLoweringOperationFamily> coveredFamilies = entries.stream()
