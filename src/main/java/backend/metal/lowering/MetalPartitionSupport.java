@@ -64,7 +64,7 @@ public final class MetalPartitionSupport {
         }
         GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, opType);
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
-            return compoundPatternPrefix(opType) + entry.reason().name() + ": operation " + opType + " is not supported by GPU_METAL lowering";
+            return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
         }
         return "";
     }

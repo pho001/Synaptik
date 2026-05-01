@@ -62,7 +62,7 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         Operation.OpType opType = node.operation().opType();
         GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
-            return compoundPatternPrefix(opType) + entry.reason().name() + ": operation " + opType + " is not supported by GPU_CUDA lowering";
+            return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_CUDA, opType);
         }
         if (hasDirectNonDenseInput(node, context)) {
             return "UNSUPPORTED_LAYOUT: direct non-dense CUDA compute remains conservative until metadata-only view propagation or dense materialization makes the consumer layout legal";
