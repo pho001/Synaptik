@@ -1,7 +1,7 @@
 ---
 phase: 17
 slug: normalization-reduction-and-loss-adjacent-lowering
-status: planned
+status: verified
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-05-01
@@ -32,10 +32,10 @@ created: 2026-05-01
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 17-01-01 | 01 | 1 | GPUNORM-01, GPUNORM-02 | T-17-01, T-17-02 | Shared matrix covers Phase 17 families and target evidence before backend changes. | unit/docs | `./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest` | W0 | planned |
-| 17-02-01 | 02 | 2 | GPUNORM-01, GPUNORM-02 | T-17-03, T-17-04 | Metal/CUDA legality rejections stay precise and do not bypass dtype/layout gates. | unit | `./gradlew test --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest` | W0 | planned |
-| 17-03-01 | 03 | 3 | GPUNORM-02, GPUNORM-03 | T-17-05, T-17-06 | Softmax-ish support and loss-adjacent rejection remain trace-visible with CPU parity. | trace/report/parity | `./gradlew test --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | planned |
-| 17-04-01 | 04 | 4 | GPUNORM-01, GPUNORM-02, GPUNORM-03 | T-17-07 | Docs, validation evidence, and artifact hygiene are verified before closure. | docs/test | `./gradlew classes && ./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests SourceTreeHygieneTest` | W0 | planned |
+| 17-01-01 | 01 | 1 | GPUNORM-01, GPUNORM-02 | T-17-01, T-17-02 | Shared matrix covers Phase 17 families and target evidence before backend changes. | unit/docs | `./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest` | W0 | passed |
+| 17-02-01 | 02 | 2 | GPUNORM-01, GPUNORM-02 | T-17-03, T-17-04 | Metal/CUDA legality rejections stay precise and do not bypass dtype/layout gates. | unit | `./gradlew test --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest` | W0 | passed |
+| 17-03-01 | 03 | 3 | GPUNORM-02, GPUNORM-03 | T-17-05, T-17-06 | Softmax-ish support and loss-adjacent rejection remain trace-visible with CPU parity. | trace/report/parity | `./gradlew test --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | passed |
+| 17-04-01 | 04 | 4 | GPUNORM-01, GPUNORM-02, GPUNORM-03 | T-17-07 | Docs, validation evidence, and artifact hygiene are verified before closure. | docs/test | `./gradlew classes && ./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests SourceTreeHygieneTest` | W0 | passed |
 
 ## Wave 0 Requirements
 
@@ -64,3 +64,13 @@ Native CUDA and Metal execution remain optional and capability-gated outside por
 - [x] No watch-mode flags.
 - [x] Feedback latency target < 120s.
 - [x] `nyquist_compliant: true` set in frontmatter.
+
+## Execution Evidence
+
+| Command | Result |
+|---------|--------|
+| `./gradlew classes` | Passed |
+| `./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests SourceTreeHygieneTest` | Passed |
+| `git status --short` | Only local tuning profile artifacts were dirty; profiles/platform/.../tuning/abc/* remained unstaged |
+
+**Approval:** verified
