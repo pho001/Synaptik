@@ -1,6 +1,8 @@
 ---
 phase: 20-coverage-regression-hardening
-status: planned
+status: verified
+nyquist_compliant: true
+wave_0_complete: true
 created_at: 2026-05-01
 ---
 
@@ -24,6 +26,28 @@ created_at: 2026-05-01
 ./gradlew test --tests GpuCoverageSummaryTest --tests GpuCoverageRegressionGateTest --tests GpuHotPathCoverageTargetsTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests CompiledGraphTraceTest --tests SourceTreeHygieneTest
 git status --short
 ```
+
+## Execution Evidence
+
+Final focused verification commands:
+
+- `./gradlew classes`
+- `./gradlew test --tests GpuCoverageSummaryTest --tests GpuCoverageRegressionGateTest --tests GpuHotPathCoverageTargetsTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests CompiledGraphTraceTest --tests SourceTreeHygieneTest`
+- `git status --short`
+
+Covered test classes:
+
+- `GpuCoverageSummaryTest`
+- `GpuCoverageRegressionGateTest`
+- `GpuHotPathCoverageTargetsTest`
+- `BenchmarkSessionTest`
+- `BenchmarkSuiteSessionTest`
+- `CompiledGraphTraceTest`
+- `SourceTreeHygieneTest`
+
+`20-VERIFICATION.md` records `status: passed` and `score: 5/5 must-haves verified`.
+
+`profiles/platform/.../tuning/abc/* remained unstaged`.
 
 Optional native evidence:
 
