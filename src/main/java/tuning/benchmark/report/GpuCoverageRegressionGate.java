@@ -25,17 +25,29 @@ public final class GpuCoverageRegressionGate {
         if (coverage.maxSelectedRegionLength() < policy.minMaxSelectedRegionLength()) {
             failures.add("lost GPU coverage");
         }
+        if (coverage.multiOpGpuRegionCount() < policy.minMultiOpGpuRegionCount()) {
+            failures.add("lost multi-op GPU region coverage");
+        }
+        if (coverage.loweredPrimitiveCount() < policy.minLoweredPrimitiveCount()) {
+            failures.add("lost lowered primitive coverage");
+        }
+        if (coverage.gpuFusedSubpatternCount() < policy.minGpuFusedSubpatternCount()) {
+            failures.add("lost fused subpattern coverage");
+        }
         if (coverage.cpuMaterializationCount() > policy.maxCpuMaterializationCount()) {
             failures.add("unexpected CPU materialization");
         }
         if (coverage.fallbackCount() > policy.maxFallbackCount()) {
             failures.add("lost GPU coverage");
         }
+        if (coverage.cpuFallbackStepCount() > 0) {
+            failures.add("unexpected CPU fallback");
+        }
         if (coverage.tensorArrayStepCount() > policy.maxTensorArrayStepCount()) {
             failures.add("hidden tensor-array fallback");
         }
         if (policy.requireNativeBufferBinding() && coverage.bufferBindingStepCount() == 0) {
-            failures.add("lost GPU coverage");
+            failures.add("lost native buffer binding");
         }
         if (coverage.deviceHandoffCount() > policy.maxDeviceHandoffCount()) {
             failures.add("unexpected device handoff");
