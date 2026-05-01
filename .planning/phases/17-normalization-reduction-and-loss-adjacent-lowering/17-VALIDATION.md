@@ -74,3 +74,30 @@ Native CUDA and Metal execution remain optional and capability-gated outside por
 | `git status --short` | Only local tuning profile artifacts were dirty; profiles/platform/.../tuning/abc/* remained unstaged |
 
 **Approval:** verified
+
+## Validation Audit 2026-05-01
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| GPUNORM-01 | COVERED | `GpuLoweringCoverageMatrixTest` covers normalization, reduction, softmax-ish, conv, and loss-adjacent rows for both Metal and CUDA. |
+| GPUNORM-02 | COVERED | `GpuLoweringCoverageMatrixTest`, `MetalRegionLowererTest`, `CudaRegionLowererTest`, `CompiledGraphTraceTest`, `GpuCoverageSummaryTest`, and `BenchmarkSessionTest` cover hot-path target evidence in matrix, backend legality, traces, coverage summaries, and benchmark reports. |
+| GPUNORM-03 | COVERED | `PreparedExecutionBuildTest`, `CompiledGraphTraceTest`, `GpuCoverageSummaryTest`, and `BenchmarkSessionTest` cover CPU parity, dtype/layout legality, and visible fallback for numerically sensitive softmax, normalization, and loss-adjacent flows. |
+
+### Audit Evidence
+
+- Phase state detected as State A: existing `17-VALIDATION.md` plus completed plan summaries.
+- Nyquist validation config checked with `gsd-sdk query config-get workflow.nyquist_validation --raw`: `true`.
+- Requirement-to-test discovery used `rg` for Phase 17 matrix rows, backend rejection detail, CUDA non-dense layout preservation, softmax/loss CPU parity, prepare trace evidence, coverage summaries, and benchmark reports.
+- Focused validation command passed:
+
+```bash
+./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests SourceTreeHygieneTest
+```
+
+Native Metal/CUDA execution remains capability-gated and manual-only where local native shims or devices are available. Portable JUnit validation for Phase 17 requirements is complete, and no additional Nyquist tests were required.
