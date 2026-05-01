@@ -37,6 +37,7 @@ import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.TensorPrimitiveBuilder;
 import tensor.options.AttentionOptions;
+import tensor.options.Conv2dOptions;
 
 import java.util.List;
 import java.util.Set;
@@ -210,6 +211,93 @@ class MetalRegionLowererTest {
 
         assertTrue(reason.contains("UNSUPPORTED_DTYPE"));
         assertTrue(reason.contains("operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering"));
+    }
+
+    @Test
+    void metalPhaseSeventeenReductionAndNormReasonsIncludeMatrixDetail() {
+        Tensor reductionInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase17ReductionInput", DataType.FLOAT32);
+        Tensor sum = reductionInput.sum(1);
+        Tensor mean = reductionInput.mean(1);
+        TensorInternalAccess.setBackend(sum, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(mean, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext sumContext = planningContext(sum);
+        PartitionPlanningContext meanContext = planningContext(mean);
+
+        String sumReason = MetalPartitionSupport.plannerUnsupportedReason(sumContext.compiledNode(nodeId(sumContext, Operation.OpType.SUM)), sumContext);
+        String meanReason = MetalPartitionSupport.plannerUnsupportedReason(meanContext.compiledNode(nodeId(meanContext, Operation.OpType.MEAN)), meanContext);
+
+        assertContainsAll(sumReason,
+                "REDUCTION_ADJACENT",
+                "family=REDUCTION",
+                "target=layer_norm_small",
+                "operation SUM is not supported by GPU_METAL lowering");
+        assertContainsAll(meanReason,
+                "REDUCTION_ADJACENT",
+                "family=REDUCTION",
+                "target=layer_norm_small",
+                "operation MEAN is not supported by GPU_METAL lowering");
+
+        Tensor normInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase17NormInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "metalPhase17NormGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "metalPhase17NormBeta", DataType.FLOAT32);
+        Tensor layerNorm = normInput.layerNorm(gamma, beta, 1.0e-5);
+        Tensor rmsNorm = normInput.rmsNorm(gamma, 1.0e-5);
+        TensorInternalAccess.setBackend(layerNorm, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(rmsNorm, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext layerNormContext = planningContext(layerNorm);
+        PartitionPlanningContext rmsNormContext = planningContext(rmsNorm);
+
+        String layerNormReason = MetalPartitionSupport.plannerUnsupportedReason(layerNormContext.compiledNode(nodeId(layerNormContext, Operation.OpType.LAYER_NORM)), layerNormContext);
+        String rmsNormReason = MetalPartitionSupport.plannerUnsupportedReason(rmsNormContext.compiledNode(nodeId(rmsNormContext, Operation.OpType.RMS_NORM)), rmsNormContext);
+
+        assertContainsAll(layerNormReason,
+                "REDUCTION_ADJACENT",
+                "family=NORMALIZATION",
+                "target=layer_norm_small",
+                "operation LAYER_NORM is not supported by GPU_METAL lowering");
+        assertContainsAll(rmsNormReason,
+                "REDUCTION_ADJACENT",
+                "family=NORMALIZATION",
+                "target=layer_norm_small",
+                "operation RMS_NORM is not supported by GPU_METAL lowering");
+    }
+
+    @Test
+    void metalPhaseSeventeenConvAndLossReasonsIncludeMatrixDetail() {
+        Tensor input = new Tensor(
+                new float[]{
+                        1f, 2f, 3f,
+                        4f, 5f, 6f,
+                        7f, 8f, 9f
+                },
+                new int[]{1, 1, 3, 3},
+                null,
+                "metalPhase17ConvInput",
+                DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 1, 2, 2}, null, "metalPhase17ConvWeight", DataType.FLOAT32);
+        Tensor conv = input.conv2d(weight, Conv2dOptions.defaults());
+        TensorInternalAccess.setBackend(conv, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext convContext = planningContext(conv);
+        String convReason = MetalPartitionSupport.plannerUnsupportedReason(convContext.compiledNode(nodeId(convContext, Operation.OpType.CONV2D)), convContext);
+
+        assertContainsAll(convReason,
+                "family=CONV_POOL",
+                "target=conv2d_resnet_3x3",
+                "operation CONV2D is not supported by GPU_METAL lowering");
+
+        Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalPhase17LossLogits", DataType.FLOAT32);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase17LossTargets", DataType.INT32);
+        Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1);
+        TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext lossContext = planningContext(loss);
+        String lossReason = MetalPartitionSupport.plannerUnsupportedReason(lossContext.compiledNode(nodeId(lossContext, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES)), lossContext);
+
+        assertContainsAll(lossReason,
+                "family=LOSS_ADJACENT",
+                "target=transformer_block_hot_path",
+                "operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering");
     }
 
     @Test
@@ -643,6 +731,12 @@ class MetalRegionLowererTest {
                 .map(CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static void assertContainsAll(String actual, String... expectedSubstrings) {
+        for (String expected : expectedSubstrings) {
+            assertTrue(actual.contains(expected), () -> "Expected '" + actual + "' to contain '" + expected + "'");
+        }
     }
 
     private record SyntheticFusedOperation() implements Operation {
