@@ -1,6 +1,7 @@
 package graph.execution.trace;
 
 import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.List;
  * @param estimatedWork backend work estimate
  * @param costSummary static materialization-aware cost summary, if available
  * @param finalists bounded rejected finalist summaries
+ * @param gpuLoweredRegionManifest selected lowered GPU region manifest, if this is an accepted GPU decision
  */
 public record BackendSelectionDecisionTrace(
         int anchorNodeId,
@@ -27,8 +29,34 @@ public record BackendSelectionDecisionTrace(
         String reason,
         long estimatedWork,
         AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary,
-        List<PartitionDecisionTrace.CandidateCostTrace> finalists
+        List<PartitionDecisionTrace.CandidateCostTrace> finalists,
+        GpuLoweredRegionManifest gpuLoweredRegionManifest
 ) {
+    public BackendSelectionDecisionTrace(
+            int anchorNodeId,
+            List<Integer> nodeIds,
+            List<ComputeBackend> compatibleBackends,
+            boolean selected,
+            ComputeBackend selectedBackend,
+            String reason,
+            long estimatedWork,
+            AcceleratorPartitionScoreModel.MaterializationCostSummary costSummary,
+            List<PartitionDecisionTrace.CandidateCostTrace> finalists
+    ) {
+        this(
+                anchorNodeId,
+                nodeIds,
+                compatibleBackends,
+                selected,
+                selectedBackend,
+                reason,
+                estimatedWork,
+                costSummary,
+                finalists,
+                null
+        );
+    }
+
     public BackendSelectionDecisionTrace(
             int anchorNodeId,
             List<Integer> nodeIds,
@@ -47,7 +75,8 @@ public record BackendSelectionDecisionTrace(
                 reason,
                 estimatedWork,
                 null,
-                List.of()
+                List.of(),
+                null
         );
     }
 
@@ -59,5 +88,8 @@ public record BackendSelectionDecisionTrace(
         finalists = List.copyOf(finalists == null ? List.of() : finalists).stream()
                 .limit(3)
                 .toList();
+        if (!selected) {
+            gpuLoweredRegionManifest = null;
+        }
     }
 }

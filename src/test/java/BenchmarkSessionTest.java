@@ -1,4 +1,12 @@
 import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
+import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
+import backend.accelerator.lowering.GpuLoweredRegionRejection;
+import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
+import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionMode;
@@ -405,6 +413,42 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"reason\": \"rejected-materialization-cost\""));
         assertTrue(json.contains("\"nodeIds\": [12]"));
         assertTrue(json.contains("\"reason\": \"estimated-work-below-minimum\""));
+    }
+
+    @Test
+    void benchmarkTextReportRendersGpuLoweredRegionManifest() {
+        BenchmarkReport report = reportWithGpuLoweredRegionManifest();
+
+        String text = TextBenchmarkReportRenderer.render(report);
+
+        assertTrue(text.contains("GPU Lowered Region"));
+        assertTrue(text.contains("Original Ops"));
+        assertTrue(text.contains("Lowered Primitives"));
+        assertTrue(text.contains("Value Assumptions"));
+        assertTrue(text.contains("Fused Subpatterns"));
+        assertTrue(text.contains("Rejections"));
+        assertTrue(text.contains("regionId: gpu-metal-region-4"));
+        assertTrue(text.contains("selectedRegionLength: 3"));
+        assertTrue(text.contains("LOG_SOFTMAX"));
+        assertTrue(text.contains("SOFTMAX"));
+    }
+
+    @Test
+    void benchmarkJsonReportRendersGpuLoweredRegionManifest() {
+        BenchmarkReport report = reportWithGpuLoweredRegionManifest();
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+
+        assertTrue(json.contains("\"gpuLoweredRegionManifest\":"));
+        assertTrue(json.contains("\"regionId\": \"gpu-metal-region-4\""));
+        assertTrue(json.contains("\"backend\": \"GPU_METAL\""));
+        assertTrue(json.contains("\"selectedRegionLength\": 3"));
+        assertTrue(json.contains("\"originalOps\":"));
+        assertTrue(json.contains("\"loweredPrimitives\":"));
+        assertTrue(json.contains("\"valueAssumptions\":"));
+        assertTrue(json.contains("\"fusedSubpatterns\":"));
+        assertTrue(json.contains("\"rejections\":"));
+        assertTrue(json.contains("\"candidateSpan\":"));
     }
 
     @Test
@@ -835,5 +879,154 @@ public class BenchmarkSessionTest {
         );
 
         assertTrue(failure.getMessage().contains("unexpected CPU materialization"));
+    }
+
+    private static BenchmarkReport reportWithGpuLoweredRegionManifest() {
+        var profile = new ExecutionProfile(
+                "gpu-lowered-region-profile",
+                "gpu-lowered-region",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        var summary = new AcceleratorPartitionScoreModel.MaterializationCostSummary(
+                "CONSERVATIVE",
+                1,
+                1024L,
+                4096L,
+                512L,
+                250.0d,
+                2048.0d,
+                "accepted-static-profitable",
+                "BUFFER_BINDING",
+                "DENSE_PHYSICAL"
+        );
+        var selection = new graph.execution.trace.BackendSelectionTrace(
+                1,
+                1,
+                0,
+                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                        4,
+                        List.of(4, 5, 6),
+                        List.of(ComputeBackend.GPU_METAL),
+                        true,
+                        ComputeBackend.GPU_METAL,
+                        "selected",
+                        4096L,
+                        summary,
+                        List.of(),
+                        sampleGpuManifest()
+                ))
+        );
+
+        return BenchmarkReport.of(
+                "gpu_lowered_region_report",
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate("gpu-lowered-region", profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                new graph.execution.trace.ExecutionTrace(
+                                        new graph.execution.trace.CompileTrace(
+                                                true,
+                                                1L,
+                                                0,
+                                                0,
+                                                false,
+                                                graph.execution.trace.PartitionCompileTrace.empty()
+                                        ),
+                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
+                                        graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)
+                                ),
+                                new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                        )
+                ))
+        );
+    }
+
+    private static GpuLoweredRegionManifest sampleGpuManifest() {
+        return new GpuLoweredRegionManifest(
+                "gpu-metal-region-4",
+                ComputeBackend.GPU_METAL,
+                4,
+                List.of(4, 5, 6),
+                List.of(1, 2),
+                List.of(6),
+                3,
+                List.of(new GpuLoweredRegionOriginalOp(
+                        4,
+                        "LOG_SOFTMAX",
+                        List.of(3),
+                        List.of(4),
+                        DataType.FLOAT32,
+                        List.of(2, 3),
+                        List.of("p0", "p1"),
+                        List.of()
+                )),
+                List.of(new GpuLoweredPrimitiveManifest(
+                                "p0",
+                                "SOFTMAX",
+                                List.of(4),
+                                List.of("external:0"),
+                                "node:0",
+                                DataType.FLOAT32,
+                                List.of(2, 3),
+                                List.of()
+                        ),
+                        new GpuLoweredPrimitiveManifest(
+                                "p1",
+                                "LOG",
+                                List.of(4),
+                                List.of("p0"),
+                                "node:1",
+                                DataType.FLOAT32,
+                                List.of(2, 3),
+                                List.of()
+                        )),
+                List.of(new GpuLoweredRegionValueAssumption(
+                        1,
+                        "input",
+                        DataType.FLOAT32,
+                        2,
+                        List.of(2, 3),
+                        "CONTIGUOUS",
+                        true,
+                        false,
+                        0L
+                )),
+                List.of(new GpuLoweredRegionValueAssumption(
+                        6,
+                        "output",
+                        DataType.FLOAT32,
+                        2,
+                        List.of(2, 3),
+                        "CONTIGUOUS",
+                        true,
+                        false,
+                        0L
+                )),
+                GpuCompoundRegionSummary.supported(
+                        ComputeBackend.GPU_METAL,
+                        backend.accelerator.lowering.GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                        List.of(4, 5, 6),
+                        List.of(1, 2),
+                        List.of(6),
+                        List.of("SOFTMAX", "LOG"),
+                        List.of("LOG"),
+                        "benchmark manifest fixture"
+                ),
+                List.of(new GpuLoweredRegionRejection(
+                        "primitive",
+                        4,
+                        "p0",
+                        "",
+                        GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
+                        "fixture reason"
+                )),
+                GpuLoweredRegionCandidateSpan.none(List.of(4, 5, 6)),
+                Map.of("dagNodeCount", "2")
+        );
     }
 }

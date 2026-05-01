@@ -88,7 +88,8 @@ public final class CudaGpuNodePreparer {
                         bridge,
                         fallback.preparedSteps(),
                         context.runtimeConfig().accelerator().cuda(),
-                        plan.compoundSummary()
+                        plan.compoundSummary(),
+                        plan.manifest()
                 ),
                 PartitionExecutionRole.ANCHOR
         );

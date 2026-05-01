@@ -429,6 +429,10 @@ public final class PreparedExecution {
             attrs.put("acceleratorBufferPreparedInputUsed", decision.preparedInputUsed());
             attrs.put("acceleratorBufferInputCount", decision.inputs().size());
             attrs.put("acceleratorBufferOutputCount", decision.outputs().size());
+            var manifest = metadata.acceleratorExecutable().gpuLoweredRegionManifest();
+            if (manifest != null && !manifest.regionId().isBlank()) {
+                attrs.put("gpuLoweredRegionId", manifest.regionId());
+            }
             var compoundSummary = metadata.acceleratorExecutable().compoundSummary();
             if (compoundSummary != null && compoundSummary.patternType() != GpuCompoundPatternType.NONE) {
                 attrs.put("gpuCompoundPattern", compoundSummary.patternType().name());

@@ -118,7 +118,8 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         "selected",
                         plan.estimatedWork(),
                         decision.costSummary(),
-                        List.of()
+                        List.of(),
+                        plan.gpuLoweredRegionManifest()
                 ));
             } else {
                 decisions.add(new BackendSelectionDecisionTrace(

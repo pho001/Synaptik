@@ -11,6 +11,7 @@ import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.memory.StorageResidency;
@@ -476,6 +477,11 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     @Override
     public GpuCompoundRegionSummary compoundSummary() {
         return plan.lowering().compoundSummary();
+    }
+
+    @Override
+    public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+        return plan.manifest();
     }
 
     /**

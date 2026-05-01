@@ -1,6 +1,7 @@
 package graph.optimizer.partition;
 
 import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
 
 import java.util.List;
 
@@ -52,4 +53,13 @@ public interface PartitionPlan {
      * @return non-negative work estimate
      */
     long estimatedWork();
+
+    /**
+     * Returns the selected GPU lowered-region manifest when this plan represents a lowered accelerator region.
+     *
+     * @return lowered-region manifest, or {@code null} when not applicable
+     */
+    default GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+        return null;
+    }
 }

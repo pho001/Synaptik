@@ -1,4 +1,9 @@
 import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
+import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionMode;
@@ -64,6 +69,52 @@ public class GpuCoverageSummaryTest {
         assertEquals(3.0d, coverage.averageSelectedRegionLength(), 1e-9);
         assertEquals(1, coverage.rejectedCandidateCount());
         assertEquals(Map.of("unsupported-layout", 1), coverage.rejectedCandidateReasonCounts());
+    }
+
+    @Test
+    void coverageSummaryIgnoresManifestWhenCountingSelectedRegions() {
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-metal-region-10",
+                ComputeBackend.GPU_METAL,
+                10,
+                List.of(10, 11, 12),
+                List.of(1),
+                List.of(12),
+                99,
+                List.of(new GpuLoweredRegionOriginalOp(
+                        10,
+                        "LOG_SOFTMAX",
+                        List.of(1),
+                        List.of(12),
+                        DataType.FLOAT32,
+                        List.of(2, 3),
+                        List.of("p0"),
+                        List.of()
+                )),
+                List.of(new GpuLoweredPrimitiveManifest(
+                        "p0",
+                        "SOFTMAX",
+                        List.of(10),
+                        List.of("external:0"),
+                        "node:0",
+                        DataType.FLOAT32,
+                        List.of(2, 3),
+                        List.of()
+                )),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.none(ComputeBackend.GPU_METAL, List.of(10, 11, 12)),
+                List.of(),
+                GpuLoweredRegionCandidateSpan.none(List.of(10, 11, 12)),
+                Map.of()
+        );
+        ExecutionTrace trace = traceWithManifest("GPU_METAL", ComputeBackend.GPU_METAL, manifest);
+
+        GpuCoverageSummary.BackendCoverage coverage = GpuCoverageSummary.fromTrace(trace).backends().get("GPU_METAL");
+
+        assertEquals(1, coverage.selectedRegionCount());
+        assertEquals(3, coverage.maxSelectedRegionLength());
+        assertEquals(3.0d, coverage.averageSelectedRegionLength(), 1e-9);
     }
 
     @Test
@@ -198,6 +249,36 @@ public class GpuCoverageSummaryTest {
                 new CompileTrace(true, 1L, 0, 0, false, PartitionCompileTrace.empty()),
                 new PrepareTrace(true, 1L, 0, 0, selection),
                 new RunTrace(ExecutionMode.FORWARD, 3_000_000L, List.of(gpuStep, cpuStep), List.of(materialization))
+        );
+    }
+
+    private static ExecutionTrace traceWithManifest(
+            String backendName,
+            ComputeBackend backend,
+            GpuLoweredRegionManifest manifest
+    ) {
+        ExecutionTrace trace = traceFor(backendName, backend);
+        BackendSelectionTrace selection = new BackendSelectionTrace(
+                1,
+                1,
+                0,
+                List.of(new BackendSelectionDecisionTrace(
+                        10,
+                        List.of(10, 11, 12),
+                        List.of(backend),
+                        true,
+                        backend,
+                        "selected",
+                        4096L,
+                        null,
+                        List.of(),
+                        manifest
+                ))
+        );
+        return new ExecutionTrace(
+                trace.compile(),
+                new PrepareTrace(true, 1L, 0, 0, selection),
+                trace.run()
         );
     }
 }

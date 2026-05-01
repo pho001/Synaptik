@@ -2,6 +2,14 @@ import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
+import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
+import backend.accelerator.lowering.GpuLoweredRegionRejection;
+import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
+import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionMode;
@@ -22,6 +30,7 @@ import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
 import java.util.List;
+import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -53,6 +62,34 @@ public class CompiledGraphTraceTest {
         assertEquals("selected", selected.reason());
         assertTrue(selectedOpNames.contains("MATMUL") || selectedOpNames.contains("LINEAR"));
         assertTrue(selectedOpNames.contains("LOG_SOFTMAX"));
+    }
+
+    @Test
+    void gpuLoweredRegionManifestTraceContainsOriginalOpsAndPrimitives() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "manifestInput", DataType.FLOAT32);
+        Tensor out = input.logSoftmax(1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
+
+        var manifest = prepared.prepareTrace().backendSelection().decisions().stream()
+                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.nodeIds().contains(logSoftmaxNodeId))
+                .map(graph.execution.trace.BackendSelectionDecisionTrace::gpuLoweredRegionManifest)
+                .filter(candidate -> candidate != null)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(ComputeBackend.GPU_METAL, manifest.backend());
+        assertTrue(manifest.selectedRegionLength() >= 1);
+        assertTrue(manifest.originalOps().stream().anyMatch(op -> op.nodeId() == logSoftmaxNodeId));
+        assertTrue(manifest.originalOps().stream().anyMatch(op -> "LOG_SOFTMAX".equals(op.opType())));
+        assertTrue(manifest.loweredPrimitives().stream().anyMatch(primitive -> "SOFTMAX".equals(primitive.primitiveType())));
+        assertTrue(manifest.loweredPrimitives().stream().anyMatch(primitive -> "LOG".equals(primitive.primitiveType())));
+        assertTrue(manifest.inputAssumptions().stream().anyMatch(assumption -> !assumption.layout().isBlank()));
+        assertTrue(manifest.candidateSpan().acceptedNodeIds().contains(logSoftmaxNodeId));
     }
 
     @Test
@@ -283,6 +320,49 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
+    void gpuLoweredRegionRunTraceReferencesRegionIdOnly() {
+        Tensor out = Tensor.scalar(1.0f).relu();
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .findFirst()
+                .orElseThrow();
+        GpuLoweredRegionManifest manifest = sampleManifest(outputNode.id());
+        SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id(), manifest);
+        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+                ComputeBackend.GPU_CUDA,
+                null,
+                null,
+                null,
+                null,
+                executable,
+                null,
+                List.of(),
+                backend.accelerator.exec.PartitionExecutionRole.NONE
+        );
+        PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
+        PreparedExecution prepared = new PreparedExecution(
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                false,
+                List.of(step),
+                List.of(step),
+                List.of(),
+                compiled.compileArtifacts().compiledNodes(),
+                java.util.Map.of(),
+                out,
+                outputNode,
+                null,
+                null,
+                graph.execution.trace.PrepareTrace.skipped()
+        );
+
+        var attrs = prepared.executeTraced(ExecutionMode.FORWARD).steps().getFirst().metadata().attributes();
+
+        assertEquals(manifest.regionId(), attrs.get("gpuLoweredRegionId"));
+        assertFalse(attrs.containsKey("gpuLoweredRegionManifest"));
+    }
+
+    @Test
     void gpuCompoundElementwiseTraceContainsPatternAndDagNodeTypes() {
         Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "traceChainA", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "traceChainB", DataType.FLOAT32);
@@ -316,7 +396,14 @@ public class CompiledGraphTraceTest {
         }
     }
 
-    private record SyntheticAcceleratorExecutable(int nodeId) implements PreparedAcceleratorExecutable {
+    private record SyntheticAcceleratorExecutable(
+            int nodeId,
+            GpuLoweredRegionManifest gpuLoweredRegionManifest
+    ) implements PreparedAcceleratorExecutable {
+        private SyntheticAcceleratorExecutable(int nodeId) {
+            this(nodeId, null);
+        }
+
         @Override
         public ComputeBackend backend() {
             return ComputeBackend.GPU_CUDA;
@@ -341,6 +428,61 @@ public class CompiledGraphTraceTest {
                     List.of()
             );
         }
+    }
+
+    private static GpuLoweredRegionManifest sampleManifest(int nodeId) {
+        return new GpuLoweredRegionManifest(
+                "gpu-cuda-region-" + nodeId,
+                ComputeBackend.GPU_CUDA,
+                nodeId,
+                List.of(nodeId),
+                List.of(),
+                List.of(nodeId),
+                1,
+                List.of(new GpuLoweredRegionOriginalOp(
+                        nodeId,
+                        "RELU",
+                        List.of(),
+                        List.of(nodeId),
+                        DataType.FLOAT32,
+                        List.of(1),
+                        List.of("p0"),
+                        List.of()
+                )),
+                List.of(new GpuLoweredPrimitiveManifest(
+                        "p0",
+                        "RELU",
+                        List.of(nodeId),
+                        List.of("external:0"),
+                        "node:0",
+                        DataType.FLOAT32,
+                        List.of(1),
+                        List.of()
+                )),
+                List.of(new GpuLoweredRegionValueAssumption(
+                        nodeId,
+                        "input",
+                        DataType.FLOAT32,
+                        1,
+                        List.of(1),
+                        "CONTIGUOUS",
+                        true,
+                        false,
+                        0L
+                )),
+                List.of(),
+                GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, List.of(nodeId)),
+                List.of(new GpuLoweredRegionRejection(
+                        "primitive",
+                        nodeId,
+                        "p0",
+                        "",
+                        GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
+                        "synthetic rejection"
+                )),
+                GpuLoweredRegionCandidateSpan.none(List.of(nodeId)),
+                Map.of("dagNodeCount", "1")
+        );
     }
 
     private static int nodeId(graph.CompiledGraph compiled, operations.Operation.OpType opType) {

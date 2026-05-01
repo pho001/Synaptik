@@ -99,6 +99,11 @@ public record CudaGpuPartitionPlan(
         return subgraph.outputNodeIds();
     }
 
+    @Override
+    public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+        return manifest;
+    }
+
     private static GpuLoweredRegionManifest defaultManifest(
             int anchorNodeId,
             AcceleratorSubgraphSpec subgraph,

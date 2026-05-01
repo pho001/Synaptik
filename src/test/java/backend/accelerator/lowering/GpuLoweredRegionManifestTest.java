@@ -183,4 +183,65 @@ class GpuLoweredRegionManifestTest {
         assertEquals(GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED, manifest.candidateSpan().reason());
         assertEquals("2", manifest.backendExtensions().get("dagNodeCount"));
     }
+
+    @Test
+    void compactRendererIncludesStableSectionsAndManifestEvidence() {
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-metal-region-10",
+                ComputeBackend.GPU_METAL,
+                10,
+                List.of(10),
+                List.of(9),
+                List.of(10),
+                1,
+                List.of(new GpuLoweredRegionOriginalOp(
+                        10,
+                        "LOG_SOFTMAX",
+                        List.of(9),
+                        List.of(10),
+                        DataType.FLOAT32,
+                        List.of(2, 3),
+                        List.of("p0"),
+                        List.of(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED)
+                )),
+                List.of(new GpuLoweredPrimitiveManifest(
+                        "p0",
+                        "SOFTMAX",
+                        List.of(10),
+                        List.of("external:0"),
+                        "node:0",
+                        DataType.FLOAT32,
+                        List.of(2, 3),
+                        List.of(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED)
+                )),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.none(ComputeBackend.GPU_METAL, List.of(10)),
+                List.of(new GpuLoweredRegionRejection(
+                        "primitive",
+                        10,
+                        "p0",
+                        "",
+                        GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
+                        "primitive rejected"
+                )),
+                GpuLoweredRegionCandidateSpan.none(List.of(10)),
+                Map.of()
+        );
+
+        String rendered = GpuLoweredRegionManifestRenderer.renderCompact(manifest);
+
+        assertTrue(rendered.contains("GPU Lowered Region"));
+        assertTrue(rendered.contains("Original Ops"));
+        assertTrue(rendered.contains("Lowered Primitives"));
+        assertTrue(rendered.contains("Value Assumptions"));
+        assertTrue(rendered.contains("Fused Subpatterns"));
+        assertTrue(rendered.contains("Rejections"));
+        assertTrue(rendered.contains("regionId:"));
+        assertTrue(rendered.contains("selectedRegionLength:"));
+        assertTrue(rendered.contains("p0"));
+        assertTrue(rendered.contains("LOG_SOFTMAX"));
+        assertTrue(rendered.contains("SOFTMAX"));
+        assertTrue(rendered.contains("DAG_PRIMITIVE_UNSUPPORTED"));
+    }
 }

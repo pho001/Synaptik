@@ -1,5 +1,12 @@
 package tuning.benchmark.report;
 
+import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
+import backend.accelerator.lowering.GpuLoweredRegionRejection;
+import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
+
 import java.util.Locale;
 import java.util.Map;
 
@@ -260,7 +267,163 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"estimatedTransferBytes\": " + summary.estimatedTransferBytes() + ", "
                 + "\"estimatedComputeWork\": " + summary.estimatedComputeWork() + ", "
                 + "\"preset\": \"" + escape(summary.preset()) + "\""
+                + manifestJsonSuffix(decision.gpuLoweredRegionManifest())
                 + "}";
+    }
+
+    private static String manifestJsonSuffix(GpuLoweredRegionManifest manifest) {
+        if (manifest == null) {
+            return "";
+        }
+        return ", \"gpuLoweredRegionManifest\": " + manifestJson(manifest);
+    }
+
+    private static String manifestJson(GpuLoweredRegionManifest manifest) {
+        return "{"
+                + "\"regionId\": \"" + escape(manifest.regionId()) + "\", "
+                + "\"backend\": \"" + escape(String.valueOf(manifest.backend())) + "\", "
+                + "\"selectedRegionLength\": " + manifest.selectedRegionLength() + ", "
+                + "\"originalOps\": " + originalOpsJson(manifest.originalOps()) + ", "
+                + "\"loweredPrimitives\": " + loweredPrimitivesJson(manifest.loweredPrimitives()) + ", "
+                + "\"valueAssumptions\": " + valueAssumptionsJson(manifest) + ", "
+                + "\"fusedSubpatterns\": " + fusedSubpatternsJson(manifest.fusedSummary()) + ", "
+                + "\"rejections\": " + rejectionsJson(manifest.rejections()) + ", "
+                + "\"candidateSpan\": " + candidateSpanJson(manifest.candidateSpan())
+                + "}";
+    }
+
+    private static String originalOpsJson(java.util.List<GpuLoweredRegionOriginalOp> ops) {
+        if (ops == null || ops.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < ops.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            GpuLoweredRegionOriginalOp op = ops.get(i);
+            sb.append("{")
+                    .append("\"nodeId\": ").append(op.nodeId()).append(", ")
+                    .append("\"opType\": \"").append(escape(op.opType())).append("\", ")
+                    .append("\"inputNodeIds\": ").append(intListJson(op.inputNodeIds())).append(", ")
+                    .append("\"outputNodeIds\": ").append(intListJson(op.outputNodeIds())).append(", ")
+                    .append("\"dataType\": \"").append(op.dataType().name()).append("\", ")
+                    .append("\"shape\": ").append(intListJson(op.shape())).append(", ")
+                    .append("\"loweredPrimitiveIds\": ").append(stringListJson(op.loweredPrimitiveIds())).append(", ")
+                    .append("\"aggregatedReasons\": ").append(reasonListJson(op.aggregatedReasons()))
+                    .append("}");
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private static String loweredPrimitivesJson(java.util.List<GpuLoweredPrimitiveManifest> primitives) {
+        if (primitives == null || primitives.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < primitives.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            GpuLoweredPrimitiveManifest primitive = primitives.get(i);
+            sb.append("{")
+                    .append("\"primitiveId\": \"").append(escape(primitive.primitiveId())).append("\", ")
+                    .append("\"primitiveType\": \"").append(escape(primitive.primitiveType())).append("\", ")
+                    .append("\"sourceOriginalNodeIds\": ").append(intListJson(primitive.sourceOriginalNodeIds())).append(", ")
+                    .append("\"inputRefs\": ").append(stringListJson(primitive.inputRefs())).append(", ")
+                    .append("\"outputRef\": \"").append(escape(primitive.outputRef())).append("\", ")
+                    .append("\"dataType\": \"").append(primitive.dataType().name()).append("\", ")
+                    .append("\"shape\": ").append(intListJson(primitive.shape())).append(", ")
+                    .append("\"reasons\": ").append(reasonListJson(primitive.reasons()))
+                    .append("}");
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private static String valueAssumptionsJson(GpuLoweredRegionManifest manifest) {
+        java.util.List<String> items = new java.util.ArrayList<>();
+        for (GpuLoweredRegionValueAssumption assumption : manifest.inputAssumptions()) {
+            items.add(valueAssumptionJson("input", assumption));
+        }
+        for (GpuLoweredRegionValueAssumption assumption : manifest.outputAssumptions()) {
+            items.add(valueAssumptionJson("output", assumption));
+        }
+        return "[" + String.join(", ", items) + "]";
+    }
+
+    private static String valueAssumptionJson(String scope, GpuLoweredRegionValueAssumption assumption) {
+        return "{"
+                + "\"scope\": \"" + escape(scope) + "\", "
+                + "\"nodeId\": " + assumption.nodeId() + ", "
+                + "\"role\": \"" + escape(assumption.role()) + "\", "
+                + "\"dataType\": \"" + assumption.dataType().name() + "\", "
+                + "\"rank\": " + assumption.rank() + ", "
+                + "\"shape\": " + intListJson(assumption.shape()) + ", "
+                + "\"layout\": \"" + escape(assumption.layout()) + "\", "
+                + "\"contiguous\": " + assumption.contiguous() + ", "
+                + "\"hasStorageOffset\": " + assumption.hasStorageOffset() + ", "
+                + "\"storageOffset\": " + assumption.storageOffset()
+                + "}";
+    }
+
+    private static String fusedSubpatternsJson(GpuCompoundRegionSummary summary) {
+        if (summary == null) {
+            return "[]";
+        }
+        return "[{"
+                + "\"patternType\": \"" + summary.patternType().name() + "\", "
+                + "\"supported\": " + summary.supported() + ", "
+                + "\"reason\": \"" + summary.reason().name() + "\", "
+                + "\"orderedNodeIds\": " + intListJson(summary.orderedNodeIds()) + ", "
+                + "\"dagNodeTypes\": " + stringListJson(summary.dagNodeTypes()) + ", "
+                + "\"postOps\": " + stringListJson(summary.postOps()) + ", "
+                + "\"detail\": \"" + escape(summary.detail()) + "\""
+                + "}]";
+    }
+
+    private static String rejectionsJson(java.util.List<GpuLoweredRegionRejection> rejections) {
+        if (rejections == null || rejections.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < rejections.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            GpuLoweredRegionRejection rejection = rejections.get(i);
+            sb.append("{")
+                    .append("\"level\": \"").append(escape(rejection.level())).append("\", ")
+                    .append("\"originalNodeId\": ").append(rejection.originalNodeId()).append(", ")
+                    .append("\"primitiveId\": \"").append(escape(rejection.primitiveId())).append("\", ")
+                    .append("\"fusedPatternType\": \"").append(escape(rejection.fusedPatternType())).append("\", ")
+                    .append("\"reason\": \"").append(rejection.reason().name()).append("\", ")
+                    .append("\"detail\": \"").append(escape(rejection.detail())).append("\"")
+                    .append("}");
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
+    private static String candidateSpanJson(backend.accelerator.lowering.GpuLoweredRegionCandidateSpan span) {
+        if (span == null) {
+            return "{}";
+        }
+        return "{"
+                + "\"originalCandidateNodeIds\": " + intListJson(span.originalCandidateNodeIds()) + ", "
+                + "\"acceptedNodeIds\": " + intListJson(span.acceptedNodeIds()) + ", "
+                + "\"rejectedOriginalNodeId\": " + span.rejectedOriginalNodeId() + ", "
+                + "\"rejectedPrimitiveId\": \"" + escape(span.rejectedPrimitiveId()) + "\", "
+                + "\"reason\": \"" + span.reason().name() + "\""
+                + "}";
+    }
+
+    private static String reasonListJson(java.util.List<backend.accelerator.lowering.GpuLoweringUnsupportedReason> reasons) {
+        if (reasons == null || reasons.isEmpty()) {
+            return "[]";
+        }
+        return stringListJson(reasons.stream().map(Enum::name).toList());
     }
 
     private static java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> rejectedFinalists(

@@ -1,5 +1,7 @@
 package tuning.benchmark.report;
 
+import backend.accelerator.lowering.GpuLoweredRegionManifestRenderer;
+
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
@@ -236,6 +238,13 @@ public final class TextBenchmarkReportRenderer {
                     .append(" estimatedComputeWork=").append(summary.estimatedComputeWork())
                     .append(" reason=").append(decision.reason())
                     .append('\n');
+            if (decision.gpuLoweredRegionManifest() != null) {
+                appendIndentedBlock(
+                        sb,
+                        GpuLoweredRegionManifestRenderer.renderCompact(decision.gpuLoweredRegionManifest()),
+                        "      "
+                );
+            }
         }
         if (!finalists.isEmpty()) {
             sb.append("    rejectedFinalists:\n");
@@ -248,6 +257,17 @@ public final class TextBenchmarkReportRenderer {
                         .append(" estimatedComputeWork=").append(finalist.estimatedComputeWork())
                         .append(" reason=").append(finalist.reason())
                         .append('\n');
+            }
+        }
+    }
+
+    private static void appendIndentedBlock(StringBuilder sb, String block, String indent) {
+        if (block == null || block.isBlank()) {
+            return;
+        }
+        for (String line : block.split("\\R")) {
+            if (!line.isEmpty()) {
+                sb.append(indent).append(line).append('\n');
             }
         }
     }

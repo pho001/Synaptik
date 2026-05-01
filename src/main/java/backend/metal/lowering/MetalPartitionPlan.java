@@ -86,4 +86,9 @@ public record MetalPartitionPlan(
     public GpuLoweredRegionManifest manifest() {
         return lowering.manifest();
     }
+
+    @Override
+    public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+        return manifest();
+    }
 }
