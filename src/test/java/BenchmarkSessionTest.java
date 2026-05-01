@@ -838,9 +838,12 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("backend=GPU_METAL"));
         assertTrue(text.contains("gpuCoverageRatio=0.500000"));
         assertTrue(text.contains("selectedRegionCount=1"));
+        assertTrue(text.contains("multiOpGpuRegionCount="));
         assertTrue(text.contains("maxSelectedRegionLength=3"));
         assertTrue(text.contains("averageSelectedRegionLength=3.000000"));
+        assertTrue(text.contains("loweredPrimitiveCount="));
         assertTrue(text.contains("rejectedCandidateReasonCounts={unsupported-layout=1}"));
+        assertTrue(text.contains("nativeBufferStepCount=1"));
         assertTrue(text.contains("fallbackCount=0"));
         assertTrue(text.contains("tensorArrayStepCount=0"));
         assertTrue(text.contains("cpuFallbackStepCount=0"));
@@ -852,9 +855,12 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"coverage\""));
         assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
         assertTrue(json.contains("\"selectedRegionCount\": 1"));
+        assertTrue(json.contains("\"multiOpGpuRegionCount\""));
         assertTrue(json.contains("\"maxSelectedRegionLength\": 3"));
         assertTrue(json.contains("\"averageSelectedRegionLength\": 3.000000"));
+        assertTrue(json.contains("\"loweredPrimitiveCount\""));
         assertTrue(json.contains("\"rejectedCandidateReasonCounts\": {\"unsupported-layout\": 1}"));
+        assertTrue(json.contains("\"nativeBufferStepCount\": 1"));
         assertTrue(json.contains("\"fallbackCount\": 0"));
         assertTrue(json.contains("\"tensorArrayStepCount\": 0"));
         assertTrue(json.contains("\"cpuFallbackStepCount\": 0"));
@@ -862,6 +868,41 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"copyDurationNs\": 325000"));
         assertTrue(json.contains("\"deviceHandoffCount\": 2"));
         assertTrue(json.contains("\"storageResidencyCounts\": {\"DEVICE_OWNED\": 1}"));
+    }
+
+    @Test
+    void phaseNineteenBenchmarkReportRendersMultiOpGpuRegionEvidence() {
+        BenchmarkReport report = gpuCoverageBenchmarkReport("phase19_multi_op_gpu_region_report");
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        String json = JsonBenchmarkReportRenderer.render(report);
+
+        assertTrue(text.contains("multiOpGpuRegionCount="));
+        assertTrue(text.contains("maxSelectedRegionLength="));
+        assertTrue(text.contains("loweredPrimitiveCount="));
+        assertTrue(text.contains("gpuFusedSubpatternCount="));
+        assertTrue(text.contains("cpuMaterializationReasonCounts="));
+        assertTrue(text.contains("deviceHandoffCount="));
+        assertTrue(text.contains("tensorArrayStepCount="));
+        assertTrue(text.contains("nativeBufferStepCount="));
+        assertTrue(json.contains("\"multiOpGpuRegionCount\""));
+        assertTrue(json.contains("\"maxSelectedRegionLength\""));
+        assertTrue(json.contains("\"loweredPrimitiveCount\""));
+        assertTrue(json.contains("\"gpuFusedSubpatternCount\""));
+        assertTrue(json.contains("\"cpuMaterializationReasonCounts\""));
+        assertTrue(json.contains("\"deviceHandoffCount\""));
+        assertTrue(json.contains("\"tensorArrayStepCount\""));
+        assertTrue(json.contains("\"nativeBufferStepCount\""));
+    }
+
+    @Test
+    void phaseNineteenBenchmarkJsonDistinguishesTensorArrayFromNativeBuffer() {
+        BenchmarkReport report = gpuCoverageBenchmarkReport("phase19_gpu_region_runtime_path_report");
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+
+        assertTrue(json.contains("\"nativeBufferStepCount\": 1"));
+        assertTrue(json.contains("\"tensorArrayStepCount\": 0"));
     }
 
     @Test

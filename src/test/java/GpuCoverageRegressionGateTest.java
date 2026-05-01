@@ -102,6 +102,8 @@ public class GpuCoverageRegressionGateTest {
                 3,
                 ratio,
                 1,
+                1,
+                maxSelectedRegionLength,
                 maxSelectedRegionLength,
                 maxSelectedRegionLength,
                 0,

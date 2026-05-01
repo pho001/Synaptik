@@ -50,6 +50,16 @@ public class GpuHotPathCoverageTargetsTest {
     }
 
     @Test
+    void phaseNineteenHotPathTargetsIncludeMultiOpEvidenceTargets() {
+        List<String> names = GpuHotPathCoverageTargets.defaultWorkloadNames();
+
+        assertTrue(names.contains("transformer_block_hot_path"));
+        assertTrue(names.contains("mlp_classifier_small"));
+        assertTrue(names.contains("conv2d_resnet_3x3"));
+        assertTrue(names.contains("layer_norm_small"));
+    }
+
+    @Test
     void targetsMapToDownstreamRequirementFamilies() {
         List<GpuHotPathCoverageTarget> targets = GpuHotPathCoverageTargets.defaults();
         assertTrue(targets.stream().anyMatch(target -> target.requirementFamilies().contains("GPUDAG")));

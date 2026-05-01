@@ -140,8 +140,10 @@ public class GpuCoverageSummaryTest {
                 3,
                 0.75d,
                 1,
+                1,
                 3,
                 3.0d,
+                3,
                 0,
                 Map.of(),
                 3,
@@ -272,6 +274,54 @@ public class GpuCoverageSummaryTest {
     }
 
     @Test
+    void phaseNineteenCoverageSummaryCountsMultiOpRegionLengthAndLoweredPrimitives() {
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-metal-region-phase19",
+                ComputeBackend.GPU_METAL,
+                30,
+                List.of(30, 31, 32),
+                List.of(20),
+                List.of(32),
+                3,
+                List.of(),
+                List.of(
+                        primitive("p0", "MATMUL", 30),
+                        primitive("p1", "ADD", 31),
+                        primitive("p2", "RELU", 32),
+                        primitive("p3", "LOG", 32)
+                ),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.supported(
+                        ComputeBackend.GPU_METAL,
+                        GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                        List.of(31, 32),
+                        List.of(20),
+                        List.of(32),
+                        List.of("ADD", "RELU"),
+                        List.of(),
+                        "phase nineteen elementwise subpattern"
+                ),
+                List.of(),
+                GpuLoweredRegionCandidateSpan.none(List.of(30, 31, 32)),
+                Map.of()
+        );
+
+        GpuCoverageSummary.BackendCoverage coverage = GpuCoverageSummary.fromTrace(
+                traceWithManifest("GPU_METAL", ComputeBackend.GPU_METAL, manifest)
+        ).backends().get("GPU_METAL");
+
+        assertEquals(1, coverage.multiOpGpuRegionCount());
+        assertEquals(3, coverage.maxSelectedRegionLength());
+        assertEquals(4, coverage.loweredPrimitiveCount());
+        assertEquals(1, coverage.gpuFusedSubpatternCount());
+        assertEquals(1, coverage.nativeBufferStepCount());
+        assertEquals(0, coverage.tensorArrayStepCount());
+        assertEquals(Map.of("CPU_CONSUMER", 1), coverage.cpuMaterializationReasonCounts());
+        assertEquals(2, coverage.deviceHandoffCount());
+    }
+
+    @Test
     void coverageSummaryCountsPhaseSeventeenNormAndLossReasons() {
         String normReason = "REDUCTION_ADJACENT: DEFERRED_FUSED_REGION: operation LAYER_NORM is not supported by GPU_METAL lowering family=NORMALIZATION status=fallback note=normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small";
         String lossReason = "UNSUPPORTED_DTYPE: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path";
@@ -338,6 +388,19 @@ public class GpuCoverageSummaryTest {
         assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("UNSUPPORTED_DTYPE"));
         assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("target=layer_norm_small"));
         assertTrue(coverage.rejectedCandidateReasonCounts().toString().contains("target=transformer_block_hot_path"));
+    }
+
+    private static GpuLoweredPrimitiveManifest primitive(String id, String type, int nodeId) {
+        return new GpuLoweredPrimitiveManifest(
+                id,
+                type,
+                List.of(nodeId),
+                List.of("external:0"),
+                "node:" + id.substring(1),
+                DataType.FLOAT32,
+                List.of(2, 3),
+                List.of()
+        );
     }
 
     static ExecutionTrace traceFor(String backendName, ComputeBackend backend) {

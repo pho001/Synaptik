@@ -135,6 +135,13 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                 coverage.selectedRegionCount++;
                 selectedTotalLength += length;
                 coverage.maxSelectedRegionLength = Math.max(coverage.maxSelectedRegionLength, length);
+                GpuLoweredRegionManifest manifest = decision.gpuLoweredRegionManifest();
+                if (length > 1 || (manifest != null && manifest.selectedRegionLength() > 1)) {
+                    coverage.multiOpGpuRegionCount++;
+                }
+                if (manifest != null) {
+                    coverage.loweredPrimitiveCount += manifest.loweredPrimitives().size();
+                }
                 addDTypeResidencyCoverage(decision.gpuLoweredRegionManifest(), coverage);
                 addFusedSubpatternCoverage(decision.gpuLoweredRegionManifest(), coverage);
                 continue;
@@ -298,8 +305,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             int acceleratorStepCount,
             double gpuCoverageRatio,
             int selectedRegionCount,
+            int multiOpGpuRegionCount,
             int maxSelectedRegionLength,
             double averageSelectedRegionLength,
+            int loweredPrimitiveCount,
             int rejectedCandidateCount,
             Map<String, Integer> rejectedCandidateReasonCounts,
             int bufferBindingStepCount,
@@ -337,6 +346,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
             fallbackReasons = fallbackReasons == null ? List.of() : List.copyOf(fallbackReasons);
         }
+
+        public int nativeBufferStepCount() {
+            return bufferBindingStepCount;
+        }
     }
 
     private static <K, V> Map<K, V> orderedMap(Map<K, V> source) {
@@ -347,8 +360,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         private int totalStepCount;
         private int acceleratorStepCount;
         private int selectedRegionCount;
+        private int multiOpGpuRegionCount;
         private int maxSelectedRegionLength;
         private int selectedRegionTotalLength;
+        private int loweredPrimitiveCount;
         private int rejectedCandidateCount;
         private final LinkedHashMap<String, Integer> rejectedCandidateReasonCounts = new LinkedHashMap<>();
         private int bufferBindingStepCount;
@@ -381,8 +396,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     acceleratorStepCount,
                     ratio,
                     selectedRegionCount,
+                    multiOpGpuRegionCount,
                     maxSelectedRegionLength,
                     averageLength,
+                    loweredPrimitiveCount,
                     rejectedCandidateCount,
                     new LinkedHashMap<>(rejectedCandidateReasonCounts),
                     bufferBindingStepCount,
