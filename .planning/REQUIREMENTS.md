@@ -27,9 +27,9 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 
 ### Normalization, Reduction, And Loss-Adjacent Lowering
 
-- [ ] **GPUNORM-01**: The shared Metal/CUDA lowering coverage contract includes layer norm, RMS norm, reductions, softmax-ish residual flows, and loss-adjacent operation families with explicit support status.
-- [ ] **GPUNORM-02**: Highest-impact normalization, reduction, and softmax-ish hot-path gaps receive GPU lowering or a stable rejection reason tied to the measured coverage gap that blocked the region.
-- [ ] **GPUNORM-03**: Loss-adjacent and numerically sensitive flows preserve CPU parity, dtype/layout legality checks, and visible fallback when backend primitive coverage is incomplete.
+- [x] **GPUNORM-01**: The shared Metal/CUDA lowering coverage contract includes layer norm, RMS norm, reductions, softmax-ish residual flows, and loss-adjacent operation families with explicit support status.
+- [x] **GPUNORM-02**: Highest-impact normalization, reduction, and softmax-ish hot-path gaps receive GPU lowering or a stable rejection reason tied to the measured coverage gap that blocked the region.
+- [x] **GPUNORM-03**: Loss-adjacent and numerically sensitive flows preserve CPU parity, dtype/layout legality checks, and visible fallback when backend primitive coverage is incomplete.
 
 ### Fused Elementwise And Epilogue Subregions
 
@@ -91,9 +91,9 @@ Which phases cover which requirements. Updated during phase execution as require
 | GPUSTORAGE-01 | Phase 16 | Complete |
 | GPUSTORAGE-02 | Phase 16 | Complete |
 | GPUSTORAGE-03 | Phase 16 | Complete |
-| GPUNORM-01 | Phase 17 | Pending |
-| GPUNORM-02 | Phase 17 | Pending |
-| GPUNORM-03 | Phase 17 | Pending |
+| GPUNORM-01 | Phase 17 | Complete |
+| GPUNORM-02 | Phase 17 | Complete |
+| GPUNORM-03 | Phase 17 | Complete |
 | GPUFUSEX-01 | Phase 18 | Pending |
 | GPUFUSEX-02 | Phase 18 | Pending |
 | GPUFUSEX-03 | Phase 18 | Pending |

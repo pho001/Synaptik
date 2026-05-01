@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Coverage-Driven GPU Region Expansion
-status: executing
+status: ready_to_plan
 last_updated: "2026-05-01T09:19:18.453Z"
-last_activity: 2026-05-01 -- Phase 17 execution started
+last_activity: 2026-05-01 -- Phase 17 verification passed
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 16
-  completed_plans: 12
-  percent: 75
+  completed_plans: 16
+  percent: 57
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 17 — Normalization Reduction And Loss-Adjacent Lowering
+**Current focus:** Phase 18 — Fused Elementwise And Epilogue Subregions
 
 ## Project Reference
 
@@ -69,8 +69,8 @@ Planning agents should read the relevant codebase map documents before proposing
 | 14 — Coverage Gap Triage And Hot Path Targets | Complete | 4/4 | Verified |
 | 15 — GPU Region Internal Lowered DAG Contract | Complete | 4/4 | Verified |
 | 16 — DType And Storage Residency Expansion | Complete | 4/4 | Verified |
-| 17 — Normalization Reduction And Loss-Adjacent Lowering | Plans complete | 4/4 | Pending |
-| 18 — Fused Elementwise And Epilogue Subregions | Not started | 0/? | Pending |
+| 17 — Normalization Reduction And Loss-Adjacent Lowering | Complete | 4/4 | Verified |
+| 18 — Fused Elementwise And Epilogue Subregions | Ready to plan | 0/? | Pending |
 | 19 — Multi-Op GPU Region Execution | Not started | 0/? | Pending |
 | 20 — Coverage Regression Hardening | Not started | 0/? | Pending |
 
@@ -143,6 +143,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Phase 15 verification passed | Lowered-region manifest UAT, security, Nyquist validation, and verifier report passed; GPUDAG-01/02/03 are complete and Phase 16 is ready to plan. |
 | 2026-05-01 | Phase 17 planning completed | Four plans cover shared normalization/reduction/loss coverage rows, backend legality rejection detail, softmax/loss trace parity evidence, docs, validation, and profile artifact hygiene. |
 | 2026-05-01 | Phase 17 execution plans completed | Phase 17 plans 17-01 through 17-04 passed focused verification, validation evidence, docs closure, and profile artifact hygiene. |
+| 2026-05-01 | Phase 17 verification passed | Shared coverage rows, backend rejection detail, softmax/loss trace evidence, CPU parity, docs, code review, regression, and source hygiene passed. |
 
 ## Recent Sessions
 
@@ -197,14 +198,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Completed and verified Phase 15 | Ready for `$gsd-discuss-phase 16 --auto` or `$gsd-plan-phase 16 --auto` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-VERIFICATION.md |
 | 2026-05-01 | Planned Phase 16 with 4 dtype residency waves | Ready for `$gsd-execute-phase 16` | .planning/phases/16-dtype-and-storage-residency-expansion/16-01-PLAN.md |
 | 2026-05-01 | Completed and verified Phase 16 | Ready for `$gsd-discuss-phase 17 --auto` or `$gsd-plan-phase 17 --auto` | .planning/phases/16-dtype-and-storage-residency-expansion/16-VERIFICATION.md |
-| 2026-05-01 | Completed Phase 17 execution plans | Ready for Phase 17 code review and verification gates | .planning/phases/17-normalization-reduction-and-loss-adjacent-lowering/17-04-SUMMARY.md |
+| 2026-05-01 | Completed and verified Phase 17 | Ready for `$gsd-discuss-phase 18 --auto` or `$gsd-plan-phase 18 --auto` | .planning/phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md |
 
 ---
-*Last updated: 2026-05-01 after Phase 17 execution plans*
+*Last updated: 2026-05-01 after Phase 17 verification*
 
 ## Current Position
 
-Phase: 17 (Normalization Reduction And Loss-Adjacent Lowering) — EXECUTING
-Plan: 4 of 4
-Status: Ready for Phase 17 code review and verification gates
-Last activity: 2026-05-01 -- Phase 17 plans 17-01 through 17-04 complete
+Phase: 18
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-01

@@ -225,7 +225,9 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 
 **Plans:**
 
-**Status:** 4/4 plans complete as of 2026-05-01.
+**Status:** Complete — verified 2026-05-01 (`17-VERIFICATION.md`)
+
+4/4 plans complete
 
 Wave 1:
 - [17-01 Phase 17 Coverage Matrix Contract](phases/17-normalization-reduction-and-loss-adjacent-lowering/17-01-PLAN.md) - hardens shared Metal/CUDA coverage rows, target evidence, and docs for GPUNORM-01/02.
