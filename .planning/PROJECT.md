@@ -12,13 +12,13 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.3 Coverage-Driven GPU Region Expansion started on 2026-05-01. Phases 14, 15, and 16 are complete: coverage gap triage, GPU lowered-region manifest contracts, and dtype/storage residency expansion are validated. Synaptik is continuing to expand Metal/CUDA GPU execution by closing the highest-value CPU exits first, while keeping the public `Tensor` API logical and keeping device residency inside runtime execution state.
+v1.3 Coverage-Driven GPU Region Expansion started on 2026-05-01. Phases 14, 15, 16, and 17 are complete: coverage gap triage, GPU lowered-region manifest contracts, dtype/storage residency expansion, and normalization/reduction/loss-adjacent coverage are validated. Synaptik is continuing to expand Metal/CUDA GPU execution by closing the highest-value CPU exits first, while keeping the public `Tensor` API logical and keeping device residency inside runtime execution state.
 
-- 16 phases and 64 plans completed across v1.0, v1.1, v1.2, and v1.3-to-date.
+- 17 phases and 68 plans completed across v1.0, v1.1, v1.2, and v1.3-to-date.
 - 49/49 milestone requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, and `.planning/milestones/v1.2-REQUIREMENTS.md`.
-- 9/21 v1.3 requirements are complete through Phase 16.
+- 12/21 v1.3 requirements are complete through Phase 17.
 - v1.2 phase verification, security, Nyquist validation, milestone audit, and archival passed.
-- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, and dtype/storage residency are now validated project state.
+- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, dtype/storage residency, and normalization/reduction/loss-adjacent coverage are now validated project state.
 - Real CUDA hardware/native execution remains a residual environment risk because local CUDA native tasks capability-skipped; portable gates and capability-skip behavior passed.
 
 ## Current Milestone: v1.3 Coverage-Driven GPU Region Expansion
@@ -76,10 +76,11 @@ v1.3 Coverage-Driven GPU Region Expansion started on 2026-05-01. Phases 14, 15, 
 - ✓ Fused GPU regions execute safe compound patterns without copying CPU fused ASM internals or regressing CPU fused execution — validated in Phase 12 by `.planning/milestones/v1.2-phases/12-fused-gpu-region-execution/12-VERIFICATION.md`.
 - ✓ Trace and benchmark reports quantify GPU region coverage, CPU materialization boundaries, fallbacks, device handoffs, and representative workload behavior — validated in Phase 13 by `.planning/milestones/v1.2-phases/13-coverage-benchmark-and-regression-gate/13-VERIFICATION.md`.
 - ✓ v1.3 coverage gap triage selects hot-path GPU exits from measured evidence, GPU regions are described as lowered DAG manifests, and `BFLOAT16`/`INT32`/`BOOL` dtype residency is represented in runtime binding, backend decisions, traces, and reports — validated through Phase 16 by `.planning/phases/16-dtype-and-storage-residency-expansion/16-VERIFICATION.md`.
+- ✓ Normalization, reduction, softmax-ish, conv, and loss-adjacent GPU lowering gaps are covered by the shared Metal/CUDA matrix with stable rejection detail, CPU parity, and trace/report evidence — validated in Phase 17 by `.planning/phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md`.
 
 ### Active
 
-- [ ] Remaining v1.3 requirements in `.planning/REQUIREMENTS.md` focus on normalization/reduction/loss-adjacent lowering, GPU-internal fusion, multi-op region execution, and hard coverage gates.
+- [ ] Remaining v1.3 requirements in `.planning/REQUIREMENTS.md` focus on GPU-internal fusion, multi-op region execution, and hard coverage gates.
 
 ### Out of Scope
 
@@ -162,4 +163,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-05-01 after Phase 16 verification*
+*Last updated: 2026-05-01 after Phase 17 verification*
