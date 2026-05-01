@@ -6,6 +6,7 @@ import operations.Operation;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -39,6 +40,18 @@ public final class GpuLoweringCoverageMatrix {
     }
 
     /**
+     * Returns checked-in coverage rows for one backend and semantic operation family.
+     */
+    public static List<GpuLoweringCoverageEntry> entriesForFamily(ComputeBackend backend, GpuLoweringOperationFamily family) {
+        if (backend == null || family == null) {
+            return List.of();
+        }
+        return ENTRIES.stream()
+                .filter(entry -> entry.backend() == backend && entry.family() == family)
+                .toList();
+    }
+
+    /**
      * Returns the coverage row for one backend operation, or an explicit unsupported row when unlisted.
      */
     public static GpuLoweringCoverageEntry entryFor(ComputeBackend backend, Operation.OpType opType) {
@@ -62,6 +75,19 @@ public final class GpuLoweringCoverageMatrix {
     public static boolean isSupported(ComputeBackend backend, Operation.OpType opType) {
         return entryFor(backend, opType).status() == GpuLoweringCoverageStatus.SUPPORTED;
     }
+
+    /**
+     * Returns a stable planner-facing detail string for a matrix-backed unsupported operation.
+     */
+    public static String plannerUnsupportedDetail(ComputeBackend backend, Operation.OpType opType) {
+        GpuLoweringCoverageEntry entry = entryFor(backend, opType);
+        return entry.reason().name()
+                + ": operation " + entry.opType() + " is not supported by " + entry.backend() + " lowering"
+                + " family=" + entry.family()
+                + " status=" + entry.status().name().toLowerCase(Locale.ROOT)
+                + " note=" + entry.note();
+    }
+
 
     private static List<GpuLoweringCoverageEntry> buildEntries() {
         ArrayList<GpuLoweringCoverageEntry> entries = new ArrayList<>();
@@ -105,52 +131,52 @@ public final class GpuLoweringCoverageMatrix {
                 Operation.OpType.EXPAND_DIMS,
                 Operation.OpType.SQUEEZE);
         addSupported(entries, backend, GpuLoweringOperationFamily.SOFTMAX_LIKE,
-                "native accelerator DAG softmax path",
+                "native accelerator DAG softmax path; target=transformer_block_hot_path",
                 Operation.OpType.SOFTMAX);
         add(entries, backend, Operation.OpType.LOG_SOFTMAX, GpuLoweringOperationFamily.SOFTMAX_LIKE,
                 GpuLoweringCoverageStatus.SUPPORTED,
                 GpuLoweringUnsupportedReason.SUPPORTED,
-                "lowered as SOFTMAX followed by LOG using existing accelerator DAG primitives");
+                "lowered as SOFTMAX followed by LOG using existing accelerator DAG primitives; target=transformer_block_hot_path");
         add(entries, backend, Operation.OpType.SUM, GpuLoweringOperationFamily.REDUCTION,
                 GpuLoweringCoverageStatus.FALLBACK,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
-                "forward reductions are matrix-first until native coverage is added");
+                "forward reductions are matrix-first until native coverage is added; target=layer_norm_small");
         add(entries, backend, Operation.OpType.MEAN, GpuLoweringOperationFamily.REDUCTION,
                 GpuLoweringCoverageStatus.FALLBACK,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
-                "mean requires reduction plus scale lowering coverage");
+                "mean requires reduction plus scale lowering coverage; target=layer_norm_small");
         add(entries, backend, Operation.OpType.REDUCE_MIN, GpuLoweringOperationFamily.REDUCTION,
                 GpuLoweringCoverageStatus.FALLBACK,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
-                "forward reduce-min is not in the tested accelerator planner allowlist");
+                "forward reduce-min is not in the tested accelerator planner allowlist; target=layer_norm_small");
         add(entries, backend, Operation.OpType.REDUCE_MAX, GpuLoweringOperationFamily.REDUCTION,
                 GpuLoweringCoverageStatus.FALLBACK,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
-                "forward reduce-max is not in the tested accelerator planner allowlist");
+                "forward reduce-max is not in the tested accelerator planner allowlist; target=layer_norm_small");
         add(entries, backend, Operation.OpType.LAYER_NORM, GpuLoweringOperationFamily.NORMALIZATION,
                 GpuLoweringCoverageStatus.FALLBACK,
                 GpuLoweringUnsupportedReason.DEFERRED_FUSED_REGION,
-                "normalization requires compound reduction-adjacent GPU region execution");
+                "normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small");
         add(entries, backend, Operation.OpType.RMS_NORM, GpuLoweringOperationFamily.NORMALIZATION,
                 GpuLoweringCoverageStatus.FALLBACK,
                 GpuLoweringUnsupportedReason.DEFERRED_FUSED_REGION,
-                "normalization requires compound reduction-adjacent GPU region execution");
+                "normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small");
         add(entries, backend, Operation.OpType.NLL_LOSS, GpuLoweringOperationFamily.LOSS_ADJACENT,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
-                "loss-adjacent operation remains explicit CPU fallback");
+                "loss-adjacent operation remains explicit CPU fallback; target=transformer_block_hot_path");
         add(entries, backend, Operation.OpType.CROSS_ENTROPY_LOSS, GpuLoweringOperationFamily.LOSS_ADJACENT,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
-                "loss-adjacent operation remains explicit CPU fallback");
+                "loss-adjacent operation remains explicit CPU fallback; target=transformer_block_hot_path");
         add(entries, backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES, GpuLoweringOperationFamily.LOSS_ADJACENT,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
-                "index-target loss uses INT32 targets outside the current accelerator DAG dtype contract");
+                "index-target loss uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path");
         add(entries, backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD, GpuLoweringOperationFamily.LOSS_ADJACENT,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
-                "index-target loss gradient uses INT32 targets outside the current accelerator DAG dtype contract");
+                "index-target loss gradient uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path");
         add(entries, backend, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION, GpuLoweringOperationFamily.ATTENTION,
                 GpuLoweringCoverageStatus.FALLBACK,
                 backend == ComputeBackend.GPU_METAL
@@ -172,7 +198,7 @@ public final class GpuLoweringCoverageMatrix {
         add(entries, backend, Operation.OpType.CONV2D, GpuLoweringOperationFamily.CONV_POOL,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
-                "conv/pool coverage is outside the current tested accelerator planner allowlist");
+                "conv/pool coverage is outside the current tested accelerator planner allowlist; target=conv2d_resnet_3x3");
         add(entries, backend, Operation.OpType.MAX_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
