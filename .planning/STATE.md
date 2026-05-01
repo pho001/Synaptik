@@ -1,23 +1,23 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: GPU Region Coverage
-status: completed
-last_updated: "2026-05-01T05:59:33.804Z"
+milestone: v1.3
+milestone_name: Coverage-Driven GPU Region Expansion
+status: planning
+last_updated: "2026-05-01T06:35:41.752Z"
 last_activity: 2026-05-01
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 19
-  completed_plans: 19
-  percent: 100
+  total_phases: 7
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Planning next milestone after v1.2 completion
+**Current focus:** v1.3 Coverage-Driven GPU Region Expansion
 
 ## Project Reference
 
@@ -37,7 +37,7 @@ Completed milestones:
 
 Current milestone:
 
-- None. Start the next milestone with `$gsd-new-milestone`.
+- v1.3 Coverage-Driven GPU Region Expansion - planning phases 14-20.
 
 ## Codebase Map
 
@@ -66,11 +66,13 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 9 — Native Layout ABI v2 | Completed | 3/3 | Passed |
-| 10 — GPU Layout Transform And View Path | Completed | 4/4 | Passed |
-| 11 — GPU Lowering Coverage Matrix | Completed | 4/4 | Passed |
-| 12 — Fused GPU Region Execution | Completed | 4/4 | Passed |
-| 13 — Coverage Benchmark And Regression Gate | Completed | 4/4 | Passed |
+| 14 — Coverage Gap Triage And Hot Path Targets | Not started | 0/? | Pending |
+| 15 — GPU Region Internal Lowered DAG Contract | Not started | 0/? | Pending |
+| 16 — DType And Storage Residency Expansion | Not started | 0/? | Pending |
+| 17 — Normalization Reduction And Loss-Adjacent Lowering | Not started | 0/? | Pending |
+| 18 — Fused Elementwise And Epilogue Subregions | Not started | 0/? | Pending |
+| 19 — Multi-Op GPU Region Execution | Not started | 0/? | Pending |
+| 20 — Coverage Regression Hardening | Not started | 0/? | Pending |
 
 ## Deferred Items
 
@@ -134,6 +136,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 12 Nyquist validation passed | Validation audit found 0 gaps, marked all 7 task verification rows green, and kept CUDA native execution capability-gated. |
 | 2026-04-30 | Phase 13 context captured in auto-routed next mode | Coverage evidence, representative workload, regression gate, and artifact hygiene decisions are ready for planning. |
 | 2026-04-30 | Phase 13 planning completed | Four plans cover the coverage metric/report schema, representative workload baseline comparison, fail-fast hidden-exit regression gates, docs/native gates, validation, and local profile artifact hygiene. |
+| 2026-05-01 | v1.3 milestone started | Coverage-Driven GPU Region Expansion will use v1.2 coverage evidence to expand lowered multi-op GPU regions, region-internal fusion, dtype/storage residency, and hard coverage gates. |
 
 ## Recent Sessions
 
@@ -184,11 +187,11 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Completed v1.2 milestone archive | Ready for `$gsd-new-milestone` | .planning/milestones/v1.2-ROADMAP.md |
 
 ---
-*Last updated: 2026-04-30 after Phase 13 planning*
+*Last updated: 2026-05-01 after v1.3 milestone roadmap creation*
 
 ## Current Position
 
-Phase: none — v1.2 milestone complete
-Plan: none
-Status: Ready to define the next milestone
-Last activity: 2026-05-01
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-01 — Milestone v1.3 started

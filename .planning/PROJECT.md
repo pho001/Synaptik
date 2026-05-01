@@ -12,7 +12,7 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.2 GPU Region Coverage shipped on 2026-05-01. Synaptik now has validated Metal/CUDA layout ABI v2 metadata and capability checks, GPU layout transform/view paths, a checked-in GPU lowering coverage matrix, safe compound GPU region execution for initial patterns, and coverage benchmark/regression gates that make hidden CPU exits visible.
+v1.3 Coverage-Driven GPU Region Expansion started on 2026-05-01. Synaptik is building on the v1.2 coverage reports and regression gates to expand Metal/CUDA GPU execution by closing the highest-value CPU exits first, while keeping the public `Tensor` API logical and keeping device residency inside runtime execution state.
 
 - 13 phases and 52 plans completed across v1.0, v1.1, and v1.2.
 - 49/49 milestone requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, and `.planning/milestones/v1.2-REQUIREMENTS.md`.
@@ -20,15 +20,18 @@ v1.2 GPU Region Coverage shipped on 2026-05-01. Synaptik now has validated Metal
 - Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, and coverage regression gates are now validated project state.
 - Real CUDA hardware/native execution remains a residual environment risk because local CUDA native tasks capability-skipped; portable gates and capability-skip behavior passed.
 
-## Next Milestone Goals
+## Current Milestone: v1.3 Coverage-Driven GPU Region Expansion
 
-The next milestone is not defined yet. Likely directions, based on v1.2 residual scope:
+**Goal:** Expand Metal/CUDA GPU execution so larger parts of realistic tensor and neural-network graphs remain device-owned through coverage-driven region lowering, internal GPU fusion, dtype/storage residency, and hard regression gates.
 
-- Broader accelerator lowering beyond the v1.2 target matrix.
-- Larger and more profitable GPU fused regions where backend APIs support them.
-- Runtime memory binding for BFLOAT16, INT32, and BOOL slot reuse.
-- Higher-rank native shape/layout ABI support beyond v1.2 target workloads.
-- CUDA-capable hardware validation to close native CUDA execution evidence debt.
+**Target features:**
+- Coverage gap triage that uses v1.2 reports as the source of truth and selects transformer block, MLP, and conv/normalization-style hot paths.
+- GPU region internal lowered DAG contract where one selected device-owned region can contain multiple original operations, backend primitives, fused subpatterns, and explicit rejection/materialization metadata.
+- Dtype and storage residency expansion for BFLOAT16, INT32, and BOOL where missing memory binding currently forces CPU exits.
+- Normalization, reduction, softmax-ish, and loss-adjacent lowering/rejection coverage under a shared Metal/CUDA contract.
+- Region-internal fused elementwise and epilogue subregions, including elementwise chains and linear/matmul + bias + activation, without reusing CPU `Operation.OpType.FUSED`.
+- Multi-op GPU region execution that combines lowered operations, layout/view steps, elementwise work, and selected softmax-ish or normalization lowering without CPU materialization between supported internal steps.
+- Coverage regression hardening that fails unexpected CPU materialization, shorter hot-path GPU regions, hidden tensor-array fallback, and unreported backend exits.
 
 ## Recently Shipped Milestone: v1.2 GPU Region Coverage
 
@@ -74,7 +77,7 @@ The next milestone is not defined yet. Likely directions, based on v1.2 residual
 
 ### Active
 
-- [ ] Define fresh requirements for the next milestone with `$gsd-new-milestone`.
+- [ ] v1.3 requirements are defined in `.planning/REQUIREMENTS.md` and focus on coverage-driven GPU region expansion, internal lowered DAGs, dtype/storage residency, broader lowering, GPU-internal fusion, multi-op region execution, and hard coverage gates.
 
 ### Out of Scope
 
@@ -137,6 +140,7 @@ Recent v1.2 work moved the codebase closer to that flow by making non-contiguous
 | Keep metadata-only view propagation separate from dense GPU materialization | Borrowed-handle views and dense transforms have different safety and capability contracts; conflating them would hide fallback and residency errors | ✓ Good — Phase 10 validated metadata-only view residency, dense materialization gates, and trace-visible fallback |
 | Broaden GPU support by coverage metrics, not by claiming universal operation support | The milestone should measurably reduce CPU exits on representative workloads while preserving explicit fallback for unsupported cases | ✓ Good — Phase 13 added coverage summaries, representative workload comparison, and regression gates |
 | Implement fused GPU regions as backend-specific region execution rather than copying CPU ASM fusion | CPU fused execution depends on JVM bytecode/vector paths; Metal and CUDA need backend-native compound DAG execution and capability gates | ✓ Good — Phase 12 added compound DAG summaries and kept CPU `FUSED` explicitly CPU-only |
+| Treat GPU fusion as region-internal lowering/fusion, not CPU fused ASM reuse | Partitioning selects a device-owned region; region lowering expands it into backend primitives; fusion optimizes supported subgraphs inside that lowered region | — Pending — v1.3 will make this explicit in requirements, roadmap, traces, and coverage gates |
 
 ## Evolution
 
@@ -156,4 +160,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-05-01 after v1.2 milestone completion*
+*Last updated: 2026-05-01 after v1.3 milestone start*
