@@ -35,6 +35,22 @@ class LoweredFusedOperationBuilderTest {
     }
 
     @Test
+    void cpuFusedExecutionStillUsesOperationOpTypeFused() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "builderA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "builderB", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor out = add.relu();
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort());
+
+        FusedOperationPreparation preparation = LoweredFusedOperationBuilder.build(
+                new LoweredExecutionUnit("unit", LoweringFamily.FUSED_NATIVE, List.of(2, 3), List.of(0, 1)),
+                compiledNodes::get
+        );
+
+        assertEquals(Operation.OpType.FUSED, preparation.operation().opType());
+    }
+
+    @Test
     void resolvesViewExternalInputsToBackingTensor() {
         Tensor base = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "base", DataType.FLOAT32);
         Tensor out = base.select(0, 1).relu().exp();

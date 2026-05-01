@@ -57,6 +57,30 @@ public class OptimizerFuseTest {
     }
 
     @Test
+    public void cpuFusedExecutionStillUsesOperationOpTypeFused() {
+        Tensor a = new Tensor(new double[]{1.0, 2.0}, new int[]{2}, null, "cpuFusedA");
+        Tensor b = new Tensor(new double[]{3.0, 4.0}, new int[]{2}, null, "cpuFusedB");
+        Tensor out = a.add(b).relu().exp();
+
+        CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
+        PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
+        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+
+        var fusedStep = prepared.forwardSteps().stream()
+                .filter(step -> step.metadata().fusedExecutable() != null)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(Operation.OpType.FUSED, fusedStep.metadata().executionOperation().opType());
+        assertEquals("CPU", fusedStep.metadata().backend().name());
+        assertArrayEquals(
+                new double[]{Math.exp(Math.max(0.0, 4.0)), Math.exp(Math.max(0.0, 6.0))},
+                out.toDoubleArrayCopy(),
+                1e-5
+        );
+    }
+
+    @Test
     public void fusedViewChainUsesBackingTensorAsRuntimeInput() {
         Tensor base = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "base");
         Tensor out = base.select(0, 1).relu().exp();

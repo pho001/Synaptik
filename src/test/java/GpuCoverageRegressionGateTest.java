@@ -118,6 +118,11 @@ public class GpuCoverageRegressionGateTest {
                 deviceHandoffCount,
                 Map.of("DEVICE_OWNED", 1),
                 Map.of(),
+                0,
+                List.of(),
+                List.of(),
+                0,
+                List.of(),
                 List.of("BUFFER_BINDING_AVAILABLE"),
                 List.of("using native buffer bindings")
         );

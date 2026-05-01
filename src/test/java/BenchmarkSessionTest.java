@@ -865,6 +865,35 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void benchmarkReportRendersGpuFusedSubpatternMetadata() {
+        BenchmarkReport report = gpuCoverageBenchmarkReport("gpu_fused_subpattern_text_report");
+
+        String text = TextBenchmarkReportRenderer.render(report);
+
+        assertTrue(text.contains("gpuFusedSubpatternCount="));
+        assertTrue(text.contains("gpuFusedSubpatternTypes="));
+        assertTrue(text.contains("gpuFusedSubpatternOriginalNodeIds="));
+        assertTrue(text.contains("gpuFusedSubpatternLoweredPrimitiveCount="));
+        assertTrue(text.contains("gpuFusedSubpatternReasons="));
+        assertTrue(text.contains("cpuMaterializationCount=1"));
+    }
+
+    @Test
+    void benchmarkJsonRendersGpuFusedSubpatternMetadata() {
+        BenchmarkReport report = gpuCoverageBenchmarkReport("gpu_fused_subpattern_json_report");
+
+        String json = JsonBenchmarkReportRenderer.render(report);
+
+        assertTrue(json.contains("\"gpuFusedSubpatternCount\""));
+        assertTrue(json.contains("\"gpuFusedSubpatternTypes\""));
+        assertTrue(json.contains("\"gpuFusedSubpatternOriginalNodeIds\""));
+        assertTrue(json.contains("\"gpuFusedSubpatternLoweredPrimitiveCount\""));
+        assertTrue(json.contains("\"gpuFusedSubpatternReasons\""));
+        assertTrue(json.contains("\"acceleratorBufferReasonCode\""));
+        assertTrue(json.contains("\"cpuMaterializationCount\": 1"));
+    }
+
+    @Test
     void renderersExposeCudaGpuCoverageContract() {
         var profile = new ExecutionProfile(
                 "cuda-gpu-coverage-profile",
@@ -897,6 +926,30 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"GPU_CUDA\""));
         assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
         assertTrue(json.contains("\"selectedRegionCount\": 1"));
+    }
+
+    private static BenchmarkReport gpuCoverageBenchmarkReport(String workloadName) {
+        var profile = new ExecutionProfile(
+                workloadName + "-profile",
+                workloadName,
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+        return BenchmarkReport.of(
+                workloadName,
+                List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                        BenchmarkEntry.candidate(workloadName, profile),
+                        tuning.validate.ValidationResult.skipped(),
+                        new tuning.measure.MeasurementResult(
+                                tuning.measure.MeasurementPolicy.defaults(),
+                                GpuCoverageSummaryTest.traceFor("GPU_METAL", ComputeBackend.GPU_METAL),
+                                new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
+                        )
+                ))
+        );
     }
 
     @Test

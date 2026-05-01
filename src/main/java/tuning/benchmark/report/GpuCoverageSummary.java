@@ -136,6 +136,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                 selectedTotalLength += length;
                 coverage.maxSelectedRegionLength = Math.max(coverage.maxSelectedRegionLength, length);
                 addDTypeResidencyCoverage(decision.gpuLoweredRegionManifest(), coverage);
+                addFusedSubpatternCoverage(decision.gpuLoweredRegionManifest(), coverage);
                 continue;
             }
             if (!decision.selected() && compatibleWith(backend, decision)) {
@@ -188,6 +189,22 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             return;
         }
         addCount(coverage.dtypeResidencyReasons, detail);
+    }
+
+    private static void addFusedSubpatternCoverage(
+            GpuLoweredRegionManifest manifest,
+            MutableBackendCoverage coverage
+    ) {
+        if (manifest == null || manifest.fusedSubpatterns().isEmpty()) {
+            return;
+        }
+        for (var subpattern : manifest.fusedSubpatterns()) {
+            coverage.gpuFusedSubpatternCount++;
+            addNonBlank(coverage.gpuFusedSubpatternTypes, subpattern.patternType().name());
+            addNonBlank(coverage.gpuFusedSubpatternOriginalNodeIds, subpattern.originalOperationNodeIds().toString());
+            coverage.gpuFusedSubpatternLoweredPrimitiveCount += subpattern.loweredPrimitiveCount();
+            addNonBlank(coverage.gpuFusedSubpatternReasons, subpattern.reason().name());
+        }
     }
 
     private static int countDeviceHandoffs(String backend, List<ExecutionStepTrace> steps) {
@@ -297,6 +314,11 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             int deviceHandoffCount,
             Map<String, Integer> storageResidencyCounts,
             Map<String, Integer> dtypeResidencyReasons,
+            int gpuFusedSubpatternCount,
+            List<String> gpuFusedSubpatternTypes,
+            List<String> gpuFusedSubpatternOriginalNodeIds,
+            int gpuFusedSubpatternLoweredPrimitiveCount,
+            List<String> gpuFusedSubpatternReasons,
             List<String> reasonCodes,
             List<String> fallbackReasons
     ) {
@@ -309,6 +331,9 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     : orderedMap(cpuMaterializationReasonCounts);
             storageResidencyCounts = storageResidencyCounts == null ? Map.of() : orderedMap(storageResidencyCounts);
             dtypeResidencyReasons = dtypeResidencyReasons == null ? Map.of() : orderedMap(dtypeResidencyReasons);
+            gpuFusedSubpatternTypes = gpuFusedSubpatternTypes == null ? List.of() : List.copyOf(gpuFusedSubpatternTypes);
+            gpuFusedSubpatternOriginalNodeIds = gpuFusedSubpatternOriginalNodeIds == null ? List.of() : List.copyOf(gpuFusedSubpatternOriginalNodeIds);
+            gpuFusedSubpatternReasons = gpuFusedSubpatternReasons == null ? List.of() : List.copyOf(gpuFusedSubpatternReasons);
             reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
             fallbackReasons = fallbackReasons == null ? List.of() : List.copyOf(fallbackReasons);
         }
@@ -337,6 +362,11 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         private int deviceHandoffCount;
         private final LinkedHashMap<String, Integer> storageResidencyCounts = new LinkedHashMap<>();
         private final LinkedHashMap<String, Integer> dtypeResidencyReasons = new LinkedHashMap<>();
+        private int gpuFusedSubpatternCount;
+        private final LinkedHashSet<String> gpuFusedSubpatternTypes = new LinkedHashSet<>();
+        private final LinkedHashSet<String> gpuFusedSubpatternOriginalNodeIds = new LinkedHashSet<>();
+        private int gpuFusedSubpatternLoweredPrimitiveCount;
+        private final LinkedHashSet<String> gpuFusedSubpatternReasons = new LinkedHashSet<>();
         private final LinkedHashSet<String> reasonCodes = new LinkedHashSet<>();
         private final LinkedHashSet<String> fallbackReasons = new LinkedHashSet<>();
 
@@ -367,6 +397,11 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     deviceHandoffCount,
                     new LinkedHashMap<>(storageResidencyCounts),
                     new LinkedHashMap<>(dtypeResidencyReasons),
+                    gpuFusedSubpatternCount,
+                    new ArrayList<>(gpuFusedSubpatternTypes),
+                    new ArrayList<>(gpuFusedSubpatternOriginalNodeIds),
+                    gpuFusedSubpatternLoweredPrimitiveCount,
+                    new ArrayList<>(gpuFusedSubpatternReasons),
                     new ArrayList<>(reasonCodes),
                     new ArrayList<>(fallbackReasons)
             );

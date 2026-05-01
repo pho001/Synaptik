@@ -1,6 +1,6 @@
 package tuning.benchmark.report;
 
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuFusionSubpatternSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
@@ -219,6 +219,11 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"deviceHandoffCount\": ").append(backend.deviceHandoffCount()).append(", ")
                     .append("\"storageResidencyCounts\": ").append(intMapJson(backend.storageResidencyCounts())).append(", ")
                     .append("\"dtypeResidencyEvidence\": ").append(intMapJson(backend.dtypeResidencyReasons())).append(", ")
+                    .append("\"gpuFusedSubpatternCount\": ").append(backend.gpuFusedSubpatternCount()).append(", ")
+                    .append("\"gpuFusedSubpatternTypes\": ").append(stringListJson(backend.gpuFusedSubpatternTypes())).append(", ")
+                    .append("\"gpuFusedSubpatternOriginalNodeIds\": ").append(stringListJson(backend.gpuFusedSubpatternOriginalNodeIds())).append(", ")
+                    .append("\"gpuFusedSubpatternLoweredPrimitiveCount\": ").append(backend.gpuFusedSubpatternLoweredPrimitiveCount()).append(", ")
+                    .append("\"gpuFusedSubpatternReasons\": ").append(stringListJson(backend.gpuFusedSubpatternReasons())).append(", ")
                     .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
                     .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
                     .append("}");
@@ -288,7 +293,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"loweredPrimitives\": " + loweredPrimitivesJson(manifest.loweredPrimitives()) + ", "
                 + "\"valueAssumptions\": " + valueAssumptionsJson(manifest) + ", "
                 + "\"dtypeResidencyEvidence\": " + stringMapJson(dtypeResidencyEvidence(manifest)) + ", "
-                + "\"fusedSubpatterns\": " + fusedSubpatternsJson(manifest.fusedSummary()) + ", "
+                + "\"fusedSubpatterns\": " + fusedSubpatternsJson(manifest.fusedSubpatterns()) + ", "
                 + "\"rejections\": " + rejectionsJson(manifest.rejections()) + ", "
                 + "\"candidateSpan\": " + candidateSpanJson(manifest.candidateSpan())
                 + "}";
@@ -383,19 +388,28 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String fusedSubpatternsJson(GpuCompoundRegionSummary summary) {
-        if (summary == null) {
+    private static String fusedSubpatternsJson(java.util.List<GpuFusionSubpatternSummary> subpatterns) {
+        if (subpatterns == null || subpatterns.isEmpty()) {
             return "[]";
         }
-        return "[{"
-                + "\"patternType\": \"" + summary.patternType().name() + "\", "
-                + "\"supported\": " + summary.supported() + ", "
-                + "\"reason\": \"" + summary.reason().name() + "\", "
-                + "\"orderedNodeIds\": " + intListJson(summary.orderedNodeIds()) + ", "
-                + "\"dagNodeTypes\": " + stringListJson(summary.dagNodeTypes()) + ", "
-                + "\"postOps\": " + stringListJson(summary.postOps()) + ", "
-                + "\"detail\": \"" + escape(summary.detail()) + "\""
-                + "}]";
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < subpatterns.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            GpuFusionSubpatternSummary subpattern = subpatterns.get(i);
+            sb.append("{")
+                    .append("\"patternType\": \"").append(subpattern.patternType().name()).append("\", ")
+                    .append("\"supported\": ").append(subpattern.supported()).append(", ")
+                    .append("\"reason\": \"").append(subpattern.reason().name()).append("\", ")
+                    .append("\"originalOperationNodeIds\": ").append(intListJson(subpattern.originalOperationNodeIds())).append(", ")
+                    .append("\"loweredPrimitiveIds\": ").append(stringListJson(subpattern.loweredPrimitiveIds())).append(", ")
+                    .append("\"loweredPrimitiveCount\": ").append(subpattern.loweredPrimitiveCount()).append(", ")
+                    .append("\"detail\": \"").append(escape(subpattern.detail())).append("\"")
+                    .append("}");
+        }
+        sb.append(']');
+        return sb.toString();
     }
 
     private static String rejectionsJson(java.util.List<GpuLoweredRegionRejection> rejections) {

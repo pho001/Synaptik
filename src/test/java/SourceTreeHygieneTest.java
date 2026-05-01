@@ -233,6 +233,48 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void gpuFusionDoesNotImportCpuFusedInternals() throws IOException {
+        List<Path> roots = List.of(
+                Path.of("src/main/java/backend/accelerator"),
+                Path.of("src/main/java/backend/metal"),
+                Path.of("src/main/java/backend/cuda")
+        );
+        try (Stream<Path> paths = roots.stream()
+                .filter(Files::exists)
+                .flatMap(root -> {
+                    try {
+                        return Files.walk(root);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })) {
+            List<String> offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .filter(line -> line.contains("import backend.cpu.fused"))
+                                    .map(line -> path + ": " + line.trim());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+            assertTrue(offenders.isEmpty(), () -> "GPU fusion packages import CPU fused internals: " + offenders);
+        }
+    }
+
+    @Test
+    void acceleratorPackagesRejectCpuFusedOperationType() throws IOException {
+        String detector = Files.readString(Path.of("src/main/java/backend/accelerator/lowering/GpuCompoundPatternDetector.java"));
+
+        assertTrue(detector.contains("Operation.OpType.FUSED"));
+        assertTrue(detector.contains("CPU_FUSED_OPERATION_UNSUPPORTED"));
+    }
+
+    @Test
     void graphPackageDoesNotOwnCpuFusedCodegen() throws IOException {
         List<String> offenders = javaFilesUnder(Path.of("src/main/java/graph/codegen"));
         assertTrue(offenders.isEmpty(), () -> "CPU fused codegen belongs under backend.cpu.fused.codegen: " + offenders);

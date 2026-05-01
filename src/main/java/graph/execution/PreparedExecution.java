@@ -433,6 +433,21 @@ public final class PreparedExecution {
             if (manifest != null && !manifest.regionId().isBlank()) {
                 attrs.put("gpuLoweredRegionId", manifest.regionId());
             }
+            if (manifest != null && !manifest.fusedSubpatterns().isEmpty()) {
+                attrs.put("gpuFusedSubpatternCount", manifest.fusedSubpatterns().size());
+                attrs.put("gpuFusedSubpatternTypes", manifest.fusedSubpatterns().stream()
+                        .map(subpattern -> subpattern.patternType().name())
+                        .toList());
+                attrs.put("gpuFusedSubpatternOriginalNodeIds", manifest.fusedSubpatterns().stream()
+                        .map(subpattern -> subpattern.originalOperationNodeIds())
+                        .toList());
+                attrs.put("gpuFusedSubpatternLoweredPrimitiveCount", manifest.fusedSubpatterns().stream()
+                        .map(subpattern -> subpattern.loweredPrimitiveCount())
+                        .toList());
+                attrs.put("gpuFusedSubpatternReasons", manifest.fusedSubpatterns().stream()
+                        .map(subpattern -> subpattern.reason().name())
+                        .toList());
+            }
             var compoundSummary = metadata.acceleratorExecutable().compoundSummary();
             if (compoundSummary != null && compoundSummary.patternType() != GpuCompoundPatternType.NONE) {
                 attrs.put("gpuCompoundPattern", compoundSummary.patternType().name());

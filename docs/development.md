@@ -254,6 +254,10 @@ Use these focused gates after changing GPU compound region lowering, including `
 ./gradlew buildCudaGraphShim cudaTest
 ```
 
+For Phase 18 fused elementwise and epilogue subregions, `GPU fusion is region-internal lowering/fusion, not CPU fused ASM reuse`. Trace and benchmark coverage changes must preserve fallback/materialization evidence and render `gpuFusedSubpatternCount`, `gpuFusedSubpatternTypes`, `gpuFusedSubpatternOriginalNodeIds`, `gpuFusedSubpatternLoweredPrimitiveCount`, and `gpuFusedSubpatternReasons`.
+
+Phase 18 closure also expects source hygiene gates proving accelerator, Metal, and CUDA packages do not import CPU fused internals. Local tuning files are not closure evidence; `profiles/platform/.../tuning/abc/* remained unstaged`.
+
 ### GPU coverage regression checks
 
 Use these focused gates after changing GPU coverage summaries, benchmark report rendering, representative workload

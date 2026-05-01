@@ -1,4 +1,5 @@
 import backend.ComputeBackend;
+import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
@@ -155,6 +156,11 @@ public class GpuCoverageSummaryTest {
                 1,
                 Map.of("DEVICE_OWNED", 3),
                 Map.of(),
+                0,
+                List.of(),
+                List.of(),
+                0,
+                List.of(),
                 List.of("BUFFER_BINDING_AVAILABLE"),
                 List.of("using native buffer bindings")
         );
@@ -213,6 +219,56 @@ public class GpuCoverageSummaryTest {
         assertTrue(reasons.contains("dtype=BFLOAT16"));
         assertTrue(reasons.contains("dtype=INT32"));
         assertTrue(reasons.contains("dtype=BOOL"));
+    }
+
+    @Test
+    void coverageSummaryCountsGpuFusedSubpatterns() {
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-metal-region-fused",
+                ComputeBackend.GPU_METAL,
+                30,
+                List.of(30, 31, 32),
+                List.of(20),
+                List.of(32),
+                3,
+                List.of(),
+                List.of(new GpuLoweredPrimitiveManifest(
+                        "p0",
+                        "ADD",
+                        List.of(30),
+                        List.of("external:0", "external:1"),
+                        "node:0",
+                        DataType.FLOAT32,
+                        List.of(4),
+                        List.of()
+                )),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.supported(
+                        ComputeBackend.GPU_METAL,
+                        GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                        List.of(30, 31, 32),
+                        List.of(20),
+                        List.of(32),
+                        List.of("ADD", "RELU", "EXP"),
+                        List.of(),
+                        "synthetic elementwise fused subpattern"
+                ),
+                List.of(),
+                GpuLoweredRegionCandidateSpan.none(List.of(30, 31, 32)),
+                Map.of()
+        );
+
+        GpuCoverageSummary.BackendCoverage coverage = GpuCoverageSummary.fromTrace(
+                traceWithManifest("GPU_METAL", ComputeBackend.GPU_METAL, manifest)
+        ).backends().get("GPU_METAL");
+
+        assertEquals(1, coverage.gpuFusedSubpatternCount());
+        assertTrue(coverage.gpuFusedSubpatternTypes().contains("ELEMENTWISE_CHAIN"));
+        assertTrue(coverage.gpuFusedSubpatternOriginalNodeIds().contains("[30, 31, 32]"));
+        assertEquals(1, coverage.gpuFusedSubpatternLoweredPrimitiveCount());
+        assertTrue(coverage.gpuFusedSubpatternReasons().contains("SUPPORTED"));
+        assertEquals(1, coverage.cpuMaterializationCount());
     }
 
     @Test

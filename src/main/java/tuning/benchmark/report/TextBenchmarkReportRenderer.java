@@ -206,6 +206,11 @@ public final class TextBenchmarkReportRenderer {
                     .append(" deviceHandoffCount=").append(backend.deviceHandoffCount())
                     .append(" storageResidencyCounts=").append(backend.storageResidencyCounts())
                     .append(" dtypeResidencyReasons=").append(backend.dtypeResidencyReasons())
+                    .append(" gpuFusedSubpatternCount=").append(backend.gpuFusedSubpatternCount())
+                    .append(" gpuFusedSubpatternTypes=").append(backend.gpuFusedSubpatternTypes())
+                    .append(" gpuFusedSubpatternOriginalNodeIds=").append(backend.gpuFusedSubpatternOriginalNodeIds())
+                    .append(" gpuFusedSubpatternLoweredPrimitiveCount=").append(backend.gpuFusedSubpatternLoweredPrimitiveCount())
+                    .append(" gpuFusedSubpatternReasons=").append(backend.gpuFusedSubpatternReasons())
                     .append(" reasonCodes=").append(backend.reasonCodes())
                     .append(" fallbackReasons=").append(backend.fallbackReasons())
                     .append('\n');

@@ -2,6 +2,7 @@ import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
+import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
@@ -398,6 +399,54 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
+    void traceRendersGpuFusedSubpatternSpanAndPrimitiveCount() {
+        Tensor out = Tensor.scalar(1.0f).relu();
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .findFirst()
+                .orElseThrow();
+        GpuLoweredRegionManifest manifest = sampleFusedManifest(outputNode.id());
+        SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id(), manifest);
+        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+                ComputeBackend.GPU_CUDA,
+                null,
+                null,
+                null,
+                null,
+                executable,
+                null,
+                List.of(),
+                backend.accelerator.exec.PartitionExecutionRole.NONE
+        );
+        PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
+        PreparedExecution prepared = new PreparedExecution(
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                false,
+                List.of(step),
+                List.of(step),
+                List.of(),
+                compiled.compileArtifacts().compiledNodes(),
+                java.util.Map.of(),
+                out,
+                outputNode,
+                null,
+                null,
+                graph.execution.trace.PrepareTrace.skipped()
+        );
+
+        var attrs = prepared.executeTraced(ExecutionMode.FORWARD).steps().getFirst().metadata().attributes();
+
+        assertEquals(1, attrs.get("gpuFusedSubpatternCount"));
+        assertEquals(List.of("ELEMENTWISE_CHAIN"), attrs.get("gpuFusedSubpatternTypes"));
+        assertEquals(List.of(List.of(outputNode.id())), attrs.get("gpuFusedSubpatternOriginalNodeIds"));
+        assertEquals(List.of(1), attrs.get("gpuFusedSubpatternLoweredPrimitiveCount"));
+        assertEquals(List.of("SUPPORTED"), attrs.get("gpuFusedSubpatternReasons"));
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferDecision"));
+        assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
+    }
+
+    @Test
     void prepareTraceRendersDTypeResidencyRejectionReasons() {
         GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
                 "gpu-cuda-region-dtype",
@@ -666,6 +715,53 @@ public class CompiledGraphTraceTest {
                         GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
                         "synthetic rejection"
                 )),
+                GpuLoweredRegionCandidateSpan.none(List.of(nodeId)),
+                Map.of("dagNodeCount", "1")
+        );
+    }
+
+    private static GpuLoweredRegionManifest sampleFusedManifest(int nodeId) {
+        return new GpuLoweredRegionManifest(
+                "gpu-cuda-region-fused-" + nodeId,
+                ComputeBackend.GPU_CUDA,
+                nodeId,
+                List.of(nodeId),
+                List.of(),
+                List.of(nodeId),
+                1,
+                List.of(new GpuLoweredRegionOriginalOp(
+                        nodeId,
+                        "RELU",
+                        List.of(),
+                        List.of(nodeId),
+                        DataType.FLOAT32,
+                        List.of(1),
+                        List.of("p0"),
+                        List.of()
+                )),
+                List.of(new GpuLoweredPrimitiveManifest(
+                        "p0",
+                        "RELU",
+                        List.of(nodeId),
+                        List.of("external:0"),
+                        "node:0",
+                        DataType.FLOAT32,
+                        List.of(1),
+                        List.of()
+                )),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.supported(
+                        ComputeBackend.GPU_CUDA,
+                        GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                        List.of(nodeId),
+                        List.of(),
+                        List.of(nodeId),
+                        List.of("RELU"),
+                        List.of(),
+                        "synthetic fused subpattern"
+                ),
+                List.of(),
                 GpuLoweredRegionCandidateSpan.none(List.of(nodeId)),
                 Map.of("dagNodeCount", "1")
         );
