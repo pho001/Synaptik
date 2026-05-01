@@ -159,6 +159,46 @@ class DefaultRegionOptimizerTest {
     }
 
     @Test
+    void gpuRegionBuildsMatmulBiasActivationEpilogueUnit() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "gpuEpilogueA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "gpuEpilogueB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "gpuEpilogueBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(nodes, Operation.OpType.ADD);
+        int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId);
+        Partition partition = partition(
+                "gpu-epilogue-subregion",
+                PartitionTarget.GPU_METAL,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(PartitionValueRef.ofNode(reluNodeId)),
+                List.of(PartitionValueRef.ofNode(reluNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(selectedNodeIds, region.sourcePartition().orderedNodeIds());
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit epilogue = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, epilogue.kind());
+        assertEquals(selectedNodeIds, epilogue.orderedNodeIds());
+        assertTrue(epilogue.trace().events().stream().anyMatch(message -> message.contains("gpu-epilogue-subregion:")));
+        assertFalse(epilogue.requiredPreparedInputNodeIds().contains(addNodeId));
+        assertFalse(region.regionValues().stream()
+                .filter(value -> value.producerNodeId() == addNodeId)
+                .anyMatch(value -> value.transportKind() == ValueTransportKind.MATERIALIZED));
+    }
+
+    @Test
     void partitionOutputThatIsNotRequiredMaterializedBecomesContinuationValue() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);

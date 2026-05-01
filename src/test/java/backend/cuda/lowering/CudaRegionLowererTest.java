@@ -491,6 +491,65 @@ class CudaRegionLowererTest {
         assertEquals(3, subpattern.loweredPrimitiveCount());
     }
 
+    @Test
+    void cudaLowersMatmulBiasActivationAsEpilogueSubpattern() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaEpilogueA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "cudaEpilogueB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "cudaEpilogueBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext planningContext = planningContext(out);
+        int matmulNodeId = nodeId(planningContext, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(planningContext, Operation.OpType.ADD);
+        int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId);
+        CudaGpuRegionLegalityAdapter adapter = new CudaGpuRegionLegalityAdapter();
+        var candidate = adapter.tryCreateStructuralCandidate(
+                Set.copyOf(selectedNodeIds),
+                planningContext,
+                Set.of(PartitionValueRef.ofNode(reluNodeId))
+        );
+        assertNotNull(candidate);
+        CudaGpuPartitionPlan plan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
+        assertNotNull(plan);
+        var epilogue = plan.manifest().fusedSubpatterns().stream()
+                .filter(candidateSubpattern -> candidateSubpattern.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(selectedNodeIds, epilogue.originalOperationNodeIds());
+        assertTrue(epilogue.detail().contains("epilogue"));
+        assertTrue(epilogue.loweredPrimitiveCount() >= 2);
+    }
+
+    @Test
+    void cudaRejectsIllegalEpilogueLayoutWithStableReason() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaBadEpilogueA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "cudaBadEpilogueB", DataType.FLOAT32);
+        Tensor biasBase = new Tensor(new float[]{0.25f, -0.5f, 0.75f, 1f}, new int[]{2, 2}, null, "cudaBadEpilogueBiasBase", DataType.FLOAT32);
+        Tensor bias = biasBase.select(0, 1);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.ADD)), context);
+
+        assertContainsAll(reason,
+                "UNSUPPORTED_LAYOUT",
+                "family=MATMUL_LINEAR",
+                "LINEAR_BIAS_ACTIVATION",
+                "GPU_CUDA");
+    }
+
     private static Partition partition(
             String id,
             PartitionTarget target,

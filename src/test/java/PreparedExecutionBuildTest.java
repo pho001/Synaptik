@@ -525,6 +525,120 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void metalMatmulBiasActivationEpilogueMatchesCpuAndStaysDeviceOwned() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuMetalEpilogueInput", DataType.FLOAT32);
+        Tensor cpuWeight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "cpuMetalEpilogueWeight", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cpuMetalEpilogueBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).relu();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalEpilogueInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "metalEpilogueWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "metalEpilogueBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int linearNodeId = nodeId(compiled, Operation.OpType.LINEAR);
+        int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .map(step -> step.metadata().acceleratorExecutable())
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(executable.gpuLoweredRegionManifest().fusedSubpatterns().stream()
+                .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION
+                        && subpattern.detail().contains("epilogue")));
+        var trace = execution.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(entry -> (entry.nodeId() == linearNodeId || entry.nodeId() == reluNodeId)
+                        && entry.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+    }
+
+    @Test
+    void cudaMatmulBiasActivationEpilogueMatchesCpuAndStaysDeviceOwned() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuCudaEpilogueInput", DataType.FLOAT32);
+        Tensor cpuWeight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "cpuCudaEpilogueWeight", DataType.FLOAT32);
+        Tensor cpuBias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cpuCudaEpilogueBias", DataType.FLOAT32);
+        Tensor cpuOut = cpuInput.linear(cpuWeight, cpuBias).relu();
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaEpilogueInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "cudaEpilogueWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "cudaEpilogueBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int linearNodeId = nodeId(compiled, Operation.OpType.LINEAR);
+        int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
+                .map(step -> step.metadata().acceleratorExecutable())
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(executable.gpuLoweredRegionManifest().fusedSubpatterns().stream()
+                .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION
+                        && subpattern.detail().contains("epilogue")));
+        var trace = execution.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(entry -> (entry.nodeId() == linearNodeId || entry.nodeId() == reluNodeId)
+                        && entry.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+    }
+
+    @Test
+    void requiredModeReportsEpilogueFusionFallbackInsteadOfSilentCpuReplay() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "requiredEpilogueInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "requiredEpilogueWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "requiredEpilogueBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        TensorInternalAccess.setBackend(linear, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> execution.execute(ExecutionMode.FORWARD));
+
+        assertTrue(failure.getMessage().contains("Accelerator buffer path is required"));
+        assertTrue(failure.getMessage().contains("GPU_METAL"));
+    }
+
+    @Test
     void gpuMetalElementwiseChainPublishesCompoundSummary() {
         Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "metalChainA", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "metalChainB", DataType.FLOAT32);

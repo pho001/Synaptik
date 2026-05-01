@@ -38,6 +38,18 @@ public final class GenericGpuRegionOptimizationPolicy implements RegionOptimizat
                 index++;
                 continue;
             }
+            List<Integer> epilogueSpan = RegionOptimizationUnitSupport.epilogueSpanAt(partition, index, context);
+            if (!epilogueSpan.isEmpty()) {
+                out.add(RegionOptimizationUnitSupport.buildEpilogueSubregionUnit(
+                        partition,
+                        epilogueSpan,
+                        context,
+                        materialized,
+                        RegionOptimizationUnitSupport.unitOutputsForChain(partition, epilogueSpan, context)
+                ));
+                index += epilogueSpan.size();
+                continue;
+            }
             if (!RegionOptimizationUnitSupport.isSubchainFusable(node)) {
                 out.add(RegionOptimizationUnitSupport.buildSingleOpUnit(
                         partition,

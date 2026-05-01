@@ -64,6 +64,9 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_CUDA, opType);
         }
+        if (hasDirectNonDenseInput(node, context) && isEpilogueAdd(node, context)) {
+            return "UNSUPPORTED_LAYOUT: GPU_CUDA LINEAR_BIAS_ACTIVATION family=MATMUL_LINEAR epilogue input requires dense layout";
+        }
         if (hasDirectNonDenseInput(node, context)) {
             return "UNSUPPORTED_LAYOUT: direct non-dense CUDA compute remains conservative until metadata-only view propagation or dense materialization makes the consumer layout legal";
         }
@@ -251,6 +254,22 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
             CompiledNode input = context.compiledNode(inputId);
             if (input != null && (!input.contiguous() || input.hasStorageOffset())) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEpilogueAdd(CompiledNode node, PartitionPlanningContext context) {
+        if (node == null || node.operation() == null || node.operation().opType() != Operation.OpType.ADD || context == null) {
+            return false;
+        }
+        for (int inputId : node.inputIds()) {
+            CompiledNode input = context.compiledNode(inputId);
+            if (input != null && input.operation() != null) {
+                Operation.OpType opType = input.operation().opType();
+                if (opType == Operation.OpType.MATMUL || opType == Operation.OpType.LINEAR) {
+                    return true;
+                }
             }
         }
         return false;

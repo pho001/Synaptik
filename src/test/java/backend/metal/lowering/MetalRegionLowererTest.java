@@ -589,6 +589,72 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void metalLowersMatmulBiasActivationAsEpilogueSubpattern() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalEpilogueA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "metalEpilogueB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "metalEpilogueBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        List<Tensor> graph = out.topologicalSort();
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        PartitionPlanningContext planningContext = new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                compiledNodes,
+                consumers(compiledNodes)
+        );
+        int matmulNodeId = nodeId(planningContext, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(planningContext, Operation.OpType.ADD);
+        int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId);
+        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
+        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+                Set.copyOf(selectedNodeIds),
+                planningContext,
+                Set.of(PartitionValueRef.ofNode(reluNodeId))
+        );
+        assertNotNull(candidate);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
+        assertNotNull(plan);
+        var epilogue = plan.manifest().fusedSubpatterns().stream()
+                .filter(candidateSubpattern -> candidateSubpattern.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION)
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(selectedNodeIds, epilogue.originalOperationNodeIds());
+        assertTrue(epilogue.detail().contains("epilogue"));
+        assertTrue(epilogue.loweredPrimitiveCount() >= 2);
+    }
+
+    @Test
+    void metalRejectsIllegalEpilogueLayoutWithStableReason() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalBadEpilogueA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "metalBadEpilogueB", DataType.FLOAT32);
+        Tensor biasBase = new Tensor(new float[]{0.25f, -0.5f, 0.75f, 1f}, new int[]{2, 2}, null, "metalBadEpilogueBiasBase", DataType.FLOAT32);
+        Tensor bias = biasBase.select(0, 1);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(nodeId(context, Operation.OpType.ADD)), context);
+
+        assertContainsAll(reason,
+                "UNSUPPORTED_LAYOUT",
+                "family=MATMUL_LINEAR",
+                "LINEAR_BIAS_ACTIVATION",
+                "GPU_METAL");
+    }
+
+    @Test
     void rejectsFloat64MetalCandidateBeforeLowering() {
         Tensor a = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{2, 3}, null, "a64", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{3, 2}, null, "b64", DataType.FLOAT64);

@@ -66,6 +66,9 @@ public final class MetalPartitionSupport {
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
         }
+        if (hasDirectNonDenseInput(node, context) && isEpilogueAdd(node, context)) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL LINEAR_BIAS_ACTIVATION family=MATMUL_LINEAR epilogue input requires dense layout";
+        }
         return "";
     }
 
@@ -97,5 +100,31 @@ public final class MetalPartitionSupport {
             case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, LAYER_NORM, RMS_NORM -> "REDUCTION_ADJACENT: ";
             default -> "";
         };
+    }
+
+    private static boolean hasDirectNonDenseInput(CompiledNode node, PartitionPlanningContext context) {
+        if (node == null || node.operation() == null || context == null || node.operation().opType().category() == Operation.OpArityClass.LAYOUT) {
+            return false;
+        }
+        for (int inputId : node.inputIds()) {
+            CompiledNode input = context.compiledNode(inputId);
+            if (input != null && (!input.contiguous() || input.hasStorageOffset())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEpilogueAdd(CompiledNode node, PartitionPlanningContext context) {
+        if (node == null || node.operation() == null || node.operation().opType() != Operation.OpType.ADD || context == null) {
+            return false;
+        }
+        for (int inputId : node.inputIds()) {
+            CompiledNode input = context.compiledNode(inputId);
+            if (containsMatMulFamily(input)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

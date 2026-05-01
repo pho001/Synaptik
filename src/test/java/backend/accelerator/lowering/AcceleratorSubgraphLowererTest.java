@@ -252,6 +252,86 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void lowererRecordsMatmulBiasActivationEpilogueSubpattern() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "epilogueA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "epilogueB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "epilogueBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+        PartitionPlanningContext context = planningContext(out);
+        int matmulNodeId = nodeId(context, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(context, Operation.OpType.ADD);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        matmulNodeId,
+                        selectedNodeIds,
+                        List.of(
+                                new AcceleratorSubgraphOp(matmulNodeId, Operation.OpType.MATMUL),
+                                new AcceleratorSubgraphOp(addNodeId, Operation.OpType.ADD),
+                                new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU)
+                        ),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(reluNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertNotNull(result.matMulSpec());
+        assertTrue(result.matMulSpec().biasInputNodeId() >= 0);
+        assertTrue(result.matMulSpec().postOps().stream()
+                .anyMatch(postOp -> postOp.type() == AcceleratorPostOpType.RELU));
+        GpuFusionSubpatternSummary epilogue = result.manifest().fusedSubpatterns().stream()
+                .filter(candidate -> candidate.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(selectedNodeIds, epilogue.originalOperationNodeIds());
+        assertTrue(epilogue.loweredPrimitiveCount() >= 2);
+        assertTrue(epilogue.detail().contains("epilogue"));
+    }
+
+    @Test
+    void epilogueFusionRejectsUnsupportedActivationWithStableReason() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "badEpilogueA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "badEpilogueB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "badEpilogueBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.softmax(1);
+        PartitionPlanningContext context = planningContext(out);
+        int matmulNodeId = nodeId(context, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(context, Operation.OpType.ADD);
+        int softmaxNodeId = nodeId(context, Operation.OpType.SOFTMAX);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, softmaxNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        matmulNodeId,
+                        selectedNodeIds,
+                        List.of(
+                                new AcceleratorSubgraphOp(matmulNodeId, Operation.OpType.MATMUL),
+                                new AcceleratorSubgraphOp(addNodeId, Operation.OpType.ADD),
+                                new AcceleratorSubgraphOp(softmaxNodeId, Operation.OpType.SOFTMAX)
+                        ),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(softmaxNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertNull(result.matMulSpec());
+        assertTrue(result.manifest().fusedSubpatterns().stream()
+                .noneMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION));
+    }
+
+    @Test
     void sumReductionStillRejectsWhenNoAcceleratorDagTypeExists() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "sumInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
