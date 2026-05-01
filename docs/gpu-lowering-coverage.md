@@ -100,6 +100,14 @@ GPU compound region lowering is the Phase 12 path that lets Metal and CUDA execu
 
 `Operation.OpType.FUSED remains CPU-only`. GPU compound regions lower from normal graph operations through `AcceleratorSubgraphLowerer`, backend-specific Metal/CUDA legality, and backend-specific prepared executables. CPU fused operations remain in the CPU planning and execution path.
 
+## Phase 18 fused elementwise and epilogue subregions
+
+Phase 18 covers `GPUFUSEX-01`, `GPUFUSEX-02`, and `GPUFUSEX-03` by making GPU fusion a list-capable region-internal metadata contract. `GpuFusionSubpatternSummary` records the fused subpattern type, support state, original operation span, lowered primitive ids, lowered primitive count, rejection reason, and detail.
+
+`GPU fusion is region-internal lowering/fusion`. Partitioning still selects a device-owned region, and lowering records supported subpatterns inside that region. Elementwise chains satisfy `GPUFUSEX-01`; matmul or linear epilogues such as bias plus activation satisfy `GPUFUSEX-02` only when dtype, layout, backend, and capability gates allow it.
+
+`CPU Operation.OpType.FUSED remains CPU-only`. `GPUFUSEX-03` forbids importing CPU fused ASM/vector internals into accelerator, Metal, or CUDA packages. GPU fusion can share semantic operation knowledge with CPU fusion, but not CPU implementation internals or public `Operation.OpType.FUSED` nodes.
+
 ## Planner Rejection Sources
 
 Shared matrix entries classify semantic support for operation families and provide the stable fallback or unsupported reason code used by Metal and CUDA planner diagnostics.

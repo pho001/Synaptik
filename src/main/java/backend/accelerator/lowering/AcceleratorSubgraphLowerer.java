@@ -133,10 +133,54 @@ public final class AcceleratorSubgraphLowerer {
                 buildInputAssumptions(subgraph, context),
                 buildOutputAssumptions(subgraph, context),
                 compoundSummary,
+                buildFusionSubpatterns(subgraph, dagSpec, compoundSummary),
                 rejections,
                 GpuLoweredRegionCandidateSpan.none(subgraph.orderedNodeIds()),
                 backendExtensions
         );
+    }
+
+    private List<GpuFusionSubpatternSummary> buildFusionSubpatterns(
+            AcceleratorSubgraphSpec subgraph,
+            AcceleratorDagSpec dagSpec,
+            GpuCompoundRegionSummary compoundSummary
+    ) {
+        if (subgraph == null || compoundSummary == null || compoundSummary.patternType() == GpuCompoundPatternType.NONE) {
+            return List.of();
+        }
+        if (!compoundSummary.supported()) {
+            return List.of(GpuFusionSubpatternSummary.unsupported(
+                    compoundSummary.patternType(),
+                    compoundSummary.reason(),
+                    subgraph.orderedNodeIds(),
+                    compoundSummary.detail()
+            ));
+        }
+        return List.of(GpuFusionSubpatternSummary.supported(
+                compoundSummary.patternType(),
+                compoundSummary.orderedNodeIds().isEmpty() ? subgraph.orderedNodeIds() : compoundSummary.orderedNodeIds(),
+                primitiveIdsFor(compoundSummary.orderedNodeIds(), subgraph, dagSpec),
+                compoundSummary.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION
+                        ? "epilogue " + compoundSummary.detail()
+                        : compoundSummary.detail()
+        ));
+    }
+
+    private List<String> primitiveIdsFor(
+            List<Integer> originalNodeIds,
+            AcceleratorSubgraphSpec subgraph,
+            AcceleratorDagSpec dagSpec
+    ) {
+        List<Integer> span = originalNodeIds == null || originalNodeIds.isEmpty()
+                ? subgraph.orderedNodeIds()
+                : originalNodeIds;
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < dagSpec.nodes().size(); i++) {
+            if (span.contains(dagSpec.nodes().get(i).nodeId())) {
+                out.add("p" + i);
+            }
+        }
+        return List.copyOf(out);
     }
 
     private Map<String, String> buildDTypeResidencyEvidence(

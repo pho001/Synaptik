@@ -42,6 +42,7 @@ public record GpuLoweredRegionManifest(
         List<GpuLoweredRegionValueAssumption> inputAssumptions,
         List<GpuLoweredRegionValueAssumption> outputAssumptions,
         GpuCompoundRegionSummary fusedSummary,
+        List<GpuFusionSubpatternSummary> fusedSubpatterns,
         List<GpuLoweredRegionRejection> rejections,
         GpuLoweredRegionCandidateSpan candidateSpan,
         Map<String, String> backendExtensions
@@ -58,10 +59,80 @@ public record GpuLoweredRegionManifest(
         inputAssumptions = List.copyOf(inputAssumptions == null ? List.of() : inputAssumptions);
         outputAssumptions = List.copyOf(outputAssumptions == null ? List.of() : outputAssumptions);
         fusedSummary = fusedSummary == null ? GpuCompoundRegionSummary.none(backend, orderedNodeIds) : fusedSummary;
+        fusedSubpatterns = normalizeFusedSubpatterns(fusedSubpatterns, fusedSummary, loweredPrimitives);
         rejections = List.copyOf(rejections == null ? List.of() : rejections);
         candidateSpan = candidateSpan == null ? GpuLoweredRegionCandidateSpan.none(orderedNodeIds) : candidateSpan;
         backendExtensions = backendExtensions == null
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(backendExtensions));
+    }
+
+    public GpuLoweredRegionManifest(
+            String regionId,
+            ComputeBackend backend,
+            int anchorNodeId,
+            List<Integer> orderedNodeIds,
+            List<Integer> externalInputNodeIds,
+            List<Integer> outputNodeIds,
+            int selectedRegionLength,
+            List<GpuLoweredRegionOriginalOp> originalOps,
+            List<GpuLoweredPrimitiveManifest> loweredPrimitives,
+            List<GpuLoweredRegionValueAssumption> inputAssumptions,
+            List<GpuLoweredRegionValueAssumption> outputAssumptions,
+            GpuCompoundRegionSummary fusedSummary,
+            List<GpuLoweredRegionRejection> rejections,
+            GpuLoweredRegionCandidateSpan candidateSpan,
+            Map<String, String> backendExtensions
+    ) {
+        this(
+                regionId,
+                backend,
+                anchorNodeId,
+                orderedNodeIds,
+                externalInputNodeIds,
+                outputNodeIds,
+                selectedRegionLength,
+                originalOps,
+                loweredPrimitives,
+                inputAssumptions,
+                outputAssumptions,
+                fusedSummary,
+                null,
+                rejections,
+                candidateSpan,
+                backendExtensions
+        );
+    }
+
+    private static List<GpuFusionSubpatternSummary> normalizeFusedSubpatterns(
+            List<GpuFusionSubpatternSummary> fusedSubpatterns,
+            GpuCompoundRegionSummary fusedSummary,
+            List<GpuLoweredPrimitiveManifest> loweredPrimitives
+    ) {
+        if (fusedSubpatterns != null && !fusedSubpatterns.isEmpty()) {
+            return List.copyOf(fusedSubpatterns);
+        }
+        if (fusedSummary == null || fusedSummary.patternType() == GpuCompoundPatternType.NONE) {
+            return List.of();
+        }
+        List<String> primitiveIds = loweredPrimitives == null
+                ? List.of()
+                : loweredPrimitives.stream()
+                        .map(GpuLoweredPrimitiveManifest::primitiveId)
+                        .toList();
+        if (fusedSummary.supported()) {
+            return List.of(GpuFusionSubpatternSummary.supported(
+                    fusedSummary.patternType(),
+                    fusedSummary.orderedNodeIds(),
+                    primitiveIds,
+                    fusedSummary.detail()
+            ));
+        }
+        return List.of(GpuFusionSubpatternSummary.unsupported(
+                fusedSummary.patternType(),
+                fusedSummary.reason(),
+                fusedSummary.orderedNodeIds(),
+                fusedSummary.detail()
+        ));
     }
 }

@@ -80,6 +80,7 @@ public record AcceleratorSubgraphLoweringResult(
                 List.of(),
                 compoundSummary,
                 List.of(),
+                List.of(),
                 GpuLoweredRegionCandidateSpan.none(orderedNodeIds),
                 Map.of()
         );

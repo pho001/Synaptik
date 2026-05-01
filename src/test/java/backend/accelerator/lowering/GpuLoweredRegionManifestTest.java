@@ -43,9 +43,34 @@ class GpuLoweredRegionManifestTest {
         assertTrue(manifest.inputAssumptions().isEmpty());
         assertTrue(manifest.outputAssumptions().isEmpty());
         assertTrue(manifest.rejections().isEmpty());
+        assertTrue(manifest.fusedSubpatterns().isEmpty());
         assertTrue(manifest.backendExtensions().isEmpty());
         assertNotNull(manifest.fusedSummary());
         assertNotNull(manifest.candidateSpan());
+    }
+
+    @Test
+    void normalizesNullFusionSubpatternsToEmptyList() {
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-metal-region-1",
+                ComputeBackend.GPU_METAL,
+                1,
+                List.of(1),
+                List.of(0),
+                List.of(1),
+                1,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.none(ComputeBackend.GPU_METAL, List.of(1)),
+                null,
+                List.of(),
+                GpuLoweredRegionCandidateSpan.none(List.of(1)),
+                Map.of()
+        );
+
+        assertTrue(manifest.fusedSubpatterns().isEmpty());
     }
 
     @Test

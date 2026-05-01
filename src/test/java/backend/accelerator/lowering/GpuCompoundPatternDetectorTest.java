@@ -158,6 +158,67 @@ class GpuCompoundPatternDetectorTest {
         assertEquals(GpuLoweringUnsupportedReason.CPU_FUSED_OPERATION_UNSUPPORTED, summary.reason());
     }
 
+    @Test
+    void recordsElementwiseChainFusionSubpatternSpanAndPrimitiveCount() {
+        GpuFusionSubpatternSummary subpattern = GpuFusionSubpatternSummary.supported(
+                GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                List.of(20, 21, 22),
+                List.of("p0", "p1", "p2"),
+                "elementwise chain"
+        );
+
+        assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, subpattern.patternType());
+        assertTrue(subpattern.supported());
+        assertEquals(List.of(20, 21, 22), subpattern.originalOperationNodeIds());
+        assertEquals(List.of("p0", "p1", "p2"), subpattern.loweredPrimitiveIds());
+        assertEquals(3, subpattern.loweredPrimitiveCount());
+        assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, subpattern.reason());
+    }
+
+    @Test
+    void recordsMatmulBiasActivationEpilogueFusionSubpattern() {
+        GpuFusionSubpatternSummary subpattern = GpuFusionSubpatternSummary.supported(
+                GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION,
+                List.of(30, 31, 32),
+                List.of("p0", "p1", "p2"),
+                "matmul epilogue"
+        );
+
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, subpattern.patternType());
+        assertTrue(subpattern.supported());
+        assertEquals(List.of(30, 31, 32), subpattern.originalOperationNodeIds());
+        assertEquals(3, subpattern.loweredPrimitiveCount());
+        assertTrue(subpattern.detail().contains("epilogue"));
+    }
+
+    @Test
+    void rejectsCpuFusedOpTypeAsGpuFusionSubpattern() {
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                1,
+                List.of(1),
+                List.of(new AcceleratorSubgraphOp(1, Operation.OpType.FUSED)),
+                List.of(0),
+                List.of(1)
+        );
+
+        GpuCompoundRegionSummary summary = GpuCompoundPatternDetector.detect(
+                ComputeBackend.GPU_METAL,
+                subgraph,
+                null,
+                null
+        );
+        GpuFusionSubpatternSummary subpattern = GpuFusionSubpatternSummary.unsupported(
+                summary.patternType(),
+                summary.reason(),
+                summary.orderedNodeIds(),
+                summary.detail()
+        );
+
+        assertEquals(GpuCompoundPatternType.CPU_FUSED_UNSUPPORTED, subpattern.patternType());
+        assertFalse(subpattern.supported());
+        assertEquals(GpuLoweringUnsupportedReason.CPU_FUSED_OPERATION_UNSUPPORTED, subpattern.reason());
+    }
+
     private static AcceleratorDagSpec linearReluDag() {
         return new AcceleratorDagSpec(
                 List.of(

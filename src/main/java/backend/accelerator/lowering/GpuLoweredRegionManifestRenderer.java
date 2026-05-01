@@ -89,18 +89,31 @@ public final class GpuLoweredRegionManifestRenderer {
         }
 
         sb.append("Fused Subpatterns\n");
-        GpuCompoundRegionSummary fused = manifest.fusedSummary();
-        if (fused == null) {
-            sb.append("- none\n");
+        if (manifest.fusedSubpatterns().isEmpty()) {
+            GpuCompoundRegionSummary fused = manifest.fusedSummary();
+            if (fused == null) {
+                sb.append("- none\n");
+            } else {
+                sb.append("- patternType=").append(fused.patternType())
+                        .append(" supported=").append(fused.supported())
+                        .append(" reason=").append(fused.reason())
+                        .append(" orderedNodeIds=").append(fused.orderedNodeIds())
+                        .append(" dagNodeTypes=").append(fused.dagNodeTypes())
+                        .append(" postOps=").append(fused.postOps())
+                        .append(" detail=").append(fused.detail())
+                        .append('\n');
+            }
         } else {
-            sb.append("- patternType=").append(fused.patternType())
-                    .append(" supported=").append(fused.supported())
-                    .append(" reason=").append(fused.reason())
-                    .append(" orderedNodeIds=").append(fused.orderedNodeIds())
-                    .append(" dagNodeTypes=").append(fused.dagNodeTypes())
-                    .append(" postOps=").append(fused.postOps())
-                    .append(" detail=").append(fused.detail())
-                    .append('\n');
+            for (GpuFusionSubpatternSummary subpattern : manifest.fusedSubpatterns()) {
+                sb.append("- patternType=").append(subpattern.patternType())
+                        .append(" supported=").append(subpattern.supported())
+                        .append(" reason=").append(subpattern.reason())
+                        .append(" originalOperationNodeIds=").append(subpattern.originalOperationNodeIds())
+                        .append(" loweredPrimitiveIds=").append(subpattern.loweredPrimitiveIds())
+                        .append(" loweredPrimitiveCount=").append(subpattern.loweredPrimitiveCount())
+                        .append(" detail=").append(subpattern.detail())
+                        .append('\n');
+            }
         }
 
         sb.append("Rejections\n");
