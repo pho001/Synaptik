@@ -92,10 +92,29 @@ Archives:
 4. The triage output distinguishes real backend execution from CPU replay and from capability-skipped native evidence.
 5. The phase produces a checked-in target list that later phases can use as source-of-truth scope instead of adding operations opportunistically.
 
+**Plans:**
+
+Wave 1:
+- [14-01 Coverage Gap Triage Model](phases/14-coverage-gap-triage-and-hot-path-targets/14-01-PLAN.md) - adds deterministic gap categories, records, ranking, and tests for GPUTRIAGE-01/GPUTRIAGE-03.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [14-02 Hot Path Coverage Targets](phases/14-coverage-gap-triage-and-hot-path-targets/14-02-PLAN.md) - defines transformer, MLP, conv, and normalization target registry and suite request tests for GPUTRIAGE-02/GPUTRIAGE-03.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [14-03 Triage Report And Target List](phases/14-coverage-gap-triage-and-hot-path-targets/14-03-PLAN.md) - adds text/JSON triage reports and `14-HOT-PATH-TARGETS.md` handoff for GPUTRIAGE-01/02/03.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [14-04 Docs Validation And Triage Closure](phases/14-coverage-gap-triage-and-hot-path-targets/14-04-PLAN.md) - closes docs, focused verification, validation evidence, and artifact hygiene for GPUTRIAGE-01/02/03.
+
 **Cross-cutting constraints:**
 - Coverage and materialization behavior are the milestone prioritization mechanism; raw timing is supporting evidence only.
 - CUDA native evidence remains capability-gated on machines without CUDA hardware.
 - Do not commit local benchmark/profile artifacts unless intentionally promoted to canonical fixtures.
+- Phase 14 triage ranks coverage/materialization behavior, not raw timing.
+- Tensor-array fallback must stay distinct from native buffer GPU coverage.
+- Target workload names must be checked against `StandardWorkloads.defaultCatalog()`.
+- `14-HOT-PATH-TARGETS.md` is the source-of-truth target list for Phases 15-20.
+- Local tuning profile artifacts are not canonical coverage evidence.
 
 **Notes:**
 - This phase should prevent random operation chasing. Every later implementation phase should point back to a measured hot-path gap or explicit stable rejection.
