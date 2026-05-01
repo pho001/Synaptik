@@ -11,7 +11,7 @@
 
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
-| 14 | Coverage Gap Triage And Hot Path Targets | Use v1.2 coverage evidence to rank the CPU exits and materialization boundaries that should drive v1.3 work. | GPUTRIAGE-01, GPUTRIAGE-02, GPUTRIAGE-03 | 5 |
+| 14 | Coverage Gap Triage And Hot Path Targets | Use v1.2 coverage evidence to rank the CPU exits and materialization boundaries that should drive v1.3 work. | GPUTRIAGE-01, GPUTRIAGE-02, GPUTRIAGE-03 (Complete 2026-05-01) | 5 |
 | 15 | GPU Region Internal Lowered DAG Contract | Define a GPU region as a lowered DAG with original ops, backend primitives, fused subpatterns, and stable rejection metadata. | GPUDAG-01, GPUDAG-02, GPUDAG-03 | 5 |
 | 16 | DType And Storage Residency Expansion | Extend device residency, memory binding, slot reuse, and fallback diagnostics for BFLOAT16, INT32, and BOOL where they block GPU regions. | GPUSTORAGE-01, GPUSTORAGE-02, GPUSTORAGE-03 | 5 |
 | 17 | Normalization Reduction And Loss-Adjacent Lowering | Expand or explicitly reject high-impact normalization, reduction, softmax-ish, and loss-adjacent GPU lowering gaps under a shared Metal/CUDA contract. | GPUNORM-01, GPUNORM-02, GPUNORM-03 | 5 |
@@ -93,6 +93,8 @@ Archives:
 5. The phase produces a checked-in target list that later phases can use as source-of-truth scope instead of adding operations opportunistically.
 
 **Plans:**
+
+**Status:** 4/4 plans complete as of 2026-05-01.
 
 Wave 1:
 - [14-01 Coverage Gap Triage Model](phases/14-coverage-gap-triage-and-hot-path-targets/14-01-PLAN.md) - adds deterministic gap categories, records, ranking, and tests for GPUTRIAGE-01/GPUTRIAGE-03.

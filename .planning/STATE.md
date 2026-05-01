@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Coverage-Driven GPU Region Expansion
-status: executing
-last_updated: "2026-05-01T06:46:21.404Z"
-last_activity: 2026-05-01 -- Phase 14 planning complete
+status: ready_to_plan
+last_updated: "2026-05-01T06:56:45.000Z"
+last_activity: 2026-05-01 -- Phase 14 execution complete
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 4
+  percent: 14
 ---
 
 # GSD State
@@ -66,7 +66,7 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 14 — Coverage Gap Triage And Hot Path Targets | Planned | 4/4 | Pending |
+| 14 — Coverage Gap Triage And Hot Path Targets | Complete | 4/4 | Verified |
 | 15 — GPU Region Internal Lowered DAG Contract | Not started | 0/? | Pending |
 | 16 — DType And Storage Residency Expansion | Not started | 0/? | Pending |
 | 17 — Normalization Reduction And Loss-Adjacent Lowering | Not started | 0/? | Pending |
@@ -137,6 +137,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Phase 13 context captured in auto-routed next mode | Coverage evidence, representative workload, regression gate, and artifact hygiene decisions are ready for planning. |
 | 2026-04-30 | Phase 13 planning completed | Four plans cover the coverage metric/report schema, representative workload baseline comparison, fail-fast hidden-exit regression gates, docs/native gates, validation, and local profile artifact hygiene. |
 | 2026-05-01 | v1.3 milestone started | Coverage-Driven GPU Region Expansion will use v1.2 coverage evidence to expand lowered multi-op GPU regions, region-internal fusion, dtype/storage residency, and hard coverage gates. |
+| 2026-05-01 | Phase 14 execution completed | GPU coverage gaps, hot-path target registry, triage report renderers, docs, and validation evidence are complete; Phase 15 is ready to plan. |
 
 ## Recent Sessions
 
@@ -192,7 +193,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 ## Current Position
 
-Phase: 14 — Coverage Gap Triage And Hot Path Targets
-Plan: 4 plans ready
-Status: Ready to execute
-Last activity: 2026-05-01 -- Phase 14 planning complete
+Phase: 15
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-01 -- Phase 14 execution complete

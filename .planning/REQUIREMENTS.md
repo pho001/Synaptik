@@ -9,9 +9,9 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 
 ### Coverage Gap Triage
 
-- [ ] **GPUTRIAGE-01**: Engineers can inspect v1.2 coverage reports and identify the top fallback, CPU materialization, hidden tensor-array, and device handoff reasons by backend and workload.
-- [ ] **GPUTRIAGE-02**: Engineers can run deterministic transformer block, MLP, and conv/normalization-style workloads that expose GPU region length, CPU exits, and unsupported reason codes.
-- [ ] **GPUTRIAGE-03**: Engineers can rank GPU coverage gaps by hot-path impact so v1.3 operation, dtype, fusion, and region work closes measured exits before speculative coverage.
+- [x] **GPUTRIAGE-01**: Engineers can inspect v1.2 coverage reports and identify the top fallback, CPU materialization, hidden tensor-array, and device handoff reasons by backend and workload.
+- [x] **GPUTRIAGE-02**: Engineers can run deterministic transformer block, MLP, and conv/normalization-style workloads that expose GPU region length, CPU exits, and unsupported reason codes.
+- [x] **GPUTRIAGE-03**: Engineers can rank GPU coverage gaps by hot-path impact so v1.3 operation, dtype, fusion, and region work closes measured exits before speculative coverage.
 
 ### GPU Region Internal Lowered DAG Contract
 
@@ -82,9 +82,9 @@ Which phases cover which requirements. Updated during phase execution as require
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| GPUTRIAGE-01 | Phase 14 | Pending |
-| GPUTRIAGE-02 | Phase 14 | Pending |
-| GPUTRIAGE-03 | Phase 14 | Pending |
+| GPUTRIAGE-01 | Phase 14 | Complete |
+| GPUTRIAGE-02 | Phase 14 | Complete |
+| GPUTRIAGE-03 | Phase 14 | Complete |
 | GPUDAG-01 | Phase 15 | Pending |
 | GPUDAG-02 | Phase 15 | Pending |
 | GPUDAG-03 | Phase 15 | Pending |
