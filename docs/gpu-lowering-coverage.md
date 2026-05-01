@@ -112,6 +112,28 @@ Phase 18 covers `GPUFUSEX-01`, `GPUFUSEX-02`, and `GPUFUSEX-03` by making GPU fu
 
 Phase 18 verification treated local tuning outputs as non-canonical evidence; `profiles/platform/.../tuning/abc/* remained unstaged`.
 
+## Phase 19 multi-op GPU region execution
+
+Phase 19 extends the checked-in contract from named compound summaries to selected multi-op Metal/CUDA regions. A
+`selected GPU partition can execute as one backend-owned lowered region` when the shared lowering matrix, backend
+legality, dtype/layout gates, runtime capability checks, and native-buffer binding policy all accept the candidate.
+`ExecutionState and device buffer bindings carry supported internal values` between supported internal steps; public
+`Tensor` objects still remain logical and only become CPU-readable at real graph output, CPU consumer, or gradient
+publication boundaries.
+
+`tensor-array bridge execution is not native buffer GPU coverage`. Coverage reports keep `nativeBufferStepCount` tied to
+`BUFFER_BINDING` and keep `tensorArrayStepCount`, CPU fallback, device handoffs, and CPU materializations separately
+visible. The evidence for hot-path residency is trace/report based rather than timing-only.
+
+`GPU fusion remains region-internal lowering/fusion, not CPU fused ASM reuse`. Multi-op GPU regions may contain lowered
+layout/view, matmul/linear, elementwise, softmax/log-softmax-ish, and supported fused subpattern metadata, but they do
+not consume CPU `Operation.OpType.FUSED` nodes or import CPU fused ASM/vector internals. Unsupported normalization,
+reduction, conv, and loss-adjacent blockers remain visible support/rejection outcomes until a backend-specific
+implementation with parity evidence exists. `vendor library routing is deferred to GPULIB-*`; Phase 19 does not route
+Metal or CUDA lowering through MPSGraph, cuBLAS, cuDNN, or similar libraries.
+
+Phase 19 closure treated local tuning outputs as non-canonical evidence; `profiles/platform/.../tuning/abc/* remained unstaged`.
+
 ## Planner Rejection Sources
 
 Shared matrix entries classify semantic support for operation families and provide the stable fallback or unsupported reason code used by Metal and CUDA planner diagnostics.

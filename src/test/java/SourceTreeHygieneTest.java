@@ -267,6 +267,52 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void phaseNineteenAcceleratorPackagesDoNotImportCpuFusedInternals() throws IOException {
+        List<String> offenders = linesContainingAny(
+                List.of(
+                        Path.of("src/main/java/backend/accelerator"),
+                        Path.of("src/main/java/backend/metal"),
+                        Path.of("src/main/java/backend/cuda")
+                ),
+                List.of("import backend.cpu.fused")
+        );
+        assertTrue(offenders.isEmpty(), () -> "Phase 19 GPU region lowering must not import CPU fused internals: " + offenders);
+    }
+
+    @Test
+    void phaseNineteenPublicTensorApiDoesNotExposeDeviceResidency() throws IOException {
+        List<String> offenders = Files.readString(Path.of("src/main/java/tensor/Tensor.java")).lines()
+                .map(String::trim)
+                .filter(line -> line.startsWith("public "))
+                .filter(line -> line.contains("("))
+                .filter(line -> line.contains("DeviceHandle")
+                        || line.contains("GpuHandle")
+                        || line.contains("residentOnDevice"))
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Public Tensor API must stay logical, not expose device residency: " + offenders);
+    }
+
+    @Test
+    void phaseNineteenTensorArrayBridgeIsNotMarkedNativeBufferCoverage() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/tuning/benchmark/report/GpuCoverageSummary.java"));
+        assertTrue(source.contains("case \"BUFFER_BINDING\" -> coverage.bufferBindingStepCount++;"),
+                "BUFFER_BINDING steps must be counted separately as native buffer coverage.");
+        assertTrue(source.contains("case \"TENSOR_ARRAY\" -> coverage.tensorArrayStepCount++;"),
+                "TENSOR_ARRAY bridge steps must stay separately visible.");
+
+        int methodStart = source.indexOf("public int nativeBufferStepCount()");
+        assertTrue(methodStart >= 0, "GpuCoverageSummary.BackendCoverage must expose nativeBufferStepCount().");
+        int methodEnd = source.indexOf("\n        }\n", methodStart);
+        assertTrue(methodEnd > methodStart, "nativeBufferStepCount() method body must be readable.");
+        String methodBody = source.substring(methodStart, methodEnd);
+        assertTrue(methodBody.contains("return bufferBindingStepCount;"),
+                "nativeBufferStepCount() must return bufferBindingStepCount.");
+        assertTrue(!methodBody.contains("tensorArrayStepCount"),
+                "nativeBufferStepCount() must not count tensor-array bridge execution.");
+    }
+
+    @Test
     void acceleratorPackagesRejectCpuFusedOperationType() throws IOException {
         String detector = Files.readString(Path.of("src/main/java/backend/accelerator/lowering/GpuCompoundPatternDetector.java"));
 

@@ -733,6 +733,10 @@ GPU compound region lowering is the Metal/CUDA path for named multi-node acceler
 
 The public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding. A prepared GPU executable may keep intermediate values device-owned inside a selected region, but public `Tensor` objects still publish CPU-readable data at graph output, CPU consumer, or gradient publication boundaries. Metal and CUDA coverage is backend-specific, so the shared compound summary does not override backend capability, ABI, dtype, layout, or buffer-binding gates.
 
+Phase 19 multi-op GPU region execution makes the same boundary explicit for longer regions: a `selected GPU partition can execute as one backend-owned lowered region` after backend selection and lowering accept the region. `ExecutionState and device buffer bindings carry supported internal values` across supported internal steps, so supported layout/view, matmul/linear, elementwise, softmax/log-softmax-ish, and fused subpattern metadata can stay inside the backend-owned execution path until a real CPU boundary is reached.
+
+`tensor-array bridge execution is not native buffer GPU coverage`. Trace and report fields keep tensor-array bridge steps separate from native buffer steps, and `GPU fusion remains region-internal lowering/fusion, not CPU fused ASM reuse`. Unsupported normalization, reduction, conv, and loss-adjacent blockers still reject or fall back visibly; `vendor library routing is deferred to GPULIB-*`. Local benchmark calibration files are not closure evidence, and `profiles/platform/.../tuning/abc/* remained unstaged` during Phase 19 closure.
+
 Prepared GPU anchors require both a selected partition plan and a lowered region. Metal and CUDA preparers also prepare CPU fallback steps for the partition.
 
 ### GPU lowered-region manifest

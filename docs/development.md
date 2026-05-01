@@ -258,6 +258,24 @@ For Phase 18 fused elementwise and epilogue subregions, `GPU fusion is region-in
 
 Phase 18 closure also expects source hygiene gates proving accelerator, Metal, and CUDA packages do not import CPU fused internals. Local tuning files are not closure evidence; `profiles/platform/.../tuning/abc/* remained unstaged`.
 
+For Phase 19 multi-op GPU region execution, a `selected GPU partition can execute as one backend-owned lowered region`
+only when shared lowering, backend legality, dtype/layout, capability, and native-buffer binding gates accept the
+candidate. `ExecutionState and device buffer bindings carry supported internal values`, while public `Tensor` remains a
+logical API and CPU-readable publication stays at graph output, CPU consumer, or gradient publication boundaries.
+
+Use the same gates plus coverage/report checks for Phase 19 changes:
+
+```bash
+./gradlew classes
+./gradlew test --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest --tests graph.execution.DeviceLayoutViewPropagationTest --tests SourceTreeHygieneTest
+```
+
+`tensor-array bridge execution is not native buffer GPU coverage`; preserve separate `nativeBufferStepCount` and
+`tensorArrayStepCount` evidence in reports. `GPU fusion remains region-internal lowering/fusion, not CPU fused ASM
+reuse`, and `vendor library routing is deferred to GPULIB-*`. Do not imply universal Metal/CUDA op support:
+normalization, reduction, conv, and loss-adjacent blockers must continue to report visible support/rejection outcomes.
+Local tuning files are not Phase 19 evidence; `profiles/platform/.../tuning/abc/* remained unstaged`.
+
 ### GPU coverage regression checks
 
 Use these focused gates after changing GPU coverage summaries, benchmark report rendering, representative workload
