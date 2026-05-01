@@ -12,6 +12,7 @@ import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.dag.AcceleratorDagValueRefKind;
 import backend.accelerator.dag.AcceleratorPostOp;
 import backend.accelerator.dag.AcceleratorPostOpType;
+import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.residency.AcceleratorDTypeResidencyDecision;
 import backend.accelerator.residency.AcceleratorDTypeResidencyPolicy;
 import operations.Operation;
@@ -102,6 +103,120 @@ public final class AcceleratorSubgraphLowerer {
                 compoundSummary,
                 buildManifest(backend, subgraph, context, dagSpec, compoundSummary)
         );
+    }
+
+    /**
+     * Attempts to lower the full candidate and, when an unsupported internal primitive blocks the tail,
+     * returns the longest supported prefix with explicit candidate-shortening evidence.
+     */
+    public AcceleratorSubgraphLoweringResult tryLowerShortenedCandidate(
+            ComputeBackend backend,
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context
+    ) {
+        AcceleratorSubgraphLoweringResult full = tryLower(backend, subgraph, context);
+        if (full != null || subgraph == null || context == null || subgraph.orderedNodeIds().size() <= 1) {
+            return full;
+        }
+        List<Integer> originalNodeIds = subgraph.orderedNodeIds();
+        for (int acceptedLength = originalNodeIds.size() - 1; acceptedLength >= 1; acceptedLength--) {
+            List<Integer> acceptedNodeIds = List.copyOf(originalNodeIds.subList(0, acceptedLength));
+            AcceleratorSubgraphSpec shortened = shortenedSpec(subgraph, context, acceptedNodeIds);
+            AcceleratorSubgraphLoweringResult shortenedResult = tryLower(backend, shortened, context);
+            if (shortenedResult != null) {
+                return withCandidateShortening(
+                        shortenedResult,
+                        originalNodeIds,
+                        acceptedNodeIds,
+                        originalNodeIds.get(acceptedLength)
+                );
+            }
+        }
+        return null;
+    }
+
+    private AcceleratorSubgraphSpec shortenedSpec(
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context,
+            List<Integer> acceptedNodeIds
+    ) {
+        List<AcceleratorSubgraphOp> acceptedOps = subgraph.ops().stream()
+                .filter(op -> acceptedNodeIds.contains(op.nodeId()))
+                .toList();
+        return new AcceleratorSubgraphSpec(
+                acceptedNodeIds.getFirst(),
+                acceptedNodeIds,
+                acceptedOps,
+                externalInputNodeIds(context, acceptedNodeIds),
+                List.of(acceptedNodeIds.getLast())
+        );
+    }
+
+    private AcceleratorSubgraphLoweringResult withCandidateShortening(
+            AcceleratorSubgraphLoweringResult result,
+            List<Integer> originalNodeIds,
+            List<Integer> acceptedNodeIds,
+            int rejectedNodeId
+    ) {
+        GpuLoweredRegionManifest manifest = result.manifest();
+        GpuLoweredRegionCandidateSpan candidateSpan = new GpuLoweredRegionCandidateSpan(
+                originalNodeIds,
+                acceptedNodeIds,
+                rejectedNodeId,
+                "p" + acceptedNodeIds.size(),
+                GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED
+        );
+        List<GpuLoweredRegionRejection> rejections = new ArrayList<>(manifest.rejections());
+        rejections.add(new GpuLoweredRegionRejection(
+                "candidate_span",
+                rejectedNodeId,
+                candidateSpan.rejectedPrimitiveId(),
+                "",
+                GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED,
+                "candidate shortened before execution because node " + rejectedNodeId + " is not lowerable inside the GPU DAG"
+        ));
+        GpuLoweredRegionManifest shortenedManifest = new GpuLoweredRegionManifest(
+                manifest.regionId(),
+                manifest.backend(),
+                manifest.anchorNodeId(),
+                manifest.orderedNodeIds(),
+                manifest.externalInputNodeIds(),
+                manifest.outputNodeIds(),
+                acceptedNodeIds.size(),
+                manifest.originalOps(),
+                manifest.loweredPrimitives(),
+                manifest.inputAssumptions(),
+                manifest.outputAssumptions(),
+                manifest.fusedSummary(),
+                manifest.fusedSubpatterns(),
+                rejections,
+                candidateSpan,
+                manifest.backendExtensions()
+        );
+        return new AcceleratorSubgraphLoweringResult(
+                result.computeNodeId(),
+                result.matMulSpec(),
+                result.dagSpec(),
+                result.estimatedWork(),
+                result.compoundSummary(),
+                shortenedManifest
+        );
+    }
+
+    private List<Integer> externalInputNodeIds(PartitionPlanningContext context, List<Integer> selectedNodeIds) {
+        List<Integer> out = new ArrayList<>();
+        for (int nodeId : selectedNodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            for (int inputId : node.inputIds()) {
+                if (!selectedNodeIds.contains(inputId) && !out.contains(inputId)) {
+                    out.add(inputId);
+                }
+            }
+        }
+        return List.copyOf(out);
     }
 
     private GpuLoweredRegionManifest buildManifest(

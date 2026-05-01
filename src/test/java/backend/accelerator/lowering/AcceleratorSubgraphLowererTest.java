@@ -332,6 +332,82 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void phaseNineteenLowersMultiOpRegionWithLayoutElementwiseAndSoftmaxPrimitives() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "phase19LayoutInput", DataType.FLOAT32);
+        Tensor permuted = input.permute(1, 0);
+        Tensor relu = permuted.relu();
+        Tensor out = relu.logSoftmax(1);
+        PartitionPlanningContext context = planningContext(out);
+        int permuteNodeId = nodeId(context, Operation.OpType.PERMUTE);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        int logSoftmaxNodeId = nodeId(context, Operation.OpType.LOG_SOFTMAX);
+        List<Integer> selectedNodeIds = List.of(permuteNodeId, reluNodeId, logSoftmaxNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        permuteNodeId,
+                        selectedNodeIds,
+                        List.of(
+                                new AcceleratorSubgraphOp(permuteNodeId, Operation.OpType.PERMUTE),
+                                new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU),
+                                new AcceleratorSubgraphOp(logSoftmaxNodeId, Operation.OpType.LOG_SOFTMAX)
+                        ),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(logSoftmaxNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertTrue(result.manifest().selectedRegionLength() > 1);
+        assertTrue(result.manifest().loweredPrimitives().size() > 1);
+        assertEquals("4", result.manifest().backendExtensions().get("dagNodeCount"));
+        List<String> primitiveTypes = result.manifest().loweredPrimitives().stream()
+                .map(GpuLoweredPrimitiveManifest::primitiveType)
+                .toList();
+        assertTrue(primitiveTypes.contains("PERMUTE"));
+        assertTrue(primitiveTypes.contains("RELU"));
+        assertTrue(primitiveTypes.contains("SOFTMAX"));
+        assertTrue(primitiveTypes.contains("LOG"));
+    }
+
+    @Test
+    void phaseNineteenUnsupportedInternalPrimitiveRecordsCandidateShortening() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "phase19ShortenInput", DataType.FLOAT32);
+        Tensor relu = input.relu();
+        Tensor out = relu.sum(1);
+        PartitionPlanningContext context = planningContext(out);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        int sumNodeId = nodeId(context, Operation.OpType.SUM);
+        List<Integer> selectedNodeIds = List.of(reluNodeId, sumNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLowerShortenedCandidate(
+                ComputeBackend.GPU_CUDA,
+                new AcceleratorSubgraphSpec(
+                        reluNodeId,
+                        selectedNodeIds,
+                        List.of(
+                                new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU),
+                                new AcceleratorSubgraphOp(sumNodeId, Operation.OpType.SUM)
+                        ),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(sumNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(List.of(reluNodeId), result.manifest().orderedNodeIds());
+        assertEquals(GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED, result.manifest().candidateSpan().reason());
+        assertEquals(selectedNodeIds, result.manifest().candidateSpan().originalCandidateNodeIds());
+        assertEquals(List.of(reluNodeId), result.manifest().candidateSpan().acceptedNodeIds());
+        assertEquals(sumNodeId, result.manifest().candidateSpan().rejectedOriginalNodeId());
+        assertTrue(result.manifest().rejections().stream()
+                .anyMatch(rejection -> rejection.reason() == GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED));
+    }
+
+    @Test
     void sumReductionStillRejectsWhenNoAcceleratorDagTypeExists() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "sumInput", DataType.FLOAT32);
         Tensor out = input.sum(1);

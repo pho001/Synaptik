@@ -115,6 +115,65 @@ class CudaRegionLowererTest {
     }
 
     @Test
+    void phaseNineteenCudaLowererKeepsMultiOpRegionAsSingleGraphUnit() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "phase19CudaA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "phase19CudaB", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+        List<Tensor> graph = out.topologicalSort();
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        PartitionPlanningContext planningContext = new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                compiledNodes,
+                consumers(compiledNodes)
+        );
+        int matmulNodeId = nodeId(planningContext, Operation.OpType.MATMUL);
+        int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
+        int expNodeId = nodeId(planningContext, Operation.OpType.EXP);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, reluNodeId, expNodeId);
+        CudaGpuRegionLegalityAdapter adapter = new CudaGpuRegionLegalityAdapter();
+        var candidate = adapter.tryCreateStructuralCandidate(
+                Set.copyOf(selectedNodeIds),
+                planningContext,
+                Set.of(PartitionValueRef.ofNode(expNodeId))
+        );
+        assertNotNull(candidate);
+        CudaGpuPartitionPlan attachedPlan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
+        assertNotNull(attachedPlan);
+        Partition partition = partition(
+                "phase19-cuda-multi-op",
+                PartitionTarget.GPU_CUDA,
+                candidate.orderedNodeIds(),
+                candidate.externalInputIds(),
+                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
+                List.of(PartitionValueRef.ofNode(expNodeId))
+        );
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+        );
+
+        LoweringResult result = new CudaRegionLowerer().lower(new LoweringRequest(
+                region,
+                MemoryPlanner.plan(graph),
+                new BackendCapabilities(Set.of(ComputeBackend.GPU_CUDA)),
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), attachedPlan))
+        ));
+
+        assertNotNull(result);
+        assertEquals(1, result.loweredRegion().units().size());
+        assertEquals(backend.lowering.LoweringFamily.CUDA_GRAPH_REGION, result.loweredRegion().units().getFirst().loweringFamily());
+        assertTrue(attachedPlan.manifest().selectedRegionLength() > 1);
+        assertTrue(attachedPlan.manifest().loweredPrimitives().size() > 1);
+        assertTrue(result.loweredRegion().units().getFirst().orderedNodeIds().containsAll(selectedNodeIds));
+    }
+
+    @Test
     void cudaPlannerSupportMatchesSharedCoverageMatrixForForwardOps() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaMatrixA", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "cudaMatrixB", DataType.FLOAT32);
