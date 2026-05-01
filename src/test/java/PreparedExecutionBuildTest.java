@@ -302,6 +302,103 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void phaseSeventeenLogSoftmaxResidualFlowMatchesCpuAndStaysSupported() {
+        Tensor cpuInput = new Tensor(new float[]{0.25f, -0.5f, 1.25f, 2f, -1f, 0.75f}, new int[]{2, 3}, null, "phase17CpuLogSoftmaxInput", DataType.FLOAT32);
+        Tensor cpuWeight = new Tensor(new float[]{
+                1f, 0.5f, -0.25f,
+                -0.75f, 1.25f, 0.5f,
+                0.25f, -0.5f, 1.5f
+        }, new int[]{3, 3}, null, "phase17CpuLogSoftmaxWeight", DataType.FLOAT32);
+        Tensor cpuOut = cpuInput.matmul(cpuWeight).logSoftmax(1);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor input = new Tensor(new float[]{0.25f, -0.5f, 1.25f, 2f, -1f, 0.75f}, new int[]{2, 3}, null, "phase17GpuLogSoftmaxInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0.5f, -0.25f,
+                -0.75f, 1.25f, 0.5f,
+                0.25f, -0.5f, 1.5f
+        }, new int[]{3, 3}, null, "phase17GpuLogSoftmaxWeight", DataType.FLOAT32);
+        Tensor matmul = input.matmul(weight);
+        Tensor out = matmul.logSoftmax(1);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        execution.execute(ExecutionMode.FORWARD);
+        int logSoftmaxNodeId = nodeId(compiled, Operation.OpType.LOG_SOFTMAX);
+
+        var manifest = execution.prepareTrace().backendSelection().decisions().stream()
+                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.nodeIds().contains(logSoftmaxNodeId))
+                .map(graph.execution.trace.BackendSelectionDecisionTrace::gpuLoweredRegionManifest)
+                .filter(candidate -> candidate != null)
+                .findFirst()
+                .orElseThrow();
+        String manifestText = backend.accelerator.lowering.GpuLoweredRegionManifestRenderer.renderCompact(manifest);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
+        assertContainsAll(manifestText, "LOG_SOFTMAX", "SOFTMAX", "LOG");
+    }
+
+    @Test
+    void phaseSeventeenCrossEntropyIndexFallbackMatchesCpuAndReportsUnsupportedDType() {
+        Tensor cpuLogits = new Tensor(new float[]{1.5f, -0.25f, 0.5f, -1f, 2f, 0.25f}, new int[]{2, 3}, null, "phase17CpuLossLogits", DataType.FLOAT32);
+        Tensor cpuTargets = new Tensor(new int[]{0, 1}, new int[]{2}, null, "phase17CpuLossTargets", DataType.INT32);
+        Tensor cpuOut = cpuLogits.crossEntropyLossFromIndices(cpuTargets, 1);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor logits = new Tensor(new float[]{1.5f, -0.25f, 0.5f, -1f, 2f, 0.25f}, new int[]{2, 3}, null, "phase17GpuLossLogits", DataType.FLOAT32);
+        Tensor targets = new Tensor(new int[]{0, 1}, new int[]{2}, null, "phase17GpuLossTargets", DataType.INT32);
+        Tensor out = logits.crossEntropyLossFromIndices(targets, 1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        execution.execute(ExecutionMode.FORWARD);
+        int lossNodeId = nodeId(compiled, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
+        String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, lossNodeId), null);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
+        assertContainsAll(plannerReason,
+                "UNSUPPORTED_DTYPE",
+                "family=LOSS_ADJACENT",
+                "target=transformer_block_hot_path");
+        assertCpuPreparedStepAvailable(execution, lossNodeId);
+    }
+
+    @Test
+    void phaseSeventeenLayerNormFallbackMatchesCpuAndReportsReductionAdjacent() {
+        Tensor cpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f}, new int[]{2, 2}, null, "phase17CpuLayerNormInput", DataType.FLOAT32);
+        Tensor cpuGamma = new Tensor(new float[]{1.25f, 0.75f}, new int[]{2}, null, "phase17CpuLayerNormGamma", DataType.FLOAT32);
+        Tensor cpuBeta = new Tensor(new float[]{0.5f, -0.25f}, new int[]{2}, null, "phase17CpuLayerNormBeta", DataType.FLOAT32);
+        Tensor cpuOut = cpuInput.layerNorm(cpuGamma, cpuBeta, 1.0e-5);
+        CompiledGraph.compile(cpuOut, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor input = new Tensor(new float[]{1f, 2f, 4f, 8f}, new int[]{2, 2}, null, "phase17GpuLayerNormInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1.25f, 0.75f}, new int[]{2}, null, "phase17GpuLayerNormGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0.5f, -0.25f}, new int[]{2}, null, "phase17GpuLayerNormBeta", DataType.FLOAT32);
+        Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        execution.execute(ExecutionMode.FORWARD);
+        int layerNormNodeId = nodeId(compiled, Operation.OpType.LAYER_NORM);
+        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, layerNormNodeId), null);
+
+        assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
+        assertContainsAll(plannerReason,
+                "REDUCTION_ADJACENT",
+                "family=NORMALIZATION",
+                "target=layer_norm_small");
+        assertCpuPreparedStepAvailable(execution, layerNormNodeId);
+    }
+
+    @Test
     void gpuMetalLinearBiasReluCompilesAsOneCompoundRegion() {
         Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuMetalLinearInput", DataType.FLOAT32);
         Tensor cpuWeight = new Tensor(new float[]{
