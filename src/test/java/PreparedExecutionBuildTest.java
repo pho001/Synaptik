@@ -706,6 +706,33 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void phaseNineteenMetalPreparedExecutableExposesMultiOpManifest() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "phase19MetalManifestA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "phase19MetalManifestB", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(RuntimeConfig.inferenceDefaults());
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .map(step -> step.metadata().acceleratorExecutable())
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
+        assertNotNull(executable.gpuLoweredRegionManifest());
+        assertTrue(executable.gpuLoweredRegionManifest().selectedRegionLength() > 1);
+        assertTrue(executable.gpuLoweredRegionManifest().loweredPrimitives().size() > 1);
+        assertEquals(backend.accelerator.buffer.AcceleratorBufferExecutionPath.UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().path());
+    }
+
+    @Test
     void gpuCudaElementwiseChainPublishesCompoundSummary() {
         Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "cudaChainA", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "cudaChainB", DataType.FLOAT32);
@@ -731,6 +758,33 @@ public class PreparedExecutionBuildTest {
         assertTrue(executable.compoundSummary().supported());
         assertTrue(executable.compoundSummary().orderedNodeIds().containsAll(List.of(addNodeId, reluNodeId, expNodeId)));
         assertTrue(executable.compoundSummary().dagNodeTypes().containsAll(List.of("ADD", "RELU", "EXP")));
+    }
+
+    @Test
+    void phaseNineteenCudaPreparedExecutableExposesMultiOpManifest() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "phase19CudaManifestA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "phase19CudaManifestB", DataType.FLOAT32);
+        Tensor add = a.add(b);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PreparedExecution execution = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults())
+                .prepare(RuntimeConfig.inferenceDefaults());
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
+                .map(step -> step.metadata().acceleratorExecutable())
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
+        assertNotNull(executable.gpuLoweredRegionManifest());
+        assertTrue(executable.gpuLoweredRegionManifest().selectedRegionLength() > 1);
+        assertTrue(executable.gpuLoweredRegionManifest().loweredPrimitives().size() > 1);
+        assertEquals(backend.accelerator.buffer.AcceleratorBufferExecutionPath.UNAVAILABLE,
+                executable.lastAcceleratorBufferDecision().path());
     }
 
     @Test

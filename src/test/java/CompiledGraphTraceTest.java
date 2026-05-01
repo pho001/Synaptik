@@ -365,6 +365,80 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
+    void phaseNineteenPreparedTraceCarriesMultiOpRegionMetrics() {
+        Tensor out = Tensor.scalar(1.0f).relu();
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .findFirst()
+                .orElseThrow();
+        GpuLoweredRegionManifest manifest = sampleMultiOpFusedManifest(outputNode.id());
+
+        var attrs = syntheticTraceAttributes(
+                out,
+                outputNode,
+                compiled,
+                new SyntheticAcceleratorExecutable(outputNode.id(), manifest)
+        );
+
+        assertEquals(manifest.regionId(), attrs.get("gpuRegionId"));
+        assertEquals(manifest.regionId(), attrs.get("gpuLoweredRegionId"));
+        assertEquals(2, attrs.get("selectedRegionLength"));
+        assertEquals(2, attrs.get("loweredPrimitiveCount"));
+        assertEquals(1, attrs.get("gpuFusedSubpatternCount"));
+        assertEquals(List.of("ELEMENTWISE_CHAIN"), attrs.get("gpuFusedSubpatternTypes"));
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
+        assertEquals(0, attrs.get("cpuMaterializationCount"));
+        assertEquals(0, attrs.get("deviceHandoffCount"));
+    }
+
+    @Test
+    void phaseNineteenTraceDistinguishesBufferBindingTensorArrayAndCpuFallback() {
+        Tensor out = Tensor.scalar(1.0f).relu();
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        CompiledNode outputNode = compiled.compileArtifacts().compiledNodes().stream()
+                .filter(node -> node.semanticTensor() == out || node.sourceTensor() == out)
+                .findFirst()
+                .orElseThrow();
+
+        var bufferAttrs = syntheticTraceAttributes(
+                out,
+                outputNode,
+                compiled,
+                new SyntheticAcceleratorExecutable(outputNode.id(), null)
+        );
+        var tensorArrayAttrs = syntheticTraceAttributes(
+                out,
+                outputNode,
+                compiled,
+                new SyntheticAcceleratorExecutable(
+                        outputNode.id(),
+                        null,
+                        AcceleratorBufferExecutionPath.TENSOR_ARRAY,
+                        AcceleratorBufferReasonCode.NATIVE_BUFFER_ABI_UNAVAILABLE
+                )
+        );
+        var cpuFallbackAttrs = syntheticTraceAttributes(
+                out,
+                outputNode,
+                compiled,
+                new SyntheticAcceleratorExecutable(
+                        outputNode.id(),
+                        null,
+                        AcceleratorBufferExecutionPath.CPU_FALLBACK,
+                        AcceleratorBufferReasonCode.NATIVE_BUFFER_EXECUTION_FAILED
+                )
+        );
+
+        assertEquals("BUFFER_BINDING", bufferAttrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("TENSOR_ARRAY", tensorArrayAttrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("CPU_FALLBACK", cpuFallbackAttrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("NATIVE_BUFFER_ABI_UNAVAILABLE", tensorArrayAttrs.get("acceleratorBufferReasonCode"));
+        assertEquals("NATIVE_BUFFER_EXECUTION_FAILED", cpuFallbackAttrs.get("acceleratorBufferReasonCode"));
+    }
+
+    @Test
     void gpuCompoundElementwiseTraceContainsPatternAndDagNodeTypes() {
         Tensor a = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "traceChainA", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{0.5f, 1f, -1f, 2f}, new int[]{4}, null, "traceChainB", DataType.FLOAT32);
@@ -631,12 +705,58 @@ public class CompiledGraphTraceTest {
         assertTrue(rendered.contains("target=transformer_block_hot_path"));
     }
 
+    private static Map<String, Object> syntheticTraceAttributes(
+            Tensor out,
+            CompiledNode outputNode,
+            graph.CompiledGraph compiled,
+            SyntheticAcceleratorExecutable executable
+    ) {
+        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+                executable.backend(),
+                null,
+                null,
+                null,
+                null,
+                executable,
+                null,
+                List.of(),
+                backend.accelerator.exec.PartitionExecutionRole.NONE
+        );
+        PreparedNodeExecution step = new PreparedNodeExecution(outputNode, metadata);
+        PreparedExecution prepared = new PreparedExecution(
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                false,
+                List.of(step),
+                List.of(step),
+                List.of(),
+                compiled.compileArtifacts().compiledNodes(),
+                java.util.Map.of(),
+                out,
+                outputNode,
+                null,
+                null,
+                graph.execution.trace.PrepareTrace.skipped()
+        );
+        return prepared.executeTraced(ExecutionMode.FORWARD).steps().getFirst().metadata().attributes();
+    }
+
     private record SyntheticAcceleratorExecutable(
             int nodeId,
-            GpuLoweredRegionManifest gpuLoweredRegionManifest
+            GpuLoweredRegionManifest gpuLoweredRegionManifest,
+            AcceleratorBufferExecutionPath executionPath,
+            AcceleratorBufferReasonCode reasonCode
     ) implements PreparedAcceleratorExecutable {
         private SyntheticAcceleratorExecutable(int nodeId) {
             this(nodeId, null);
+        }
+
+        private SyntheticAcceleratorExecutable(int nodeId, GpuLoweredRegionManifest gpuLoweredRegionManifest) {
+            this(
+                    nodeId,
+                    gpuLoweredRegionManifest,
+                    AcceleratorBufferExecutionPath.BUFFER_BINDING,
+                    AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE
+            );
         }
 
         @Override
@@ -654,15 +774,86 @@ public class CompiledGraphTraceTest {
             return new AcceleratorBufferDecision(
                     ComputeBackend.GPU_CUDA,
                     AcceleratorBufferBindingMode.AUTO,
-                    AcceleratorBufferExecutionPath.BUFFER_BINDING,
-                    true,
+                    executionPath,
+                    executionPath == AcceleratorBufferExecutionPath.BUFFER_BINDING,
                     false,
-                    AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE,
+                    reasonCode,
                     "synthetic accelerator buffer trace",
                     List.of(),
                     List.of()
             );
         }
+    }
+
+    private static GpuLoweredRegionManifest sampleMultiOpFusedManifest(int nodeId) {
+        return new GpuLoweredRegionManifest(
+                "gpu-cuda-region-multi-op-" + nodeId,
+                ComputeBackend.GPU_CUDA,
+                nodeId,
+                List.of(nodeId - 1, nodeId),
+                List.of(),
+                List.of(nodeId),
+                2,
+                List.of(
+                        new GpuLoweredRegionOriginalOp(
+                                nodeId - 1,
+                                "ADD",
+                                List.of(),
+                                List.of(),
+                                DataType.FLOAT32,
+                                List.of(1),
+                                List.of("p0"),
+                                List.of()
+                        ),
+                        new GpuLoweredRegionOriginalOp(
+                                nodeId,
+                                "RELU",
+                                List.of(nodeId - 1),
+                                List.of(nodeId),
+                                DataType.FLOAT32,
+                                List.of(1),
+                                List.of("p1"),
+                                List.of()
+                        )
+                ),
+                List.of(
+                        new GpuLoweredPrimitiveManifest(
+                                "p0",
+                                "ADD",
+                                List.of(nodeId - 1),
+                                List.of("external:0"),
+                                "node:0",
+                                DataType.FLOAT32,
+                                List.of(1),
+                                List.of()
+                        ),
+                        new GpuLoweredPrimitiveManifest(
+                                "p1",
+                                "RELU",
+                                List.of(nodeId),
+                                List.of("node:0"),
+                                "node:1",
+                                DataType.FLOAT32,
+                                List.of(1),
+                                List.of()
+                        )
+                ),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.supported(
+                        ComputeBackend.GPU_CUDA,
+                        GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                        List.of(nodeId - 1, nodeId),
+                        List.of(),
+                        List.of(nodeId),
+                        List.of("ADD", "RELU"),
+                        List.of(),
+                        "synthetic Phase 19 multi-op fused subpattern"
+                ),
+                List.of(),
+                GpuLoweredRegionCandidateSpan.none(List.of(nodeId - 1, nodeId)),
+                Map.of("dagNodeCount", "2")
+        );
     }
 
     private static GpuLoweredRegionManifest sampleManifest(int nodeId) {

@@ -429,15 +429,22 @@ public final class PreparedExecution {
             attrs.put("acceleratorBufferPreparedInputUsed", decision.preparedInputUsed());
             attrs.put("acceleratorBufferInputCount", decision.inputs().size());
             attrs.put("acceleratorBufferOutputCount", decision.outputs().size());
+            attrs.put("cpuMaterializationCount", context.cpuMaterializationTraceCount());
+            attrs.put("deviceHandoffCount", deviceHandoffCount(decision));
             var manifest = metadata.acceleratorExecutable().gpuLoweredRegionManifest();
             if (manifest != null && !manifest.regionId().isBlank()) {
+                attrs.put("gpuRegionId", manifest.regionId());
                 attrs.put("gpuLoweredRegionId", manifest.regionId());
             }
-            if (manifest != null && !manifest.fusedSubpatterns().isEmpty()) {
+            if (manifest != null) {
+                attrs.put("selectedRegionLength", manifest.selectedRegionLength());
+                attrs.put("loweredPrimitiveCount", manifest.loweredPrimitives().size());
                 attrs.put("gpuFusedSubpatternCount", manifest.fusedSubpatterns().size());
                 attrs.put("gpuFusedSubpatternTypes", manifest.fusedSubpatterns().stream()
                         .map(subpattern -> subpattern.patternType().name())
                         .toList());
+            }
+            if (manifest != null && !manifest.fusedSubpatterns().isEmpty()) {
                 attrs.put("gpuFusedSubpatternOriginalNodeIds", manifest.fusedSubpatterns().stream()
                         .map(subpattern -> subpattern.originalOperationNodeIds())
                         .toList());
@@ -540,6 +547,14 @@ public final class PreparedExecution {
         }
 
         return new StepExecutionMetadata("node", attrs, compute, layout, dispatch, reduction, matMul, conv, fusedMeta);
+    }
+
+    private static int deviceHandoffCount(backend.accelerator.buffer.AcceleratorBufferDecision decision) {
+        if (decision == null
+                || decision.path() != backend.accelerator.buffer.AcceleratorBufferExecutionPath.BUFFER_BINDING) {
+            return 0;
+        }
+        return decision.inputs().size() + decision.outputs().size();
     }
 
     private void syncRootData(ExecutionMode mode, ExecutionState executionState) {

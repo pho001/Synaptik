@@ -348,6 +348,15 @@ public final class ExecutionContext {
     }
 
     /**
+     * Returns the number of CPU materialization events recorded so far in this run.
+     *
+     * @return materialization trace count, or zero when no execution state is attached
+     */
+    public int cpuMaterializationTraceCount() {
+        return executionState == null ? 0 : executionState.cpuMaterializationTraces().size();
+    }
+
+    /**
      * Reads backend-specific state attached to a tensor.
      *
      * @param tensor tensor identity used as key
