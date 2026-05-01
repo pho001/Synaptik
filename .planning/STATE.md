@@ -72,7 +72,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 17 — Normalization Reduction And Loss-Adjacent Lowering | Complete | 4/4 | Verified |
 | 18 — Fused Elementwise And Epilogue Subregions | Complete | 4/4 | Pending |
 | 19 — Multi-Op GPU Region Execution | Complete | 5/5 | Verified |
-| 20 — Coverage Regression Hardening | Complete | 4/4 | Pending |
+| 20 — Coverage Regression Hardening | Complete | 4/4 | Verified |
 
 ## Deferred Items
 
