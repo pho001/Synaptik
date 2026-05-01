@@ -12,12 +12,13 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.3 Coverage-Driven GPU Region Expansion started on 2026-05-01. Synaptik is building on the v1.2 coverage reports and regression gates to expand Metal/CUDA GPU execution by closing the highest-value CPU exits first, while keeping the public `Tensor` API logical and keeping device residency inside runtime execution state.
+v1.3 Coverage-Driven GPU Region Expansion started on 2026-05-01. Phases 14, 15, and 16 are complete: coverage gap triage, GPU lowered-region manifest contracts, and dtype/storage residency expansion are validated. Synaptik is continuing to expand Metal/CUDA GPU execution by closing the highest-value CPU exits first, while keeping the public `Tensor` API logical and keeping device residency inside runtime execution state.
 
-- 13 phases and 52 plans completed across v1.0, v1.1, and v1.2.
+- 16 phases and 64 plans completed across v1.0, v1.1, v1.2, and v1.3-to-date.
 - 49/49 milestone requirements satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, and `.planning/milestones/v1.2-REQUIREMENTS.md`.
+- 9/21 v1.3 requirements are complete through Phase 16.
 - v1.2 phase verification, security, Nyquist validation, milestone audit, and archival passed.
-- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, and coverage regression gates are now validated project state.
+- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, and dtype/storage residency are now validated project state.
 - Real CUDA hardware/native execution remains a residual environment risk because local CUDA native tasks capability-skipped; portable gates and capability-skip behavior passed.
 
 ## Current Milestone: v1.3 Coverage-Driven GPU Region Expansion
@@ -74,10 +75,11 @@ v1.3 Coverage-Driven GPU Region Expansion started on 2026-05-01. Synaptik is bui
 - ✓ Metal and CUDA lowering cover common NN/tensor operation patterns through a checked-in support matrix with stable unsupported reasons — validated in Phase 11 by `.planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-VERIFICATION.md`.
 - ✓ Fused GPU regions execute safe compound patterns without copying CPU fused ASM internals or regressing CPU fused execution — validated in Phase 12 by `.planning/milestones/v1.2-phases/12-fused-gpu-region-execution/12-VERIFICATION.md`.
 - ✓ Trace and benchmark reports quantify GPU region coverage, CPU materialization boundaries, fallbacks, device handoffs, and representative workload behavior — validated in Phase 13 by `.planning/milestones/v1.2-phases/13-coverage-benchmark-and-regression-gate/13-VERIFICATION.md`.
+- ✓ v1.3 coverage gap triage selects hot-path GPU exits from measured evidence, GPU regions are described as lowered DAG manifests, and `BFLOAT16`/`INT32`/`BOOL` dtype residency is represented in runtime binding, backend decisions, traces, and reports — validated through Phase 16 by `.planning/phases/16-dtype-and-storage-residency-expansion/16-VERIFICATION.md`.
 
 ### Active
 
-- [ ] v1.3 requirements are defined in `.planning/REQUIREMENTS.md` and focus on coverage-driven GPU region expansion, internal lowered DAGs, dtype/storage residency, broader lowering, GPU-internal fusion, multi-op region execution, and hard coverage gates.
+- [ ] Remaining v1.3 requirements in `.planning/REQUIREMENTS.md` focus on normalization/reduction/loss-adjacent lowering, GPU-internal fusion, multi-op region execution, and hard coverage gates.
 
 ### Out of Scope
 
@@ -160,4 +162,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-05-01 after v1.3 milestone start*
+*Last updated: 2026-05-01 after Phase 16 verification*
