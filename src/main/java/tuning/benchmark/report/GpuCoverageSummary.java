@@ -9,6 +9,7 @@ import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.accelerator.lowering.GpuLoweredRegionRejection;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,7 +26,7 @@ import java.util.Map;
  */
 public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
     public GpuCoverageSummary {
-        backends = backends == null ? Map.of() : Map.copyOf(backends);
+        backends = backends == null ? Map.of() : orderedMap(backends);
     }
 
     /**
@@ -302,15 +303,19 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         public BackendCoverage {
             rejectedCandidateReasonCounts = rejectedCandidateReasonCounts == null
                     ? Map.of()
-                    : Map.copyOf(rejectedCandidateReasonCounts);
+                    : orderedMap(rejectedCandidateReasonCounts);
             cpuMaterializationReasonCounts = cpuMaterializationReasonCounts == null
                     ? Map.of()
-                    : Map.copyOf(cpuMaterializationReasonCounts);
-            storageResidencyCounts = storageResidencyCounts == null ? Map.of() : Map.copyOf(storageResidencyCounts);
-            dtypeResidencyReasons = dtypeResidencyReasons == null ? Map.of() : Map.copyOf(dtypeResidencyReasons);
+                    : orderedMap(cpuMaterializationReasonCounts);
+            storageResidencyCounts = storageResidencyCounts == null ? Map.of() : orderedMap(storageResidencyCounts);
+            dtypeResidencyReasons = dtypeResidencyReasons == null ? Map.of() : orderedMap(dtypeResidencyReasons);
             reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
             fallbackReasons = fallbackReasons == null ? List.of() : List.copyOf(fallbackReasons);
         }
+    }
+
+    private static <K, V> Map<K, V> orderedMap(Map<K, V> source) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(source));
     }
 
     private static final class MutableBackendCoverage {
