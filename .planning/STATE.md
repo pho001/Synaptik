@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Coverage-Driven GPU Region Expansion
 status: executing
-last_updated: "2026-05-01T07:40:06.773Z"
-last_activity: 2026-05-01 -- Phase 15 planning complete
+last_updated: "2026-05-01T07:45:39.721Z"
+last_activity: 2026-05-01
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 8
-  completed_plans: 4
-  percent: 50
+  completed_plans: 5
+  percent: 63
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** v1.3 Coverage-Driven GPU Region Expansion
+**Current focus:** Phase 15 — GPU Region Internal Lowered DAG Contract
 
 ## Project Reference
 
@@ -197,7 +197,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
+Phase: 15 (GPU Region Internal Lowered DAG Contract) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-05-01 -- Phase 15 planning complete
+Last activity: 2026-05-01
