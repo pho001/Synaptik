@@ -73,6 +73,33 @@ public final class AcceleratorPreparedInputResolver {
         return new ResolvedAcceleratorInputs(externalIds, originals, executions, prepared, sites);
     }
 
+    /**
+     * Resolves external inputs for native buffer binding without applying CPU fallback prepared-input plans.
+     *
+     * <p>Supported accelerator interiors must stay device-owned through {@code ExecutionState} bindings.
+     * CPU fallback prepared inputs remain handled by {@link #resolve(List, List, ExecutionContext)}.</p>
+     */
+    public static ResolvedAcceleratorInputs resolveForNativeBufferBinding(
+            List<Integer> externalInputNodeIds,
+            ExecutionContext context
+    ) {
+        Objects.requireNonNull(context, "context cannot be null");
+        List<Integer> externalIds = List.copyOf(externalInputNodeIds == null ? List.of() : externalInputNodeIds);
+        if (externalIds.isEmpty()) {
+            return new ResolvedAcceleratorInputs(List.of(), List.of(), List.of(), List.of(), List.of());
+        }
+        List<Tensor> originals = new ArrayList<>(externalIds.size());
+        List<Boolean> prepared = new ArrayList<>(externalIds.size());
+        List<AcceleratorPreparedInputSite> sites = new ArrayList<>(externalIds.size());
+        for (int externalInputNodeId : externalIds) {
+            Tensor original = context.runtimeTensorForNodeId(externalInputNodeId);
+            originals.add(original);
+            prepared.add(false);
+            sites.add(new AcceleratorPreparedInputSite(externalInputNodeId, externalInputNodeId, -1, false));
+        }
+        return new ResolvedAcceleratorInputs(externalIds, originals, originals, prepared, sites);
+    }
+
     private static List<Tensor> resolveConsumerInputs(
             CompiledNode consumerNode,
             CompiledNodeExecutionMetadata metadata,

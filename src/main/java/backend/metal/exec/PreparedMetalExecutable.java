@@ -125,15 +125,14 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             return;
         }
 
-        ResolvedAcceleratorInputs resolvedInputs = AcceleratorPreparedInputResolver.resolve(
-                cpuFallbackSteps,
+        ResolvedAcceleratorInputs nativeBufferInputs = AcceleratorPreparedInputResolver.resolveForNativeBufferBinding(
                 bridgeExecutable.externalInputNodeIds(),
                 context
         );
         AcceleratorBufferRequest request = bufferRequest(context);
         AcceleratorBufferDecision decision = bufferBinder.decide(
                 request,
-                resolvedInputs,
+                nativeBufferInputs,
                 backendConfig.buffer(),
                 context
         );
@@ -142,7 +141,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
 
         if (decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING) {
             try {
-                AcceleratorBufferBindings<MetalBufferBinding> bindings = bufferBinder.resolve(request, resolvedInputs, decision, context);
+                AcceleratorBufferBindings<MetalBufferBinding> bindings = bufferBinder.resolve(request, nativeBufferInputs, decision, context);
                 lastExecutionStats = bridge.executeBuffers(
                         bridgeContext,
                         bridgeExecutable,
@@ -172,13 +171,18 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                         context,
                         toLegacyBufferDecision(failure),
                         failure.reason(),
-                        resolvedInputs.executionExternalInputs(),
+                        nativeBufferInputs.executionExternalInputs(),
                         outputTensors(context)
                 );
             }
             return;
         }
 
+        ResolvedAcceleratorInputs resolvedInputs = AcceleratorPreparedInputResolver.resolve(
+                cpuFallbackSteps,
+                bridgeExecutable.externalInputNodeIds(),
+                context
+        );
         ensureTensorArrayInputsCpuReadable(context);
         List<Tensor> resolvedExternalInputs = resolvedInputs.executionExternalInputs();
         List<Tensor> outputs = outputTensors(context);

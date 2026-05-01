@@ -1,11 +1,15 @@
 import backend.ComputeBackend;
+import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.PartitionExecutionRole;
+import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.select.AcceleratorPlanCostModel;
 import backend.cuda.lowering.CudaGpuRegionLegalityAdapter;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.metal.lowering.MetalPartitionSupport;
 import backend.cuda.exec.PreparedCudaExecutable;
+import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.optimizer.OptimizerConfig;
 import config.optimizer.OffloadConfig;
@@ -18,6 +22,9 @@ import config.runtime.RuntimeConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.FusedPrimaryBackend;
 import graph.CompiledGraph;
+import graph.CompiledNode;
+import graph.execution.CompiledNodeExecutionMetadata;
+import graph.execution.ExecutionState;
 import graph.execution.PreparedExecution;
 import operations.Operation;
 import backend.blas.BlasProvider;
@@ -28,6 +35,7 @@ import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -224,6 +232,37 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
 
         assertEquals("selected", selected.reason());
+    }
+
+    @Test
+    void phaseNineteenSupportedMultiOpBufferPathDoesNotMaterializePreparedInputs() {
+        Tensor input = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "phase19NativeBufferInput", DataType.FLOAT32);
+        Tensor out = input.relu().exp();
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        Map<Integer, CompiledNodeExecutionMetadata> metadata = Map.of();
+        ExecutionState state = ExecutionState.create(nodes, metadata, nodes.getLast().id());
+        ExecutionContext context = ExecutionContext.fromRuntimeConfig(
+                RuntimeConfig.inferenceDefaults(),
+                ExecutionMode.FORWARD,
+                metadata,
+                state
+        );
+        int inputNodeId = nodes.stream()
+                .filter(node -> node.operation() == null)
+                .map(CompiledNode::id)
+                .findFirst()
+                .orElseThrow();
+
+        ResolvedAcceleratorInputs resolved = AcceleratorPreparedInputResolver.resolveForNativeBufferBinding(
+                List.of(inputNodeId),
+                context
+        );
+
+        assertEquals(List.of(inputNodeId), resolved.externalInputNodeIds());
+        assertFalse(resolved.anyPreparedInputUsed());
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, AcceleratorBufferExecutionPath.BUFFER_BINDING);
+        assertTrue(state.cpuMaterializationTraces().stream()
+                .noneMatch(trace -> trace.reason() == backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
     }
 
     @Test

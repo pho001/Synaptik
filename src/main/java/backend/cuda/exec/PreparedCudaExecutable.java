@@ -176,15 +176,14 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             return;
         }
 
-        ResolvedAcceleratorInputs resolvedInputs = AcceleratorPreparedInputResolver.resolve(
-                cpuFallbackSteps,
+        ResolvedAcceleratorInputs nativeBufferInputs = AcceleratorPreparedInputResolver.resolveForNativeBufferBinding(
                 bridgeExecutable.externalInputNodeIds(),
                 context
         );
         AcceleratorBufferRequest request = bufferRequest(context);
         AcceleratorBufferDecision decision = bufferBinder.decide(
                 request,
-                resolvedInputs,
+                nativeBufferInputs,
                 backendConfig.buffer(),
                 context
         );
@@ -196,7 +195,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
                 CudaBufferAllocator allocator = bridge.createBufferAllocator(bridgeContext);
                 AcceleratorBufferBindings<CudaBufferBinding> bindings = bufferBinder.resolve(
                         request,
-                        resolvedInputs,
+                        nativeBufferInputs,
                         decision,
                         context,
                         allocator
@@ -247,6 +246,11 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             return;
         }
 
+        ResolvedAcceleratorInputs resolvedInputs = AcceleratorPreparedInputResolver.resolve(
+                cpuFallbackSteps,
+                bridgeExecutable.externalInputNodeIds(),
+                context
+        );
         if (decision.path() == AcceleratorBufferExecutionPath.CPU_FALLBACK) {
             List<Tensor> resolvedExternalInputs = resolvedInputs.executionExternalInputs();
             List<Tensor> outputs = outputTensors(context);

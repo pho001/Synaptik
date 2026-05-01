@@ -155,6 +155,25 @@ class PreparedCudaExecutableBufferPolicyTest {
     }
 
     @Test
+    void phaseNineteenCudaMultiOpBufferPathKeepsInteriorDeviceOwned() {
+        ElementwiseChainFixture fixture = elementwiseChainFixture();
+        FakeCudaBridge bridge = new FakeCudaBridge(true);
+        PreparedCudaExecutable executable = elementwiseChainExecutable(fixture, bridge, AcceleratorBackendConfig.defaults());
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.expNode().id()).residency());
+        assertTrue(fixture.state().cpuMaterializationTraces().stream()
+                .noneMatch(trace -> trace.reason() == CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
+        assertTrue(fixture.state().cpuMaterializationTraces().stream().noneMatch(trace ->
+                (trace.nodeId() == fixture.addNode().id() || trace.nodeId() == fixture.reluNode().id())
+                        && trace.reason() == CpuMaterializationReason.CPU_CONSUMER));
+    }
+
+    @Test
     void cudaBufferPathMaterializesGraphOutputThroughExecutionState() {
         Fixture fixture = fixture();
         FakeCudaBridge bridge = new FakeCudaBridge(true);

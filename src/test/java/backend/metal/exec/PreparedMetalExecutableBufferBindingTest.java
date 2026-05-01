@@ -272,6 +272,25 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     @Test
+    void phaseNineteenMetalMultiOpBufferPathKeepsInteriorDeviceOwned() {
+        ElementwiseChainFixture fixture = elementwiseChainFixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = elementwiseChainExecutable(fixture, bridge);
+
+        executable.execute(fixture.context());
+
+        assertEquals(1, bridge.bufferExecutions);
+        assertEquals(0, bridge.tensorExecutions);
+        assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
+        assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.expNode().id()).residency());
+        assertTrue(fixture.state().cpuMaterializationTraces().stream()
+                .noneMatch(trace -> trace.reason() == backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
+        assertTrue(fixture.state().cpuMaterializationTraces().stream().noneMatch(trace ->
+                (trace.nodeId() == fixture.addNode().id() || trace.nodeId() == fixture.reluNode().id())
+                        && trace.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+    }
+
+    @Test
     void bufferOffUsesTensorArrayWithoutAllocatorPreflight() {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);

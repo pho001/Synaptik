@@ -95,6 +95,24 @@ class DeviceLayoutViewPropagationTest {
     }
 
     @Test
+    void phaseNineteenFallbackPreparedInputsRemainVisible() {
+        Fixture fixture = fixture(input().permute(1, 0), ComputeBackend.GPU_METAL, true);
+        fixture.attachMetalSource();
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> fixture.context().requireCpuReadable(
+                fixture.sourceNode().id(),
+                backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT
+        ));
+
+        assertTrue(failure.getMessage().contains("accelerator_prepared_input"));
+        assertEquals(1, fixture.state().cpuMaterializationTraces().size());
+        assertEquals(
+                backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT,
+                fixture.state().cpuMaterializationTraces().getFirst().reason()
+        );
+    }
+
+    @Test
     void requiredModeFailsBeforeCpuMaterializationWhenViewPropagationRejected() {
         Fixture fixture = fixture(input().permute(1, 0), ComputeBackend.GPU_METAL, false, requireMetalRuntime());
 
