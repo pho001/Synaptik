@@ -190,7 +190,7 @@ class CudaRegionLowererTest {
     }
 
     @Test
-    void cudaRejectsDirectNonDenseComputeUntilLayoutIsMaterialized() {
+    void cudaPhaseSeventeenKeepsDirectNonDenseLayoutRejectionBeforeExecution() {
         Tensor base = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaBase", DataType.FLOAT32);
         Tensor nonDense = base.permute(1, 0);
         Tensor rhs = new Tensor(new float[]{1f, 1f, 1f, 1f, 1f, 1f}, new int[]{3, 2}, null, "cudaRhs", DataType.FLOAT32);

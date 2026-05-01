@@ -262,6 +262,46 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void metalRequiredModeExposesPhaseSeventeenReductionRejection() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalRequiredPhase17ReductionInput", DataType.FLOAT32);
+        Tensor out = input.sum(1);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
+        int sumNodeId = nodeId(compiled, Operation.OpType.SUM);
+        String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, sumNodeId), null);
+
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, sumNodeId));
+        assertContainsAll(plannerReason,
+                "family=REDUCTION",
+                "target=layer_norm_small",
+                "operation SUM is not supported");
+        assertCpuPreparedStepAvailable(execution, sumNodeId);
+    }
+
+    @Test
+    void cudaRequiredModeExposesPhaseSeventeenNormalizationRejection() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaRequiredPhase17NormInput", DataType.FLOAT32);
+        Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaRequiredPhase17NormGamma", DataType.FLOAT32);
+        Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaRequiredPhase17NormBeta", DataType.FLOAT32);
+        Tensor out = input.layerNorm(gamma, beta, 1.0e-5);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_CUDA));
+        int layerNormNodeId = nodeId(compiled, Operation.OpType.LAYER_NORM);
+        String plannerReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(compiledNode(compiled, layerNormNodeId), null);
+
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_CUDA, layerNormNodeId));
+        assertContainsAll(plannerReason,
+                "family=NORMALIZATION",
+                "target=layer_norm_small",
+                "operation LAYER_NORM is not supported");
+        assertCpuPreparedStepAvailable(execution, layerNormNodeId);
+    }
+
+    @Test
     void gpuMetalLinearBiasReluCompilesAsOneCompoundRegion() {
         Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuMetalLinearInput", DataType.FLOAT32);
         Tensor cpuWeight = new Tensor(new float[]{
@@ -3173,6 +3213,20 @@ public class PreparedExecutionBuildTest {
         );
     }
 
+    private static RuntimeConfig runtimeWithRequiredAcceleratorBuffer(ComputeBackend backend) {
+        RuntimeConfig defaults = RuntimeConfig.inferenceDefaults();
+        AcceleratorBackendConfig required = defaults.accelerator().forBackend(backend).withBuffer(
+                new AcceleratorBufferConfig(AcceleratorBufferBindingMode.REQUIRE, true, Long.MAX_VALUE)
+        );
+        AcceleratorConfig accelerator = switch (backend) {
+            case GPU_METAL -> defaults.accelerator().withMetal(required);
+            case GPU_CUDA -> defaults.accelerator().withCuda(required);
+            case GPU_OPENCL -> defaults.accelerator().withOpencl(required);
+            case CPU -> defaults.accelerator();
+        };
+        return defaults.withAccelerator(accelerator);
+    }
+
     private static KernelTuningConfig kernelWithVectorMinAndFusedAsmWidth(int vectorMinSize, int fusedAsmWidth) {
         var base = KernelTuningConfig.defaultsInference();
         var cpu = base.cpu();
@@ -3248,5 +3302,11 @@ public class PreparedExecutionBuildTest {
     private static void assertCpuPreparedStepAvailable(PreparedExecution execution, int nodeId) {
         assertTrue(execution.forwardSteps().stream()
                 .anyMatch(step -> step.compiledNode().id() == nodeId && step.metadata().backend() == ComputeBackend.CPU));
+    }
+
+    private static void assertContainsAll(String actual, String... expectedSubstrings) {
+        for (String expected : expectedSubstrings) {
+            assertTrue(actual.contains(expected), () -> "Expected '" + actual + "' to contain '" + expected + "'");
+        }
     }
 }
