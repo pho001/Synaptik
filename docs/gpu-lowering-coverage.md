@@ -116,6 +116,17 @@ The source-of-truth target list is
 should close ranked gaps for `transformer_block_hot_path`, `mlp_classifier_small`, `conv2d_resnet_3x3`, and
 `layer_norm_small` before adding speculative operation coverage.
 
+## Phase 15 GPU Lowered Region Manifest
+
+Phase 15 adds the [GPU Lowered Region Manifest](gpu-lowered-region-manifest.md) as the trace/report contract for selected GPU regions. The manifest describes selected regions as internal lowered DAGs with original op mapping, lowered primitive mapping, dtype/layout/storage assumptions, fused subpattern placeholders, rejection evidence, and candidate-shortening evidence.
+
+The Phase 15 DAG-level reason constants are:
+
+- `DAG_PRIMITIVE_UNSUPPORTED`
+- `DAG_REGION_BOUNDARY_MATERIALIZATION`
+- `DAG_CANDIDATE_SHORTENED`
+- `DAG_FUSED_SUBPATTERN_REJECTED`
+
 ## Phase 13 Coverage Gates
 
 Phase 11 defines which operation families Metal and CUDA may lower, and Phase 12 defines which multi-node compound

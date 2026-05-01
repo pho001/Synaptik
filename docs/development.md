@@ -280,6 +280,21 @@ rendering:
 These checks prove the portable triage/report contract. Native Metal and CUDA execution remains capability-gated and
 does not replace the checked target list in `.planning/phases/14-coverage-gap-triage-and-hot-path-targets/14-HOT-PATH-TARGETS.md`.
 
+### GPU lowered-region manifest checks
+
+Use these focused Phase 15 gates after changing `GpuLoweredRegionManifest`, shared accelerator lowering manifests,
+prepare/backend-selection trace metadata, benchmark manifest rendering, or source hygiene around local tuning output:
+
+```bash
+./gradlew test --tests backend.accelerator.lowering.GpuLoweredRegionManifestTest --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests CompiledGraphTraceTest
+./gradlew test --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest
+./gradlew test --tests BenchmarkSessionTest --tests GpuCoverageSummaryTest
+./gradlew test --tests SourceTreeHygieneTest
+```
+
+The manifest is Java-side trace/report metadata. Public `Tensor` remains logical, native Metal/CUDA ABI stays
+backend-owned, and CPU `Operation.OpType.FUSED` remains CPU-only.
+
 ## Adding Optimizer Rules
 
 Optimizer stages are defined in `src/main/java/config/optimizer/OptimizerStage.java`:

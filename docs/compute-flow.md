@@ -733,6 +733,22 @@ The public Tensor remains logical and device residency stays in ExecutionState a
 
 Prepared GPU anchors require both a selected partition plan and a lowered region. Metal and CUDA preparers also prepare CPU fallback steps for the partition.
 
+### GPU lowered-region manifest
+
+Selected GPU regions can be described as lowered DAG manifests. The manifest records the selected backend, region id,
+original graph operations, lowered backend primitives, dtype/layout/storage assumptions, fused subpattern metadata,
+rejection evidence, candidate-shortening evidence, and selected region length.
+
+The manifest is attached during prepare/backend selection through the selected `PartitionPlan` and
+`BackendSelectionDecisionTrace`. Prepare/backend selection is the structured source of truth for the full manifest.
+
+Run trace keeps only compact region id/runtime evidence. A prepared accelerator step may publish `gpuLoweredRegionId`
+beside buffer decision, fallback, and backend runtime attributes, but it does not duplicate the full manifest object.
+
+CPU `Operation.OpType.FUSED remains CPU-only`.
+
+The native Metal/CUDA ABI is unchanged by Phase 15.
+
 `BLAS` here means the CPU path may call an external GEMM implementation such as OpenBLAS through Java FFM. It is still
 prepared and executed as a CPU runtime path, not as an accelerator region. The detailed BLAS/GEMM and Java FFM model is
 in [Native Bridges & BLAS: Matmul Dispatch Flow](native-bridges-and-blas.md#matmul-dispatch-flow).
