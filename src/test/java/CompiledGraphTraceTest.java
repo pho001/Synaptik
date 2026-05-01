@@ -484,6 +484,104 @@ public class CompiledGraphTraceTest {
         assertTrue(rendered.contains("dtype=BOOL"));
     }
 
+    @Test
+    void prepareTraceRendersPhaseSeventeenNormAndLossEvidence() {
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-metal-region-phase17",
+                ComputeBackend.GPU_METAL,
+                80,
+                List.of(80, 81),
+                List.of(70),
+                List.of(81),
+                2,
+                List.of(new GpuLoweredRegionOriginalOp(
+                        81,
+                        "LOG_SOFTMAX",
+                        List.of(80),
+                        List.of(81),
+                        DataType.FLOAT32,
+                        List.of(2, 3),
+                        List.of("p0", "p1"),
+                        List.of()
+                )),
+                List.of(
+                        new GpuLoweredPrimitiveManifest(
+                                "p0",
+                                "SOFTMAX",
+                                List.of(81),
+                                List.of("external:0"),
+                                "node:0",
+                                DataType.FLOAT32,
+                                List.of(2, 3),
+                                List.of(GpuLoweringUnsupportedReason.SUPPORTED)
+                        ),
+                        new GpuLoweredPrimitiveManifest(
+                                "p1",
+                                "LOG",
+                                List.of(81),
+                                List.of("node:0"),
+                                "node:1",
+                                DataType.FLOAT32,
+                                List.of(2, 3),
+                                List.of(GpuLoweringUnsupportedReason.SUPPORTED)
+                        )
+                ),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.none(ComputeBackend.GPU_METAL, List.of(80, 81)),
+                List.of(
+                        new GpuLoweredRegionRejection(
+                                "planner.normalization",
+                                90,
+                                "",
+                                "",
+                                GpuLoweringUnsupportedReason.DEFERRED_FUSED_REGION,
+                                "REDUCTION_ADJACENT: DEFERRED_FUSED_REGION: operation LAYER_NORM is not supported by GPU_METAL lowering family=NORMALIZATION status=fallback note=normalization requires compound reduction-adjacent GPU region execution; target=layer_norm_small"
+                        ),
+                        new GpuLoweredRegionRejection(
+                                "planner.loss",
+                                91,
+                                "",
+                                "",
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                                "UNSUPPORTED_DTYPE: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering family=LOSS_ADJACENT status=unsupported note=index-target loss uses INT32 targets outside the current accelerator DAG dtype contract; target=transformer_block_hot_path"
+                        )
+                ),
+                GpuLoweredRegionCandidateSpan.none(List.of(80, 81)),
+                Map.of("phase17Target", "target=transformer_block_hot_path")
+        );
+        var selection = new graph.execution.trace.BackendSelectionTrace(
+                1,
+                1,
+                0,
+                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                        81,
+                        List.of(80, 81),
+                        List.of(ComputeBackend.GPU_METAL),
+                        true,
+                        ComputeBackend.GPU_METAL,
+                        "selected",
+                        256L,
+                        null,
+                        List.of(),
+                        manifest
+                ))
+        );
+
+        String rendered = GpuLoweredRegionManifestRenderer.renderCompact(
+                selection.decisions().getFirst().gpuLoweredRegionManifest()
+        );
+
+        assertTrue(rendered.contains("LOG_SOFTMAX"));
+        assertTrue(rendered.contains("SOFTMAX"));
+        assertTrue(rendered.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(rendered.contains("family=LOSS_ADJACENT"));
+        assertTrue(rendered.contains("REDUCTION_ADJACENT"));
+        assertTrue(rendered.contains("family=NORMALIZATION"));
+        assertTrue(rendered.contains("target=layer_norm_small"));
+        assertTrue(rendered.contains("target=transformer_block_hot_path"));
+    }
+
     private record SyntheticAcceleratorExecutable(
             int nodeId,
             GpuLoweredRegionManifest gpuLoweredRegionManifest
