@@ -223,10 +223,29 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 4. Metal and CUDA legality remains shared at the semantic contract level while backend-specific execution and capability checks remain backend-owned.
 5. Tests cover selected and rejected candidates, including dtype/layout/capability rejection and required-mode behavior.
 
+**Plans:**
+
+**Status:** 4/4 plans planned as of 2026-05-01.
+
+Wave 1:
+- [17-01 Phase 17 Coverage Matrix Contract](phases/17-normalization-reduction-and-loss-adjacent-lowering/17-01-PLAN.md) - hardens shared Metal/CUDA coverage rows, target evidence, and docs for GPUNORM-01/02.
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [17-02 Backend Legality And Stable Rejection Detail](phases/17-normalization-reduction-and-loss-adjacent-lowering/17-02-PLAN.md) - routes Metal/CUDA rejection detail through the shared matrix while preserving dtype/layout gates for GPUNORM-01/02/03.
+
+Wave 3 *(blocked on Wave 1 and Wave 2 completion)*:
+- [17-03 Softmax Loss Trace And Parity Evidence](phases/17-normalization-reduction-and-loss-adjacent-lowering/17-03-PLAN.md) - proves `LOG_SOFTMAX` support, visible loss-adjacent rejection, trace/report rendering, and CPU parity for GPUNORM-02/03.
+
+Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
+- [17-04 Docs Validation And Lowering Closure](phases/17-normalization-reduction-and-loss-adjacent-lowering/17-04-PLAN.md) - closes docs, final focused verification, validation evidence, and artifact hygiene for GPUNORM-01/02/03.
+
 **Cross-cutting constraints:**
 - Unsupported reductions and losses must not disappear behind generic CPU replay.
 - Layout and dtype legality from earlier phases must be honored by every new lowering path.
 - The milestone should prefer high-impact region closure over low-impact isolated op support.
+- Shared matrix rows are the semantic source of truth; Metal and CUDA adapters own only backend capability/layout details.
+- `LOG_SOFTMAX` support must remain distinct from loss-adjacent fallback.
+- Local tuning profile artifacts are not canonical coverage evidence.
 
 **Notes:**
 - "Softmax-ish" includes residual pieces that commonly break transformer-like regions after v1.2 `LOG_SOFTMAX` coverage.
