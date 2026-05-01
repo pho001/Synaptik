@@ -1,7 +1,7 @@
 ---
 phase: 18
 slug: fused-elementwise-and-epilogue-subregions
-status: draft
+status: verified
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-05-01
@@ -32,10 +32,10 @@ created: 2026-05-01
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 18-01-01 | 01 | 1 | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 | T-18-01, T-18-02 | Shared subpattern metadata records spans/counts/rejections without CPU fused internals. | unit/model/docs | `./gradlew test --tests backend.accelerator.lowering.GpuCompoundPatternDetectorTest --tests backend.accelerator.lowering.GpuLoweredRegionManifestTest` | W0 | pending |
-| 18-02-01 | 02 | 2 | GPUFUSEX-01, GPUFUSEX-03 | T-18-03, T-18-04 | Elementwise chain interiors stay GPU-owned and do not use Java array round trips. | optimizer/lowering/runtime | `./gradlew test --tests graph.optimizer.region.DefaultRegionOptimizerTest --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest` | W0 | pending |
-| 18-03-01 | 03 | 3 | GPUFUSEX-02, GPUFUSEX-03 | T-18-05, T-18-06 | Matmul/linear epilogues are gated by dtype/layout/backend legality and visible fallback. | lowering/runtime/parity | `./gradlew test --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest` | W0 | pending |
-| 18-04-01 | 04 | 4 | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 | T-18-07 | Trace/report evidence exposes subpatterns and CPU fused execution remains isolated. | trace/report/docs/hygiene | `./gradlew classes && ./gradlew test --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests OptimizerFuseTest --tests backend.cpu.fused.plan.LoweredFusedOperationBuilderTest --tests SourceTreeHygieneTest` | W0 | pending |
+| 18-01-01 | 01 | 1 | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 | T-18-01, T-18-02 | Shared subpattern metadata records spans/counts/rejections without CPU fused internals. | unit/model/docs | `./gradlew test --tests backend.accelerator.lowering.GpuCompoundPatternDetectorTest --tests backend.accelerator.lowering.GpuLoweredRegionManifestTest` | ✅ | ✅ green |
+| 18-02-01 | 02 | 2 | GPUFUSEX-01, GPUFUSEX-03 | T-18-03, T-18-04 | Elementwise chain interiors stay GPU-owned and do not use Java array round trips. | optimizer/lowering/runtime | `./gradlew test --tests graph.optimizer.region.DefaultRegionOptimizerTest --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest` | ✅ | ✅ green |
+| 18-03-01 | 03 | 3 | GPUFUSEX-02, GPUFUSEX-03 | T-18-05, T-18-06 | Matmul/linear epilogues are gated by dtype/layout/backend legality and visible fallback. | lowering/runtime/parity | `./gradlew test --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest` | ✅ | ✅ green |
+| 18-04-01 | 04 | 4 | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 | T-18-07, T-18-08 | Trace/report evidence exposes subpatterns and CPU fused execution remains isolated. | trace/report/docs/hygiene | `./gradlew classes && ./gradlew test --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests OptimizerFuseTest --tests backend.cpu.fused.plan.LoweredFusedOperationBuilderTest --tests SourceTreeHygieneTest` | ✅ | ✅ green |
 
 ## Wave 0 Requirements
 
@@ -57,6 +57,23 @@ Existing infrastructure covers the phase starting point:
 
 Native Metal and CUDA execution remain optional and capability-gated outside portable tests. Run `./gradlew metalTest` and CUDA native tasks where local shims/devices are available before claiming native execution evidence.
 
+## Validation Audit 2026-05-01
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+Phase 18 is Nyquist-compliant through portable JUnit coverage. `GPUFUSEX-01`, `GPUFUSEX-02`, and `GPUFUSEX-03` each have automated tests covering the lowered metadata model, region-internal elementwise and epilogue subpatterns, visible fallback/materialization evidence, and CPU fused isolation.
+
+Validated commands:
+
+| Command | Result |
+|---------|--------|
+| `./gradlew classes` | Passed |
+| `./gradlew test --tests backend.accelerator.lowering.GpuCompoundPatternDetectorTest --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.accelerator.lowering.GpuLoweredRegionManifestTest --tests graph.optimizer.region.DefaultRegionOptimizerTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests OptimizerFuseTest --tests backend.cpu.fused.plan.LoweredFusedOperationBuilderTest --tests SourceTreeHygieneTest` | Passed |
+
 ## Validation Sign-Off
 
 - [x] All tasks have automated verify commands or Wave 0 dependencies.
@@ -66,5 +83,4 @@ Native Metal and CUDA execution remain optional and capability-gated outside por
 - [x] Feedback latency target < 150s.
 - [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** draft
-
+**Approval:** approved 2026-05-01
