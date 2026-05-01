@@ -6,6 +6,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tuning.measure.MeasurementPolicy;
 import tuning.benchmark.report.BenchmarkSuiteReport;
+import tuning.benchmark.report.GpuHotPathCoverageTargets;
 import tuning.benchmark.report.JsonBenchmarkSuiteReportRenderer;
 import tuning.benchmark.report.TextBenchmarkSuiteReportRenderer;
 import tuning.benchmark.BenchmarkEntry;
@@ -263,5 +264,30 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(names.contains("conv2d_resnet_3x3"));
         assertTrue(String.join(",", names).contains("conv2d_resnet_3x3")
                 || "conv_or_norm_coverage_proxy".contains("conv_or_norm_coverage_proxy"));
+    }
+
+    @Test
+    void phase14CoverageTargetsBuildDeterministicBenchmarkSuite() {
+        ExecutionProfile profile = new ExecutionProfile(
+                "phase14-target-profile",
+                "phase14-target-coverage",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.noOptimization(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.transformerHotPathDefaults()
+        );
+
+        BenchmarkSuiteRequest request = GpuHotPathCoverageTargets.benchmarkSuite(List.of(
+                BenchmarkEntry.candidate("phase14-target-coverage", profile)
+        ));
+        List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
+
+        assertEquals(4, request.workloads().size());
+        assertTrue(names.contains("transformer_block_hot_path"));
+        assertTrue(names.contains("mlp_classifier_small"));
+        assertTrue(names.contains("conv2d_resnet_3x3"));
+        assertTrue(names.contains("layer_norm_small"));
+        assertTrue(request.entries().stream().anyMatch(entry -> entry.name().equals("phase14-target-coverage")));
     }
 }
