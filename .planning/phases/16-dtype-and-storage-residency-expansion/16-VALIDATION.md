@@ -72,3 +72,30 @@ Native CUDA execution remains optional and capability-gated outside portable tes
 | `git status --short` | Source/docs/planning changes visible; profiles/platform/.../tuning/abc/* remained unstaged |
 
 **Approval:** verified
+
+## Validation Audit 2026-05-01
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| GPUSTORAGE-01 | COVERED | `RuntimeMemoryBinderTest` covers reusable BFLOAT16, INT32, and BOOL region slots and preserves FLOAT32/FLOAT64 slot behavior. |
+| GPUSTORAGE-02 | COVERED | `AcceleratorDTypeResidencyPolicyTest`, `MetalMpsCapabilitiesTest`, and `CudaBufferAllocatorTest` cover explicit Metal/CUDA dtype residency decisions and `UNSUPPORTED_DTYPE` rejection evidence. |
+| GPUSTORAGE-03 | COVERED | `CompiledGraphTraceTest`, `GpuCoverageSummaryTest`, and `BenchmarkSessionTest` cover dtype residency evidence in prepare traces, coverage summaries, and benchmark reports. |
+
+### Audit Evidence
+
+- Phase state detected as State A: existing `16-VALIDATION.md` plus completed plan summaries.
+- Nyquist validation config checked with `gsd-sdk query config-get workflow.nyquist_validation --raw`: `true`.
+- Requirement-to-test discovery used `rg` for typed slot binding tests, dtype rejection reason coverage, and trace/report evidence tests.
+- Focused validation command passed:
+
+```bash
+./gradlew test --tests graph.execution.RuntimeMemoryBinderTest --tests backend.accelerator.buffer.AcceleratorBufferLayoutClassifierTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests backend.metal.MetalMpsCapabilitiesTest --tests backend.cuda.buffer.CudaBufferAllocatorTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests SourceTreeHygieneTest
+```
+
+Native Metal/CUDA execution remains capability-gated and manual-only where local native shims or devices are available. Portable JUnit validation for Phase 16 requirements is complete, and no additional Nyquist tests were required.
