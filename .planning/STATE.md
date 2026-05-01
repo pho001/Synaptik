@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Coverage-Driven GPU Region Expansion
-status: verifying
-last_updated: "2026-05-01T07:57:02.953Z"
+status: ready_to_plan
+last_updated: "2026-05-01T08:22:55Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
   completed_plans: 8
-  percent: 100
+  percent: 43
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 15 — GPU Region Internal Lowered DAG Contract
+**Current focus:** Phase 16 — DType And Storage Residency Expansion
 
 ## Project Reference
 
@@ -67,7 +67,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 14 — Coverage Gap Triage And Hot Path Targets | Complete | 4/4 | Verified |
-| 15 — GPU Region Internal Lowered DAG Contract | Complete | 4/4 | Pending |
+| 15 — GPU Region Internal Lowered DAG Contract | Complete | 4/4 | Verified |
 | 16 — DType And Storage Residency Expansion | Not started | 0/? | Pending |
 | 17 — Normalization Reduction And Loss-Adjacent Lowering | Not started | 0/? | Pending |
 | 18 — Fused Elementwise And Epilogue Subregions | Not started | 0/? | Pending |
@@ -140,6 +140,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Phase 14 execution completed | GPU coverage gaps, hot-path target registry, triage report renderers, docs, and validation evidence are complete; Phase 15 is ready to plan. |
 | 2026-05-01 | Phase 15 context gathered | GPU lowered-region manifest decisions are captured; Phase 15 is ready to plan. |
 | 2026-05-01 | Phase 15 planning completed | Four plans cover manifest model/reason vocabulary, lowerer/backend plan construction, trace/report contracts, docs, validation, and artifact hygiene. |
+| 2026-05-01 | Phase 15 verification passed | Lowered-region manifest UAT, security, Nyquist validation, and verifier report passed; GPUDAG-01/02/03 are complete and Phase 16 is ready to plan. |
 
 ## Recent Sessions
 
@@ -191,14 +192,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Planned Phase 14 with 4 coverage triage waves | Ready for `$gsd-execute-phase 14` | .planning/phases/14-coverage-gap-triage-and-hot-path-targets/14-01-PLAN.md |
 | 2026-05-01 | Gathered Phase 15 context | Ready for `$gsd-plan-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-CONTEXT.md |
 | 2026-05-01 | Planned Phase 15 with 4 lowered-region manifest waves | Ready for `$gsd-execute-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-01-PLAN.md |
-| 2026-05-01 | Completed Phase 15 execution | Ready for `$gsd-verify-work 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-04-SUMMARY.md |
+| 2026-05-01 | Completed and verified Phase 15 | Ready for `$gsd-discuss-phase 16 --auto` or `$gsd-plan-phase 16 --auto` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-VERIFICATION.md |
 
 ---
-*Last updated: 2026-05-01 after Phase 15 execution*
+*Last updated: 2026-05-01 after Phase 15 verification*
 
 ## Current Position
 
-Phase: 15 (GPU Region Internal Lowered DAG Contract) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
+Phase: 16
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-05-01

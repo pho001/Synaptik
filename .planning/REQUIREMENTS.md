@@ -15,9 +15,9 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 
 ### GPU Region Internal Lowered DAG Contract
 
-- [ ] **GPUDAG-01**: A GPU region can represent multiple original graph operations as one backend-owned lowered DAG instead of assuming one selected region equals one operation.
-- [ ] **GPUDAG-02**: Region metadata records original operation IDs/types, lowered primitive IDs/types, fused subpattern summaries, backend ID, dtype/layout assumptions, and region length.
-- [ ] **GPUDAG-03**: Region planning and traces expose stable rejection, fallback, and materialization reason codes for each rejected original operation, lowered primitive, and fused subpattern.
+- [x] **GPUDAG-01**: A GPU region can represent multiple original graph operations as one backend-owned lowered DAG instead of assuming one selected region equals one operation.
+- [x] **GPUDAG-02**: Region metadata records original operation IDs/types, lowered primitive IDs/types, fused subpattern summaries, backend ID, dtype/layout assumptions, and region length.
+- [x] **GPUDAG-03**: Region planning and traces expose stable rejection, fallback, and materialization reason codes for each rejected original operation, lowered primitive, and fused subpattern.
 
 ### DType And Storage Residency
 
@@ -85,9 +85,9 @@ Which phases cover which requirements. Updated during phase execution as require
 | GPUTRIAGE-01 | Phase 14 | Complete |
 | GPUTRIAGE-02 | Phase 14 | Complete |
 | GPUTRIAGE-03 | Phase 14 | Complete |
-| GPUDAG-01 | Phase 15 | Pending |
-| GPUDAG-02 | Phase 15 | Pending |
-| GPUDAG-03 | Phase 15 | Pending |
+| GPUDAG-01 | Phase 15 | Complete |
+| GPUDAG-02 | Phase 15 | Complete |
+| GPUDAG-03 | Phase 15 | Complete |
 | GPUSTORAGE-01 | Phase 16 | Pending |
 | GPUSTORAGE-02 | Phase 16 | Pending |
 | GPUSTORAGE-03 | Phase 16 | Pending |

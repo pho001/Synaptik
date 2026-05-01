@@ -12,7 +12,7 @@
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | 14 | Coverage Gap Triage And Hot Path Targets | Use v1.2 coverage evidence to rank the CPU exits and materialization boundaries that should drive v1.3 work. | GPUTRIAGE-01, GPUTRIAGE-02, GPUTRIAGE-03 (Complete 2026-05-01) | 5 |
-| 15 | GPU Region Internal Lowered DAG Contract | 4/4 | Complete   | 2026-05-01 |
+| 15 | GPU Region Internal Lowered DAG Contract | Define a GPU region as a lowered DAG with original ops, backend primitives, fused subpatterns, and stable rejection metadata. | GPUDAG-01, GPUDAG-02, GPUDAG-03 (Complete 2026-05-01) | 5 |
 | 16 | DType And Storage Residency Expansion | Extend device residency, memory binding, slot reuse, and fallback diagnostics for BFLOAT16, INT32, and BOOL where they block GPU regions. | GPUSTORAGE-01, GPUSTORAGE-02, GPUSTORAGE-03 | 5 |
 | 17 | Normalization Reduction And Loss-Adjacent Lowering | Expand or explicitly reject high-impact normalization, reduction, softmax-ish, and loss-adjacent GPU lowering gaps under a shared Metal/CUDA contract. | GPUNORM-01, GPUNORM-02, GPUNORM-03 | 5 |
 | 18 | Fused Elementwise And Epilogue Subregions | Add region-internal GPU fusion for elementwise chains and linear/matmul epilogues without reusing CPU fused ASM nodes. | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 | 5 |
@@ -137,6 +137,8 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 5. Existing CPU execution, CPU fusion, and public tensor semantics remain unchanged.
 
 **Plans:**
+
+**Status:** Complete — verified 2026-05-01 (`15-VERIFICATION.md`)
 
 4/4 plans complete
 
