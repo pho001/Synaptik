@@ -295,6 +295,16 @@ prepare/backend-selection trace metadata, benchmark manifest rendering, or sourc
 The manifest is Java-side trace/report metadata. Public `Tensor` remains logical, native Metal/CUDA ABI stays
 backend-owned, and CPU `Operation.OpType.FUSED` remains CPU-only.
 
+### GPU dtype residency checks
+
+Use this focused Phase 16 gate after changing runtime typed slot binding, Metal/CUDA dtype residency policy, lowered-region dtype evidence, or benchmark dtype residency report fields:
+
+```bash
+./gradlew test --tests graph.execution.RuntimeMemoryBinderTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests GpuCoverageSummaryTest
+```
+
+`dtype residency is not native dtype compute`: `BFLOAT16`, `INT32`, and `BOOL` may be represented in runtime storage residency or trace evidence while Metal/CUDA still reject unsupported native compute/output roles with `UNSUPPORTED_DTYPE`.
+
 ## Adding Optimizer Rules
 
 Optimizer stages are defined in `src/main/java/config/optimizer/OptimizerStage.java`:

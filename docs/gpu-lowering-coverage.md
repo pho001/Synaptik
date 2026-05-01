@@ -76,6 +76,14 @@ The public `Tensor` remains logical and device residency stays in `ExecutionStat
 
 Metal and CUDA coverage is backend-specific. Shared rows describe the common semantic contract, but each backend can still reject a row through its own native capability, dtype, layout, ABI, or buffer-binding gates.
 
+## DType residency is not native dtype compute
+
+`dtype residency is not native dtype compute`. Phase 16 dtype residency records whether values such as `BFLOAT16`, `INT32`, and `BOOL` can stay represented in runtime storage and trace/report metadata. It does not widen Metal or CUDA native arithmetic beyond the backend role gates.
+
+Metal currently accepts `FLOAT32` compute/output and `BOOL` only for predicate-style external input evidence. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE` and stable details such as `backend=GPU_METAL role=compute dtype=BFLOAT16` or `backend=GPU_CUDA role=output dtype=INT32`.
+
+Reports use `dtypeResidency` evidence to explain why a region stayed resident, shortened, or exited. A dtype-resident internal value can still be materialized later for a real CPU consumer, graph output, or gradient publication, and that CPU boundary remains reportable.
+
 ## GPU Compound Region Lowering
 
 GPU compound region lowering is the Phase 12 path that lets Metal and CUDA execute selected multi-node regions without importing CPU fused ASM/vector internals. Supported compound summaries currently include `LINEAR_BIAS_ACTIVATION` and representative `ELEMENTWISE_CHAIN` regions. `REDUCTION_ADJACENT` candidates such as `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM` are recognized but reject with stable reason codes until a narrow GPU implementation with parity tests exists.

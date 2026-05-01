@@ -1,7 +1,7 @@
 ---
 phase: 16
 slug: dtype-and-storage-residency-expansion
-status: planned
+status: verified
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-05-01
@@ -32,10 +32,10 @@ created: 2026-05-01
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 16-01-01 | 01 | 1 | GPUSTORAGE-01, GPUSTORAGE-03 | T-16-01, T-16-05 | Runtime slots preserve dtype storage without changing public tensor semantics. | unit | `./gradlew test --tests graph.execution.RuntimeMemoryBinderTest` | W0 | planned |
-| 16-02-01 | 02 | 2 | GPUSTORAGE-01, GPUSTORAGE-02 | T-16-02, T-16-03 | Backend dtype residency decisions are role-gated and explicit. | unit | `./gradlew test --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests backend.metal.MetalMpsCapabilitiesTest --tests backend.cuda.buffer.CudaBufferAllocatorTest` | W0 | planned |
-| 16-03-01 | 03 | 3 | GPUSTORAGE-02, GPUSTORAGE-03 | T-16-04, T-16-06 | Trace/report evidence exposes dtype materialization and rejection reasons. | trace/report | `./gradlew test --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | planned |
-| 16-04-01 | 04 | 4 | GPUSTORAGE-01, GPUSTORAGE-02, GPUSTORAGE-03 | T-16-07 | Docs, source hygiene, CPU guardrails, and artifact hygiene are verified before closure. | docs/test | `./gradlew classes && ./gradlew test --tests graph.execution.RuntimeMemoryBinderTest --tests backend.accelerator.buffer.AcceleratorBufferLayoutClassifierTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests backend.metal.MetalMpsCapabilitiesTest --tests backend.cuda.buffer.CudaBufferAllocatorTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests SourceTreeHygieneTest` | W0 | planned |
+| 16-01-01 | 01 | 1 | GPUSTORAGE-01, GPUSTORAGE-03 | T-16-01, T-16-05 | Runtime slots preserve dtype storage without changing public tensor semantics. | unit | `./gradlew test --tests graph.execution.RuntimeMemoryBinderTest` | W0 | passed |
+| 16-02-01 | 02 | 2 | GPUSTORAGE-01, GPUSTORAGE-02 | T-16-02, T-16-03 | Backend dtype residency decisions are role-gated and explicit. | unit | `./gradlew test --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests backend.metal.MetalMpsCapabilitiesTest --tests backend.cuda.buffer.CudaBufferAllocatorTest` | W0 | passed |
+| 16-03-01 | 03 | 3 | GPUSTORAGE-02, GPUSTORAGE-03 | T-16-04, T-16-06 | Trace/report evidence exposes dtype materialization and rejection reasons. | trace/report | `./gradlew test --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest` | W0 | passed |
+| 16-04-01 | 04 | 4 | GPUSTORAGE-01, GPUSTORAGE-02, GPUSTORAGE-03 | T-16-07 | Docs, source hygiene, CPU guardrails, and artifact hygiene are verified before closure. | docs/test | `./gradlew classes && ./gradlew test --tests graph.execution.RuntimeMemoryBinderTest --tests backend.accelerator.buffer.AcceleratorBufferLayoutClassifierTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests backend.metal.MetalMpsCapabilitiesTest --tests backend.cuda.buffer.CudaBufferAllocatorTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests SourceTreeHygieneTest` | W0 | passed |
 
 ## Wave 0 Requirements
 
@@ -63,4 +63,12 @@ Native CUDA execution remains optional and capability-gated outside portable tes
 - [x] Feedback latency target < 120s.
 - [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** planned
+## Execution Evidence
+
+| Command | Result |
+|---------|--------|
+| `./gradlew classes` | Passed |
+| `./gradlew test --tests graph.execution.RuntimeMemoryBinderTest --tests backend.accelerator.buffer.AcceleratorBufferLayoutClassifierTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests backend.metal.MetalMpsCapabilitiesTest --tests backend.cuda.buffer.CudaBufferAllocatorTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests SourceTreeHygieneTest` | Passed |
+| `git status --short` | Source/docs/planning changes visible; profiles/platform/.../tuning/abc/* remained unstaged |
+
+**Approval:** verified

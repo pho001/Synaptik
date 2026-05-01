@@ -800,7 +800,7 @@ flowchart TD
 - Respects `runtimeBindingPolicyOf(...).regionBindingAllowed()`.
 - Preserves alias-view ops such as `NOOP`, `EXPAND`, `SELECT`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and contiguous `RESHAPE`.
 - Reuses typed storage slots only when the region slot is used at least twice and the slot size matches the runtime tensor flat size.
-- Currently binds reusable slots for `FLOAT64` and `FLOAT32`; `BFLOAT16`, `INT32`, and `BOOL` are no-ops in the binder.
+- Binds reusable slots for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, and `BOOL` without changing public tensor semantics.
 
 `ComputeEngine.compute(...)` is the final dispatcher. It ignores partition-interior metadata and otherwise calls:
 
@@ -820,6 +820,12 @@ Execution has two jobs at the same time:
 2. Track enough state to publish correct outputs, gradients, and traces without corrupting reusable compile/prepare artifacts.
 
 The important implementation detail is that tracking is split between `PreparedExecution`, `ExecutionState`, and `ExecutionContext`.
+
+### DType residency and materialization boundaries
+
+`BFLOAT16`, `INT32`, and `BOOL` can be represented in runtime storage residency through typed runtime slots and accelerator-visible residency diagnostics. That means a prepared GPU region can carry dtype residency evidence for inputs, internal values, and outputs without requiring the public `Tensor` API to become a device tensor API.
+
+This is still a runtime ownership contract, not a promise that every dtype has native arithmetic on every backend. True CPU consumers, graph outputs, gradient publication, validation snapshots, and explicit CPU-readable APIs can still materialize values back to host storage. Those boundaries must remain visible as `CpuMaterializationTrace` entries or benchmark coverage fields instead of being hidden behind a selected GPU region.
 
 ### What PreparedExecution tracks
 
@@ -1461,6 +1467,9 @@ Local tracking maps:
 ```text
 regionF64Slots: slot id -> double[] buffer
 regionF32Slots: slot id -> float[] buffer
+regionBF16Slots: slot id -> short[] buffer
+regionI32Slots: slot id -> int[] buffer
+regionBoolSlots: slot id -> byte[] buffer
 runtimeTensorBySemanticTensor: semantic Tensor identity -> runtime Tensor
 ```
 
@@ -1476,7 +1485,7 @@ The binder walks compiled nodes and decides whether a runtime tensor can share a
 8. Require a slot id.
 9. Require slot use count >= 2.
 10. Require slot size to match the runtime tensor flat size.
-11. Bind only `FLOAT64` and `FLOAT32` buffers today.
+11. Bind `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, and `BOOL` buffers through dtype-specific runtime slots.
 
 Illustrative example:
 
@@ -1496,7 +1505,7 @@ runtime binding:
   slot 1 -> one double[1024]
 ```
 
-The binder is not trying to optimize every tensor. It refuses unsafe cases. If dtype is `BFLOAT16`, `INT32`, or `BOOL`, the binder currently leaves the runtime tensor's storage alone.
+The binder is not trying to optimize every tensor. It refuses unsafe cases such as leaves, alias views, disallowed binding policies, incompatible slot sizes, and slots without enough reuse.
 
 ### Publishing root data
 
