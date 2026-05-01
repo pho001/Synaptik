@@ -5,7 +5,10 @@ import graph.optimizer.memory.MemoryPlan;
 import graph.optimizer.memory.RegionMemoryBinding;
 import graph.optimizer.memory.RegionMemoryBindingKind;
 import graph.optimizer.region.RegionValueRef;
+import tensor.BFloat16Storage;
+import tensor.BoolStorage;
 import tensor.DataType;
+import tensor.Int32Storage;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
@@ -28,6 +31,9 @@ final class RuntimeMemoryBinder {
         }
         Map<Integer, double[]> regionF64Slots = new HashMap<>();
         Map<Integer, float[]> regionF32Slots = new HashMap<>();
+        Map<Integer, short[]> regionBF16Slots = new HashMap<>();
+        Map<Integer, int[]> regionI32Slots = new HashMap<>();
+        Map<Integer, byte[]> regionBoolSlots = new HashMap<>();
         Map<Tensor, Tensor> runtimeTensorBySemanticTensor = new IdentityHashMap<>(compiledNodes.size());
         for (CompiledNode node : compiledNodes) {
             runtimeTensorBySemanticTensor.put(node.semanticTensor(), executionState.runtimeTensorForNodeId(node.id()));
@@ -45,7 +51,16 @@ final class RuntimeMemoryBinder {
             if (aliasesInput0AtRuntime(node, runtimeTensorBySemanticTensor, runtimeTensor)) {
                 continue;
             }
-            tryBindRegionMapped(runtimeTensor, semanticTensor, memoryPlan, regionF64Slots, regionF32Slots);
+            tryBindRegionMapped(
+                    runtimeTensor,
+                    semanticTensor,
+                    memoryPlan,
+                    regionF64Slots,
+                    regionF32Slots,
+                    regionBF16Slots,
+                    regionI32Slots,
+                    regionBoolSlots
+            );
         }
     }
 
@@ -78,7 +93,10 @@ final class RuntimeMemoryBinder {
             Tensor semanticTensor,
             MemoryPlan memoryPlan,
             Map<Integer, double[]> f64Slots,
-            Map<Integer, float[]> f32Slots
+            Map<Integer, float[]> f32Slots,
+            Map<Integer, short[]> bf16Slots,
+            Map<Integer, int[]> i32Slots,
+            Map<Integer, byte[]> boolSlots
     ) {
         RegionValueRef valueRef = memoryPlan.regionValueRefOf(semanticTensor);
         if (valueRef == null) {
@@ -99,7 +117,7 @@ final class RuntimeMemoryBinder {
         if (slotSize != runtimeTensor.getFlatDataSize()) {
             return false;
         }
-        bindTypedStorage(runtimeTensor, slotId, slotSize, f64Slots, f32Slots);
+        bindTypedStorage(runtimeTensor, slotId, slotSize, f64Slots, f32Slots, bf16Slots, i32Slots, boolSlots);
         return true;
     }
 
@@ -108,7 +126,10 @@ final class RuntimeMemoryBinder {
             int slotId,
             int slotSize,
             Map<Integer, double[]> f64Slots,
-            Map<Integer, float[]> f32Slots
+            Map<Integer, float[]> f32Slots,
+            Map<Integer, short[]> bf16Slots,
+            Map<Integer, int[]> i32Slots,
+            Map<Integer, byte[]> boolSlots
     ) {
         switch (runtimeTensor.getDataType()) {
             case FLOAT64 -> {
@@ -119,8 +140,17 @@ final class RuntimeMemoryBinder {
                 float[] buffer = f32Slots.computeIfAbsent(slotId, ignored -> new float[slotSize]);
                 runtimeTensor.setFloat32Data(buffer);
             }
-            case BFLOAT16, INT32, BOOL -> {
-                // Current runtime binding remains a no-op for these dtypes.
+            case BFLOAT16 -> {
+                short[] buffer = bf16Slots.computeIfAbsent(slotId, ignored -> new short[slotSize]);
+                TensorInternalAccess.replaceStorage(runtimeTensor, new BFloat16Storage(buffer));
+            }
+            case INT32 -> {
+                int[] buffer = i32Slots.computeIfAbsent(slotId, ignored -> new int[slotSize]);
+                TensorInternalAccess.replaceStorage(runtimeTensor, new Int32Storage(buffer));
+            }
+            case BOOL -> {
+                byte[] buffer = boolSlots.computeIfAbsent(slotId, ignored -> new byte[slotSize]);
+                TensorInternalAccess.replaceStorage(runtimeTensor, new BoolStorage(buffer));
             }
         }
     }

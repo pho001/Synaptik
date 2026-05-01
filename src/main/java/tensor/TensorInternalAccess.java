@@ -54,6 +54,10 @@ public final class TensorInternalAccess {
         target.aliasRuntimeFromInternal(source);
     }
 
+    public static void replaceStorage(Tensor target, TensorStorage storage) {
+        target.replaceStorageInternal(storage);
+    }
+
     public static List<Tensor> prevTensors(Tensor tensor) {
         return tensor.prevTensorsRef();
     }

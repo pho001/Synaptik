@@ -2220,6 +2220,16 @@ public class Tensor {
         this.storage = source.storage;
     }
 
+    void replaceStorageInternal(TensorStorage replacement) {
+        Objects.requireNonNull(replacement, "replacement storage cannot be null");
+        if (replacement.getType() != metadata.getDataType()) {
+            throw new IllegalArgumentException("replacement storage dtype " + replacement.getType()
+                    + " does not match tensor dtype " + metadata.getDataType());
+        }
+        TensorStorageSupport.validateInputLength(replacement.getSize(), metadata.getFlatSize(), "TensorStorage");
+        this.storage = replacement;
+    }
+
 
 
 
