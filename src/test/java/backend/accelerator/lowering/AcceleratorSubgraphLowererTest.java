@@ -170,6 +170,45 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void manifestRecordsDTypeResidencyAssumptions() {
+        Tensor condition = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{4}, null, "dtypeResidencyMask", DataType.BOOL);
+        Tensor trueBranch = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "dtypeResidencyTrue", DataType.FLOAT32);
+        Tensor falseBranch = new Tensor(new float[]{-1f, -2f, -3f, -4f}, new int[]{4}, null, "dtypeResidencyFalse", DataType.FLOAT32);
+        Tensor where = Tensor.where(condition, trueBranch, falseBranch);
+        Tensor bf16 = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "dtypeResidencyBf16", DataType.FLOAT32);
+        bf16.setDataType(DataType.BFLOAT16);
+        Tensor relu = bf16.relu();
+        PartitionPlanningContext boolContext = planningContext(where);
+        PartitionPlanningContext bf16Context = planningContext(relu);
+        CompiledNode whereNode = boolContext.compiledNode(nodeId(boolContext, Operation.OpType.WHERE));
+        CompiledNode reluNode = bf16Context.compiledNode(nodeId(bf16Context, Operation.OpType.RELU));
+
+        AcceleratorSubgraphLoweringResult boolResult = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                spec(whereNode),
+                boolContext
+        );
+        AcceleratorSubgraphLoweringResult bf16Result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_CUDA,
+                spec(reluNode),
+                bf16Context
+        );
+
+        assertNotNull(boolResult);
+        assertNotNull(bf16Result);
+        String boolEvidence = String.join("\n", boolResult.manifest().backendExtensions().values());
+        String bf16Rendered = GpuLoweredRegionManifestRenderer.renderCompact(bf16Result.manifest());
+        assertTrue(boolResult.manifest().backendExtensions().keySet().stream()
+                .anyMatch(key -> key.startsWith("dtypeResidency.")));
+        assertTrue(boolEvidence.contains("backend=GPU_METAL"));
+        assertTrue(boolEvidence.contains("dtype=BOOL"));
+        assertTrue(bf16Rendered.contains("dtypeResidency"));
+        assertTrue(bf16Rendered.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(bf16Rendered.contains("backend=GPU_CUDA"));
+        assertTrue(bf16Rendered.contains("dtype=BFLOAT16"));
+    }
+
+    @Test
     void sumReductionStillRejectsWhenNoAcceleratorDagTypeExists() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "sumInput", DataType.FLOAT32);
         Tensor out = input.sum(1);

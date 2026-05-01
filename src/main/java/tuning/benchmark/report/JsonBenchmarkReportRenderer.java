@@ -218,6 +218,7 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"copyDurationNs\": ").append(backend.copyDurationNs()).append(", ")
                     .append("\"deviceHandoffCount\": ").append(backend.deviceHandoffCount()).append(", ")
                     .append("\"storageResidencyCounts\": ").append(intMapJson(backend.storageResidencyCounts())).append(", ")
+                    .append("\"dtypeResidencyEvidence\": ").append(intMapJson(backend.dtypeResidencyReasons())).append(", ")
                     .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
                     .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
                     .append("}");
@@ -286,10 +287,24 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"originalOps\": " + originalOpsJson(manifest.originalOps()) + ", "
                 + "\"loweredPrimitives\": " + loweredPrimitivesJson(manifest.loweredPrimitives()) + ", "
                 + "\"valueAssumptions\": " + valueAssumptionsJson(manifest) + ", "
+                + "\"dtypeResidencyEvidence\": " + stringMapJson(dtypeResidencyEvidence(manifest)) + ", "
                 + "\"fusedSubpatterns\": " + fusedSubpatternsJson(manifest.fusedSummary()) + ", "
                 + "\"rejections\": " + rejectionsJson(manifest.rejections()) + ", "
                 + "\"candidateSpan\": " + candidateSpanJson(manifest.candidateSpan())
                 + "}";
+    }
+
+    private static Map<String, String> dtypeResidencyEvidence(GpuLoweredRegionManifest manifest) {
+        if (manifest == null || manifest.backendExtensions().isEmpty()) {
+            return Map.of();
+        }
+        java.util.LinkedHashMap<String, String> out = new java.util.LinkedHashMap<>();
+        manifest.backendExtensions().forEach((key, value) -> {
+            if (key.startsWith("dtypeResidency.")) {
+                out.put(key, value);
+            }
+        });
+        return out;
     }
 
     private static String originalOpsJson(java.util.List<GpuLoweredRegionOriginalOp> ops) {
@@ -729,6 +744,23 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append(", ");
             }
             sb.append('"').append(escape(entry.getKey())).append('"').append(": ").append(entry.getValue());
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static String stringMapJson(Map<String, String> map) {
+        if (map == null || map.isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        int index = 0;
+        for (var entry : map.entrySet()) {
+            if (index++ > 0) {
+                sb.append(", ");
+            }
+            sb.append('"').append(escape(entry.getKey())).append('"')
+                    .append(": \"").append(escape(entry.getValue())).append('"');
         }
         sb.append('}');
         return sb.toString();

@@ -6,6 +6,7 @@ import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredRegionManifestRenderer;
 import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
 import backend.accelerator.lowering.GpuLoweredRegionRejection;
 import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
@@ -394,6 +395,93 @@ public class CompiledGraphTraceTest {
                     (materialization.nodeId() == addNodeId || materialization.nodeId() == reluNodeId)
                             && materialization.reason() == CpuMaterializationReason.CPU_CONSUMER));
         }
+    }
+
+    @Test
+    void prepareTraceRendersDTypeResidencyRejectionReasons() {
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-cuda-region-dtype",
+                ComputeBackend.GPU_CUDA,
+                70,
+                List.of(70, 71),
+                List.of(60),
+                List.of(71),
+                2,
+                List.of(),
+                List.of(),
+                List.of(new GpuLoweredRegionValueAssumption(
+                        60,
+                        "input",
+                        DataType.BOOL,
+                        1,
+                        List.of(4),
+                        "CONTIGUOUS",
+                        true,
+                        false,
+                        0L
+                )),
+                List.of(new GpuLoweredRegionValueAssumption(
+                        71,
+                        "output",
+                        DataType.INT32,
+                        1,
+                        List.of(4),
+                        "CONTIGUOUS",
+                        true,
+                        false,
+                        0L
+                )),
+                GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, List.of(70, 71)),
+                List.of(
+                        new GpuLoweredRegionRejection(
+                                "dtype_residency.compute",
+                                70,
+                                "p0",
+                                "",
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                                "dtypeResidency backend=GPU_CUDA role=compute dtype=BFLOAT16 unsupported"
+                        ),
+                        new GpuLoweredRegionRejection(
+                                "dtype_residency.output",
+                                71,
+                                "p1",
+                                "",
+                                GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                                "dtypeResidency backend=GPU_METAL role=output dtype=INT32 unsupported"
+                        )
+                ),
+                GpuLoweredRegionCandidateSpan.none(List.of(70, 71)),
+                Map.of("dtypeResidency.input.60", "backend=GPU_METAL role=externalInput dtype=BOOL residentRepresentable=true")
+        );
+        var selection = new graph.execution.trace.BackendSelectionTrace(
+                1,
+                1,
+                0,
+                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                        70,
+                        List.of(70, 71),
+                        List.of(ComputeBackend.GPU_CUDA),
+                        true,
+                        ComputeBackend.GPU_CUDA,
+                        "selected",
+                        128L,
+                        null,
+                        List.of(),
+                        manifest
+                ))
+        );
+
+        String rendered = GpuLoweredRegionManifestRenderer.renderCompact(
+                selection.decisions().getFirst().gpuLoweredRegionManifest()
+        );
+
+        assertTrue(rendered.contains("dtypeResidency"));
+        assertTrue(rendered.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(rendered.contains("backend=GPU_METAL"));
+        assertTrue(rendered.contains("backend=GPU_CUDA"));
+        assertTrue(rendered.contains("dtype=BFLOAT16"));
+        assertTrue(rendered.contains("dtype=INT32"));
+        assertTrue(rendered.contains("dtype=BOOL"));
     }
 
     private record SyntheticAcceleratorExecutable(

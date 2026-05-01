@@ -5,6 +5,8 @@ import graph.execution.trace.BackendSelectionDecisionTrace;
 import graph.execution.trace.CpuMaterializationTrace;
 import graph.execution.trace.ExecutionStepTrace;
 import graph.execution.trace.ExecutionTrace;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredRegionRejection;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -132,6 +134,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                 coverage.selectedRegionCount++;
                 selectedTotalLength += length;
                 coverage.maxSelectedRegionLength = Math.max(coverage.maxSelectedRegionLength, length);
+                addDTypeResidencyCoverage(decision.gpuLoweredRegionManifest(), coverage);
                 continue;
             }
             if (!decision.selected() && compatibleWith(backend, decision)) {
@@ -154,9 +157,36 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             }
             coverage.cpuMaterializationCount++;
             addCount(coverage.cpuMaterializationReasonCounts, materialization.reason().name());
+            addDTypeResidencyReason(coverage, materialization.detail());
             coverage.cpuMaterializationBytes += materialization.bytes();
             coverage.cpuMaterializationDurationNs += materialization.durationNs();
         }
+    }
+
+    private static void addDTypeResidencyCoverage(
+            GpuLoweredRegionManifest manifest,
+            MutableBackendCoverage coverage
+    ) {
+        if (manifest == null) {
+            return;
+        }
+        manifest.backendExtensions().forEach((key, value) -> {
+            if (key != null && key.startsWith("dtypeResidency.")) {
+                addDTypeResidencyReason(coverage, "dtypeResidency " + value);
+            }
+        });
+        for (GpuLoweredRegionRejection rejection : manifest.rejections()) {
+            if (rejection.detail().contains("dtypeResidency")) {
+                addDTypeResidencyReason(coverage, rejection.reason().name() + " " + rejection.detail());
+            }
+        }
+    }
+
+    private static void addDTypeResidencyReason(MutableBackendCoverage coverage, String detail) {
+        if (detail == null || !detail.contains("dtypeResidency")) {
+            return;
+        }
+        addCount(coverage.dtypeResidencyReasons, detail);
     }
 
     private static int countDeviceHandoffs(String backend, List<ExecutionStepTrace> steps) {
@@ -265,6 +295,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             long copyDurationNs,
             int deviceHandoffCount,
             Map<String, Integer> storageResidencyCounts,
+            Map<String, Integer> dtypeResidencyReasons,
             List<String> reasonCodes,
             List<String> fallbackReasons
     ) {
@@ -276,6 +307,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     ? Map.of()
                     : Map.copyOf(cpuMaterializationReasonCounts);
             storageResidencyCounts = storageResidencyCounts == null ? Map.of() : Map.copyOf(storageResidencyCounts);
+            dtypeResidencyReasons = dtypeResidencyReasons == null ? Map.of() : Map.copyOf(dtypeResidencyReasons);
             reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
             fallbackReasons = fallbackReasons == null ? List.of() : List.copyOf(fallbackReasons);
         }
@@ -299,6 +331,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         private long copyDurationNs;
         private int deviceHandoffCount;
         private final LinkedHashMap<String, Integer> storageResidencyCounts = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Integer> dtypeResidencyReasons = new LinkedHashMap<>();
         private final LinkedHashSet<String> reasonCodes = new LinkedHashSet<>();
         private final LinkedHashSet<String> fallbackReasons = new LinkedHashSet<>();
 
@@ -328,6 +361,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     copyDurationNs,
                     deviceHandoffCount,
                     new LinkedHashMap<>(storageResidencyCounts),
+                    new LinkedHashMap<>(dtypeResidencyReasons),
                     new ArrayList<>(reasonCodes),
                     new ArrayList<>(fallbackReasons)
             );

@@ -205,9 +205,15 @@ public final class TextBenchmarkReportRenderer {
                     .append(" copyDurationNs=").append(backend.copyDurationNs())
                     .append(" deviceHandoffCount=").append(backend.deviceHandoffCount())
                     .append(" storageResidencyCounts=").append(backend.storageResidencyCounts())
+                    .append(" dtypeResidencyReasons=").append(backend.dtypeResidencyReasons())
                     .append(" reasonCodes=").append(backend.reasonCodes())
                     .append(" fallbackReasons=").append(backend.fallbackReasons())
                     .append('\n');
+            if (!backend.dtypeResidencyReasons().isEmpty()) {
+                sb.append("      DType Residency Evidence\n");
+                backend.dtypeResidencyReasons().forEach((reason, count) ->
+                        sb.append("        - count=").append(count).append(" ").append(reason).append('\n'));
+            }
         }
     }
 

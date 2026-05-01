@@ -65,6 +65,29 @@ public final class GpuLoweredRegionManifestRenderer {
         appendAssumptions(sb, "input", manifest.inputAssumptions());
         appendAssumptions(sb, "output", manifest.outputAssumptions());
 
+        sb.append("DType Residency\n");
+        boolean dtypeResidencyRendered = false;
+        for (var entry : manifest.backendExtensions().entrySet()) {
+            if (entry.getKey().startsWith("dtypeResidency.")) {
+                sb.append("- ").append(entry.getKey()).append('=').append(entry.getValue()).append('\n');
+                dtypeResidencyRendered = true;
+            }
+        }
+        for (GpuLoweredRegionRejection rejection : manifest.rejections()) {
+            if (rejection.detail().contains("dtypeResidency")) {
+                sb.append("- rejection level=").append(rejection.level())
+                        .append(" originalNodeId=").append(rejection.originalNodeId())
+                        .append(" primitiveId=").append(rejection.primitiveId())
+                        .append(" reason=").append(rejection.reason())
+                        .append(" detail=").append(rejection.detail())
+                        .append('\n');
+                dtypeResidencyRendered = true;
+            }
+        }
+        if (!dtypeResidencyRendered) {
+            sb.append("- none\n");
+        }
+
         sb.append("Fused Subpatterns\n");
         GpuCompoundRegionSummary fused = manifest.fusedSummary();
         if (fused == null) {

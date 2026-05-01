@@ -452,6 +452,31 @@ public class BenchmarkSessionTest {
     }
 
     @Test
+    void benchmarkReportsRenderDTypeResidencyEvidence() {
+        BenchmarkReport report = reportWithGpuLoweredRegionManifest();
+
+        String text = TextBenchmarkReportRenderer.render(report);
+        String json = JsonBenchmarkReportRenderer.render(report);
+
+        assertTrue(text.contains("DType Residency Evidence"));
+        assertTrue(text.contains("dtypeResidency"));
+        assertTrue(text.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(text.contains("backend=GPU_METAL"));
+        assertTrue(text.contains("backend=GPU_CUDA"));
+        assertTrue(text.contains("dtype=BFLOAT16"));
+        assertTrue(text.contains("dtype=INT32"));
+        assertTrue(text.contains("dtype=BOOL"));
+        assertTrue(json.contains("\"dtypeResidencyEvidence\""));
+        assertTrue(json.contains("dtypeResidency"));
+        assertTrue(json.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(json.contains("backend=GPU_METAL"));
+        assertTrue(json.contains("backend=GPU_CUDA"));
+        assertTrue(json.contains("dtype=BFLOAT16"));
+        assertTrue(json.contains("dtype=INT32"));
+        assertTrue(json.contains("dtype=BOOL"));
+    }
+
+    @Test
     void renderersExposeAcceleratorEvidenceContract() {
         var profile = new ExecutionProfile(
                 "accelerator-evidence-profile",
@@ -1022,11 +1047,15 @@ public class BenchmarkSessionTest {
                         4,
                         "p0",
                         "",
-                        GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
-                        "fixture reason"
+                        GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                        "dtypeResidency backend=GPU_CUDA role=compute dtype=INT32 unsupported"
                 )),
                 GpuLoweredRegionCandidateSpan.none(List.of(4, 5, 6)),
-                Map.of("dagNodeCount", "2")
+                Map.of(
+                        "dagNodeCount", "2",
+                        "dtypeResidency.input.1", "backend=GPU_METAL role=externalInput dtype=BOOL residentRepresentable=true",
+                        "dtypeResidency.compute.4", "backend=GPU_METAL role=compute dtype=BFLOAT16 unsupported"
+                )
         );
     }
 }

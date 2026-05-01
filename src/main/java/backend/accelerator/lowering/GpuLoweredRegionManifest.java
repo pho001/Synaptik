@@ -2,6 +2,8 @@ package backend.accelerator.lowering;
 
 import backend.ComputeBackend;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +60,8 @@ public record GpuLoweredRegionManifest(
         fusedSummary = fusedSummary == null ? GpuCompoundRegionSummary.none(backend, orderedNodeIds) : fusedSummary;
         rejections = List.copyOf(rejections == null ? List.of() : rejections);
         candidateSpan = candidateSpan == null ? GpuLoweredRegionCandidateSpan.none(orderedNodeIds) : candidateSpan;
-        backendExtensions = Map.copyOf(backendExtensions == null ? Map.of() : backendExtensions);
+        backendExtensions = backendExtensions == null
+                ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(backendExtensions));
     }
 }

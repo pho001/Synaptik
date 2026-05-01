@@ -78,6 +78,7 @@ public class GpuCoverageGapTriageTest {
                         0L,
                         1,
                         Map.of("HOST_READABLE", 1),
+                        Map.of(),
                         List.of("TENSOR_ARRAY_BRIDGE"),
                         List.of("bridge")
                 );

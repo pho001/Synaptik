@@ -4,6 +4,8 @@ import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
+import backend.accelerator.lowering.GpuLoweredRegionRejection;
+import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.StorageResidency;
 import backend.runtime.ExecutionMode;
@@ -152,6 +154,7 @@ public class GpuCoverageSummaryTest {
                 325_000L,
                 1,
                 Map.of("DEVICE_OWNED", 3),
+                Map.of(),
                 List.of("BUFFER_BINDING_AVAILABLE"),
                 List.of("using native buffer bindings")
         );
@@ -166,6 +169,50 @@ public class GpuCoverageSummaryTest {
         assertTrue(comparison.improvements().contains("fewer fallbacks"));
         assertTrue(comparison.improvements().contains("fewer device handoffs"));
         assertTrue(comparison.regressions().isEmpty());
+    }
+
+    @Test
+    void coverageSummaryCountsDTypeMaterializationReasons() {
+        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
+                "gpu-metal-region-dtype",
+                ComputeBackend.GPU_METAL,
+                30,
+                List.of(30, 31, 32),
+                List.of(20),
+                List.of(32),
+                3,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                GpuCompoundRegionSummary.none(ComputeBackend.GPU_METAL, List.of(30, 31, 32)),
+                List.of(new GpuLoweredRegionRejection(
+                        "dtype_residency.compute",
+                        31,
+                        "p1",
+                        "",
+                        GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
+                        "dtypeResidency backend=GPU_CUDA role=compute dtype=INT32 unsupported"
+                )),
+                GpuLoweredRegionCandidateSpan.none(List.of(30, 31, 32)),
+                Map.of(
+                        "dtypeResidency.input.20", "backend=GPU_METAL role=externalInput dtype=BOOL residentRepresentable=true",
+                        "dtypeResidency.compute.30", "backend=GPU_METAL role=compute dtype=BFLOAT16 unsupported"
+                )
+        );
+
+        GpuCoverageSummary.BackendCoverage coverage = GpuCoverageSummary.fromTrace(
+                traceWithManifest("GPU_METAL", ComputeBackend.GPU_METAL, manifest)
+        ).backends().get("GPU_METAL");
+        String reasons = coverage.dtypeResidencyReasons().toString();
+
+        assertTrue(reasons.contains("dtypeResidency"));
+        assertTrue(reasons.contains("UNSUPPORTED_DTYPE"));
+        assertTrue(reasons.contains("backend=GPU_METAL"));
+        assertTrue(reasons.contains("backend=GPU_CUDA"));
+        assertTrue(reasons.contains("dtype=BFLOAT16"));
+        assertTrue(reasons.contains("dtype=INT32"));
+        assertTrue(reasons.contains("dtype=BOOL"));
     }
 
     static ExecutionTrace traceFor(String backendName, ComputeBackend backend) {

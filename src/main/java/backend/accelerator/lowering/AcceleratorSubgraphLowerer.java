@@ -12,6 +12,8 @@ import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.dag.AcceleratorDagValueRefKind;
 import backend.accelerator.dag.AcceleratorPostOp;
 import backend.accelerator.dag.AcceleratorPostOpType;
+import backend.accelerator.residency.AcceleratorDTypeResidencyDecision;
+import backend.accelerator.residency.AcceleratorDTypeResidencyPolicy;
 import operations.Operation;
 import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
@@ -34,6 +36,7 @@ import tensor.DataType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -109,6 +112,14 @@ public final class AcceleratorSubgraphLowerer {
             GpuCompoundRegionSummary compoundSummary
     ) {
         ComputeBackend selectedBackend = backend == null ? ComputeBackend.CPU : backend;
+        List<GpuLoweredRegionRejection> rejections = new ArrayList<>();
+        Map<String, String> backendExtensions = buildDTypeResidencyEvidence(
+                selectedBackend,
+                subgraph,
+                context,
+                rejections
+        );
+        backendExtensions.put("dagNodeCount", Integer.toString(dagSpec.nodes().size()));
         return new GpuLoweredRegionManifest(
                 "gpu-" + selectedBackend.name().toLowerCase(Locale.ROOT) + "-region-" + subgraph.computeNodeId(),
                 selectedBackend,
@@ -122,10 +133,97 @@ public final class AcceleratorSubgraphLowerer {
                 buildInputAssumptions(subgraph, context),
                 buildOutputAssumptions(subgraph, context),
                 compoundSummary,
-                List.of(),
+                rejections,
                 GpuLoweredRegionCandidateSpan.none(subgraph.orderedNodeIds()),
-                Map.of("dagNodeCount", Integer.toString(dagSpec.nodes().size()))
+                backendExtensions
         );
+    }
+
+    private Map<String, String> buildDTypeResidencyEvidence(
+            ComputeBackend backend,
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context,
+            List<GpuLoweredRegionRejection> rejections
+    ) {
+        LinkedHashMap<String, String> out = new LinkedHashMap<>();
+        for (int nodeId : subgraph.externalInputNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node != null) {
+                addDTypeResidencyDecision(
+                        out,
+                        rejections,
+                        "input",
+                        nodeId,
+                        "",
+                        AcceleratorDTypeResidencyPolicy.forExternalInput(backend, node.dataType())
+                );
+            }
+        }
+        for (int nodeId : subgraph.orderedNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node != null) {
+                addDTypeResidencyDecision(
+                        out,
+                        rejections,
+                        "compute",
+                        nodeId,
+                        primitiveIdFor(nodeId, subgraph),
+                        AcceleratorDTypeResidencyPolicy.forCompute(backend, node.dataType())
+                );
+                if (!subgraph.outputNodeIds().contains(nodeId)) {
+                    addDTypeResidencyDecision(
+                            out,
+                            rejections,
+                            "internalValue",
+                            nodeId,
+                            primitiveIdFor(nodeId, subgraph),
+                            AcceleratorDTypeResidencyPolicy.forInternalValue(backend, node.dataType())
+                    );
+                }
+            }
+        }
+        for (int nodeId : subgraph.outputNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node != null) {
+                addDTypeResidencyDecision(
+                        out,
+                        rejections,
+                        "output",
+                        nodeId,
+                        primitiveIdFor(nodeId, subgraph),
+                        AcceleratorDTypeResidencyPolicy.forOutput(backend, node.dataType())
+                );
+            }
+        }
+        return out;
+    }
+
+    private void addDTypeResidencyDecision(
+            Map<String, String> backendExtensions,
+            List<GpuLoweredRegionRejection> rejections,
+            String role,
+            int nodeId,
+            String primitiveId,
+            AcceleratorDTypeResidencyDecision decision
+    ) {
+        String key = "dtypeResidency." + role + "." + nodeId;
+        backendExtensions.put(key, decision.detail());
+        if (!decision.rejected()) {
+            return;
+        }
+        rejections.add(new GpuLoweredRegionRejection(
+                "dtype_residency." + role,
+                nodeId,
+                primitiveId,
+                "",
+                decision.reason(),
+                "dtypeResidency " + decision.detail()
+        ));
+    }
+
+    private String primitiveIdFor(int nodeId, AcceleratorSubgraphSpec subgraph) {
+        int index = subgraph.orderedNodeIds().indexOf(nodeId);
+        return index < 0 ? "" : "p" + index;
     }
 
     private List<GpuLoweredRegionOriginalOp> buildOriginalOps(
