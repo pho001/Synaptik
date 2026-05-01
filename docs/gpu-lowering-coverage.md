@@ -194,3 +194,14 @@ The portable coverage gate checks coverage/materialization behavior, not raw tim
 hidden tensor-array fallback even if a benchmark is fast, because tensor-array execution is a CPU-visible bridge path
 rather than native buffer ownership. Native Metal and CUDA checks are native capability-gated evidence; when local CUDA
 is capability-skipped, portable Java tests remain the required proof for schema, fallback, and report contracts.
+
+## Phase 20 coverage regression hardening
+
+Phase 20 coverage regression hardening closes the v1.3 coverage loop with hard gates over the report/trace fields.
+`hot path stayed on GPU is trace/report evidence, not timing-only`: timing may explain a benchmark result, but gate
+pass/fail comes from selected regions, lowered primitives, fused subpatterns, CPU exits, native buffer binding, and
+device handoff evidence.
+
+Benchmark reports render `targetCoverageGates`, `nativeEvidence`, and `capabilitySkipped` so portable Java proof stays
+separate from capability-gated native Metal/CUDA evidence. `tensor-array bridge execution is not native buffer GPU coverage`, and local tuning outputs are not closure proof; Phase 20 hygiene recorded that
+`profiles/platform/.../tuning/abc/* remained unstaged`.

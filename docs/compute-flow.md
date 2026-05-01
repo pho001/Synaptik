@@ -2026,6 +2026,14 @@ The portable coverage gate fails on lost GPU coverage, unexpected CPU materializ
 unexpected device handoff. Native Metal and CUDA runs provide native capability-gated evidence when the local host can
 execute those tasks; portable Java tests still prove the report schema and fallback semantics when a native task skips.
 
+Phase 20 coverage regression hardening extends the summary into a hard v1.3 gate contract. `hot path stayed on GPU is trace/report evidence, not timing-only`: the gate reads selected region length, multi-op region count, lowered
+primitive count, fused subpattern count, fallback/materialization counters, native buffer binding, and handoff counts.
+Benchmark reports render `targetCoverageGates`, `nativeEvidence`, and `capabilitySkipped` so reviewers can separate
+portable Java proof from capability-gated native Metal/CUDA pass or skip evidence.
+
+`tensor-array bridge execution is not native buffer GPU coverage`. Tensor-array bridge steps remain reportable fallback
+evidence, not proof of device-owned native buffer execution.
+
 Local tuning outputs are not report evidence unless intentionally promoted; `profiles/platform/.../tuning/abc/* remained unstaged` is the expected phase hygiene state.
 
 Trace tests verify that:

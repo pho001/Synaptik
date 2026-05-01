@@ -295,6 +295,14 @@ Do not commit local tuning artifacts from these paths as Phase 13 evidence. The 
 tests, docs, and report fields such as `gpuCoverageRatio`, `cpuMaterializationReasonCounts`, and hidden tensor-array
 fallback failures.
 
+Phase 20 coverage regression hardening tightens that contract for v1.3 closure. `hot path stayed on GPU is trace/report evidence, not timing-only`, so coverage gates must read trace/report fields rather than benchmark medians.
+Reports expose `targetCoverageGates`, `nativeEvidence`, and `capabilitySkipped` to distinguish portable Java proof from
+native Metal/CUDA pass/skip evidence.
+
+`tensor-array bridge execution is not native buffer GPU coverage`; preserve native buffer, tensor-array, fallback, CPU
+materialization, and handoff counters as separate evidence. Local machine tuning output remains non-canonical, and
+Phase 20 closure expects `profiles/platform/.../tuning/abc/* remained unstaged`.
+
 ### GPU coverage triage checks
 
 Use these focused gates after changing Phase 14 GPU coverage triage, hot-path target selection, or triage report

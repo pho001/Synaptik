@@ -313,6 +313,17 @@ A hidden tensor-array fallback is a regression-gate failure when the policy requ
 `profiles/platform/.../tuning/abc/*` files and other machine-local benchmark/calibration output are not canonical test
 fixtures; do not commit local tuning artifacts unless a plan explicitly says to promote them.
 
+### Phase 20 coverage regression hardening
+
+Phase 20 coverage regression hardening makes the hard GPU residency gate a report/trace evidence contract:
+`hot path stayed on GPU is trace/report evidence, not timing-only`. Portable Java tests verify coverage gate behavior
+and report rendering first; native Metal/CUDA checks are additive capability-gated evidence through fields such as
+`targetCoverageGates`, `nativeEvidence`, and `capabilitySkipped`.
+
+`tensor-array bridge execution is not native buffer GPU coverage`. A fast benchmark is not enough if the trace shows a
+CPU fallback, hidden tensor-array bridge, missing native buffer binding, unexpected CPU materialization, or unexpected
+device handoff. Phase 20 closure also records that `profiles/platform/.../tuning/abc/* remained unstaged`.
+
 ### Phase 14 GPU coverage triage
 
 Phase 14 GPU coverage triage is portable Java tests and report-contract evidence. It does not require a native Metal

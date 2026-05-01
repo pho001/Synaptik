@@ -45,9 +45,9 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 
 ### Coverage Regression Hardening
 
-- [ ] **GPUHARDEN-01**: Coverage reports include lowered operation count, fused subpattern count, selected region length, rejected candidate count, CPU exit count, materialization reasons, and device handoff evidence.
-- [ ] **GPUHARDEN-02**: Regression gates fail when target hot paths unexpectedly shorten GPU regions, add CPU materialization, hide tensor-array fallback, or lose required lowered/fused coverage.
-- [ ] **GPUHARDEN-03**: Portable Java gates and capability-gated native Metal/CUDA checks document which evidence proves hot paths stayed on GPU and which native evidence was skipped by environment.
+- [x] **GPUHARDEN-01**: Coverage reports include lowered operation count, fused subpattern count, selected region length, rejected candidate count, CPU exit count, materialization reasons, and device handoff evidence.
+- [x] **GPUHARDEN-02**: Regression gates fail when target hot paths unexpectedly shorten GPU regions, add CPU materialization, hide tensor-array fallback, or lose required lowered/fused coverage.
+- [x] **GPUHARDEN-03**: Portable Java gates and capability-gated native Metal/CUDA checks document which evidence proves hot paths stayed on GPU and which native evidence was skipped by environment.
 
 ## Future Requirements
 
@@ -100,9 +100,9 @@ Which phases cover which requirements. Updated during phase execution as require
 | GPUMULTI-01 | Phase 19 | Complete |
 | GPUMULTI-02 | Phase 19 | Complete |
 | GPUMULTI-03 | Phase 19 | Complete |
-| GPUHARDEN-01 | Phase 20 | Pending |
-| GPUHARDEN-02 | Phase 20 | Pending |
-| GPUHARDEN-03 | Phase 20 | Pending |
+| GPUHARDEN-01 | Phase 20 | Complete |
+| GPUHARDEN-02 | Phase 20 | Complete |
+| GPUHARDEN-03 | Phase 20 | Complete |
 
 **Coverage:**
 - v1.3 requirements: 21 total

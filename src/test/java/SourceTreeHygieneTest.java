@@ -313,6 +313,45 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
+    void phaseTwentyCoverageGatesDoNotDependOnTimingOnlyMetrics() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/tuning/benchmark/report/GpuCoverageRegressionGate.java"));
+        List<String> timingOnlyFields = List.of("median", "medianNs", "durationNs");
+        List<String> offenders = timingOnlyFields.stream()
+                .filter(source::contains)
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(),
+                () -> "Phase 20 coverage gates must use trace/report residency evidence, not timing-only fields: " + offenders);
+    }
+
+    @Test
+    void phaseTwentyHotPathTargetsRemainSourceOfTruth() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/tuning/benchmark/report/GpuHotPathCoverageTargets.java"));
+        List<String> requiredTargets = List.of(
+                "transformer_block_hot_path",
+                "mlp_classifier_small",
+                "conv2d_resnet_3x3",
+                "layer_norm_small"
+        );
+        List<String> missing = requiredTargets.stream()
+                .filter(target -> !source.contains(target))
+                .toList();
+        assertTrue(missing.isEmpty(), () -> "Phase 20 hot-path target registry drifted: " + missing);
+    }
+
+    @Test
+    void phaseTwentyLocalTuningArtifactsRemainNonCanonical() throws IOException {
+        String stagedProfiles = gitOutput("diff", "--cached", "--name-only", "--", "profiles/platform");
+        List<String> stagedLocalTuningArtifacts = stagedProfiles.lines()
+                .filter(line -> line.contains("/tuning/abc/"))
+                .sorted()
+                .toList();
+        assertTrue(stagedLocalTuningArtifacts.isEmpty(),
+                () -> "profiles/platform/.../tuning/abc/* are local tuning artifacts, not Phase 20 closure evidence: "
+                        + stagedLocalTuningArtifacts);
+    }
+
+    @Test
     void acceleratorPackagesRejectCpuFusedOperationType() throws IOException {
         String detector = Files.readString(Path.of("src/main/java/backend/accelerator/lowering/GpuCompoundPatternDetector.java"));
 
