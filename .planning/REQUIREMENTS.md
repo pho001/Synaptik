@@ -49,6 +49,12 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 - [x] **GPUHARDEN-02**: Regression gates fail when target hot paths unexpectedly shorten GPU regions, add CPU materialization, hide tensor-array fallback, or lose required lowered/fused coverage.
 - [x] **GPUHARDEN-03**: Portable Java gates and capability-gated native Metal/CUDA checks document which evidence proves hot paths stayed on GPU and which native evidence was skipped by environment.
 
+### Milestone Verification Evidence Closure
+
+- [ ] **GPUAUDIT-01**: Phase 14 has a verification report that proves `GPUTRIAGE-01`, `GPUTRIAGE-02`, and `GPUTRIAGE-03` from existing summaries, validation evidence, docs, and focused test commands.
+- [ ] **GPUAUDIT-02**: Phase 18 has a verification report that proves `GPUFUSEX-01`, `GPUFUSEX-02`, and `GPUFUSEX-03` from existing summaries, validation evidence, docs, and focused test commands.
+- [ ] **GPUAUDIT-03**: The v1.3 milestone audit can pass without stale missing-phase findings, and Phase 20 validation metadata is either Nyquist-compliant or explicitly documented as strategy-only.
+
 ## Future Requirements
 
 Deferred to later milestones. Tracked but not in the v1.3 roadmap.
@@ -103,12 +109,15 @@ Which phases cover which requirements. Updated during phase execution as require
 | GPUHARDEN-01 | Phase 20 | Complete |
 | GPUHARDEN-02 | Phase 20 | Complete |
 | GPUHARDEN-03 | Phase 20 | Complete |
+| GPUAUDIT-01 | Phase 21 | Pending |
+| GPUAUDIT-02 | Phase 21 | Pending |
+| GPUAUDIT-03 | Phase 21 | Pending |
 
 **Coverage:**
-- v1.3 requirements: 21 total
-- Mapped to phases: 21
+- v1.3 requirements: 24 total
+- Mapped to phases: 24
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-01*
-*Last updated: 2026-05-01 after Phase 19 verification*
+*Last updated: 2026-05-01 after v1.3 milestone audit gap planning*

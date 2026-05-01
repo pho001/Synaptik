@@ -18,6 +18,7 @@
 | 18 | Fused Elementwise And Epilogue Subregions | Add region-internal GPU fusion for elementwise chains and linear/matmul epilogues without reusing CPU fused ASM nodes. | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 (Complete 2026-05-01) | 5 |
 | 19 | Multi-Op GPU Region Execution | Execute longer GPU regions containing multiple lowered operations, layout/view steps, elementwise chains, and selected softmax-ish or normalization primitives. | GPUMULTI-01, GPUMULTI-02, GPUMULTI-03 (Complete 2026-05-01) | 5 |
 | 20 | Coverage Regression Hardening | 4/4 | Complete    | 2026-05-01 |
+| 21 | Milestone Verification Evidence Closure | Close v1.3 milestone-audit evidence gaps by adding missing Phase 14/18 verification reports and hardening Phase 20 validation metadata. | GPUAUDIT-01, GPUAUDIT-02, GPUAUDIT-03 | 3 |
 
 ## Milestone Rule
 
@@ -342,6 +343,31 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 **Notes:**
 - This phase closes the loop: the target list from Phase 14 becomes an enforced regression contract.
 
+### Phase 21: Milestone Verification Evidence Closure
+
+**Goal:** Close v1.3 milestone-audit evidence gaps so the milestone can pass three-source requirement proof before archival.
+
+**Requirements:** GPUAUDIT-01, GPUAUDIT-02, GPUAUDIT-03
+
+**Depends on:** Phase 14, Phase 18, Phase 20, and the v1.3 milestone audit.
+
+**Gap Closure:** Closes gaps from `.planning/v1.3-MILESTONE-AUDIT.md`.
+
+**Success Criteria:**
+1. `14-VERIFICATION.md` verifies `GPUTRIAGE-01`, `GPUTRIAGE-02`, and `GPUTRIAGE-03` against summaries, validation evidence, docs, and focused tests.
+2. `18-VERIFICATION.md` verifies `GPUFUSEX-01`, `GPUFUSEX-02`, and `GPUFUSEX-03` against summaries, validation evidence, docs, and focused tests.
+3. Phase 20 validation metadata is audit-readable as Nyquist-compliant or has an explicit stable reason if it remains strategy-only.
+4. The refreshed v1.3 milestone audit can satisfy the requirement proof chain without stale missing-phase findings.
+5. Local `profiles/platform/.../tuning/abc/*` artifacts remain unstaged.
+
+**Cross-cutting constraints:**
+- This phase is audit evidence closure only; it must not widen GPU runtime/lowering behavior.
+- Verification reports must cite existing implementation, tests, summaries, and docs instead of inventing new coverage.
+- If a verification gap reveals a real implementation issue, stop and plan a real fix instead of papering over it.
+
+**Notes:**
+- The current audit blocker is missing verification artifacts, not missing Phase 14 or Phase 18 execution summaries.
+
 ## Coverage Check
 
 | Requirement Category | Requirements | Phase |
@@ -353,8 +379,9 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 | Fused Elementwise And Epilogue Subregions | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 | Phase 18 |
 | Multi-Op GPU Region Execution | GPUMULTI-01, GPUMULTI-02, GPUMULTI-03 | Phase 19 |
 | Coverage Regression Hardening | GPUHARDEN-01, GPUHARDEN-02, GPUHARDEN-03 | Phase 20 |
+| Milestone Verification Evidence Closure | GPUAUDIT-01, GPUAUDIT-02, GPUAUDIT-03 | Phase 21 |
 
-**Requirements:** 21 total, 21 mapped, 0 unmapped.
+**Requirements:** 24 total, 24 mapped, 0 unmapped.
 
 ---
 *Roadmap created: 2026-05-01 for v1.3 Coverage-Driven GPU Region Expansion*
