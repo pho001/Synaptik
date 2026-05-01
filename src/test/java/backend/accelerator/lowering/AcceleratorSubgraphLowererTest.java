@@ -209,6 +209,49 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void lowererRecordsElementwiseFusionSubpatternPrimitiveIds() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "subpatternA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "subpatternB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "subpatternBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+        PartitionPlanningContext context = planningContext(out);
+        int matmulNodeId = nodeId(context, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(context, Operation.OpType.ADD);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        int expNodeId = nodeId(context, Operation.OpType.EXP);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId, expNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_CUDA,
+                new AcceleratorSubgraphSpec(
+                        matmulNodeId,
+                        selectedNodeIds,
+                        List.of(
+                                new AcceleratorSubgraphOp(matmulNodeId, Operation.OpType.MATMUL),
+                                new AcceleratorSubgraphOp(addNodeId, Operation.OpType.ADD),
+                                new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU),
+                                new AcceleratorSubgraphOp(expNodeId, Operation.OpType.EXP)
+                        ),
+                        externalInputNodeIds(context, selectedNodeIds),
+                        List.of(expNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        GpuFusionSubpatternSummary subpattern = result.manifest().fusedSubpatterns().stream()
+                .filter(candidate -> candidate.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of(addNodeId, reluNodeId, expNodeId), subpattern.originalOperationNodeIds());
+        assertEquals(List.of("p1", "p2", "p3"), subpattern.loweredPrimitiveIds());
+        assertEquals(3, subpattern.loweredPrimitiveCount());
+    }
+
+    @Test
     void sumReductionStillRejectsWhenNoAcceleratorDagTypeExists() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "sumInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
@@ -257,5 +300,17 @@ class AcceleratorSubgraphLowererTest {
                 .map(CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static List<Integer> externalInputNodeIds(PartitionPlanningContext context, List<Integer> selectedNodeIds) {
+        java.util.Set<Integer> selected = java.util.Set.copyOf(selectedNodeIds);
+        java.util.LinkedHashSet<Integer> out = new java.util.LinkedHashSet<>();
+        for (int nodeId : selectedNodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node != null) {
+                node.inputIds().stream().filter(inputId -> !selected.contains(inputId)).forEach(out::add);
+            }
+        }
+        return List.copyOf(out);
     }
 }

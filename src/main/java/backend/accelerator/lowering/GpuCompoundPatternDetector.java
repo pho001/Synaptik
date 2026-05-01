@@ -1,8 +1,11 @@
 package backend.accelerator.lowering;
 
 import backend.ComputeBackend;
+import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;
 import backend.accelerator.dag.AcceleratorDagSpec;
+import backend.accelerator.dag.AcceleratorDagValueRef;
+import backend.accelerator.dag.AcceleratorDagValueRefKind;
 import backend.accelerator.dag.AcceleratorPostOp;
 import backend.accelerator.dag.AcceleratorPostOpType;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
@@ -11,6 +14,7 @@ import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -119,6 +123,44 @@ public final class GpuCompoundPatternDetector {
         return detect(backend, subgraph, null, dagSpec, matMulSpec);
     }
 
+    /**
+     * Detects maximal region-internal elementwise primitive chains in a lowered DAG.
+     *
+     * <p>The returned spans are original compiled node ids, not primitive indexes, so trace metadata stays tied to the
+     * public graph even when a backend lowers one operation into multiple primitives.</p>
+     */
+    public static List<List<Integer>> detectElementwiseSubchains(AcceleratorDagSpec dagSpec) {
+        if (dagSpec == null || dagSpec.nodes().size() < 2) {
+            return List.of();
+        }
+        ArrayList<List<Integer>> out = new ArrayList<>();
+        int index = 0;
+        while (index < dagSpec.nodes().size()) {
+            if (!isElementwiseDagNodeType(dagSpec.nodes().get(index).type())) {
+                index++;
+                continue;
+            }
+            ArrayList<Integer> chain = new ArrayList<>();
+            chain.add(dagSpec.nodes().get(index).nodeId());
+            int cursor = index + 1;
+            while (cursor < dagSpec.nodes().size()
+                    && isElementwiseDagNodeType(dagSpec.nodes().get(cursor).type())
+                    && consumesPrimitiveOutput(dagSpec.nodes().get(cursor), cursor - 1)) {
+                chain.add(dagSpec.nodes().get(cursor).nodeId());
+                cursor++;
+            }
+            if (chain.size() >= 2) {
+                out.add(List.copyOf(chain));
+            }
+            index = cursor;
+        }
+        return List.copyOf(out);
+    }
+
+    static boolean isElementwiseDagNodeType(AcceleratorDagNodeType type) {
+        return ELEMENTWISE_CHAIN_TYPES.contains(type);
+    }
+
     private static boolean isLinearBiasActivation(AcceleratorMatMulSpec matMulSpec) {
         return matMulSpec != null
                 && matMulSpec.biasInputNodeId() >= 0
@@ -129,6 +171,17 @@ public final class GpuCompoundPatternDetector {
         return dagSpec != null
                 && dagSpec.nodes().size() >= 3
                 && dagSpec.nodes().stream().allMatch(node -> ELEMENTWISE_CHAIN_TYPES.contains(node.type()));
+    }
+
+    private static boolean consumesPrimitiveOutput(AcceleratorDagNode node, int primitiveIndex) {
+        return consumesPrimitiveOutput(node.input0(), primitiveIndex)
+                || consumesPrimitiveOutput(node.input1(), primitiveIndex)
+                || consumesPrimitiveOutput(node.input2(), primitiveIndex)
+                || consumesPrimitiveOutput(node.input3(), primitiveIndex);
+    }
+
+    private static boolean consumesPrimitiveOutput(AcceleratorDagValueRef ref, int primitiveIndex) {
+        return ref != null && ref.kind() == AcceleratorDagValueRefKind.NODE_OUTPUT && ref.index() == primitiveIndex;
     }
 
     private static boolean containsOpType(AcceleratorSubgraphSpec subgraph, Operation.OpType opType) {

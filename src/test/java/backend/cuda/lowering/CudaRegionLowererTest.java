@@ -424,6 +424,73 @@ class CudaRegionLowererTest {
         assertEquals(backend.lowering.LoweringFamily.CUDA_FUSED_ELEMENTWISE_GRAPH, result.loweredRegion().units().getFirst().loweringFamily());
     }
 
+    @Test
+    void cudaLowersElementwiseSubchainAsRegionInternalFusion() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaSubchainA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "cudaSubchainB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "cudaSubchainBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        List<Tensor> graph = out.topologicalSort();
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        PartitionPlanningContext planningContext = new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                compiledNodes,
+                consumers(compiledNodes)
+        );
+        int matmulNodeId = nodeId(planningContext, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(planningContext, Operation.OpType.ADD);
+        int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
+        int expNodeId = nodeId(planningContext, Operation.OpType.EXP);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId, expNodeId);
+        CudaGpuRegionLegalityAdapter adapter = new CudaGpuRegionLegalityAdapter();
+        var candidate = adapter.tryCreateStructuralCandidate(
+                Set.copyOf(selectedNodeIds),
+                planningContext,
+                Set.of(PartitionValueRef.ofNode(expNodeId))
+        );
+        assertNotNull(candidate);
+        CudaGpuPartitionPlan plan = (CudaGpuPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
+        assertNotNull(plan);
+
+        Partition partition = partition(
+                "cuda-elementwise-subchain",
+                PartitionTarget.GPU_CUDA,
+                candidate.orderedNodeIds(),
+                candidate.externalInputIds(),
+                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
+                List.of(PartitionValueRef.ofNode(expNodeId))
+        );
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+        );
+        LoweringResult result = new CudaRegionLowerer().lower(new LoweringRequest(
+                region,
+                MemoryPlanner.plan(graph),
+                new BackendCapabilities(Set.of(ComputeBackend.GPU_CUDA)),
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), plan))
+        ));
+
+        assertNotNull(result);
+        assertEquals(backend.lowering.LoweringFamily.CUDA_GRAPH_REGION, result.loweredRegion().units().getFirst().loweringFamily());
+        assertTrue(result.loweredRegion().units().getFirst().orderedNodeIds().containsAll(selectedNodeIds));
+        var subpattern = plan.manifest().fusedSubpatterns().stream()
+                .filter(candidateSubpattern -> candidateSubpattern.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of(addNodeId, reluNodeId, expNodeId), subpattern.originalOperationNodeIds());
+        assertEquals(3, subpattern.loweredPrimitiveCount());
+    }
+
     private static Partition partition(
             String id,
             PartitionTarget target,

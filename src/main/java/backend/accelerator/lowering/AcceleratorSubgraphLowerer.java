@@ -145,10 +145,13 @@ public final class AcceleratorSubgraphLowerer {
             AcceleratorDagSpec dagSpec,
             GpuCompoundRegionSummary compoundSummary
     ) {
-        if (subgraph == null || compoundSummary == null || compoundSummary.patternType() == GpuCompoundPatternType.NONE) {
+        if (subgraph == null) {
             return List.of();
         }
-        if (!compoundSummary.supported()) {
+        List<GpuFusionSubpatternSummary> out = new ArrayList<>();
+        if (compoundSummary != null
+                && compoundSummary.patternType() != GpuCompoundPatternType.NONE
+                && !compoundSummary.supported()) {
             return List.of(GpuFusionSubpatternSummary.unsupported(
                     compoundSummary.patternType(),
                     compoundSummary.reason(),
@@ -156,14 +159,41 @@ public final class AcceleratorSubgraphLowerer {
                     compoundSummary.detail()
             ));
         }
-        return List.of(GpuFusionSubpatternSummary.supported(
-                compoundSummary.patternType(),
-                compoundSummary.orderedNodeIds().isEmpty() ? subgraph.orderedNodeIds() : compoundSummary.orderedNodeIds(),
-                primitiveIdsFor(compoundSummary.orderedNodeIds(), subgraph, dagSpec),
-                compoundSummary.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION
-                        ? "epilogue " + compoundSummary.detail()
-                        : compoundSummary.detail()
-        ));
+        if (compoundSummary != null && compoundSummary.patternType() != GpuCompoundPatternType.NONE) {
+            out.add(GpuFusionSubpatternSummary.supported(
+                    compoundSummary.patternType(),
+                    compoundSummary.orderedNodeIds().isEmpty() ? subgraph.orderedNodeIds() : compoundSummary.orderedNodeIds(),
+                    primitiveIdsFor(compoundSummary.orderedNodeIds(), subgraph, dagSpec),
+                    compoundSummary.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION
+                            ? "epilogue " + compoundSummary.detail()
+                            : compoundSummary.detail()
+            ));
+        }
+        for (List<Integer> chain : GpuCompoundPatternDetector.detectElementwiseSubchains(dagSpec)) {
+            if (hasSubpattern(out, GpuCompoundPatternType.ELEMENTWISE_CHAIN, chain)) {
+                continue;
+            }
+            out.add(GpuFusionSubpatternSummary.supported(
+                    GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                    chain,
+                    primitiveIdsFor(chain, subgraph, dagSpec),
+                    "region-internal elementwise subchain lowered through accelerator DAG"
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private boolean hasSubpattern(
+            List<GpuFusionSubpatternSummary> subpatterns,
+            GpuCompoundPatternType patternType,
+            List<Integer> originalNodeIds
+    ) {
+        for (GpuFusionSubpatternSummary subpattern : subpatterns) {
+            if (subpattern.patternType() == patternType && subpattern.originalOperationNodeIds().equals(originalNodeIds)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> primitiveIdsFor(

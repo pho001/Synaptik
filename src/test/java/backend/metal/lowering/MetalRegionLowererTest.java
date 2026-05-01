@@ -522,6 +522,73 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void metalLowersElementwiseSubchainAsRegionInternalFusion() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalSubchainA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "metalSubchainB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "metalSubchainBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(add, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        List<Tensor> graph = out.topologicalSort();
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph);
+        PartitionPlanningContext planningContext = new PartitionPlanningContext(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                compiledNodes,
+                consumers(compiledNodes)
+        );
+        int matmulNodeId = nodeId(planningContext, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(planningContext, Operation.OpType.ADD);
+        int reluNodeId = nodeId(planningContext, Operation.OpType.RELU);
+        int expNodeId = nodeId(planningContext, Operation.OpType.EXP);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId, expNodeId);
+        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
+        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+                Set.copyOf(selectedNodeIds),
+                planningContext,
+                Set.of(PartitionValueRef.ofNode(expNodeId))
+        );
+        assertNotNull(candidate);
+        MetalPartitionPlan attachedPlan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, planningContext);
+        assertNotNull(attachedPlan);
+
+        Partition partition = partition(
+                "metal-elementwise-subchain",
+                PartitionTarget.GPU_METAL,
+                candidate.orderedNodeIds(),
+                candidate.externalInputIds(),
+                candidate.outputNodeIds().stream().map(PartitionValueRef::ofNode).toList(),
+                List.of(PartitionValueRef.ofNode(expNodeId))
+        );
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+        );
+        LoweringResult result = new MetalRegionLowerer().lower(new LoweringRequest(
+                region,
+                MemoryPlanner.plan(graph),
+                new BackendCapabilities(Set.of(ComputeBackend.GPU_METAL)),
+                new LoweringContext(RuntimeConfig.inferenceDefaults(), compiledNodes, java.util.Map.of(partition.partitionId(), attachedPlan))
+        ));
+
+        assertNotNull(result);
+        assertEquals(backend.lowering.LoweringFamily.METAL_GRAPH_REGION, result.loweredRegion().units().getFirst().loweringFamily());
+        assertTrue(result.loweredRegion().units().getFirst().orderedNodeIds().containsAll(selectedNodeIds));
+        var subpattern = attachedPlan.manifest().fusedSubpatterns().stream()
+                .filter(candidateSubpattern -> candidateSubpattern.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of(addNodeId, reluNodeId, expNodeId), subpattern.originalOperationNodeIds());
+        assertEquals(3, subpattern.loweredPrimitiveCount());
+    }
+
+    @Test
     void rejectsFloat64MetalCandidateBeforeLowering() {
         Tensor a = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{2, 3}, null, "a64", DataType.FLOAT64);
         Tensor b = new Tensor(new double[]{1d, 2d, 3d, 4d, 5d, 6d}, new int[]{3, 2}, null, "b64", DataType.FLOAT64);
@@ -693,6 +760,56 @@ class MetalRegionLowererTest {
                 context,
                 Set.of(PartitionValueRef.ofNode(sdpaNodeId))
         ));
+    }
+
+    private static Partition partition(
+            String id,
+            PartitionTarget target,
+            List<Integer> orderedNodeIds,
+            List<Integer> externalInputNodeIds,
+            List<PartitionValueRef> outputValueRefs,
+            List<PartitionValueRef> requiredMaterialized
+    ) {
+        List<PartitionValue> values = orderedNodeIds.stream()
+                .map(nodeId -> new PartitionValue(PartitionValueRef.ofNode(nodeId), nodeId))
+                .toList();
+        List<PartitionEdge> internalEdges = orderedNodeIds.size() < 2
+                ? List.of()
+                : java.util.stream.IntStream.range(0, orderedNodeIds.size() - 1)
+                .mapToObj(i -> new PartitionEdge(orderedNodeIds.get(i), orderedNodeIds.get(i + 1)))
+                .toList();
+        return new Partition(
+                id,
+                target,
+                orderedNodeIds,
+                values,
+                internalEdges,
+                externalInputNodeIds,
+                outputValueRefs,
+                orderedNodeIds.getLast(),
+                requiredMaterialized,
+                List.of(),
+                List.of(PartitionBoundaryReason.NONE),
+                orderedNodeIds.size(),
+                new graph.optimizer.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
+                PartitionPlannerStrategy.GREEDY_MAX_REGION,
+                new PartitionDecisionTrace(
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
+                        target,
+                        orderedNodeIds.getLast(),
+                        true,
+                        "test",
+                        orderedNodeIds,
+                        orderedNodeIds,
+                        List.of(),
+                        orderedNodeIds.size(),
+                        0.0d,
+                        0.0d,
+                        0,
+                        false,
+                        -1
+                )
+        );
     }
 
     private static java.util.Map<Integer, java.util.List<CompiledNode>> consumers(List<CompiledNode> graph) {

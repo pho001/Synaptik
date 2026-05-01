@@ -11,6 +11,7 @@ import graph.optimizer.partition.PartitionTarget;
 import graph.optimizer.partition.PartitionValue;
 import graph.optimizer.partition.PartitionValueRef;
 import graph.optimizer.partition.cost.AcceleratorPartitionScoreModel;
+import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -18,6 +19,7 @@ import tensor.Tensor;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultRegionOptimizerTest {
@@ -72,6 +74,88 @@ class DefaultRegionOptimizerTest {
 
         assertEquals(2, region.executionUnits().size());
         assertTrue(region.executionUnits().stream().allMatch(unit -> unit.kind() == ExecutionUnitKind.UNIT_KERNEL));
+    }
+
+    @Test
+    void gpuRegionBuildsFusedElementwiseSubchainWithoutShorteningRegion() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "gpuSubchainA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "gpuSubchainB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "gpuSubchainBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(nodes, Operation.OpType.ADD);
+        int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
+        int expNodeId = nodeId(nodes, Operation.OpType.EXP);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId, expNodeId);
+        Partition partition = partition(
+                "gpu-elementwise-subchain",
+                PartitionTarget.GPU_METAL,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(PartitionValueRef.ofNode(expNodeId)),
+                List.of(PartitionValueRef.ofNode(expNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(selectedNodeIds, region.sourcePartition().orderedNodeIds());
+        assertTrue(region.executionUnits().stream().anyMatch(unit -> unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE));
+        ExecutionUnit fused = region.executionUnits().stream()
+                .filter(unit -> unit.kind() == ExecutionUnitKind.FUSED_ELEMENTWISE)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of(addNodeId, reluNodeId, expNodeId), fused.orderedNodeIds());
+        assertTrue(fused.trace().events().stream().anyMatch(message -> message.contains("fused-subchain:")));
+        assertFalse(region.regionValues().stream()
+                .filter(value -> value.producerNodeId() == addNodeId || value.producerNodeId() == reluNodeId)
+                .anyMatch(value -> value.transportKind() == ValueTransportKind.MATERIALIZED));
+    }
+
+    @Test
+    void gpuRegionKeepsMixedMatmulAndElementwiseRegionSelected() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "gpuMixedA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "gpuMixedB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "gpuMixedBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor relu = add.relu();
+        Tensor out = relu.exp();
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort());
+        int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(nodes, Operation.OpType.ADD);
+        int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
+        int expNodeId = nodeId(nodes, Operation.OpType.EXP);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId, expNodeId);
+        Partition partition = partition(
+                "cuda-mixed-subchain",
+                PartitionTarget.GPU_CUDA,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(PartitionValueRef.ofNode(expNodeId)),
+                List.of(PartitionValueRef.ofNode(expNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(selectedNodeIds, region.sourcePartition().orderedNodeIds());
+        assertEquals(selectedNodeIds, region.executionUnits().stream()
+                .flatMap(unit -> unit.orderedNodeIds().stream())
+                .toList());
+        assertEquals(ExecutionUnitKind.UNIT_KERNEL, region.executionUnits().getFirst().kind());
+        assertEquals(ExecutionUnitKind.FUSED_ELEMENTWISE, region.executionUnits().get(1).kind());
+        assertEquals(List.of(addNodeId, reluNodeId, expNodeId), region.executionUnits().get(1).orderedNodeIds());
     }
 
     @Test
@@ -150,5 +234,23 @@ class DefaultRegionOptimizerTest {
                         -1
                 )
         );
+    }
+
+    private static int nodeId(List<CompiledNode> nodes, Operation.OpType opType) {
+        return nodes.stream()
+                .filter(node -> node.operation() != null && node.operation().opType() == opType)
+                .map(CompiledNode::id)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static List<Integer> externalInputNodeIds(List<CompiledNode> nodes, List<Integer> selectedNodeIds) {
+        java.util.Set<Integer> selected = java.util.Set.copyOf(selectedNodeIds);
+        java.util.LinkedHashSet<Integer> out = new java.util.LinkedHashSet<>();
+        for (int nodeId : selectedNodeIds) {
+            CompiledNode node = nodes.stream().filter(candidate -> candidate.id() == nodeId).findFirst().orElseThrow();
+            node.inputIds().stream().filter(inputId -> !selected.contains(inputId)).forEach(out::add);
+        }
+        return List.copyOf(out);
     }
 }

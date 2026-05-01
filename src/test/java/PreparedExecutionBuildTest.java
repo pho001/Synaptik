@@ -581,6 +581,86 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void metalElementwiseFusionKeepsInteriorValuesDeviceOwned() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalInteriorA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "metalInteriorB", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor exp = relu.exp();
+        Tensor out = exp.log();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(exp, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
+        int expNodeId = nodeId(compiled, Operation.OpType.EXP);
+        int logNodeId = nodeId(compiled, Operation.OpType.LOG);
+        PreparedMetalExecutable executable = (PreparedMetalExecutable) execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .map(step -> step.metadata().acceleratorExecutable())
+                .findFirst()
+                .orElseThrow();
+
+        assertNotNull(executable);
+        assertTrue(executable.gpuLoweredRegionManifest().fusedSubpatterns().stream()
+                .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN
+                        && subpattern.originalOperationNodeIds().equals(List.of(reluNodeId, expNodeId, logNodeId))
+                        && subpattern.loweredPrimitiveCount() == 3));
+        var trace = execution.executeTraced(ExecutionMode.FORWARD);
+
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(entry -> (entry.nodeId() == reluNodeId || entry.nodeId() == expNodeId)
+                        && entry.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+        PreparedExecution required = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
+        assertTrue(required.forwardSteps().stream()
+                .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL
+                        && step.metadata().acceleratorExecutable() != null));
+    }
+
+    @Test
+    void cudaElementwiseFusionKeepsInteriorValuesDeviceOwned() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaInteriorA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{1f, 0f, 0f, 1f, 1f, 1f}, new int[]{3, 2}, null, "cudaInteriorB", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor relu = matmul.relu();
+        Tensor exp = relu.exp();
+        Tensor out = exp.log();
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(relu, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(exp, ComputeBackend.GPU_CUDA);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int reluNodeId = nodeId(compiled, Operation.OpType.RELU);
+        int expNodeId = nodeId(compiled, Operation.OpType.EXP);
+        int logNodeId = nodeId(compiled, Operation.OpType.LOG);
+        PreparedCudaExecutable executable = (PreparedCudaExecutable) execution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA)
+                .map(step -> step.metadata().acceleratorExecutable())
+                .findFirst()
+                .orElseThrow();
+
+        assertNotNull(executable);
+        assertTrue(executable.gpuLoweredRegionManifest().fusedSubpatterns().stream()
+                .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN
+                        && subpattern.originalOperationNodeIds().equals(List.of(reluNodeId, expNodeId, logNodeId))
+                        && subpattern.loweredPrimitiveCount() == 3));
+        var trace = execution.executeTraced(ExecutionMode.FORWARD);
+
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(entry -> (entry.nodeId() == reluNodeId || entry.nodeId() == expNodeId)
+                        && entry.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+        PreparedExecution required = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_CUDA));
+        assertTrue(required.forwardSteps().stream()
+                .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA
+                        && step.metadata().acceleratorExecutable() != null));
+    }
+
+    @Test
     void scoredAcceleratorPlanningRecordsCostSummaryAndBoundedFinalists() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "b", DataType.FLOAT32);
