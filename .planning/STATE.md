@@ -67,7 +67,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 14 — Coverage Gap Triage And Hot Path Targets | Complete | 4/4 | Verified |
-| 15 — GPU Region Internal Lowered DAG Contract | Planned | 0/4 | Pending |
+| 15 — GPU Region Internal Lowered DAG Contract | Complete | 4/4 | Pending |
 | 16 — DType And Storage Residency Expansion | Not started | 0/? | Pending |
 | 17 — Normalization Reduction And Loss-Adjacent Lowering | Not started | 0/? | Pending |
 | 18 — Fused Elementwise And Epilogue Subregions | Not started | 0/? | Pending |
@@ -191,9 +191,10 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Planned Phase 14 with 4 coverage triage waves | Ready for `$gsd-execute-phase 14` | .planning/phases/14-coverage-gap-triage-and-hot-path-targets/14-01-PLAN.md |
 | 2026-05-01 | Gathered Phase 15 context | Ready for `$gsd-plan-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-CONTEXT.md |
 | 2026-05-01 | Planned Phase 15 with 4 lowered-region manifest waves | Ready for `$gsd-execute-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-01-PLAN.md |
+| 2026-05-01 | Completed Phase 15 execution | Ready for `$gsd-verify-work 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-04-SUMMARY.md |
 
 ---
-*Last updated: 2026-05-01 after Phase 15 context gathering*
+*Last updated: 2026-05-01 after Phase 15 execution*
 
 ## Current Position
 
