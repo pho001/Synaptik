@@ -12,7 +12,7 @@
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | 14 | Coverage Gap Triage And Hot Path Targets | Use v1.2 coverage evidence to rank the CPU exits and materialization boundaries that should drive v1.3 work. | GPUTRIAGE-01, GPUTRIAGE-02, GPUTRIAGE-03 (Complete 2026-05-01) | 5 |
-| 15 | GPU Region Internal Lowered DAG Contract | 2/4 | In Progress|  |
+| 15 | GPU Region Internal Lowered DAG Contract | 3/4 | In Progress|  |
 | 16 | DType And Storage Residency Expansion | Extend device residency, memory binding, slot reuse, and fallback diagnostics for BFLOAT16, INT32, and BOOL where they block GPU regions. | GPUSTORAGE-01, GPUSTORAGE-02, GPUSTORAGE-03 | 5 |
 | 17 | Normalization Reduction And Loss-Adjacent Lowering | Expand or explicitly reject high-impact normalization, reduction, softmax-ish, and loss-adjacent GPU lowering gaps under a shared Metal/CUDA contract. | GPUNORM-01, GPUNORM-02, GPUNORM-03 | 5 |
 | 18 | Fused Elementwise And Epilogue Subregions | Add region-internal GPU fusion for elementwise chains and linear/matmul epilogues without reusing CPU fused ASM nodes. | GPUFUSEX-01, GPUFUSEX-02, GPUFUSEX-03 | 5 |
@@ -138,7 +138,7 @@ Wave 4 *(blocked on Wave 1, Wave 2, and Wave 3 completion)*:
 
 **Plans:**
 
-2/4 plans executed
+3/4 plans executed
 
 Wave 1:
 - [15-01 Manifest Model And Reason Vocabulary](phases/15-gpu-region-internal-lowered-dag-contract/15-01-PLAN.md) - adds the Java-side lowered-region manifest records and stable DAG-level reason codes for GPUDAG-01/02/03.
