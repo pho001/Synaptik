@@ -93,6 +93,83 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
+    void logSoftmaxManifestMapsOneOriginalOpToTwoPrimitives() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "logSoftmaxManifestInput", DataType.FLOAT32);
+        Tensor out = input.logSoftmax(1);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LOG_SOFTMAX));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(ComputeBackend.GPU_METAL, spec(node), context);
+
+        assertNotNull(result);
+        assertEquals(ComputeBackend.GPU_METAL, result.manifest().backend());
+        assertEquals("LOG_SOFTMAX", result.manifest().originalOps().getFirst().opType());
+        assertEquals(List.of("p0", "p1"), result.manifest().originalOps().getFirst().loweredPrimitiveIds());
+        List<String> primitiveTypes = result.manifest().loweredPrimitives().stream()
+                .map(GpuLoweredPrimitiveManifest::primitiveType)
+                .toList();
+        assertTrue(primitiveTypes.contains("SOFTMAX"));
+        assertTrue(primitiveTypes.contains("LOG"));
+        assertTrue(result.manifest().loweredPrimitives().stream()
+                .allMatch(primitive -> primitive.sourceOriginalNodeIds().contains(node.id())));
+    }
+
+    @Test
+    void linearBiasReluManifestIncludesFusedSummaryAndAssumptions() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "linearManifestInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f, 1f,
+                0f, 1f, 1f, 0f,
+                1f, 1f, 0f, 0f
+        }, new int[]{3, 4}, null, "linearManifestWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.5f, -0.5f, 1f, -1f}, new int[]{4}, null, "linearManifestBias", DataType.FLOAT32);
+        Tensor linear = input.linear(weight, bias);
+        Tensor out = linear.relu();
+        PartitionPlanningContext context = planningContext(out);
+        int linearNodeId = nodeId(context, Operation.OpType.LINEAR);
+        int reluNodeId = nodeId(context, Operation.OpType.RELU);
+        CompiledNode linearNode = context.compiledNode(linearNodeId);
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        linearNodeId,
+                        List.of(linearNodeId, reluNodeId),
+                        List.of(
+                                new AcceleratorSubgraphOp(linearNodeId, Operation.OpType.LINEAR),
+                                new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU)
+                        ),
+                        linearNode.inputIds(),
+                        List.of(reluNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(result);
+        assertEquals(GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION, result.manifest().fusedSummary().patternType());
+        assertTrue(!result.manifest().inputAssumptions().isEmpty());
+        assertTrue(!result.manifest().outputAssumptions().isEmpty());
+        assertTrue(result.manifest().inputAssumptions().stream()
+                .anyMatch(assumption -> "CONTIGUOUS".equals(assumption.layout())));
+    }
+
+    @Test
+    void manifestRegionIdBackendAndLengthAreStable() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "stableManifestInput", DataType.FLOAT32);
+        Tensor out = input.logSoftmax(1);
+        PartitionPlanningContext context = planningContext(out);
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.LOG_SOFTMAX));
+
+        AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(ComputeBackend.GPU_CUDA, spec(node), context);
+
+        assertNotNull(result);
+        assertEquals("gpu-gpu_cuda-region-" + node.id(), result.manifest().regionId());
+        assertEquals(ComputeBackend.GPU_CUDA, result.manifest().backend());
+        assertEquals(1, result.manifest().selectedRegionLength());
+        assertEquals("2", result.manifest().backendExtensions().get("dagNodeCount"));
+    }
+
+    @Test
     void sumReductionStillRejectsWhenNoAcceleratorDagTypeExists() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "sumInput", DataType.FLOAT32);
         Tensor out = input.sum(1);
