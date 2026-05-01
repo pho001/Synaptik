@@ -33,9 +33,9 @@ Requirements for the v1.3 milestone. Each requirement maps to exactly one roadma
 
 ### Fused Elementwise And Epilogue Subregions
 
-- [ ] **GPUFUSEX-01**: GPU regions can fuse supported elementwise chains internally without Java array round trips or intermediate CPU materialization between fused operations.
-- [ ] **GPUFUSEX-02**: GPU regions can lower supported linear or matmul epilogues such as bias and activation as region-internal fused subpatterns when backend legality and dtype/layout gates allow it.
-- [ ] **GPUFUSEX-03**: GPU fusion is implemented as region-internal lowering/fusion and must not reuse CPU `Operation.OpType.FUSED`, CPU fused ASM, or CPU vector dispatch internals.
+- [x] **GPUFUSEX-01**: GPU regions can fuse supported elementwise chains internally without Java array round trips or intermediate CPU materialization between fused operations.
+- [x] **GPUFUSEX-02**: GPU regions can lower supported linear or matmul epilogues such as bias and activation as region-internal fused subpatterns when backend legality and dtype/layout gates allow it.
+- [x] **GPUFUSEX-03**: GPU fusion is implemented as region-internal lowering/fusion and must not reuse CPU `Operation.OpType.FUSED`, CPU fused ASM, or CPU vector dispatch internals.
 
 ### Multi-Op GPU Region Execution
 
@@ -94,9 +94,9 @@ Which phases cover which requirements. Updated during phase execution as require
 | GPUNORM-01 | Phase 17 | Complete |
 | GPUNORM-02 | Phase 17 | Complete |
 | GPUNORM-03 | Phase 17 | Complete |
-| GPUFUSEX-01 | Phase 18 | Pending |
-| GPUFUSEX-02 | Phase 18 | Pending |
-| GPUFUSEX-03 | Phase 18 | Pending |
+| GPUFUSEX-01 | Phase 18 | Complete |
+| GPUFUSEX-02 | Phase 18 | Complete |
+| GPUFUSEX-03 | Phase 18 | Complete |
 | GPUMULTI-01 | Phase 19 | Pending |
 | GPUMULTI-02 | Phase 19 | Pending |
 | GPUMULTI-03 | Phase 19 | Pending |
