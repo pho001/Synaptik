@@ -97,6 +97,33 @@ Resolved: 0.
 
 Escalated: 0.
 
+## Validation Audit 2026-05-01
+
+Requirements audited: GPUCOV-01, GPUCOV-02, GPUCOV-03.
+
+Task rows audited: 8 total, 8 green, 0 red, 0 pending.
+
+Cross-reference result:
+
+- GPUCOV-01 is covered by `GpuCoverageSummaryTest`, `BenchmarkSessionTest`, text/JSON renderer assertions, and report-field documentation.
+- GPUCOV-02 is covered by `GpuCoverageSummaryTest`, `BenchmarkSuiteSessionTest`, representative workload name assertions, and deterministic baseline comparison tests.
+- GPUCOV-03 is covered by `GpuCoverageRegressionGateTest`, `BenchmarkSessionTest`, stable failure-string assertions, and docs for hidden tensor-array fallback.
+
+Automated evidence:
+
+- `./gradlew test --tests GpuCoverageSummaryTest --tests GpuCoverageRegressionGateTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests CompiledGraphTraceTest` passed.
+- `./gradlew metalTest` passed.
+- `./gradlew buildCudaGraphShim cudaTest` was capability-skipped after rerunning with Gradle wrapper access.
+- Test-name `rg` checks found all expected Phase 13 coverage, baseline, workload, and regression-gate tests.
+- Security cross-check: `13-SECURITY.md` has `threats_open: 0`.
+- `git status --short` still shows only existing unstaged `profiles/platform/.../tuning/abc/*` tuning profile changes.
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
 ---
 
 ## Validation Sign-Off
@@ -108,4 +135,4 @@ Escalated: 0.
 - [x] Feedback latency bounded by focused Gradle filters.
 - [x] `nyquist_compliant: true` set in frontmatter after execution validation.
 
-**Approval:** verified
+**Approval:** verified 2026-05-01
