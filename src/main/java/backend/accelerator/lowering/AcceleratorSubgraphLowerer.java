@@ -32,8 +32,10 @@ import operations.linalg.scaledDotProductAttentionBackward;
 import tensor.DataType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -94,8 +96,169 @@ public final class AcceleratorSubgraphLowerer {
                 matMulSpec,
                 dagSpec,
                 estimatedWork,
-                compoundSummary
+                compoundSummary,
+                buildManifest(backend, subgraph, context, dagSpec, compoundSummary)
         );
+    }
+
+    private GpuLoweredRegionManifest buildManifest(
+            ComputeBackend backend,
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context,
+            AcceleratorDagSpec dagSpec,
+            GpuCompoundRegionSummary compoundSummary
+    ) {
+        ComputeBackend selectedBackend = backend == null ? ComputeBackend.CPU : backend;
+        return new GpuLoweredRegionManifest(
+                "gpu-" + selectedBackend.name().toLowerCase(Locale.ROOT) + "-region-" + subgraph.computeNodeId(),
+                selectedBackend,
+                subgraph.computeNodeId(),
+                subgraph.orderedNodeIds(),
+                subgraph.externalInputNodeIds(),
+                subgraph.outputNodeIds(),
+                subgraph.orderedNodeIds().size(),
+                buildOriginalOps(subgraph, context, dagSpec),
+                buildLoweredPrimitives(dagSpec),
+                buildInputAssumptions(subgraph, context),
+                buildOutputAssumptions(subgraph, context),
+                compoundSummary,
+                List.of(),
+                GpuLoweredRegionCandidateSpan.none(subgraph.orderedNodeIds()),
+                Map.of("dagNodeCount", Integer.toString(dagSpec.nodes().size()))
+        );
+    }
+
+    private List<GpuLoweredRegionOriginalOp> buildOriginalOps(
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context,
+            AcceleratorDagSpec dagSpec
+    ) {
+        List<GpuLoweredPrimitiveManifest> primitives = buildLoweredPrimitives(dagSpec);
+        List<GpuLoweredRegionOriginalOp> out = new ArrayList<>(subgraph.orderedNodeIds().size());
+        for (int nodeId : subgraph.orderedNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null || node.operation() == null) {
+                continue;
+            }
+            List<String> primitiveIds = primitives.stream()
+                    .filter(primitive -> primitive.sourceOriginalNodeIds().contains(nodeId))
+                    .map(GpuLoweredPrimitiveManifest::primitiveId)
+                    .toList();
+            out.add(new GpuLoweredRegionOriginalOp(
+                    nodeId,
+                    node.operation().opType().name(),
+                    node.inputIds(),
+                    subgraph.outputNodeIds().contains(nodeId) ? List.of(nodeId) : List.of(),
+                    node.dataType(),
+                    shapeList(node.shape()),
+                    primitiveIds,
+                    List.of()
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private List<GpuLoweredPrimitiveManifest> buildLoweredPrimitives(AcceleratorDagSpec dagSpec) {
+        List<GpuLoweredPrimitiveManifest> out = new ArrayList<>(dagSpec.nodes().size());
+        for (int i = 0; i < dagSpec.nodes().size(); i++) {
+            AcceleratorDagNode node = dagSpec.nodes().get(i);
+            out.add(new GpuLoweredPrimitiveManifest(
+                    "p" + i,
+                    node.type().name(),
+                    List.of(node.nodeId()),
+                    inputRefs(node),
+                    "node:" + i,
+                    DataType.FLOAT32,
+                    outputShape(node),
+                    List.of()
+            ));
+        }
+        return List.copyOf(out);
+    }
+
+    private List<GpuLoweredRegionValueAssumption> buildInputAssumptions(
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context
+    ) {
+        List<GpuLoweredRegionValueAssumption> out = new ArrayList<>(subgraph.externalInputNodeIds().size());
+        for (int nodeId : subgraph.externalInputNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node != null) {
+                out.add(valueAssumption(node, "input"));
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    private List<GpuLoweredRegionValueAssumption> buildOutputAssumptions(
+            AcceleratorSubgraphSpec subgraph,
+            PartitionPlanningContext context
+    ) {
+        List<GpuLoweredRegionValueAssumption> out = new ArrayList<>(subgraph.outputNodeIds().size());
+        for (int nodeId : subgraph.outputNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node != null) {
+                out.add(valueAssumption(node, "output"));
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    private GpuLoweredRegionValueAssumption valueAssumption(CompiledNode node, String role) {
+        int[] shape = node.shape();
+        return new GpuLoweredRegionValueAssumption(
+                node.id(),
+                role,
+                node.dataType(),
+                shape.length,
+                shapeList(shape),
+                layoutFor(node),
+                node.contiguous(),
+                node.hasStorageOffset(),
+                node.storageOffset()
+        );
+    }
+
+    private String layoutFor(CompiledNode node) {
+        if (node == null) {
+            return "UNKNOWN";
+        }
+        if (node.hasStorageOffset()) {
+            return "STORAGE_OFFSET_VIEW";
+        }
+        if (node.contiguous()) {
+            return "CONTIGUOUS";
+        }
+        return "STRIDED_VIEW";
+    }
+
+    private List<String> inputRefs(AcceleratorDagNode node) {
+        List<String> refs = new ArrayList<>(4);
+        addRef(refs, node.input0());
+        addRef(refs, node.input1());
+        addRef(refs, node.input2());
+        addRef(refs, node.input3());
+        return List.copyOf(refs);
+    }
+
+    private void addRef(List<String> refs, AcceleratorDagValueRef ref) {
+        if (ref == null || ref.kind() == AcceleratorDagValueRefKind.NONE) {
+            return;
+        }
+        refs.add(ref.kind().name().toLowerCase(Locale.ROOT) + ":" + ref.index());
+    }
+
+    private List<Integer> outputShape(AcceleratorDagNode node) {
+        return switch (node.outputRank()) {
+            case 1 -> List.of(node.outputDim0());
+            case 2 -> List.of(node.outputDim0(), node.outputDim1());
+            case 3 -> List.of(node.outputDim0(), node.outputDim1(), node.outputDim2());
+            default -> List.of(node.outputDim0(), node.outputDim1(), node.outputDim2(), node.outputDim3());
+        };
+    }
+
+    private List<Integer> shapeList(int[] shape) {
+        return Arrays.stream(shape == null ? new int[0] : shape).boxed().toList();
     }
 
     private AcceleratorMatMulSpec tryBuildLegacyMatMulSpec(
