@@ -1,5 +1,34 @@
 # Milestones
 
+## v1.2 GPU Region Coverage (Shipped: 2026-05-01)
+
+**Phases completed:** 5 phases, 19 plans, 41 tasks
+
+**Archives:**
+
+- `milestones/v1.2-ROADMAP.md`
+- `milestones/v1.2-REQUIREMENTS.md`
+- `milestones/v1.2-MILESTONE-AUDIT.md`
+- `milestones/v1.2-phases/`
+
+**Key accomplishments:**
+
+- Backend-neutral layout ABI v2 descriptor with physical-span metadata and portable tests
+- Metal and CUDA layout ABI v2 capability probes with optional native symbol support
+- ABI-v2-specific fallback reason codes with CUDA non-dense metadata diagnostics
+- Backend-neutral GPU layout transform planner with explicit metadata-only, dense materialization, and unsupported decisions
+- Metadata-only layout nodes can reuse Metal/CUDA device bindings before CPU materialization
+- Optional Metal/CUDA dense layout materialization hooks with conservative runtime service routing
+- Backend-neutral Metal/CUDA lowering coverage matrix with stable operation families, statuses, and unsupported reason codes
+- Metal and CUDA planner legality now consume the shared lowering coverage matrix while preserving backend-owned gates
+- LOG_SOFTMAX now stays in Metal/CUDA GPU regions by lowering to existing SOFTMAX and LOG DAG primitives
+- Phase 11 final verification closed with trace-visible LOG_SOFTMAX support, explicit unsupported-family rejection, docs, and profile artifact hygiene
+- Backend-neutral GPU compound summaries with explicit CPU FUSED rejection and stable reason codes for Metal/CUDA lowering.
+- Metal and CUDA now recognize `linear + bias + activation` as one accelerator DAG-backed `LINEAR_BIAS_ACTIVATION` compound region.
+- Metal and CUDA `ADD -> RELU -> EXP` regions now publish `ELEMENTWISE_CHAIN` summaries and traceable compound metadata.
+
+---
+
 ## v1.1 CUDA Native Runtime (Shipped: 2026-04-30)
 
 **Phases completed:** 3 phases, 10 plans, 28 tasks

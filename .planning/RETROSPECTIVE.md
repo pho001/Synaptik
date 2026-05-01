@@ -95,6 +95,53 @@
 
 ---
 
+## Milestone: v1.2 - GPU Region Coverage
+
+**Shipped:** 2026-05-01
+**Phases:** 5 | **Plans:** 19 | **Tasks:** 41
+
+### What Was Built
+
+- Native layout ABI v2 metadata, capability/version checks, optional native symbols, and ABI-specific fallback diagnostics for Metal and CUDA.
+- GPU layout transform/view paths that preserve legal metadata-only views and route dense materialization through explicit capability gates.
+- A backend-neutral Metal/CUDA lowering coverage matrix with stable operation families, support statuses, and unsupported reason codes.
+- Safe GPU compound region metadata for `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN`, with CPU `FUSED` kept explicitly CPU-only.
+- Coverage benchmark/report contracts and regression gates for GPU coverage ratio, CPU materialization, hidden tensor-array fallback, and device handoffs.
+
+### What Worked
+
+- Three-source milestone audit caught stale artifacts before archive: requirements, summaries, and verification files all had to agree.
+- Capability-gated native checks kept Metal evidence real and CUDA evidence honest without blocking portable closure.
+- Treating GPU fusion as compound DAG execution avoided coupling accelerator work to CPU ASM/vector internals.
+
+### What Was Inefficient
+
+- Phase 12 verification existed as summary/validation/security evidence before the phase-level `12-VERIFICATION.md`, so the first milestone audit correctly failed.
+- Phase 09 validation frontmatter lagged behind actual test evidence and needed a cleanup pass before archive.
+- Local tuning profile files remained dirty throughout the milestone and required repeated staging checks.
+
+### Patterns Established
+
+- Layout ABI v2 support is optional-symbol/version gated and backend-neutral at the metadata layer.
+- Metadata-only view propagation and dense GPU materialization are separate runtime paths with distinct reason codes.
+- GPU lowering coverage should be represented as a checked-in matrix, not informal backend-specific knowledge.
+- Coverage gates should fail on hidden CPU exits and lost GPU region coverage, not only on raw performance thresholds.
+
+### Key Lessons
+
+1. Milestone audit should run after security, validation, and phase verification for every phase, not before artifact cleanup.
+2. Phase-level verification is the source of truth for requirement satisfaction even when plan summaries and tests already prove the work.
+3. Native CUDA evidence must stay explicit about capability skips until a CUDA-capable host runs the native gate.
+4. Longer GPU residency requires coordinated layout, lowering, fusion, and coverage reporting; any one layer alone is insufficient.
+
+### Cost Observations
+
+- Model mix: not recorded for this milestone.
+- Sessions: one extended v1.2 run covering Phase 9 through milestone close.
+- Notable: targeted Gradle filters plus audit-readable artifacts kept closure fast while still catching real process gaps.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -103,6 +150,7 @@
 |-----------|----------|--------|------------|
 | v1.0 | multiple | 5 | Established GSD phase verification, security, Nyquist validation, UAT diagnosis, and milestone audit as required close gates. |
 | v1.1 | multiple | 3 | Added capability-gated CUDA native runtime closure with portable fake-bridge verification and explicit native skip evidence. |
+| v1.2 | multiple | 5 | Added three-source requirement audit discipline across GPU layout, lowering, fusion, and coverage gates. |
 
 ### Cumulative Quality
 
@@ -110,9 +158,11 @@
 |-----------|--------------|--------------|--------------|
 | v1.0 | 24/24 satisfied | 5/5 phases passed | 0 |
 | v1.1 | 9/9 satisfied | 3/3 phases passed | 0 |
+| v1.2 | 16/16 satisfied | 5/5 phases passed | 0 |
 
 ### Top Lessons
 
 1. Artifact consistency is part of done; implementation evidence is insufficient if audit-readable files are stale.
 2. Accelerator performance work needs observability contracts as much as implementation changes.
 3. Native accelerator work should separate portable correctness gates from local hardware/toolchain evidence.
+4. GPU residency improvements need layout, lowering, fusion, and coverage gates to evolve together.

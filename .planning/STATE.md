@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: GPU Region Coverage
-status: milestone_complete
-last_updated: "2026-04-30T23:46:31.577Z"
-last_activity: 2026-04-30
+status: completed
+last_updated: "2026-05-01T05:59:33.804Z"
+last_activity: 2026-05-01
 progress:
   total_phases: 5
   completed_phases: 5
@@ -17,11 +17,11 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 13 — coverage-benchmark-and-regression-gate
+**Current focus:** Planning next milestone after v1.2 completion
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-30)
+See: `.planning/PROJECT.md` (updated 2026-05-01)
 
 **Core value:** Synaptik must produce correct tensor results through a clean compiled graph architecture while letting the optimizer and tuning system choose high-performance CPU or accelerator execution without hidden regressions.
 
@@ -33,10 +33,11 @@ Completed milestones:
 
 - v1.0 Accelerator Runtime Architecture - shipped 2026-04-30
 - v1.1 CUDA Native Runtime - shipped 2026-04-30
+- v1.2 GPU Region Coverage - shipped 2026-05-01
 
 Current milestone:
 
-- v1.2 GPU Region Coverage - defining requirements and roadmap for broader Metal/CUDA GPU-resident region coverage.
+- None. Start the next milestone with `$gsd-new-milestone`.
 
 ## Codebase Map
 
@@ -59,6 +60,7 @@ Planning agents should read the relevant codebase map documents before proposing
 - `gsd-sdk` is available for phase/status mutations; keep manual edits scoped when SDK numbering helpers cannot infer padded phase directories.
 - v1.0 and v1.1 milestone audits passed and archive files were created under `.planning/milestones/`.
 - v1.1 phase execution directories were archived to `.planning/milestones/v1.1-phases/` before starting v1.2.
+- v1.2 phase execution directories were archived to `.planning/milestones/v1.2-phases/` before starting the next milestone.
 
 ## Phase Planning Status
 
@@ -68,7 +70,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 10 — GPU Layout Transform And View Path | Completed | 4/4 | Passed |
 | 11 — GPU Lowering Coverage Matrix | Completed | 4/4 | Passed |
 | 12 — Fused GPU Region Execution | Completed | 4/4 | Passed |
-| 13 — Coverage Benchmark And Regression Gate | Planned | 0/4 | Pending |
+| 13 — Coverage Benchmark And Regression Gate | Completed | 4/4 | Passed |
 
 ## Deferred Items
 
@@ -163,29 +165,30 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Gathered Phase 6 context | Ready for Phase 6 planning | .planning/phases/06-cuda-shim-and-capability-probe/06-CONTEXT.md |
 | 2026-04-30 | Planned Phase 6 with 3 verified plans | Ready for Phase 6 execution | .planning/phases/06-cuda-shim-and-capability-probe/06-01-PLAN.md |
 | 2026-04-30 | Completed and verified Phase 6 | Ready for Phase 7 planning | .planning/phases/06-cuda-shim-and-capability-probe/06-VERIFICATION.md |
-| 2026-04-30 | Gathered Phase 9 context | Ready for Phase 9 planning | .planning/phases/09-native-layout-abi-v2/09-CONTEXT.md |
-| 2026-04-30 | Planned Phase 9 with 3 verified plans | Ready for Phase 9 execution | .planning/phases/09-native-layout-abi-v2/09-01-PLAN.md |
-| 2026-04-30 | Completed and verified Phase 9 | Ready for Phase 10 planning | .planning/phases/09-native-layout-abi-v2/09-VERIFICATION.md |
-| 2026-04-30 | Completed and verified Phase 10 | Ready for Phase 11 context | .planning/phases/10-gpu-layout-transform-and-view-path/10-VERIFICATION.md |
-| 2026-04-30 | Gathered Phase 11 context | Ready for Phase 11 planning | .planning/phases/11-gpu-lowering-coverage-matrix/11-CONTEXT.md |
-| 2026-04-30 | Planned Phase 11 with 4 verified plans | Ready for Phase 11 execution | .planning/phases/11-gpu-lowering-coverage-matrix/11-01-PLAN.md |
-| 2026-04-30 | Completed 11-01 shared GPU lowering coverage contract | Ready for 11-02 legality alignment | .planning/phases/11-gpu-lowering-coverage-matrix/11-01-SUMMARY.md |
-| 2026-04-30 | Completed 11-02 Metal/CUDA legality coverage alignment | Ready for 11-03 softmax-ish lowering expansion | .planning/phases/11-gpu-lowering-coverage-matrix/11-02-SUMMARY.md |
-| 2026-04-30 | Completed 11-03 softmax-ish lowering expansion | Ready for 11-04 trace and docs closure | .planning/phases/11-gpu-lowering-coverage-matrix/11-03-SUMMARY.md |
-| 2026-04-30 | Completed 11-04 lowering coverage trace and docs closure | Ready for Phase 11 security/validation/verify-work | .planning/phases/11-gpu-lowering-coverage-matrix/11-04-SUMMARY.md |
-| 2026-04-30 | Completed and verified Phase 11 | Ready for Phase 12 planning | .planning/phases/11-gpu-lowering-coverage-matrix/11-VERIFICATION.md |
-| 2026-04-30 | Completed 12-04 reduction-adjacent/docs closure | Ready for Phase 12 security/validation/verify-work | .planning/phases/12-fused-gpu-region-execution/12-04-SUMMARY.md |
-| 2026-04-30 | Secured Phase 12 | Ready for `$gsd-validate-phase 12` | .planning/phases/12-fused-gpu-region-execution/12-SECURITY.md |
-| 2026-04-30 | Validated Phase 12 | Ready for `$gsd-audit-milestone` | .planning/phases/12-fused-gpu-region-execution/12-VALIDATION.md |
-| 2026-04-30 | Gathered Phase 13 context | Ready for `$gsd-plan-phase 13` | .planning/phases/13-coverage-benchmark-and-regression-gate/13-CONTEXT.md |
-| 2026-04-30 | Planned Phase 13 with 4 coverage regression waves | Ready for `$gsd-execute-phase 13` | .planning/phases/13-coverage-benchmark-and-regression-gate/13-01-PLAN.md |
+| 2026-04-30 | Gathered Phase 9 context | Ready for Phase 9 planning | .planning/milestones/v1.2-phases/09-native-layout-abi-v2/09-CONTEXT.md |
+| 2026-04-30 | Planned Phase 9 with 3 verified plans | Ready for Phase 9 execution | .planning/milestones/v1.2-phases/09-native-layout-abi-v2/09-01-PLAN.md |
+| 2026-04-30 | Completed and verified Phase 9 | Ready for Phase 10 planning | .planning/milestones/v1.2-phases/09-native-layout-abi-v2/09-VERIFICATION.md |
+| 2026-04-30 | Completed and verified Phase 10 | Ready for Phase 11 context | .planning/milestones/v1.2-phases/10-gpu-layout-transform-and-view-path/10-VERIFICATION.md |
+| 2026-04-30 | Gathered Phase 11 context | Ready for Phase 11 planning | .planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-CONTEXT.md |
+| 2026-04-30 | Planned Phase 11 with 4 verified plans | Ready for Phase 11 execution | .planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-01-PLAN.md |
+| 2026-04-30 | Completed 11-01 shared GPU lowering coverage contract | Ready for 11-02 legality alignment | .planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-01-SUMMARY.md |
+| 2026-04-30 | Completed 11-02 Metal/CUDA legality coverage alignment | Ready for 11-03 softmax-ish lowering expansion | .planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-02-SUMMARY.md |
+| 2026-04-30 | Completed 11-03 softmax-ish lowering expansion | Ready for 11-04 trace and docs closure | .planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-03-SUMMARY.md |
+| 2026-04-30 | Completed 11-04 lowering coverage trace and docs closure | Ready for Phase 11 security/validation/verify-work | .planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-04-SUMMARY.md |
+| 2026-04-30 | Completed and verified Phase 11 | Ready for Phase 12 planning | .planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-VERIFICATION.md |
+| 2026-04-30 | Completed 12-04 reduction-adjacent/docs closure | Ready for Phase 12 security/validation/verify-work | .planning/milestones/v1.2-phases/12-fused-gpu-region-execution/12-04-SUMMARY.md |
+| 2026-04-30 | Secured Phase 12 | Ready for `$gsd-validate-phase 12` | .planning/milestones/v1.2-phases/12-fused-gpu-region-execution/12-SECURITY.md |
+| 2026-04-30 | Validated Phase 12 | Ready for `$gsd-audit-milestone` | .planning/milestones/v1.2-phases/12-fused-gpu-region-execution/12-VALIDATION.md |
+| 2026-04-30 | Gathered Phase 13 context | Ready for `$gsd-plan-phase 13` | .planning/milestones/v1.2-phases/13-coverage-benchmark-and-regression-gate/13-CONTEXT.md |
+| 2026-04-30 | Planned Phase 13 with 4 coverage regression waves | Ready for `$gsd-execute-phase 13` | .planning/milestones/v1.2-phases/13-coverage-benchmark-and-regression-gate/13-01-PLAN.md |
+| 2026-05-01 | Completed v1.2 milestone archive | Ready for `$gsd-new-milestone` | .planning/milestones/v1.2-ROADMAP.md |
 
 ---
 *Last updated: 2026-04-30 after Phase 13 planning*
 
 ## Current Position
 
-Phase: 13 (coverage-benchmark-and-regression-gate) — COMPLETE
-Plan: 4 of 4
-Status: Phase complete; security gate pending before milestone archive
-Last activity: 2026-04-30
+Phase: none — v1.2 milestone complete
+Plan: none
+Status: Ready to define the next milestone
+Last activity: 2026-05-01
