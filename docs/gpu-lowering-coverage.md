@@ -84,6 +84,14 @@ Metal currently accepts `FLOAT32` compute/output and `BOOL` only for predicate-s
 
 Reports use `dtypeResidency` evidence to explain why a region stayed resident, shortened, or exited. A dtype-resident internal value can still be materialized later for a real CPU consumer, graph output, or gradient publication, and that CPU boundary remains reportable.
 
+## Phase 17 normalization, reduction, and loss-adjacent contract
+
+Phase 17 covers `GPUNORM-01` and `GPUNORM-02` by making normalization, reduction, softmax-ish, conv, and loss-adjacent gaps explicit in the shared Metal/CUDA matrix. The source-of-truth targets are `target=layer_norm_small`, `target=conv2d_resnet_3x3`, and `target=transformer_block_hot_path`.
+
+`LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`. That support is separate from loss-adjacent operations such as `NLL_LOSS`, `CROSS_ENTROPY_LOSS`, and `CROSS_ENTROPY_LOSS_INDICES`, where unsupported loss-adjacent rows must remain visible fallback, not silent CPU replay.
+
+Forward reductions (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`) and normalization (`LAYER_NORM`, `RMS_NORM`) are matrix-visible blockers for `target=layer_norm_small`. They remain fallback rows until a GPU implementation has lowering, legality, trace/report, and CPU parity evidence. `CONV2D` is a matrix-visible blocker for `target=conv2d_resnet_3x3` and remains unsupported until conv lowering is explicitly added. Index-target loss rows keep `UNSUPPORTED_DTYPE` because `INT32` targets are outside the current accelerator DAG compute contract.
+
 ## GPU Compound Region Lowering
 
 GPU compound region lowering is the Phase 12 path that lets Metal and CUDA execute selected multi-node regions without importing CPU fused ASM/vector internals. Supported compound summaries currently include `LINEAR_BIAS_ACTIVATION` and representative `ELEMENTWISE_CHAIN` regions. `REDUCTION_ADJACENT` candidates such as `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM` are recognized but reject with stable reason codes until a narrow GPU implementation with parity tests exists.
