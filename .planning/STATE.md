@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Coverage-Driven GPU Region Expansion
-status: milestone_complete
-last_updated: "2026-05-01T12:45:14.918Z"
-last_activity: 2026-05-01 -- Phase 21 verified and v1.3 audit passed
+status: ready_for_next_milestone
+last_updated: "2026-05-01T13:05:00.000Z"
+last_activity: 2026-05-01 -- v1.3 archived; ready for next milestone planning
 progress:
   total_phases: 8
   completed_phases: 8
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 21 — Milestone Verification Evidence Closure
+**Current focus:** Planning next milestone
 
 ## Project Reference
 
@@ -34,11 +34,11 @@ Completed milestones:
 - v1.0 Accelerator Runtime Architecture - shipped 2026-04-30
 - v1.1 CUDA Native Runtime - shipped 2026-04-30
 - v1.2 GPU Region Coverage - shipped 2026-05-01
+- v1.3 Coverage-Driven GPU Region Expansion - shipped 2026-05-01
 
 Current milestone:
 
-- v1.3 Coverage-Driven GPU Region Expansion - phases 14-21 complete; milestone audit passed.
-- Gap closure Phase 21 was added after the v1.3 milestone audit found missing verification evidence for phases 14 and 18.
+- None. Start the next milestone with `$gsd-new-milestone`.
 
 ## Codebase Map
 
@@ -62,19 +62,20 @@ Planning agents should read the relevant codebase map documents before proposing
 - v1.0 and v1.1 milestone audits passed and archive files were created under `.planning/milestones/`.
 - v1.1 phase execution directories were archived to `.planning/milestones/v1.1-phases/` before starting v1.2.
 - v1.2 phase execution directories were archived to `.planning/milestones/v1.2-phases/` before starting the next milestone.
+- v1.3 phase execution directories were archived to `.planning/milestones/v1.3-phases/` before starting the next milestone.
 
 ## Phase Planning Status
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 14 — Coverage Gap Triage And Hot Path Targets | Complete | 4/4 | Verified |
-| 15 — GPU Region Internal Lowered DAG Contract | Complete | 4/4 | Verified |
-| 16 — DType And Storage Residency Expansion | Complete | 4/4 | Verified |
-| 17 — Normalization Reduction And Loss-Adjacent Lowering | Complete | 4/4 | Verified |
-| 18 — Fused Elementwise And Epilogue Subregions | Complete | 4/4 | Verified |
-| 19 — Multi-Op GPU Region Execution | Complete | 5/5 | Verified |
-| 20 — Coverage Regression Hardening | Complete | 4/4 | Verified |
-| 21 — Milestone Verification Evidence Closure | Complete | 1/1 | Verified |
+| 14 — Coverage Gap Triage And Hot Path Targets | Archived | 4/4 | Verified |
+| 15 — GPU Region Internal Lowered DAG Contract | Archived | 4/4 | Verified |
+| 16 — DType And Storage Residency Expansion | Archived | 4/4 | Verified |
+| 17 — Normalization Reduction And Loss-Adjacent Lowering | Archived | 4/4 | Verified |
+| 18 — Fused Elementwise And Epilogue Subregions | Archived | 4/4 | Verified |
+| 19 — Multi-Op GPU Region Execution | Archived | 5/5 | Verified |
+| 20 — Coverage Regression Hardening | Archived | 4/4 | Verified |
+| 21 — Milestone Verification Evidence Closure | Archived | 1/1 | Verified |
 
 ## Deferred Items
 
@@ -195,13 +196,13 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-04-30 | Gathered Phase 13 context | Ready for `$gsd-plan-phase 13` | .planning/milestones/v1.2-phases/13-coverage-benchmark-and-regression-gate/13-CONTEXT.md |
 | 2026-04-30 | Planned Phase 13 with 4 coverage regression waves | Ready for `$gsd-execute-phase 13` | .planning/milestones/v1.2-phases/13-coverage-benchmark-and-regression-gate/13-01-PLAN.md |
 | 2026-05-01 | Completed v1.2 milestone archive | Ready for `$gsd-new-milestone` | .planning/milestones/v1.2-ROADMAP.md |
-| 2026-05-01 | Planned Phase 14 with 4 coverage triage waves | Ready for `$gsd-execute-phase 14` | .planning/phases/14-coverage-gap-triage-and-hot-path-targets/14-01-PLAN.md |
-| 2026-05-01 | Gathered Phase 15 context | Ready for `$gsd-plan-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-CONTEXT.md |
-| 2026-05-01 | Planned Phase 15 with 4 lowered-region manifest waves | Ready for `$gsd-execute-phase 15` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-01-PLAN.md |
-| 2026-05-01 | Completed and verified Phase 15 | Ready for `$gsd-discuss-phase 16 --auto` or `$gsd-plan-phase 16 --auto` | .planning/phases/15-gpu-region-internal-lowered-dag-contract/15-VERIFICATION.md |
-| 2026-05-01 | Planned Phase 16 with 4 dtype residency waves | Ready for `$gsd-execute-phase 16` | .planning/phases/16-dtype-and-storage-residency-expansion/16-01-PLAN.md |
-| 2026-05-01 | Completed and verified Phase 16 | Ready for `$gsd-discuss-phase 17 --auto` or `$gsd-plan-phase 17 --auto` | .planning/phases/16-dtype-and-storage-residency-expansion/16-VERIFICATION.md |
-| 2026-05-01 | Completed and verified Phase 17 | Ready for `$gsd-discuss-phase 18 --auto` or `$gsd-plan-phase 18 --auto` | .planning/phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md |
+| 2026-05-01 | Planned Phase 14 with 4 coverage triage waves | Ready for `$gsd-execute-phase 14` | .planning/milestones/v1.3-phases/14-coverage-gap-triage-and-hot-path-targets/14-01-PLAN.md |
+| 2026-05-01 | Gathered Phase 15 context | Ready for `$gsd-plan-phase 15` | .planning/milestones/v1.3-phases/15-gpu-region-internal-lowered-dag-contract/15-CONTEXT.md |
+| 2026-05-01 | Planned Phase 15 with 4 lowered-region manifest waves | Ready for `$gsd-execute-phase 15` | .planning/milestones/v1.3-phases/15-gpu-region-internal-lowered-dag-contract/15-01-PLAN.md |
+| 2026-05-01 | Completed and verified Phase 15 | Ready for `$gsd-discuss-phase 16 --auto` or `$gsd-plan-phase 16 --auto` | .planning/milestones/v1.3-phases/15-gpu-region-internal-lowered-dag-contract/15-VERIFICATION.md |
+| 2026-05-01 | Planned Phase 16 with 4 dtype residency waves | Ready for `$gsd-execute-phase 16` | .planning/milestones/v1.3-phases/16-dtype-and-storage-residency-expansion/16-01-PLAN.md |
+| 2026-05-01 | Completed and verified Phase 16 | Ready for `$gsd-discuss-phase 17 --auto` or `$gsd-plan-phase 17 --auto` | .planning/milestones/v1.3-phases/16-dtype-and-storage-residency-expansion/16-VERIFICATION.md |
+| 2026-05-01 | Completed and verified Phase 17 | Ready for `$gsd-discuss-phase 18 --auto` or `$gsd-plan-phase 18 --auto` | .planning/milestones/v1.3-phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md |
 
 ---
 *Last updated: 2026-05-01 after v1.3 milestone audit gap planning*
@@ -211,4 +212,4 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 Phase: 21
 Plan: 21-01 evidence closure complete
 Status: Milestone complete; v1.3 audit passed
-Last activity: 2026-05-01 -- Phase 21 verified and v1.3 audit passed
+Last activity: 2026-05-01

@@ -12,14 +12,15 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.3 Coverage-Driven GPU Region Expansion shipped on 2026-05-01. Phases 14 through 21 are complete and the v1.3 milestone audit passed. Synaptik now has coverage-driven Metal/CUDA GPU region expansion evidence for hot-path triage, lowered-region manifests, dtype/storage residency, normalization/reduction/loss-adjacent lowering, region-internal fusion, multi-op GPU region execution, hard coverage gates, and milestone proof closure while keeping the public `Tensor` API logical and keeping device residency inside runtime execution state.
+v1.3 Coverage-Driven GPU Region Expansion shipped and was archived on 2026-05-01. Phases 14 through 21 are complete and the v1.3 milestone audit passed. Synaptik now has coverage-driven Metal/CUDA GPU region expansion evidence for hot-path triage, lowered-region manifests, dtype/storage residency, normalization/reduction/loss-adjacent lowering, region-internal fusion, multi-op GPU region execution, hard coverage gates, and milestone proof closure while keeping the public `Tensor` API logical and keeping device residency inside runtime execution state.
 
-- 21 phases and 82 plans completed across v1.0, v1.1, v1.2, and v1.3.
-- 73/73 milestone requirements are satisfied: 49/49 archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, and `.planning/milestones/v1.2-REQUIREMENTS.md`, plus 24/24 v1.3 requirements in `.planning/REQUIREMENTS.md`.
-- v1.3 phase verification and milestone audit passed; Phase 21 closed the missing Phase 14 and Phase 18 verification evidence and hardened Phase 20 validation metadata.
+- 21 phases and 82 plans completed across v1.0, v1.1, v1.2, and v1.3; v1.3 phase artifacts are archived in `.planning/milestones/v1.3-phases/`.
+- 73/73 milestone requirements are satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, `.planning/milestones/v1.2-REQUIREMENTS.md`, and `.planning/milestones/v1.3-REQUIREMENTS.md`.
+- v1.3 phase verification, Nyquist validation, milestone audit, and archival passed; Phase 21 closed the missing Phase 14 and Phase 18 verification evidence and hardened Phase 20 validation metadata.
 - v1.2 phase verification, security, Nyquist validation, milestone audit, and archival passed.
 - Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, dtype/storage residency, normalization/reduction/loss-adjacent coverage, region-internal GPU fusion, multi-op GPU region execution, hard coverage regression evidence, and v1.3 audit proof closure are now validated project state.
 - Real CUDA hardware/native execution remains a residual environment risk because local CUDA native tasks capability-skipped; portable gates and capability-skip behavior passed.
+- No active milestone is currently defined. The next milestone should start with fresh requirements via `$gsd-new-milestone`.
 
 ## Recently Shipped Milestone: v1.3 Coverage-Driven GPU Region Expansion
 
@@ -78,12 +79,12 @@ v1.3 Coverage-Driven GPU Region Expansion shipped on 2026-05-01. Phases 14 throu
 - ✓ Metal and CUDA lowering cover common NN/tensor operation patterns through a checked-in support matrix with stable unsupported reasons — validated in Phase 11 by `.planning/milestones/v1.2-phases/11-gpu-lowering-coverage-matrix/11-VERIFICATION.md`.
 - ✓ Fused GPU regions execute safe compound patterns without copying CPU fused ASM internals or regressing CPU fused execution — validated in Phase 12 by `.planning/milestones/v1.2-phases/12-fused-gpu-region-execution/12-VERIFICATION.md`.
 - ✓ Trace and benchmark reports quantify GPU region coverage, CPU materialization boundaries, fallbacks, device handoffs, and representative workload behavior — validated in Phase 13 by `.planning/milestones/v1.2-phases/13-coverage-benchmark-and-regression-gate/13-VERIFICATION.md`.
-- ✓ v1.3 coverage gap triage selects hot-path GPU exits from measured evidence, GPU regions are described as lowered DAG manifests, and `BFLOAT16`/`INT32`/`BOOL` dtype residency is represented in runtime binding, backend decisions, traces, and reports — validated through Phase 16 by `.planning/phases/16-dtype-and-storage-residency-expansion/16-VERIFICATION.md`.
-- ✓ Normalization, reduction, softmax-ish, conv, and loss-adjacent GPU lowering gaps are covered by the shared Metal/CUDA matrix with stable rejection detail, CPU parity, and trace/report evidence — validated in Phase 17 by `.planning/phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md`.
-- ✓ GPU regions expose region-internal fused elementwise and linear/matmul epilogue subpatterns without reusing CPU `Operation.OpType.FUSED`, CPU fused ASM, or CPU vector dispatch internals — validated in Phase 18 by `.planning/phases/18-fused-elementwise-and-epilogue-subregions/18-VERIFICATION.md`.
-- ✓ Selected GPU regions can execute multiple lowered operations through backend-neutral planning contracts and backend-specific Metal/CUDA prepared executables while preserving true CPU materialization boundaries — validated in Phase 19 by `.planning/phases/19-multi-op-gpu-region-execution/19-VERIFICATION.md`.
-- ✓ Coverage reports and regression gates expose lowered operation counts, fused subpattern counts, selected region length, rejected candidates, CPU exits, materialization reasons, device handoffs, native capability evidence, and hard target gates — validated in Phase 20 by `.planning/phases/20-coverage-regression-hardening/20-VERIFICATION.md`.
-- ✓ v1.3 milestone verification evidence is closed: Phase 14 and Phase 18 verification reports exist, Phase 20 validation metadata is Nyquist-compliant, and the v1.3 milestone audit passes — validated in Phase 21 by `.planning/phases/21-milestone-verification-evidence-closure/21-VERIFICATION.md` and `.planning/v1.3-MILESTONE-AUDIT.md`.
+- ✓ v1.3 coverage gap triage selects hot-path GPU exits from measured evidence, GPU regions are described as lowered DAG manifests, and `BFLOAT16`/`INT32`/`BOOL` dtype residency is represented in runtime binding, backend decisions, traces, and reports — validated through Phase 16 by `.planning/milestones/v1.3-phases/16-dtype-and-storage-residency-expansion/16-VERIFICATION.md`.
+- ✓ Normalization, reduction, softmax-ish, conv, and loss-adjacent GPU lowering gaps are covered by the shared Metal/CUDA matrix with stable rejection detail, CPU parity, and trace/report evidence — validated in Phase 17 by `.planning/milestones/v1.3-phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md`.
+- ✓ GPU regions expose region-internal fused elementwise and linear/matmul epilogue subpatterns without reusing CPU `Operation.OpType.FUSED`, CPU fused ASM, or CPU vector dispatch internals — validated in Phase 18 by `.planning/milestones/v1.3-phases/18-fused-elementwise-and-epilogue-subregions/18-VERIFICATION.md`.
+- ✓ Selected GPU regions can execute multiple lowered operations through backend-neutral planning contracts and backend-specific Metal/CUDA prepared executables while preserving true CPU materialization boundaries — validated in Phase 19 by `.planning/milestones/v1.3-phases/19-multi-op-gpu-region-execution/19-VERIFICATION.md`.
+- ✓ Coverage reports and regression gates expose lowered operation counts, fused subpattern counts, selected region length, rejected candidates, CPU exits, materialization reasons, device handoffs, native capability evidence, and hard target gates — validated in Phase 20 by `.planning/milestones/v1.3-phases/20-coverage-regression-hardening/20-VERIFICATION.md`.
+- ✓ v1.3 milestone verification evidence is closed: Phase 14 and Phase 18 verification reports exist, Phase 20 validation metadata is Nyquist-compliant, and the v1.3 milestone audit passes — validated in Phase 21 by `.planning/milestones/v1.3-phases/21-milestone-verification-evidence-closure/21-VERIFICATION.md` and `.planning/milestones/v1.3-MILESTONE-AUDIT.md`.
 
 ### Active
 
@@ -170,4 +171,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-05-01 after Phase 21 verification and v1.3 milestone audit*
+*Last updated: 2026-05-01 after v1.3 milestone archival*

@@ -142,6 +142,56 @@
 
 ---
 
+## Milestone: v1.3 - Coverage-Driven GPU Region Expansion
+
+**Shipped:** 2026-05-01
+**Phases:** 8 | **Plans:** 30 | **Tasks:** 9
+
+### What Was Built
+
+- Coverage gap triage and hot-path targets for transformer, MLP, conv, and normalization-style GPU region work.
+- Java-side lowered-region manifest contracts with original op, primitive, dtype/layout, fused subpattern, and rejection metadata.
+- BFLOAT16, INT32, and BOOL device residency evidence through runtime binding, backend decisions, traces, and reports.
+- Normalization, reduction, softmax-ish, conv, and loss-adjacent lowering coverage or stable rejection detail under a shared Metal/CUDA contract.
+- Region-internal GPU fusion for elementwise chains and matmul/linear epilogues without reusing CPU fused ASM internals.
+- Multi-op GPU region execution plus hard coverage gates that report lowered counts, fused subpatterns, CPU exits, materialization reasons, and device handoffs.
+
+### What Worked
+
+- The Phase 14 target registry kept later work coverage-driven instead of opportunistic.
+- Treating GPU fusion as region-internal lowering/fusion kept CPU `Operation.OpType.FUSED` and generated ASM isolated.
+- Hard coverage reports made "hot path stayed on GPU" an audit artifact rather than a timing impression.
+- Phase 21 was useful as an evidence-only closure phase: it fixed stale audit proof without touching runtime behavior.
+
+### What Was Inefficient
+
+- Phase 14 and Phase 18 initially lacked phase-level verification reports even though summaries and validation evidence existed.
+- Phase 20 validation metadata needed a later hardening pass before the milestone audit could be fully machine-readable.
+- Several older summaries did not consistently expose `requirements-completed` frontmatter, so final audit had to cross-check requirement IDs in body text.
+- Local tuning profile files stayed dirty and required repeated staging checks.
+
+### Patterns Established
+
+- GPU regions are backend-owned lowered DAGs, not single opaque operations.
+- Fusion belongs inside the selected GPU region and is represented as lowering metadata, not CPU fused ASM reuse.
+- Unsupported coverage should carry stable rejection detail tied to hot-path targets, dtype/layout legality, and backend capability.
+- Milestone audits should include Nyquist coverage for every phase, including evidence-only closure phases.
+
+### Key Lessons
+
+1. Require `VERIFICATION.md` and `VALIDATION.md` for every phase before first milestone audit.
+2. Keep `requirements-completed` frontmatter consistent in closure summaries; it makes three-source audits faster.
+3. Coverage gates should report structural residency evidence, not only benchmark timing.
+4. Evidence-only closure phases should explicitly prove they did not widen runtime or backend behavior.
+
+### Cost Observations
+
+- Model mix: not recorded for this milestone.
+- Sessions: one extended v1.3 run covering phases 14 through 21 and archive close.
+- Notable: targeted Gradle filters plus grep-based artifact gates kept late evidence repair focused without rerunning unrelated suites.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -151,6 +201,7 @@
 | v1.0 | multiple | 5 | Established GSD phase verification, security, Nyquist validation, UAT diagnosis, and milestone audit as required close gates. |
 | v1.1 | multiple | 3 | Added capability-gated CUDA native runtime closure with portable fake-bridge verification and explicit native skip evidence. |
 | v1.2 | multiple | 5 | Added three-source requirement audit discipline across GPU layout, lowering, fusion, and coverage gates. |
+| v1.3 | multiple | 8 | Added coverage-driven GPU region expansion, region-internal fusion, multi-op execution, hard coverage gates, and evidence-only audit closure. |
 
 ### Cumulative Quality
 
@@ -159,6 +210,7 @@
 | v1.0 | 24/24 satisfied | 5/5 phases passed | 0 |
 | v1.1 | 9/9 satisfied | 3/3 phases passed | 0 |
 | v1.2 | 16/16 satisfied | 5/5 phases passed | 0 |
+| v1.3 | 24/24 satisfied | 8/8 phases passed | 0 |
 
 ### Top Lessons
 
@@ -166,3 +218,4 @@
 2. Accelerator performance work needs observability contracts as much as implementation changes.
 3. Native accelerator work should separate portable correctness gates from local hardware/toolchain evidence.
 4. GPU residency improvements need layout, lowering, fusion, and coverage gates to evolve together.
+5. Evidence-only closure phases are valid when the implementation is complete but audit-readable proof is stale.

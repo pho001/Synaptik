@@ -1,5 +1,28 @@
 # Milestones
 
+## v1.3 Coverage-Driven GPU Region Expansion (Shipped: 2026-05-01)
+
+**Phases completed:** 8 phases, 30 plans, 9 tasks
+
+**Archives:**
+
+- `milestones/v1.3-ROADMAP.md`
+- `milestones/v1.3-REQUIREMENTS.md`
+- `milestones/v1.3-MILESTONE-AUDIT.md`
+- `milestones/v1.3-phases/`
+
+**Key accomplishments:**
+
+- Java-side GPU lowered-region manifest records with stable DAG-level reason codes for original-op, primitive, boundary, fused-subpattern, and candidate-shortening evidence
+- Shared accelerator lowering now constructs selected GPU lowered-region manifests and exposes them through Metal and CUDA partition plans
+- BFLOAT16, INT32, and BOOL residency now flows through runtime slot binding, accelerator dtype decisions, trace evidence, and coverage reports.
+- Normalization, reduction, softmax-ish, conv, and loss-adjacent GPU coverage now has shared Metal/CUDA support or stable rejection evidence.
+- Region-internal GPU fusion now exposes elementwise and matmul/linear epilogue subpatterns without reusing CPU fused ASM internals.
+- Multi-op GPU regions now carry lowered operation counts, fused subpattern evidence, CPU exit counts, materialization reasons, device handoffs, and hard hot-path gates.
+- Milestone verification evidence closure made Phase 14, Phase 18, Phase 20, and Phase 21 audit-readable and Nyquist-compliant.
+
+---
+
 ## v1.2 GPU Region Coverage (Shipped: 2026-05-01)
 
 **Phases completed:** 5 phases, 19 plans, 41 tasks
