@@ -214,6 +214,33 @@ class MetalLayoutAwareDeviceFlowTest {
     }
 
     @Test
+    void broadcastContiguousReportsGpuLayoutMaterialization() {
+        Tensor expected = broadcastContiguousGraph("cpu");
+        CompiledGraph.compile(expected, OptimizerConfig.inferenceDefaults())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor actual = broadcastContiguousGraph("metal");
+        PreparedExecution execution = CompiledGraph.compile(actual, OptimizerConfig.noOptimization())
+                .prepare(metalBufferRuntime());
+        assumeNativeBufferBridge(execution);
+
+        RunTrace trace = execution.executeTraced(ExecutionMode.FORWARD);
+        ExecutionStepTrace contiguousTrace = trace.steps().stream()
+                .filter(step -> operations.Operation.OpType.CONTIGUOUS.name().equals(step.opType()))
+                .findFirst()
+                .orElseThrow();
+        Map<String, Object> attrs = contiguousTrace.metadata().attributes();
+
+        assertArrayEquals(expected.toDoubleArrayCopy(), actual.toDoubleArrayCopy(), 1e-5);
+        assertEquals("BROADCAST_GPU_MATERIALIZATION", attrs.get("gpuLayoutTransformKind"));
+        assertEquals("GPU_LAYOUT_BROADCAST_MATERIALIZATION_AVAILABLE", attrs.get("gpuLayoutTransformReasonCode"));
+        assertEquals(1, attrs.get("gpuLayoutMaterializationCount"));
+        assertEquals(24L, attrs.get("gpuLayoutMaterializationBytes"));
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(entry -> entry.reason() == CpuMaterializationReason.CPU_CONSUMER));
+    }
+
+    @Test
     void layoutAwareFlowFallsBackVisiblyForBroadcastZeroStride() {
         Tensor input = new Tensor(new float[]{1f, -2f, 3f}, new int[]{1, 3}, null, "input", DataType.FLOAT32);
         Tensor broadcastZeroStrideOutput = new Tensor(
@@ -315,6 +342,21 @@ class MetalLayoutAwareDeviceFlowTest {
         return out;
     }
 
+    private static Tensor broadcastContiguousGraph(String labelPrefix) {
+        Tensor input = new Tensor(new float[]{0.5f, -1.0f, 2.0f}, new int[]{1, 3}, null, labelPrefix + "BroadcastInput", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, 0.5f, -0.75f}, new int[]{1, 3}, null, labelPrefix + "BroadcastBias", DataType.FLOAT32);
+        Tensor base = input.add(bias);
+        Tensor expanded = base.expand(2, 3);
+        Tensor out = expanded.contiguous();
+
+        if ("metal".equals(labelPrefix)) {
+            TensorInternalAccess.setBackend(base, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackend(expanded, ComputeBackend.GPU_METAL);
+            TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+        }
+        return out;
+    }
+
     private static int nodeId(CompiledGraph compiled, operations.Operation.OpType opType) {
         return compiled.compileArtifacts().compiledNodes().stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == opType)
@@ -328,6 +370,15 @@ class MetalLayoutAwareDeviceFlowTest {
         return defaults.withAccelerator(defaults.accelerator().withMetal(
                 defaults.accelerator().metal().withBuffer(
                         new AcceleratorBufferConfig(AcceleratorBufferBindingMode.OFF, true, 0)
+                )
+        ));
+    }
+
+    private static RuntimeConfig metalBufferRuntime() {
+        RuntimeConfig defaults = RuntimeConfig.inferenceDefaults();
+        return defaults.withAccelerator(defaults.accelerator().withMetal(
+                defaults.accelerator().metal().withBuffer(
+                        new AcceleratorBufferConfig(AcceleratorBufferBindingMode.AUTO, true, 0)
                 )
         ));
     }

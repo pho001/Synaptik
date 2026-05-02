@@ -473,17 +473,17 @@ public final class PreparedExecution {
             attrs.put("gpuLayoutTransformSourceNodeId", layoutTransformDecision.sourceNodeId());
             attrs.put("gpuLayoutTransformTargetNodeId", layoutTransformDecision.targetNodeId());
             attrs.put("gpuLayoutTransformAccepted", layoutTransformDecision.accepted());
+            attrs.put("gpuLayoutTransformReasonCode", layoutTransformDecision.reasonCode().name());
+            attrs.put("gpuLayoutTransformReason", layoutTransformDecision.reason());
             attrs.put("gpuLayoutTransformSourceLayoutClass", layoutTransformDecision.sourceLayout().layoutClass().name());
             attrs.put("gpuLayoutTransformTargetLayoutClass", layoutTransformDecision.targetLayout().layoutClass().name());
             attrs.put("gpuLayoutTransformBytes", layoutTransformDecision.targetLayout().logicalByteLength());
             attrs.put("gpuLayoutMaterializationCount",
-                    layoutTransformDecision.kind() == backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
-                            && layoutTransformDecision.accepted()
+                    isGpuLayoutMaterialization(layoutTransformDecision)
                             ? 1
                             : 0);
             attrs.put("gpuLayoutMaterializationBytes",
-                    layoutTransformDecision.kind() == backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
-                            && layoutTransformDecision.accepted()
+                    isGpuLayoutMaterialization(layoutTransformDecision)
                             ? layoutTransformDecision.targetLayout().logicalByteLength()
                             : 0L);
             attrs.putIfAbsent("acceleratorBufferBackend", layoutTransformDecision.backendId());
@@ -569,6 +569,16 @@ public final class PreparedExecution {
             return 0;
         }
         return decision.inputs().size() + decision.outputs().size();
+    }
+
+    private static boolean isGpuLayoutMaterialization(
+            backend.accelerator.buffer.AcceleratorLayoutTransformDecision decision
+    ) {
+        if (decision == null || !decision.accepted()) {
+            return false;
+        }
+        return decision.kind() == backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION
+                || decision.kind() == backend.accelerator.buffer.AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION;
     }
 
     private void syncRootData(ExecutionMode mode, ExecutionState executionState) {
