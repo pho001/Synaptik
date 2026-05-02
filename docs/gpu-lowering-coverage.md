@@ -99,6 +99,8 @@ Phase 41 closes the CUDA dtype/layout/index residency contract without overclaim
 
 Phase 42 adds CUDA NN operation parity diagnostics without claiming new native execution. `CUDANN-01` is covered by `CudaNnSemantics`: forward SDPA validates dense `FLOAT32` rank-3/4 tensors and classifies unmasked, external BOOL masked, causal, and external+causal mask modes before final `CAPABILITY_MISSING`. `CUDANN-02` is covered by forward conv/pool semantic checks for dense `FLOAT32` NCHW/OIHW contracts, groups, dilation, shape/layout, and average-pool divisor blockers before final `CAPABILITY_MISSING`. `CUDANN-03` is covered by dense-loss checks for dense `FLOAT32` `NLL_LOSS` and `CROSS_ENTROPY_LOSS`; legal dense cases end in `DAG_PRIMITIVE_UNSUPPORTED`, while index-target losses remain `UNSUPPORTED_INDEX_SEMANTICS`.
 
+Phase 43 adds CUDA training/index semantic closure without overclaiming native training support. `CUDATRAIN-01` is covered by target truth and hot-path tests that keep CUDA backward rows independent from forward support and Metal native rows. `CUDATRAIN-02` is covered by `CudaIndexWriteSemantics`: CUDA `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD` validate dense `FLOAT32` values/output, dense static `INT32` indices, rank/axis/shape, and static bounds before final `UNSUPPORTED_DUPLICATE_INDEX`. `CUDATRAIN-03` is covered by `CUDATRAIN` hot-path metadata and training target policies that require visible blockers for unsupported CUDA training rows and keep gradient publication separate from hidden internal CPU materialization.
+
 Phase 33 adds coverage evidence for Metal layout repair. `layout_broadcast_repair_small` requires native buffer execution,
 `BROADCAST_GPU_MATERIALIZATION` evidence, and no `CPU_CONSUMER` materialization on the supported hot path. This is not a
 claim of universal strided-native compute; direct `STRIDED_NATIVE_COMPUTE` remains a named unsupported route until a
@@ -320,3 +322,8 @@ Phase 38 training gates add explicit `training_*` hot-path targets. Supported ta
 bridge replay, CPU fallback, or shorter selected regions. Unsupported training targets such as
 `training_transformer_block_hot_path` and `training_cross_entropy_small` pass only when the report exposes stable
 blocker evidence for SDPA backward or index-target loss gradients.
+
+Phase 43 applies the same training target discipline to CUDA. CUDA `training_reduction_chain_small` and
+`training_layer_norm_small` require native buffer evidence and zero hidden internal CPU materialization, while CUDA
+`training_transformer_block_hot_path`, `training_dense_loss_small`, `training_cross_entropy_small`, and
+`scatter_index_gradient_small` remain visible blocker targets until native execution and parity evidence exist.

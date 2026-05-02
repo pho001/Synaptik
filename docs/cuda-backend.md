@@ -98,6 +98,12 @@ CUDA forward `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` validate th
 
 CUDA dense `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` validate dense `FLOAT32` rank 1..4 inputs, dense targets matching score shape, valid class axis, and scalar mean output `[1]` before reporting `DAG_PRIMITIVE_UNSUPPORTED`. Index-target loss remains separate as `UNSUPPORTED_INDEX_SEMANTICS`.
 
+## Training And Index-Gradient Scope
+
+CUDA training coverage is per backward operation, not inherited from forward support or shared matrix rows. `GpuTargetCoverageTruth` keeps CUDA backward rows explicit: selected reduction/normalization training targets may require native buffer evidence, while SDPA backward, conv/pool backward, dense-loss gaps, index-target loss gradients, and scatter/index-gradient families remain visible blockers until native execution and parity evidence exist.
+
+CUDA `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD` now validate dense `FLOAT32` value/source/output tensors, dense static `INT32` indices, rank/axis/shape legality, and static bounds before final `UNSUPPORTED_DUPLICATE_INDEX`. This mirrors the Metal semantics-first blocker discipline without claiming CUDA native duplicate-index accumulation.
+
 ## Fallback And Report Interpretation
 
 CUDA fallback interpretation starts with:

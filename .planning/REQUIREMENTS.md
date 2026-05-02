@@ -27,9 +27,9 @@ Requirements for the v1.6 milestone. Each requirement maps to exactly one roadma
 
 ### CUDA Training And Index Semantics
 
-- [ ] **CUDATRAIN-01**: CUDA training/backward coverage distinguishes supported backward rows, capability-missing rows, and gradient publication from hidden internal CPU materialization.
-- [ ] **CUDATRAIN-02**: CUDA scatter/index-gradient blockers for `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD` preserve duplicate-index, bounds, and dtype semantics before any native support claim.
-- [ ] **CUDATRAIN-03**: Representative CUDA training hot paths report native execution, tensor-array fallback, CPU fallback, materialization reason, and shortened-region evidence under hard gates.
+- [x] **CUDATRAIN-01**: CUDA training/backward coverage distinguishes supported backward rows, capability-missing rows, and gradient publication from hidden internal CPU materialization.
+- [x] **CUDATRAIN-02**: CUDA scatter/index-gradient blockers for `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD` preserve duplicate-index, bounds, and dtype semantics before any native support claim.
+- [x] **CUDATRAIN-03**: Representative CUDA training hot paths report native execution, tensor-array fallback, CPU fallback, materialization reason, and shortened-region evidence under hard gates.
 
 ### Custom Metal Kernel Execution Route
 
@@ -84,9 +84,9 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 | CUDANN-01 | Phase 42 | Complete |
 | CUDANN-02 | Phase 42 | Complete |
 | CUDANN-03 | Phase 42 | Complete |
-| CUDATRAIN-01 | Phase 43 | Pending |
-| CUDATRAIN-02 | Phase 43 | Pending |
-| CUDATRAIN-03 | Phase 43 | Pending |
+| CUDATRAIN-01 | Phase 43 | Complete |
+| CUDATRAIN-02 | Phase 43 | Complete |
+| CUDATRAIN-03 | Phase 43 | Complete |
 | METALKERNEL-01 | Phase 44 | Pending |
 | METALKERNEL-02 | Phase 44 | Pending |
 | METALKERNEL-03 | Phase 44 | Pending |
@@ -104,4 +104,4 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 
 ---
 *Requirements defined: 2026-05-02*
-*Last updated: 2026-05-02 after Phase 42 execution*
+*Last updated: 2026-05-02 after Phase 43 execution*

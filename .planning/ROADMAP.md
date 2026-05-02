@@ -101,7 +101,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 43: CUDA Training And Index Semantics
 
-**Status:** Planned
+**Status:** Complete
 
 **Goal:** Close CUDA training/backward and scatter/index-gradient evidence gaps with explicit blockers where support is not proven.
 
@@ -117,10 +117,10 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 5. CUDA training gates fail hidden internal CPU materialization while allowing explicit graph-output or gradient-publication boundaries.
 
 **Planned waves:**
-- [ ] 43-01 CUDA backward truth and gate policy.
-- [ ] 43-02 Scatter/index-gradient semantics and support-or-rejection.
-- [ ] 43-03 Training hot-path report targets.
-- [ ] 43-04 Final parity, docs, and validation closure.
+- [x] 43-01 CUDA backward truth and gate policy.
+- [x] 43-02 Scatter/index-gradient semantics and support-or-rejection.
+- [x] 43-03 Training hot-path report targets.
+- [x] 43-04 Final parity, docs, and validation closure.
 
 ### Phase 44: Custom Metal Kernel Execution Route
 
@@ -193,8 +193,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is planned and ready for execution.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete and verified. Phase 44 Custom Metal Kernel Execution Route is ready for planning.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 43 planning*
+*Last updated: 2026-05-02 after Phase 43 execution*

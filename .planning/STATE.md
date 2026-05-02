@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Accelerator Backend Parity And Native Kernel Closure
 status: executing
-last_updated: "2026-05-02T14:45:00.000Z"
-last_activity: 2026-05-02 -- Phase 43 planning complete
+last_updated: "2026-05-02T14:55:00.000Z"
+last_activity: 2026-05-02 -- Phase 43 execution verified
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 28
-  completed_plans: 12
-  percent: 42
+  completed_plans: 16
+  percent: 57
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 43 CUDA Training And Index Semantics execution
+**Current focus:** Phase 44 Custom Metal Kernel Execution Route planning
 
 ## Project Reference
 
@@ -79,7 +79,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 40 — CUDA Parity Gap Triage And Capability Baseline | Complete | 4/4 | Verified |
 | 41 — CUDA DType Layout And Index Residency | Complete | 4/4 | Verified |
 | 42 — CUDA NN Operation Parity | Complete | 4/4 | Verified |
-| 43 — CUDA Training And Index Semantics | Planned | 0/4 | Not verified |
+| 43 — CUDA Training And Index Semantics | Complete | 4/4 | Verified |
 | 44 — Custom Metal Kernel Execution Route | Not started | 0/4 | Not verified |
 | 45 — Metal Output Buffer Write And Copy Closure | Not started | 0/4 | Not verified |
 | 46 — Cross-Backend Router Calibration And Regression Gates | Not started | 0/4 | Not verified |
@@ -220,6 +220,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 39 planning completed | Four plans cover Metal route decisions, custom-kernel seam, native copy classification or output-buffer proof, and final route-aware coverage audit readiness. |
 | 2026-05-02 | Phase 42 security and validation passed | CUDA SDPA, conv/pool, and dense loss now validate semantic contracts before report-visible CUDA blockers; no native CUDA NN support is claimed without execution evidence. |
 | 2026-05-02 | Phase 43 planning completed | Four plans cover CUDA backward truth, scatter/index-gradient semantics, training hot-path report targets, docs, validation, and artifact hygiene. |
+| 2026-05-02 | Phase 43 execution verified | CUDA training/index semantics now keep backward truth independent from forward support, validate CUDA scatter/index-gradient contracts before duplicate-index blockers, and tag training hot paths with CUDATRAIN gates. |
 | 2026-05-02 | Phase 39-01 completed | Prepared Metal executables now expose route decisions for MPSGraph, tensor-array fallback, CPU fallback, required-unavailable, and rejected custom-kernel candidates with trace-visible route/cost evidence. |
 | 2026-05-02 | Phase 39-02 completed | Added the backend-internal custom Metal kernel SPI and route adapter while keeping current supported execution on MPSGraph with machine-readable `CUSTOM_KERNEL_UNAVAILABLE` rejection evidence. |
 | 2026-05-02 | Phase 39-03 completed | Metal bridge stats, traces, benchmark reports, and coverage summaries now classify native output behavior as `MPSGRAPH_RESULT_COPY` unless a future proof upgrades it to `TRUE_OUTPUT_BUFFER_WRITE`. |
