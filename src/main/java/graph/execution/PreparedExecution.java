@@ -508,6 +508,10 @@ public final class PreparedExecution {
             attrs.put("metalRouteRejectedRoutes", route.rejectedRoutes().stream()
                     .map(Enum::name)
                     .toList());
+            attrs.put("metalRouteRejectedReasonCodes", route.rejectedReasonCodes().stream()
+                    .map(Enum::name)
+                    .toList());
+            attrs.put("metalRouteRejectedReasons", route.rejectedRouteReasons());
             attrs.put("metalRouteReason", route.detail());
             attrs.put("metalRouteEstimatedCost", route.estimatedRouteCost());
             attrs.put("metalRouteEstimatedCopyCost", route.estimatedCopyCost());

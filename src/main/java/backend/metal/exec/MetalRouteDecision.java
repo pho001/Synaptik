@@ -12,6 +12,8 @@ import java.util.Objects;
 public record MetalRouteDecision(
         MetalExecutionRoute selectedRoute,
         List<MetalExecutionRoute> rejectedRoutes,
+        List<MetalRouteReasonCode> rejectedReasonCodes,
+        List<String> rejectedRouteReasons,
         MetalRouteReasonCode reasonCode,
         String detail,
         long estimatedWork,
@@ -26,6 +28,8 @@ public record MetalRouteDecision(
     public MetalRouteDecision {
         selectedRoute = Objects.requireNonNullElse(selectedRoute, MetalExecutionRoute.CPU_FALLBACK);
         rejectedRoutes = List.copyOf(rejectedRoutes == null ? List.of() : rejectedRoutes);
+        rejectedReasonCodes = List.copyOf(rejectedReasonCodes == null ? List.of() : rejectedReasonCodes);
+        rejectedRouteReasons = List.copyOf(rejectedRouteReasons == null ? List.of() : rejectedRouteReasons);
         reasonCode = Objects.requireNonNullElse(reasonCode, MetalRouteReasonCode.CPU_FALLBACK);
         detail = detail == null ? "" : detail;
         estimatedWork = Math.max(0L, estimatedWork);
@@ -43,6 +47,8 @@ public record MetalRouteDecision(
         return new MetalRouteDecision(
                 required ? MetalExecutionRoute.UNAVAILABLE_REQUIRED : selectedRoute,
                 List.of(MetalExecutionRoute.MPS_GRAPH, MetalExecutionRoute.CUSTOM_KERNEL),
+                List.of(reasonCode, MetalRouteReasonCode.CUSTOM_KERNEL_UNAVAILABLE),
+                List.of(detail, "custom Metal kernel bridge unavailable"),
                 required ? MetalRouteReasonCode.UNAVAILABLE_REQUIRED : reasonCode,
                 detail,
                 estimatedWork,

@@ -3,6 +3,8 @@ package backend.metal.exec;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.metal.bridge.MetalMpsBridgeCapabilities;
+import backend.metal.kernel.MetalCustomKernelCapabilities;
+import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
@@ -24,49 +26,85 @@ public final class MetalExecutionRouter {
             AcceleratorBackendConfig backendConfig,
             TransportEvidence transport
     ) {
+        return decide(
+                plan,
+                capabilities,
+                backendConfig,
+                transport,
+                MetalCustomKernelCapabilities.unavailable("custom Metal kernel bridge unavailable"),
+                MetalCustomKernelExecutable.unavailable("custom Metal kernel bridge unavailable")
+        );
+    }
+
+    public static MetalRouteDecision decide(
+            MetalPartitionPlan plan,
+            MetalMpsBridgeCapabilities capabilities,
+            AcceleratorBackendConfig backendConfig,
+            TransportEvidence transport,
+            MetalCustomKernelCapabilities customKernelCapabilities,
+            MetalCustomKernelExecutable customKernelExecutable
+    ) {
         Objects.requireNonNull(plan, "plan cannot be null");
         TransportEvidence evidence = transport == null ? TransportEvidence.unavailable(plan.estimatedWork()) : transport;
         AcceleratorBackendConfig config = backendConfig == null ? AcceleratorBackendConfig.defaults() : backendConfig;
         MetalMpsBridgeCapabilities caps = capabilities == null
                 ? MetalMpsBridgeCapabilities.unavailable(null, "capabilities unavailable")
                 : capabilities;
+        var customKernel = MetalCustomKernelRouteAdapter.evaluate(plan, customKernelCapabilities, customKernelExecutable);
         long work = Math.max(0L, plan.estimatedWork());
         List<MetalExecutionRoute> rejected = new ArrayList<>();
         rejected.add(MetalExecutionRoute.CUSTOM_KERNEL);
+        List<MetalRouteReasonCode> rejectedReasonCodes = new ArrayList<>();
+        rejectedReasonCodes.add(customKernel.reasonCode());
+        List<String> rejectedRouteReasons = new ArrayList<>();
+        rejectedRouteReasons.add(customKernel.reason());
 
         if (!config.enabled()) {
             return decision(
                     evidence.required() ? MetalExecutionRoute.UNAVAILABLE_REQUIRED : MetalExecutionRoute.CPU_FALLBACK,
                     rejected,
+                    rejectedReasonCodes,
+                    rejectedRouteReasons,
                     evidence.required() ? MetalRouteReasonCode.UNAVAILABLE_REQUIRED : MetalRouteReasonCode.CPU_FALLBACK,
                     "Metal backend config disabled",
                     work,
                     evidence,
-                    caps
+                    caps,
+                    customKernel
             );
         }
         if (!evidence.bridgeAvailable() || !evidence.contextAvailable() || !evidence.executableAvailable()) {
             rejected.add(MetalExecutionRoute.MPS_GRAPH);
+            rejectedReasonCodes.add(MetalRouteReasonCode.BRIDGE_UNAVAILABLE);
+            rejectedRouteReasons.add(evidence.reason());
             return decision(
                     evidence.required() ? MetalExecutionRoute.UNAVAILABLE_REQUIRED : MetalExecutionRoute.CPU_FALLBACK,
                     rejected,
+                    rejectedReasonCodes,
+                    rejectedRouteReasons,
                     evidence.required() ? MetalRouteReasonCode.UNAVAILABLE_REQUIRED : MetalRouteReasonCode.BRIDGE_UNAVAILABLE,
                     evidence.reason(),
                     work,
                     evidence,
-                    caps
+                    caps,
+                    customKernel
             );
         }
         if (!evidence.staticDTypeLegal()) {
             rejected.add(MetalExecutionRoute.MPS_GRAPH);
+            rejectedReasonCodes.add(MetalRouteReasonCode.UNSUPPORTED_DTYPE);
+            rejectedRouteReasons.add(evidence.reason());
             return decision(
                     evidence.required() ? MetalExecutionRoute.UNAVAILABLE_REQUIRED : MetalExecutionRoute.CPU_FALLBACK,
                     rejected,
+                    rejectedReasonCodes,
+                    rejectedRouteReasons,
                     evidence.required() ? MetalRouteReasonCode.UNAVAILABLE_REQUIRED : MetalRouteReasonCode.UNSUPPORTED_DTYPE,
                     evidence.reason(),
                     work,
                     evidence,
-                    caps
+                    caps,
+                    customKernel
             );
         }
 
@@ -74,43 +112,59 @@ public final class MetalExecutionRouter {
             case BUFFER_BINDING -> decision(
                     MetalExecutionRoute.MPS_GRAPH,
                     rejected,
+                    rejectedReasonCodes,
+                    rejectedRouteReasons,
                     MetalRouteReasonCode.MPS_GRAPH_SELECTED,
-                    mpsGraphDetail(plan.manifest(), evidence),
+                    mpsGraphDetail(plan.manifest(), evidence, customKernel),
                     work,
                     evidence,
-                    caps
+                    caps,
+                    customKernel
             );
             case TENSOR_ARRAY -> decision(
                     MetalExecutionRoute.TENSOR_ARRAY,
                     rejected,
+                    rejectedReasonCodes,
+                    rejectedRouteReasons,
                     tensorArrayReason(evidence.reasonCode()),
                     evidence.reason(),
                     work,
                     evidence,
-                    caps
+                    caps,
+                    customKernel
             );
             case STATIC_CPU_FALLBACK -> {
                 rejected.add(MetalExecutionRoute.MPS_GRAPH);
+                rejectedReasonCodes.add(fallbackReason(evidence.reasonCode()));
+                rejectedRouteReasons.add(evidence.reason());
                 yield decision(
                         MetalExecutionRoute.CPU_FALLBACK,
                         rejected,
+                        rejectedReasonCodes,
+                        rejectedRouteReasons,
                         fallbackReason(evidence.reasonCode()),
                         evidence.reason(),
                         work,
                         evidence,
-                        caps
+                        caps,
+                        customKernel
                 );
             }
             case UNAVAILABLE_REQUIRED -> {
                 rejected.add(MetalExecutionRoute.MPS_GRAPH);
+                rejectedReasonCodes.add(MetalRouteReasonCode.UNAVAILABLE_REQUIRED);
+                rejectedRouteReasons.add(evidence.reason());
                 yield decision(
                         MetalExecutionRoute.UNAVAILABLE_REQUIRED,
                         rejected,
+                        rejectedReasonCodes,
+                        rejectedRouteReasons,
                         MetalRouteReasonCode.UNAVAILABLE_REQUIRED,
                         evidence.reason(),
                         work,
                         evidence,
-                        caps
+                        caps,
+                        customKernel
                 );
             }
         };
@@ -119,16 +173,21 @@ public final class MetalExecutionRouter {
     private static MetalRouteDecision decision(
             MetalExecutionRoute route,
             List<MetalExecutionRoute> rejectedRoutes,
+            List<MetalRouteReasonCode> rejectedReasonCodes,
+            List<String> rejectedRouteReasons,
             MetalRouteReasonCode reasonCode,
             String detail,
             long estimatedWork,
             TransportEvidence evidence,
-            MetalMpsBridgeCapabilities capabilities
+            MetalMpsBridgeCapabilities capabilities,
+            MetalCustomKernelRouteAdapter.CustomKernelEvidence customKernel
     ) {
         boolean bufferAbiSupported = evidence.bufferAbiSupported() || capabilities.bufferExecutionSupported();
         return new MetalRouteDecision(
                 route,
                 rejectedRoutes,
+                rejectedReasonCodes,
+                rejectedRouteReasons,
                 reasonCode,
                 detail,
                 estimatedWork,
@@ -137,7 +196,7 @@ public final class MetalExecutionRouter {
                 evidence.bridgeAvailable(),
                 evidence.executableAvailable(),
                 bufferAbiSupported,
-                false,
+                customKernel.available(),
                 false
         );
     }
@@ -160,10 +219,14 @@ public final class MetalExecutionRouter {
         return Math.max(0L, result);
     }
 
-    private static String mpsGraphDetail(GpuLoweredRegionManifest manifest, TransportEvidence evidence) {
+    private static String mpsGraphDetail(
+            GpuLoweredRegionManifest manifest,
+            TransportEvidence evidence,
+            MetalCustomKernelRouteAdapter.CustomKernelEvidence customKernel
+    ) {
         String regionId = manifest == null ? "" : manifest.regionId();
         String base = "MPSGraph selected via " + evidence.preferredPath()
-                + "; custom kernel route unavailable"
+                + "; custom kernel rejected: " + customKernel.reasonCode() + ": " + customKernel.reason()
                 + "; native copy cost unknown";
         return regionId == null || regionId.isBlank()
                 ? base

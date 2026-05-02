@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T12:51:00Z"
-last_activity: 2026-05-02 -- Phase 39-01 completed
+last_updated: "2026-05-02T12:54:00Z"
+last_activity: 2026-05-02 -- Phase 39-02 completed
 progress:
   total_phases: 11
   completed_phases: 10
   total_plans: 44
-  completed_plans: 41
-  percent: 93
+  completed_plans: 42
+  percent: 95
 ---
 
 # GSD State
@@ -210,6 +210,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 38 verification passed | `METALTRAIN-01..03` are complete with parity, trace/report gates, docs, native Metal test, and residual backward scope recorded in `38-VERIFICATION.md`. |
 | 2026-05-02 | Phase 39 planning completed | Four plans cover Metal route decisions, custom-kernel seam, native copy classification or output-buffer proof, and final route-aware coverage audit readiness. |
 | 2026-05-02 | Phase 39-01 completed | Prepared Metal executables now expose route decisions for MPSGraph, tensor-array fallback, CPU fallback, required-unavailable, and rejected custom-kernel candidates with trace-visible route/cost evidence. |
+| 2026-05-02 | Phase 39-02 completed | Added the backend-internal custom Metal kernel SPI and route adapter while keeping current supported execution on MPSGraph with machine-readable `CUSTOM_KERNEL_UNAVAILABLE` rejection evidence. |
 
 ## Recent Sessions
 

@@ -23,6 +23,8 @@ import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
 import backend.metal.bridge.MetalMpsBridgeExecutionStats;
 import backend.metal.bridge.MetalMpsGraphBridge;
+import backend.metal.kernel.MetalCustomKernelBridge;
+import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.runtime.ExecutionContext;
 import backend.lowering.LoweringFamily;
 import config.runtime.AcceleratorBackendConfig;
@@ -47,6 +49,8 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     private final MetalMpsGraphBridge bridge;
     private final MetalMpsBridgeContext bridgeContext;
     private final MetalMpsBridgeExecutable bridgeExecutable;
+    private final MetalCustomKernelBridge customKernelBridge;
+    private final MetalCustomKernelExecutable customKernelExecutable;
     private final List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps;
     private final AcceleratorBackendConfig backendConfig;
     private final MetalAcceleratorBufferBinder bufferBinder;
@@ -85,11 +89,34 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
             AcceleratorBackendConfig backendConfig
     ) {
+        this(
+                plan,
+                loweringFamily,
+                bridge,
+                cpuFallbackSteps,
+                backendConfig,
+                MetalCustomKernelBridge.unavailable()
+        );
+    }
+
+    /**
+     * Creates a prepared Metal executable with explicit backend and custom-kernel policies.
+     */
+    public PreparedMetalExecutable(
+            MetalPartitionPlan plan,
+            LoweringFamily loweringFamily,
+            MetalMpsGraphBridge bridge,
+            List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
+            AcceleratorBackendConfig backendConfig,
+            MetalCustomKernelBridge customKernelBridge
+    ) {
         this.plan = Objects.requireNonNull(plan, "plan cannot be null");
         this.loweringFamily = Objects.requireNonNull(loweringFamily, "loweringFamily cannot be null");
         this.bridge = Objects.requireNonNull(bridge, "bridge cannot be null");
+        this.customKernelBridge = customKernelBridge == null ? MetalCustomKernelBridge.unavailable() : customKernelBridge;
         this.bridgeContext = bridge.createContext();
         this.bridgeExecutable = bridge.compile(bridgeContext, plan);
+        this.customKernelExecutable = this.customKernelBridge.compile(plan);
         this.cpuFallbackSteps = List.copyOf(cpuFallbackSteps == null ? List.of() : cpuFallbackSteps);
         this.backendConfig = backendConfig == null ? AcceleratorBackendConfig.defaults() : backendConfig;
         this.bufferBinder = new MetalAcceleratorBufferBinder(bridge, bridgeContext);
@@ -105,7 +132,9 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 plan,
                 bridge.capabilities(),
                 this.backendConfig,
-                preparedTransportPlan.toRouteEvidence()
+                preparedTransportPlan.toRouteEvidence(),
+                this.customKernelBridge.capabilities(),
+                customKernelExecutable
         );
     }
 
@@ -506,6 +535,20 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
      */
     public MetalMpsBridgeExecutable bridgeExecutable() {
         return bridgeExecutable;
+    }
+
+    /**
+     * Returns the optional custom-kernel bridge considered during route preparation.
+     */
+    public MetalCustomKernelBridge customKernelBridge() {
+        return customKernelBridge;
+    }
+
+    /**
+     * Returns the custom-kernel executable descriptor considered during route preparation.
+     */
+    public MetalCustomKernelExecutable customKernelExecutable() {
+        return customKernelExecutable;
     }
 
     /**

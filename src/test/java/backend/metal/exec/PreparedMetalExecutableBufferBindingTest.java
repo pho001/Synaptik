@@ -210,6 +210,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
         assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, executable.routeDecision().reasonCode());
         assertTrue(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_UNAVAILABLE));
         assertEquals(-1L, executable.routeDecision().estimatedCopyCost());
         fixture.state().attachDeviceBufferBinding(
                 fixture.inputNode().id(),
@@ -269,8 +270,10 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals("MPS_GRAPH", attrs.get("metalExecutionRoute"));
         assertEquals("MPS_GRAPH_SELECTED", attrs.get("metalRouteReasonCode"));
         assertEquals(List.of("CUSTOM_KERNEL"), attrs.get("metalRouteRejectedRoutes"));
+        assertEquals(List.of("CUSTOM_KERNEL_UNAVAILABLE"), attrs.get("metalRouteRejectedReasonCodes"));
         assertEquals(-1L, attrs.get("metalRouteEstimatedCopyCost"));
         assertEquals(false, attrs.get("metalRouteNativeCopyCostKnown"));
+        assertEquals(false, attrs.get("metalRouteCustomKernelAvailable"));
         assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
     }
 
@@ -385,6 +388,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertTrue(executable.preparedTransportPlan().contains("reasonCode=NATIVE_BUFFER_ABI_UNAVAILABLE"));
         assertEquals(MetalExecutionRoute.UNAVAILABLE_REQUIRED, executable.routeDecision().selectedRoute());
         assertEquals(MetalRouteReasonCode.UNAVAILABLE_REQUIRED, executable.routeDecision().reasonCode());
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_UNAVAILABLE));
 
         IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
 
@@ -772,6 +776,7 @@ class PreparedMetalExecutableBufferBindingTest {
         PreparedMetalExecutable executable = executable(fixture, bridge);
         assertEquals(MetalExecutionRoute.TENSOR_ARRAY, executable.routeDecision().selectedRoute());
         assertEquals(MetalRouteReasonCode.BUFFER_ABI_UNAVAILABLE, executable.routeDecision().reasonCode());
+        assertTrue(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_UNAVAILABLE));
         fixture.state().attachDeviceBufferBinding(
                 fixture.inputNode().id(),
                 binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
