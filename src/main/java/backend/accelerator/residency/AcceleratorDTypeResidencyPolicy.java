@@ -74,7 +74,8 @@ public final class AcceleratorDTypeResidencyPolicy {
             case ROLE_EXTERNAL_INPUT, ROLE_OUTPUT, ROLE_COMPUTE -> decision.supported();
             case ROLE_INTERNAL_VALUE -> dataType == DataType.FLOAT32
                     || dataType == DataType.BFLOAT16
-                    || dataType == DataType.BOOL;
+                    || dataType == DataType.BOOL
+                    || dataType == DataType.INT32;
             default -> false;
         };
         if (legal) {

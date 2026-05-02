@@ -43,6 +43,19 @@ class MetalBufferAllocatorTest {
         assertEquals(4L * Short.BYTES, binding.handle().byteLength());
     }
 
+    @Test
+    void int32IndexInputBindingAllocatesLogicalByteLength() {
+        FakeNativeAccess nativeAccess = new FakeNativeAccess();
+        MetalBufferAllocator allocator = MetalBufferAllocator.available(nativeAccess);
+        Tensor indices = new Tensor(new int[]{2, 0, 1}, new int[]{3}, null, "indices", DataType.INT32);
+
+        MetalBufferBinding binding = allocator.createInputBinding(11, indices);
+
+        assertEquals(DataType.INT32, binding.layout().dataType());
+        assertEquals(3L * Integer.BYTES, binding.logicalByteLength());
+        assertEquals(3L * Integer.BYTES, binding.handle().byteLength());
+    }
+
     private static final class FakeNativeAccess implements MetalBufferAllocator.NativeAccess {
         private long nextAddress = 1_000L;
         private final Map<Long, byte[]> buffers = new HashMap<>();

@@ -19,6 +19,7 @@ class AcceleratorDTypeResidencyPolicyTest {
 
         assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_METAL, DataType.BFLOAT16).residentRepresentable());
         assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_METAL, DataType.BOOL).residentRepresentable());
+        assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_METAL, DataType.INT32).residentRepresentable());
         assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_CUDA, DataType.INT32).residentRepresentable());
         assertTrue(AcceleratorDTypeResidencyPolicy.forInternalValue(ComputeBackend.GPU_CUDA, DataType.BOOL).residentRepresentable());
     }
@@ -47,10 +48,14 @@ class AcceleratorDTypeResidencyPolicyTest {
     @Test
     void metalAllowsBFLOAT16ComputeAndOutputButStillRejectsINT32() {
         AcceleratorDTypeResidencyDecision bf16 = AcceleratorDTypeResidencyPolicy.forCompute(ComputeBackend.GPU_METAL, DataType.BFLOAT16);
+        AcceleratorDTypeResidencyDecision i32Input = AcceleratorDTypeResidencyPolicy.forExternalInput(ComputeBackend.GPU_METAL, DataType.INT32);
         AcceleratorDTypeResidencyDecision i32 = AcceleratorDTypeResidencyPolicy.forOutput(ComputeBackend.GPU_METAL, DataType.INT32);
 
         assertTrue(bf16.nativeComputeLegal());
         assertFalse(bf16.rejected());
+        assertTrue(i32Input.nativeInputLegal());
+        assertFalse(i32Input.rejected());
+        assertTrue(i32Input.detail().contains("dtype=INT32"));
         assertTrue(bf16.detail().contains("backend=GPU_METAL"));
         assertTrue(bf16.detail().contains("role=compute"));
         assertTrue(bf16.detail().contains("dtype=BFLOAT16"));

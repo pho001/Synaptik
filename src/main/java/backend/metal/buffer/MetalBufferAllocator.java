@@ -14,6 +14,7 @@ import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
@@ -22,7 +23,7 @@ import static java.lang.foreign.ValueLayout.JAVA_SHORT;
  * <p>The allocator is created from the active Metal bridge context. It owns no global state: each allocated
  * {@link MetalBufferHandle} is returned to execution code, which registers the handle as a run resource and
  * eventually calls {@link #destroy(MetalBufferHandle)}. The allocator supports shared F32/BF16 compute buffers,
- * BOOL predicate input buffers, and dtype-matched CPU materialization.</p>
+ * BOOL predicate input buffers, INT32 index input buffers, and dtype-matched CPU materialization.</p>
  */
 public final class MetalBufferAllocator {
     /**
@@ -120,7 +121,19 @@ public final class MetalBufferAllocator {
                     yield binding(nodeId, tensor, handle, MetalBufferAccess.READ);
                 }
             }
-            default -> throw new UnsupportedOperationException("Metal buffer inputs support FLOAT32/BFLOAT16 data buffers only; got " + tensor.getDataType());
+            case INT32 -> {
+                int[] data = tensor.getInt32Data();
+                if (data == null) {
+                    throw new UnsupportedOperationException("Metal INT32 index tensor has no direct int[] storage.");
+                }
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment initialData = arena.allocateFrom(JAVA_INT, data);
+                    long bytes = (long) data.length * Integer.BYTES;
+                    MetalBufferHandle handle = nativeAccess.createBuffer(bytes, STORAGE_MODE_SHARED, initialData, bytes);
+                    yield binding(nodeId, tensor, handle, MetalBufferAccess.READ);
+                }
+            }
+            default -> throw new UnsupportedOperationException("Metal buffer inputs support FLOAT32/BFLOAT16/INT32 data buffers only; got " + tensor.getDataType());
         };
     }
 

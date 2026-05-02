@@ -10,7 +10,8 @@ import tensor.DataType;
  * <p>This class is the Java-side source of truth for the dtype subset exposed by the
  * native {@code synaptik_apple_mps_*} ABI. It intentionally describes only what
  * the bridge can execute today: float32 compute/output tensors, scoped bfloat16
- * operation families, scoped bool compare outputs, and bool external inputs in predicate roles.</p>
+ * operation families, scoped bool outputs, bool external inputs in predicate roles,
+ * and int32 external inputs in index roles.</p>
  */
 public final class MetalMpsCapabilities {
     private MetalMpsCapabilities() {
@@ -53,6 +54,10 @@ public final class MetalMpsCapabilities {
         if (dtype == DataType.BOOL) {
             return supported(MetalDTypeRole.EXTERNAL_INPUT, dtype, false, false, MetalDTypeReasonCode.SUPPORTED_PREDICATE_INPUT_ONLY,
                     "BOOL external input is supported only for predicate roles");
+        }
+        if (dtype == DataType.INT32) {
+            return supported(MetalDTypeRole.EXTERNAL_INPUT, dtype, false, false, MetalDTypeReasonCode.SUPPORTED_STORAGE_ONLY,
+                    "INT32 external input is supported only for index tensor roles");
         }
         return unsupported(
                 MetalDTypeRole.EXTERNAL_INPUT,
@@ -188,6 +193,27 @@ public final class MetalMpsCapabilities {
                     MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
                     "Metal direct SDPA currently accepts only FLOAT32 query/key/value inputs and no public BOOL mask input");
         }
+        if (opType == Operation.OpType.GATHER || opType == Operation.OpType.TAKE_ALONG_AXIS) {
+            return switch (inputIndex) {
+                case 0 -> (dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16)
+                        ? supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
+                                MetalDTypeReasonCode.SUPPORTED,
+                                opType + " value input accepts FLOAT32/BFLOAT16 data")
+                        : unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                                MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                                opType + " value input requires FLOAT32/BFLOAT16 data");
+                case 1 -> dtype == DataType.INT32
+                        ? supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, false, false,
+                                MetalDTypeReasonCode.SUPPORTED_STORAGE_ONLY,
+                                opType + " index input accepts INT32 data")
+                        : unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                                MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                                opType + " index input requires INT32 data");
+                default -> unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                        MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                        opType + " has no supported input role at index " + inputIndex);
+            };
+        }
         if (supportsBoolCompareOperation(opType)) {
             if ((inputIndex == 0 || inputIndex == 1) && (dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16)) {
                 return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
@@ -318,7 +344,7 @@ public final class MetalMpsCapabilities {
     public static String unsupportedDTypeMessage(DataType dtype) {
         MetalDTypeCapabilityDecision compute = computeDecision(dtype);
         return "UNSUPPORTED_DTYPE: " + compute.detail()
-                + "; Metal MPS bridge currently supports FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, scoped BOOL compare outputs, and BOOL predicate inputs; got "
+                + "; Metal MPS bridge currently supports FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, scoped BOOL outputs, BOOL predicate inputs, and INT32 index inputs; got "
                 + dtype + ".";
     }
 

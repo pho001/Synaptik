@@ -20,6 +20,7 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.supportsExternalInputDType(DataType.FLOAT32));
         assertTrue(MetalMpsCapabilities.supportsExternalInputDType(DataType.BOOL));
         assertTrue(MetalMpsCapabilities.supportsExternalInputDType(DataType.BFLOAT16));
+        assertTrue(MetalMpsCapabilities.supportsExternalInputDType(DataType.INT32));
         assertTrue(MetalMpsCapabilities.supportsComputeDType(DataType.BFLOAT16));
         assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.BFLOAT16));
 
@@ -34,7 +35,7 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.REDUCE_ANY, DataType.BOOL).supported());
         assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.unsupportedDTypeMessage(DataType.INT32)
-                .contains("FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, scoped BOOL compare outputs, and BOOL predicate inputs"));
+                .contains("FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, scoped BOOL outputs, BOOL predicate inputs, and INT32 index inputs"));
     }
 
     @Test
@@ -51,7 +52,11 @@ class MetalMpsCapabilitiesTest {
                 MetalMpsCapabilities.externalInputDecision(DataType.BOOL).reasonCode()
         );
         assertTrue(MetalMpsCapabilities.externalInputDecision(DataType.BFLOAT16).supported());
-        assertFalse(MetalMpsCapabilities.externalInputDecision(DataType.INT32).supported());
+        assertTrue(MetalMpsCapabilities.externalInputDecision(DataType.INT32).supported());
+        assertEquals(
+                MetalDTypeReasonCode.SUPPORTED_STORAGE_ONLY,
+                MetalMpsCapabilities.externalInputDecision(DataType.INT32).reasonCode()
+        );
         assertEquals(MetalDTypeReasonCode.FLOAT64_UNSUPPORTED, MetalMpsCapabilities.computeDecision(DataType.FLOAT64).reasonCode());
         assertEquals(MetalDTypeReasonCode.FLOAT64_UNSUPPORTED, MetalMpsCapabilities.outputDecision(DataType.FLOAT64).reasonCode());
     }
@@ -107,6 +112,27 @@ class MetalMpsCapabilitiesTest {
         CompiledNode reduction = reductionNodes.getLast();
         assertTrue(MetalMpsCapabilities.externalInputRoleDecision(reductionInput, reduction, 0).supported());
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(reductionInput, reduction, 1).supported());
+    }
+
+    @Test
+    void externalInputRoleAllowsInt32OnlyForIndexInputs() {
+        Tensor values = new Tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, new int[]{2, 2}, null, "values", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor gathered = values.gather(indices, 1);
+        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(values, indices, gathered));
+
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(2), 0).supported());
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(1), nodes.get(2), 1).supported());
+        assertFalse(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(1), nodes.get(2), 0).supported());
+
+        Tensor where = Tensor.where(
+                new Tensor(new byte[]{1, 0}, new int[]{2}, null, "mask", DataType.BOOL),
+                new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "left", DataType.FLOAT32),
+                new Tensor(new float[]{3.0f, 4.0f}, new int[]{2}, null, "right", DataType.FLOAT32)
+        );
+        CompiledNode intNode = CompiledNode.snapshot(List.of(indices)).getFirst();
+        CompiledNode whereNode = CompiledNode.snapshot(where.topologicalSort()).getLast();
+        assertFalse(MetalMpsCapabilities.externalInputRoleDecision(intNode, whereNode, 0).supported());
     }
 
     @Test

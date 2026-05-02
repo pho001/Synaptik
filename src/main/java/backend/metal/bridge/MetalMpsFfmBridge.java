@@ -341,7 +341,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             return false;
         }
         for (AcceleratorDagInput input : dagSpec.externalInputs()) {
-            if (input.dataType() != DataType.FLOAT32 && input.dataType() != DataType.BOOL) {
+            if (input.dataType() != DataType.FLOAT32 && input.dataType() != DataType.BOOL && input.dataType() != DataType.INT32) {
                 return true;
             }
         }
@@ -701,7 +701,8 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             }
             if (binding.layout().dataType() != DataType.FLOAT32
                     && binding.layout().dataType() != DataType.BFLOAT16
-                    && binding.layout().dataType() != DataType.BOOL) {
+                    && binding.layout().dataType() != DataType.BOOL
+                    && binding.layout().dataType() != DataType.INT32) {
                 throw new UnsupportedOperationException("Metal buffer input " + i
                         + " has unsupported dtype " + binding.layout().dataType() + ".");
             }

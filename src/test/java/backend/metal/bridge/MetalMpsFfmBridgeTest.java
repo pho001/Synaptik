@@ -875,6 +875,18 @@ class MetalMpsFfmBridgeTest {
         assertDoesNotThrow(() -> MetalMpsFfmBridge.validateBufferBindings(executable, List.of(input), List.of(output)));
     }
 
+    @Test
+    void bufferBindingValidationAcceptsInt32ExternalInputWhenExecutableExpectsInt32() {
+        MetalMpsBridgeExecutable executable = executableDescriptor(1, 2, DataType.INT32, DataType.FLOAT32);
+        MetalBufferBinding input = binding(
+                1,
+                AcceleratorBufferLayout.of(DataType.INT32, new int[]{2}, new int[]{1}, 0, 2),
+                MetalBufferAccess.READ
+        );
+        MetalBufferBinding output = binding(2, MetalBufferAccess.WRITE);
+
+        assertDoesNotThrow(() -> MetalMpsFfmBridge.validateBufferBindings(executable, List.of(input), List.of(output)));
+    }
 
     @Test
     void bufferBindingValidationStillRejectsUnsupportedOutputDtype() {
@@ -1062,13 +1074,22 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static MetalMpsBridgeExecutable executableDescriptor(int inputNodeId, int outputNodeId, DataType outputDType) {
+        return executableDescriptor(inputNodeId, outputNodeId, DataType.FLOAT32, outputDType);
+    }
+
+    private static MetalMpsBridgeExecutable executableDescriptor(
+            int inputNodeId,
+            int outputNodeId,
+            DataType inputDType,
+            DataType outputDType
+    ) {
         return new MetalMpsBridgeExecutable(
                 true,
                 java.lang.foreign.MemorySegment.ofAddress(100),
                 "",
                 false,
                 List.of(inputNodeId),
-                List.of(DataType.FLOAT32),
+                List.of(inputDType),
                 List.of(outputNodeId),
                 List.of(outputDType),
                 List.of(0)
