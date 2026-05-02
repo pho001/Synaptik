@@ -176,6 +176,8 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"nativeToJavaCopyNs\": ").append(backend.nativeToJavaCopyNs()).append(", ")
                     .append("\"nativeDeviceCopyNs\": ").append(backend.nativeDeviceCopyNs()).append(", ")
                     .append("\"nativeCopyStrategies\": ").append(stringListJson(backend.nativeCopyStrategies())).append(", ")
+                    .append("\"executionRouteCounts\": ").append(intMapJson(backend.executionRouteCounts())).append(", ")
+                    .append("\"rejectedRouteReasonCounts\": ").append(intMapJson(backend.rejectedRouteReasonCounts())).append(", ")
                     .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
                     .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
                     .append("}");

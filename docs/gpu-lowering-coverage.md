@@ -34,6 +34,8 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 
 ## Metal
 
+Phase 39 adds route/copy evidence on top of the operation coverage matrix. Supported Metal rows should report `metalExecutionRoute=MPS_GRAPH` unless a future custom-kernel bridge proves a different route. The current custom-kernel seam is intentionally rejected with `CUSTOM_KERNEL_UNAVAILABLE`, and native output behavior is classified as `MPSGRAPH_RESULT_COPY` rather than `TRUE_OUTPUT_BUFFER_WRITE`.
+
 | Family | Representative operations | Status | Reason |
 |---|---|---|---|
 | matmul/linear | `MATMUL`, `LINEAR` | supported | `SUPPORTED` |

@@ -76,6 +76,17 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
+    void failsWhenNativeCopyStrategyRegresses() {
+        var summary = summary("GPU_METAL", coverage(0.75d, 3, 0, 0, 0, 1, 1));
+        var policy = GpuCoverageGatePolicy.nativeBufferTarget("GPU_METAL", 0.5d, 3)
+                .withRequiredNativeCopyStrategy("TRUE_OUTPUT_BUFFER_WRITE");
+
+        var result = GpuCoverageRegressionGate.evaluate(summary, policy);
+
+        assertTrue(result.failures().contains("unexpected native copy strategy"));
+    }
+
+    @Test
     void failsWhenCoverageSummaryIsMissing() {
         var summary = new GpuCoverageSummary(Map.of());
         var policy = GpuCoverageGatePolicy.nativeBufferTarget("GPU_METAL", 0.5d, 3);
@@ -780,7 +791,7 @@ public class GpuCoverageRegressionGateTest {
                 4096L * cpuMaterializationCount,
                 250_000L * cpuMaterializationCount,
                 325_000L,
-                Map.of(),
+                Map.of("MPSGRAPH_RESULT_COPY", 1),
                 deviceHandoffCount,
                 0,
                 0L,

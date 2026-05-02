@@ -169,6 +169,8 @@ public final class TextBenchmarkReportRenderer {
                     .append(" preparedInputSteps=").append(backend.preparedInputSteps())
                     .append(" reasonCodes=").append(backend.reasonCodes())
                     .append(" fallbackReasons=").append(backend.fallbackReasons())
+                    .append(" executionRouteCounts=").append(backend.executionRouteCounts())
+                    .append(" rejectedRouteReasonCounts=").append(backend.rejectedRouteReasonCounts())
                     .append(" bytes=").append(backend.inputBytes()).append("->").append(backend.outputBytes())
                     .append(" nativeCopyStrategies=").append(backend.nativeCopyStrategies())
                     .append(" javaToNativeMs=").append(formatNsAttr(backend.javaToNativeCopyNs()))

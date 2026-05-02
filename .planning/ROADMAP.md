@@ -282,7 +282,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 - [x] [39-01 Router policy and cost evidence model](phases/39-metal-backend-router-and-zero-copy-closure/39-01-PLAN.md).
 - [x] [39-02 Custom-kernel integration point and MPSGraph routing](phases/39-metal-backend-router-and-zero-copy-closure/39-02-PLAN.md).
 - [x] [39-03 Output-buffer/zero-copy proof or replacement strategy](phases/39-metal-backend-router-and-zero-copy-closure/39-03-PLAN.md).
-- [ ] [39-04 Final coverage regression and milestone audit readiness](phases/39-metal-backend-router-and-zero-copy-closure/39-04-PLAN.md).
+- [x] [39-04 Final coverage regression and milestone audit readiness](phases/39-metal-backend-router-and-zero-copy-closure/39-04-PLAN.md).
 
 ## Archived Milestones
 

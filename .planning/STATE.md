@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T13:00:00Z"
-last_activity: 2026-05-02 -- Phase 39-03 completed
+last_updated: "2026-05-02T13:03:00Z"
+last_activity: 2026-05-02 -- Phase 39 verification completed
 progress:
   total_phases: 11
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 44
-  completed_plans: 43
-  percent: 98
+  completed_plans: 44
+  percent: 100
 ---
 
 # GSD State
@@ -84,7 +84,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 36 — Scatter And Index Gradient Semantics | Complete | 4/4 | Verified |
 | 37 — Loss-Adjacent Metal Lowering | Complete | 4/4 | Verified |
 | 38 — Metal Training Backward Coverage | Complete | 4/4 | Verified |
-| 39 — Metal Backend Router And Zero-Copy Closure | Planned | 4/4 | Pending |
+| 39 — Metal Backend Router And Zero-Copy Closure | Complete | 4/4 | Verified |
 | 22 — Coverage Truth And Semantics Lock | Archived | 3/3 | Verified |
 | 23 — Forward Reductions Native Execution | Archived | 3/3 | Verified |
 | 24 — Normalization GPU Lowering | Archived | 4/4 | Verified |
@@ -212,6 +212,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 39-01 completed | Prepared Metal executables now expose route decisions for MPSGraph, tensor-array fallback, CPU fallback, required-unavailable, and rejected custom-kernel candidates with trace-visible route/cost evidence. |
 | 2026-05-02 | Phase 39-02 completed | Added the backend-internal custom Metal kernel SPI and route adapter while keeping current supported execution on MPSGraph with machine-readable `CUSTOM_KERNEL_UNAVAILABLE` rejection evidence. |
 | 2026-05-02 | Phase 39-03 completed | Metal bridge stats, traces, benchmark reports, and coverage summaries now classify native output behavior as `MPSGRAPH_RESULT_COPY` unless a future proof upgrades it to `TRUE_OUTPUT_BUFFER_WRITE`. |
+| 2026-05-02 | Phase 39 verification completed | Route-aware reports, custom-kernel rejection evidence, native-copy strategy gates, docs, and verification artifacts close `METALROUTER-01..03`. |
 
 ## Recent Sessions
 

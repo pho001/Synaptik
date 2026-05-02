@@ -62,6 +62,8 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
             summary.nativeDeviceCopyNs += firstLongAttr(attrs, "acceleratorNativeDeviceCopyNs", "metalNativeDeviceCopyNs");
             addNonBlank(summary.nativeCopyStrategies, attrs.get("acceleratorNativeCopyStrategy"));
             addNonBlank(summary.nativeCopyStrategies, attrs.get("metalNativeCopyStrategy"));
+            addCount(summary.executionRouteCounts, attrs.get("metalExecutionRoute"));
+            addListCounts(summary.rejectedRouteReasonCounts, attrs.get("metalRouteRejectedReasonCodes"));
             summary.inputBytes += firstLongAttr(attrs, "acceleratorInputBytes", "metalInputBytes");
             summary.outputBytes += firstLongAttr(attrs, "acceleratorOutputBytes", "metalOutputBytes");
         }
@@ -100,6 +102,26 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
         }
     }
 
+    private static void addCount(LinkedHashMap<String, Integer> target, Object value) {
+        if (value == null) {
+            return;
+        }
+        String text = String.valueOf(value).trim();
+        if (!text.isBlank()) {
+            target.merge(text, 1, Integer::sum);
+        }
+    }
+
+    private static void addListCounts(LinkedHashMap<String, Integer> target, Object value) {
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                addCount(target, item);
+            }
+            return;
+        }
+        addCount(target, value);
+    }
+
     /**
      * Per-backend aggregate counters.
      */
@@ -116,11 +138,15 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
             long nativeToJavaCopyNs,
             long nativeDeviceCopyNs,
             List<String> nativeCopyStrategies,
+            Map<String, Integer> executionRouteCounts,
+            Map<String, Integer> rejectedRouteReasonCounts,
             List<String> fallbackReasons,
             List<String> reasonCodes
     ) {
         public BackendSummary {
             nativeCopyStrategies = nativeCopyStrategies == null ? List.of() : List.copyOf(nativeCopyStrategies);
+            executionRouteCounts = executionRouteCounts == null ? Map.of() : Map.copyOf(executionRouteCounts);
+            rejectedRouteReasonCounts = rejectedRouteReasonCounts == null ? Map.of() : Map.copyOf(rejectedRouteReasonCounts);
             fallbackReasons = fallbackReasons == null ? List.of() : List.copyOf(fallbackReasons);
             reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
         }
@@ -139,6 +165,8 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
         private long nativeToJavaCopyNs;
         private long nativeDeviceCopyNs;
         private final LinkedHashSet<String> nativeCopyStrategies = new LinkedHashSet<>();
+        private final LinkedHashMap<String, Integer> executionRouteCounts = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Integer> rejectedRouteReasonCounts = new LinkedHashMap<>();
         private final LinkedHashSet<String> fallbackReasons = new LinkedHashSet<>();
         private final LinkedHashSet<String> reasonCodes = new LinkedHashSet<>();
 
@@ -156,6 +184,8 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
                     nativeToJavaCopyNs,
                     nativeDeviceCopyNs,
                     List.copyOf(nativeCopyStrategies),
+                    new LinkedHashMap<>(executionRouteCounts),
+                    new LinkedHashMap<>(rejectedRouteReasonCounts),
                     List.copyOf(fallbackReasons),
                     List.copyOf(reasonCodes)
             );

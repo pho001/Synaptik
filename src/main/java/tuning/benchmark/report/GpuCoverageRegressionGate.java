@@ -61,6 +61,10 @@ public final class GpuCoverageRegressionGate {
         if (coverage.deviceHandoffCount() > policy.maxDeviceHandoffCount()) {
             failures.add("unexpected device handoff");
         }
+        if (!policy.requiredNativeCopyStrategy().isBlank()
+                && !hasOnlyNativeCopyStrategy(coverage, policy.requiredNativeCopyStrategy())) {
+            failures.add("unexpected native copy strategy");
+        }
         return new GpuCoverageGateResult(failures.isEmpty(), failures, coverage);
     }
 
@@ -271,5 +275,17 @@ public final class GpuCoverageRegressionGate {
         return coverage.dtypeResidencyReasons().keySet().stream()
                 .filter(reason -> reason.contains("dtype=" + dtype))
                 .anyMatch(reason -> !reason.contains("UNSUPPORTED_DTYPE") && !reason.toLowerCase().contains("unsupported"));
+    }
+
+    private static boolean hasOnlyNativeCopyStrategy(
+            GpuCoverageSummary.BackendCoverage coverage,
+            String requiredStrategy
+    ) {
+        if (coverage == null || requiredStrategy == null || requiredStrategy.isBlank()) {
+            return true;
+        }
+        int total = coverage.nativeCopyStrategyCounts().values().stream().mapToInt(Integer::intValue).sum();
+        int matching = coverage.nativeCopyStrategyCounts().getOrDefault(requiredStrategy, 0);
+        return total > 0 && total == matching;
     }
 }

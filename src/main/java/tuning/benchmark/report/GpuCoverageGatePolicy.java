@@ -16,6 +16,7 @@ package tuning.benchmark.report;
  * @param maxTensorArrayStepCount maximum allowed tensor-array bridge steps
  * @param maxDeviceHandoffCount maximum allowed device handoffs
  * @param requireNativeBufferBinding whether at least one native buffer-binding step is required
+ * @param requiredNativeCopyStrategy required native copy strategy, or blank when not checked
  */
 public record GpuCoverageGatePolicy(
         String backend,
@@ -30,7 +31,8 @@ public record GpuCoverageGatePolicy(
         int maxFallbackCount,
         int maxTensorArrayStepCount,
         int maxDeviceHandoffCount,
-        boolean requireNativeBufferBinding
+        boolean requireNativeBufferBinding,
+        String requiredNativeCopyStrategy
 ) {
     public GpuCoverageGatePolicy(
             String backend,
@@ -58,7 +60,8 @@ public record GpuCoverageGatePolicy(
                 maxFallbackCount,
                 maxTensorArrayStepCount,
                 maxDeviceHandoffCount,
-                requireNativeBufferBinding
+                requireNativeBufferBinding,
+                ""
         );
     }
 
@@ -75,6 +78,7 @@ public record GpuCoverageGatePolicy(
         maxFallbackCount = Math.max(0, maxFallbackCount);
         maxTensorArrayStepCount = Math.max(0, maxTensorArrayStepCount);
         maxDeviceHandoffCount = Math.max(0, maxDeviceHandoffCount);
+        requiredNativeCopyStrategy = requiredNativeCopyStrategy == null ? "" : requiredNativeCopyStrategy.trim();
     }
 
     public static GpuCoverageGatePolicy nativeBufferTarget(
@@ -95,7 +99,8 @@ public record GpuCoverageGatePolicy(
                 0,
                 0,
                 1,
-                true
+                true,
+                ""
         );
     }
 
@@ -120,7 +125,8 @@ public record GpuCoverageGatePolicy(
                 0,
                 0,
                 1,
-                true
+                true,
+                ""
         );
     }
 
@@ -147,7 +153,27 @@ public record GpuCoverageGatePolicy(
                 0,
                 0,
                 Math.max(1, gradientBudget + 1),
-                true
+                true,
+                ""
+        );
+    }
+
+    public GpuCoverageGatePolicy withRequiredNativeCopyStrategy(String strategy) {
+        return new GpuCoverageGatePolicy(
+                backend,
+                minGpuCoverageRatio,
+                minMaxSelectedRegionLength,
+                minMultiOpGpuRegionCount,
+                minLoweredPrimitiveCount,
+                minGpuFusedSubpatternCount,
+                maxCpuMaterializationCount,
+                maxInternalCpuMaterializationCount,
+                maxGradientPublicationMaterializationCount,
+                maxFallbackCount,
+                maxTensorArrayStepCount,
+                maxDeviceHandoffCount,
+                requireNativeBufferBinding,
+                strategy
         );
     }
 }

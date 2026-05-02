@@ -69,9 +69,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### Metal Backend Router And Zero-Copy Closure
 
-- [ ] **METALROUTER-01**: Metal execution planning can choose among MPSGraph, custom Metal kernels, existing buffer binding, tensor-array fallback, and CPU fallback using calibrated shape/dtype/layout evidence.
-- [ ] **METALROUTER-02**: The remaining native MPSGraph result-copy path is either proven safe as a true output-buffer write contract or replaced with an explicit lower-copy alias/materialization strategy.
-- [ ] **METALROUTER-03**: Final v1.5 coverage reports prove supported hot paths stay on Metal, quantify router decisions, and fail hidden CPU exits, tensor-array replay, or unexpected native copy regressions.
+- [x] **METALROUTER-01**: Metal execution planning can choose among MPSGraph, custom Metal kernels, existing buffer binding, tensor-array fallback, and CPU fallback using calibrated shape/dtype/layout evidence.
+- [x] **METALROUTER-02**: The remaining native MPSGraph result-copy path is either proven safe as a true output-buffer write contract or replaced with an explicit lower-copy alias/materialization strategy.
+- [x] **METALROUTER-03**: Final v1.5 coverage reports prove supported hot paths stay on Metal, quantify router decisions, and fail hidden CPU exits, tensor-array replay, or unexpected native copy regressions.
 
 ## Future Requirements
 
@@ -133,9 +133,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALTRAIN-01 | Phase 38 | Complete |
 | METALTRAIN-02 | Phase 38 | Complete |
 | METALTRAIN-03 | Phase 38 | Complete |
-| METALROUTER-01 | Phase 39 | Pending |
-| METALROUTER-02 | Phase 39 | Pending |
-| METALROUTER-03 | Phase 39 | Pending |
+| METALROUTER-01 | Phase 39 | Complete |
+| METALROUTER-02 | Phase 39 | Complete |
+| METALROUTER-03 | Phase 39 | Complete |
 
 **Coverage:**
 - v1.5 requirements: 33 total

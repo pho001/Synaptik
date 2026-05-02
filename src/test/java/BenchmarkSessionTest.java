@@ -539,6 +539,8 @@ public class BenchmarkSessionTest {
                                 Map.entry("metalNativeToJavaCopyNs", 0L),
                                 Map.entry("metalNativeDeviceCopyNs", 25_000L),
                                 Map.entry("metalNativeCopyStrategy", "MPSGRAPH_RESULT_COPY"),
+                                Map.entry("metalExecutionRoute", "MPS_GRAPH"),
+                                Map.entry("metalRouteRejectedReasonCodes", List.of("CUSTOM_KERNEL_UNAVAILABLE")),
                                 Map.entry("storageResidency", "DEVICE_OWNED"),
                                 Map.entry("storageCpuCurrent", false),
                                 Map.entry("storageDeviceCurrent", true)
@@ -582,6 +584,8 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("reasonCodes=[BUFFER_BINDING_AVAILABLE]"));
         assertTrue(text.contains("fallbackReasons=[using native buffer bindings]"));
         assertTrue(text.contains("nativeCopyStrategies=[MPSGRAPH_RESULT_COPY]"));
+        assertTrue(text.contains("executionRouteCounts={MPS_GRAPH=1}"));
+        assertTrue(text.contains("rejectedRouteReasonCounts={CUSTOM_KERNEL_UNAVAILABLE=1}"));
         assertTrue(text.contains("javaToNativeMs=0.100000"));
         assertTrue(text.contains("nativeDeviceCopyMs=0.025000"));
         assertTrue(text.contains("storageResidency=DEVICE_OWNED"));
@@ -595,6 +599,8 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"reasonCodes\": [\"BUFFER_BINDING_AVAILABLE\"]"));
         assertTrue(json.contains("\"fallbackReasons\": [\"using native buffer bindings\"]"));
         assertTrue(json.contains("\"nativeCopyStrategies\": [\"MPSGRAPH_RESULT_COPY\"]"));
+        assertTrue(json.contains("\"executionRouteCounts\": {\"MPS_GRAPH\": 1}"));
+        assertTrue(json.contains("\"rejectedRouteReasonCounts\": {\"CUSTOM_KERNEL_UNAVAILABLE\": 1}"));
         assertTrue(json.contains("\"javaToNativeCopyNs\": 100000"));
         assertTrue(json.contains("\"nativeDeviceCopyNs\": 25000"));
         assertTrue(json.contains("\"storageResidency\": \"DEVICE_OWNED\""));
