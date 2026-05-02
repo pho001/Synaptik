@@ -339,7 +339,7 @@ Use this focused Phase 16 gate after changing runtime typed slot binding, Metal/
 ./gradlew test --tests graph.execution.RuntimeMemoryBinderTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests GpuCoverageSummaryTest
 ```
 
-`dtype residency is not native dtype compute`: `BFLOAT16`, `INT32`, and `BOOL` may be represented in runtime storage residency or trace evidence while Metal/CUDA still reject unsupported native compute/output roles with `UNSUPPORTED_DTYPE`.
+`dtype residency is not native dtype compute`: `BFLOAT16`, `INT32`, and `BOOL` may be represented in runtime storage residency or trace evidence while Metal/CUDA still reject unsupported native compute/output roles with `UNSUPPORTED_DTYPE`. Metal BF16 is now native only for scoped Phase 30 operation families; INT32, BOOL-producing compute, FLOAT64, and unsupported BF16 families remain explicit fallback/rejection cases.
 
 ## Adding Optimizer Rules
 

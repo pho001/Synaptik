@@ -8,9 +8,9 @@ import tensor.DataType;
  * Capability contract for the current Metal MPS FFM bridge.
  *
  * <p>This class is the Java-side source of truth for the dtype subset exposed by the
- * native {@code synaptik_apple_mps_*_f32} ABI. It intentionally describes only what
- * the bridge can execute today: float32 compute/output tensors, float32 data inputs,
- * and bool external inputs in predicate roles.</p>
+ * native {@code synaptik_apple_mps_*} ABI. It intentionally describes only what
+ * the bridge can execute today: float32 compute/output tensors, scoped bfloat16
+ * operation families, and bool external inputs in predicate roles.</p>
  */
 public final class MetalMpsCapabilities {
     private MetalMpsCapabilities() {
@@ -80,7 +80,7 @@ public final class MetalMpsCapabilities {
                 dtype == DataType.FLOAT64
                         ? MetalDTypeReasonCode.FLOAT64_UNSUPPORTED
                         : MetalDTypeReasonCode.UNSUPPORTED_NATIVE_COMPUTE_DTYPE,
-                "native Metal compute is FLOAT32 only in the current bridge"
+                "native Metal compute is FLOAT32 plus scoped BFLOAT16 operation families in the current bridge"
         );
     }
 
@@ -102,7 +102,7 @@ public final class MetalMpsCapabilities {
                 dtype == DataType.FLOAT64
                         ? MetalDTypeReasonCode.FLOAT64_UNSUPPORTED
                         : MetalDTypeReasonCode.UNSUPPORTED_NATIVE_OUTPUT_DTYPE,
-                "native Metal output publication is FLOAT32 only in the current bridge"
+                "native Metal output publication is FLOAT32 plus scoped BFLOAT16 operation families in the current bridge"
         );
     }
 
@@ -193,7 +193,7 @@ public final class MetalMpsCapabilities {
      * Returns whether the current Metal bridge can execute compute nodes with this dtype.
      *
      * @param dtype compiled node output/compute dtype
-     * @return true only for {@link DataType#FLOAT32}
+     * @return true for {@link DataType#FLOAT32} and scoped {@link DataType#BFLOAT16}
      */
     public static boolean supportsComputeDType(DataType dtype) {
         return computeDecision(dtype).supported();
@@ -203,7 +203,7 @@ public final class MetalMpsCapabilities {
      * Returns whether the current Metal bridge can publish output tensors with this dtype.
      *
      * @param dtype output tensor dtype
-     * @return true only for {@link DataType#FLOAT32}
+     * @return true for {@link DataType#FLOAT32} and scoped {@link DataType#BFLOAT16}
      */
     public static boolean supportsOutputDType(DataType dtype) {
         return outputDecision(dtype).supported();
@@ -217,7 +217,7 @@ public final class MetalMpsCapabilities {
      * tensors are valid only in predicate positions.</p>
      *
      * @param dtype external input dtype
-     * @return true for float32 data tensors and bool predicate tensors
+     * @return true for float32 data tensors, scoped bfloat16 data tensors, and bool predicate tensors
      */
     public static boolean supportsExternalInputDType(DataType dtype) {
         return externalInputDecision(dtype).supported();

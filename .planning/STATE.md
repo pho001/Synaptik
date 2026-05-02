@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T07:28:12Z"
-last_activity: 2026-05-02 -- Phase 30-03 BF16 parity and coverage gates completed
+last_updated: "2026-05-02T07:32:32Z"
+last_activity: 2026-05-02 -- Phase 30 BF16 Metal compute and output verified
 progress:
   total_phases: 11
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 44
-  completed_plans: 7
-  percent: 16
+  completed_plans: 8
+  percent: 18
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 30 — BF16 Metal Compute And Output
+**Current focus:** Phase 31 — BOOL-Producing Metal Compute
 
 ## Project Reference
 
@@ -75,7 +75,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 29 — Metal DType ABI And Capability Truth | Complete | 4/4 | Verified |
-| 30 — BF16 Metal Compute And Output | In Progress | 3/4 | Pending |
+| 30 — BF16 Metal Compute And Output | Complete | 4/4 | Verified |
 | 31 — BOOL-Producing Metal Compute | Planned | 0/4 | Pending |
 | 32 — INT32 Index Tensor And Gather Take Path | Planned | 0/4 | Pending |
 | 33 — GPU Layout Router And Strided Materialization | Planned | 0/4 | Pending |
@@ -195,6 +195,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 30-01 completed | Lowered DAG nodes now carry output dtype metadata, native executable cache signatures include output dtype, Metal executable descriptors preserve output dtype, Metal buffer allocation/materialization handles raw BF16 storage, and the additive native dtype-v3 compile symbol preserves BF16 output metadata without changing the legacy FLOAT32 compile path. |
 | 2026-05-02 | Phase 30-02 completed | Metal BF16 compute/output is now admitted only for scoped operation families, BF16 external inputs are role-limited to legal BF16 consumers, normalization DAG internals preserve BF16 dtype metadata, native scalar/output dtype handling is dtype-aware, and native Metal BF16 RELU/MATMUL buffer execution passed capability-gated evidence. |
 | 2026-05-02 | Phase 30-03 completed | BF16 Metal parity now has exact raw storage roundtrip checks, scoped numeric tolerances for matmul/reduction/normalization/softmax, BF16-specific hot-path targets, suite report dtype residency evidence, and hard Metal BF16 gates that fail on hidden CPU or tensor-array fallback. |
+| 2026-05-02 | Phase 30 verification passed | BF16 Metal docs, capability boundaries, scoped support table, troubleshooting guidance, source hygiene, focused Java tests, and native `metalTest` passed; METALBF16-01/02/03 are complete. |
 
 ## Recent Sessions
 

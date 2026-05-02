@@ -15,9 +15,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### BF16 Metal Compute And Output
 
-- [ ] **METALBF16-01**: Legal `BFLOAT16` Metal regions can execute supported matmul/linear, elementwise, softmax/log-softmax, reduction, and normalization flows or reject with stable operation-specific capability reasons.
-- [ ] **METALBF16-02**: BF16 buffer binding, materialization, tolerance policy, and report evidence preserve CPU parity against the existing CPU BF16 semantics.
-- [ ] **METALBF16-03**: BF16 hot-path workloads show reduced CPU exits without regressing existing `FLOAT32` Metal or CPU hot paths.
+- [x] **METALBF16-01**: Legal `BFLOAT16` Metal regions can execute supported matmul/linear, elementwise, softmax/log-softmax, reduction, and normalization flows or reject with stable operation-specific capability reasons.
+- [x] **METALBF16-02**: BF16 buffer binding, materialization, tolerance policy, and report evidence preserve CPU parity against the existing CPU BF16 semantics.
+- [x] **METALBF16-03**: BF16 hot-path workloads show reduced CPU exits without regressing existing `FLOAT32` Metal or CPU hot paths.
 
 ### BOOL-Producing Metal Compute
 
@@ -106,9 +106,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALDTYPE-01 | Phase 29 | Complete |
 | METALDTYPE-02 | Phase 29 | Complete |
 | METALDTYPE-03 | Phase 29 | Complete |
-| METALBF16-01 | Phase 30 | Pending |
-| METALBF16-02 | Phase 30 | Pending |
-| METALBF16-03 | Phase 30 | Pending |
+| METALBF16-01 | Phase 30 | Complete |
+| METALBF16-02 | Phase 30 | Complete |
+| METALBF16-03 | Phase 30 | Complete |
 | METALBOOL-01 | Phase 31 | Pending |
 | METALBOOL-02 | Phase 31 | Pending |
 | METALBOOL-03 | Phase 31 | Pending |

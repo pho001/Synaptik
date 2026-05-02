@@ -202,7 +202,14 @@ Run one bridge test manually with the explicit library:
 
 If the task says it is only supported on macOS, that is expected: `buildMetalMpsShim` checks `os.name` for `mac`.
 
-Current dtype boundary: the Metal MPS FFM bridge uses `_f32` native compile/execute symbols. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, `FLOAT32` data inputs, and `BOOL` only for predicate inputs such as the `where` condition. Direct unmasked FLOAT32 rank-3/4 SDPA is supported after native MPSGraph primitive-DAG scale parity verification. Direct masked SDPA remains a separate `UNSUPPORTED_MASK_SEMANTICS` case because Synaptik public masks are `BOOL`, while the verified native MPSGraph SDPA mask operand expects a floating tensor. Masked decomposed attention should stay as generic `WHERE`/`SOFTMAX`/`MATMUL` DAG operations rather than native `SDPA(maskTensor=bool)`. `FLOAT64`, `BFLOAT16`, and `INT32` graphs should remain on CPU unless a later native ABI/storage path is implemented.
+Current dtype boundary: the Metal MPS FFM bridge keeps the legacy `_f32` path and adds a dtype ABI v3 compile path for widened metadata. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, scoped `BFLOAT16` compute/output for supported operation families, `FLOAT32` or scoped `BFLOAT16` data inputs, and `BOOL` only for predicate inputs such as the `where` condition. Direct unmasked FLOAT32 rank-3/4 SDPA is supported after native MPSGraph primitive-DAG scale parity verification. Direct masked SDPA remains a separate `UNSUPPORTED_MASK_SEMANTICS` case because Synaptik public masks are `BOOL`, while the verified native MPSGraph SDPA mask operand expects a floating tensor. Masked decomposed attention should stay as generic `WHERE`/`SOFTMAX`/`MATMUL` DAG operations rather than native `SDPA(maskTensor=bool)`. `FLOAT64`, `INT32`, BOOL-producing compute, and BF16 operations outside the scoped family list should remain on CPU with visible fallback or rejection.
+
+If a BF16 graph unexpectedly falls back, check all of these before treating it as a Metal bug:
+
+1. The native shim must export dtype ABI v3 symbols and `MetalMpsFfmBridge.capabilities().dtypeAbiV3Supported()` must be true.
+2. The operation family must be one of the scoped BF16 families documented in [Metal Backend: Supported Operations And DTypes](metal-backend.md#supported-operations-and-dtypes).
+3. The trace should include `dtypeResidency` evidence with `dtype=BFLOAT16`; supported BF16 hot-path gates fail when that evidence is missing.
+4. `acceleratorBufferExecutionPath` should be `BUFFER_BINDING`; `TENSOR_ARRAY` or `CPU_FALLBACK` means the run did not satisfy the native BF16 hot-path contract.
 
 Native buffer ABI boundary: a current shim should also export `synaptik_apple_mps_create_buffer`,
 `synaptik_apple_mps_read_buffer`, `synaptik_apple_mps_destroy_buffer`, and

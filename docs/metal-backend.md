@@ -28,7 +28,7 @@ This document explains the current Metal MPS backend in Synaptik, including the 
 
 ## Purpose And Current Status
 
-The Metal backend exists to execute selected `FLOAT32` graph regions through Apple's MPSGraph runtime instead of replaying every primitive through Java CPU kernels. It is not a separate eager tensor device API. User code still builds normal `Tensor` graphs; graph optimization and preparation decide whether a region can be owned by `GPU_METAL`.
+The Metal backend exists to execute selected `FLOAT32` graph regions and scoped `BFLOAT16` operation families through Apple's MPSGraph runtime instead of replaying every primitive through Java CPU kernels. It is not a separate eager tensor device API. User code still builds normal `Tensor` graphs; graph optimization and preparation decide whether a region can be owned by `GPU_METAL`.
 
 The current implementation has a real native buffer execution path:
 
@@ -210,7 +210,7 @@ Metal partition legality is intentionally separate from runtime availability. A 
 | Category | Current behavior |
 |---|---|
 | Leaves | Rejected as compute nodes. Leaves become external inputs to a Metal region. |
-| DType | Compute and output nodes must be `FLOAT32`. |
+| DType | Compute and output nodes must be `FLOAT32`, or `BFLOAT16` for the scoped operation families listed in [Supported Operations And DTypes](#supported-operations-and-dtypes). |
 | Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`. |
 | Backward ops | Allows `MATMUL`, `LINEAR`, softmax/log-softmax gradients, min/max reduction gradients, min/max gradients, and `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`. |
 | Direct unmasked forward SDPA | Supported for legal FLOAT32 rank-3/4 inputs after native MPSGraph primitive DAG scale parity verification. |
@@ -220,6 +220,7 @@ Metal partition legality is intentionally separate from runtime availability. A 
 External input legality is role-sensitive. `MetalMpsCapabilities.supportsExternalInputRole(...)` allows:
 
 - `FLOAT32` for normal data inputs
+- `BFLOAT16` for scoped BF16 operation-family data inputs
 - `BOOL` only for `WHERE` input 0
 - no `BOOL` mask input for direct SDPA
 
@@ -353,7 +354,8 @@ ABI means application binary interface: the binary contract between Java FFM and
 | `synaptik_apple_mps_unavailable_reason` | `MetalMpsFfmBridge.init()` | Returns a native diagnostic string when unavailable. |
 | `synaptik_apple_mps_create_context` | `createContext()` | Creates the retained context box. |
 | `synaptik_apple_mps_destroy_context` | available but shared context is cached | Releases a context box. |
-| `synaptik_apple_mps_compile_partition_f32` | `compile(...)` | Compiles a `FLOAT32` accelerator DAG into an executable box. |
+| `synaptik_apple_mps_compile_partition_f32` | `compile(...)` | Legacy wrapper for compiling a `FLOAT32` accelerator DAG into an executable box. |
+| `synaptik_apple_mps_compile_partition_dtype_v3` | `compile(...)` | Compiles a dtype-annotated accelerator DAG when widened output dtype metadata is required. |
 | `synaptik_apple_mps_execute_partition_f32` | `execute(...)` | Legacy tensor-array copy execution path. |
 | `synaptik_apple_mps_create_buffer` | `MetalBufferAllocator.create*Binding(...)` | Allocates a shared `MTLBuffer` and optionally initializes it from CPU bytes. |
 | `synaptik_apple_mps_write_buffer` | currently exposed through native access but not used by the main allocation path | Writes bytes into an existing buffer. |
@@ -369,11 +371,11 @@ ABI means application binary interface: the binary contract between Java FFM and
 Layout ABI v2 symbols are optional-symbol gated. Missing layout ABI v2 symbols disable only layout ABI v2 capability;
 they do not disable the existing dense v1 buffer execution path.
 
-DType ABI v3 symbols are also optional-symbol gated. Missing dtype ABI v3 symbols do not disable the current
+DType ABI v3 symbols are also optional-symbol gated. Missing dtype ABI v3 symbols do not disable the legacy
 `FLOAT32` `_f32` execution path, but they do prevent widened dtype execution from being claimed. The v3 descriptor
 can name storage, external input, predicate input, compute, and output roles for all public Synaptik dtypes. The
-current native contract still validates only `FLOAT32` compute/output, `FLOAT32` data inputs, and `BOOL` predicate
-inputs.
+current widened native contract admits `BFLOAT16` only for scoped operation families and keeps `FLOAT64`, `INT32`
+compute/output, and BOOL-producing compute rejected.
 
 Layout ABI v2 rejection uses stable accelerator buffer reason codes:
 
@@ -453,7 +455,7 @@ When a Metal executable needs an external input:
 
 1. `PreparedMetalExecutable` first looks for an existing active `DeviceBufferBinding`.
 2. If no binding exists, it checks that CPU storage is current.
-3. `MetalBufferAllocator.createInputBinding(...)` copies `FLOAT32` Java data into a shared `MTLBuffer`.
+3. `MetalBufferAllocator.createInputBinding(...)` copies `FLOAT32` or scoped `BFLOAT16` Java data into a shared `MTLBuffer`.
 4. For `WHERE` predicate input 0, `createPredicateInputBinding(...)` copies `BOOL` bytes.
 5. `ExecutionState.attachDeviceBufferBinding(...)` marks the value as `HOST_SHARED_DEVICE_BUFFER`.
 
@@ -466,7 +468,7 @@ When a Metal executable needs an output:
 3. `DENSE_CONTIGUOUS` uses direct dense buffer binding.
 4. `ZERO_OFFSET_VIEW`, `NON_ZERO_OFFSET_VIEW`, and `PERMUTED_OR_STRIDED_VIEW` use dense physical Metal buffers with logical layout metadata when policy and materializer support allow it.
 5. `BROADCAST_ZERO_STRIDE_VIEW` and `UNSUPPORTED` remain rejected with `OUTPUT_LAYOUT_UNSUPPORTED`.
-6. `MetalBufferAllocator.createOutputBinding(...)` allocates an unwritten shared `FLOAT32` buffer sized to the logical byte length.
+6. `MetalBufferAllocator.createOutputBinding(...)` allocates an unwritten shared `FLOAT32` or scoped `BFLOAT16` buffer sized to the logical byte length.
 7. `ExecutionState.reserveDeviceBufferBinding(...)` records it as writable but not current.
 8. After native execution succeeds, `markBufferOutputsCurrent(...)` promotes the binding to active `READ_WRITE`.
 9. The output residency becomes `DEVICE_OWNED`, even though the underlying `MTLBuffer` uses shared storage, because the Java `float[]` has not been updated.
@@ -632,16 +634,16 @@ Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can 
 | Role | Supported today |
 |---|---|
 | Storage metadata/residency | `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, `FLOAT64` are representable as dtype metadata; this is not native compute support. |
-| Compute node dtype | `FLOAT32` only |
-| Output dtype | `FLOAT32` only |
-| Normal external data input | `FLOAT32` |
+| Compute node dtype | `FLOAT32`; `BFLOAT16` for scoped operation families only |
+| Output dtype | `FLOAT32`; `BFLOAT16` for scoped operation families only |
+| Normal external data input | `FLOAT32`; `BFLOAT16` only when the consuming operation family is BF16-supported |
 | Predicate external input | `BOOL` only for `WHERE` input 0 |
 | Descriptor ABI coverage | dtype ABI v3 can describe `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, and `FLOAT64` roles. |
-| Unsupported compute/output dtypes | `FLOAT64`, `BFLOAT16`, `INT32`, `BOOL` |
+| Unsupported compute/output dtypes | `FLOAT64`, `INT32`, `BOOL`; `BFLOAT16` outside the scoped operation families |
 
-The native symbol names include `_f32` for a reason. The bridge should not claim Metal support for `FLOAT64`,
-`BFLOAT16`, `INT32`, or BOOL-producing graphs unless a widened execution ABI/router path and tests are added. Phase 29
-adds dtype truth and ABI discovery only; later phases add actual BF16, BOOL-output, and INT32 execution.
+BF16 support is real but deliberately narrow. It requires the dtype ABI v3 compile path and currently covers `MATMUL`, `LINEAR`, arithmetic elementwise and activation ops, scalar multiply/clamp, `SOFTMAX`, `LOG_SOFTMAX`, `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM`. It does not make every Metal row BF16-capable.
+
+Unsupported BF16 families still reject with stable dtype or operation-family diagnostics. Conv/pool, gather/take/scatter, loss-adjacent ops, masked SDPA, BOOL-producing compare/logical ops, and INT32 index compute remain separate future phases.
 
 ### Planner allowlist
 
@@ -652,8 +654,11 @@ MATMUL, LINEAR,
 ADD, SUB, MUL, DIV,
 RELU, TANH, FAST_TANH, SIGMOID,
 ABS, EXP, FAST_EXP, LOG, NEG, SQRT, INV,
-MUL_SCALAR, WHERE, SOFTMAX,
+MUL_SCALAR, WHERE, SOFTMAX, LOG_SOFTMAX,
 CLAMP_MIN, CLAMP_MAX,
+SUM, MEAN, REDUCE_MIN, REDUCE_MAX,
+LAYER_NORM, RMS_NORM,
+SCALED_DOT_PRODUCT_ATTENTION,
 RESHAPE, CONTIGUOUS, NOOP, PERMUTE, EXPAND_DIMS, SQUEEZE
 ```
 
@@ -669,10 +674,10 @@ SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
 
 Notable current exclusions:
 
-- direct forward `SCALED_DOT_PRODUCT_ATTENTION`
+- direct masked or causal `SCALED_DOT_PRODUCT_ATTENTION`
 - `CONV2D`, `CONV2D_GEMM`, and conv backward ops
 - `MAX_POOL2D`, `AVG_POOL2D`, and pooling backward ops
-- non-`FLOAT32` compute/output graphs
+- `FLOAT64`, `INT32`, BOOL-producing, and unsupported `BFLOAT16` compute/output graphs
 
 ## Fallbacks And Failure Modes
 
@@ -680,7 +685,7 @@ Notable current exclusions:
 |---|---|---|
 | Native library missing | `MetalMpsFfmBridge.init()` | Bridge unavailable; selected Metal region falls back to CPU. |
 | Older `.dylib` without buffer symbols | `supportsBufferBindings()` | Legacy tensor-array path may still run; no `BUFFER_BINDING` claim. |
-| Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. |
+| Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. BF16 outside the scoped operation families remains illegal. |
 | Illegal external `BOOL` role | `MetalMpsCapabilities.supportsExternalInputRole(...)` | Planner rejects candidate. |
 | Broadcast zero-stride or unsupported output layout | `MetalLayoutPolicy.output(...)` | Buffer path unavailable with `OUTPUT_LAYOUT_UNSUPPORTED`; tensor-array path or CPU fallback is attempted in `AUTO`, and `REQUIRE` throws. |
 | Non-contiguous legal view output | `MetalLayoutPolicy.output(...)`, `MetalBufferAllocator.createOutputBinding(...)`, `MetalDeviceToCpuMaterializer` | `ZERO_OFFSET_VIEW`, `NON_ZERO_OFFSET_VIEW`, and `PERMUTED_OR_STRIDED_VIEW` use dense physical logical-view buffers when the bridge and materializer support the path. |
@@ -717,7 +722,7 @@ Relevant tests include:
 
 | Test | What it proves |
 |---|---|
-| [`MetalMpsFfmBridgeTest`](../src/test/java/backend/metal/bridge/MetalMpsFfmBridgeTest.java) | Native bridge discovery, buffer ABI calls, sentinel buffer execution, and adjacent native executable buffer handoff when the shim is available. |
+| [`MetalMpsFfmBridgeTest`](../src/test/java/backend/metal/bridge/MetalMpsFfmBridgeTest.java) | Native bridge discovery, buffer ABI calls, sentinel buffer execution, adjacent native executable buffer handoff, BF16 raw storage roundtrip, and BF16 RELU/MATMUL/SUM/LayerNorm/softmax parity when the shim is available. |
 | [`PreparedMetalExecutableBufferBindingTest`](../src/test/java/backend/metal/exec/PreparedMetalExecutableBufferBindingTest.java) | Java-side selection of buffer path, fallback reasons, output residency promotion, and binding validation. |
 | [`MetalBufferAllocatorTest`](../src/test/java/backend/metal/buffer/MetalBufferAllocatorTest.java) | Buffer allocation, dtype checks, shape checks, and CPU readback behavior through fake native access. |
 | [`MetalBufferResourceTest`](../src/test/java/backend/metal/buffer/MetalBufferResourceTest.java) | Run-scoped native resource cleanup. |

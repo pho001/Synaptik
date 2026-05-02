@@ -66,6 +66,8 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 
 ### Phase 30: BF16 Metal Compute And Output
 
+**Status:** Complete - verified 2026-05-02
+
 **Goal:** Add legal BF16 Metal compute/output coverage for high-value supported op families.
 
 **Requirements:** METALBF16-01, METALBF16-02, METALBF16-03
@@ -83,7 +85,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 - [x] [30-01 BF16 storage/ABI/materialization path](phases/30-bf16-metal-compute-and-output/30-01-PLAN.md).
 - [x] [30-02 BF16 primitive lowering and native execution](phases/30-bf16-metal-compute-and-output/30-02-PLAN.md).
 - [x] [30-03 BF16 parity, tolerance, and coverage gates](phases/30-bf16-metal-compute-and-output/30-03-PLAN.md).
-- [30-04 Docs and regression closure](phases/30-bf16-metal-compute-and-output/30-04-PLAN.md).
+- [x] [30-04 Docs and regression closure](phases/30-bf16-metal-compute-and-output/30-04-PLAN.md).
 
 ### Phase 31: BOOL-Producing Metal Compute
 

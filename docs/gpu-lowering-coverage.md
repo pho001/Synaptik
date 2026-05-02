@@ -86,14 +86,31 @@ Metal and CUDA coverage is backend-specific. Shared rows describe the common sem
 
 `dtype residency is not native dtype compute`. Phase 16 dtype residency records whether values such as `BFLOAT16`, `INT32`, and `BOOL` can stay represented in runtime storage and trace/report metadata. It does not widen Metal or CUDA native arithmetic beyond the backend role gates.
 
-Metal currently accepts `FLOAT32` compute/output and `BOOL` only for predicate-style external input evidence. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE` and stable details such as `backend=GPU_METAL role=compute dtype=BFLOAT16` or `backend=GPU_CUDA role=output dtype=INT32`.
+Metal currently accepts `FLOAT32` compute/output broadly and `BFLOAT16` compute/output only for scoped operation families: `MATMUL`, `LINEAR`, arithmetic elementwise and activation ops, scalar multiply/clamp, `SOFTMAX`, `LOG_SOFTMAX`, `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM`. `BOOL` is still only predicate-style external input evidence for `WHERE`, not native BOOL-producing compute. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE` and stable details such as `backend=GPU_METAL role=operation dtype=BFLOAT16 code=UNSUPPORTED_OPERATION_DTYPE` or `backend=GPU_CUDA role=output dtype=INT32`.
 
 Reports use `dtypeResidency` evidence to explain why a region stayed resident, shortened, or exited. A dtype-resident internal value can still be materialized later for a real CPU consumer, graph output, or gradient publication, and that CPU boundary remains reportable.
 
 Metal dtype capability truth is role-specific. `MetalMpsCapabilities` distinguishes storage representability, external
 input legality, predicate input legality, native compute legality, native output legality, and operation-specific dtype
-support. The optional Metal dtype ABI v3 probes only prove that a native shim can describe these roles; they do not turn
-BF16, INT32, BOOL output, or FLOAT64 into native compute support by themselves.
+support. The optional Metal dtype ABI v3 probes prove that a native shim can describe widened dtype roles; BF16 support
+is still operation-scoped and capability-gated, while INT32, BOOL output, and FLOAT64 remain non-native compute/output.
+
+## Phase 30 BF16 Metal contract
+
+Phase 30 adds native Metal BF16 compute/output for the scoped families above. The contract is intentionally narrower
+than "Metal supports BF16 everywhere":
+
+- BF16 storage, external inputs, compute nodes, and outputs use dtype ABI v3 metadata.
+- BF16 upload/readback roundtrip is exact raw BF16 storage equality.
+- BF16 MATMUL and reduction parity use explicit BF16 numeric tolerance.
+- BF16 LayerNorm/RMSNorm and softmax/log-softmax parity use a separate normalization/softmax tolerance.
+- BF16 hot-path targets `mlp_classifier_small_bf16`, `layer_norm_small_bf16`, `rms_norm_small_bf16`, and
+  `reduction_chain_small_bf16` require Metal native buffer evidence, dtype residency evidence, zero CPU
+  materializations, zero CPU fallback, and zero tensor-array fallback.
+
+Unsupported BF16 families must remain visible. Conv/pool, loss-adjacent ops, gather/take/scatter, masked SDPA,
+BOOL-producing compare/logical ops, and INT32 indexing compute remain rejected or fallback rows until their own
+semantic, native execution, parity, trace, and regression-gate evidence exists.
 
 ## Phase 17 normalization, reduction, and loss-adjacent contract
 
@@ -103,7 +120,7 @@ Phase 23 closes the forward reduction subset. `SUM`, `MEAN`, `REDUCE_MIN`, and `
 
 `LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`. That support is separate from loss-adjacent operations such as `NLL_LOSS`, `CROSS_ENTROPY_LOSS`, and `CROSS_ENTROPY_LOSS_INDICES`, where unsupported loss-adjacent rows must remain visible fallback, not silent CPU replay.
 
-Forward reductions (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`) and legal dense `FLOAT32` normalization (`LAYER_NORM`, `RMS_NORM`) are now supported for the `target=layer_norm_small` coverage path. Unsupported normalization variants still reject explicitly: non-`FLOAT32` dtype uses `UNSUPPORTED_DTYPE`, non-dense direct inputs use `UNSUPPORTED_LAYOUT`, and invalid rank or tail parameter shape uses `UNSUPPORTED_RANK_OR_SHAPE`. `CONV2D` is a matrix-visible blocker for `target=conv2d_resnet_3x3` and remains unsupported until conv lowering is explicitly added. Index-target loss rows use `UNSUPPORTED_INDEX_SEMANTICS` because `INT32` targets, bounds checks, ignore-index handling, and reduction denominator semantics are outside the current native accelerator DAG compute contract.
+Forward reductions (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`) and legal dense `FLOAT32` or scoped `BFLOAT16` normalization (`LAYER_NORM`, `RMS_NORM`) are now supported for the `target=layer_norm_small` and BF16 coverage paths. Unsupported normalization variants still reject explicitly: unsupported dtype or BF16 operation family uses `UNSUPPORTED_DTYPE`, non-dense direct inputs use `UNSUPPORTED_LAYOUT`, and invalid rank or tail parameter shape uses `UNSUPPORTED_RANK_OR_SHAPE`. `CONV2D` is a matrix-visible blocker for `target=conv2d_resnet_3x3` and remains unsupported until conv lowering is explicitly added. Index-target loss rows use `UNSUPPORTED_INDEX_SEMANTICS` because `INT32` targets, bounds checks, ignore-index handling, and reduction denominator semantics are outside the current native accelerator DAG compute contract.
 
 ## Phase 26 loss and indexing contract
 
