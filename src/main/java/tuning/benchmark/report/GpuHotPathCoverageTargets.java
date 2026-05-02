@@ -37,6 +37,13 @@ public final class GpuHotPathCoverageTargets {
                         "Exercises linear, bias, activation, dtype/storage, and fused epilogue coverage."
                 ),
                 new GpuHotPathCoverageTarget(
+                        "mlp_classifier_small_bf16",
+                        "dtype_bf16",
+                        List.of("GPUNATIVE", "GPUFUSEX", "GPUCLOSE", "METALBF16"),
+                        30,
+                        "Exercises BF16 linear, bias, activation, dtype residency, and fused epilogue coverage."
+                ),
+                new GpuHotPathCoverageTarget(
                         "conv2d_resnet_3x3",
                         "conv",
                         List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE"),
@@ -58,11 +65,32 @@ public final class GpuHotPathCoverageTargets {
                         "Exercises normalization, reduction-style, and storage-residency coverage."
                 ),
                 new GpuHotPathCoverageTarget(
+                        "layer_norm_small_bf16",
+                        "dtype_bf16",
+                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALBF16"),
+                        30,
+                        "Exercises BF16 LayerNorm, dtype residency, and normalization tolerance coverage."
+                ),
+                new GpuHotPathCoverageTarget(
                         "rms_norm_small",
                         "normalization",
                         List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE"),
                         24,
                         "Exercises RMS normalization and reduction-adjacent coverage."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "rms_norm_small_bf16",
+                        "dtype_bf16",
+                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALBF16"),
+                        30,
+                        "Exercises BF16 RMSNorm, dtype residency, and normalization tolerance coverage."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "reduction_chain_small_bf16",
+                        "dtype_bf16",
+                        List.of("GPUNATIVE", "GPURED", "GPUCLOSE", "METALBF16"),
+                        30,
+                        "Exercises BF16 SUM, MEAN, REDUCE_MIN, and REDUCE_MAX native coverage."
                 ),
                 new GpuHotPathCoverageTarget(
                         "cross_entropy_small",
@@ -114,6 +142,13 @@ public final class GpuHotPathCoverageTargets {
                         true
                 ),
                 new GpuCoverageHotPathExpectation(
+                        "mlp_classifier_small_bf16",
+                        resolvedBackend,
+                        bf16MlpPolicy(resolvedBackend),
+                        List.of(),
+                        "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
                         "conv2d_resnet_3x3",
                         resolvedBackend,
                         partialBlockerPolicy(resolvedBackend),
@@ -135,11 +170,32 @@ public final class GpuHotPathCoverageTargets {
                         true
                 ),
                 new GpuCoverageHotPathExpectation(
+                        "layer_norm_small_bf16",
+                        resolvedBackend,
+                        bf16NormalizationPolicy(resolvedBackend),
+                        List.of(),
+                        "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
                         "rms_norm_small",
                         resolvedBackend,
                         normalizationSupportedPolicy(resolvedBackend),
                         List.of(),
                         true
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "rms_norm_small_bf16",
+                        resolvedBackend,
+                        bf16NormalizationPolicy(resolvedBackend),
+                        List.of(),
+                        "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "reduction_chain_small_bf16",
+                        resolvedBackend,
+                        bf16ReductionPolicy(resolvedBackend),
+                        List.of(),
+                        "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(
                         "cross_entropy_small",
@@ -237,5 +293,26 @@ public final class GpuHotPathCoverageTargets {
                 1,
                 true
         );
+    }
+
+    private static GpuCoverageGatePolicy bf16MlpPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return GpuCoverageGatePolicy.hotPathTarget(backend, 0.5d, 2, 1, 1, 1);
+    }
+
+    private static GpuCoverageGatePolicy bf16NormalizationPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return normalizationSupportedPolicy(backend);
+    }
+
+    private static GpuCoverageGatePolicy bf16ReductionPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return reductionSupportedPolicy(backend);
     }
 }

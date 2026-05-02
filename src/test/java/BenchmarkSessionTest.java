@@ -857,6 +857,7 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("cpuMaterializationReasonCounts={CPU_CONSUMER=1}"));
         assertTrue(text.contains("deviceHandoffCount=2"));
         assertTrue(text.contains("storageResidencyCounts={DEVICE_OWNED=1}"));
+        assertTrue(text.contains("dtypeResidencyReasons="));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"coverage\""));
@@ -875,6 +876,7 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"copyDurationNs\": 325000"));
         assertTrue(json.contains("\"deviceHandoffCount\": 2"));
         assertTrue(json.contains("\"storageResidencyCounts\": {\"DEVICE_OWNED\": 1}"));
+        assertTrue(json.contains("\"dtypeResidencyEvidence\""));
     }
 
     @Test

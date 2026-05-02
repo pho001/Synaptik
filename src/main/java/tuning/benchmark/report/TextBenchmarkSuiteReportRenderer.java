@@ -82,6 +82,7 @@ public final class TextBenchmarkSuiteReportRenderer {
                     .append(" cpuMaterializationCount=").append(coverage.cpuMaterializationCount())
                     .append(" fallbackCount=").append(coverage.fallbackCount())
                     .append(" deviceHandoffCount=").append(coverage.deviceHandoffCount())
+                    .append(" dtypeResidencyReasons=").append(coverage.dtypeResidencyReasons())
                     .append(" nativeEvidence=").append(nativeEvidence.nativeStatus())
                     .append(" nativeStatus=").append(nativeEvidence.nativeStatus())
                     .append(" capabilitySkipped=").append("capabilitySkipped".equals(nativeEvidence.nativeStatus()))
@@ -183,6 +184,7 @@ public final class TextBenchmarkSuiteReportRenderer {
                 + ",cpuMaterializationCount=" + coverage.cpuMaterializationCount()
                 + ",fallbackCount=" + coverage.fallbackCount()
                 + ",deviceHandoffCount=" + coverage.deviceHandoffCount()
+                + ",dtypeResidencyReasons=" + coverage.dtypeResidencyReasons()
                 + ",reasonCodes=" + coverage.reasonCodes()
                 + ",fallbackReasons=" + coverage.fallbackReasons();
     }

@@ -98,6 +98,14 @@ public final class GpuCoverageRegressionGate {
                         + expectation.backend());
                 result = new GpuCoverageGateResult(false, failures, coverage);
             }
+            if (requiresBf16Evidence(expectation) && !hasBf16DTypeEvidence(coverage)) {
+                var failures = new ArrayList<>(result.failures());
+                failures.add("missing BF16 dtype residency evidence workload="
+                        + expectation.workloadName()
+                        + " backend="
+                        + expectation.backend());
+                result = new GpuCoverageGateResult(false, failures, coverage);
+            }
             results.add(result);
         }
         return List.copyOf(results);
@@ -157,5 +165,19 @@ public final class GpuCoverageRegressionGate {
         return expectedVisibleReasons.stream()
                 .filter(reason -> reason != null && !reason.isBlank())
                 .anyMatch(visibleReasons::contains);
+    }
+
+    private static boolean requiresBf16Evidence(GpuCoverageHotPathExpectation expectation) {
+        return expectation != null
+                && expectation.nativeEvidenceRequired()
+                && expectation.workloadName().endsWith("_bf16");
+    }
+
+    private static boolean hasBf16DTypeEvidence(GpuCoverageSummary.BackendCoverage coverage) {
+        if (coverage == null || coverage.dtypeResidencyReasons().isEmpty()) {
+            return false;
+        }
+        return coverage.dtypeResidencyReasons().keySet().stream()
+                .anyMatch(reason -> reason.contains("dtype=BFLOAT16"));
     }
 }

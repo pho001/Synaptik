@@ -234,12 +234,14 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(text.contains("cpuMaterializationCount=1"));
         assertTrue(text.contains("fallbackCount=0"));
         assertTrue(text.contains("deviceHandoffCount=2"));
+        assertTrue(text.contains("dtypeResidencyReasons="));
 
         String json = JsonBenchmarkSuiteReportRenderer.render(report);
         assertTrue(json.contains("\"coverageSummary\""));
         assertTrue(json.contains("\"backend\": \"GPU_METAL\""));
         assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
         assertTrue(json.contains("\"maxSelectedRegionLength\": 3"));
+        assertTrue(json.contains("\"dtypeResidencyEvidence\""));
         assertTrue(json.contains("\"candidateSummaries\": ["));
         assertTrue(json.contains("\"hotspots\": ["));
         assertTrue(json.contains("\"workloads\": ["));
@@ -286,14 +288,18 @@ public class BenchmarkSuiteSessionTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(9, request.workloads().size());
+        assertEquals(13, request.workloads().size());
         assertTrue(names.contains("transformer_block_hot_path"));
         assertTrue(names.contains("mlp_classifier_small"));
+        assertTrue(names.contains("mlp_classifier_small_bf16"));
         assertTrue(names.contains("conv2d_resnet_3x3"));
         assertTrue(names.contains("max_pool2d_small"));
         assertTrue(names.contains("layer_norm_small"));
+        assertTrue(names.contains("layer_norm_small_bf16"));
         assertTrue(names.contains("rms_norm_small"));
+        assertTrue(names.contains("rms_norm_small_bf16"));
         assertTrue(names.contains("reduction_chain_small"));
+        assertTrue(names.contains("reduction_chain_small_bf16"));
         assertTrue(names.contains("cross_entropy_small"));
         assertTrue(names.contains("bool_compare_where_small"));
         assertTrue(request.entries().stream().anyMatch(entry -> entry.name().equals("phase14-target-coverage")));
@@ -360,6 +366,7 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(text.contains("nativeBufferStepCount="));
         assertTrue(text.contains("tensorArrayStepCount="));
         assertTrue(text.contains("cpuFallbackStepCount="));
+        assertTrue(text.contains("dtypeResidencyReasons="));
         assertTrue(json.contains("\"targetCoverageGates\""));
         assertTrue(json.contains("\"coverageGate\""));
         assertTrue(json.contains("\"gatePassed\""));
@@ -375,6 +382,7 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(json.contains("\"nativeBufferStepCount\""));
         assertTrue(json.contains("\"tensorArrayStepCount\""));
         assertTrue(json.contains("\"cpuFallbackStepCount\""));
+        assertTrue(json.contains("\"dtypeResidencyEvidence\""));
     }
 
     private static BenchmarkSuiteReport suiteReportFor(String workloadName, String backendName) {

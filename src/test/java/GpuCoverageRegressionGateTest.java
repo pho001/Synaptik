@@ -1,4 +1,5 @@
 import org.junit.jupiter.api.Test;
+import tuning.benchmark.report.GpuCoverageGateResult;
 import tuning.benchmark.report.GpuCoverageGatePolicy;
 import tuning.benchmark.report.GpuCoverageHotPathExpectation;
 import tuning.benchmark.report.GpuCoverageRegressionGate;
@@ -226,6 +227,36 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
+    void phaseThirtyBf16TargetsRequireDTypeResidencyEvidence() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.defaultExpectations()
+                .stream()
+                .filter(item -> item.workloadName().equals("mlp_classifier_small_bf16"))
+                .findFirst()
+                .orElseThrow();
+        var reportWithoutDTypeEvidence = reportFor(
+                "mlp_classifier_small_bf16",
+                coverage(0.75d, 3, 0, 0, 0, 1, 1, 1, 3, 1, 0)
+        );
+        var reportWithDTypeEvidence = reportFor(
+                "mlp_classifier_small_bf16",
+                coverageWithDTypeEvidence(0.75d, 3, 1, 3, 1)
+        );
+
+        List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithoutDTypeEvidence,
+                List.of(expectation)
+        );
+        List<GpuCoverageGateResult> passing = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithDTypeEvidence,
+                List.of(expectation)
+        );
+
+        assertTrue(missing.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("missing BF16 dtype residency evidence")));
+        assertTrue(passing.getFirst().passed(), passing.getFirst().failures().toString());
+    }
+
+    @Test
     void phaseTwentyEightVisibleBlockerFailureNamesWorkloadAndBackend() {
         GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.defaultExpectations()
                 .stream()
@@ -264,6 +295,122 @@ public class GpuCoverageRegressionGateTest {
                 config.optimizer.OptimizerConfig.noOptimization(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 config.profile.WorkloadProfile.transformerHotPathDefaults()
+        );
+    }
+
+    private static tuning.benchmark.report.BenchmarkSuiteReport reportFor(
+            String workloadName,
+            GpuCoverageSummary.BackendCoverage coverage
+    ) {
+        return new tuning.benchmark.report.BenchmarkSuiteReport(
+                null,
+                List.of(tuning.benchmark.report.BenchmarkReport.of(
+                        workloadName,
+                        List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
+                                tuning.benchmark.BenchmarkEntry.candidate("candidate", profile()),
+                                tuning.validate.ValidationResult.skipped(),
+                                new tuning.measure.MeasurementResult(
+                                        tuning.measure.MeasurementPolicy.defaults(),
+                                        traceWithCoverage(coverage),
+                                        new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
+                                )
+                        ))
+                ))
+        );
+    }
+
+    private static graph.execution.trace.ExecutionTrace traceWithCoverage(GpuCoverageSummary.BackendCoverage coverage) {
+        var manifest = new backend.accelerator.lowering.GpuLoweredRegionManifest(
+                "bf16-region",
+                backend.ComputeBackend.GPU_METAL,
+                1,
+                java.util.stream.IntStream.range(0, Math.max(1, coverage.maxSelectedRegionLength()))
+                        .boxed()
+                        .toList(),
+                List.of(1),
+                List.of(2),
+                Math.max(1, coverage.maxSelectedRegionLength()),
+                List.of(),
+                java.util.stream.IntStream.range(0, coverage.loweredPrimitiveCount())
+                        .mapToObj(index -> new backend.accelerator.lowering.GpuLoweredPrimitiveManifest(
+                                "p" + index,
+                                "BF16_TEST",
+                                List.of(index),
+                                List.of("external:0"),
+                                "node:" + index,
+                                tensor.DataType.BFLOAT16,
+                                List.of(2),
+                                List.of()
+                        ))
+                        .toList(),
+                List.of(),
+                List.of(),
+                coverage.gpuFusedSubpatternCount() == 0
+                        ? backend.accelerator.lowering.GpuCompoundRegionSummary.none(backend.ComputeBackend.GPU_METAL, List.of(1))
+                        : backend.accelerator.lowering.GpuCompoundRegionSummary.supported(
+                                backend.ComputeBackend.GPU_METAL,
+                                backend.accelerator.lowering.GpuCompoundPatternType.ELEMENTWISE_CHAIN,
+                                List.of(1, 2),
+                                List.of(1),
+                                List.of(2),
+                                List.of("ADD", "RELU"),
+                                List.of(),
+                                "bf16 synthetic fused subpattern"
+                        ),
+                List.of(),
+                backend.accelerator.lowering.GpuLoweredRegionCandidateSpan.none(List.of(1)),
+                coverage.dtypeResidencyReasons().isEmpty()
+                        ? Map.of()
+                        : Map.of("dtypeResidency.compute.1", "backend=GPU_METAL role=compute dtype=BFLOAT16 supported")
+        );
+        var gpuStep = new graph.execution.trace.ExecutionStepTrace(
+                0,
+                "gpu_metal_bf16",
+                "BF16_TEST",
+                List.of(2),
+                tensor.DataType.BFLOAT16,
+                "GPU_METAL",
+                "PreparedAcceleratorExecutable",
+                1L,
+                new graph.execution.trace.StepExecutionMetadata(
+                        "node",
+                        Map.ofEntries(
+                                Map.entry("acceleratorBufferBackend", "GPU_METAL"),
+                                Map.entry("acceleratorBufferExecutionPath", "BUFFER_BINDING"),
+                                Map.entry("acceleratorBufferReasonCode", "BUFFER_BINDING_AVAILABLE"),
+                                Map.entry("acceleratorBufferReason", "using native buffer bindings"),
+                                Map.entry("storageResidency", "DEVICE_OWNED")
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        var selection = new graph.execution.trace.BackendSelectionTrace(
+                1,
+                1,
+                0,
+                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                        1,
+                        manifest.orderedNodeIds(),
+                        List.of(backend.ComputeBackend.GPU_METAL),
+                        true,
+                        backend.ComputeBackend.GPU_METAL,
+                        "selected",
+                        128L,
+                        null,
+                        List.of(),
+                        manifest
+                ))
+        );
+        return new graph.execution.trace.ExecutionTrace(
+                new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
+                new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
+                new graph.execution.trace.RunTrace(backend.runtime.ExecutionMode.FORWARD, 1L, List.of(gpuStep), List.of())
         );
     }
 
@@ -340,6 +487,50 @@ public class GpuCoverageRegressionGateTest {
                 gpuFusedSubpatternCount == 0 ? List.of() : List.of("[1, 2]"),
                 gpuFusedSubpatternCount,
                 gpuFusedSubpatternCount == 0 ? List.of() : List.of("SUPPORTED_PATTERN"),
+                List.of("BUFFER_BINDING_AVAILABLE"),
+                List.of("using native buffer bindings")
+        );
+    }
+
+    private static GpuCoverageSummary.BackendCoverage coverageWithDTypeEvidence(
+            double ratio,
+            int maxSelectedRegionLength,
+            int multiOpGpuRegionCount,
+            int loweredPrimitiveCount,
+            int gpuFusedSubpatternCount
+    ) {
+        return new GpuCoverageSummary.BackendCoverage(
+                4,
+                3,
+                ratio,
+                1,
+                multiOpGpuRegionCount,
+                maxSelectedRegionLength,
+                maxSelectedRegionLength,
+                loweredPrimitiveCount,
+                0,
+                Map.of(),
+                1,
+                0,
+                0,
+                0,
+                0,
+                Map.of(),
+                0L,
+                0L,
+                0L,
+                1,
+                0,
+                0L,
+                Map.of(),
+                Map.of(),
+                Map.of("DEVICE_OWNED", 1),
+                Map.of("dtypeResidency backend=GPU_METAL role=compute dtype=BFLOAT16 supported", 1),
+                gpuFusedSubpatternCount,
+                gpuFusedSubpatternCount == 0 ? List.of() : List.of("ELEMENTWISE_CHAIN"),
+                gpuFusedSubpatternCount == 0 ? List.of() : List.of("[1, 2]"),
+                gpuFusedSubpatternCount,
+                gpuFusedSubpatternCount == 0 ? List.of() : List.of("SUPPORTED"),
                 List.of("BUFFER_BINDING_AVAILABLE"),
                 List.of("using native buffer bindings")
         );

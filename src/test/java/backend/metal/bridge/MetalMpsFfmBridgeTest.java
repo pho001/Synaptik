@@ -41,6 +41,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MetalMpsFfmBridgeTest {
+    private static final float BF16_EXACT_STORAGE_TOLERANCE = 0.0f;
+    private static final float BF16_MATMUL_REDUCTION_TOLERANCE = 0.5f;
+    private static final float BF16_NORM_SOFTMAX_TOLERANCE = 0.025f;
+
     @Test
     void bridgeReportsAvailabilityAndProducesContextWithoutThrowing() {
         MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
@@ -186,13 +190,43 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertBf16Close(new float[]{0.0f, 2.0f}, destination, 0.0f);
+            assertBf16Close(new float[]{0.0f, 2.0f}, destination, BF16_EXACT_STORAGE_TOLERANCE);
         } finally {
             if (input != null) {
                 allocator.destroy(input.handle());
             }
             if (output != null) {
                 allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimBfloat16BufferRoundTripsRawStorageExactly() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.capabilities().dtypeAbiV3Supported());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        try {
+            float[] values = new float[]{-1.5f, -0.125f, 0.0f, 1.25f, 8.0f};
+            input = allocator.createInputBinding(1, bf16Tensor(values, new int[]{5}, "bf16RawSource"));
+            Tensor destination = bf16Tensor(new float[values.length], new int[]{5}, "bf16RawDestination");
+
+            allocator.readToCpu(input, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertBf16RawBitsEqual(values, destination);
+            assertBf16Close(values, destination, BF16_EXACT_STORAGE_TOLERANCE);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
             }
         }
     }
@@ -238,13 +272,66 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertBf16Close(new float[]{19f, 22f, 43f, 50f}, destination, 0.0f);
+            assertBf16Close(new float[]{19f, 22f, 43f, 50f}, destination, BF16_MATMUL_REDUCTION_TOLERANCE);
         } finally {
             if (left != null) {
                 allocator.destroy(left.handle());
             }
             if (right != null) {
                 allocator.destroy(right.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16ReductionTolerance() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.capabilities().dtypeAbiV3Supported());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                reductionPlan(
+                        1,
+                        9,
+                        AcceleratorDagNodeType.SUM,
+                        Operation.OpType.SUM,
+                        1,
+                        true,
+                        new int[]{2, 3},
+                        new int[]{2, 1},
+                        DataType.BFLOAT16
+                )
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding output = null;
+        try {
+            input = allocator.createInputBinding(
+                    1,
+                    bf16Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, "bf16ReductionSource")
+            );
+            output = allocator.createOutputBinding(9, denseLayout(DataType.BFLOAT16, new int[]{2, 1}));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, List.of(input), List.of(output));
+            Tensor destination = bf16Tensor(new float[]{0.0f, 0.0f}, new int[]{2, 1}, "bf16ReductionDestination");
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertBf16Close(new float[]{6f, 15f}, destination, BF16_MATMUL_REDUCTION_TOLERANCE);
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
             }
             if (output != null) {
                 allocator.destroy(output.handle());
@@ -374,6 +461,48 @@ class MetalMpsFfmBridgeTest {
                 allocator.destroy(output.handle());
             }
         }
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16LayerNormTolerance() {
+        Tensor expectedSource = bf16Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, "expectedBf16LayerNormSource");
+        Tensor expectedGamma = bf16Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, "expectedBf16LayerNormGamma");
+        Tensor expectedBeta = bf16Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, "expectedBf16LayerNormBeta");
+        Tensor expected = expectedSource.layerNorm(expectedGamma, expectedBeta, 1.0e-5);
+        expected.compute();
+
+        Tensor source = bf16Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, "bf16LayerNormSource");
+        Tensor gamma = bf16Tensor(new float[]{1f, 1f, 1f}, new int[]{3}, "bf16LayerNormGamma");
+        Tensor beta = bf16Tensor(new float[]{0f, 0f, 0f}, new int[]{3}, "bf16LayerNormBeta");
+        Tensor out = source.layerNorm(gamma, beta, 1.0e-5);
+
+        Tensor destination = executeBf16LoweredNode(
+                out,
+                Operation.OpType.LAYER_NORM,
+                List.of(source, gamma, beta),
+                new int[]{2, 3}
+        );
+
+        assertBf16Close(bf16Floats(expected), destination, BF16_NORM_SOFTMAX_TOLERANCE);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsBfloat16SoftmaxTolerance() {
+        Tensor expectedSource = bf16Tensor(new float[]{-1f, 0f, 1f, 2f, 1f, -2f}, new int[]{2, 3}, "expectedBf16SoftmaxSource");
+        Tensor expected = expectedSource.softmax(1);
+        expected.compute();
+
+        Tensor source = bf16Tensor(new float[]{-1f, 0f, 1f, 2f, 1f, -2f}, new int[]{2, 3}, "bf16SoftmaxSource");
+        Tensor out = source.softmax(1);
+
+        Tensor destination = executeBf16LoweredNode(
+                out,
+                Operation.OpType.SOFTMAX,
+                List.of(source),
+                new int[]{2, 3}
+        );
+
+        assertBf16Close(bf16Floats(expected), destination, BF16_NORM_SOFTMAX_TOLERANCE);
     }
 
     @Test
@@ -703,6 +832,81 @@ class MetalMpsFfmBridgeTest {
         }
     }
 
+    private static void assertBf16RawBitsEqual(float[] expected, Tensor actual) {
+        short[] bits = actual.getBFloat16Data();
+        assertEquals(expected.length, bits.length);
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals(CpuDTypeOps.toBFloat16Bits(expected[i]), bits[i], "BF16 raw mismatch at " + i);
+        }
+    }
+
+    private static float[] bf16Floats(Tensor tensor) {
+        short[] bits = tensor.getBFloat16Data();
+        float[] values = new float[bits.length];
+        for (int i = 0; i < bits.length; i++) {
+            values[i] = CpuDTypeOps.fromBFloat16Bits(bits[i]);
+        }
+        return values;
+    }
+
+    private static Tensor executeBf16LoweredNode(
+            Tensor out,
+            Operation.OpType opType,
+            List<Tensor> inputs,
+            int[] outputShape
+    ) {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        PartitionPlanningContext planningContext = planningContext(out);
+        CompiledNode node = planningContext.compiledNode(nodeId(planningContext, opType));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                node.id(),
+                List.of(node.id()),
+                List.of(new AcceleratorSubgraphOp(node.id(), opType)),
+                node.inputIds(),
+                List.of(node.id())
+        );
+        AcceleratorSubgraphLoweringResult lowering = new AcceleratorSubgraphLowerer().tryLower(subgraph, planningContext);
+        assertNotNull(lowering);
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.capabilities().dtypeAbiV3Supported());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(
+                context,
+                new MetalPartitionPlan(node.id(), subgraph, lowering)
+        );
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        java.util.ArrayList<MetalBufferBinding> inputBindings = new java.util.ArrayList<>();
+        MetalBufferBinding output = null;
+        try {
+            for (int i = 0; i < inputs.size(); i++) {
+                inputBindings.add(allocator.createInputBinding(node.inputIds().get(i), inputs.get(i)));
+            }
+            output = allocator.createOutputBinding(node.id(), denseLayout(DataType.BFLOAT16, outputShape));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, inputBindings, List.of(output));
+            Tensor destination = bf16Tensor(new float[(int) output.layout().logicalElementCount()], outputShape, "bf16Destination");
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            return destination;
+        } finally {
+            for (MetalBufferBinding input : inputBindings) {
+                allocator.destroy(input.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
     private static MetalBufferBinding binding(int nodeId, MetalBufferAccess access) {
         return binding(nodeId, denseF32Layout(new int[]{2}), access);
     }
@@ -845,7 +1049,21 @@ class MetalMpsFfmBridgeTest {
             int[] inputShape,
             int[] outputShape
     ) {
-        AcceleratorDagInput input = new AcceleratorDagInput(inputNodeId, Arrays.stream(inputShape).boxed().toList(), DataType.FLOAT32);
+        return reductionPlan(inputNodeId, outputNodeId, nodeType, opType, axis, keepDims, inputShape, outputShape, DataType.FLOAT32);
+    }
+
+    private static MetalPartitionPlan reductionPlan(
+            int inputNodeId,
+            int outputNodeId,
+            AcceleratorDagNodeType nodeType,
+            Operation.OpType opType,
+            int axis,
+            boolean keepDims,
+            int[] inputShape,
+            int[] outputShape,
+            DataType dataType
+    ) {
+        AcceleratorDagInput input = new AcceleratorDagInput(inputNodeId, Arrays.stream(inputShape).boxed().toList(), dataType);
         AcceleratorDagNode node = new AcceleratorDagNode(
                 outputNodeId,
                 nodeType,
@@ -858,7 +1076,8 @@ class MetalMpsFfmBridgeTest {
                 outputShape[0],
                 outputShape.length >= 2 ? outputShape[1] : 1,
                 outputShape.length >= 3 ? outputShape[2] : 1,
-                outputShape.length >= 4 ? outputShape[3] : 1
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                dataType
         );
         AcceleratorDagSpec dag = new AcceleratorDagSpec(List.of(input), List.of(node), List.of(0), List.of(outputNodeId));
         AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(

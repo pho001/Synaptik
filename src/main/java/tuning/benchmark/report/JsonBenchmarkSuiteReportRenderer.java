@@ -80,6 +80,7 @@ public final class JsonBenchmarkSuiteReportRenderer {
             sb.append("\"cpuMaterializationCount\": ").append(coverage.cpuMaterializationCount()).append(", ");
             sb.append("\"fallbackCount\": ").append(coverage.fallbackCount()).append(", ");
             sb.append("\"deviceHandoffCount\": ").append(coverage.deviceHandoffCount()).append(", ");
+            sb.append("\"dtypeResidencyEvidence\": ").append(intMapJson(coverage.dtypeResidencyReasons())).append(", ");
             sb.append("\"nativeEvidence\": {");
             sb.append("\"backend\": \"").append(escape(nativeEvidence.backend())).append("\", ");
             sb.append("\"nativeStatus\": \"").append(escape(nativeEvidence.nativeStatus())).append("\", ");
@@ -178,9 +179,26 @@ public final class JsonBenchmarkSuiteReportRenderer {
                 + "\"cpuMaterializationCount\": " + coverage.cpuMaterializationCount() + ", "
                 + "\"fallbackCount\": " + coverage.fallbackCount() + ", "
                 + "\"deviceHandoffCount\": " + coverage.deviceHandoffCount() + ", "
+                + "\"dtypeResidencyEvidence\": " + intMapJson(coverage.dtypeResidencyReasons()) + ", "
                 + "\"reasonCodes\": " + stringListJson(coverage.reasonCodes()) + ", "
                 + "\"fallbackReasons\": " + stringListJson(coverage.fallbackReasons())
                 + "}";
+    }
+
+    private static String intMapJson(java.util.Map<String, Integer> values) {
+        if (values == null || values.isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        int i = 0;
+        for (var entry : values.entrySet()) {
+            if (i++ > 0) {
+                sb.append(", ");
+            }
+            sb.append('"').append(escape(entry.getKey())).append("\": ").append(entry.getValue());
+        }
+        sb.append('}');
+        return sb.toString();
     }
 
     private static String comparisonJson(GpuCoverageComparison comparison) {

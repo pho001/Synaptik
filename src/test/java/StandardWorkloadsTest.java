@@ -26,11 +26,15 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("matmul_batched_attention_like"));
         assertTrue(catalog.names().contains("abc_sequence_matmul_small"));
         assertTrue(catalog.names().contains("mlp_classifier_small"));
+        assertTrue(catalog.names().contains("mlp_classifier_small_bf16"));
         assertTrue(catalog.names().contains("mlp_classifier_blas_heavy"));
         assertTrue(catalog.names().contains("reduction_chain_small"));
+        assertTrue(catalog.names().contains("reduction_chain_small_bf16"));
         assertTrue(catalog.names().contains("conv2d_resnet_3x3"));
         assertTrue(catalog.names().contains("layer_norm_small"));
+        assertTrue(catalog.names().contains("layer_norm_small_bf16"));
         assertTrue(catalog.names().contains("rms_norm_small"));
+        assertTrue(catalog.names().contains("rms_norm_small_bf16"));
         assertTrue(catalog.names().contains("max_pool2d_small"));
         assertTrue(catalog.names().contains("cross_entropy_small"));
         assertTrue(catalog.names().contains("bool_compare_where_small"));
