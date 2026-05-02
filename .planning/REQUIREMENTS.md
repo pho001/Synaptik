@@ -21,9 +21,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### BOOL-Producing Metal Compute
 
-- [ ] **METALBOOL-01**: Metal can produce native device-resident `BOOL` outputs for supported compare and logical operations instead of supporting `BOOL` only as an external `WHERE` predicate input.
-- [ ] **METALBOOL-02**: Device-resident BOOL masks can feed `WHERE`, masked attention lowering, and other legal consumers without CPU materialization between supported GPU-region steps.
-- [ ] **METALBOOL-03**: `REDUCE_ALL` and `REDUCE_ANY` either execute as native Metal BOOL reductions or reject with stable dtype/rank/layout reasons.
+- [x] **METALBOOL-01**: Metal can produce native device-resident `BOOL` outputs for supported compare and logical operations instead of supporting `BOOL` only as an external `WHERE` predicate input.
+- [x] **METALBOOL-02**: Device-resident BOOL masks can feed `WHERE`, masked attention lowering, and other legal consumers without CPU materialization between supported GPU-region steps.
+- [x] **METALBOOL-03**: `REDUCE_ALL` and `REDUCE_ANY` either execute as native Metal BOOL reductions or reject with stable dtype/rank/layout reasons.
 
 ### INT32 Index Tensor And Gather Take Path
 
@@ -109,9 +109,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALBF16-01 | Phase 30 | Complete |
 | METALBF16-02 | Phase 30 | Complete |
 | METALBF16-03 | Phase 30 | Complete |
-| METALBOOL-01 | Phase 31 | Pending |
-| METALBOOL-02 | Phase 31 | Pending |
-| METALBOOL-03 | Phase 31 | Pending |
+| METALBOOL-01 | Phase 31 | Complete |
+| METALBOOL-02 | Phase 31 | Complete |
+| METALBOOL-03 | Phase 31 | Complete |
 | METALINTIDX-01 | Phase 32 | Pending |
 | METALINTIDX-02 | Phase 32 | Pending |
 | METALINTIDX-03 | Phase 32 | Pending |

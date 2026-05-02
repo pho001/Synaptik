@@ -50,7 +50,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | conv/pool | `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
 | index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
 | index/scatter/gather | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_DUPLICATE_INDEX` |
-| compare/bool | `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, `REDUCE_ANY` | unsupported | `UNSUPPORTED_DTYPE` |
+| compare/bool | `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, `REDUCE_ANY` | supported | `SUPPORTED`; dense scoped BOOL outputs execute through dtype ABI v3 and can feed legal `WHERE` mask-chain consumers without CPU materialization |
 | backward-adjacent | `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`, `MAX_GRAD` | supported | `SUPPORTED` |
 | fused compound patterns | `FUSED` | unsupported | `CPU_FUSED_OPERATION_UNSUPPORTED`; CPU `Operation.OpType.FUSED` remains CPU-only for Phase 12 |
 
@@ -86,14 +86,15 @@ Metal and CUDA coverage is backend-specific. Shared rows describe the common sem
 
 `dtype residency is not native dtype compute`. Phase 16 dtype residency records whether values such as `BFLOAT16`, `INT32`, and `BOOL` can stay represented in runtime storage and trace/report metadata. It does not widen Metal or CUDA native arithmetic beyond the backend role gates.
 
-Metal currently accepts `FLOAT32` compute/output broadly and `BFLOAT16` compute/output only for scoped operation families: `MATMUL`, `LINEAR`, arithmetic elementwise and activation ops, scalar multiply/clamp, `SOFTMAX`, `LOG_SOFTMAX`, `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM`. `BOOL` is still only predicate-style external input evidence for `WHERE`, not native BOOL-producing compute. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE` and stable details such as `backend=GPU_METAL role=operation dtype=BFLOAT16 code=UNSUPPORTED_OPERATION_DTYPE` or `backend=GPU_CUDA role=output dtype=INT32`.
+Metal currently accepts `FLOAT32` compute/output broadly, `BFLOAT16` compute/output only for scoped operation families (`MATMUL`, `LINEAR`, arithmetic elementwise and activation ops, scalar multiply/clamp, `SOFTMAX`, `LOG_SOFTMAX`, `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`, `LAYER_NORM`, and `RMS_NORM`), and `BOOL` compute/output only for scoped compare/logical/reduction mask families. `BOOL` can also be a predicate-style external input for `WHERE`, but reports distinguish that from native BOOL-producing compute through role-specific `dtypeResidency` evidence. CUDA native dense buffer execution remains `FLOAT32` only. Other dtype-role combinations reject with `UNSUPPORTED_DTYPE` and stable details such as `backend=GPU_METAL role=operation dtype=BFLOAT16 code=UNSUPPORTED_OPERATION_DTYPE` or `backend=GPU_CUDA role=output dtype=INT32`.
 
 Reports use `dtypeResidency` evidence to explain why a region stayed resident, shortened, or exited. A dtype-resident internal value can still be materialized later for a real CPU consumer, graph output, or gradient publication, and that CPU boundary remains reportable.
 
 Metal dtype capability truth is role-specific. `MetalMpsCapabilities` distinguishes storage representability, external
 input legality, predicate input legality, native compute legality, native output legality, and operation-specific dtype
 support. The optional Metal dtype ABI v3 probes prove that a native shim can describe widened dtype roles; BF16 support
-is still operation-scoped and capability-gated, while INT32, BOOL output, and FLOAT64 remain non-native compute/output.
+is still operation-scoped and capability-gated, BOOL output is limited to scoped compare/logical/reduction families,
+and INT32 plus FLOAT64 remain non-native compute/output.
 
 ## Phase 30 BF16 Metal contract
 
@@ -108,15 +109,15 @@ than "Metal supports BF16 everywhere":
   `reduction_chain_small_bf16` require Metal native buffer evidence, dtype residency evidence, zero CPU
   materializations, zero CPU fallback, and zero tensor-array fallback.
 
-Unsupported BF16 families must remain visible. Conv/pool, loss-adjacent ops, gather/take/scatter, masked SDPA,
-BOOL-producing compare/logical ops, and INT32 indexing compute remain rejected or fallback rows until their own
-semantic, native execution, parity, trace, and regression-gate evidence exists.
+Unsupported BF16 and BOOL families must remain visible. Conv/pool, loss-adjacent ops, gather/take/scatter, masked SDPA,
+arbitrary BOOL consumers, and INT32 indexing compute remain rejected or fallback rows until their own semantic, native
+execution, parity, trace, and regression-gate evidence exists.
 
 ## Phase 17 normalization, reduction, and loss-adjacent contract
 
 Phase 17 covers `GPUNORM-01` and `GPUNORM-02` by making normalization, reduction, softmax-ish, conv, and loss-adjacent gaps explicit in the shared Metal/CUDA matrix. The source-of-truth targets are `target=layer_norm_small`, `target=conv2d_resnet_3x3`, and `target=transformer_block_hot_path`.
 
-Phase 23 closes the forward reduction subset. `SUM`, `MEAN`, `REDUCE_MIN`, and `REDUCE_MAX` are supported rows for legal dense `FLOAT32` Metal/CUDA regions. Phase 24 extends that support to legal dense `FLOAT32` `LAYER_NORM` and `RMS_NORM` by lowering them into repeated keep-dims `MEAN`, epsilon scalar add, and elementwise DAG primitives. Loss, conv/pool, indexing, and BOOL compare outputs remain separate v1.4 closure targets.
+Phase 23 closes the forward reduction subset. `SUM`, `MEAN`, `REDUCE_MIN`, and `REDUCE_MAX` are supported rows for legal dense `FLOAT32` Metal/CUDA regions. Phase 24 extends that support to legal dense `FLOAT32` `LAYER_NORM` and `RMS_NORM` by lowering them into repeated keep-dims `MEAN`, epsilon scalar add, and elementwise DAG primitives. Phase 31 closes the Metal BOOL compare/logical/reduction subset. Loss, conv/pool, indexing, and CUDA BOOL outputs remain separate closure targets.
 
 `LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`. That support is separate from loss-adjacent operations such as `NLL_LOSS`, `CROSS_ENTROPY_LOSS`, and `CROSS_ENTROPY_LOSS_INDICES`, where unsupported loss-adjacent rows must remain visible fallback, not silent CPU replay.
 
@@ -134,9 +135,9 @@ Forward `GATHER` and `TAKE_ALONG_AXIS` remain `DAG_PRIMITIVE_UNSUPPORTED`; `GATH
 
 Phase 27 expands the matrix surface for conv/pool and BOOL-producing operations without claiming native GPU execution prematurely. Metal and CUDA now list every targeted conv/pool op explicitly: `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, and `AVG_POOL2D_BACKWARD_INPUT`. These rows are `CAPABILITY_MISSING` until backend-owned primitives or verified library routing preserve NCHW rank-4 shape, stride, padding, dilation, groups, pooling tie behavior, and average-pool divisor semantics.
 
-BOOL-producing operations are also explicit: `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, and `REDUCE_ANY`. They remain `UNSUPPORTED_DTYPE` because native accelerator output dtype support is still `FLOAT32` for compute outputs. Existing BOOL residency evidence for external `WHERE` predicate inputs is storage/role support only; it is not native BOOL-producing GPU compute.
+BOOL-producing operations are also explicit: `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, and `REDUCE_ANY`. Phase 31 promotes the Metal rows to supported for dense scoped BOOL outputs through MPSGraph compare/logical/reduction primitives. Existing BOOL residency evidence for external `WHERE` predicate inputs remains storage/role support only; native BOOL-producing GPU compute is proved separately by operation dtype legality, native buffer execution, exact BOOL byte parity, and `dtypeResidency` evidence for `role=compute` or `role=internalValue`.
 
-The next step before any Phase 27 row can become `SUPPORTED` is an actual DAG/native contract: ABI node type, lowerer mapping, legality gates, native Metal/CUDA execution or vendor-library routing, CPU parity tests, and report evidence for selected region length, lowered primitive count, backend path, and CPU exits.
+CUDA BOOL-producing rows remain `UNSUPPORTED_DTYPE` until a CUDA-native implementation provides the same DAG/native contract: ABI node type, lowerer mapping, legality gates, native execution or vendor-library routing, CPU parity tests, and report evidence for selected region length, lowered primitive count, backend path, and CPU exits.
 
 ## GPU Compound Region Lowering
 
@@ -259,7 +260,7 @@ region plus lowered primitive counts must stay above the target threshold. This 
 legal normalization targets, Metal forward SDPA, and the fused/MLP-style hot path.
 
 Targets that remain unsupported or capability-gated are still audit targets, but they pass only when the report exposes
-stable visible blockers. Conv/pool, native BOOL-producing compare outputs, loss/index blockers, and CUDA forward SDPA
+stable visible blockers. Conv/pool, CUDA BOOL-producing outputs, loss/index blockers, and CUDA forward SDPA
 must surface reason evidence such as `CAPABILITY_MISSING`, `UNSUPPORTED_DTYPE`, `UNSUPPORTED_INDEX_SEMANTICS`, operation
 family names, or target names. They do not count as native coverage closure until backend-owned execution and parity
 evidence exist.
