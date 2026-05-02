@@ -58,7 +58,8 @@ completed: 2026-05-02
 
 ## Task Commits
 
-1. **Docs and hard gate closure** - pending docs commit
+1. **Docs and hard gate closure** - `707d940` (docs)
+2. **Runtime route trace accuracy review fix** - `a4fc53b` (metal)
 
 ## Files Created/Modified
 

@@ -49,9 +49,14 @@ Explicitly not claimed:
 - `./gradlew test --tests backend.metal.exec.MetalExecutionRouterTest --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests SourceTreeHygieneTest` - passed
 - `./gradlew test --tests backend.metal.exec.MetalExecutionRouterTest --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.metal.bridge.MetalMpsFfmBridgeTest --tests backend.metal.MetalBufferTraceSmokeTest` - passed during 44-02
 - `./gradlew test --tests BenchmarkSessionTest --tests GpuCoverageRegressionGateTest --tests GpuCoverageGapTriageTest` - passed during 44-03
+- Runtime route metadata regression after review: `PreparedMetalExecutableBufferBindingTest.customKernelRouteReportsMpsGraphWhenRuntimeBindingsAreNotDense` - passed
 - `./gradlew classes` - passed
 - `./gradlew metalTest` - passed
 - `git diff --check` - passed
+
+## Review Closure
+
+Advisory code review is recorded in `44-REVIEW.md` with `findings_open: 0`. The only issue found during review was fixed in `a4fc53b`: runtime view/non-dense bindings now report `MPS_GRAPH` rather than leaving stale prepare-time `CUSTOM_KERNEL` route metadata after execution falls back to the MPSGraph buffer route.
 
 ## Source Hygiene
 
