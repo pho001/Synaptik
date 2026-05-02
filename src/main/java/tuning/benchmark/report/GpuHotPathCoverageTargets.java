@@ -39,7 +39,7 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "mlp_classifier_small_bf16",
                         "dtype_bf16",
-                        List.of("GPUNATIVE", "GPUFUSEX", "GPUCLOSE", "METALBF16"),
+                        List.of("GPUNATIVE", "GPUFUSEX", "GPUCLOSE", "METALBF16", "CUDADTYPE"),
                         30,
                         "Exercises BF16 linear, bias, activation, dtype residency, and fused epilogue coverage."
                 ),
@@ -74,7 +74,7 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "layer_norm_small_bf16",
                         "dtype_bf16",
-                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALBF16"),
+                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALBF16", "CUDADTYPE"),
                         30,
                         "Exercises BF16 LayerNorm, dtype residency, and normalization tolerance coverage."
                 ),
@@ -88,14 +88,14 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "rms_norm_small_bf16",
                         "dtype_bf16",
-                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALBF16"),
+                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALBF16", "CUDADTYPE"),
                         30,
                         "Exercises BF16 RMSNorm, dtype residency, and normalization tolerance coverage."
                 ),
                 new GpuHotPathCoverageTarget(
                         "reduction_chain_small_bf16",
                         "dtype_bf16",
-                        List.of("GPUNATIVE", "GPURED", "GPUCLOSE", "METALBF16"),
+                        List.of("GPUNATIVE", "GPURED", "GPUCLOSE", "METALBF16", "CUDADTYPE"),
                         30,
                         "Exercises BF16 SUM, MEAN, REDUCE_MIN, and REDUCE_MAX native coverage."
                 ),
@@ -158,7 +158,7 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "gather_take_small",
                         "index_gather",
-                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALINTIDX"),
+                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALINTIDX", "CUDADTYPE", "CUDAINDEX"),
                         32,
                         "Exercises forward GATHER and TAKE_ALONG_AXIS with INT32 index residency and native Metal execution."
                 ),
@@ -172,7 +172,7 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "layout_broadcast_repair_small",
                         "layout_repair",
-                        List.of("GPUNATIVE", "GPUCLOSE", "METALLAYOUT"),
+                        List.of("GPUNATIVE", "GPUCLOSE", "METALLAYOUT", "CUDADTYPE"),
                         33,
                         "Exercises zero-stride broadcast view repair through GPU layout materialization."
                 ),

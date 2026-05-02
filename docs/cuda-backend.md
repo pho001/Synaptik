@@ -10,6 +10,18 @@ Current CUDA native execution is intentionally conservative. Dense `FLOAT32` gra
 
 Public Tensor remains logical; CUDA residency belongs in ExecutionState and DeviceBufferBinding.
 
+## DType Roles
+
+Phase 41 adds role-specific CUDA dtype truth. `dtype residency is not native dtype compute`.
+
+- `FLOAT32` is the proven CUDA native compute/input/output dtype for the dense buffer path.
+- `INT32` is represented only as an `INDEX_INPUT` / residency role for index legality evidence. It is not generic CUDA INT32 arithmetic or output support.
+- `BOOL` is represented only as a `PREDICATE_INPUT` / residency role. CUDA BOOL-producing compute remains unsupported.
+- `BFLOAT16` is residency-only evidence on CUDA until native BF16 execution is implemented.
+- `FLOAT64` remains unsupported for CUDA native roles.
+
+CUDA buffer binder diagnostics include backend, role, dtype, and reason code, for example `backend=GPU_CUDA role=COMPUTE_OUTPUT dtype=INT32 code=RESIDENCY_ONLY_NOT_COMPUTE`.
+
 ## Current Native Bridge
 
 Main source files:
@@ -65,6 +77,17 @@ Current CUDA parity gaps include operation families such as dense loss, SDPA, co
 
 The v1.6 blocker set includes CUDA exits for transformer/SDPA, conv/pool, dense loss, gather/take, and BOOL compare/where targets. Scatter/index-gradient and training targets require native execution and parity evidence before support promotion.
 
+## Layout And Index Scope
+
+CUDA layout handling is explicit:
+
+- metadata-only layout views can keep CUDA residency when a later consumer can be made legal;
+- dense GPU materialization is scoped to dense `FLOAT32` target layouts and native layout-materialization capability;
+- broadcast/zero-stride materialization rejects with `CUDA_LAYOUT_BROADCAST_UNSUPPORTED` until a CUDA native materializer exists;
+- arbitrary strided native compute rejects with `CUDA_STRIDED_COMPUTE_UNSUPPORTED`.
+
+Forward `GATHER` and `TAKE_ALONG_AXIS` now validate the scoped CUDA contract before final rejection: dense `FLOAT32` value/output, dense static `INT32` indices, rank/axis/shape compatibility, and in-bounds indices. Legal candidates still end in `CAPABILITY_MISSING` because CUDA native forward gather/take execution has not been implemented. Invalid candidates reject earlier with `UNSUPPORTED_DTYPE`, `UNSUPPORTED_LAYOUT`, `UNSUPPORTED_RANK_OR_SHAPE`, or `UNSUPPORTED_BOUNDS_CHECK`.
+
 ## Fallback And Report Interpretation
 
 CUDA fallback interpretation starts with:
@@ -86,6 +109,7 @@ Portable CUDA parity baseline checks:
 ```bash
 ./gradlew test --tests backend.accelerator.lowering.GpuBackendParityReportTest
 ./gradlew test --tests backend.cuda.bridge.CudaCapabilityReportTest --tests backend.cuda.bridge.CudaFfmBridgeTest
+./gradlew test --tests backend.cuda.CudaDTypeRolePolicyTest --tests backend.cuda.buffer.CudaDeviceLayoutMaterializerTest --tests backend.cuda.lowering.CudaRegionLowererTest
 ./gradlew test --tests GpuCoverageTriageReportTest --tests GpuHotPathCoverageTargetsTest
 ./gradlew classes
 ```

@@ -15,9 +15,9 @@ Requirements for the v1.6 milestone. Each requirement maps to exactly one roadma
 
 ### CUDA DType Layout And Index Residency
 
-- [ ] **CUDADTYPE-01**: CUDA buffer binding and runtime residency can represent BF16, BOOL, and INT32 roles needed by v1.6 without claiming unsupported compute/output dtypes.
-- [ ] **CUDADTYPE-02**: CUDA layout routing handles metadata-only views and legal dense materialization or rejects with stable layout reason codes matching the shared accelerator contract.
-- [ ] **CUDAINDEX-01**: CUDA forward `GATHER` and `TAKE_ALONG_AXIS` either execute for the scoped INT32 index contract or reject with explicit bounds/layout/dtype evidence while preserving adjacent GPU producers.
+- [x] **CUDADTYPE-01**: CUDA buffer binding and runtime residency can represent BF16, BOOL, and INT32 roles needed by v1.6 without claiming unsupported compute/output dtypes.
+- [x] **CUDADTYPE-02**: CUDA layout routing handles metadata-only views and legal dense materialization or rejects with stable layout reason codes matching the shared accelerator contract.
+- [x] **CUDAINDEX-01**: CUDA forward `GATHER` and `TAKE_ALONG_AXIS` either execute for the scoped INT32 index contract or reject with explicit bounds/layout/dtype evidence while preserving adjacent GPU producers.
 
 ### CUDA NN Operation Parity
 
@@ -78,9 +78,9 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 | CUDAPARITY-01 | Phase 40 | Complete |
 | CUDAPARITY-02 | Phase 40 | Complete |
 | CUDAPARITY-03 | Phase 40 | Complete |
-| CUDADTYPE-01 | Phase 41 | Pending |
-| CUDADTYPE-02 | Phase 41 | Pending |
-| CUDAINDEX-01 | Phase 41 | Pending |
+| CUDADTYPE-01 | Phase 41 | Complete |
+| CUDADTYPE-02 | Phase 41 | Complete |
+| CUDAINDEX-01 | Phase 41 | Complete |
 | CUDANN-01 | Phase 42 | Pending |
 | CUDANN-02 | Phase 42 | Pending |
 | CUDANN-03 | Phase 42 | Pending |
@@ -104,4 +104,4 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 
 ---
 *Requirements defined: 2026-05-02*
-*Last updated: 2026-05-02 after v1.6 milestone start*
+*Last updated: 2026-05-02 after Phase 41 execution*

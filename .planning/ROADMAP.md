@@ -55,7 +55,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 41: CUDA DType Layout And Index Residency
 
-**Status:** Planned
+**Status:** Complete
 
 **Goal:** Expand CUDA dtype/layout/index residency and forward indexing coverage without overclaiming unsupported compute.
 
@@ -71,10 +71,10 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 5. Coverage gates distinguish dtype residency, native dtype compute, layout repair, and CPU materialization.
 
 **Planned waves:**
-- [ ] 41-01 CUDA dtype role and residency contract.
-- [ ] 41-02 CUDA layout router/materialization parity.
-- [ ] 41-03 CUDA forward gather/take execution or stable rejection.
-- [ ] 41-04 Coverage gates and docs.
+- [x] 41-01 CUDA dtype role and residency contract.
+- [x] 41-02 CUDA layout router/materialization parity.
+- [x] 41-03 CUDA forward gather/take execution or stable rejection.
+- [x] 41-04 Coverage gates and docs.
 
 ### Phase 42: CUDA NN Operation Parity
 
@@ -193,8 +193,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is planned and ready for execution.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is executed and verified. Phase 42 CUDA NN Operation Parity is ready for `$gsd-discuss-phase 42 --auto` or `$gsd-plan-phase 42 --auto`.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 41 planning*
+*Last updated: 2026-05-02 after Phase 41 execution*

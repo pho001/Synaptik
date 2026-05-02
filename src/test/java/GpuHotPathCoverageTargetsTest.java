@@ -131,6 +131,12 @@ public class GpuHotPathCoverageTargetsTest {
         assertEquals(4, targets.stream()
                 .filter(target -> target.requirementFamilies().contains("METALBF16"))
                 .count());
+        assertEquals(6, targets.stream()
+                .filter(target -> target.requirementFamilies().contains("CUDADTYPE"))
+                .count());
+        assertEquals(1, targets.stream()
+                .filter(target -> target.requirementFamilies().contains("CUDAINDEX"))
+                .count());
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUNATIVE")));
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUCLOSE")));
         assertEquals(23, targets.getFirst().ownerPhase());
