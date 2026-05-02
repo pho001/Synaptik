@@ -170,7 +170,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 46: Cross-Backend Router Calibration And Regression Gates
 
-**Status:** Not started
+**Status:** Complete
 
 **Goal:** Calibrate and gate backend route decisions across MPSGraph, custom Metal, CUDA, tensor-array fallback, and CPU fallback.
 
@@ -186,15 +186,15 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 5. Milestone audit can verify every v1.6 support claim from tests, docs, reports, and trace evidence.
 
 **Planned waves:**
-- [ ] 46-01 Router calibration evidence model.
-- [ ] 46-02 Representative workload gates.
-- [ ] 46-03 Report and docs closure.
-- [ ] 46-04 Milestone audit readiness.
+- [x] 46-01 Router calibration evidence model.
+- [x] 46-02 Representative workload gates.
+- [x] 46-03 Report and docs closure.
+- [x] 46-04 Milestone audit readiness.
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete, security-passed, and Nyquist-validated. Phase 44 Custom Metal Kernel Execution Route is complete and verified. Phase 45 Metal Output Buffer Write And Copy Closure is complete and verified. Phase 46 Cross-Backend Router Calibration And Regression Gates is ready to plan.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete, security-passed, and Nyquist-validated. Phase 44 Custom Metal Kernel Execution Route is complete and verified. Phase 45 Metal Output Buffer Write And Copy Closure is complete and verified. Phase 46 Cross-Backend Router Calibration And Regression Gates is complete and verified.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 45 completion*
+*Last updated: 2026-05-02 after Phase 46 completion*

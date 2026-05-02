@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Accelerator Backend Parity And Native Kernel Closure
-status: ready_to_plan
-last_updated: "2026-05-02T15:05:00.000Z"
-last_activity: 2026-05-02 -- Phase 45 complete; Phase 46 ready to plan
+status: ready_for_milestone_audit
+last_updated: "2026-05-02T16:20:00.000Z"
+last_activity: 2026-05-02 -- Phase 46 complete; v1.6 ready for milestone audit
 progress:
   total_phases: 7
   completed_phases: 6
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 46 Cross-Backend Router Calibration And Regression Gates planning
+**Current focus:** v1.6 milestone audit
 
 ## Project Reference
 
@@ -82,7 +82,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 43 — CUDA Training And Index Semantics | Complete | 4/4 | Verified |
 | 44 — Custom Metal Kernel Execution Route | Complete | 4/4 | Verified |
 | 45 — Metal Output Buffer Write And Copy Closure | Complete | 4/4 | Verified |
-| 46 — Cross-Backend Router Calibration And Regression Gates | Not started | 0/4 | Not verified |
+| 46 — Cross-Backend Router Calibration And Regression Gates | Complete | 4/4 | Verified |
 | 29 — Metal DType ABI And Capability Truth | Archived | 4/4 | Verified |
 | 30 — BF16 Metal Compute And Output | Archived | 4/4 | Verified |
 | 31 — BOOL-Producing Metal Compute | Archived | 4/4 | Verified |

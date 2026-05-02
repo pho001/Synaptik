@@ -142,7 +142,7 @@ v1.5 Production-Grade Metal Backend Expansion shipped and was archived on 2026-0
 - [ ] v1.6 must add CUDA execution or stable rejection evidence for dtype/layout/index, NN forward, training/backward, and scatter/index-gradient families.
 - [ ] v1.6 must replace the placeholder custom Metal kernel route with at least one real route-backed kernel family and parity evidence.
 - [ ] v1.6 must prove true output-buffer write behavior or retain an explicit lower-copy strategy without labeling `MPSGRAPH_RESULT_COPY` as zero-copy.
-- [ ] v1.6 must harden cross-backend router/cost gates so faster paths are selected only when capability, dtype, layout, and calibrated cost evidence support them.
+- [x] v1.6 must harden cross-backend router/cost gates so faster paths are selected only when capability, dtype, layout, and calibrated cost evidence support them.
 
 ### Out of Scope
 

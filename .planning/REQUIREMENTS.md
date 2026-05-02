@@ -45,9 +45,9 @@ Requirements for the v1.6 milestone. Each requirement maps to exactly one roadma
 
 ### Cross-Backend Router Calibration And Regression Gates
 
-- [ ] **BACKENDROUTE-01**: The accelerator router uses calibrated shape, dtype, layout, route, copy, and fallback evidence to choose among MPSGraph, custom Metal kernels, CUDA, tensor-array fallback, and CPU fallback.
-- [ ] **BACKENDROUTE-02**: Representative transformer, MLP, conv/pool, indexing, loss, and training workloads fail gates on hidden CPU exits, tensor-array replay, unsupported route overclaims, or unexpected native-copy regressions.
-- [ ] **BACKENDROUTE-03**: Documentation, coverage summaries, and milestone audit artifacts make backend parity, custom-kernel scope, CUDA capability skips, and copy strategy boundaries reviewable.
+- [x] **BACKENDROUTE-01**: The accelerator router uses calibrated shape, dtype, layout, route, copy, and fallback evidence to choose among MPSGraph, custom Metal kernels, CUDA, tensor-array fallback, and CPU fallback.
+- [x] **BACKENDROUTE-02**: Representative transformer, MLP, conv/pool, indexing, loss, and training workloads fail gates on hidden CPU exits, tensor-array replay, unsupported route overclaims, or unexpected native-copy regressions.
+- [x] **BACKENDROUTE-03**: Documentation, coverage summaries, and milestone audit artifacts make backend parity, custom-kernel scope, CUDA capability skips, and copy strategy boundaries reviewable.
 
 ## Future Requirements
 
@@ -93,9 +93,9 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 | METALCOPY-01 | Phase 45 | Complete |
 | METALCOPY-02 | Phase 45 | Complete |
 | METALCOPY-03 | Phase 45 | Complete |
-| BACKENDROUTE-01 | Phase 46 | Pending |
-| BACKENDROUTE-02 | Phase 46 | Pending |
-| BACKENDROUTE-03 | Phase 46 | Pending |
+| BACKENDROUTE-01 | Phase 46 | Complete |
+| BACKENDROUTE-02 | Phase 46 | Complete |
+| BACKENDROUTE-03 | Phase 46 | Complete |
 
 **Coverage:**
 - v1.6 requirements: 21 total
