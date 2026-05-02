@@ -87,9 +87,9 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 | CUDATRAIN-01 | Phase 43 | Complete |
 | CUDATRAIN-02 | Phase 43 | Complete |
 | CUDATRAIN-03 | Phase 43 | Complete |
-| METALKERNEL-01 | Phase 44 | Pending |
-| METALKERNEL-02 | Phase 44 | Pending |
-| METALKERNEL-03 | Phase 44 | Pending |
+| METALKERNEL-01 | Phase 44 | Complete |
+| METALKERNEL-02 | Phase 44 | Complete |
+| METALKERNEL-03 | Phase 44 | Complete |
 | METALCOPY-01 | Phase 45 | Pending |
 | METALCOPY-02 | Phase 45 | Pending |
 | METALCOPY-03 | Phase 45 | Pending |
