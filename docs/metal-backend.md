@@ -363,9 +363,17 @@ ABI means application binary interface: the binary contract between Java FFM and
 | `synaptik_apple_mps_destroy_executable` | discovered, but cached executables are retained for reuse | Releases an executable box. |
 | `synaptik_apple_mps_layout_abi_version` | `MetalMpsFfmBridge.capabilities()` | Optional layout ABI v2 version probe. |
 | `synaptik_apple_mps_validate_layout_abi_v2` | layout ABI v2 capability checks | Optional metadata-only layout descriptor validation. |
+| `synaptik_apple_mps_dtype_abi_version` | `MetalMpsFfmBridge.capabilities()` | Optional dtype ABI v3 version probe. |
+| `synaptik_apple_mps_validate_dtype_abi_v3` | dtype ABI v3 capability checks | Optional role-specific dtype descriptor validation. |
 
 Layout ABI v2 symbols are optional-symbol gated. Missing layout ABI v2 symbols disable only layout ABI v2 capability;
 they do not disable the existing dense v1 buffer execution path.
+
+DType ABI v3 symbols are also optional-symbol gated. Missing dtype ABI v3 symbols do not disable the current
+`FLOAT32` `_f32` execution path, but they do prevent widened dtype execution from being claimed. The v3 descriptor
+can name storage, external input, predicate input, compute, and output roles for all public Synaptik dtypes. The
+current native contract still validates only `FLOAT32` compute/output, `FLOAT32` data inputs, and `BOOL` predicate
+inputs.
 
 Layout ABI v2 rejection uses stable accelerator buffer reason codes:
 
@@ -623,13 +631,17 @@ Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can 
 
 | Role | Supported today |
 |---|---|
+| Storage metadata/residency | `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, `FLOAT64` are representable as dtype metadata; this is not native compute support. |
 | Compute node dtype | `FLOAT32` only |
 | Output dtype | `FLOAT32` only |
 | Normal external data input | `FLOAT32` |
 | Predicate external input | `BOOL` only for `WHERE` input 0 |
+| Descriptor ABI coverage | dtype ABI v3 can describe `FLOAT32`, `BFLOAT16`, `INT32`, `BOOL`, and `FLOAT64` roles. |
 | Unsupported compute/output dtypes | `FLOAT64`, `BFLOAT16`, `INT32`, `BOOL` |
 
-The native symbol names include `_f32` for a reason. The bridge should not claim Metal support for `FLOAT64` or `BFLOAT16` graphs unless a new ABI and tests are added.
+The native symbol names include `_f32` for a reason. The bridge should not claim Metal support for `FLOAT64`,
+`BFLOAT16`, `INT32`, or BOOL-producing graphs unless a widened execution ABI/router path and tests are added. Phase 29
+adds dtype truth and ABI discovery only; later phases add actual BF16, BOOL-output, and INT32 execution.
 
 ### Planner allowlist
 

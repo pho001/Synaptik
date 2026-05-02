@@ -865,15 +865,30 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                             ADDRESS
                     )
             );
+            MethodHandle dtypeAbiVersionFn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_dtype_abi_version",
+                    FunctionDescriptor.of(JAVA_INT)
+            );
+            MethodHandle validateDTypeAbiV3Fn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_validate_dtype_abi_v3",
+                    FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS, ADDRESS, ADDRESS)
+            );
             MethodHandle layoutContiguousF32BufferFn = optionalHandle(
                     linker,
                     lookup,
                     "synaptik_apple_mps_layout_contiguous_f32_buffer",
                     FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG)
             );
-            int layoutAbiV2Version = layoutAbiVersion(layoutAbiVersionFn);
+            int layoutAbiV2Version = abiVersion(layoutAbiVersionFn);
             boolean layoutAbiV2Supported = layoutAbiV2Version == AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
                     && validateLayoutAbiV2Fn != null;
+            int dtypeAbiV3Version = abiVersion(dtypeAbiVersionFn);
+            boolean dtypeAbiV3Supported = dtypeAbiV3Version == MetalDTypeAbiV3Support.REQUIRED_VERSION
+                    && validateDTypeAbiV3Fn != null;
 
             int available = (int) availableFn.invokeExact();
             boolean bufferSupported = createBufferFn != null
@@ -889,8 +904,10 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         bufferSupported,
                         layoutAbiV2Supported,
                         layoutAbiV2Version,
-                        metalCapabilityCode(layoutAbiV2Version, layoutAbiV2Supported),
-                        metalCapabilityReason(layoutAbiV2Version, layoutAbiV2Supported)
+                        dtypeAbiV3Supported,
+                        dtypeAbiV3Version,
+                        metalCapabilityCode(layoutAbiV2Version, layoutAbiV2Supported, dtypeAbiV3Version, dtypeAbiV3Supported),
+                        metalCapabilityReason(layoutAbiV2Version, layoutAbiV2Supported, dtypeAbiV3Version, dtypeAbiV3Supported)
                 );
                 return new State(true, null, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
                         executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
@@ -907,6 +924,8 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     bufferSupported,
                     layoutAbiV2Supported,
                     layoutAbiV2Version,
+                    dtypeAbiV3Supported,
+                    dtypeAbiV3Version,
                     MetalMpsCapabilityCode.RUNTIME_UNAVAILABLE,
                     reason
             );
@@ -939,38 +958,63 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         return segment == null ? null : linker.downcallHandle(segment, descriptor);
     }
 
-    private static int layoutAbiVersion(MethodHandle layoutAbiVersionFn) {
-        if (layoutAbiVersionFn == null) {
+    private static int abiVersion(MethodHandle abiVersionFn) {
+        if (abiVersionFn == null) {
             return 0;
         }
         try {
-            return Math.max(0, (int) layoutAbiVersionFn.invokeExact());
+            return Math.max(0, (int) abiVersionFn.invokeExact());
         } catch (Throwable ignored) {
             return 0;
         }
     }
 
-    private static MetalMpsCapabilityCode metalCapabilityCode(int layoutAbiV2Version, boolean layoutAbiV2Supported) {
-        if (layoutAbiV2Supported) {
+    private static MetalMpsCapabilityCode metalCapabilityCode(
+            int layoutAbiV2Version,
+            boolean layoutAbiV2Supported,
+            int dtypeAbiV3Version,
+            boolean dtypeAbiV3Supported
+    ) {
+        if (layoutAbiV2Supported && dtypeAbiV3Supported) {
             return MetalMpsCapabilityCode.AVAILABLE;
         }
-        if (layoutAbiV2Version == 0) {
-            return MetalMpsCapabilityCode.LAYOUT_ABI_V2_UNAVAILABLE;
+        if (!layoutAbiV2Supported) {
+            if (layoutAbiV2Version == 0) {
+                return MetalMpsCapabilityCode.LAYOUT_ABI_V2_UNAVAILABLE;
+            }
+            return MetalMpsCapabilityCode.LAYOUT_ABI_V2_VERSION_MISMATCH;
         }
-        return MetalMpsCapabilityCode.LAYOUT_ABI_V2_VERSION_MISMATCH;
+        if (dtypeAbiV3Version == 0) {
+            return MetalMpsCapabilityCode.DTYPE_ABI_V3_UNAVAILABLE;
+        }
+        return MetalMpsCapabilityCode.DTYPE_ABI_V3_VERSION_MISMATCH;
     }
 
-    private static String metalCapabilityReason(int layoutAbiV2Version, boolean layoutAbiV2Supported) {
-        if (layoutAbiV2Supported) {
+    private static String metalCapabilityReason(
+            int layoutAbiV2Version,
+            boolean layoutAbiV2Supported,
+            int dtypeAbiV3Version,
+            boolean dtypeAbiV3Supported
+    ) {
+        if (layoutAbiV2Supported && dtypeAbiV3Supported) {
             return "";
         }
-        if (layoutAbiV2Version == 0) {
-            return "Metal layout ABI v2 symbols unavailable";
+        if (!layoutAbiV2Supported) {
+            if (layoutAbiV2Version == 0) {
+                return "Metal layout ABI v2 symbols unavailable";
+            }
+            return "Metal layout ABI v2 version mismatch: expected "
+                    + AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
+                    + ", got "
+                    + layoutAbiV2Version;
         }
-        return "Metal layout ABI v2 version mismatch: expected "
-                + AcceleratorLayoutAbiV2Support.REQUIRED_VERSION
+        if (dtypeAbiV3Version == 0) {
+            return "Metal dtype ABI v3 symbols unavailable";
+        }
+        return "Metal dtype ABI v3 version mismatch: expected "
+                + MetalDTypeAbiV3Support.REQUIRED_VERSION
                 + ", got "
-                + layoutAbiV2Version;
+                + dtypeAbiV3Version;
     }
 
     private static SymbolLookup resolveLookup(Arena arena) {

@@ -35,6 +35,8 @@ A Metal row can become `SUPPORTED` only when the codebase has all of: semantic c
 
 ### Phase 29: Metal DType ABI And Capability Truth
 
+**Status:** Complete - verified 2026-05-02
+
 **Goal:** Establish versioned Metal dtype ABI/capability contracts before widening native compute.
 
 **Requirements:** METALDTYPE-01, METALDTYPE-02, METALDTYPE-03
@@ -48,11 +50,19 @@ A Metal row can become `SUPPORTED` only when the codebase has all of: semantic c
 4. FLOAT64 receives an explicit device capability decision instead of accidental support.
 5. Phase 30-32 can add dtype-specific execution without reopening ABI semantics.
 
-**Planned waves:**
-- [29-01 Metal dtype capability model and reason codes](phases/29-metal-dtype-abi-and-capability-truth/29-01-PLAN.md).
-- [29-02 Native ABI v3 dtype descriptor and optional-symbol probes](phases/29-metal-dtype-abi-and-capability-truth/29-02-PLAN.md).
-- [29-03 Dtype trace/report and coverage truth update](phases/29-metal-dtype-abi-and-capability-truth/29-03-PLAN.md).
-- [29-04 Docs, tests, and migration closure](phases/29-metal-dtype-abi-and-capability-truth/29-04-PLAN.md).
+**Plans:**
+
+Wave 1:
+- [x] [29-01 Metal dtype capability model and reason codes](phases/29-metal-dtype-abi-and-capability-truth/29-01-PLAN.md).
+
+Wave 2 *(blocked on Wave 1 completion)*:
+- [x] [29-02 Native ABI v3 dtype descriptor and optional-symbol probes](phases/29-metal-dtype-abi-and-capability-truth/29-02-PLAN.md).
+
+Wave 3 *(blocked on Waves 1-2 completion)*:
+- [x] [29-03 Dtype trace/report and coverage truth update](phases/29-metal-dtype-abi-and-capability-truth/29-03-PLAN.md).
+
+Wave 4 *(blocked on Waves 1-3 completion)*:
+- [x] [29-04 Docs, tests, and migration closure](phases/29-metal-dtype-abi-and-capability-truth/29-04-PLAN.md).
 
 ### Phase 30: BF16 Metal Compute And Output
 

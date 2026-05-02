@@ -65,8 +65,12 @@ class MetalMpsFfmBridgeTest {
         assertNotNull(capabilities.reason());
         assertEquals(bridge.supportsBufferBindings(), capabilities.bufferExecutionSupported());
         assertTrue(capabilities.layoutAbiV2Version() >= 0);
+        assertTrue(capabilities.dtypeAbiV3Version() >= 0);
         if (capabilities.layoutAbiV2Version() < AcceleratorLayoutAbiV2Support.REQUIRED_VERSION) {
             assertFalse(capabilities.layoutAbiV2Supported());
+        }
+        if (capabilities.dtypeAbiV3Version() < MetalDTypeAbiV3Support.REQUIRED_VERSION) {
+            assertFalse(capabilities.dtypeAbiV3Supported());
         }
     }
 

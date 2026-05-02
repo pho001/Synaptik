@@ -2,6 +2,8 @@ package backend.accelerator.residency;
 
 import backend.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
+import backend.metal.MetalDTypeCapabilityDecision;
+import backend.metal.MetalMpsCapabilities;
 import tensor.DataType;
 
 import java.util.Objects;
@@ -61,23 +63,29 @@ public final class AcceleratorDTypeResidencyPolicy {
     }
 
     private static AcceleratorDTypeResidencyDecision metalDecision(DataType dataType, String role) {
-        boolean inputLegal = dataType == DataType.FLOAT32
-                || (dataType == DataType.BOOL && ROLE_EXTERNAL_INPUT.equals(role));
-        boolean outputLegal = dataType == DataType.FLOAT32 && ROLE_OUTPUT.equals(role);
-        boolean computeLegal = dataType == DataType.FLOAT32 && ROLE_COMPUTE.equals(role);
+        MetalDTypeCapabilityDecision decision = switch (role) {
+            case ROLE_EXTERNAL_INPUT -> MetalMpsCapabilities.externalInputDecision(dataType);
+            case ROLE_OUTPUT -> MetalMpsCapabilities.outputDecision(dataType);
+            case ROLE_COMPUTE -> MetalMpsCapabilities.computeDecision(dataType);
+            case ROLE_INTERNAL_VALUE -> MetalMpsCapabilities.storageDecision(dataType);
+            default -> MetalMpsCapabilities.computeDecision(dataType);
+        };
         boolean legal = switch (role) {
-            case ROLE_EXTERNAL_INPUT -> inputLegal;
-            case ROLE_OUTPUT -> outputLegal;
-            case ROLE_COMPUTE -> computeLegal;
+            case ROLE_EXTERNAL_INPUT, ROLE_OUTPUT, ROLE_COMPUTE -> decision.supported();
             case ROLE_INTERNAL_VALUE -> dataType == DataType.FLOAT32;
             default -> false;
         };
         if (legal) {
-            return supported(ComputeBackend.GPU_METAL, dataType, role, inputLegal, outputLegal, computeLegal);
+            return supported(
+                    ComputeBackend.GPU_METAL,
+                    dataType,
+                    role,
+                    ROLE_EXTERNAL_INPUT.equals(role),
+                    ROLE_OUTPUT.equals(role),
+                    ROLE_COMPUTE.equals(role)
+            );
         }
-        return rejected(ComputeBackend.GPU_METAL, dataType, role, true,
-                "backend=GPU_METAL role=" + role + " dtype=" + dataType
-                        + " unsupported; Metal MPS bridge supports FLOAT32 compute/output tensors and BOOL only for predicate inputs");
+        return rejected(ComputeBackend.GPU_METAL, dataType, role, true, decision.detail());
     }
 
     private static AcceleratorDTypeResidencyDecision cudaDecision(DataType dataType, String role) {

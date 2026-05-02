@@ -10,6 +10,8 @@ package backend.metal.bridge;
  * @param bufferExecutionSupported whether native buffer execution can be used
  * @param layoutAbiV2Supported whether layout ABI v2 metadata symbols can be used
  * @param layoutAbiV2Version native layout ABI version, or 0 when unavailable
+ * @param dtypeAbiV3Supported whether dtype ABI v3 descriptor symbols can be used
+ * @param dtypeAbiV3Version native dtype ABI version, or 0 when unavailable
  * @param code stable capability code
  * @param reason human-readable diagnostic reason
  */
@@ -21,11 +23,14 @@ public record MetalMpsBridgeCapabilities(
         boolean bufferExecutionSupported,
         boolean layoutAbiV2Supported,
         int layoutAbiV2Version,
+        boolean dtypeAbiV3Supported,
+        int dtypeAbiV3Version,
         MetalMpsCapabilityCode code,
         String reason
 ) {
     public MetalMpsBridgeCapabilities {
         layoutAbiV2Version = Math.max(0, layoutAbiV2Version);
+        dtypeAbiV3Version = Math.max(0, dtypeAbiV3Version);
         code = code == null ? MetalMpsCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE : code;
         reason = reason == null ? "" : reason;
     }
@@ -37,6 +42,8 @@ public record MetalMpsBridgeCapabilities(
                 false,
                 false,
                 false,
+                false,
+                0,
                 false,
                 0,
                 code,

@@ -9,9 +9,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### Metal DType ABI And Capability Truth
 
-- [ ] **METALDTYPE-01**: Metal capability probing distinguishes representable storage dtypes, legal compute dtypes, legal output dtypes, and operation-specific dtype support for `FLOAT32`, `BFLOAT16`, `BOOL`, `INT32`, and `FLOAT64`.
-- [ ] **METALDTYPE-02**: A versioned Metal native ABI can carry dtype metadata beyond the current `_f32` path without letting older `.dylib` builds silently claim unsupported dtype execution.
-- [ ] **METALDTYPE-03**: Coverage reports and planner diagnostics expose dtype-specific support, fallback, and capability reasons without conflating dtype residency with native dtype compute.
+- [x] **METALDTYPE-01**: Metal capability probing distinguishes representable storage dtypes, legal compute dtypes, legal output dtypes, and operation-specific dtype support for `FLOAT32`, `BFLOAT16`, `BOOL`, `INT32`, and `FLOAT64`.
+- [x] **METALDTYPE-02**: A versioned Metal native ABI can carry dtype metadata beyond the current `_f32` path without letting older `.dylib` builds silently claim unsupported dtype execution.
+- [x] **METALDTYPE-03**: Coverage reports and planner diagnostics expose dtype-specific support, fallback, and capability reasons without conflating dtype residency with native dtype compute.
 
 ### BF16 Metal Compute And Output
 
@@ -103,9 +103,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| METALDTYPE-01 | Phase 29 | Pending |
-| METALDTYPE-02 | Phase 29 | Pending |
-| METALDTYPE-03 | Phase 29 | Pending |
+| METALDTYPE-01 | Phase 29 | Complete |
+| METALDTYPE-02 | Phase 29 | Complete |
+| METALDTYPE-03 | Phase 29 | Complete |
 | METALBF16-01 | Phase 30 | Pending |
 | METALBF16-02 | Phase 30 | Pending |
 | METALBF16-03 | Phase 30 | Pending |

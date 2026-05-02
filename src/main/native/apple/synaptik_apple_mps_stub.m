@@ -300,6 +300,57 @@ int32_t synaptik_apple_mps_validate_layout_abi_v2(
     return 0;
 }
 
+int32_t synaptik_apple_mps_dtype_abi_version(void) {
+    return 3;
+}
+
+int32_t synaptik_apple_mps_validate_dtype_abi_v3(
+        int32_t descriptor_count,
+        const int32_t *roles,
+        const int32_t *dtypes,
+        const int32_t *op_types) {
+    (void) op_types;
+    if (descriptor_count < 0) {
+        return 1;
+    }
+    if (descriptor_count == 0) {
+        return 0;
+    }
+    if (roles == NULL || dtypes == NULL) {
+        return 1;
+    }
+    for (int32_t i = 0; i < descriptor_count; i++) {
+        int32_t role = roles[i];
+        int32_t dtype = dtypes[i];
+        if (dtype < 1 || dtype > 5) {
+            return 1;
+        }
+        switch (role) {
+            case 1: // storage descriptor: all public Synaptik dtypes are representable as storage metadata
+                break;
+            case 2: // external data input
+                if (dtype != 1 && dtype != 2) {
+                    return 2;
+                }
+                break;
+            case 3: // predicate external input
+                if (dtype != 2) {
+                    return 2;
+                }
+                break;
+            case 4: // native compute
+            case 5: // native output
+                if (dtype != 1) {
+                    return 2;
+                }
+                break;
+            default:
+                return 1;
+        }
+    }
+    return 0;
+}
+
 void *synaptik_apple_mps_create_context(void) {
     @autoreleasepool {
         id<MTLDevice> device = MTLCreateSystemDefaultDevice();

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
-status: planning
-last_updated: "2026-05-02T06:45:05Z"
-last_activity: 2026-05-02 -- Phase 29 planned
+status: active
+last_updated: "2026-05-02T06:50:47Z"
+last_activity: 2026-05-02 -- Phase 29 executed and verified
 progress:
   total_phases: 11
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 44
-  completed_plans: 0
-  percent: 0
+  completed_plans: 4
+  percent: 9
 ---
 
 # GSD State
@@ -74,7 +74,7 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 29 — Metal DType ABI And Capability Truth | Planned | 4/4 | Pending |
+| 29 — Metal DType ABI And Capability Truth | Complete | 4/4 | Verified |
 | 30 — BF16 Metal Compute And Output | Planned | 0/4 | Pending |
 | 31 — BOOL-Producing Metal Compute | Planned | 0/4 | Pending |
 | 32 — INT32 Index Tensor And Gather Take Path | Planned | 0/4 | Pending |
@@ -190,6 +190,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | v1.4 milestone archived | Native GPU Operation Coverage Closure archives were written under `.planning/milestones/`; fresh requirements should be defined for the next milestone. |
 | 2026-05-02 | v1.5 milestone planned | Production-Grade Metal Backend Expansion roadmap covers dtype ABI, BF16, BOOL, INT32/indexing, layout router, masked SDPA, conv/pool, scatter, loss, training, router, and zero-copy closure. |
 | 2026-05-02 | Phase 29 planning completed | Four plans cover Metal dtype capability decisions, dtype ABI v3 optional probes, dtype diagnostics/report truth, docs, tests, and migration closure. |
+| 2026-05-02 | Phase 29 verification passed | Metal dtype role decisions, dtype ABI v3 discovery, report-visible reason codes, docs, focused Java tests, classes, and metalTest passed without widening native compute beyond FLOAT32. |
 
 ## Recent Sessions
 

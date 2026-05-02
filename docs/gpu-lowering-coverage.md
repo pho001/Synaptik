@@ -90,6 +90,11 @@ Metal currently accepts `FLOAT32` compute/output and `BOOL` only for predicate-s
 
 Reports use `dtypeResidency` evidence to explain why a region stayed resident, shortened, or exited. A dtype-resident internal value can still be materialized later for a real CPU consumer, graph output, or gradient publication, and that CPU boundary remains reportable.
 
+Metal dtype capability truth is role-specific. `MetalMpsCapabilities` distinguishes storage representability, external
+input legality, predicate input legality, native compute legality, native output legality, and operation-specific dtype
+support. The optional Metal dtype ABI v3 probes only prove that a native shim can describe these roles; they do not turn
+BF16, INT32, BOOL output, or FLOAT64 into native compute support by themselves.
+
 ## Phase 17 normalization, reduction, and loss-adjacent contract
 
 Phase 17 covers `GPUNORM-01` and `GPUNORM-02` by making normalization, reduction, softmax-ish, conv, and loss-adjacent gaps explicit in the shared Metal/CUDA matrix. The source-of-truth targets are `target=layer_norm_small`, `target=conv2d_resnet_3x3`, and `target=transformer_block_hot_path`.
