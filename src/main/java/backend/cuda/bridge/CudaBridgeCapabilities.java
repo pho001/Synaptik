@@ -1,5 +1,12 @@
 package backend.cuda.bridge;
 
+import backend.accelerator.lowering.GpuBackendParityReport;
+import backend.accelerator.lowering.GpuBackendParityReporter;
+import backend.accelerator.lowering.GpuBackendParityRow;
+
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Layered CUDA bridge capability state.
  *
@@ -63,5 +70,96 @@ public record CudaBridgeCapabilities(
      */
     public static CudaBridgeCapabilities unavailable(CudaBridgeCapabilityCode code, String reason) {
         return new CudaBridgeCapabilities(false, false, false, false, false, false, 0, code, reason);
+    }
+
+    /**
+     * Returns a dimension-by-dimension capability report. The report is conservative:
+     * capability skips are diagnostic evidence and never support evidence.
+     */
+    public CudaCapabilityReport report() {
+        List<CudaCapabilityReport.Entry> entries = new ArrayList<>();
+        entries.add(entry(
+                CudaCapabilityDimension.NATIVE_LIBRARY,
+                nativeLibraryAvailable ? CudaCapabilityDimensionStatus.AVAILABLE : CudaCapabilityDimensionStatus.UNAVAILABLE,
+                nativeLibraryAvailable ? "CUDA native library lookup succeeded." : reason
+        ));
+        entries.add(entry(
+                CudaCapabilityDimension.CUDA_RUNTIME,
+                cudaRuntimeAvailable ? CudaCapabilityDimensionStatus.AVAILABLE : CudaCapabilityDimensionStatus.UNAVAILABLE,
+                cudaRuntimeAvailable ? "CUDA runtime/device reported available." : reason
+        ));
+        entries.add(entry(
+                CudaCapabilityDimension.HARDWARE_DEVICE,
+                cudaRuntimeAvailable ? CudaCapabilityDimensionStatus.AVAILABLE : CudaCapabilityDimensionStatus.UNAVAILABLE,
+                cudaRuntimeAvailable ? "CUDA hardware device reported available by native shim." : reason
+        ));
+        entries.add(entry(
+                CudaCapabilityDimension.CONTEXT,
+                contextAvailable ? CudaCapabilityDimensionStatus.AVAILABLE : CudaCapabilityDimensionStatus.UNAVAILABLE,
+                contextAvailable ? "CUDA context can be created." : reason
+        ));
+        entries.add(entry(
+                CudaCapabilityDimension.GRAPH_EXECUTION_ABI,
+                graphExecutionAvailable ? CudaCapabilityDimensionStatus.AVAILABLE : CudaCapabilityDimensionStatus.UNAVAILABLE,
+                graphExecutionAvailable ? "CUDA graph compile/execute ABI is available." : reason
+        ));
+        entries.add(entry(
+                CudaCapabilityDimension.BUFFER_BINDING_ABI,
+                bufferExecutionSupported ? CudaCapabilityDimensionStatus.AVAILABLE : CudaCapabilityDimensionStatus.UNAVAILABLE,
+                bufferExecutionSupported ? "CUDA native buffer binding ABI is available." : "CUDA native buffer binding ABI is unavailable."
+        ));
+        entries.add(entry(
+                CudaCapabilityDimension.LAYOUT_ABI_V2,
+                layoutAbiV2Supported
+                        ? CudaCapabilityDimensionStatus.AVAILABLE
+                        : layoutAbiV2Version > 0
+                        ? CudaCapabilityDimensionStatus.VERSION_MISMATCH
+                        : CudaCapabilityDimensionStatus.UNAVAILABLE,
+                "layoutAbiV2Version=" + layoutAbiV2Version
+        ));
+        addDTypeRoleEntries(entries);
+        addDagPrimitiveEntries(entries);
+        entries.add(entry(
+                CudaCapabilityDimension.VENDOR_LIBRARY_ROUTE,
+                CudaCapabilityDimensionStatus.NOT_INTEGRATED,
+                "cuBLAS/cuDNN routing is not integrated in the CUDA graph bridge"
+        ));
+        entries.add(entry(
+                CudaCapabilityDimension.TOOLCHAIN,
+                CudaCapabilityDimensionStatus.UNKNOWN,
+                nativeLibraryAvailable
+                        ? "Native shim is loaded; build toolchain availability is not probed at runtime."
+                        : "CUDA build toolchain availability is not probed at runtime."
+        ));
+        return new CudaCapabilityReport(entries);
+    }
+
+    private static void addDTypeRoleEntries(List<CudaCapabilityReport.Entry> entries) {
+        entries.add(entry(CudaCapabilityDimension.DTYPE_ROLE, CudaCapabilityDimensionStatus.AVAILABLE,
+                "FLOAT32 compute/output is the current CUDA native dense graph contract."));
+        entries.add(entry(CudaCapabilityDimension.DTYPE_ROLE, CudaCapabilityDimensionStatus.UNAVAILABLE,
+                "BFLOAT16 compute/output is not supported by the CUDA graph bridge."));
+        entries.add(entry(CudaCapabilityDimension.DTYPE_ROLE, CudaCapabilityDimensionStatus.UNAVAILABLE,
+                "BOOL output is not supported by the CUDA graph bridge."));
+        entries.add(entry(CudaCapabilityDimension.DTYPE_ROLE, CudaCapabilityDimensionStatus.UNAVAILABLE,
+                "INT32 compute/output is not supported by the CUDA graph bridge."));
+    }
+
+    private static void addDagPrimitiveEntries(List<CudaCapabilityReport.Entry> entries) {
+        GpuBackendParityReport parity = GpuBackendParityReporter.cudaAgainstMetal();
+        long supported = parity.rows().stream().filter(GpuBackendParityRow::cudaSupported).count();
+        long gaps = parity.gapRows().size();
+        entries.add(entry(CudaCapabilityDimension.DAG_PRIMITIVE, CudaCapabilityDimensionStatus.AVAILABLE,
+                "CUDA supported DAG primitive rows=" + supported));
+        entries.add(entry(CudaCapabilityDimension.DAG_PRIMITIVE, CudaCapabilityDimensionStatus.UNAVAILABLE,
+                "CUDA parity gap rows requiring evidence=" + gaps));
+    }
+
+    private static CudaCapabilityReport.Entry entry(
+            CudaCapabilityDimension dimension,
+            CudaCapabilityDimensionStatus status,
+            String detail
+    ) {
+        return new CudaCapabilityReport.Entry(dimension, status, detail);
     }
 }

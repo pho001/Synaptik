@@ -24,7 +24,7 @@ class CudaFfmBridgeTest {
         } else {
             assertTrue(bridgeContext.available());
         }
-        assertFalse(bridge.supportsBufferBindings());
+        assertEquals(bridge.supportsBufferBindings(), bridge.capabilities().report().bufferBindingExecutable());
     }
 
     @Test
@@ -36,6 +36,8 @@ class CudaFfmBridgeTest {
         assertNotNull(capabilities);
         assertNotNull(capabilities.reason());
         assertEquals(bridge.supportsBufferBindings(), capabilities.bufferExecutionSupported());
+        assertEquals(bridge.supportsBufferBindings(), capabilities.report().bufferBindingExecutable());
+        assertFalse(capabilities.report().capabilitySkipCountsAsSupport());
         assertTrue(capabilities.layoutAbiV2Version() >= 0);
         if (capabilities.layoutAbiV2Version() < AcceleratorLayoutAbiV2Support.REQUIRED_VERSION) {
             assertFalse(capabilities.layoutAbiV2Supported());
