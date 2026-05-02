@@ -213,6 +213,8 @@ public final class TextBenchmarkReportRenderer {
                     .append(" cpuMaterializationDurationNs=").append(backend.cpuMaterializationDurationNs())
                     .append(" copyDurationNs=").append(backend.copyDurationNs())
                     .append(" nativeCopyStrategyCounts=").append(backend.nativeCopyStrategyCounts())
+                    .append(" executionRouteCounts=").append(backend.executionRouteCounts())
+                    .append(" rejectedRouteReasonCounts=").append(backend.rejectedRouteReasonCounts())
                     .append(" deviceHandoffCount=").append(backend.deviceHandoffCount())
                     .append(" gpuLayoutMaterializationCount=").append(backend.gpuLayoutMaterializationCount())
                     .append(" gpuLayoutMaterializationBytes=").append(backend.gpuLayoutMaterializationBytes())

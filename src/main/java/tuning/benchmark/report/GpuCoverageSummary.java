@@ -129,6 +129,8 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             coverage.copyDurationNs += firstLongAttr(attrs, "acceleratorNativeDeviceCopyNs", "metalNativeDeviceCopyNs");
             addCount(coverage.nativeCopyStrategyCounts, stringAttr(attrs, "metalNativeCopyStrategy"));
             addCount(coverage.nativeCopyStrategyCounts, stringAttr(attrs, "acceleratorNativeCopyStrategy"));
+            addCount(coverage.executionRouteCounts, stringAttr(attrs, "metalExecutionRoute"));
+            addListCounts(coverage.rejectedRouteReasonCounts, attrs.get("metalRouteRejectedReasonCodes"));
         }
     }
 
@@ -296,6 +298,16 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         target.merge(key, 1, Integer::sum);
     }
 
+    private static void addListCounts(LinkedHashMap<String, Integer> target, Object value) {
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                addCount(target, item == null ? "" : String.valueOf(item).trim());
+            }
+            return;
+        }
+        addCount(target, value == null ? "" : String.valueOf(value).trim());
+    }
+
     private static void addNonBlank(LinkedHashSet<String> target, Object value) {
         if (value == null) {
             return;
@@ -330,6 +342,8 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             long cpuMaterializationDurationNs,
             long copyDurationNs,
             Map<String, Integer> nativeCopyStrategyCounts,
+            Map<String, Integer> executionRouteCounts,
+            Map<String, Integer> rejectedRouteReasonCounts,
             int deviceHandoffCount,
             int gpuLayoutMaterializationCount,
             long gpuLayoutMaterializationBytes,
@@ -361,11 +375,89 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             storageResidencyCounts = storageResidencyCounts == null ? Map.of() : orderedMap(storageResidencyCounts);
             dtypeResidencyReasons = dtypeResidencyReasons == null ? Map.of() : orderedMap(dtypeResidencyReasons);
             nativeCopyStrategyCounts = nativeCopyStrategyCounts == null ? Map.of() : orderedMap(nativeCopyStrategyCounts);
+            executionRouteCounts = executionRouteCounts == null ? Map.of() : orderedMap(executionRouteCounts);
+            rejectedRouteReasonCounts = rejectedRouteReasonCounts == null ? Map.of() : orderedMap(rejectedRouteReasonCounts);
             gpuFusedSubpatternTypes = gpuFusedSubpatternTypes == null ? List.of() : List.copyOf(gpuFusedSubpatternTypes);
             gpuFusedSubpatternOriginalNodeIds = gpuFusedSubpatternOriginalNodeIds == null ? List.of() : List.copyOf(gpuFusedSubpatternOriginalNodeIds);
             gpuFusedSubpatternReasons = gpuFusedSubpatternReasons == null ? List.of() : List.copyOf(gpuFusedSubpatternReasons);
             reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
             fallbackReasons = fallbackReasons == null ? List.of() : List.copyOf(fallbackReasons);
+        }
+
+        public BackendCoverage(
+                int totalStepCount,
+                int acceleratorStepCount,
+                double gpuCoverageRatio,
+                int selectedRegionCount,
+                int multiOpGpuRegionCount,
+                int maxSelectedRegionLength,
+                double averageSelectedRegionLength,
+                int loweredPrimitiveCount,
+                int rejectedCandidateCount,
+                Map<String, Integer> rejectedCandidateReasonCounts,
+                int bufferBindingStepCount,
+                int tensorArrayStepCount,
+                int cpuFallbackStepCount,
+                int fallbackCount,
+                int cpuMaterializationCount,
+                Map<String, Integer> cpuMaterializationReasonCounts,
+                long cpuMaterializationBytes,
+                long cpuMaterializationDurationNs,
+                long copyDurationNs,
+                Map<String, Integer> nativeCopyStrategyCounts,
+                int deviceHandoffCount,
+                int gpuLayoutMaterializationCount,
+                long gpuLayoutMaterializationBytes,
+                Map<String, Integer> gpuLayoutTransformKindCounts,
+                Map<String, Integer> gpuLayoutTargetLayoutClassCounts,
+                Map<String, Integer> storageResidencyCounts,
+                Map<String, Integer> dtypeResidencyReasons,
+                int gpuFusedSubpatternCount,
+                List<String> gpuFusedSubpatternTypes,
+                List<String> gpuFusedSubpatternOriginalNodeIds,
+                int gpuFusedSubpatternLoweredPrimitiveCount,
+                List<String> gpuFusedSubpatternReasons,
+                List<String> reasonCodes,
+                List<String> fallbackReasons
+        ) {
+            this(
+                    totalStepCount,
+                    acceleratorStepCount,
+                    gpuCoverageRatio,
+                    selectedRegionCount,
+                    multiOpGpuRegionCount,
+                    maxSelectedRegionLength,
+                    averageSelectedRegionLength,
+                    loweredPrimitiveCount,
+                    rejectedCandidateCount,
+                    rejectedCandidateReasonCounts,
+                    bufferBindingStepCount,
+                    tensorArrayStepCount,
+                    cpuFallbackStepCount,
+                    fallbackCount,
+                    cpuMaterializationCount,
+                    cpuMaterializationReasonCounts,
+                    cpuMaterializationBytes,
+                    cpuMaterializationDurationNs,
+                    copyDurationNs,
+                    nativeCopyStrategyCounts,
+                    Map.of(),
+                    Map.of(),
+                    deviceHandoffCount,
+                    gpuLayoutMaterializationCount,
+                    gpuLayoutMaterializationBytes,
+                    gpuLayoutTransformKindCounts,
+                    gpuLayoutTargetLayoutClassCounts,
+                    storageResidencyCounts,
+                    dtypeResidencyReasons,
+                    gpuFusedSubpatternCount,
+                    gpuFusedSubpatternTypes,
+                    gpuFusedSubpatternOriginalNodeIds,
+                    gpuFusedSubpatternLoweredPrimitiveCount,
+                    gpuFusedSubpatternReasons,
+                    reasonCodes,
+                    fallbackReasons
+            );
         }
 
         public int nativeBufferStepCount() {
@@ -409,6 +501,8 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         private long cpuMaterializationDurationNs;
         private long copyDurationNs;
         private final LinkedHashMap<String, Integer> nativeCopyStrategyCounts = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Integer> executionRouteCounts = new LinkedHashMap<>();
+        private final LinkedHashMap<String, Integer> rejectedRouteReasonCounts = new LinkedHashMap<>();
         private int deviceHandoffCount;
         private int gpuLayoutMaterializationCount;
         private long gpuLayoutMaterializationBytes;
@@ -451,6 +545,8 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     cpuMaterializationDurationNs,
                     copyDurationNs,
                     new LinkedHashMap<>(nativeCopyStrategyCounts),
+                    new LinkedHashMap<>(executionRouteCounts),
+                    new LinkedHashMap<>(rejectedRouteReasonCounts),
                     deviceHandoffCount,
                     gpuLayoutMaterializationCount,
                     gpuLayoutMaterializationBytes,

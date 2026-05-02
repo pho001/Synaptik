@@ -29,6 +29,7 @@ import tuning.benchmark.report.GpuTargetCoverageTruth;
 import tuning.benchmark.report.GpuTargetExecutionStatus;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -216,6 +217,20 @@ public class GpuCoverageSummaryTest {
         assertEquals(Map.of("DEVICE_OWNED", 1), coverage.storageResidencyCounts());
         assertEquals(Map.of("MPSGRAPH_RESULT_COPY", 1), coverage.nativeCopyStrategyCounts());
         assertTrue(coverage.reasonCodes().contains("BUFFER_BINDING_AVAILABLE"));
+    }
+
+    @Test
+    void summarizesMetalExecutionRoutesAndRejectedAlternativesFromStepAttributes() {
+        GpuCoverageSummary summary = GpuCoverageSummary.fromTrace(traceWithMetalRoute(
+                "CUSTOM_KERNEL",
+                "TRUE_OUTPUT_BUFFER_WRITE",
+                List.of("MPS_GRAPH_SELECTED")
+        ));
+        GpuCoverageSummary.BackendCoverage coverage = summary.backends().get("GPU_METAL");
+
+        assertEquals(Map.of("CUSTOM_KERNEL", 1), coverage.executionRouteCounts());
+        assertEquals(Map.of("MPS_GRAPH_SELECTED", 1), coverage.rejectedRouteReasonCounts());
+        assertEquals(Map.of("TRUE_OUTPUT_BUFFER_WRITE", 1), coverage.nativeCopyStrategyCounts());
     }
 
     @Test
@@ -708,6 +723,51 @@ public class GpuCoverageSummaryTest {
                 new CompileTrace(true, 1L, 0, 0, false, PartitionCompileTrace.empty()),
                 new PrepareTrace(true, 1L, 0, 0, selection),
                 new RunTrace(ExecutionMode.FORWARD, 3_000_000L, List.of(gpuStep, cpuStep), List.of(materialization))
+        );
+    }
+
+    private static ExecutionTrace traceWithMetalRoute(
+            String route,
+            String nativeCopyStrategy,
+            List<String> rejectedReasonCodes
+    ) {
+        ExecutionTrace trace = traceFor("GPU_METAL", ComputeBackend.GPU_METAL);
+        ExecutionStepTrace original = trace.run().steps().getFirst();
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>(original.metadata().attributes());
+        attrs.put("metalExecutionRoute", route);
+        attrs.put("metalRouteRejectedReasonCodes", rejectedReasonCodes);
+        attrs.put("metalNativeCopyStrategy", nativeCopyStrategy);
+        attrs.remove("acceleratorNativeCopyStrategy");
+        ExecutionStepTrace routedStep = new ExecutionStepTrace(
+                original.index(),
+                original.label(),
+                original.opType(),
+                original.shape(),
+                original.dataType(),
+                original.backend(),
+                original.kernel(),
+                original.durationNs(),
+                new StepExecutionMetadata(
+                        original.metadata().kind(),
+                        attrs,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                )
+        );
+        return new ExecutionTrace(
+                trace.compile(),
+                trace.prepare(),
+                new RunTrace(
+                        trace.run().mode(),
+                        trace.run().durationNs(),
+                        List.of(routedStep, trace.run().steps().get(1)),
+                        trace.run().cpuMaterializations()
+                )
         );
     }
 
