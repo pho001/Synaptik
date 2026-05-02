@@ -66,6 +66,12 @@ public final class MetalPartitionSupport {
         if (!operationDTypeDecision.supported()) {
             return "UNSUPPORTED_DTYPE: " + operationDTypeDecision.detail();
         }
+        if (isBoolCompare(opType)) {
+            String boolCompareReason = boolCompareUnsupportedReason(node, context);
+            if (!boolCompareReason.isBlank()) {
+                return boolCompareReason;
+            }
+        }
         if (opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
             String sdpaReason = sdpaUnsupportedReason(node, context);
             if (!sdpaReason.isBlank()) {
@@ -192,6 +198,38 @@ public final class MetalPartitionSupport {
             case SUM, MEAN, REDUCE_MIN, REDUCE_MAX -> "REDUCTION_ADJACENT: ";
             default -> "";
         };
+    }
+
+    private static boolean isBoolCompare(Operation.OpType opType) {
+        return switch (opType) {
+            case GT, GE, LT, LE, EQ, NE -> true;
+            default -> false;
+        };
+    }
+
+    private static String boolCompareUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        if (node.dataType() != tensor.DataType.BOOL) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL BOOL compare output must be BOOL";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL compare requires planning context";
+        }
+        if (node.inputIds().size() != 2) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL compare requires two inputs";
+        }
+        for (int inputId : node.inputIds()) {
+            CompiledNode input = context.compiledNode(inputId);
+            if (input == null) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL BOOL compare inputs are unavailable";
+            }
+            if (input.dataType() != tensor.DataType.FLOAT32 && input.dataType() != tensor.DataType.BFLOAT16) {
+                return "UNSUPPORTED_DTYPE: GPU_METAL BOOL compare inputs require FLOAT32/BFLOAT16 data";
+            }
+            if (!input.contiguous() || input.hasStorageOffset()) {
+                return "UNSUPPORTED_LAYOUT: GPU_METAL BOOL compare inputs require dense layout";
+            }
+        }
+        return "";
     }
 
     private static String normalizationUnsupportedReason(String backend, CompiledNode node, PartitionPlanningContext context) {

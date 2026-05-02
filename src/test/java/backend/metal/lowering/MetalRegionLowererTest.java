@@ -470,9 +470,53 @@ class MetalRegionLowererTest {
                 avgPoolContext
         );
 
-        assertContainsAll(compareReason, "UNSUPPORTED_DTYPE", "operation GE", "family=COMPARE_BOOL", "BOOL output");
+        assertContainsAll(compareReason, "CAPABILITY_MISSING", "operation GE", "family=COMPARE_BOOL", "BOOL output DAG/ABI contract");
         assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "operation MAX_POOL2D", "family=CONV_POOL", "target=max_pool2d_small");
         assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "operation AVG_POOL2D", "family=CONV_POOL");
+    }
+
+    @Test
+    void boolCompareDagContractLowersWithoutPlannerAdmissionUntilNativeParity() {
+        assertEquals(41, AcceleratorDagNodeType.GT.abiCode());
+        assertEquals(42, AcceleratorDagNodeType.GE.abiCode());
+        assertEquals(43, AcceleratorDagNodeType.LT.abiCode());
+        assertEquals(44, AcceleratorDagNodeType.LE.abiCode());
+        assertEquals(45, AcceleratorDagNodeType.EQ.abiCode());
+        assertEquals(46, AcceleratorDagNodeType.NE.abiCode());
+
+        Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase31BoolLeft", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "metalPhase31BoolRight", DataType.FLOAT32);
+        Tensor compare = left.greaterOrEqual(right);
+        TensorInternalAccess.setBackend(compare, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(compare);
+        int compareNodeId = nodeId(context, Operation.OpType.GE);
+        CompiledNode compareNode = context.compiledNode(compareNodeId);
+        var lowered = new AcceleratorSubgraphLowerer().tryLower(
+                ComputeBackend.GPU_METAL,
+                new AcceleratorSubgraphSpec(
+                        compareNodeId,
+                        List.of(compareNodeId),
+                        List.of(new backend.accelerator.dag.AcceleratorSubgraphOp(compareNodeId, Operation.OpType.GE)),
+                        compareNode.inputIds(),
+                        List.of(compareNodeId)
+                ),
+                context
+        );
+
+        assertNotNull(lowered);
+        assertEquals(AcceleratorDagNodeType.GE, lowered.dagSpec().nodes().getFirst().type());
+        assertEquals(DataType.BOOL, lowered.dagSpec().nodes().getFirst().outputDataType());
+        assertTrue(lowered.dagSpec().externalInputs().stream().allMatch(input -> input.dataType() == DataType.FLOAT32));
+        assertEquals(
+                "CAPABILITY_MISSING",
+                GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.GE).reason().name()
+        );
+        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+                Set.of(compareNodeId),
+                context,
+                Set.of(PartitionValueRef.ofNode(compareNodeId))
+        ));
     }
 
     @Test

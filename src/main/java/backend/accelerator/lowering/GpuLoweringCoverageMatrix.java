@@ -298,10 +298,24 @@ public final class GpuLoweringCoverageMatrix {
             Operation.OpType opType,
             String label
     ) {
+        if (backend == ComputeBackend.GPU_METAL && isBoolCompare(opType)) {
+            add(entries, backend, opType, GpuLoweringOperationFamily.COMPARE_BOOL,
+                    GpuLoweringCoverageStatus.FALLBACK,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    label + " has a Metal BOOL output DAG/ABI contract but native execution is not enabled until Phase 31 native parity evidence lands; external BOOL predicate input residency for WHERE is separate");
+            return;
+        }
         add(entries, backend, opType, GpuLoweringOperationFamily.COMPARE_BOOL,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
                 label + " produces BOOL output, which is outside current native accelerator output dtype support; external BOOL predicate input residency for WHERE is separate");
+    }
+
+    private static boolean isBoolCompare(Operation.OpType opType) {
+        return switch (opType) {
+            case GT, GE, LT, LE, EQ, NE -> true;
+            default -> false;
+        };
     }
 
     private static void addSupported(

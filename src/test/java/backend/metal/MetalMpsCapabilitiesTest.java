@@ -23,22 +23,24 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.supportsComputeDType(DataType.BFLOAT16));
         assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.BFLOAT16));
 
-        assertFalse(MetalMpsCapabilities.supportsComputeDType(DataType.BOOL));
-        assertFalse(MetalMpsCapabilities.supportsOutputDType(DataType.BOOL));
+        assertTrue(MetalMpsCapabilities.supportsComputeDType(DataType.BOOL));
+        assertTrue(MetalMpsCapabilities.supportsOutputDType(DataType.BOOL));
         assertFalse(MetalMpsCapabilities.supportsOutputDType(DataType.INT32));
 
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BFLOAT16).supported());
         assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.CONV2D, DataType.BFLOAT16).supported());
+        assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.GE, DataType.BOOL).supported());
+        assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.LOGICAL_AND, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.unsupportedDTypeMessage(DataType.INT32)
-                .contains("FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, and BOOL only for predicate inputs"));
+                .contains("FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, scoped BOOL compare outputs, and BOOL predicate inputs"));
     }
 
     @Test
     void exposesRoleSpecificDTypeDecisionsForEveryPublicDType() {
         for (DataType dtype : DataType.values()) {
             assertTrue(MetalMpsCapabilities.storageDecision(dtype).storageRepresentable());
-            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16, MetalMpsCapabilities.computeDecision(dtype).supported());
-            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16, MetalMpsCapabilities.outputDecision(dtype).supported());
+            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL, MetalMpsCapabilities.computeDecision(dtype).supported());
+            assertEquals(dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16 || dtype == DataType.BOOL, MetalMpsCapabilities.outputDecision(dtype).supported());
         }
 
         assertTrue(MetalMpsCapabilities.externalInputDecision(DataType.BOOL).supported());
@@ -71,6 +73,22 @@ class MetalMpsCapabilitiesTest {
     }
 
     @Test
+    void externalInputRoleAllowsOnlyNumericDataForBoolCompareInputs() {
+        Tensor left = new Tensor(new float[]{1.0f, 2.0f}, new int[]{2}, null, "left", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{3.0f, 4.0f}, new int[]{2}, null, "right", DataType.FLOAT32);
+        Tensor compare = left.greaterOrEqual(right);
+        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(left, right, compare));
+
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(2), 0).supported());
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(1), nodes.get(2), 1).supported());
+        assertFalse(MetalMpsCapabilities.externalInputRoleDecision(nodes.get(0), nodes.get(2), 2).supported());
+
+        Tensor mask = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "mask", DataType.BOOL);
+        CompiledNode maskNode = CompiledNode.snapshot(List.of(mask)).getFirst();
+        assertFalse(MetalMpsCapabilities.externalInputRoleDecision(maskNode, nodes.get(2), 0).supported());
+    }
+
+    @Test
     void descriptorAbiCodesCoverAllPublicDTypesButExecutionAbiStaysNarrow() {
         assertEquals(1, MetalMpsCapabilities.abiDescriptorDataTypeCode(DataType.FLOAT32));
         assertEquals(2, MetalMpsCapabilities.abiDescriptorDataTypeCode(DataType.BOOL));
@@ -80,6 +98,6 @@ class MetalMpsCapabilitiesTest {
 
         assertEquals(1, MetalMpsCapabilities.abiDataTypeCode(DataType.FLOAT32));
         assertEquals(2, MetalMpsCapabilities.abiDataTypeCode(DataType.BOOL));
-        assertFalse(MetalMpsCapabilities.outputDecision(DataType.BOOL).supported());
+        assertTrue(MetalMpsCapabilities.outputDecision(DataType.BOOL).supported());
     }
 }

@@ -193,13 +193,15 @@ class GpuLoweringCoverageMatrixTest {
                 Operation.OpType.AVG_POOL2D,
                 Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
         );
-        List<Operation.OpType> boolOutputOps = List.of(
+        List<Operation.OpType> boolCompareOps = List.of(
                 Operation.OpType.GT,
                 Operation.OpType.GE,
                 Operation.OpType.LT,
                 Operation.OpType.LE,
                 Operation.OpType.EQ,
-                Operation.OpType.NE,
+                Operation.OpType.NE
+        );
+        List<Operation.OpType> boolLogicalAndReductionOps = List.of(
                 Operation.OpType.LOGICAL_AND,
                 Operation.OpType.LOGICAL_OR,
                 Operation.OpType.LOGICAL_NOT,
@@ -220,7 +222,27 @@ class GpuLoweringCoverageMatrixTest {
                 assertFalse(entry.note().isBlank());
             }
 
-            for (Operation.OpType opType : boolOutputOps) {
+            for (Operation.OpType opType : boolCompareOps) {
+                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
+
+                assertEquals(backend, entry.backend());
+                assertEquals(opType, entry.opType());
+                assertEquals(GpuLoweringOperationFamily.COMPARE_BOOL, entry.family());
+                if (backend == ComputeBackend.GPU_METAL) {
+                    assertEquals(GpuLoweringCoverageStatus.FALLBACK, entry.status());
+                    assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, entry.reason(),
+                            () -> opType + " should expose the Metal BOOL compare DAG contract without claiming native parity yet");
+                    assertTrue(entry.note().contains("BOOL output DAG/ABI contract"));
+                } else {
+                    assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
+                    assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE, entry.reason(),
+                            () -> opType + " should remain unsupported for CUDA until CUDA BOOL output compute is implemented");
+                    assertTrue(entry.note().contains("BOOL output"));
+                }
+                assertTrue(entry.note().contains("WHERE"));
+            }
+
+            for (Operation.OpType opType : boolLogicalAndReductionOps) {
                 GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
 
                 assertEquals(backend, entry.backend());

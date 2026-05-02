@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T07:36:08Z"
-last_activity: 2026-05-02 -- Phase 31 BOOL-producing Metal compute planned
+last_updated: "2026-05-02T07:42:28Z"
+last_activity: 2026-05-02 -- Phase 31-01 BOOL output ABI and compare primitive contract completed
 progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 44
-  completed_plans: 8
-  percent: 18
+  completed_plans: 9
+  percent: 20
 ---
 
 # GSD State
@@ -76,7 +76,7 @@ Planning agents should read the relevant codebase map documents before proposing
 |-------|--------|-------|--------------|
 | 29 — Metal DType ABI And Capability Truth | Complete | 4/4 | Verified |
 | 30 — BF16 Metal Compute And Output | Complete | 4/4 | Verified |
-| 31 — BOOL-Producing Metal Compute | Planned | 0/4 | Pending |
+| 31 — BOOL-Producing Metal Compute | In Progress | 1/4 | Pending |
 | 32 — INT32 Index Tensor And Gather Take Path | Planned | 0/4 | Pending |
 | 33 — GPU Layout Router And Strided Materialization | Planned | 0/4 | Pending |
 | 34 — Masked And Causal SDPA | Planned | 0/4 | Pending |
@@ -197,6 +197,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 30-03 completed | BF16 Metal parity now has exact raw storage roundtrip checks, scoped numeric tolerances for matmul/reduction/normalization/softmax, BF16-specific hot-path targets, suite report dtype residency evidence, and hard Metal BF16 gates that fail on hidden CPU or tensor-array fallback. |
 | 2026-05-02 | Phase 30 verification passed | BF16 Metal docs, capability boundaries, scoped support table, troubleshooting guidance, source hygiene, focused Java tests, and native `metalTest` passed; METALBF16-01/02/03 are complete. |
 | 2026-05-02 | Phase 31 planning completed | Four plans cover BOOL output ABI and compare primitive contract, native compare/logical/reduction support-or-reject execution, mask-chain residency through `WHERE`, docs, reports, and verification closure. |
+| 2026-05-02 | Phase 31-01 completed | Metal compare ops now have stable accelerator DAG ABI codes and BOOL output dtype metadata, capability truth distinguishes scoped compare output from broader BOOL compute, and coverage keeps native execution capability-gated until Phase 31-02 parity lands. |
 
 ## Recent Sessions
 

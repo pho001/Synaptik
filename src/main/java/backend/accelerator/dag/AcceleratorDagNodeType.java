@@ -43,7 +43,13 @@ public enum AcceleratorDagNodeType {
     MEAN(37),
     REDUCE_MIN(38),
     REDUCE_MAX(39),
-    ADD_SCALAR(40);
+    ADD_SCALAR(40),
+    GT(41),
+    GE(42),
+    LT(43),
+    LE(44),
+    EQ(45),
+    NE(46);
 
     private final int abiCode;
 

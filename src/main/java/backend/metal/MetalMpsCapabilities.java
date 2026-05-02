@@ -10,7 +10,7 @@ import tensor.DataType;
  * <p>This class is the Java-side source of truth for the dtype subset exposed by the
  * native {@code synaptik_apple_mps_*} ABI. It intentionally describes only what
  * the bridge can execute today: float32 compute/output tensors, scoped bfloat16
- * operation families, and bool external inputs in predicate roles.</p>
+ * operation families, scoped bool compare outputs, and bool external inputs in predicate roles.</p>
  */
 public final class MetalMpsCapabilities {
     private MetalMpsCapabilities() {
@@ -74,13 +74,17 @@ public final class MetalMpsCapabilities {
             return supported(MetalDTypeRole.COMPUTE, dtype, true, false, MetalDTypeReasonCode.SUPPORTED,
                     "BFLOAT16 native compute is supported for scoped operation families");
         }
+        if (dtype == DataType.BOOL) {
+            return supported(MetalDTypeRole.COMPUTE, dtype, true, false, MetalDTypeReasonCode.SUPPORTED,
+                    "BOOL native compute is supported for scoped compare operation families");
+        }
         return unsupported(
                 MetalDTypeRole.COMPUTE,
                 dtype,
                 dtype == DataType.FLOAT64
                         ? MetalDTypeReasonCode.FLOAT64_UNSUPPORTED
                         : MetalDTypeReasonCode.UNSUPPORTED_NATIVE_COMPUTE_DTYPE,
-                "native Metal compute is FLOAT32 plus scoped BFLOAT16 operation families in the current bridge"
+                "native Metal compute is FLOAT32 plus scoped BFLOAT16 and BOOL compare operation families in the current bridge"
         );
     }
 
@@ -96,13 +100,17 @@ public final class MetalMpsCapabilities {
             return supported(MetalDTypeRole.OUTPUT, dtype, false, true, MetalDTypeReasonCode.SUPPORTED,
                     "BFLOAT16 native output is supported for scoped operation families");
         }
+        if (dtype == DataType.BOOL) {
+            return supported(MetalDTypeRole.OUTPUT, dtype, false, true, MetalDTypeReasonCode.SUPPORTED,
+                    "BOOL native output is supported for scoped compare operation families");
+        }
         return unsupported(
                 MetalDTypeRole.OUTPUT,
                 dtype,
                 dtype == DataType.FLOAT64
                         ? MetalDTypeReasonCode.FLOAT64_UNSUPPORTED
                         : MetalDTypeReasonCode.UNSUPPORTED_NATIVE_OUTPUT_DTYPE,
-                "native Metal output publication is FLOAT32 plus scoped BFLOAT16 operation families in the current bridge"
+                "native Metal output publication is FLOAT32 plus scoped BFLOAT16 and BOOL compare operation families in the current bridge"
         );
     }
 
@@ -121,6 +129,14 @@ public final class MetalMpsCapabilities {
             }
             return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
                     "operation " + opType + " cannot produce native BFLOAT16 output on the current Metal bridge");
+        }
+        if (outputDType == DataType.BOOL) {
+            if (supportsBoolCompareOperation(opType)) {
+                return supported(MetalDTypeRole.OPERATION, outputDType, true, true, MetalDTypeReasonCode.SUPPORTED,
+                        "operation " + opType + " is dtype-legal for BOOL compare output in the scoped Metal bridge");
+            }
+            return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
+                    "operation " + opType + " cannot produce native BOOL output on the current Metal bridge");
         }
         if (outputDType != DataType.FLOAT32) {
             return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
@@ -172,6 +188,16 @@ public final class MetalMpsCapabilities {
                     MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
                     "Metal direct SDPA currently accepts only FLOAT32 query/key/value inputs and no public BOOL mask input");
         }
+        if (supportsBoolCompareOperation(opType)) {
+            if ((inputIndex == 0 || inputIndex == 1) && (dtype == DataType.FLOAT32 || dtype == DataType.BFLOAT16)) {
+                return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
+                        MetalDTypeReasonCode.SUPPORTED,
+                        "BOOL compare input accepts FLOAT32/BFLOAT16 data");
+            }
+            return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                    MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                    "BOOL compare inputs require FLOAT32/BFLOAT16 data");
+        }
         if (dtype == DataType.FLOAT32) {
             return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
                     MetalDTypeReasonCode.SUPPORTED,
@@ -193,7 +219,7 @@ public final class MetalMpsCapabilities {
      * Returns whether the current Metal bridge can execute compute nodes with this dtype.
      *
      * @param dtype compiled node output/compute dtype
-     * @return true for {@link DataType#FLOAT32} and scoped {@link DataType#BFLOAT16}
+     * @return true for {@link DataType#FLOAT32}, scoped {@link DataType#BFLOAT16}, and scoped BOOL compare output
      */
     public static boolean supportsComputeDType(DataType dtype) {
         return computeDecision(dtype).supported();
@@ -203,7 +229,7 @@ public final class MetalMpsCapabilities {
      * Returns whether the current Metal bridge can publish output tensors with this dtype.
      *
      * @param dtype output tensor dtype
-     * @return true for {@link DataType#FLOAT32} and scoped {@link DataType#BFLOAT16}
+     * @return true for {@link DataType#FLOAT32}, scoped {@link DataType#BFLOAT16}, and scoped BOOL compare output
      */
     public static boolean supportsOutputDType(DataType dtype) {
         return outputDecision(dtype).supported();
@@ -272,7 +298,7 @@ public final class MetalMpsCapabilities {
     public static String unsupportedDTypeMessage(DataType dtype) {
         MetalDTypeCapabilityDecision compute = computeDecision(dtype);
         return "UNSUPPORTED_DTYPE: " + compute.detail()
-                + "; Metal MPS bridge currently supports FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, and BOOL only for predicate inputs; got "
+                + "; Metal MPS bridge currently supports FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, scoped BOOL compare outputs, and BOOL predicate inputs; got "
                 + dtype + ".";
     }
 
@@ -306,6 +332,13 @@ public final class MetalMpsCapabilities {
                  REDUCE_MAX,
                  LAYER_NORM,
                  RMS_NORM -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean supportsBoolCompareOperation(Operation.OpType opType) {
+        return switch (opType) {
+            case GT, GE, LT, LE, EQ, NE -> true;
             default -> false;
         };
     }

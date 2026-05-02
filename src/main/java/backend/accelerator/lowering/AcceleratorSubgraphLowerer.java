@@ -1359,6 +1359,12 @@ public final class AcceleratorSubgraphLowerer {
             case MEAN -> AcceleratorDagNodeType.MEAN;
             case REDUCE_MIN -> AcceleratorDagNodeType.REDUCE_MIN;
             case REDUCE_MAX -> AcceleratorDagNodeType.REDUCE_MAX;
+            case GT -> AcceleratorDagNodeType.GT;
+            case GE -> AcceleratorDagNodeType.GE;
+            case LT -> AcceleratorDagNodeType.LT;
+            case LE -> AcceleratorDagNodeType.LE;
+            case EQ -> AcceleratorDagNodeType.EQ;
+            case NE -> AcceleratorDagNodeType.NE;
             case SOFTMAX_GRAD -> AcceleratorDagNodeType.SOFTMAX_GRAD;
             case LOG_SOFTMAX_GRAD -> AcceleratorDagNodeType.LOG_SOFTMAX_GRAD;
             case REDUCE_MIN_GRAD -> AcceleratorDagNodeType.REDUCE_MIN_GRAD;
