@@ -1806,6 +1806,81 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void gpuMetalDenseCrossEntropyForwardStaysGpuOwnedInTrainingUntilGradientPublication() {
+        Tensor cpuLogits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "cpuTrainingDenseLossLogits", DataType.FLOAT32);
+        cpuLogits.setRequiresGrad(true);
+        Tensor cpuTargets = new Tensor(new float[]{
+                0f, 0f, 1f,
+                1f, 0f, 0f
+        }, new int[]{2, 3}, null, "cpuTrainingDenseLossTargets", DataType.FLOAT32);
+        Tensor cpuLoss = cpuLogits.crossEntropyLoss(cpuTargets, 1);
+        CompiledGraph.compile(cpuLoss, OptimizerConfig.trainingDefaults())
+                .execute(RuntimeConfig.trainingDefaults(), ExecutionMode.FORWARD_BACKWARD);
+
+        Tensor logits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "metalTrainingDenseLossLogits", DataType.FLOAT32);
+        logits.setRequiresGrad(true);
+        Tensor targets = new Tensor(new float[]{
+                0f, 0f, 1f,
+                1f, 0f, 0f
+        }, new int[]{2, 3}, null, "metalTrainingDenseLossTargets", DataType.FLOAT32);
+        Tensor loss = logits.crossEntropyLoss(targets, 1);
+        TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.trainingDefaults());
+        int lossNodeId = nodeId(compiled, Operation.OpType.CROSS_ENTROPY_LOSS);
+
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, lossNodeId));
+        assertTrue(execution.forwardSteps().stream()
+                .anyMatch(step -> step.compiledNode().id() == lossNodeId && step.metadata().backend() == ComputeBackend.GPU_METAL));
+
+        var trace = execution.executeTraced(ExecutionMode.FORWARD_BACKWARD);
+
+        assertArrayEquals(cpuLogits.getGradient().toDoubleArrayCopy(), logits.getGradient().toDoubleArrayCopy(), 1e-5);
+        assertTrue(trace.steps().stream()
+                .anyMatch(step -> step.backend().equals("GPU_METAL") && step.opType().equals("CROSS_ENTROPY_LOSS")));
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(materialization -> materialization.nodeId() == lossNodeId
+                        && materialization.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(materialization -> materialization.reason() == backend.memory.CpuMaterializationReason.CPU_FALLBACK));
+    }
+
+    @Test
+    void gpuMetalIndexTargetLossGradientRemainsExplicitCpuBoundaryInTraining() {
+        Tensor logits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "metalIndexLossTrainingLogits", DataType.FLOAT32);
+        logits.setRequiresGrad(true);
+        Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalIndexLossTrainingTargets", DataType.INT32);
+        Tensor loss = logits.crossEntropyLossFromIndices(targetIndices, 1);
+        TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.trainingDefaults());
+        int forwardLossNodeId = nodeId(compiled, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
+        int gradNodeId = nodeId(compiled, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD);
+        String forwardReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, forwardLossNodeId), planningContext(compiled));
+        String gradReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, gradNodeId), planningContext(compiled));
+
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, forwardLossNodeId));
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, gradNodeId));
+        assertTrue(execution.forwardSteps().stream()
+                .anyMatch(step -> step.compiledNode().id() == forwardLossNodeId && step.metadata().backend() == ComputeBackend.CPU));
+        assertTrue(execution.backwardSteps().stream()
+                .anyMatch(step -> step.compiledNode().id() == gradNodeId && step.metadata().backend() == ComputeBackend.CPU));
+        assertContainsAll(forwardReason, "UNSUPPORTED_INDEX_SEMANTICS", "CROSS_ENTROPY_LOSS_INDICES");
+        assertContainsAll(gradReason, "UNSUPPORTED_INDEX_SEMANTICS", "CROSS_ENTROPY_LOSS_INDICES_GRAD");
+    }
+
+    @Test
     void gpuCudaDirectUnmaskedSdpaFallsBackWithCapabilityMissingReason() {
         Tensor cpuQ = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuCudaSdpaQ", DataType.FLOAT32);
         Tensor cpuK = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuCudaSdpaK", DataType.FLOAT32);

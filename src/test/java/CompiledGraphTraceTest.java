@@ -476,6 +476,34 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
+    void metalDenseLossTrainingTraceKeepsForwardLossGpuOwnedWithoutInternalCpuConsumerMaterialization() {
+        Tensor logits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "traceDenseLossLogits", DataType.FLOAT32);
+        logits.setRequiresGrad(true);
+        Tensor targets = new Tensor(new float[]{
+                0f, 0f, 1f,
+                1f, 0f, 0f
+        }, new int[]{2, 3}, null, "traceDenseLossTargets", DataType.FLOAT32);
+        Tensor loss = logits.crossEntropyLoss(targets, 1);
+        TensorInternalAccess.setBackend(loss, ComputeBackend.GPU_METAL);
+
+        graph.CompiledGraph compiled = graph.CompiledGraph.compile(loss, OptimizerConfig.trainingDefaults());
+        PreparedExecution prepared = compiled.prepare(config.runtime.RuntimeConfig.trainingDefaults());
+        int lossNodeId = nodeId(compiled, operations.Operation.OpType.CROSS_ENTROPY_LOSS);
+        var trace = prepared.executeTraced(ExecutionMode.FORWARD_BACKWARD);
+
+        assertTrue(trace.steps().stream()
+                .anyMatch(step -> step.backend().equals("GPU_METAL") && step.opType().equals("CROSS_ENTROPY_LOSS")));
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(materialization -> materialization.nodeId() == lossNodeId
+                        && materialization.reason() == CpuMaterializationReason.CPU_CONSUMER));
+        assertFalse(trace.cpuMaterializations().stream()
+                .anyMatch(materialization -> materialization.reason() == CpuMaterializationReason.CPU_FALLBACK));
+    }
+
+    @Test
     void traceRendersGpuFusedSubpatternSpanAndPrimitiveCount() {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, OptimizerConfig.noOptimization());
