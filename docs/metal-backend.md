@@ -500,6 +500,12 @@ Dense GPU materialization covers `contiguous()` and non-contiguous-source `resha
 the optional layout materialization capability and the prepared run registers the backend-owned materializer service.
 Without that service, AUTO mode falls back visibly and REQUIRE mode fails with `GPU_LAYOUT_TRANSFORM_UNSUPPORTED`.
 
+Phase 33 splits layout repair into explicit router routes. `METADATA_ONLY_VIEW` keeps borrowed device handles for view
+metadata. `DENSE_GPU_MATERIALIZATION` and `BROADCAST_GPU_MATERIALIZATION` allocate dense Metal destination buffers and
+run the native layout materializer. Broadcast repair is scoped to zero-stride `FLOAT32` views that can be proven safe by
+physical-span validation. `STRIDED_NATIVE_COMPUTE` is a named route class, but remains unsupported until a consumer
+operation explicitly proves direct strided execution.
+
 For Phase 10, the accepted CPU materialization boundaries are graph output publication, a real CPU consumer, and
 gradient publication. A supported Metal layout chain should not produce a `CPU_CONSUMER` materialization between
 metadata-only view nodes.
@@ -701,7 +707,8 @@ Notable current exclusions:
 | Missing BOOL residency evidence | Coverage regression gate | Supported `bool_compare_where_small` fails if traces do not show native buffer execution and non-rejected `dtype=BOOL` residency evidence. |
 | Illegal or unproven index input | `MetalPartitionSupport`, `MetalMpsCapabilities.supportsExternalInputRole(...)` | Forward gather/take rejects non-`INT32`, non-dense, non-static, or out-of-bounds indices with stable `UNSUPPORTED_DTYPE`, `UNSUPPORTED_LAYOUT`, or `UNSUPPORTED_BOUNDS_CHECK` details. |
 | Missing INT32 index residency evidence | Coverage regression gate | Supported `gather_take_small` fails if traces do not show native buffer execution and non-rejected `dtype=INT32` residency evidence. |
-| Broadcast zero-stride or unsupported output layout | `MetalLayoutPolicy.output(...)` | Buffer path unavailable with `OUTPUT_LAYOUT_UNSUPPORTED`; tensor-array path or CPU fallback is attempted in `AUTO`, and `REQUIRE` throws. |
+| Missing layout materialization evidence | Coverage regression gate | Supported `layout_broadcast_repair_small` fails if traces do not show `BROADCAST_GPU_MATERIALIZATION`, native buffer execution, and no `CPU_CONSUMER` materialization. |
+| Broadcast zero-stride output layout | `MetalLayoutPolicy.output(...)` | Direct broadcast output buffers remain unsupported with `OUTPUT_LAYOUT_UNSUPPORTED`; explicit `expand -> contiguous` repair can use `BROADCAST_GPU_MATERIALIZATION`. |
 | Non-contiguous legal view output | `MetalLayoutPolicy.output(...)`, `MetalBufferAllocator.createOutputBinding(...)`, `MetalDeviceToCpuMaterializer` | `ZERO_OFFSET_VIEW`, `NON_ZERO_OFFSET_VIEW`, and `PERMUTED_OR_STRIDED_VIEW` use dense physical logical-view buffers when the bridge and materializer support the path. |
 | CPU storage stale and no Metal input binding exists | `resolveOrCreateMetalBufferBindings(...)` | Buffer path unavailable because Java cannot safely upload stale CPU data. |
 | Native buffer execution non-zero status | `MetalMpsFfmBridge.executeBuffers(...)` | Throws; `PreparedMetalExecutable` runs CPU fallback. |

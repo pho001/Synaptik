@@ -38,7 +38,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 |---|---|---|---|
 | matmul/linear | `MATMUL`, `LINEAR` | supported | `SUPPORTED` |
 | elementwise chains | `ADD`, `SUB`, `MUL`, `DIV`, `RELU`, `TANH`, `SIGMOID`, `ABS`, `EXP`, `LOG`, `NEG`, `SQRT`, `INV`, `MUL_SCALAR`, `WHERE`, `CLAMP_MIN`, `CLAMP_MAX` | supported | `SUPPORTED` |
-| layout/view-adjacent nodes | `RESHAPE`, `CONTIGUOUS`, `NOOP`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE` | supported | `SUPPORTED` |
+| layout/view-adjacent nodes | `RESHAPE`, `CONTIGUOUS`, `NOOP`, `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE` | supported | `SUPPORTED`; router distinguishes metadata-only views, dense materialization, broadcast materialization, and unsupported strided compute |
 | softmax/log-softmax-ish flows | `SOFTMAX` | supported | `SUPPORTED` |
 | softmax/log-softmax-ish flows | `LOG_SOFTMAX` | supported | `SUPPORTED`; lowered as SOFTMAX followed by LOG |
 | reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | supported | `SUPPORTED`; axis and keep-dims metadata lower through the shared DAG ABI |
@@ -81,6 +81,11 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 The public `Tensor` remains logical and device residency stays in `ExecutionState` and `DeviceBufferBinding`. The matrix does not grant public device tensors, and it does not bypass backend-owned dtype, layout, cost, capability, or ABI checks.
 
 Metal and CUDA coverage is backend-specific. Shared rows describe the common semantic contract, but each backend can still reject a row through its own native capability, dtype, layout, ABI, or buffer-binding gates.
+
+Phase 33 adds coverage evidence for Metal layout repair. `layout_broadcast_repair_small` requires native buffer execution,
+`BROADCAST_GPU_MATERIALIZATION` evidence, and no `CPU_CONSUMER` materialization on the supported hot path. This is not a
+claim of universal strided-native compute; direct `STRIDED_NATIVE_COMPUTE` remains a named unsupported route until a
+consumer primitive proves that contract.
 
 ## DType residency is not native dtype compute
 

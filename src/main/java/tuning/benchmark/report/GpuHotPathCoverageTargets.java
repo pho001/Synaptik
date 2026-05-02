@@ -112,6 +112,13 @@ public final class GpuHotPathCoverageTargets {
                         List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALINTIDX"),
                         32,
                         "Exercises forward GATHER and TAKE_ALONG_AXIS with INT32 index residency and native Metal execution."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "layout_broadcast_repair_small",
+                        "layout_repair",
+                        List.of("GPUNATIVE", "GPUCLOSE", "METALLAYOUT"),
+                        33,
+                        "Exercises zero-stride broadcast view repair through GPU layout materialization."
                 )
         );
     }
@@ -224,6 +231,13 @@ public final class GpuHotPathCoverageTargets {
                         gatherTakePolicy(resolvedBackend),
                         "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("CAPABILITY_MISSING", "GATHER", "TAKE_ALONG_AXIS"),
                         "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "layout_broadcast_repair_small",
+                        resolvedBackend,
+                        layoutRepairPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("GPU_LAYOUT", "BROADCAST_GPU_MATERIALIZATION"),
+                        "GPU_METAL".equals(resolvedBackend)
                 )
         );
     }
@@ -279,6 +293,25 @@ public final class GpuHotPathCoverageTargets {
                 4,
                 0,
                 0,
+                0,
+                0,
+                1,
+                true
+        );
+    }
+
+    private static GpuCoverageGatePolicy layoutRepairPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return new GpuCoverageGatePolicy(
+                backend,
+                0.2d,
+                1,
+                0,
+                1,
+                0,
+                1,
                 0,
                 0,
                 1,

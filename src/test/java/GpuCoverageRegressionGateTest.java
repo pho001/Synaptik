@@ -317,6 +317,46 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
+    void phaseThirtyThreeLayoutRepairRequiresGpuLayoutMaterializationEvidence() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.defaultExpectations()
+                .stream()
+                .filter(item -> item.workloadName().equals("layout_broadcast_repair_small"))
+                .findFirst()
+                .orElseThrow();
+        var reportWithoutLayoutEvidence = reportFor(
+                "layout_broadcast_repair_small",
+                coverage(1.0d, 2, 0, 0, 0, 0, 1, 0, 1, 0, 0)
+        );
+        var reportWithLayoutEvidence = reportFor(
+                "layout_broadcast_repair_small",
+                coverageWithLayoutMaterialization()
+        );
+        var reportWithCpuConsumer = reportFor(
+                "layout_broadcast_repair_small",
+                coverageWithLayoutMaterializationAndCpuConsumer()
+        );
+
+        List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithoutLayoutEvidence,
+                List.of(expectation)
+        );
+        List<GpuCoverageGateResult> passing = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithLayoutEvidence,
+                List.of(expectation)
+        );
+        List<GpuCoverageGateResult> cpuConsumer = GpuCoverageRegressionGate.evaluateTargets(
+                reportWithCpuConsumer,
+                List.of(expectation)
+        );
+
+        assertTrue(missing.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("missing GPU layout materialization evidence")));
+        assertTrue(passing.getFirst().passed(), passing.getFirst().failures().toString());
+        assertTrue(cpuConsumer.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("unexpected CPU_CONSUMER layout materialization")));
+    }
+
+    @Test
     void phaseTwentyEightVisibleBlockerFailureNamesWorkloadAndBackend() {
         GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA")
                 .stream()
@@ -439,6 +479,18 @@ public class GpuCoverageRegressionGateTest {
                         ? Map.of()
                         : Map.of("dtypeResidency.compute.1", "backend=GPU_METAL role=compute dtype=" + evidenceDType + " supported")
         );
+        var attrs = new java.util.LinkedHashMap<String, Object>();
+        attrs.put("acceleratorBufferBackend", "GPU_METAL");
+        attrs.put("acceleratorBufferExecutionPath", "BUFFER_BINDING");
+        attrs.put("acceleratorBufferReasonCode", "BUFFER_BINDING_AVAILABLE");
+        attrs.put("acceleratorBufferReason", "using native buffer bindings");
+        attrs.put("storageResidency", "DEVICE_OWNED");
+        if (coverage.gpuLayoutMaterializationCount() > 0) {
+            attrs.put("gpuLayoutMaterializationCount", coverage.gpuLayoutMaterializationCount());
+            attrs.put("gpuLayoutMaterializationBytes", coverage.gpuLayoutMaterializationBytes());
+            attrs.put("gpuLayoutTransformKind", coverage.gpuLayoutTransformKindCounts().keySet().iterator().next());
+            attrs.put("gpuLayoutTransformTargetLayoutClass", coverage.gpuLayoutTargetLayoutClassCounts().keySet().iterator().next());
+        }
         var gpuStep = new graph.execution.trace.ExecutionStepTrace(
                 0,
                 "gpu_metal_dtype",
@@ -450,13 +502,7 @@ public class GpuCoverageRegressionGateTest {
                 1L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",
-                        Map.ofEntries(
-                                Map.entry("acceleratorBufferBackend", "GPU_METAL"),
-                                Map.entry("acceleratorBufferExecutionPath", "BUFFER_BINDING"),
-                                Map.entry("acceleratorBufferReasonCode", "BUFFER_BINDING_AVAILABLE"),
-                                Map.entry("acceleratorBufferReason", "using native buffer bindings"),
-                                Map.entry("storageResidency", "DEVICE_OWNED")
-                        ),
+                        attrs,
                         null,
                         null,
                         null,
@@ -483,10 +529,23 @@ public class GpuCoverageRegressionGateTest {
                         manifest
                 ))
         );
+        List<graph.execution.trace.CpuMaterializationTrace> materializations =
+                coverage.cpuMaterializationReasonCounts().containsKey("CPU_CONSUMER")
+                        ? List.of(new graph.execution.trace.CpuMaterializationTrace(
+                                1,
+                                backend.memory.CpuMaterializationReason.CPU_CONSUMER,
+                                "GPU_METAL",
+                                backend.memory.StorageResidency.DEVICE_OWNED,
+                                4096L,
+                                1L,
+                                true,
+                                "synthetic CPU_CONSUMER"
+                        ))
+                        : List.of();
         return new graph.execution.trace.ExecutionTrace(
                 new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
                 new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
-                new graph.execution.trace.RunTrace(backend.runtime.ExecutionMode.FORWARD, 1L, List.of(gpuStep), List.of())
+                new graph.execution.trace.RunTrace(backend.runtime.ExecutionMode.FORWARD, 1L, List.of(gpuStep), materializations)
         );
     }
 
@@ -651,6 +710,52 @@ public class GpuCoverageRegressionGateTest {
                 gpuFusedSubpatternCount == 0 ? List.of() : List.of("[1, 2]"),
                 gpuFusedSubpatternCount,
                 gpuFusedSubpatternCount == 0 ? List.of() : List.of("SUPPORTED"),
+                List.of("BUFFER_BINDING_AVAILABLE"),
+                List.of("using native buffer bindings")
+        );
+    }
+
+    private static GpuCoverageSummary.BackendCoverage coverageWithLayoutMaterialization() {
+        return layoutCoverage(Map.of());
+    }
+
+    private static GpuCoverageSummary.BackendCoverage coverageWithLayoutMaterializationAndCpuConsumer() {
+        return layoutCoverage(Map.of("CPU_CONSUMER", 1));
+    }
+
+    private static GpuCoverageSummary.BackendCoverage layoutCoverage(Map<String, Integer> cpuMaterializationReasons) {
+        return new GpuCoverageSummary.BackendCoverage(
+                4,
+                3,
+                1.0d,
+                1,
+                0,
+                2,
+                2,
+                1,
+                0,
+                Map.of(),
+                1,
+                0,
+                0,
+                0,
+                cpuMaterializationReasons.isEmpty() ? 0 : 1,
+                cpuMaterializationReasons,
+                0L,
+                0L,
+                0L,
+                1,
+                1,
+                4096L,
+                Map.of("BROADCAST_GPU_MATERIALIZATION", 1),
+                Map.of("DENSE_CONTIGUOUS", 1),
+                Map.of("DEVICE_OWNED", 1),
+                Map.of(),
+                0,
+                List.of(),
+                List.of(),
+                0,
+                List.of(),
                 List.of("BUFFER_BINDING_AVAILABLE"),
                 List.of("using native buffer bindings")
         );

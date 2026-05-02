@@ -115,6 +115,10 @@ public final class StandardWorkloads {
         return new GatherTakeWorkloadSpec(name, batch, features, picks);
     }
 
+    public static LayoutRepairWorkloadSpec layoutBroadcastRepair(String name, int batch, int features) {
+        return new LayoutRepairWorkloadSpec(name, batch, features);
+    }
+
     public static Pool2dWorkloadSpec pool2d(
             String name,
             Pool2dWorkloadSpec.PoolKind kind,
@@ -176,6 +180,7 @@ public final class StandardWorkloads {
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
                 .register(boolCompareWhere("bool_compare_where_small", 8, 32))
                 .register(gatherTake("gather_take_small", 8, 16, 4))
+                .register(layoutBroadcastRepair("layout_broadcast_repair_small", 8, 32))
                 .register(transformerHotPath("transformer_hot_path"))
                 .register(transformerHotPath("transformer_hot_path_large", WorkloadProfile.transformerHotPathLarge()))
                 .register(transformerHotPath("transformer_hot_path_long_seq", WorkloadProfile.transformerHotPathLongSeq()))

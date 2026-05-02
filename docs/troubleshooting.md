@@ -26,6 +26,29 @@ This document lists concrete Synaptik failure modes, where they usually come fro
 - [Source Hygiene Architecture Failures](#source-hygiene-architecture-failures)
 - [Stale Or Missing Profile Artifacts](#stale-or-missing-profile-artifacts)
 
+## Metal Layout Repair Falls Back
+
+Symptom:
+
+```text
+GPU_LAYOUT_TRANSFORM_UNSUPPORTED
+NATIVE_LAYOUT_DTYPE_UNSUPPORTED
+missing GPU layout materialization evidence
+unexpected CPU_CONSUMER layout materialization
+```
+
+Likely context:
+
+- A Metal graph contains `permute`, `expand`, `reshape`, or `contiguous`.
+- A zero-stride broadcast view reached a dense-only Metal consumer without explicit `contiguous()` repair.
+- The layout materializer is asked to repair BF16/BOOL/INT32 layout data; Phase 33 layout materialization is scoped to FLOAT32.
+
+Fix:
+
+- For broadcast views, insert or preserve `contiguous()` before dense-only Metal consumers.
+- Use `AUTO` mode to keep fallback visible while debugging; use `REQUIRE` when you need the run to fail instead of using tensor-array or CPU fallback.
+- Check trace fields `gpuLayoutTransformKind`, `gpuLayoutTransformReasonCode`, `gpuLayoutMaterializationCount`, and `gpuLayoutMaterializationBytes`.
+
 ## Java Heap Space
 
 Symptom:

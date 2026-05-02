@@ -122,6 +122,23 @@ public final class GpuCoverageRegressionGate {
                         + expectation.backend());
                 result = new GpuCoverageGateResult(false, failures, coverage);
             }
+            if (requiresLayoutMaterializationEvidence(expectation) && !hasLayoutMaterializationEvidence(coverage)) {
+                var failures = new ArrayList<>(result.failures());
+                failures.add("missing GPU layout materialization evidence workload="
+                        + expectation.workloadName()
+                        + " backend="
+                        + expectation.backend());
+                result = new GpuCoverageGateResult(false, failures, coverage);
+            }
+            if (requiresLayoutMaterializationEvidence(expectation)
+                    && coverage.cpuMaterializationReasonCounts().containsKey("CPU_CONSUMER")) {
+                var failures = new ArrayList<>(result.failures());
+                failures.add("unexpected CPU_CONSUMER layout materialization workload="
+                        + expectation.workloadName()
+                        + " backend="
+                        + expectation.backend());
+                result = new GpuCoverageGateResult(false, failures, coverage);
+            }
             results.add(result);
         }
         return List.copyOf(results);
@@ -211,6 +228,18 @@ public final class GpuCoverageRegressionGate {
 
     private static boolean hasInt32DTypeEvidence(GpuCoverageSummary.BackendCoverage coverage) {
         return hasSupportedDTypeEvidence(coverage, "INT32");
+    }
+
+    private static boolean requiresLayoutMaterializationEvidence(GpuCoverageHotPathExpectation expectation) {
+        return expectation != null
+                && expectation.nativeEvidenceRequired()
+                && expectation.workloadName().equals("layout_broadcast_repair_small");
+    }
+
+    private static boolean hasLayoutMaterializationEvidence(GpuCoverageSummary.BackendCoverage coverage) {
+        return coverage != null
+                && coverage.gpuLayoutMaterializationCount() > 0
+                && coverage.gpuLayoutTransformKindCounts().containsKey("BROADCAST_GPU_MATERIALIZATION");
     }
 
     private static boolean hasSupportedDTypeEvidence(GpuCoverageSummary.BackendCoverage coverage, String dtype) {

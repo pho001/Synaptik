@@ -33,9 +33,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### GPU Layout Router And Strided Materialization
 
-- [ ] **METALLAYOUT-01**: Metal planning distinguishes metadata-only views, dense GPU-side materialization, zero-stride broadcast materialization, and unsupported strided compute with stable reason codes.
-- [ ] **METALLAYOUT-02**: Legal layout transforms needed by v1.5 dtype, SDPA, conv/pool, indexing, and loss flows can run GPU-side without CPU materialization between compatible Metal regions.
-- [ ] **METALLAYOUT-03**: Coverage gates fail unexpected CPU materialization caused by layout repair on representative non-contiguous/view workloads.
+- [x] **METALLAYOUT-01**: Metal planning distinguishes metadata-only views, dense GPU-side materialization, zero-stride broadcast materialization, and unsupported strided compute with stable reason codes.
+- [x] **METALLAYOUT-02**: Legal layout transforms needed by v1.5 dtype, SDPA, conv/pool, indexing, and loss flows can run GPU-side without CPU materialization between compatible Metal regions.
+- [x] **METALLAYOUT-03**: Coverage gates fail unexpected CPU materialization caused by layout repair on representative non-contiguous/view workloads.
 
 ### Masked And Causal SDPA
 
@@ -115,9 +115,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALINTIDX-01 | Phase 32 | Complete |
 | METALINTIDX-02 | Phase 32 | Complete |
 | METALINTIDX-03 | Phase 32 | Complete |
-| METALLAYOUT-01 | Phase 33 | Pending |
-| METALLAYOUT-02 | Phase 33 | Pending |
-| METALLAYOUT-03 | Phase 33 | Pending |
+| METALLAYOUT-01 | Phase 33 | Complete |
+| METALLAYOUT-02 | Phase 33 | Complete |
+| METALLAYOUT-03 | Phase 33 | Complete |
 | METALSDPAMASK-01 | Phase 34 | Pending |
 | METALSDPAMASK-02 | Phase 34 | Pending |
 | METALSDPAMASK-03 | Phase 34 | Pending |
