@@ -93,6 +93,41 @@ static NSUInteger SynaptikElementCountFromDims(int32_t rank, NSUInteger dim0, NS
     return elementCount;
 }
 
+static NSUInteger SynaptikByteSizeForDTypeCode(int32_t dtypeCode) {
+    switch (dtypeCode) {
+        case 1:
+            return sizeof(float);
+        case 2:
+            return sizeof(uint8_t);
+        case 3:
+            return sizeof(uint16_t);
+        default:
+            return 0;
+    }
+}
+
+static BOOL SynaptikMpsDataTypeForCode(int32_t dtypeCode, MPSDataType *outDataType) {
+    if (outDataType == NULL) {
+        return NO;
+    }
+    switch (dtypeCode) {
+        case 1:
+            *outDataType = MPSDataTypeFloat32;
+            return YES;
+        case 2:
+            *outDataType = MPSDataTypeBool;
+            return YES;
+        case 3:
+            if (@available(macOS 14.0, iOS 16.0, tvOS 16.0, *)) {
+                *outDataType = MPSDataTypeBFloat16;
+                return YES;
+            }
+            return NO;
+        default:
+            return NO;
+    }
+}
+
 static int64_t SynaptikNowNs(void) {
     struct timespec timestamp;
     if (clock_gettime(CLOCK_MONOTONIC, &timestamp) != 0) {
@@ -461,7 +496,7 @@ void synaptik_apple_mps_destroy_buffer(void *buffer) {
     }
 }
 
-void *synaptik_apple_mps_compile_partition_f32(
+static void *SynaptikCompilePartition(
         void *context,
         int32_t external_input_count,
         const int32_t *external_input_ranks,
@@ -486,6 +521,7 @@ void *synaptik_apple_mps_compile_partition_f32(
         const int32_t *output_dim1,
         const int32_t *output_dim2,
         const int32_t *output_dim3,
+        const int32_t *node_output_dtypes,
         int32_t output_node_count,
         const int32_t *output_node_indices
 ) {
@@ -510,7 +546,10 @@ void *synaptik_apple_mps_compile_partition_f32(
                 return NULL;
             }
             int32_t dtypeCode = external_input_dtypes == NULL ? 0 : external_input_dtypes[i];
-            MPSDataType dataType = dtypeCode == 2 ? MPSDataTypeBool : MPSDataTypeFloat32;
+            MPSDataType dataType = MPSDataTypeInvalid;
+            if (!SynaptikMpsDataTypeForCode(dtypeCode, &dataType)) {
+                return NULL;
+            }
             NSMutableArray<NSNumber *> *shape = [NSMutableArray arrayWithCapacity:(NSUInteger) rank];
             [shape addObject:@(external_input_dim0[i])];
             if (rank >= 2) [shape addObject:@(external_input_dim1[i])];
@@ -892,8 +931,13 @@ void *synaptik_apple_mps_compile_partition_f32(
             if (elementCount == 0) {
                 return NULL;
             }
+            int32_t outputDType = node_output_dtypes == NULL ? 1 : node_output_dtypes[output_node_index];
+            MPSDataType outputDataType = MPSDataTypeInvalid;
+            if (!SynaptikMpsDataTypeForCode(outputDType, &outputDataType)) {
+                return NULL;
+            }
             [outputRanksBoxed addObject:@(rank)];
-            [outputDTypesBoxed addObject:@(1)];
+            [outputDTypesBoxed addObject:@(outputDType)];
             [outputDim0Boxed addObject:@(dim0)];
             [outputDim1Boxed addObject:@(dim1)];
             [outputDim2Boxed addObject:@(dim2)];
@@ -928,6 +972,125 @@ void *synaptik_apple_mps_compile_partition_f32(
         box.outputElementCounts = [outputElementCountsBoxed copy];
         return (void *) CFBridgingRetain(box);
     }
+}
+
+void *synaptik_apple_mps_compile_partition_f32(
+        void *context,
+        int32_t external_input_count,
+        const int32_t *external_input_ranks,
+        const int32_t *external_input_dtypes,
+        const int32_t *external_input_dim0,
+        const int32_t *external_input_dim1,
+        const int32_t *external_input_dim2,
+        const int32_t *external_input_dim3,
+        int32_t post_op_count,
+        const int32_t *node_types,
+        const int32_t *input0_kinds,
+        const int32_t *input0_indices,
+        const int32_t *input1_kinds,
+        const int32_t *input1_indices,
+        const int32_t *input2_kinds,
+        const int32_t *input2_indices,
+        const int32_t *input3_kinds,
+        const int32_t *input3_indices,
+        const float *node_scalar_values,
+        const int32_t *output_ranks,
+        const int32_t *output_dim0,
+        const int32_t *output_dim1,
+        const int32_t *output_dim2,
+        const int32_t *output_dim3,
+        int32_t output_node_count,
+        const int32_t *output_node_indices
+) {
+    return SynaptikCompilePartition(
+            context,
+            external_input_count,
+            external_input_ranks,
+            external_input_dtypes,
+            external_input_dim0,
+            external_input_dim1,
+            external_input_dim2,
+            external_input_dim3,
+            post_op_count,
+            node_types,
+            input0_kinds,
+            input0_indices,
+            input1_kinds,
+            input1_indices,
+            input2_kinds,
+            input2_indices,
+            input3_kinds,
+            input3_indices,
+            node_scalar_values,
+            output_ranks,
+            output_dim0,
+            output_dim1,
+            output_dim2,
+            output_dim3,
+            NULL,
+            output_node_count,
+            output_node_indices
+    );
+}
+
+void *synaptik_apple_mps_compile_partition_dtype_v3(
+        void *context,
+        int32_t external_input_count,
+        const int32_t *external_input_ranks,
+        const int32_t *external_input_dtypes,
+        const int32_t *external_input_dim0,
+        const int32_t *external_input_dim1,
+        const int32_t *external_input_dim2,
+        const int32_t *external_input_dim3,
+        int32_t post_op_count,
+        const int32_t *node_types,
+        const int32_t *input0_kinds,
+        const int32_t *input0_indices,
+        const int32_t *input1_kinds,
+        const int32_t *input1_indices,
+        const int32_t *input2_kinds,
+        const int32_t *input2_indices,
+        const int32_t *input3_kinds,
+        const int32_t *input3_indices,
+        const float *node_scalar_values,
+        const int32_t *output_ranks,
+        const int32_t *output_dim0,
+        const int32_t *output_dim1,
+        const int32_t *output_dim2,
+        const int32_t *output_dim3,
+        const int32_t *node_output_dtypes,
+        int32_t output_node_count,
+        const int32_t *output_node_indices
+) {
+    return SynaptikCompilePartition(
+            context,
+            external_input_count,
+            external_input_ranks,
+            external_input_dtypes,
+            external_input_dim0,
+            external_input_dim1,
+            external_input_dim2,
+            external_input_dim3,
+            post_op_count,
+            node_types,
+            input0_kinds,
+            input0_indices,
+            input1_kinds,
+            input1_indices,
+            input2_kinds,
+            input2_indices,
+            input3_kinds,
+            input3_indices,
+            node_scalar_values,
+            output_ranks,
+            output_dim0,
+            output_dim1,
+            output_dim2,
+            output_dim3,
+            node_output_dtypes,
+            output_node_count,
+            output_node_indices
+    );
 }
 
 int synaptik_apple_mps_execute_partition_f32(
@@ -966,12 +1129,19 @@ int synaptik_apple_mps_execute_partition_f32(
             NSUInteger dim2 = (NSUInteger) executableBox.externalInputDim2[(NSUInteger) i].intValue;
             NSUInteger dim3 = (NSUInteger) executableBox.externalInputDim3[(NSUInteger) i].intValue;
             int32_t dtypeCode = executableBox.externalInputDTypes[(NSUInteger) i].intValue;
-            MPSDataType dataType = dtypeCode == 2 ? MPSDataTypeBool : MPSDataTypeFloat32;
+            MPSDataType dataType = MPSDataTypeInvalid;
+            if (!SynaptikMpsDataTypeForCode(dtypeCode, &dataType)) {
+                return 6;
+            }
             NSUInteger elementCount = dim0;
             if (rank >= 2) elementCount *= dim1;
             if (rank >= 3) elementCount *= dim2;
             if (rank >= 4) elementCount *= dim3;
-            NSUInteger bytes = elementCount * (dtypeCode == 2 ? sizeof(uint8_t) : sizeof(float));
+            NSUInteger byteSize = SynaptikByteSizeForDTypeCode(dtypeCode);
+            if (byteSize == 0) {
+                return 6;
+            }
+            NSUInteger bytes = elementCount * byteSize;
             id<MTLBuffer> buffer = [contextBox.device newBufferWithBytes:external_inputs[i]
                                                                   length:bytes
                                                                  options:MTLResourceStorageModeShared];
@@ -1051,9 +1221,16 @@ int32_t synaptik_apple_mps_execute_partition_f32_buffers(
             NSUInteger dim2 = (NSUInteger) executableBox.externalInputDim2[(NSUInteger) i].intValue;
             NSUInteger dim3 = (NSUInteger) executableBox.externalInputDim3[(NSUInteger) i].intValue;
             int32_t dtypeCode = executableBox.externalInputDTypes[(NSUInteger) i].intValue;
-            MPSDataType dataType = dtypeCode == 2 ? MPSDataTypeBool : MPSDataTypeFloat32;
+            MPSDataType dataType = MPSDataTypeInvalid;
+            if (!SynaptikMpsDataTypeForCode(dtypeCode, &dataType)) {
+                return 5;
+            }
             NSUInteger elementCount = SynaptikElementCountFromDims(rank, dim0, dim1, dim2, dim3);
-            NSUInteger bytes = elementCount * (dtypeCode == 2 ? sizeof(uint8_t) : sizeof(float));
+            NSUInteger byteSize = SynaptikByteSizeForDTypeCode(dtypeCode);
+            if (byteSize == 0) {
+                return 5;
+            }
+            NSUInteger bytes = elementCount * byteSize;
             NSMutableArray<NSNumber *> *shape = SynaptikShapeFromDims(rank, dim0, dim1, dim2, dim3);
             if (shape == nil || elementCount == 0 || box.byteLength < bytes) {
                 return 5;
@@ -1079,9 +1256,16 @@ int32_t synaptik_apple_mps_execute_partition_f32_buffers(
             NSUInteger dim2 = (NSUInteger) executableBox.outputDim2[(NSUInteger) i].intValue;
             NSUInteger dim3 = (NSUInteger) executableBox.outputDim3[(NSUInteger) i].intValue;
             int32_t dtypeCode = executableBox.outputDTypes[(NSUInteger) i].intValue;
-            MPSDataType dataType = dtypeCode == 2 ? MPSDataTypeBool : MPSDataTypeFloat32;
+            MPSDataType dataType = MPSDataTypeInvalid;
+            if (!SynaptikMpsDataTypeForCode(dtypeCode, &dataType)) {
+                return 8;
+            }
             NSUInteger elementCount = (NSUInteger) executableBox.outputElementCounts[(NSUInteger) i].unsignedLongLongValue;
-            NSUInteger bytes = elementCount * (dtypeCode == 2 ? sizeof(uint8_t) : sizeof(float));
+            NSUInteger byteSize = SynaptikByteSizeForDTypeCode(dtypeCode);
+            if (byteSize == 0) {
+                return 8;
+            }
+            NSUInteger bytes = elementCount * byteSize;
             NSMutableArray<NSNumber *> *shape = SynaptikShapeFromDims(rank, dim0, dim1, dim2, dim3);
             if (shape == nil || elementCount == 0 || box.byteLength < bytes) {
                 return 8;
@@ -1113,7 +1297,11 @@ int32_t synaptik_apple_mps_execute_partition_f32_buffers(
             }
             int32_t dtypeCode = executableBox.outputDTypes[(NSUInteger) i].intValue;
             NSUInteger elementCount = (NSUInteger) executableBox.outputElementCounts[(NSUInteger) i].unsignedLongLongValue;
-            NSUInteger bytes = elementCount * (dtypeCode == 2 ? sizeof(uint8_t) : sizeof(float));
+            NSUInteger byteSize = SynaptikByteSizeForDTypeCode(dtypeCode);
+            if (byteSize == 0) {
+                return 12;
+            }
+            NSUInteger bytes = elementCount * byteSize;
             void *contents = box.buffer.contents;
             if (contents == NULL || box.byteLength < bytes) {
                 return 12;

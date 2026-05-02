@@ -115,6 +115,10 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         }
         try {
             AcceleratorDagSpec dagSpec = plan.lowering().dagSpec();
+            boolean requiresDTypeV3Compile = requiresDTypeV3Compile(dagSpec);
+            if (requiresDTypeV3Compile && STATE.compilePartitionDTypeV3Fn == null) {
+                return MetalMpsBridgeExecutable.unavailable("Metal MPS dtype ABI v3 compile symbol is unavailable for widened dtype DAG.");
+            }
             AcceleratorSubgraphSignature signature = AcceleratorSubgraphSignature.from(plan);
             boolean cacheHit = EXECUTABLE_CACHE.containsKey(signature);
             MemorySegment handle = EXECUTABLE_CACHE.computeIfAbsent(signature, ignored -> {
@@ -130,7 +134,9 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         for (int i = 0; i < externalInputCount; i++) {
                             AcceleratorDagInput input = dagSpec.externalInputs().get(i);
                             externalInputRanks[i] = input.shape().size();
-                            externalInputDTypes[i] = MetalMpsCapabilities.abiDataTypeCode(input.dataType());
+                            externalInputDTypes[i] = requiresDTypeV3Compile
+                                    ? MetalMpsCapabilities.abiDescriptorDataTypeCode(input.dataType())
+                                    : MetalMpsCapabilities.abiDataTypeCode(input.dataType());
                             externalInputDim0[i] = input.shape().getFirst();
                             externalInputDim1[i] = input.shape().size() >= 2 ? input.shape().get(1) : 1;
                             externalInputDim2[i] = input.shape().size() >= 3 ? input.shape().get(2) : 1;
@@ -152,6 +158,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         int[] outputDim1 = new int[nodeCount];
                         int[] outputDim2 = new int[nodeCount];
                         int[] outputDim3 = new int[nodeCount];
+                        int[] nodeOutputDTypes = new int[nodeCount];
                         for (int i = 0; i < nodeCount; i++) {
                             AcceleratorDagNode node = dagSpec.nodes().get(i);
                             nodeTypes[i] = node.type().abiCode();
@@ -169,6 +176,9 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                             outputDim1[i] = node.outputDim1();
                             outputDim2[i] = node.outputDim2();
                             outputDim3[i] = node.outputDim3();
+                            nodeOutputDTypes[i] = requiresDTypeV3Compile
+                                    ? MetalMpsCapabilities.abiDescriptorDataTypeCode(node.outputDataType())
+                                    : MetalMpsCapabilities.abiDataTypeCode(node.outputDataType());
                         }
                         MemorySegment externalInputRanksSeg = externalInputRanks.length == 0
                                 ? MemorySegment.NULL
@@ -233,11 +243,45 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         MemorySegment outputDim3Seg = outputDim3.length == 0
                                 ? MemorySegment.NULL
                                 : compileArena.allocateFrom(JAVA_INT, outputDim3);
+                        MemorySegment nodeOutputDTypesSeg = nodeOutputDTypes.length == 0
+                                ? MemorySegment.NULL
+                                : compileArena.allocateFrom(JAVA_INT, nodeOutputDTypes);
                         int outputCount = dagSpec.outputNodeIndices().size();
                         int[] outputNodeIndices = dagSpec.outputNodeIndices().stream().mapToInt(Integer::intValue).toArray();
                         MemorySegment outputNodeIndicesSeg = outputNodeIndices.length == 0
                                 ? MemorySegment.NULL
                                 : compileArena.allocateFrom(JAVA_INT, outputNodeIndices);
+                        if (requiresDTypeV3Compile) {
+                            return (MemorySegment) STATE.compilePartitionDTypeV3Fn.invokeExact(
+                                bridgeContext.handle(),
+                                externalInputCount,
+                                externalInputRanksSeg,
+                                externalInputDTypesSeg,
+                                externalInputDim0Seg,
+                                externalInputDim1Seg,
+                                externalInputDim2Seg,
+                                externalInputDim3Seg,
+                                nodeCount,
+                                nodeTypesSeg,
+                                input0KindsSeg,
+                                input0IndicesSeg,
+                                input1KindsSeg,
+                                input1IndicesSeg,
+                                input2KindsSeg,
+                                input2IndicesSeg,
+                                input3KindsSeg,
+                                input3IndicesSeg,
+                                scalarValuesSeg,
+                                outputRanksSeg,
+                                outputDim0Seg,
+                                outputDim1Seg,
+                                outputDim2Seg,
+                                outputDim3Seg,
+                                nodeOutputDTypesSeg,
+                                outputCount,
+                                outputNodeIndicesSeg
+                            );
+                        }
                         return (MemorySegment) STATE.compilePartitionFn.invokeExact(
                             bridgeContext.handle(),
                             externalInputCount,
@@ -290,6 +334,23 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         } catch (Throwable t) {
             return MetalMpsBridgeExecutable.unavailable("compile_partition failed: " + safeMessage(t));
         }
+    }
+
+    private static boolean requiresDTypeV3Compile(AcceleratorDagSpec dagSpec) {
+        if (dagSpec == null) {
+            return false;
+        }
+        for (AcceleratorDagInput input : dagSpec.externalInputs()) {
+            if (input.dataType() != DataType.FLOAT32 && input.dataType() != DataType.BOOL) {
+                return true;
+            }
+        }
+        for (AcceleratorDagNode node : dagSpec.nodes()) {
+            if (node.outputDataType() != DataType.FLOAT32) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -793,6 +854,41 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                             ADDRESS
                     )
             );
+            MethodHandle compilePartitionDTypeV3Fn = optionalHandle(
+                    linker,
+                    lookup,
+                    "synaptik_apple_mps_compile_partition_dtype_v3",
+                    FunctionDescriptor.of(
+                            ADDRESS,
+                            ADDRESS,
+                            JAVA_INT,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            JAVA_INT,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            ADDRESS,
+                            JAVA_INT,
+                            ADDRESS
+                    )
+            );
             MethodHandle executePartitionFn = optionalHandle(
                     linker,
                     lookup,
@@ -914,7 +1010,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                         metalCapabilityReason(layoutAbiV2Version, layoutAbiV2Supported, dtypeAbiV3Version, dtypeAbiV3Supported)
                 );
                 return new State(true, null, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
-                        executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
+                        compilePartitionDTypeV3Fn, executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
                         executePartitionBuffersFn, destroyContextFn, destroyExecutableFn, layoutContiguousF32BufferFn, capabilities);
             }
 
@@ -934,12 +1030,12 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                     reason
             );
             return new State(false, reason, arena, availableFn, unavailableReasonFn, createContextFn, compilePartitionFn,
-                    executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
+                    compilePartitionDTypeV3Fn, executePartitionFn, createBufferFn, writeBufferFn, readBufferFn, destroyBufferFn,
                     executePartitionBuffersFn, destroyContextFn, destroyExecutableFn, layoutContiguousF32BufferFn, capabilities);
         } catch (Throwable t) {
             String reason = t.getClass().getSimpleName() + ": " + safeMessage(t);
             return new State(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, null, null, null,
                     MetalMpsBridgeCapabilities.unavailable(MetalMpsCapabilityCode.NATIVE_LIBRARY_UNAVAILABLE, reason));
         }
     }
@@ -1060,6 +1156,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
         private final MethodHandle unavailableReasonFn;
         private final MethodHandle createContextFn;
         private final MethodHandle compilePartitionFn;
+        private final MethodHandle compilePartitionDTypeV3Fn;
         private final MethodHandle executePartitionFn;
         private final MethodHandle createBufferFn;
         @SuppressWarnings("unused")
@@ -1080,6 +1177,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 MethodHandle unavailableReasonFn,
                 MethodHandle createContextFn,
                 MethodHandle compilePartitionFn,
+                MethodHandle compilePartitionDTypeV3Fn,
                 MethodHandle executePartitionFn,
                 MethodHandle createBufferFn,
                 MethodHandle writeBufferFn,
@@ -1098,6 +1196,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             this.unavailableReasonFn = unavailableReasonFn;
             this.createContextFn = createContextFn;
             this.compilePartitionFn = compilePartitionFn;
+            this.compilePartitionDTypeV3Fn = compilePartitionDTypeV3Fn;
             this.executePartitionFn = executePartitionFn;
             this.createBufferFn = createBufferFn;
             this.writeBufferFn = writeBufferFn;

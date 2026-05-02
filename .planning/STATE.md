@@ -4,13 +4,13 @@ milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
 last_updated: "2026-05-02T07:05:33Z"
-last_activity: 2026-05-02 -- Phase 30-01 implementation started
+last_activity: 2026-05-02 -- Phase 30-01 BF16 storage and dtype-v3 compile path completed
 progress:
   total_phases: 11
   completed_phases: 1
   total_plans: 44
-  completed_plans: 4
-  percent: 9
+  completed_plans: 5
+  percent: 11
 ---
 
 # GSD State
@@ -75,7 +75,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
 | 29 — Metal DType ABI And Capability Truth | Complete | 4/4 | Verified |
-| 30 — BF16 Metal Compute And Output | Planned | 4/4 | Pending |
+| 30 — BF16 Metal Compute And Output | In Progress | 1/4 | Pending |
 | 31 — BOOL-Producing Metal Compute | Planned | 0/4 | Pending |
 | 32 — INT32 Index Tensor And Gather Take Path | Planned | 0/4 | Pending |
 | 33 — GPU Layout Router And Strided Materialization | Planned | 0/4 | Pending |
@@ -192,7 +192,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 29 planning completed | Four plans cover Metal dtype capability decisions, dtype ABI v3 optional probes, dtype diagnostics/report truth, docs, tests, and migration closure. |
 | 2026-05-02 | Phase 29 verification passed | Metal dtype role decisions, dtype ABI v3 discovery, report-visible reason codes, docs, focused Java tests, classes, and metalTest passed without widening native compute beyond FLOAT32. |
 | 2026-05-02 | Phase 30 planning completed | Four plans cover BF16 DAG/native dtype metadata, BF16 buffer/materialization, scoped primitive admission, tolerance/coverage gates, docs, and regression closure. |
-| 2026-05-02 | Phase 30-01 implementation started | Lowered DAG nodes now carry output dtype metadata, native executable cache signatures include output dtype, Metal executable descriptors preserve output dtype, and Metal buffer allocation/materialization has raw BF16 storage tests. |
+| 2026-05-02 | Phase 30-01 completed | Lowered DAG nodes now carry output dtype metadata, native executable cache signatures include output dtype, Metal executable descriptors preserve output dtype, Metal buffer allocation/materialization handles raw BF16 storage, and the additive native dtype-v3 compile symbol preserves BF16 output metadata without changing the legacy FLOAT32 compile path. |
 
 ## Recent Sessions
 
