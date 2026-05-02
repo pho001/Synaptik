@@ -149,6 +149,8 @@ class MetalMpsFfmBridgeTest {
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertEquals(MetalNativeCopyStrategy.MPSGRAPH_RESULT_COPY, stats.nativeCopyStrategy());
+            assertFalse(stats.outputBufferWriteProven());
             assertTrue(stats.nativeDeviceCopyNs() >= 0L);
             assertArrayEquals(new float[]{1.0f, 0.0f}, destination.getFloat32Data(), 0.0f);
         } finally {

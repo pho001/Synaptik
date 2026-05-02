@@ -78,6 +78,7 @@ public class GpuCoverageGapTriageTest {
                         0L,
                         0L,
                         0L,
+                        Map.of(),
                         1,
                         0,
                         0L,

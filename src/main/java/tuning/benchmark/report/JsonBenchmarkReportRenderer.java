@@ -175,6 +175,7 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"javaToNativeCopyNs\": ").append(backend.javaToNativeCopyNs()).append(", ")
                     .append("\"nativeToJavaCopyNs\": ").append(backend.nativeToJavaCopyNs()).append(", ")
                     .append("\"nativeDeviceCopyNs\": ").append(backend.nativeDeviceCopyNs()).append(", ")
+                    .append("\"nativeCopyStrategies\": ").append(stringListJson(backend.nativeCopyStrategies())).append(", ")
                     .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
                     .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
                     .append("}");
@@ -228,6 +229,8 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"cpuMaterializationDurationNs\": ")
                     .append(backend.cpuMaterializationDurationNs()).append(", ")
                     .append("\"copyDurationNs\": ").append(backend.copyDurationNs()).append(", ")
+                    .append("\"nativeCopyStrategyCounts\": ")
+                    .append(intMapJson(backend.nativeCopyStrategyCounts())).append(", ")
                     .append("\"deviceHandoffCount\": ").append(backend.deviceHandoffCount()).append(", ")
                     .append("\"gpuLayoutMaterializationCount\": ").append(backend.gpuLayoutMaterializationCount()).append(", ")
                     .append("\"gpuLayoutMaterializationBytes\": ").append(backend.gpuLayoutMaterializationBytes()).append(", ")

@@ -534,6 +534,8 @@ public final class PreparedExecution {
             attrs.put("metalJavaToNativeCopyNs", metalStats.javaToNativeCopyNs());
             attrs.put("metalOutputAllocationNs", metalStats.outputAllocationNs());
             attrs.put("metalNativeExecuteNs", metalStats.nativeExecuteNs());
+            attrs.put("metalNativeCopyStrategy", metalStats.nativeCopyStrategy().name());
+            attrs.put("metalOutputBufferWriteProven", metalStats.outputBufferWriteProven());
             attrs.put("metalNativeDeviceCopyNs", metalStats.nativeDeviceCopyNs());
             attrs.put("metalNativeToJavaCopyNs", metalStats.nativeToJavaCopyNs());
             attrs.put("metalBridgeTotalNs", metalStats.totalNs());

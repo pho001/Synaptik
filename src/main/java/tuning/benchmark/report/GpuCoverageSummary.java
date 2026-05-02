@@ -127,6 +127,8 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             coverage.copyDurationNs += firstLongAttr(attrs, "acceleratorJavaToNativeCopyNs", "metalJavaToNativeCopyNs");
             coverage.copyDurationNs += firstLongAttr(attrs, "acceleratorNativeToJavaCopyNs", "metalNativeToJavaCopyNs");
             coverage.copyDurationNs += firstLongAttr(attrs, "acceleratorNativeDeviceCopyNs", "metalNativeDeviceCopyNs");
+            addCount(coverage.nativeCopyStrategyCounts, stringAttr(attrs, "metalNativeCopyStrategy"));
+            addCount(coverage.nativeCopyStrategyCounts, stringAttr(attrs, "acceleratorNativeCopyStrategy"));
         }
     }
 
@@ -327,6 +329,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             long cpuMaterializationBytes,
             long cpuMaterializationDurationNs,
             long copyDurationNs,
+            Map<String, Integer> nativeCopyStrategyCounts,
             int deviceHandoffCount,
             int gpuLayoutMaterializationCount,
             long gpuLayoutMaterializationBytes,
@@ -357,6 +360,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     : orderedMap(gpuLayoutTargetLayoutClassCounts);
             storageResidencyCounts = storageResidencyCounts == null ? Map.of() : orderedMap(storageResidencyCounts);
             dtypeResidencyReasons = dtypeResidencyReasons == null ? Map.of() : orderedMap(dtypeResidencyReasons);
+            nativeCopyStrategyCounts = nativeCopyStrategyCounts == null ? Map.of() : orderedMap(nativeCopyStrategyCounts);
             gpuFusedSubpatternTypes = gpuFusedSubpatternTypes == null ? List.of() : List.copyOf(gpuFusedSubpatternTypes);
             gpuFusedSubpatternOriginalNodeIds = gpuFusedSubpatternOriginalNodeIds == null ? List.of() : List.copyOf(gpuFusedSubpatternOriginalNodeIds);
             gpuFusedSubpatternReasons = gpuFusedSubpatternReasons == null ? List.of() : List.copyOf(gpuFusedSubpatternReasons);
@@ -404,6 +408,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         private long cpuMaterializationBytes;
         private long cpuMaterializationDurationNs;
         private long copyDurationNs;
+        private final LinkedHashMap<String, Integer> nativeCopyStrategyCounts = new LinkedHashMap<>();
         private int deviceHandoffCount;
         private int gpuLayoutMaterializationCount;
         private long gpuLayoutMaterializationBytes;
@@ -445,6 +450,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     cpuMaterializationBytes,
                     cpuMaterializationDurationNs,
                     copyDurationNs,
+                    new LinkedHashMap<>(nativeCopyStrategyCounts),
                     deviceHandoffCount,
                     gpuLayoutMaterializationCount,
                     gpuLayoutMaterializationBytes,

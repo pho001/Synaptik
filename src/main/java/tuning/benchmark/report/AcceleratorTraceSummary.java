@@ -60,6 +60,8 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
             summary.javaToNativeCopyNs += firstLongAttr(attrs, "acceleratorJavaToNativeCopyNs", "metalJavaToNativeCopyNs");
             summary.nativeToJavaCopyNs += firstLongAttr(attrs, "acceleratorNativeToJavaCopyNs", "metalNativeToJavaCopyNs");
             summary.nativeDeviceCopyNs += firstLongAttr(attrs, "acceleratorNativeDeviceCopyNs", "metalNativeDeviceCopyNs");
+            addNonBlank(summary.nativeCopyStrategies, attrs.get("acceleratorNativeCopyStrategy"));
+            addNonBlank(summary.nativeCopyStrategies, attrs.get("metalNativeCopyStrategy"));
             summary.inputBytes += firstLongAttr(attrs, "acceleratorInputBytes", "metalInputBytes");
             summary.outputBytes += firstLongAttr(attrs, "acceleratorOutputBytes", "metalOutputBytes");
         }
@@ -113,10 +115,12 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
             long javaToNativeCopyNs,
             long nativeToJavaCopyNs,
             long nativeDeviceCopyNs,
+            List<String> nativeCopyStrategies,
             List<String> fallbackReasons,
             List<String> reasonCodes
     ) {
         public BackendSummary {
+            nativeCopyStrategies = nativeCopyStrategies == null ? List.of() : List.copyOf(nativeCopyStrategies);
             fallbackReasons = fallbackReasons == null ? List.of() : List.copyOf(fallbackReasons);
             reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
         }
@@ -134,6 +138,7 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
         private long javaToNativeCopyNs;
         private long nativeToJavaCopyNs;
         private long nativeDeviceCopyNs;
+        private final LinkedHashSet<String> nativeCopyStrategies = new LinkedHashSet<>();
         private final LinkedHashSet<String> fallbackReasons = new LinkedHashSet<>();
         private final LinkedHashSet<String> reasonCodes = new LinkedHashSet<>();
 
@@ -150,6 +155,7 @@ public record AcceleratorTraceSummary(Map<String, BackendSummary> backends) {
                     javaToNativeCopyNs,
                     nativeToJavaCopyNs,
                     nativeDeviceCopyNs,
+                    List.copyOf(nativeCopyStrategies),
                     List.copyOf(fallbackReasons),
                     List.copyOf(reasonCodes)
             );

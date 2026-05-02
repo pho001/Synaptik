@@ -592,6 +592,8 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 | `metalInputBytes`, `metalOutputBytes` | Logical payload byte counts for external inputs and outputs. |
 | `metalJavaToNativeCopyNs` | Java-side copy time into FFM memory; should be `0` for `BUFFER_BINDING`. |
 | `metalNativeToJavaCopyNs` | Java-side copy time from native output memory into Java arrays; should be `0` for `BUFFER_BINDING`. |
+| `metalNativeCopyStrategy` | Native-side output copy classification, currently `MPSGRAPH_RESULT_COPY` for the conservative MPSGraph result-copy path. |
+| `metalOutputBufferWriteProven` | `true` only when tests prove MPSGraph writes directly into caller-provided output buffers; currently `false` for the conservative path. |
 | `metalNativeDeviceCopyNs` | Native shim copy time from returned MPSGraph result storage into caller-provided output buffers. May be non-zero for the current buffer path. |
 | `storageResidency` | Final residency state for the step output, often `DEVICE_OWNED` for successful buffer execution. |
 
@@ -599,7 +601,7 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 
 Successful buffer execution leaves the step output `device-owned` in `ExecutionState`: the newest value is in a backend buffer, `storageResidency=DEVICE_OWNED`, and the Java tensor array is not current until a CPU materialization boundary is reached. A CPU materialization boundary is a graph output publication, CPU consumer, or gradient publication site that asks the materializer to synchronize the buffer back to CPU storage.
 
-Use `acceleratorBufferExecutionPath`, `acceleratorBufferReasonCode`, `storageResidency`, and `nativeDeviceCopyNs` together when diagnosing a run. `nativeDeviceCopyNs` measures the native MPSGraph-result-to-output-buffer copy inside the current Metal ABI; it is not the same as a Java array copy-back. `metalNativeToJavaCopyNs=0` plus a later CPU materialization trace is the expected device-owned path.
+Use `acceleratorBufferExecutionPath`, `acceleratorBufferReasonCode`, `storageResidency`, `metalNativeCopyStrategy`, and `nativeDeviceCopyNs` together when diagnosing a run. `nativeDeviceCopyNs` measures the native MPSGraph-result-to-output-buffer copy inside the current Metal ABI; it is not the same as a Java array copy-back. `metalNativeCopyStrategy=MPSGRAPH_RESULT_COPY` and `metalOutputBufferWriteProven=false` mean the bridge is deliberately not claiming zero-copy output-buffer writes. `metalNativeToJavaCopyNs=0` plus a later CPU materialization trace is the expected device-owned path.
 
 CUDA remains capability-gated until a native shim exists. `CudaBridgeCapabilities` reports native library, CUDA runtime, context, graph ABI, and `bufferExecutionSupported` state. CUDA tests may assert shared policy and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, but this documentation does not claim production CUDA native buffer execution.
 

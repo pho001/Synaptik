@@ -12,6 +12,7 @@ package backend.metal.bridge;
  * @param usedCpuFallback whether this execution was served by CPU fallback instead of Metal
  * @param fallbackReason stable diagnostic reason when {@code usedCpuFallback} is true
  * @param executionPath runtime path used for this execution attempt
+ * @param nativeCopyStrategy native-side output copy/write classification
  * @param externalInputCount number of external tensors passed to the bridge
  * @param outputCount number of output tensors requested from the bridge
  * @param inputBytes total logical input payload bytes
@@ -27,6 +28,7 @@ public record MetalMpsBridgeExecutionStats(
         boolean usedCpuFallback,
         String fallbackReason,
         MetalMpsBridgeExecutionPath executionPath,
+        MetalNativeCopyStrategy nativeCopyStrategy,
         int externalInputCount,
         int outputCount,
         long inputBytes,
@@ -43,6 +45,49 @@ public record MetalMpsBridgeExecutionStats(
         executionPath = executionPath == null
                 ? (usedCpuFallback ? MetalMpsBridgeExecutionPath.CPU_FALLBACK : MetalMpsBridgeExecutionPath.TENSOR_ARRAY_COPY)
                 : executionPath;
+        nativeCopyStrategy = nativeCopyStrategy == null
+                ? defaultCopyStrategy(usedCpuFallback, executionPath)
+                : nativeCopyStrategy;
+    }
+
+    public MetalMpsBridgeExecutionStats(
+            boolean usedCpuFallback,
+            String fallbackReason,
+            MetalMpsBridgeExecutionPath executionPath,
+            int externalInputCount,
+            int outputCount,
+            long inputBytes,
+            long outputBytes,
+            long javaToNativeCopyNs,
+            long outputAllocationNs,
+            long nativeExecuteNs,
+            long nativeDeviceCopyNs,
+            long nativeToJavaCopyNs,
+            long totalNs
+    ) {
+        this(
+                usedCpuFallback,
+                fallbackReason,
+                executionPath,
+                null,
+                externalInputCount,
+                outputCount,
+                inputBytes,
+                outputBytes,
+                javaToNativeCopyNs,
+                outputAllocationNs,
+                nativeExecuteNs,
+                nativeDeviceCopyNs,
+                nativeToJavaCopyNs,
+                totalNs
+        );
+    }
+
+    /**
+     * Returns whether the native bridge has proven direct writes into caller-provided output buffers.
+     */
+    public boolean outputBufferWriteProven() {
+        return nativeCopyStrategy == MetalNativeCopyStrategy.TRUE_OUTPUT_BUFFER_WRITE;
     }
 
     /**
@@ -66,6 +111,7 @@ public record MetalMpsBridgeExecutionStats(
                 true,
                 reason,
                 MetalMpsBridgeExecutionPath.CPU_FALLBACK,
+                MetalNativeCopyStrategy.UNKNOWN_OR_UNPROVEN,
                 externalInputCount,
                 outputCount,
                 inputBytes,
@@ -77,5 +123,15 @@ public record MetalMpsBridgeExecutionStats(
                 0L,
                 0L
         );
+    }
+
+    private static MetalNativeCopyStrategy defaultCopyStrategy(
+            boolean usedCpuFallback,
+            MetalMpsBridgeExecutionPath executionPath
+    ) {
+        if (usedCpuFallback || executionPath == MetalMpsBridgeExecutionPath.CPU_FALLBACK) {
+            return MetalNativeCopyStrategy.UNKNOWN_OR_UNPROVEN;
+        }
+        return MetalNativeCopyStrategy.MPSGRAPH_RESULT_COPY;
     }
 }

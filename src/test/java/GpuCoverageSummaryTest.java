@@ -214,6 +214,7 @@ public class GpuCoverageSummaryTest {
         assertEquals(0, coverage.cpuFallbackStepCount());
         assertEquals(0, coverage.fallbackCount());
         assertEquals(Map.of("DEVICE_OWNED", 1), coverage.storageResidencyCounts());
+        assertEquals(Map.of("MPSGRAPH_RESULT_COPY", 1), coverage.nativeCopyStrategyCounts());
         assertTrue(coverage.reasonCodes().contains("BUFFER_BINDING_AVAILABLE"));
     }
 
@@ -368,6 +369,7 @@ public class GpuCoverageSummaryTest {
                 4096L,
                 250_000L,
                 325_000L,
+                Map.of(),
                 1,
                 0,
                 0L,
@@ -640,6 +642,7 @@ public class GpuCoverageSummaryTest {
                                 Map.entry("acceleratorJavaToNativeCopyNs", 100_000L),
                                 Map.entry("acceleratorNativeToJavaCopyNs", 200_000L),
                                 Map.entry("acceleratorNativeDeviceCopyNs", 25_000L),
+                                Map.entry("acceleratorNativeCopyStrategy", "MPSGRAPH_RESULT_COPY"),
                                 Map.entry("gpuLayoutMaterializationCount", 1),
                                 Map.entry("gpuLayoutMaterializationBytes", 4096L),
                                 Map.entry("gpuLayoutTransformKind", "DENSE_GPU_MATERIALIZATION"),

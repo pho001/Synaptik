@@ -538,6 +538,7 @@ public class BenchmarkSessionTest {
                                 Map.entry("metalJavaToNativeCopyNs", 100_000L),
                                 Map.entry("metalNativeToJavaCopyNs", 0L),
                                 Map.entry("metalNativeDeviceCopyNs", 25_000L),
+                                Map.entry("metalNativeCopyStrategy", "MPSGRAPH_RESULT_COPY"),
                                 Map.entry("storageResidency", "DEVICE_OWNED"),
                                 Map.entry("storageCpuCurrent", false),
                                 Map.entry("storageDeviceCurrent", true)
@@ -580,6 +581,7 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("preparedInputSteps=1"));
         assertTrue(text.contains("reasonCodes=[BUFFER_BINDING_AVAILABLE]"));
         assertTrue(text.contains("fallbackReasons=[using native buffer bindings]"));
+        assertTrue(text.contains("nativeCopyStrategies=[MPSGRAPH_RESULT_COPY]"));
         assertTrue(text.contains("javaToNativeMs=0.100000"));
         assertTrue(text.contains("nativeDeviceCopyMs=0.025000"));
         assertTrue(text.contains("storageResidency=DEVICE_OWNED"));
@@ -592,6 +594,7 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"preparedInputSteps\": 1"));
         assertTrue(json.contains("\"reasonCodes\": [\"BUFFER_BINDING_AVAILABLE\"]"));
         assertTrue(json.contains("\"fallbackReasons\": [\"using native buffer bindings\"]"));
+        assertTrue(json.contains("\"nativeCopyStrategies\": [\"MPSGRAPH_RESULT_COPY\"]"));
         assertTrue(json.contains("\"javaToNativeCopyNs\": 100000"));
         assertTrue(json.contains("\"nativeDeviceCopyNs\": 25000"));
         assertTrue(json.contains("\"storageResidency\": \"DEVICE_OWNED\""));

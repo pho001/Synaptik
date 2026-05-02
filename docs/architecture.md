@@ -373,6 +373,7 @@ buckets around the bridge boundary:
 | `javaToNativeCopyNs` | Java-side time spent copying CPU tensor arrays into FFM/native input memory. |
 | `outputAllocationNs` | Java-side time spent allocating temporary native output memory for the current bridge call. |
 | `nativeExecuteNs` | Wall time observed around the native execute function call. This includes native MPSGraph work and any synchronization hidden by the native shim. |
+| `nativeCopyStrategy` | Stable classification of native-side output behavior: `MPSGRAPH_RESULT_COPY`, `TRUE_OUTPUT_BUFFER_WRITE`, or `UNKNOWN_OR_UNPROVEN`. |
 | `nativeDeviceCopyNs` | Native shim time spent copying MPSGraph result storage into caller-provided output buffers. The current conservative buffer path records this copy instead of assuming MPSGraph wrote directly into supplied output storage. |
 | `nativeToJavaCopyNs` | Java-side time spent copying native output memory back into Java tensor arrays. |
 | `usedCpuFallback`, `fallbackReason` | Whether `PreparedMetalExecutable` served the step through CPU fallback and the reason. |
