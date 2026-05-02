@@ -147,7 +147,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 45: Metal Output Buffer Write And Copy Closure
 
-**Status:** In progress
+**Status:** Complete
 
 **Goal:** Prove true output-buffer writes or implement a lower-copy strategy without false zero-copy claims.
 
@@ -166,7 +166,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 - [x] 45-01 Output-buffer write proof harness.
 - [x] 45-02 Lower-copy or alias strategy.
 - [x] 45-03 Copy strategy reporting and gates.
-- [ ] 45-04 Docs and milestone evidence closure.
+- [x] 45-04 Docs and milestone evidence closure.
 
 ### Phase 46: Cross-Backend Router Calibration And Regression Gates
 
@@ -193,8 +193,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete, security-passed, and Nyquist-validated. Phase 44 Custom Metal Kernel Execution Route is complete and verified. Phase 45 Metal Output Buffer Write And Copy Closure is ready to plan.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete, security-passed, and Nyquist-validated. Phase 44 Custom Metal Kernel Execution Route is complete and verified. Phase 45 Metal Output Buffer Write And Copy Closure is complete and verified. Phase 46 Cross-Backend Router Calibration And Regression Gates is ready to plan.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 44 completion*
+*Last updated: 2026-05-02 after Phase 45 completion*

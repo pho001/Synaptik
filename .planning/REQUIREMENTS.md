@@ -39,9 +39,9 @@ Requirements for the v1.6 milestone. Each requirement maps to exactly one roadma
 
 ### Metal Output Buffer Write And Copy Closure
 
-- [ ] **METALCOPY-01**: Metal output-buffer behavior is proven with sentinel/alias tests as `TRUE_OUTPUT_BUFFER_WRITE` or remains explicitly classified as `MPSGRAPH_RESULT_COPY`.
-- [ ] **METALCOPY-02**: If true output-buffer writes cannot be proven, a lower-copy alias/materialization strategy reduces avoidable native copies without changing public `Tensor` semantics.
-- [ ] **METALCOPY-03**: Benchmark and trace reports expose native device copy strategy, native copy timing, output alias/write status, and regression gates for unexpected copy reintroduction.
+- [x] **METALCOPY-01**: Metal output-buffer behavior is proven with sentinel/alias tests as `TRUE_OUTPUT_BUFFER_WRITE` or remains explicitly classified as `MPSGRAPH_RESULT_COPY`.
+- [x] **METALCOPY-02**: If true output-buffer writes cannot be proven, a lower-copy alias/materialization strategy reduces avoidable native copies without changing public `Tensor` semantics.
+- [x] **METALCOPY-03**: Benchmark and trace reports expose native device copy strategy, native copy timing, output alias/write status, and regression gates for unexpected copy reintroduction.
 
 ### Cross-Backend Router Calibration And Regression Gates
 
@@ -90,9 +90,9 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 | METALKERNEL-01 | Phase 44 | Complete |
 | METALKERNEL-02 | Phase 44 | Complete |
 | METALKERNEL-03 | Phase 44 | Complete |
-| METALCOPY-01 | Phase 45 | Pending |
-| METALCOPY-02 | Phase 45 | Pending |
-| METALCOPY-03 | Phase 45 | Pending |
+| METALCOPY-01 | Phase 45 | Complete |
+| METALCOPY-02 | Phase 45 | Complete |
+| METALCOPY-03 | Phase 45 | Complete |
 | BACKENDROUTE-01 | Phase 46 | Pending |
 | BACKENDROUTE-02 | Phase 46 | Pending |
 | BACKENDROUTE-03 | Phase 46 | Pending |
@@ -104,4 +104,4 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 
 ---
 *Requirements defined: 2026-05-02*
-*Last updated: 2026-05-02 after Phase 43 execution*
+*Last updated: 2026-05-02 after Phase 45 execution*
