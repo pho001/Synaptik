@@ -523,13 +523,15 @@ class MetalRegionLowererTest {
         );
 
         assertEquals("", compareReason);
-        assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "MAX_POOL2D forward semantic contract is legal", "family=CONV_POOL", "target=max_pool2d_small");
-        assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "AVG_POOL2D forward semantic contract is legal", "family=CONV_POOL");
+        assertEquals("", maxPoolReason);
+        assertEquals("", avgPoolReason);
     }
 
     @Test
-    void phaseThirtyFiveConvLowersLegalCasesAndPoolRemainsCapabilityGated() {
+    void phaseThirtyFiveConvAndPoolLowerLegalForwardCases() {
         assertEquals(54, AcceleratorDagNodeType.CONV2D.abiCode());
+        assertEquals(55, AcceleratorDagNodeType.MAX_POOL2D.abiCode());
+        assertEquals(56, AcceleratorDagNodeType.AVG_POOL2D.abiCode());
 
         Tensor input = new Tensor(
                 new float[]{
@@ -591,8 +593,8 @@ class MetalRegionLowererTest {
 
         assertEquals("", convReason);
         assertContainsAll(gemmReason, "CAPABILITY_MISSING", "CONV2D_GEMM remains CPU-owned", "family=CONV_POOL", "target=conv2d_resnet_3x3");
-        assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "MAX_POOL2D forward semantic contract is legal", "family=CONV_POOL", "target=max_pool2d_small");
-        assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "AVG_POOL2D forward semantic contract is legal", "family=CONV_POOL");
+        assertEquals("", maxPoolReason);
+        assertEquals("", avgPoolReason);
         MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
         PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(nodeId(convContext, Operation.OpType.CONV2D)),
@@ -604,6 +606,10 @@ class MetalRegionLowererTest {
         assertNotNull(plan);
         assertTrue(plan.lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONV2D));
+        assertTrue(planFor(maxPool, Operation.OpType.MAX_POOL2D).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.MAX_POOL2D));
+        assertTrue(planFor(avgPool, Operation.OpType.AVG_POOL2D).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.AVG_POOL2D));
     }
 
     @Test

@@ -438,6 +438,66 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsFloat32MaxPool2d() {
+        Tensor destination = executeConv2dLoweredPlan(
+                pool2dPlan(
+                        1,
+                        9,
+                        AcceleratorDagNodeType.MAX_POOL2D,
+                        Operation.OpType.MAX_POOL2D,
+                        new int[]{1, 1, 4, 4},
+                        new int[]{1, 1, 2, 2},
+                        2,
+                        2,
+                        2,
+                        2,
+                        0,
+                        0,
+                        false
+                ),
+                List.of(new Tensor(new float[]{
+                        1f, 2f, 3f, 4f,
+                        5f, 6f, 7f, 8f,
+                        9f, 10f, 11f, 12f,
+                        13f, 14f, 15f, 16f
+                }, new int[]{1, 1, 4, 4}, null, "maxPoolInput", DataType.FLOAT32)),
+                new int[]{1, 1, 2, 2}
+        );
+
+        assertArrayEquals(new float[]{6f, 8f, 14f, 16f}, destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsFloat32AvgPool2d() {
+        Tensor destination = executeConv2dLoweredPlan(
+                pool2dPlan(
+                        1,
+                        9,
+                        AcceleratorDagNodeType.AVG_POOL2D,
+                        Operation.OpType.AVG_POOL2D,
+                        new int[]{1, 1, 4, 4},
+                        new int[]{1, 1, 2, 2},
+                        2,
+                        2,
+                        2,
+                        2,
+                        0,
+                        0,
+                        false
+                ),
+                List.of(new Tensor(new float[]{
+                        1f, 2f, 3f, 4f,
+                        5f, 6f, 7f, 8f,
+                        9f, 10f, 11f, 12f,
+                        13f, 14f, 15f, 16f
+                }, new int[]{1, 1, 4, 4}, null, "avgPoolInput", DataType.FLOAT32)),
+                new int[]{1, 1, 2, 2}
+        );
+
+        assertArrayEquals(new float[]{3.5f, 5.5f, 11.5f, 13.5f}, destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
     void explicitShimBfloat16BufferRoundTripsRawStorageExactly() {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
@@ -1745,6 +1805,53 @@ class MetalMpsFfmBridgeTest {
         );
     }
 
+    private static MetalPartitionPlan pool2dPlan(
+            int inputNodeId,
+            int outputNodeId,
+            AcceleratorDagNodeType nodeType,
+            Operation.OpType opType,
+            int[] inputShape,
+            int[] outputShape,
+            int kernelH,
+            int kernelW,
+            int strideH,
+            int strideW,
+            int padH,
+            int padW,
+            boolean countIncludePad
+    ) {
+        AcceleratorDagInput input = new AcceleratorDagInput(inputNodeId, Arrays.stream(inputShape).boxed().toList(), DataType.FLOAT32);
+        AcceleratorDagNode node = new AcceleratorDagNode(
+                outputNodeId,
+                nodeType,
+                AcceleratorDagValueRef.externalInput(0),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                encodePool2dMode(kernelH, kernelW, strideH, strideW, padH, padW, countIncludePad),
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                DataType.FLOAT32
+        );
+        AcceleratorDagSpec dag = new AcceleratorDagSpec(List.of(input), List.of(node), List.of(0), List.of(outputNodeId));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                outputNodeId,
+                List.of(outputNodeId),
+                List.of(new AcceleratorSubgraphOp(outputNodeId, opType)),
+                List.of(inputNodeId),
+                List.of(outputNodeId)
+        );
+        long estimatedWork = Arrays.stream(outputShape).asLongStream().reduce(1L, Math::multiplyExact) * kernelH * kernelW;
+        return new MetalPartitionPlan(
+                outputNodeId,
+                subgraph,
+                new AcceleratorSubgraphLoweringResult(outputNodeId, null, dag, estimatedWork)
+        );
+    }
+
     private static MetalPartitionPlan reductionPlan(
             int inputNodeId,
             int outputNodeId,
@@ -1810,6 +1917,24 @@ class MetalMpsFfmBridgeTest {
                 | ((strideW & 0xFF) << 8)
                 | ((padH & 0xFF) << 16)
                 | ((padW & 0xFF) << 24);
+    }
+
+    private static int encodePool2dMode(
+            int kernelH,
+            int kernelW,
+            int strideH,
+            int strideW,
+            int padH,
+            int padW,
+            boolean countIncludePad
+    ) {
+        return (kernelH & 0xF)
+                | ((kernelW & 0xF) << 4)
+                | ((strideH & 0xF) << 8)
+                | ((strideW & 0xF) << 12)
+                | ((padH & 0xF) << 16)
+                | ((padW & 0xF) << 20)
+                | (countIncludePad ? 1 << 24 : 0);
     }
 
     private static PartitionPlanningContext planningContext(Tensor out) {

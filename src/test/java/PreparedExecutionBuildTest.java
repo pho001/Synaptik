@@ -42,6 +42,7 @@ import tensor.TensorInternalAccess;
 import tensor.TensorRemap;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
+import tensor.options.Pool2dOptions;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -463,6 +464,35 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
         assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.CONV2D));
+    }
+
+    @Test
+    void metalRequiredModeKeepsScopedPool2dOnAccelerator() {
+        Tensor input = new Tensor(new float[]{
+                1f, 2f, 3f, 4f,
+                5f, 6f, 7f, 8f,
+                9f, 10f, 11f, 12f,
+                13f, 14f, 15f, 16f
+        }, new int[]{1, 1, 4, 4}, null, "metalRequiredPoolInput", DataType.FLOAT32);
+        Tensor out = input.maxPool2d(Pool2dOptions.square(2));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
+        int poolNodeId = nodeId(compiled, Operation.OpType.MAX_POOL2D);
+        String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, poolNodeId), planningContext(compiled));
+
+        assertEquals("", plannerReason);
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, poolNodeId));
+        PreparedMetalExecutable executable = execution.forwardSteps().stream()
+                .filter(step -> step.compiledNode().id() == poolNodeId
+                        && step.metadata().backend() == ComputeBackend.GPU_METAL
+                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable)
+                .map(step -> (PreparedMetalExecutable) step.metadata().acceleratorExecutable())
+                .findFirst()
+                .orElseThrow();
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.MAX_POOL2D));
     }
 
     @Test

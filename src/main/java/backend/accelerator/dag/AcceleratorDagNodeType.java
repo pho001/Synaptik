@@ -57,7 +57,9 @@ public enum AcceleratorDagNodeType {
     REDUCE_ANY(51),
     GATHER(52),
     TAKE_ALONG_AXIS(53),
-    CONV2D(54);
+    CONV2D(54),
+    MAX_POOL2D(55),
+    AVG_POOL2D(56);
 
     private final int abiCode;
 

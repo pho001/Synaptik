@@ -161,6 +161,11 @@ final class MetalConvPoolSemantics {
         if (opType == Operation.OpType.AVG_POOL2D && options.countIncludePad()) {
             return "CAPABILITY_MISSING: GPU_METAL AVG_POOL2D countIncludePad=true native divisor semantics are not implemented; family=CONV_POOL";
         }
+        if (options.kernelH() > 15 || options.kernelW() > 15
+                || options.strideH() > 15 || options.strideW() > 15
+                || options.padH() > 15 || options.padW() > 15) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " kernel/stride/padding metadata exceeds native DAG encoding";
+        }
         int outH = inferPoolOutput(inputShape[2], options.kernelH(), options.padH(), options.strideH(), "height");
         if (outH < 0) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " kernel does not fit input height";
@@ -180,8 +185,7 @@ final class MetalConvPoolSemantics {
         if (!Arrays.equals(outShape, new int[]{inputShape[0], inputShape[1], outH, outW})) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " output shape does not match NCHW pooling contract";
         }
-        String target = opType == Operation.OpType.MAX_POOL2D ? " target=max_pool2d_small" : "";
-        return "CAPABILITY_MISSING: GPU_METAL " + opName + " forward semantic contract is legal but native execution is not implemented; family=CONV_POOL" + target;
+        return "";
     }
 
     private static String commonForwardReason(String opName, CompiledNode node, PartitionPlanningContext context) {

@@ -229,6 +229,26 @@ static void SynaptikDecodeConv2DMode(
     *padW = (int32_t) ((encoded >> 24) & 0xFF);
 }
 
+static void SynaptikDecodePool2DMode(
+        const float *nodeScalarValues,
+        int32_t index,
+        int32_t *kernelH,
+        int32_t *kernelW,
+        int32_t *strideH,
+        int32_t *strideW,
+        int32_t *padH,
+        int32_t *padW,
+        BOOL *countIncludePad) {
+    uint32_t encoded = (uint32_t) SynaptikDecodeIntScalar(nodeScalarValues, index);
+    *kernelH = (int32_t) (encoded & 0xF);
+    *kernelW = (int32_t) ((encoded >> 4) & 0xF);
+    *strideH = (int32_t) ((encoded >> 8) & 0xF);
+    *strideW = (int32_t) ((encoded >> 12) & 0xF);
+    *padH = (int32_t) ((encoded >> 16) & 0xF);
+    *padW = (int32_t) ((encoded >> 20) & 0xF);
+    *countIncludePad = ((encoded >> 24) & 0x1) != 0;
+}
+
 static NSMutableArray<NSNumber *> *SynaptikOutputShapeForNode(
         int32_t index,
         const int32_t *outputRanks,
@@ -894,6 +914,45 @@ static void *SynaptikCompilePartition(
                         MPSGraphTensor *bias = [graph reshapeTensor:input2 withShape:biasShape name:@"conv2d_bias_reshape"];
                         if (bias == nil) return NULL;
                         outTensor = [graph additionWithPrimaryTensor:outTensor secondaryTensor:bias name:@"conv2d_bias_add"];
+                    }
+                    break;
+                }
+                case 55:
+                case 56: {
+                    int32_t kernelH = 1;
+                    int32_t kernelW = 1;
+                    int32_t strideH = 1;
+                    int32_t strideW = 1;
+                    int32_t padH = 0;
+                    int32_t padW = 0;
+                    BOOL countIncludePad = NO;
+                    SynaptikDecodePool2DMode(node_scalar_values, i, &kernelH, &kernelW, &strideH, &strideW, &padH, &padW, &countIncludePad);
+                    if (kernelH <= 0 || kernelW <= 0 || strideH <= 0 || strideW <= 0 || padH < 0 || padW < 0) {
+                        return NULL;
+                    }
+                    if (node_types[i] == 56 && countIncludePad) {
+                        return NULL;
+                    }
+                    if (input0.shape == nil || input0.shape.count != 4) {
+                        return NULL;
+                    }
+                    MPSGraphPooling2DOpDescriptor *descriptor =
+                            [MPSGraphPooling2DOpDescriptor descriptorWithKernelWidth:(NSUInteger) kernelW
+                                                                         kernelHeight:(NSUInteger) kernelH
+                                                                            strideInX:(NSUInteger) strideW
+                                                                            strideInY:(NSUInteger) strideH
+                                                                         paddingStyle:MPSGraphPaddingStyleExplicit
+                                                                            dataLayout:MPSGraphTensorNamedDataLayoutNCHW];
+                    if (descriptor == nil) return NULL;
+                    descriptor.paddingLeft = (NSUInteger) padW;
+                    descriptor.paddingRight = (NSUInteger) padW;
+                    descriptor.paddingTop = (NSUInteger) padH;
+                    descriptor.paddingBottom = (NSUInteger) padH;
+                    if (node_types[i] == 56) {
+                        descriptor.includeZeroPadToAverage = NO;
+                        outTensor = [graph avgPooling2DWithSourceTensor:input0 descriptor:descriptor name:@"avg_pool2d"];
+                    } else {
+                        outTensor = [graph maxPooling2DWithSourceTensor:input0 descriptor:descriptor name:@"max_pool2d"];
                     }
                     break;
                 }

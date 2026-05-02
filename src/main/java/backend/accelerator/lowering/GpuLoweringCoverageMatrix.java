@@ -281,18 +281,32 @@ public final class GpuLoweringCoverageMatrix {
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
                 backendLabel + " lowered conv2d backward-weight GEMM path is CPU-owned until accelerator DAG primitives cover accumulation and layout semantics");
-        add(entries, backend, Operation.OpType.MAX_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
-                GpuLoweringCoverageStatus.UNSUPPORTED,
-                GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                backendLabel + " max-pool native/lowered path is not implemented; kernel/stride/padding and tie behavior must match CPU; target=max_pool2d_small");
+        if (backend == ComputeBackend.GPU_METAL) {
+            add(entries, backend, Operation.OpType.MAX_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal direct FLOAT32 dense NCHW MAX_POOL2D forward lowers to MPSGraph maxPooling2D; scoped to compact kernel/stride/padding metadata and CPU tie behavior parity; target=max_pool2d_small");
+        } else {
+            add(entries, backend, Operation.OpType.MAX_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    backendLabel + " max-pool native/lowered path is not implemented; kernel/stride/padding and tie behavior must match CPU; target=max_pool2d_small");
+        }
         add(entries, backend, Operation.OpType.MAX_POOL2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
                 backendLabel + " max-pool backward-input path is not implemented; first-max tie routing must match CPU");
-        add(entries, backend, Operation.OpType.AVG_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
-                GpuLoweringCoverageStatus.UNSUPPORTED,
-                GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                backendLabel + " avg-pool native/lowered path is not implemented; countIncludePad divisor semantics must match CPU; target=max_pool2d_small");
+        if (backend == ComputeBackend.GPU_METAL) {
+            add(entries, backend, Operation.OpType.AVG_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal direct FLOAT32 dense NCHW AVG_POOL2D forward lowers to MPSGraph avgPooling2D; scoped to countIncludePad=false and compact kernel/stride/padding metadata; target=max_pool2d_small");
+        } else {
+            add(entries, backend, Operation.OpType.AVG_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    backendLabel + " avg-pool native/lowered path is not implemented; countIncludePad divisor semantics must match CPU; target=max_pool2d_small");
+        }
         add(entries, backend, Operation.OpType.AVG_POOL2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.CAPABILITY_MISSING,

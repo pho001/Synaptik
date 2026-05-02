@@ -144,6 +144,8 @@ public final class GpuTargetCoverageTruth {
         metalTargets.add(Operation.OpType.GATHER);
         metalTargets.add(Operation.OpType.TAKE_ALONG_AXIS);
         metalTargets.add(Operation.OpType.CONV2D);
+        metalTargets.add(Operation.OpType.MAX_POOL2D);
+        metalTargets.add(Operation.OpType.AVG_POOL2D);
         out.put(ComputeBackend.GPU_METAL, metalTargets);
         out.put(ComputeBackend.GPU_CUDA, EnumSet.copyOf(reductions));
         return Map.copyOf(out);

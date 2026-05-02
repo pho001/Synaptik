@@ -225,11 +225,14 @@ class GpuLoweringCoverageMatrixTest {
                 assertEquals(backend, entry.backend());
                 assertEquals(opType, entry.opType());
                 assertEquals(GpuLoweringOperationFamily.CONV_POOL, entry.family());
-                if (backend == ComputeBackend.GPU_METAL && opType == Operation.OpType.CONV2D) {
+                if (backend == ComputeBackend.GPU_METAL
+                        && (opType == Operation.OpType.CONV2D
+                        || opType == Operation.OpType.MAX_POOL2D
+                        || opType == Operation.OpType.AVG_POOL2D)) {
                     assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
                     assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason(),
-                            () -> opType + " should be supported for scoped Metal direct Conv2D forward execution");
-                    assertTrue(entry.note().contains("MPSGraph convolution2D"));
+                            () -> opType + " should be supported for scoped Metal direct conv/pool forward execution");
+                    assertTrue(entry.note().contains("MPSGraph"));
                 } else {
                     assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
                     assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, entry.reason(),

@@ -237,6 +237,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertHardNativePolicy(metal.get("gather_take_small"));
         assertHardNativePolicy(metal.get("masked_sdpa_small"));
         assertHardNativePolicy(metal.get("conv2d_resnet_3x3"));
+        assertHardNativePolicy(metal.get("max_pool2d_small"));
         GpuCoverageHotPathExpectation layoutRepair = metal.get("layout_broadcast_repair_small");
         assertTrue(layoutRepair.nativeEvidenceRequired());
         assertTrue(layoutRepair.expectedVisibleReasons().isEmpty());
@@ -264,7 +265,7 @@ public class GpuHotPathCoverageTargetsTest {
         List<GpuCoverageHotPathExpectation> expectations = GpuHotPathCoverageTargets.defaultExpectations();
 
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "conv2d_resnet_3x3");
-        assertVisibleBlocker(expectations, "max_pool2d_small");
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "max_pool2d_small");
         assertVisibleBlocker(expectations, "cross_entropy_small");
 
         GpuCoverageHotPathExpectation cudaSdpa = expectationsByName("GPU_CUDA").get("transformer_block_hot_path");

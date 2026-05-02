@@ -191,7 +191,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 **Planned waves:**
 - [x] [35-01 Conv/pool semantic and capability contract](phases/35-conv-pool-native-execution/35-01-PLAN.md).
 - [x] [35-02 Conv2D forward native/lowered execution](phases/35-conv-pool-native-execution/35-02-PLAN.md).
-- [ ] [35-03 Max/avg pool forward native/lowered execution](phases/35-conv-pool-native-execution/35-03-PLAN.md).
+- [x] [35-03 Max/avg pool forward native/lowered execution](phases/35-conv-pool-native-execution/35-03-PLAN.md).
 - [ ] [35-04 Coverage gates, docs, and profile hygiene](phases/35-conv-pool-native-execution/35-04-PLAN.md).
 
 ### Phase 36: Scatter And Index Gradient Semantics
