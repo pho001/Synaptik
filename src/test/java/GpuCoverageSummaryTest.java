@@ -104,6 +104,43 @@ public class GpuCoverageSummaryTest {
                     GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).executionStatus()
             );
+            for (operations.Operation.OpType opType : List.of(
+                    operations.Operation.OpType.SOFTMAX_GRAD,
+                    operations.Operation.OpType.LOG_SOFTMAX_GRAD,
+                    operations.Operation.OpType.REDUCE_MIN_GRAD,
+                    operations.Operation.OpType.REDUCE_MAX_GRAD,
+                    operations.Operation.OpType.MIN_GRAD,
+                    operations.Operation.OpType.MAX_GRAD
+            )) {
+                assertEquals(
+                        backend == ComputeBackend.GPU_METAL
+                                ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                                : GpuTargetExecutionStatus.MATRIX_SUPPORTED_ONLY,
+                        rows.get(opType).executionStatus(),
+                        opType.name()
+                );
+            }
+            assertEquals(
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD).executionStatus()
+            );
+            for (operations.Operation.OpType opType : List.of(
+                    operations.Operation.OpType.CONV2D_BACKWARD_INPUT,
+                    operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT,
+                    operations.Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
+                    operations.Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
+                    operations.Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
+                    operations.Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
+            )) {
+                assertEquals(
+                        GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                        rows.get(opType).executionStatus(),
+                        opType.name()
+                );
+                assertTrue(rows.get(opType).detail().contains("CAPABILITY_MISSING"), opType.name());
+            }
             assertEquals(
                     backend == ComputeBackend.GPU_METAL
                             ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE

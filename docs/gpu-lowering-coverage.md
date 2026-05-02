@@ -284,3 +284,16 @@ v1.4 pre-closure baseline without using raw latency medians as proof. The releva
 `maxSelectedRegionLength`, `loweredPrimitiveCount`, `nativeBufferStepCount`, `tensorArrayStepCount`,
 `cpuFallbackStepCount`, `cpuMaterializationCount`, `fallbackCount`, `deviceHandoffCount`, `targetCoverageGates`,
 `nativeEvidence`, `capabilitySkipped`, and visible reason-code lists.
+
+## Phase 38 training/backward contract
+
+Training support is per backward operation, not inherited from forward support. `GpuTargetCoverageTruth` now carries
+explicit backward rows for `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`,
+`MAX_GRAD`, `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD`, conv/pool backward variants, index gradients, and index-target
+loss gradients. Metal marks only the backward rows with existing prepared-execution, trace, and parity evidence as
+`NATIVE_EXECUTABLE`; CUDA rows remain matrix-supported-only or explicit rejection until CUDA-native evidence exists.
+
+Forward conv/pool, gather/take, dense loss, BOOL compare, and SDPA support does not imply backward support. Conv/pool
+backward remains `CAPABILITY_MISSING`, index gradients and scatter remain `UNSUPPORTED_DUPLICATE_INDEX`, and
+index-target loss gradients remain `UNSUPPORTED_INDEX_SEMANTICS`. Later Phase 38 work adds training hot-path report
+gates that distinguish true `GRADIENT_PUBLICATION` materialization from avoidable internal CPU exits.

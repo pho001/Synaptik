@@ -223,6 +223,52 @@ class GpuLoweringCoverageMatrixTest {
     }
 
     @Test
+    void phaseThirtyEightMatrixSeparatesBackwardSupportFromForwardSupport() {
+        List<Operation.OpType> supportedBackwardAdjacent = List.of(
+                Operation.OpType.SOFTMAX_GRAD,
+                Operation.OpType.LOG_SOFTMAX_GRAD,
+                Operation.OpType.REDUCE_MIN_GRAD,
+                Operation.OpType.REDUCE_MAX_GRAD,
+                Operation.OpType.MIN_GRAD,
+                Operation.OpType.MAX_GRAD
+        );
+        for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+            for (Operation.OpType opType : supportedBackwardAdjacent) {
+                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
+
+                assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status(), opType.name());
+                assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason(), opType.name());
+                assertEquals(GpuLoweringOperationFamily.BACKWARD_ADJACENT, entry.family(), opType.name());
+            }
+        }
+
+        assertEquals(
+                GpuLoweringCoverageStatus.SUPPORTED,
+                GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD).status()
+        );
+        assertEquals(
+                GpuLoweringCoverageStatus.UNSUPPORTED,
+                GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD).status()
+        );
+
+        for (Operation.OpType opType : List.of(
+                Operation.OpType.CONV2D_BACKWARD_INPUT,
+                Operation.OpType.CONV2D_BACKWARD_WEIGHT,
+                Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
+                Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
+                Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
+                Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
+        )) {
+            for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
+                GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
+
+                assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status(), opType.name());
+                assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, entry.reason(), opType.name());
+            }
+        }
+    }
+
+    @Test
     void phaseTwentySevenMatrixCoversConvPoolAndBoolOutputFamilyExplicitly() {
         List<Operation.OpType> convPoolOps = List.of(
                 Operation.OpType.CONV2D,

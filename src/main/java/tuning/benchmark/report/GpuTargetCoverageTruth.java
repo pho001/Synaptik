@@ -15,10 +15,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * v1.4 source-of-truth classification for target GPU coverage families.
+ * Source-of-truth classification for target GPU coverage families.
  *
  * <p>The lowering matrix describes planner/lowering intent. This class describes whether a
- * target operation family is actually native-executable for a backend. New v1.4 execution
+ * target operation family is actually native-executable for a backend. New execution
  * work should only promote a target operation to {@link GpuTargetExecutionStatus#NATIVE_EXECUTABLE}
  * after backend execution, trace evidence, and parity tests exist.</p>
  */
@@ -56,7 +56,18 @@ public final class GpuTargetCoverageTruth {
             Operation.OpType.LOGICAL_OR,
             Operation.OpType.LOGICAL_NOT,
             Operation.OpType.REDUCE_ALL,
-            Operation.OpType.REDUCE_ANY
+            Operation.OpType.REDUCE_ANY,
+            Operation.OpType.SOFTMAX_GRAD,
+            Operation.OpType.LOG_SOFTMAX_GRAD,
+            Operation.OpType.REDUCE_MIN_GRAD,
+            Operation.OpType.REDUCE_MAX_GRAD,
+            Operation.OpType.MIN_GRAD,
+            Operation.OpType.MAX_GRAD,
+            Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD,
+            Operation.OpType.CONV2D_BACKWARD_INPUT_GEMM,
+            Operation.OpType.CONV2D_BACKWARD_WEIGHT_GEMM,
+            Operation.OpType.MAX_POOL2D_BACKWARD_INPUT,
+            Operation.OpType.AVG_POOL2D_BACKWARD_INPUT
     );
 
     private static final Map<ComputeBackend, Set<Operation.OpType>> NATIVE_EXECUTABLE_TARGETS =
@@ -66,7 +77,7 @@ public final class GpuTargetCoverageTruth {
     }
 
     /**
-     * Returns v1.4 truth rows for all targeted operation families on one backend.
+     * Returns truth rows for all targeted operation families on one backend.
      */
     public static List<Row> rowsFor(ComputeBackend backend) {
         if (backend == null || (backend != ComputeBackend.GPU_METAL && backend != ComputeBackend.GPU_CUDA)) {
@@ -88,7 +99,7 @@ public final class GpuTargetCoverageTruth {
     }
 
     /**
-     * Returns v1.4 truth rows for Metal and CUDA.
+     * Returns truth rows for Metal and CUDA.
      */
     public static Map<ComputeBackend, List<Row>> rowsByBackend() {
         return Map.of(
@@ -143,6 +154,13 @@ public final class GpuTargetCoverageTruth {
         metalTargets.add(Operation.OpType.LOGICAL_NOT);
         metalTargets.add(Operation.OpType.REDUCE_ALL);
         metalTargets.add(Operation.OpType.REDUCE_ANY);
+        metalTargets.add(Operation.OpType.SOFTMAX_GRAD);
+        metalTargets.add(Operation.OpType.LOG_SOFTMAX_GRAD);
+        metalTargets.add(Operation.OpType.REDUCE_MIN_GRAD);
+        metalTargets.add(Operation.OpType.REDUCE_MAX_GRAD);
+        metalTargets.add(Operation.OpType.MIN_GRAD);
+        metalTargets.add(Operation.OpType.MAX_GRAD);
+        metalTargets.add(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD);
         metalTargets.add(Operation.OpType.GATHER);
         metalTargets.add(Operation.OpType.TAKE_ALONG_AXIS);
         metalTargets.add(Operation.OpType.CONV2D);
