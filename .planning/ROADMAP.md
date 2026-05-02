@@ -103,10 +103,10 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 5. Coverage reports prove mask chains stayed device-owned.
 
 **Planned waves:**
-- 31-01 BOOL output ABI and compare primitive contract.
-- 31-02 Logical and reduction BOOL execution.
-- 31-03 Mask chain residency and `WHERE` consumer gates.
-- 31-04 Docs, parity, and report closure.
+- [31-01 BOOL output ABI and compare primitive contract](phases/31-bool-producing-metal-compute/31-01-PLAN.md).
+- [31-02 Logical and reduction BOOL execution](phases/31-bool-producing-metal-compute/31-02-PLAN.md).
+- [31-03 Mask chain residency and `WHERE` consumer gates](phases/31-bool-producing-metal-compute/31-03-PLAN.md).
+- [31-04 Docs, parity, and report closure](phases/31-bool-producing-metal-compute/31-04-PLAN.md).
 
 ### Phase 32: INT32 Index Tensor And Gather Take Path
 
