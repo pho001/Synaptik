@@ -540,6 +540,72 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void phaseThirtySixIndexGradientRejectsBoundsAndUnprovenIndexBeforeDuplicateBlocker() {
+        Tensor gatherOobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "metalPhase36GatherOobIndices", DataType.INT32);
+        Tensor gatherOutGrad = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "metalPhase36GatherBoundsOutGrad", DataType.FLOAT32);
+        Tensor gatherGradOut = TensorPrimitiveBuilder.binary(
+                gatherOobIndices,
+                gatherOutGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "metalPhase36GatherBoundsGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(gatherGradOut, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext gatherBoundsContext = planningContext(gatherGradOut);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        gatherBoundsContext.compiledNode(nodeId(gatherBoundsContext, Operation.OpType.GATHER_GRAD)),
+                        gatherBoundsContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index 3 is outside axis size 3"
+        );
+
+        Tensor takeOobIndices = new Tensor(new int[]{2, 3, 0, 0}, new int[]{2, 2}, null, "metalPhase36TakeOobIndices", DataType.INT32);
+        Tensor takeOutGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase36TakeBoundsOutGrad", DataType.FLOAT32);
+        Tensor takeGradOut = TensorPrimitiveBuilder.binary(
+                takeOobIndices,
+                takeOutGrad,
+                new int[]{2, 3},
+                new takeAlongAxisGrad(1),
+                "metalPhase36TakeBoundsGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(takeGradOut, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext takeBoundsContext = planningContext(takeGradOut);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        takeBoundsContext.compiledNode(nodeId(takeBoundsContext, Operation.OpType.TAKE_ALONG_AXIS_GRAD)),
+                        takeBoundsContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index 3 is outside axis size 3"
+        );
+
+        Tensor dynamicGatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase36DynamicGatherIndices", DataType.INT32)
+                .reshape(2);
+        Tensor dynamicGatherGrad = TensorPrimitiveBuilder.binary(
+                dynamicGatherIndices,
+                gatherOutGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "metalPhase36DynamicGatherGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(dynamicGatherGrad, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dynamicGatherContext = planningContext(dynamicGatherGrad);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        dynamicGatherContext.compiledNode(nodeId(dynamicGatherContext, Operation.OpType.GATHER_GRAD)),
+                        dynamicGatherContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index bounds require a static INT32 leaf tensor"
+        );
+    }
+
+    @Test
     void phaseThirtyTwoIndexFamilyRejectsUnprovenBoundsDtypeAndLayout() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalPhase32RejectInput", DataType.FLOAT32);
 

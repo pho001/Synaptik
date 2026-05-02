@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T08:08:30Z"
-last_activity: 2026-05-02 -- Phase 32-01 INT32 index input residency completed
+last_updated: "2026-05-02T10:21:04Z"
+last_activity: 2026-05-02 -- Phase 36-03 gradient parity gates completed
 progress:
   total_phases: 11
-  completed_phases: 3
+  completed_phases: 7
   total_plans: 44
-  completed_plans: 13
-  percent: 30
+  completed_plans: 31
+  percent: 70
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 32 — INT32 Index Tensor And Gather Take Path
+**Current focus:** Phase 36 — Scatter And Index Gradient Semantics
 
 ## Project Reference
 
@@ -77,11 +77,11 @@ Planning agents should read the relevant codebase map documents before proposing
 | 29 — Metal DType ABI And Capability Truth | Complete | 4/4 | Verified |
 | 30 — BF16 Metal Compute And Output | Complete | 4/4 | Verified |
 | 31 — BOOL-Producing Metal Compute | Complete | 4/4 | Verified |
-| 32 — INT32 Index Tensor And Gather Take Path | In Progress | 1/4 | Pending |
-| 33 — GPU Layout Router And Strided Materialization | Planned | 0/4 | Pending |
-| 34 — Masked And Causal SDPA | Planned | 0/4 | Pending |
-| 35 — Conv Pool Native Execution | Planned | 0/4 | Pending |
-| 36 — Scatter And Index Gradient Semantics | Planned | 0/4 | Pending |
+| 32 — INT32 Index Tensor And Gather Take Path | Complete | 4/4 | Verified |
+| 33 — GPU Layout Router And Strided Materialization | Complete | 4/4 | Verified |
+| 34 — Masked And Causal SDPA | Complete | 4/4 | Verified |
+| 35 — Conv Pool Native Execution | Complete | 4/4 | Verified |
+| 36 — Scatter And Index Gradient Semantics | In Progress | 3/4 | Pending |
 | 37 — Loss-Adjacent Metal Lowering | Planned | 0/4 | Pending |
 | 38 — Metal Training Backward Coverage | Planned | 0/4 | Pending |
 | 39 — Metal Backend Router And Zero-Copy Closure | Planned | 0/4 | Pending |

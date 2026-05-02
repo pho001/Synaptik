@@ -212,7 +212,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 **Planned waves:**
 - [x] [36-01 Scatter/index-gradient semantics contract](phases/36-scatter-and-index-gradient-semantics/36-01-PLAN.md).
 - [x] [36-02 Native or stable-rejection scatter execution](phases/36-scatter-and-index-gradient-semantics/36-02-PLAN.md).
-- [ ] [36-03 Gradient parity and duplicate-index gates](phases/36-scatter-and-index-gradient-semantics/36-03-PLAN.md).
+- [x] [36-03 Gradient parity and duplicate-index gates](phases/36-scatter-and-index-gradient-semantics/36-03-PLAN.md).
 - [ ] [36-04 Trace report and coverage closure](phases/36-scatter-and-index-gradient-semantics/36-04-PLAN.md).
 
 ### Phase 37: Loss-Adjacent Metal Lowering

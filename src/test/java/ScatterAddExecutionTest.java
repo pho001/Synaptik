@@ -8,6 +8,7 @@ import tensor.DataType;
 import tensor.Tensor;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ScatterAddExecutionTest {
@@ -43,6 +44,40 @@ public class ScatterAddExecutionTest {
                 11, 22, 30,
                 40, 50, 63
         }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterAddRepeatedAxisValuesRemainLaneScoped() {
+        Tensor base = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "base", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{1, 1}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor src = new Tensor(new double[]{5, 7}, new int[]{2}, null, "src", DataType.FLOAT64);
+        Tensor out = base.scatterAdd(indices, src, 1);
+
+        CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                10, 25, 30,
+                40, 57, 60
+        }, out.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void scatterAddRejectsOutOfBoundsIndexAtExecution() {
+        Tensor base = new Tensor(new double[]{
+                10, 20, 30,
+                40, 50, 60
+        }, new int[]{2, 3}, null, "base", DataType.FLOAT64);
+        Tensor indices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor src = new Tensor(new double[]{1, 5}, new int[]{2}, null, "src", DataType.FLOAT64);
+        Tensor out = base.scatterAdd(indices, src, 1);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                CompiledGraph.compile(out, OptimizerConfig.noOptimization())
+                        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
     }
 
     @Test

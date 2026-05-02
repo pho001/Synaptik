@@ -33,6 +33,8 @@ import graph.execution.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
+import operations.index.gatherGrad;
+import operations.index.takeAlongAxisGrad;
 import operations.nn.conv.conv2dGemm;
 import backend.blas.BlasProvider;
 import config.backend.KernelTuningConfig;
@@ -396,6 +398,82 @@ public class PreparedExecutionBuildTest {
         assertTrue(plannerReason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(plannerReason.contains("LOSS") || plannerReason.contains("CROSS_ENTROPY_LOSS_INDICES"));
         assertCpuPreparedStepAvailable(execution, lossNodeId);
+    }
+
+    @Test
+    void metalSelectionRejectsScatterAddButKeepsSupportedProducerVisible() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalScatterInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f, 0f,
+                0f, 1f, 0f,
+                0f, 0f, 1f
+        }, new int[]{3, 3}, null, "metalScatterWeight", DataType.FLOAT32);
+        Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalScatterIndices", DataType.INT32);
+        Tensor src = new Tensor(new float[]{0.5f, -0.25f}, new int[]{2}, null, "metalScatterSrc", DataType.FLOAT32);
+        Tensor matmul = input.matmul(weight);
+        Tensor out = matmul.scatterAdd(indices, src, 1);
+        TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.noOptimization());
+        PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
+        int matmulNodeId = nodeId(compiled, Operation.OpType.MATMUL);
+        int scatterNodeId = nodeId(compiled, Operation.OpType.SCATTER_ADD);
+        String scatterReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, scatterNodeId), planningContext(compiled));
+
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, matmulNodeId));
+        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, scatterNodeId));
+        assertContainsAll(scatterReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation SCATTER_ADD", "family=INDEX_SCATTER_GATHER");
+        assertCpuPreparedStepAvailable(execution, scatterNodeId);
+    }
+
+    @Test
+    void metalSelectionRejectsIndexGradientPrimitivesWithStableReasons() {
+        Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalGatherGradIndices", DataType.INT32);
+        Tensor gatherOutGrad = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "metalGatherGradOut", DataType.FLOAT32);
+        Tensor gatherGradOut = TensorPrimitiveBuilder.binary(
+                gatherIndices,
+                gatherOutGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "metalGatherGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(gatherGradOut, ComputeBackend.GPU_METAL);
+        CompiledGraph gatherCompiled = CompiledGraph.compile(gatherGradOut, OptimizerConfig.noOptimization());
+        PreparedExecution gatherExecution = gatherCompiled.prepare(RuntimeConfig.inferenceDefaults());
+        int gatherGradNodeId = nodeId(gatherCompiled, Operation.OpType.GATHER_GRAD);
+        String gatherReason = MetalPartitionSupport.plannerUnsupportedReason(
+                compiledNode(gatherCompiled, gatherGradNodeId),
+                planningContext(gatherCompiled)
+        );
+
+        assertFalse(hasSelectedAcceleratorDecisionFor(gatherExecution, ComputeBackend.GPU_METAL, gatherGradNodeId));
+        assertContainsAll(gatherReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation GATHER_GRAD", "family=INDEX_SCATTER_GATHER");
+        assertCpuPreparedStepAvailable(gatherExecution, gatherGradNodeId);
+
+        Tensor takeIndices = new Tensor(new int[]{2, 2, 0, 0}, new int[]{2, 2}, null, "metalTakeGradIndices", DataType.INT32);
+        Tensor takeOutGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalTakeGradOut", DataType.FLOAT32);
+        Tensor takeGradOut = TensorPrimitiveBuilder.binary(
+                takeIndices,
+                takeOutGrad,
+                new int[]{2, 3},
+                new takeAlongAxisGrad(1),
+                "metalTakeAlongAxisGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(takeGradOut, ComputeBackend.GPU_METAL);
+        CompiledGraph takeCompiled = CompiledGraph.compile(takeGradOut, OptimizerConfig.noOptimization());
+        PreparedExecution takeExecution = takeCompiled.prepare(RuntimeConfig.inferenceDefaults());
+        int takeGradNodeId = nodeId(takeCompiled, Operation.OpType.TAKE_ALONG_AXIS_GRAD);
+        String takeReason = MetalPartitionSupport.plannerUnsupportedReason(
+                compiledNode(takeCompiled, takeGradNodeId),
+                planningContext(takeCompiled)
+        );
+
+        assertFalse(hasSelectedAcceleratorDecisionFor(takeExecution, ComputeBackend.GPU_METAL, takeGradNodeId));
+        assertContainsAll(takeReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation TAKE_ALONG_AXIS_GRAD", "family=INDEX_SCATTER_GATHER");
+        assertCpuPreparedStepAvailable(takeExecution, takeGradNodeId);
     }
 
     @Test

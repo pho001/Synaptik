@@ -81,6 +81,46 @@ public class GatherExecutionTest {
     }
 
     @Test
+    void gatherGradRepeatedAxisValuesRemainLaneScoped() {
+        Tensor indices = new Tensor(new int[]{2, 2}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor outGrad = new Tensor(new double[]{1, 2}, new int[]{2}, null, "outGrad", DataType.FLOAT64);
+        Tensor grad = TensorPrimitiveBuilder.binary(
+                indices,
+                outGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "gatherGrad",
+                DataType.FLOAT64
+        );
+
+        CompiledGraph.compile(grad, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        assertArrayEquals(new double[]{
+                0.0, 0.0, 1.0,
+                0.0, 0.0, 2.0
+        }, grad.toDoubleArrayCopy(), 1e-9);
+    }
+
+    @Test
+    void gatherGradRejectsOutOfBoundsIndexAtExecution() {
+        Tensor indices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "indices", DataType.INT32);
+        Tensor outGrad = new Tensor(new double[]{1, 2}, new int[]{2}, null, "outGrad", DataType.FLOAT64);
+        Tensor grad = TensorPrimitiveBuilder.binary(
+                indices,
+                outGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "gatherGrad",
+                DataType.FLOAT64
+        );
+
+        assertThrows(IllegalArgumentException.class, () ->
+                CompiledGraph.compile(grad, OptimizerConfig.noOptimization())
+                        .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD));
+    }
+
+    @Test
     void gatherRejectsNonIntegralIndices() {
         Tensor x = new Tensor(new double[]{1, 2, 3, 4, 5, 6}, new int[]{2, 3}, null, "x", DataType.FLOAT64);
         Tensor indices = new Tensor(new double[]{1.5, 0.0}, new int[]{2}, null, "indices", DataType.FLOAT64);
