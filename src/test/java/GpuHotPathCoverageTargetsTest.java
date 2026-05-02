@@ -8,6 +8,8 @@ import tuning.benchmark.BenchmarkEntry;
 import tuning.benchmark.BenchmarkSuiteRequest;
 import tuning.benchmark.report.GpuCoverageHotPathExpectation;
 import tuning.benchmark.report.GpuHotPathCoverageTarget;
+import tuning.benchmark.report.CudaHotPathBlockerClass;
+import tuning.benchmark.report.CudaHotPathBlockerPolicy;
 import tuning.benchmark.report.GpuHotPathCoverageTargets;
 import tuning.benchmark.report.GpuTargetCoverageTruth;
 import tuning.benchmark.report.GpuTargetExecutionStatus;
@@ -160,6 +162,29 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(expectations.stream().allMatch(expectation -> expectation.policy() != null));
         assertTrue(GpuHotPathCoverageTargets.defaults().stream()
                 .allMatch(target -> target.requirementFamilies().contains("GPUCLOSE")));
+    }
+
+    @Test
+    void cudaHotPathBlockerPolicyNamesV16Targets() {
+        assertEquals(CudaHotPathBlockerClass.V16_BLOCKER,
+                CudaHotPathBlockerPolicy.classify("masked_sdpa_small"));
+        assertEquals(CudaHotPathBlockerClass.V16_BLOCKER,
+                CudaHotPathBlockerPolicy.classify("conv2d_resnet_3x3"));
+        assertEquals(CudaHotPathBlockerClass.V16_BLOCKER,
+                CudaHotPathBlockerPolicy.classify("dense_loss_small"));
+        assertEquals(CudaHotPathBlockerClass.V16_BLOCKER,
+                CudaHotPathBlockerPolicy.classify("gather_take_small"));
+        assertEquals(CudaHotPathBlockerClass.V16_BLOCKER,
+                CudaHotPathBlockerPolicy.classify("bool_compare_where_small"));
+        assertEquals(CudaHotPathBlockerClass.REQUIRES_NATIVE_EVIDENCE,
+                CudaHotPathBlockerPolicy.classify("scatter_index_gradient_small"));
+        assertEquals(CudaHotPathBlockerClass.ACCEPTED_CAPABILITY_GAP,
+                CudaHotPathBlockerPolicy.classify("layer_norm_small_bf16"));
+        assertTrue(CudaHotPathBlockerPolicy.v16BlockerTargets().contains("masked_sdpa_small"));
+        assertTrue(CudaHotPathBlockerPolicy.v16BlockerTargets().contains("conv2d_resnet_3x3"));
+        assertTrue(CudaHotPathBlockerPolicy.v16BlockerTargets().contains("dense_loss_small"));
+        assertTrue(CudaHotPathBlockerPolicy.v16BlockerTargets().contains("gather_take_small"));
+        assertTrue(CudaHotPathBlockerPolicy.v16BlockerTargets().contains("bool_compare_where_small"));
     }
 
     @Test

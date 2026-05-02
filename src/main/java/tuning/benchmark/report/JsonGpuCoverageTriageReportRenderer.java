@@ -12,6 +12,8 @@ public final class JsonGpuCoverageTriageReportRenderer {
         sb.append("{\n");
         appendHotPathTargets(sb, report);
         sb.append(",\n");
+        appendCudaHotPathBlockers(sb, report);
+        sb.append(",\n");
         appendTopGaps(sb, report);
         sb.append(",\n");
         appendCategoryCounts(sb, report);
@@ -38,6 +40,22 @@ public final class JsonGpuCoverageTriageReportRenderer {
             appendStringArray(sb, target.requirementFamilies());
             sb.append("], ");
             sb.append("\"rationale\": \"").append(escape(target.rationale())).append("\"");
+            sb.append("}");
+        }
+        sb.append("\n  ]");
+    }
+
+    private static void appendCudaHotPathBlockers(StringBuilder sb, GpuCoverageTriageReport report) {
+        sb.append("  \"cudaHotPathBlockers\": [\n");
+        for (int i = 0; i < report.cudaHotPathBlockers().size(); i++) {
+            if (i > 0) {
+                sb.append(",\n");
+            }
+            GpuCoverageTriageReport.CudaHotPathBlockerEntry blocker = report.cudaHotPathBlockers().get(i);
+            sb.append("    {");
+            sb.append("\"workloadName\": \"").append(escape(blocker.workloadName())).append("\", ");
+            sb.append("\"blockerClass\": \"").append(blocker.blockerClass().name()).append("\", ");
+            sb.append("\"detail\": \"").append(escape(blocker.detail())).append("\"");
             sb.append("}");
         }
         sb.append("\n  ]");

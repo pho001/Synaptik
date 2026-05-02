@@ -18,7 +18,8 @@ public class GpuCoverageTriageReportTest {
     void buildsTriageReportFromSuiteAndDefaultTargets() {
         GpuCoverageTriageReport report = GpuCoverageTriageReport.fromSuite(suiteReport(), 20);
 
-        assertEquals(4, report.hotPathTargets().size());
+        assertEquals(24, report.hotPathTargets().size());
+        assertFalse(report.cudaHotPathBlockers().isEmpty());
         assertFalse(report.topGaps().isEmpty());
         assertTrue(report.gapCountsByCategory().containsKey(GpuCoverageGapCategory.DEVICE_HANDOFF));
         assertTrue(report.gapCountsByRequirementFamily().containsKey("GPUHARDEN"));
@@ -30,6 +31,7 @@ public class GpuCoverageTriageReportTest {
 
         assertTrue(text.contains("GPU Coverage Gap Triage"));
         assertTrue(text.contains("Hot Path Targets"));
+        assertTrue(text.contains("cudaHotPathBlockers"));
         assertTrue(text.contains("Top Coverage Gaps"));
         assertTrue(text.contains("Requirement Family Ranking"));
         assertTrue(text.contains("Downstream Phase Targets"));
@@ -41,6 +43,7 @@ public class GpuCoverageTriageReportTest {
         String json = JsonGpuCoverageTriageReportRenderer.render(GpuCoverageTriageReport.fromSuite(suiteReport(), 20));
 
         assertTrue(json.contains("\"hotPathTargets\""));
+        assertTrue(json.contains("\"cudaHotPathBlockers\""));
         assertTrue(json.contains("\"topGaps\""));
         assertTrue(json.contains("\"gapCountsByCategory\""));
         assertTrue(json.contains("\"gapCountsByRequirementFamily\""));
@@ -68,6 +71,20 @@ public class GpuCoverageTriageReportTest {
         assertTrue(text.contains("Phase 20"));
         assertTrue(json.contains("Phase 15"));
         assertTrue(json.contains("Phase 20"));
+    }
+
+    @Test
+    void cudaHotPathBlockersRenderClassifications() {
+        GpuCoverageTriageReport report = GpuCoverageTriageReport.fromSuite(suiteReport(), 20);
+        String text = TextGpuCoverageTriageReportRenderer.render(report);
+        String json = JsonGpuCoverageTriageReportRenderer.render(report);
+
+        assertTrue(text.contains("V16_BLOCKER"));
+        assertTrue(text.contains("REQUIRES_NATIVE_EVIDENCE"));
+        assertTrue(text.contains("ACCEPTED_CAPABILITY_GAP"));
+        assertTrue(json.contains("\"blockerClass\": \"V16_BLOCKER\""));
+        assertTrue(json.contains("\"blockerClass\": \"REQUIRES_NATIVE_EVIDENCE\""));
+        assertTrue(json.contains("\"blockerClass\": \"ACCEPTED_CAPABILITY_GAP\""));
     }
 
     private static BenchmarkSuiteReport suiteReport() {

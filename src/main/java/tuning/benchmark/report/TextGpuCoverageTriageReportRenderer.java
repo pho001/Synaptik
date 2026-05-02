@@ -25,6 +25,18 @@ public final class TextGpuCoverageTriageReportRenderer {
         }
         sb.append('\n');
 
+        sb.append("cudaHotPathBlockers:\n");
+        for (GpuCoverageTriageReport.CudaHotPathBlockerEntry blocker : report.cudaHotPathBlockers()) {
+            sb.append("- ")
+                    .append(blocker.workloadName())
+                    .append(" class=")
+                    .append(blocker.blockerClass().name())
+                    .append(" detail=")
+                    .append(blocker.detail())
+                    .append('\n');
+        }
+        sb.append('\n');
+
         sb.append("Top Coverage Gaps\n");
         for (GpuCoverageGap gap : report.topGaps()) {
             sb.append("- ")

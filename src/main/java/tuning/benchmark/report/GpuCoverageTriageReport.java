@@ -17,6 +17,7 @@ import java.util.Map;
  */
 public record GpuCoverageTriageReport(
         List<GpuHotPathCoverageTarget> hotPathTargets,
+        List<CudaHotPathBlockerEntry> cudaHotPathBlockers,
         List<GpuCoverageGap> topGaps,
         Map<GpuCoverageGapCategory, Integer> gapCountsByCategory,
         Map<String, Integer> gapCountsByRequirementFamily,
@@ -24,6 +25,7 @@ public record GpuCoverageTriageReport(
 ) {
     public GpuCoverageTriageReport {
         hotPathTargets = hotPathTargets == null ? List.of() : List.copyOf(hotPathTargets);
+        cudaHotPathBlockers = cudaHotPathBlockers == null ? List.of() : List.copyOf(cudaHotPathBlockers);
         topGaps = topGaps == null ? List.of() : List.copyOf(topGaps);
         gapCountsByCategory = copyMap(gapCountsByCategory);
         gapCountsByRequirementFamily = copyMap(gapCountsByRequirementFamily);
@@ -45,11 +47,24 @@ public record GpuCoverageTriageReport(
         }
         return new GpuCoverageTriageReport(
                 targets,
+                CudaHotPathBlockerPolicy.entriesForDefaultTargets(),
                 gaps,
                 countsByCategory,
                 countsByFamily,
                 downstreamTargets(targets)
         );
+    }
+
+    public record CudaHotPathBlockerEntry(
+            String workloadName,
+            CudaHotPathBlockerClass blockerClass,
+            String detail
+    ) {
+        public CudaHotPathBlockerEntry {
+            workloadName = workloadName == null ? "" : workloadName.strip();
+            blockerClass = blockerClass == null ? CudaHotPathBlockerClass.FUTURE_SCOPE : blockerClass;
+            detail = detail == null ? "" : detail.strip();
+        }
     }
 
     private static Map<Integer, List<String>> downstreamTargets(List<GpuHotPathCoverageTarget> targets) {
