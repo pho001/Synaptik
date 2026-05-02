@@ -69,6 +69,12 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
         if (!sdpaReason.isBlank()) {
             return sdpaReason;
         }
+        if (CudaPartitionSupport.isForwardIndexOp(opType)) {
+            String indexReason = CudaPartitionSupport.indexUnsupportedReason(node, context);
+            if (!indexReason.isBlank()) {
+                return indexReason;
+            }
+        }
         GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_CUDA, opType);

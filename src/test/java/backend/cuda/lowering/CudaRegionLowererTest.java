@@ -553,6 +553,86 @@ class CudaRegionLowererTest {
     }
 
     @Test
+    void cudaForwardGatherTakeValidateContractBeforeCapabilityMissing() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cuda41IndexInput", DataType.FLOAT32);
+        Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cuda41GatherIndices", DataType.INT32);
+        Tensor gather = input.gather(gatherIndices, 1);
+        TensorInternalAccess.setBackend(gather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext gatherContext = planningContext(gather);
+
+        Tensor takeIndices = new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "cuda41TakeIndices", DataType.INT32);
+        Tensor take = input.takeAlongAxis(takeIndices, 1);
+        TensorInternalAccess.setBackend(take, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext takeContext = planningContext(take);
+
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        gatherContext.compiledNode(nodeId(gatherContext, Operation.OpType.GATHER)),
+                        gatherContext
+                ),
+                "CAPABILITY_MISSING",
+                "operation GATHER",
+                "family=INDEX_SCATTER_GATHER",
+                "target=gather_take_small"
+        );
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        takeContext.compiledNode(nodeId(takeContext, Operation.OpType.TAKE_ALONG_AXIS)),
+                        takeContext
+                ),
+                "CAPABILITY_MISSING",
+                "operation TAKE_ALONG_AXIS",
+                "family=INDEX_SCATTER_GATHER",
+                "target=gather_take_small"
+        );
+    }
+
+    @Test
+    void cudaForwardIndexReportsDtypeLayoutAndBoundsBeforeCapabilityMissing() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cuda41IndexBadInput", DataType.FLOAT32);
+        Tensor f32Indices = new Tensor(new float[]{1f, 0f}, new int[]{2}, null, "cuda41F32GatherIndices", DataType.FLOAT32);
+        Tensor dtypeGather = input.gather(f32Indices, 1);
+        TensorInternalAccess.setBackend(dtypeGather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeGather);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.GATHER)),
+                        dtypeContext
+                ),
+                "UNSUPPORTED_DTYPE",
+                "role=INDEX_INPUT",
+                "dtype=FLOAT32"
+        );
+
+        Tensor oobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "cuda41OobGatherIndices", DataType.INT32);
+        Tensor oobGather = input.gather(oobIndices, 1);
+        TensorInternalAccess.setBackend(oobGather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext oobContext = planningContext(oobGather);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        oobContext.compiledNode(nodeId(oobContext, Operation.OpType.GATHER)),
+                        oobContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index 3 is outside axis size 3"
+        );
+
+        Tensor nonDenseValue = input.permute(1, 0);
+        Tensor layoutIndices = new Tensor(new int[]{1, 0, 1}, new int[]{3}, null, "cuda41LayoutGatherIndices", DataType.INT32);
+        Tensor layoutGather = nonDenseValue.gather(layoutIndices, 1);
+        TensorInternalAccess.setBackend(layoutGather, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext layoutContext = planningContext(layoutGather);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.GATHER)),
+                        layoutContext
+                ),
+                "UNSUPPORTED_LAYOUT",
+                "inputs require dense value and INT32 index layouts"
+        );
+    }
+
+    @Test
     void cudaPhaseTwentySevenBoolCompareAndPoolUseStableCoverageReasons() {
         Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaPhase27CompareLeft", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "cudaPhase27CompareRight", DataType.FLOAT32);
