@@ -497,11 +497,25 @@ public final class PreparedExecution {
 
         if (metadata.acceleratorExecutable() instanceof backend.metal.exec.PreparedMetalExecutable metal) {
             var metalStats = metal.lastExecutionStats();
+            var route = metal.routeDecision();
             attrs.put("metalBridgeAvailable", metal.bridge().isAvailable());
             attrs.put("metalBridgeContextAvailable", metal.bridgeContext().available());
             attrs.put("metalBridgeExecutableAvailable", metal.bridgeExecutable().available());
             attrs.put("metalBridgeCacheHit", metal.bridgeExecutable().cacheHit());
             attrs.put("metalSupportsBufferBindings", metal.bridge().supportsBufferBindings());
+            attrs.put("metalExecutionRoute", route.selectedRoute().name());
+            attrs.put("metalRouteReasonCode", route.reasonCode().name());
+            attrs.put("metalRouteRejectedRoutes", route.rejectedRoutes().stream()
+                    .map(Enum::name)
+                    .toList());
+            attrs.put("metalRouteReason", route.detail());
+            attrs.put("metalRouteEstimatedCost", route.estimatedRouteCost());
+            attrs.put("metalRouteEstimatedCopyCost", route.estimatedCopyCost());
+            attrs.put("metalRouteBridgeAvailable", route.bridgeAvailable());
+            attrs.put("metalRouteExecutableAvailable", route.executableAvailable());
+            attrs.put("metalRouteBufferAbiSupported", route.bufferAbiSupported());
+            attrs.put("metalRouteCustomKernelAvailable", route.customKernelAvailable());
+            attrs.put("metalRouteNativeCopyCostKnown", route.nativeCopyCostKnown());
             attrs.put("metalBufferBindingDecision", metal.lastBufferBindingDecision());
             attrs.put("metalSubgraphNodeCount", metal.plan().nodeIds().size());
             attrs.put("metalSubgraphOps", metal.plan().subgraph().ops().stream().map(op -> op.opType().name()).toList());

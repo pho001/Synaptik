@@ -51,6 +51,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     private final AcceleratorBackendConfig backendConfig;
     private final MetalAcceleratorBufferBinder bufferBinder;
     private final MetalPreparedTransportPlan preparedTransportPlan;
+    private final MetalRouteDecision preparedRouteDecision;
     private volatile String lastBufferBindingDecision = "not executed yet";
     private volatile AcceleratorBufferDecision lastAcceleratorBufferDecision =
             AcceleratorBufferDecision.notEvaluated(ComputeBackend.GPU_METAL);
@@ -99,6 +100,12 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                 bridgeExecutable,
                 this.backendConfig,
                 bufferBinder
+        );
+        this.preparedRouteDecision = MetalExecutionRouter.decide(
+                plan,
+                bridge.capabilities(),
+                this.backendConfig,
+                preparedTransportPlan.toRouteEvidence()
         );
     }
 
@@ -540,6 +547,13 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
         return preparedTransportPlan.describe();
     }
 
+    /**
+     * Returns the prepare-time route decision for this Metal executable.
+     */
+    public MetalRouteDecision routeDecision() {
+        return preparedRouteDecision;
+    }
+
     private enum MetalPreparedTransportPath {
         BUFFER_BINDING,
         TENSOR_ARRAY,
@@ -761,6 +775,28 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
                     + ", estimatedWork=" + estimatedWork
                     + ", minimumEstimatedWork=" + minimumEstimatedWork
                     + ", reason=" + reason;
+        }
+
+        private MetalExecutionRouter.TransportEvidence toRouteEvidence() {
+            return new MetalExecutionRouter.TransportEvidence(
+                    switch (preferredPath) {
+                        case BUFFER_BINDING -> MetalExecutionRouter.TransportPath.BUFFER_BINDING;
+                        case TENSOR_ARRAY -> MetalExecutionRouter.TransportPath.TENSOR_ARRAY;
+                        case STATIC_CPU_FALLBACK -> MetalExecutionRouter.TransportPath.STATIC_CPU_FALLBACK;
+                        case UNAVAILABLE_REQUIRED -> MetalExecutionRouter.TransportPath.UNAVAILABLE_REQUIRED;
+                    },
+                    mode,
+                    reasonCode,
+                    reason,
+                    bridgeAvailable,
+                    contextAvailable,
+                    executableAvailable,
+                    bufferAbiSupported,
+                    staticDTypeLegal,
+                    containsForwardAttentionDag,
+                    estimatedWork,
+                    minimumEstimatedWork
+            );
         }
 
         private static String staticDTypeUnsupportedReason(MetalMpsBridgeExecutable bridgeExecutable) {

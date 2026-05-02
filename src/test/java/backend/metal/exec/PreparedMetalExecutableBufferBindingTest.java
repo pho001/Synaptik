@@ -47,6 +47,7 @@ import graph.CompiledGraph;
 import graph.CompiledNode;
 import graph.execution.CompiledNodeExecutionMetadata;
 import graph.execution.ExecutionState;
+import graph.execution.PreparedExecution;
 import graph.execution.PreparedNodeExecution;
 import operations.Operation;
 import operations.elementwise.unary.relu;
@@ -206,6 +207,10 @@ class PreparedMetalExecutableBufferBindingTest {
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
         assertTrue(executable.preparedTransportPlan().contains("preferredPath=BUFFER_BINDING"));
+        assertEquals(MetalExecutionRoute.MPS_GRAPH, executable.routeDecision().selectedRoute());
+        assertEquals(MetalRouteReasonCode.MPS_GRAPH_SELECTED, executable.routeDecision().reasonCode());
+        assertTrue(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
+        assertEquals(-1L, executable.routeDecision().estimatedCopyCost());
         fixture.state().attachDeviceBufferBinding(
                 fixture.inputNode().id(),
                 binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
@@ -225,6 +230,48 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(outputBinding, fixture.state().deviceBufferBindingForNodeId(fixture.outputNode().id()));
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
         assertTrue(fixture.state().requiresCpuMaterialization(fixture.outputNode().id()));
+    }
+
+    @Test
+    void tracedBufferBindingStepPublishesMetalRouteAttributes() {
+        Fixture fixture = fixture();
+        FakeBridge bridge = new FakeBridge(true);
+        PreparedMetalExecutable executable = executable(fixture, bridge);
+        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+                ComputeBackend.GPU_METAL,
+                null,
+                null,
+                null,
+                null,
+                executable,
+                backend.accelerator.exec.PartitionExecutionRole.NONE
+        );
+        PreparedNodeExecution step = new PreparedNodeExecution(fixture.outputNode(), metadata);
+        PreparedExecution prepared = new PreparedExecution(
+                RuntimeConfig.inferenceDefaults(),
+                false,
+                List.of(step),
+                List.of(step),
+                List.of(),
+                List.of(fixture.inputNode(), fixture.outputNode()),
+                Map.of(),
+                fixture.outputNode().semanticTensor(),
+                fixture.outputNode(),
+                null,
+                null,
+                graph.execution.trace.PrepareTrace.skipped()
+        );
+
+        var trace = prepared.executeTraced(ExecutionMode.FORWARD);
+        Map<String, Object> attrs = trace.steps().getFirst().metadata().attributes();
+
+        assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
+        assertEquals("MPS_GRAPH", attrs.get("metalExecutionRoute"));
+        assertEquals("MPS_GRAPH_SELECTED", attrs.get("metalRouteReasonCode"));
+        assertEquals(List.of("CUSTOM_KERNEL"), attrs.get("metalRouteRejectedRoutes"));
+        assertEquals(-1L, attrs.get("metalRouteEstimatedCopyCost"));
+        assertEquals(false, attrs.get("metalRouteNativeCopyCostKnown"));
+        assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
     }
 
     @Test
@@ -336,6 +383,8 @@ class PreparedMetalExecutableBufferBindingTest {
         );
         assertTrue(executable.preparedTransportPlan().contains("preferredPath=UNAVAILABLE_REQUIRED"));
         assertTrue(executable.preparedTransportPlan().contains("reasonCode=NATIVE_BUFFER_ABI_UNAVAILABLE"));
+        assertEquals(MetalExecutionRoute.UNAVAILABLE_REQUIRED, executable.routeDecision().selectedRoute());
+        assertEquals(MetalRouteReasonCode.UNAVAILABLE_REQUIRED, executable.routeDecision().reasonCode());
 
         IllegalStateException failure = assertThrows(IllegalStateException.class, () -> executable.execute(fixture.context()));
 
@@ -721,6 +770,8 @@ class PreparedMetalExecutableBufferBindingTest {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(false);
         PreparedMetalExecutable executable = executable(fixture, bridge);
+        assertEquals(MetalExecutionRoute.TENSOR_ARRAY, executable.routeDecision().selectedRoute());
+        assertEquals(MetalRouteReasonCode.BUFFER_ABI_UNAVAILABLE, executable.routeDecision().reasonCode());
         fixture.state().attachDeviceBufferBinding(
                 fixture.inputNode().id(),
                 binding(fixture.inputNode().id(), MetalBufferAccess.READ, 8),
