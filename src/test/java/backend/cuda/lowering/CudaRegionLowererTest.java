@@ -241,6 +241,7 @@ class CudaRegionLowererTest {
         assertTrue(reason.contains("CAPABILITY_MISSING"));
         assertTrue(reason.contains("CUDA direct forward SDPA"));
         assertTrue(reason.contains("target=transformer_block_hot_path"));
+        assertTrue(reason.contains("maskMode=UNMASKED"));
         assertFalse(GpuLoweringCoverageMatrix.isSupported(ComputeBackend.GPU_CUDA, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
     }
 
@@ -259,8 +260,58 @@ class CudaRegionLowererTest {
                 context
         );
 
-        assertTrue(reason.contains("UNSUPPORTED_MASK_SEMANTICS"));
-        assertTrue(reason.contains("BOOL mask semantics"));
+        assertContainsAll(
+                reason,
+                "CAPABILITY_MISSING",
+                "CUDA direct forward SDPA",
+                "target=masked_sdpa_small",
+                "maskMode=EXTERNAL_BOOL_MASK"
+        );
+    }
+
+    @Test
+    void cudaCausalForwardSdpaReportsMaskModeBeforeCapabilityMissing() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaCausalSdpaQ", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaCausalSdpaK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaCausalSdpaV", DataType.FLOAT32);
+        Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.causalDefaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                context
+        );
+
+        assertContainsAll(
+                reason,
+                "CAPABILITY_MISSING",
+                "target=masked_sdpa_small",
+                "maskMode=CAUSAL_BOOL_MASK"
+        );
+    }
+
+    @Test
+    void cudaExternalAndCausalForwardSdpaReportsCombinedMaskMode() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaQ", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaV", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "cudaExternalCausalSdpaMask", DataType.BOOL);
+        Tensor out = q.scaledDotProductAttention(k, v, mask, AttentionOptions.causalDefaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_CUDA);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                context.compiledNode(nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)),
+                context
+        );
+
+        assertContainsAll(
+                reason,
+                "CAPABILITY_MISSING",
+                "target=masked_sdpa_small",
+                "maskMode=EXTERNAL_AND_CAUSAL_BOOL_MASK"
+        );
     }
 
     @Test
@@ -318,6 +369,47 @@ class CudaRegionLowererTest {
 
         assertTrue(reason.contains("UNSUPPORTED_INDEX_SEMANTICS"));
         assertTrue(reason.contains("operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_CUDA lowering"));
+    }
+
+    @Test
+    void cudaDenseLossValidatesContractBeforeDagPrimitiveMissing() {
+        Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "cudaDenseCeLogits", DataType.FLOAT32);
+        Tensor denseTargets = new Tensor(new float[]{0f, 0f, 1f, 1f, 0f, 0f}, new int[]{2, 3}, null, "cudaDenseCeTargets", DataType.FLOAT32);
+        Tensor crossEntropy = logits.crossEntropyLoss(denseTargets, 1);
+        TensorInternalAccess.setBackend(crossEntropy, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext ceContext = planningContext(crossEntropy);
+
+        String ceReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                ceContext.compiledNode(nodeId(ceContext, Operation.OpType.CROSS_ENTROPY_LOSS)),
+                ceContext
+        );
+
+        assertContainsAll(
+                ceReason,
+                "DAG_PRIMITIVE_UNSUPPORTED",
+                "operation CROSS_ENTROPY_LOSS is not supported by GPU_CUDA lowering",
+                "family=LOSS_ADJACENT",
+                "target=dense_loss_small"
+        );
+
+        Tensor logProbs = new Tensor(new float[]{-2f, -1f, -0.5f, -0.25f}, new int[]{2, 2}, null, "cudaDenseNllLogProbs", DataType.FLOAT32);
+        Tensor nllTargets = new Tensor(new float[]{0f, 1f, 1f, 0f}, new int[]{2, 2}, null, "cudaDenseNllTargets", DataType.FLOAT32);
+        Tensor nll = logProbs.nllLoss(nllTargets, 1);
+        TensorInternalAccess.setBackend(nll, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext nllContext = planningContext(nll);
+
+        String nllReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                nllContext.compiledNode(nodeId(nllContext, Operation.OpType.NLL_LOSS)),
+                nllContext
+        );
+
+        assertContainsAll(
+                nllReason,
+                "DAG_PRIMITIVE_UNSUPPORTED",
+                "operation NLL_LOSS is not supported by GPU_CUDA lowering",
+                "family=LOSS_ADJACENT",
+                "target=dense_loss_small"
+        );
     }
 
     @Test

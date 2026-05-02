@@ -15,7 +15,6 @@ import graph.optimizer.partition.RegionLegalityAdapter;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import operations.Operation;
-import operations.linalg.scaledDotProductAttention;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
 import tensor.DataType;
@@ -65,9 +64,11 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
             return "leaf nodes are external inputs, not CUDA compute nodes";
         }
         Operation.OpType opType = node.operation().opType();
-        String sdpaReason = sdpaUnsupportedReason(node, context);
-        if (!sdpaReason.isBlank()) {
-            return sdpaReason;
+        if (CudaNnSemantics.isHandled(opType)) {
+            String nnReason = CudaNnSemantics.unsupportedReason(node, context);
+            if (!nnReason.isBlank()) {
+                return nnReason;
+            }
         }
         if (CudaPartitionSupport.isForwardIndexOp(opType)) {
             String indexReason = CudaPartitionSupport.indexUnsupportedReason(node, context);
@@ -90,74 +91,6 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
             return "UNSUPPORTED_LAYOUT: direct non-dense CUDA compute remains conservative until metadata-only view propagation or dense materialization makes the consumer layout legal";
         }
         return "";
-    }
-
-    private static String sdpaUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
-        if (node.operation().opType() != Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION) {
-            return "";
-        }
-        if (!(node.operation() instanceof scaledDotProductAttention attention)) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA descriptor is unavailable";
-        }
-        if (attention.hasMask()) {
-            return "UNSUPPORTED_MASK_SEMANTICS: CUDA direct masked SDPA is not implemented; BOOL mask semantics require native evidence";
-        }
-        if (context == null) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA requires planning context";
-        }
-        if (node.inputIds().size() != 3) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA unmasked SDPA requires query, key, and value";
-        }
-        CompiledNode query = context.compiledNode(node.inputIds().get(0));
-        CompiledNode key = context.compiledNode(node.inputIds().get(1));
-        CompiledNode value = context.compiledNode(node.inputIds().get(2));
-        if (query == null || key == null || value == null) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA inputs are unavailable";
-        }
-        if (query.dataType() != DataType.FLOAT32
-                || key.dataType() != DataType.FLOAT32
-                || value.dataType() != DataType.FLOAT32
-                || node.dataType() != DataType.FLOAT32) {
-            return "UNSUPPORTED_DTYPE: GPU_CUDA SDPA supports only FLOAT32 query/key/value/output";
-        }
-        if (hasDirectNonDenseInput(node, context)) {
-            return "UNSUPPORTED_LAYOUT: GPU_CUDA SDPA inputs require dense layout";
-        }
-        int[] queryShape = query.shape();
-        int[] keyShape = key.shape();
-        int[] valueShape = value.shape();
-        int[] outputShape = node.shape();
-        if (queryShape.length < 3 || queryShape.length > 4
-                || keyShape.length != queryShape.length
-                || valueShape.length != queryShape.length
-                || outputShape.length != queryShape.length) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA supports rank 3 or 4 tensors";
-        }
-        if (queryShape[queryShape.length - 1] != keyShape[keyShape.length - 1]) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA query/key head dimension mismatch";
-        }
-        if (keyShape[keyShape.length - 2] != valueShape[valueShape.length - 2]) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA key/value sequence dimension mismatch";
-        }
-        if (outputShape[outputShape.length - 2] != queryShape[queryShape.length - 2]
-                || outputShape[outputShape.length - 1] != valueShape[valueShape.length - 1]) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA output shape mismatch";
-        }
-        for (int i = 0; i < queryShape.length - 2; i++) {
-            int q = queryShape[i];
-            int k = keyShape[i];
-            int v = valueShape[i];
-            int o = outputShape[i];
-            if (!broadcastCompatible(q, k) || !broadcastCompatible(q, v) || !broadcastCompatible(k, v)
-                    || (o != Math.max(q, Math.max(k, v)))) {
-                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA SDPA batch dimensions are not broadcast-compatible";
-            }
-        }
-        return "CAPABILITY_MISSING: CUDA direct forward SDPA native/lowered path is not implemented; target=transformer_block_hot_path";
-    }
-
-    private static boolean broadcastCompatible(int left, int right) {
-        return left == right || left == 1 || right == 1;
     }
 
     /**

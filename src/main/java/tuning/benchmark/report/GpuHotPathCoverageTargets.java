@@ -46,21 +46,21 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "conv2d_resnet_3x3",
                         "conv",
-                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL"),
+                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL", "CUDANN"),
                         35,
                         "Exercises Conv2D/Conv2D_GEMM lowering and longer device-owned region coverage."
                 ),
                 new GpuHotPathCoverageTarget(
                         "max_pool2d_small",
                         "pool",
-                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL"),
+                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL", "CUDANN"),
                         35,
                         "Exercises max-pool lowering and native Metal evidence."
                 ),
                 new GpuHotPathCoverageTarget(
                         "avg_pool2d_small",
                         "pool",
-                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL"),
+                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL", "CUDANN"),
                         35,
                         "Exercises avg-pool lowering and native Metal evidence."
                 ),
@@ -102,7 +102,7 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "dense_loss_small",
                         "loss_dense",
-                        List.of("GPUNATIVE", "METALLOSS", "GPUCLOSE"),
+                        List.of("GPUNATIVE", "METALLOSS", "GPUCLOSE", "CUDANN"),
                         37,
                         "Exercises dense NLL and dense cross-entropy Metal lowering with native buffer evidence."
                 ),
@@ -179,7 +179,7 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "masked_sdpa_small",
                         "attention",
-                        List.of("GPUNATIVE", "GPUSDPA", "GPUCLOSE", "METALSDPAMASK"),
+                        List.of("GPUNATIVE", "GPUSDPA", "GPUCLOSE", "METALSDPAMASK", "CUDANN"),
                         34,
                         "Exercises direct external BOOL masked SDPA staying on Metal."
                 )
@@ -229,7 +229,7 @@ public final class GpuHotPathCoverageTargets {
                         "conv2d_resnet_3x3",
                         resolvedBackend,
                         conv2dPolicy(resolvedBackend),
-                        "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("unsupported-layout", "CONV", "DAG_CANDIDATE_SHORTENED"),
+                        "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("CAPABILITY_MISSING", "CONV2D", "CONV_POOL"),
                         "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(
@@ -366,7 +366,7 @@ public final class GpuHotPathCoverageTargets {
                         "masked_sdpa_small",
                         resolvedBackend,
                         transformerSdpaPolicy(resolvedBackend),
-                        transformerSdpaVisibleReasons(resolvedBackend),
+                        maskedSdpaVisibleReasons(resolvedBackend),
                         "GPU_METAL".equals(resolvedBackend)
                 )
         );
@@ -525,6 +525,16 @@ public final class GpuHotPathCoverageTargets {
     private static List<String> transformerSdpaVisibleReasons(String backend) {
         if ("GPU_CUDA".equals(backend)) {
             return List.of("CAPABILITY_MISSING", "SCALED_DOT_PRODUCT_ATTENTION", "transformer_block_hot_path");
+        }
+        if ("GPU_METAL".equals(backend)) {
+            return List.of();
+        }
+        return List.of("ATTENTION", "SDPA", "SCALED_DOT_PRODUCT_ATTENTION");
+    }
+
+    private static List<String> maskedSdpaVisibleReasons(String backend) {
+        if ("GPU_CUDA".equals(backend)) {
+            return List.of("CAPABILITY_MISSING", "SCALED_DOT_PRODUCT_ATTENTION", "masked_sdpa_small");
         }
         if ("GPU_METAL".equals(backend)) {
             return List.of();

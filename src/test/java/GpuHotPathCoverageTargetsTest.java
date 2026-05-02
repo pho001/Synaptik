@@ -137,6 +137,9 @@ public class GpuHotPathCoverageTargetsTest {
         assertEquals(1, targets.stream()
                 .filter(target -> target.requirementFamilies().contains("CUDAINDEX"))
                 .count());
+        assertEquals(5, targets.stream()
+                .filter(target -> target.requirementFamilies().contains("CUDANN"))
+                .count());
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUNATIVE")));
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUCLOSE")));
         assertEquals(23, targets.getFirst().ownerPhase());
@@ -268,6 +271,20 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(!cuda.nativeEvidenceRequired());
         assertTrue(cuda.expectedVisibleReasons().contains("CAPABILITY_MISSING"));
         assertTrue(cuda.expectedVisibleReasons().contains("SCALED_DOT_PRODUCT_ATTENTION"));
+    }
+
+    @Test
+    void phaseFortyTwoCudaNnTargetsStayVisibleBlockersUntilNativeEvidenceExists() {
+        Map<String, GpuCoverageHotPathExpectation> cuda = expectationsByName("GPU_CUDA");
+
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "masked_sdpa_small");
+        assertTrue(cuda.get("masked_sdpa_small").expectedVisibleReasons().contains("masked_sdpa_small"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "conv2d_resnet_3x3");
+        assertTrue(cuda.get("conv2d_resnet_3x3").expectedVisibleReasons().contains("CONV_POOL"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "max_pool2d_small");
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "avg_pool2d_small");
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "dense_loss_small");
+        assertTrue(cuda.get("dense_loss_small").expectedVisibleReasons().contains("DAG_PRIMITIVE_UNSUPPORTED"));
     }
 
     @Test

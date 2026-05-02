@@ -197,7 +197,7 @@ public final class GpuLoweringCoverageMatrix {
             add(entries, backend, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION, GpuLoweringOperationFamily.ATTENTION,
                     GpuLoweringCoverageStatus.FALLBACK,
                     GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    "CUDA direct forward SDPA native/lowered path is not implemented; target=transformer_block_hot_path");
+                    "CUDA direct forward SDPA native/lowered path is not implemented; validated unmasked, dense external BOOL masked, causal, and external+causal mask modes reject with visible capability blockers; target=transformer_block_hot_path target=masked_sdpa_small");
         }
         if (backend == ComputeBackend.GPU_METAL) {
             addSupported(entries, backend, GpuLoweringOperationFamily.ATTENTION,
@@ -323,7 +323,7 @@ public final class GpuLoweringCoverageMatrix {
             add(entries, backend, Operation.OpType.AVG_POOL2D, GpuLoweringOperationFamily.CONV_POOL,
                     GpuLoweringCoverageStatus.UNSUPPORTED,
                     GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                    backendLabel + " avg-pool native/lowered path is not implemented; countIncludePad divisor semantics must match CPU; target=max_pool2d_small");
+                    backendLabel + " avg-pool native/lowered path is not implemented; countIncludePad divisor semantics must match CPU; target=avg_pool2d_small");
         }
         add(entries, backend, Operation.OpType.AVG_POOL2D_BACKWARD_INPUT, GpuLoweringOperationFamily.CONV_POOL,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
