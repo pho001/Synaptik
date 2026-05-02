@@ -46,16 +46,23 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "conv2d_resnet_3x3",
                         "conv",
-                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE"),
-                        27,
-                        "Exercises conv lowering and longer device-owned region coverage."
+                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL"),
+                        35,
+                        "Exercises Conv2D/Conv2D_GEMM lowering and longer device-owned region coverage."
                 ),
                 new GpuHotPathCoverageTarget(
                         "max_pool2d_small",
                         "pool",
-                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE"),
-                        27,
-                        "Exercises pool lowering and explicit fallback evidence."
+                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL"),
+                        35,
+                        "Exercises max-pool lowering and native Metal evidence."
+                ),
+                new GpuHotPathCoverageTarget(
+                        "avg_pool2d_small",
+                        "pool",
+                        List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL"),
+                        35,
+                        "Exercises avg-pool lowering and native Metal evidence."
                 ),
                 new GpuHotPathCoverageTarget(
                         "layer_norm_small",
@@ -181,6 +188,13 @@ public final class GpuHotPathCoverageTargets {
                         resolvedBackend,
                         pool2dPolicy(resolvedBackend),
                         "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("POOL", "MAX_POOL2D", "CONV_POOL"),
+                        "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
+                        "avg_pool2d_small",
+                        resolvedBackend,
+                        pool2dPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("POOL", "AVG_POOL2D", "CONV_POOL"),
                         "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(

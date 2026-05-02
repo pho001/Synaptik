@@ -5,7 +5,7 @@ Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-ap
 
 Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core-artifact-boundaries) | [Graph Construction](#graph-construction) | [Compile Pipeline](#compile-pipeline) | [Optimizer And Partitioning](#optimizer-and-partitioning) | [Prepare Pipeline](#prepare-pipeline) | [Execution Pipeline](#execution-pipeline) | [CPU Backend](#cpu-backend) | [Accelerator Scaffolding](#accelerator-scaffolding) | [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning) | [Memory And Layout Model](#memory-and-layout-model) | [Tracing And Observability](#tracing-and-observability) | [Numerics Harness](#numerics-harness) | [Verification Anchors](#verification-anchors)
 
-Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested `FLOAT32` subset, including native buffer binding between adjacent Metal regions; CUDA has a narrow dense `FLOAT32` native-buffer path with explicit fallback, trace, and benchmark-report evidence; OpenCL currently exposes only a minimal no-op registry path.
+Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested operation-scoped subset, including native buffer binding between adjacent Metal regions, scoped BF16/BOOL/index support, direct SDPA, and scoped dense FLOAT32 conv/pool forward execution; CUDA has a narrow dense `FLOAT32` native-buffer path with explicit fallback, trace, and benchmark-report evidence; OpenCL currently exposes only a minimal no-op registry path.
 
 ## Table Of Contents
 
@@ -316,10 +316,12 @@ For accelerator ABI, runtime residency, and CPU materialization boundaries, see 
 
 The current Metal path is intentionally narrower than the full tensor dtype model. `src/main/java/backend/metal/MetalMpsCapabilities.java` centralizes the Java-side contract for the native MPS bridge:
 
-- compute and output tensors must be `FLOAT32`
-- ordinary external data inputs must be `FLOAT32`
-- `BOOL` external inputs are legal only in predicate roles, currently `WHERE` input 0
-- `FLOAT64`, `BFLOAT16`, and `INT32` are not legal Metal compute/output dtypes in the current `_f32` ABI
+- `FLOAT32` is the broad native compute/output dtype.
+- `BFLOAT16` is native only for scoped matmul/linear, elementwise, softmax, reduction, and normalization families.
+- `BOOL` is native only for scoped compare/logical/reduction outputs and predicate-style consumers such as `WHERE`.
+- `INT32` is legal as an external index input for supported forward `GATHER` / `TAKE_ALONG_AXIS`, not generic INT32 compute/output.
+- Dense `FLOAT32` `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` forward paths are supported through MPSGraph when their operation-specific rank, layout, stride/padding, group/dilation, and divisor gates pass.
+- `FLOAT64`, generic `INT32` compute/output, unsupported `BFLOAT16` families, unsupported `BOOL` consumers, grouped/dilated conv, conv backward, pool backward, and `AVG_POOL2D countIncludePad=true` remain explicit rejection/fallback cases.
 
 That boundary is checked in two places for different reasons. `MetalRegionLegalityAdapter` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal region for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
 

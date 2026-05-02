@@ -227,6 +227,7 @@ class GpuLoweringCoverageMatrixTest {
                 assertEquals(GpuLoweringOperationFamily.CONV_POOL, entry.family());
                 if (backend == ComputeBackend.GPU_METAL
                         && (opType == Operation.OpType.CONV2D
+                        || opType == Operation.OpType.CONV2D_GEMM
                         || opType == Operation.OpType.MAX_POOL2D
                         || opType == Operation.OpType.AVG_POOL2D)) {
                     assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
@@ -292,6 +293,7 @@ class GpuLoweringCoverageMatrixTest {
         assertTrue(notes.contains("target=layer_norm_small"));
         assertTrue(notes.contains("target=conv2d_resnet_3x3"));
         assertTrue(notes.contains("target=max_pool2d_small"));
+        assertTrue(notes.contains("target=avg_pool2d_small"));
         assertTrue(notes.contains("target=transformer_block_hot_path"));
     }
 

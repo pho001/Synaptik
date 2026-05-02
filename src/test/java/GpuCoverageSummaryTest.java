@@ -90,6 +90,30 @@ public class GpuCoverageSummaryTest {
                     backend == ComputeBackend.GPU_METAL
                             ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
                             : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.CONV2D).executionStatus()
+            );
+            assertEquals(
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.CONV2D_GEMM).executionStatus()
+            );
+            assertEquals(
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.MAX_POOL2D).executionStatus()
+            );
+            assertEquals(
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.AVG_POOL2D).executionStatus()
+            );
+            assertEquals(
+                    backend == ComputeBackend.GPU_METAL
+                            ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE
+                            : GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
                     rows.get(operations.Operation.OpType.GT).executionStatus()
             );
         }

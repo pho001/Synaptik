@@ -33,12 +33,14 @@ import graph.execution.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
+import operations.nn.conv.conv2dGemm;
 import backend.blas.BlasProvider;
 import config.backend.KernelTuningConfig;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
+import tensor.TensorPrimitiveBuilder;
 import tensor.TensorRemap;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
@@ -451,6 +453,45 @@ public class PreparedExecutionBuildTest {
         CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
         PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
         int convNodeId = nodeId(compiled, Operation.OpType.CONV2D);
+        String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, convNodeId), planningContext(compiled));
+
+        assertEquals("", plannerReason);
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, convNodeId));
+        PreparedMetalExecutable executable = execution.forwardSteps().stream()
+                .filter(step -> step.compiledNode().id() == convNodeId
+                        && step.metadata().backend() == ComputeBackend.GPU_METAL
+                        && step.metadata().acceleratorExecutable() instanceof PreparedMetalExecutable)
+                .map(step -> (PreparedMetalExecutable) step.metadata().acceleratorExecutable())
+                .findFirst()
+                .orElseThrow();
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.CONV2D));
+    }
+
+    @Test
+    void metalRequiredModeKeepsScopedConv2dGemmOnAccelerator() {
+        Tensor input = new Tensor(new float[]{
+                1f, 2f, 3f,
+                4f, 5f, 6f,
+                7f, 8f, 9f
+        }, new int[]{1, 1, 3, 3}, null, "metalRequiredConvGemmInput", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{
+                1f, 0f,
+                0f, 1f
+        }, new int[]{1, 1, 2, 2}, null, "metalRequiredConvGemmWeight", DataType.FLOAT32);
+        Tensor out = TensorPrimitiveBuilder.binary(
+                input,
+                weight,
+                new int[]{1, 1, 2, 2},
+                new conv2dGemm(Conv2dOptions.defaults(), false),
+                "metalRequiredConvGemm",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        CompiledGraph compiled = CompiledGraph.compile(out, OptimizerConfig.inferenceDefaults());
+        PreparedExecution execution = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
+        int convNodeId = nodeId(compiled, Operation.OpType.CONV2D_GEMM);
         String plannerReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, convNodeId), planningContext(compiled));
 
         assertEquals("", plannerReason);

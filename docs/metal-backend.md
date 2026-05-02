@@ -654,7 +654,7 @@ BOOL support is also real but deliberately narrow. Metal can produce and consume
 
 Forward `GATHER` and `TAKE_ALONG_AXIS` support is deliberately scoped: dense `FLOAT32` value/output tensors, dense static leaf `INT32` indices, proven in-bounds index values, and native buffer execution through MPSGraph `gatherAlongAxis`. This is not generic INT32 arithmetic or INT32 output support.
 
-Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Conv/pool, gather/take gradients, scatter, loss-adjacent ops, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts remain separate future phases.
+Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Conv/pool variants outside the scoped forward `FLOAT32` dense subset, gather/take gradients, scatter, loss-adjacent ops, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts remain separate future phases.
 
 ### Planner allowlist
 
@@ -674,6 +674,8 @@ REDUCE_ALL, REDUCE_ANY,
 LAYER_NORM, RMS_NORM,
 SCALED_DOT_PRODUCT_ATTENTION,
 GATHER, TAKE_ALONG_AXIS,
+CONV2D, CONV2D_GEMM,
+MAX_POOL2D, AVG_POOL2D,
 RESHAPE, CONTIGUOUS, NOOP, PERMUTE, EXPAND_DIMS, SQUEEZE
 ```
 
@@ -681,8 +683,6 @@ Backward Metal planner support currently includes:
 
 ```text
 MATMUL, LINEAR,
-CONV2D,
-MAX_POOL2D, AVG_POOL2D,
 SOFTMAX_GRAD, LOG_SOFTMAX_GRAD,
 REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
 MIN_GRAD, MAX_GRAD,
@@ -691,7 +691,7 @@ SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
 
 Notable current exclusions:
 
-- `CONV2D_GEMM`, grouped/dilated/unsupported-dtype Conv2D variants, and conv backward ops
+- grouped/dilated/unsupported-dtype Conv2D variants and conv backward ops
 - pooling backward ops and unsupported pooling variants such as `AVG_POOL2D countIncludePad=true`
 - `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD`, and index-target loss ops
 - `FLOAT64`, `INT32`, unsupported `BFLOAT16`, and unsupported `BOOL` compute/output graphs

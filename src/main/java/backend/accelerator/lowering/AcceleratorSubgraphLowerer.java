@@ -27,6 +27,7 @@ import operations.layout.expandDims;
 import operations.layout.permute;
 import operations.layout.squeeze;
 import operations.nn.conv.conv2d;
+import operations.nn.conv.conv2dGemm;
 import operations.nn.pool.avgPool2d;
 import operations.nn.pool.maxPool2d;
 import operations.normalization.layerNorm;
@@ -1396,7 +1397,7 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_ANY -> AcceleratorDagNodeType.REDUCE_ANY;
             case GATHER -> AcceleratorDagNodeType.GATHER;
             case TAKE_ALONG_AXIS -> AcceleratorDagNodeType.TAKE_ALONG_AXIS;
-            case CONV2D -> AcceleratorDagNodeType.CONV2D;
+            case CONV2D, CONV2D_GEMM -> AcceleratorDagNodeType.CONV2D;
             case MAX_POOL2D -> AcceleratorDagNodeType.MAX_POOL2D;
             case AVG_POOL2D -> AcceleratorDagNodeType.AVG_POOL2D;
             case SOFTMAX_GRAD -> AcceleratorDagNodeType.SOFTMAX_GRAD;
@@ -1428,6 +1429,7 @@ public final class AcceleratorSubgraphLowerer {
             case GATHER -> node.operation() instanceof gather op ? op.getDimension() : Integer.MIN_VALUE;
             case TAKE_ALONG_AXIS -> node.operation() instanceof takeAlongAxis op ? op.getDimension() : Integer.MIN_VALUE;
             case CONV2D -> node.operation() instanceof conv2d op ? encodeConv2dMode(op) : Integer.MIN_VALUE;
+            case CONV2D_GEMM -> node.operation() instanceof conv2dGemm op ? encodeConv2dMode(op) : Integer.MIN_VALUE;
             case MAX_POOL2D -> node.operation() instanceof maxPool2d op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
             case AVG_POOL2D -> node.operation() instanceof avgPool2d op ? encodePool2dMode(op.getOptions()) : Integer.MIN_VALUE;
             case SOFTMAX_GRAD -> node.operation() instanceof softmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
@@ -1452,6 +1454,20 @@ public final class AcceleratorSubgraphLowerer {
     }
 
     private int encodeConv2dMode(conv2d op) {
+        int strideH = op.getOptions().strideH();
+        int strideW = op.getOptions().strideW();
+        int padH = op.getOptions().padH();
+        int padW = op.getOptions().padW();
+        if (strideH < 1 || strideH > 255 || strideW < 1 || strideW > 255 || padH < 0 || padH > 255 || padW < 0 || padW > 255) {
+            return Integer.MIN_VALUE;
+        }
+        return (strideH & 0xFF)
+                | ((strideW & 0xFF) << 8)
+                | ((padH & 0xFF) << 16)
+                | ((padW & 0xFF) << 24);
+    }
+
+    private int encodeConv2dMode(conv2dGemm op) {
         int strideH = op.getOptions().strideH();
         int strideW = op.getOptions().strideW();
         int padH = op.getOptions().padH();

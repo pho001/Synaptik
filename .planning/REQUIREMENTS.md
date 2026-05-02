@@ -45,9 +45,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### Conv Pool Native Execution
 
-- [ ] **METALCONVPOOL-01**: Metal supports selected `CONV2D` and `CONV2D_GEMM` forward paths for legal NCHW `FLOAT32` or supported dtype/layout combinations with stride, padding, dilation, and groups semantics locked.
-- [ ] **METALCONVPOOL-02**: Metal supports selected `MAX_POOL2D` and `AVG_POOL2D` forward paths with pooling tie behavior and average-pool divisor semantics matching CPU.
-- [ ] **METALCONVPOOL-03**: Conv/pool benchmark targets report native backend path, lowered primitive count, region length, and CPU exit reduction.
+- [x] **METALCONVPOOL-01**: Metal supports selected `CONV2D` and `CONV2D_GEMM` forward paths for legal NCHW `FLOAT32` or supported dtype/layout combinations with stride, padding, dilation, and groups semantics locked.
+- [x] **METALCONVPOOL-02**: Metal supports selected `MAX_POOL2D` and `AVG_POOL2D` forward paths with pooling tie behavior and average-pool divisor semantics matching CPU.
+- [x] **METALCONVPOOL-03**: Conv/pool benchmark targets report native backend path, lowered primitive count, region length, and CPU exit reduction.
 
 ### Scatter And Index Gradient Semantics
 
@@ -121,9 +121,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALSDPAMASK-01 | Phase 34 | Complete |
 | METALSDPAMASK-02 | Phase 34 | Complete |
 | METALSDPAMASK-03 | Phase 34 | Complete |
-| METALCONVPOOL-01 | Phase 35 | Pending |
-| METALCONVPOOL-02 | Phase 35 | Pending |
-| METALCONVPOOL-03 | Phase 35 | Pending |
+| METALCONVPOOL-01 | Phase 35 | Complete |
+| METALCONVPOOL-02 | Phase 35 | Complete |
+| METALCONVPOOL-03 | Phase 35 | Complete |
 | METALSCATTER-01 | Phase 36 | Pending |
 | METALSCATTER-02 | Phase 36 | Pending |
 | METALSCATTER-03 | Phase 36 | Pending |

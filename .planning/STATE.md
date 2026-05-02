@@ -254,13 +254,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-01 | Planned Phase 16 with 4 dtype residency waves | Ready for `$gsd-execute-phase 16` | .planning/milestones/v1.3-phases/16-dtype-and-storage-residency-expansion/16-01-PLAN.md |
 | 2026-05-01 | Completed and verified Phase 16 | Ready for `$gsd-discuss-phase 17 --auto` or `$gsd-plan-phase 17 --auto` | .planning/milestones/v1.3-phases/16-dtype-and-storage-residency-expansion/16-VERIFICATION.md |
 | 2026-05-01 | Completed and verified Phase 17 | Ready for `$gsd-discuss-phase 18 --auto` or `$gsd-plan-phase 18 --auto` | .planning/milestones/v1.3-phases/17-normalization-reduction-and-loss-adjacent-lowering/17-VERIFICATION.md |
+| 2026-05-02 | Completed and verified Phase 35 | Ready for Phase 36 planning | .planning/phases/35-conv-pool-native-execution/35-VERIFICATION.md |
 
 ---
-*Last updated: 2026-05-02 after v1.5 milestone planning*
+*Last updated: 2026-05-02 after Phase 35 verification*
 
 ## Current Position
 
-Phase: 29
+Phase: 36
 Plan: —
-Status: Ready for `$gsd-discuss-phase 29 --auto` or `$gsd-plan-phase 29 --auto`
-Last activity: 2026-05-02 — v1.5 milestone planned
+Status: Ready for `$gsd-discuss-phase 36 --auto` or `$gsd-plan-phase 36 --auto`
+Last activity: 2026-05-02 — Phase 35 conv/pool native execution completed and verified

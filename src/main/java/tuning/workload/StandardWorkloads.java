@@ -181,6 +181,7 @@ public final class StandardWorkloads {
                 .register(normalization("rms_norm_small", NormalizationWorkloadSpec.NormalizationKind.RMS_NORM, 4, 64, 8, 1, 1e-5))
                 .register(normalization("rms_norm_small_bf16", NormalizationWorkloadSpec.NormalizationKind.RMS_NORM, 4, 64, 8, 1, 1e-5))
                 .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, Pool2dOptions.square(2)))
+                .register(pool2d("avg_pool2d_small", Pool2dWorkloadSpec.PoolKind.AVG, 2, 8, 16, 16, Pool2dOptions.square(2)))
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
                 .register(boolCompareWhere("bool_compare_where_small", 8, 32))
                 .register(gatherTake("gather_take_small", 8, 16, 4))

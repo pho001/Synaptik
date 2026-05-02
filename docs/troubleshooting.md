@@ -225,7 +225,7 @@ Run one bridge test manually with the explicit library:
 
 If the task says it is only supported on macOS, that is expected: `buildMetalMpsShim` checks `os.name` for `mac`.
 
-Current dtype boundary: the Metal MPS FFM bridge keeps the legacy `_f32` path and adds a dtype ABI v3 compile path for widened metadata. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, scoped `BFLOAT16` compute/output for supported operation families, `FLOAT32` or scoped `BFLOAT16` data inputs, `BOOL` predicate inputs such as the `where` condition and direct SDPA input 3, scoped BOOL-producing compare/logical/reduction outputs, and `INT32` external index inputs only for supported forward `GATHER` / `TAKE_ALONG_AXIS` paths. Direct FLOAT32 rank-3/4 SDPA is supported after native MPSGraph primitive-DAG scale and mask parity verification for unmasked, dense external BOOL mask, causal, and external+causal effective mask modes. Non-dense or unsupported SDPA mask layouts remain explicit rejection cases. `FLOAT64`, generic `INT32` compute/output, unsupported BOOL consumers, and BF16 operations outside the scoped family list should remain on CPU with visible fallback or rejection.
+Current dtype boundary: the Metal MPS FFM bridge keeps the legacy `_f32` path and adds a dtype ABI v3 compile path for widened metadata. The Java planner and bridge currently accept `FLOAT32` compute/output tensors, scoped `BFLOAT16` compute/output for supported operation families, `FLOAT32` or scoped `BFLOAT16` data inputs, `BOOL` predicate inputs such as the `where` condition and direct SDPA input 3, scoped BOOL-producing compare/logical/reduction outputs, and `INT32` external index inputs only for supported forward `GATHER` / `TAKE_ALONG_AXIS` paths. Direct FLOAT32 rank-3/4 SDPA is supported after native MPSGraph primitive-DAG scale and mask parity verification for unmasked, dense external BOOL mask, causal, and external+causal effective mask modes. Dense FLOAT32 forward `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` are supported through MPSGraph under their scoped rank/layout/parameter gates. Non-dense or unsupported SDPA mask layouts remain explicit rejection cases. `FLOAT64`, generic `INT32` compute/output, unsupported BOOL consumers, BF16 operations outside the scoped family list, conv/pool backward, grouped/dilated conv, and `AVG_POOL2D countIncludePad=true` should remain on CPU or reject with visible fallback/rejection evidence.
 
 If a BF16 graph unexpectedly falls back, check all of these before treating it as a Metal bug:
 
@@ -248,6 +248,13 @@ If a forward gather/take path unexpectedly falls back, check all of these before
 3. Value and index inputs must be dense with zero storage offset.
 4. Index values must be readable from a static leaf `INT32` tensor and must be in bounds. Unproven or out-of-range bounds reject with `UNSUPPORTED_BOUNDS_CHECK` because MPSGraph out-of-bounds gather behavior does not match CPU exception semantics.
 5. `gather_take_small` hot-path gates require `BUFFER_BINDING`, lowered primitive evidence, zero CPU materializations, zero CPU fallback, zero tensor-array fallback, and INT32 index dtype residency evidence.
+
+If a conv/pool path unexpectedly falls back, check all of these before treating it as a Metal bug:
+
+1. The operation must be forward `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, or `AVG_POOL2D`; conv/pool backward ops are still capability-gated.
+2. Inputs and outputs must be dense `FLOAT32` rank-4 NCHW tensors, and Conv2D weights must be dense OIHW.
+3. Conv2D is scoped to `groups=1`, `dilationH=1`, and `dilationW=1`; grouped/depthwise and dilated conv still reject with `CAPABILITY_MISSING`.
+4. Pooling metadata must fit the native DAG encoding, and `AVG_POOL2D countIncludePad=true` remains rejected because divisor semantics are not implemented natively.
 
 Native buffer ABI boundary: a current shim should also export `synaptik_apple_mps_create_buffer`,
 `synaptik_apple_mps_read_buffer`, `synaptik_apple_mps_destroy_buffer`, and

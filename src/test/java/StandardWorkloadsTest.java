@@ -36,6 +36,7 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("rms_norm_small"));
         assertTrue(catalog.names().contains("rms_norm_small_bf16"));
         assertTrue(catalog.names().contains("max_pool2d_small"));
+        assertTrue(catalog.names().contains("avg_pool2d_small"));
         assertTrue(catalog.names().contains("cross_entropy_small"));
         assertTrue(catalog.names().contains("bool_compare_where_small"));
         assertTrue(catalog.names().contains("gather_take_small"));

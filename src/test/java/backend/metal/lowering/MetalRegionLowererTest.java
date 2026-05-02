@@ -592,7 +592,7 @@ class MetalRegionLowererTest {
         );
 
         assertEquals("", convReason);
-        assertContainsAll(gemmReason, "CAPABILITY_MISSING", "CONV2D_GEMM remains CPU-owned", "family=CONV_POOL", "target=conv2d_resnet_3x3");
+        assertEquals("", gemmReason);
         assertEquals("", maxPoolReason);
         assertEquals("", avgPoolReason);
         MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
@@ -605,6 +605,8 @@ class MetalRegionLowererTest {
         MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, convContext);
         assertNotNull(plan);
         assertTrue(plan.lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONV2D));
+        assertTrue(planFor(gemm, Operation.OpType.CONV2D_GEMM).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONV2D));
         assertTrue(planFor(maxPool, Operation.OpType.MAX_POOL2D).lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == AcceleratorDagNodeType.MAX_POOL2D));

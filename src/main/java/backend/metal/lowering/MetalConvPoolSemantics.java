@@ -46,66 +46,7 @@ final class MetalConvPoolSemantics {
         if (node.inputIds().size() != expectedInputs) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D requires input, weight, and optional bias according to descriptor";
         }
-        CompiledNode input = context.compiledNode(node.inputIds().get(0));
-        CompiledNode weight = context.compiledNode(node.inputIds().get(1));
-        CompiledNode bias = conv.hasBias() ? context.compiledNode(node.inputIds().get(2)) : null;
-        if (input == null || weight == null || (conv.hasBias() && bias == null)) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D inputs are unavailable";
-        }
-        String dtypeReason = requireFloat32("CONV2D", node, input, weight, bias);
-        if (!dtypeReason.isBlank()) {
-            return dtypeReason;
-        }
-        String layoutReason = requireDense("CONV2D", input, weight, bias);
-        if (!layoutReason.isBlank()) {
-            return layoutReason;
-        }
-        int[] inputShape = input.shape();
-        int[] weightShape = weight.shape();
-        int[] outShape = node.shape();
-        if (inputShape.length != 4 || weightShape.length != 4 || outShape.length != 4) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D requires rank-4 NCHW input/output and OIHW weight";
-        }
-        int n = inputShape[0];
-        int inChannels = inputShape[1];
-        int inH = inputShape[2];
-        int inW = inputShape[3];
-        int outChannels = weightShape[0];
-        int channelsPerGroup = weightShape[1];
-        int kernelH = weightShape[2];
-        int kernelW = weightShape[3];
-        if (bias != null) {
-            int[] biasShape = bias.shape();
-            if (biasShape.length != 1 || biasShape[0] != outChannels) {
-                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D bias must have shape [outChannels]";
-            }
-        }
-        Conv2dOptions options = conv.getOptions();
-        if (inChannels % options.groups() != 0 || outChannels % options.groups() != 0
-                || channelsPerGroup * options.groups() != inChannels) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D groups/channel contract is invalid";
-        }
-        if (options.groups() != 1) {
-            return "CAPABILITY_MISSING: GPU_METAL CONV2D grouped/depthwise native execution is not implemented; family=CONV_POOL";
-        }
-        if (options.dilationH() != 1 || options.dilationW() != 1) {
-            return "CAPABILITY_MISSING: GPU_METAL CONV2D dilation native execution is not implemented; family=CONV_POOL";
-        }
-        if (options.strideH() > 255 || options.strideW() > 255 || options.padH() > 255 || options.padW() > 255) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D stride/padding metadata exceeds native DAG encoding";
-        }
-        int outH = inferConvOutput(inH, kernelH, options.padH(), options.strideH(), options.dilationH(), "height");
-        if (outH < 0) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D effective kernel does not fit input height";
-        }
-        int outW = inferConvOutput(inW, kernelW, options.padW(), options.strideW(), options.dilationW(), "width");
-        if (outW < 0) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D effective kernel does not fit input width";
-        }
-        if (!Arrays.equals(outShape, new int[]{n, outChannels, outH, outW})) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D output shape does not match NCHW/OIHW contract";
-        }
-        return "";
+        return conv2dLikeUnsupportedReason("CONV2D", node, context, conv.getOptions(), conv.hasBias());
     }
 
     private static String conv2dGemmUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
@@ -120,7 +61,75 @@ final class MetalConvPoolSemantics {
         if (node.inputIds().size() != expectedInputs) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D_GEMM requires input, weight, and optional bias according to descriptor";
         }
-        return "CAPABILITY_MISSING: GPU_METAL CONV2D_GEMM remains CPU-owned until im2col/GEMM/output-layout semantics are represented in the accelerator DAG; family=CONV_POOL target=conv2d_resnet_3x3";
+        return conv2dLikeUnsupportedReason("CONV2D_GEMM", node, context, conv.getOptions(), conv.hasBias());
+    }
+
+    private static String conv2dLikeUnsupportedReason(
+            String opName,
+            CompiledNode node,
+            PartitionPlanningContext context,
+            Conv2dOptions options,
+            boolean hasBias
+    ) {
+        CompiledNode input = context.compiledNode(node.inputIds().get(0));
+        CompiledNode weight = context.compiledNode(node.inputIds().get(1));
+        CompiledNode bias = hasBias ? context.compiledNode(node.inputIds().get(2)) : null;
+        if (input == null || weight == null || (hasBias && bias == null)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " inputs are unavailable";
+        }
+        String dtypeReason = requireFloat32(opName, node, input, weight, bias);
+        if (!dtypeReason.isBlank()) {
+            return dtypeReason;
+        }
+        String layoutReason = requireDense(opName, input, weight, bias);
+        if (!layoutReason.isBlank()) {
+            return layoutReason;
+        }
+        int[] inputShape = input.shape();
+        int[] weightShape = weight.shape();
+        int[] outShape = node.shape();
+        if (inputShape.length != 4 || weightShape.length != 4 || outShape.length != 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " requires rank-4 NCHW input/output and OIHW weight";
+        }
+        int n = inputShape[0];
+        int inChannels = inputShape[1];
+        int inH = inputShape[2];
+        int inW = inputShape[3];
+        int outChannels = weightShape[0];
+        int channelsPerGroup = weightShape[1];
+        int kernelH = weightShape[2];
+        int kernelW = weightShape[3];
+        if (bias != null) {
+            int[] biasShape = bias.shape();
+            if (biasShape.length != 1 || biasShape[0] != outChannels) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " bias must have shape [outChannels]";
+            }
+        }
+        if (inChannels % options.groups() != 0 || outChannels % options.groups() != 0
+                || channelsPerGroup * options.groups() != inChannels) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " groups/channel contract is invalid";
+        }
+        if (options.groups() != 1) {
+            return "CAPABILITY_MISSING: GPU_METAL " + opName + " grouped/depthwise native execution is not implemented; family=CONV_POOL";
+        }
+        if (options.dilationH() != 1 || options.dilationW() != 1) {
+            return "CAPABILITY_MISSING: GPU_METAL " + opName + " dilation native execution is not implemented; family=CONV_POOL";
+        }
+        if (options.strideH() > 255 || options.strideW() > 255 || options.padH() > 255 || options.padW() > 255) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " stride/padding metadata exceeds native DAG encoding";
+        }
+        int outH = inferConvOutput(inH, kernelH, options.padH(), options.strideH(), options.dilationH(), "height");
+        if (outH < 0) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " effective kernel does not fit input height";
+        }
+        int outW = inferConvOutput(inW, kernelW, options.padW(), options.strideW(), options.dilationW(), "width");
+        if (outW < 0) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " effective kernel does not fit input width";
+        }
+        if (!Arrays.equals(outShape, new int[]{n, outChannels, outH, outW})) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " output shape does not match NCHW/OIHW contract";
+        }
+        return "";
     }
 
     private static String poolUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
