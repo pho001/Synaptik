@@ -98,6 +98,12 @@ public final class MetalPartitionSupport {
                 return convPoolReason;
             }
         }
+        if (MetalIndexWriteSemantics.isIndexWriteOrGradient(opType)) {
+            String indexWriteReason = MetalIndexWriteSemantics.unsupportedReason(node, context);
+            if (!indexWriteReason.isBlank()) {
+                return indexWriteReason;
+            }
+        }
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
         }

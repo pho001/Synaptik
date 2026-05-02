@@ -493,6 +493,53 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void phaseThirtySixIndexWriteRejectsDtypeLayoutAndBoundsBeforeDuplicateBlocker() {
+        Tensor base = new Tensor(new float[]{10f, 20f, 30f, 40f, 50f, 60f}, new int[]{2, 3}, null, "metalPhase36ScatterBase", DataType.FLOAT32);
+        Tensor src = new Tensor(new float[]{1f, 5f}, new int[]{2}, null, "metalPhase36ScatterSrc", DataType.FLOAT32);
+
+        Tensor floatIndices = new Tensor(new float[]{2f, 0f}, new int[]{2}, null, "metalPhase36ScatterFloatIndices", DataType.FLOAT32);
+        Tensor dtypeScatter = base.scatterAdd(floatIndices, src, 1);
+        TensorInternalAccess.setBackend(dtypeScatter, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeScatter);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.SCATTER_ADD)),
+                        dtypeContext
+                ),
+                "UNSUPPORTED_DTYPE",
+                "SCATTER_ADD index input requires INT32"
+        );
+
+        Tensor oobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "metalPhase36ScatterOobIndices", DataType.INT32);
+        Tensor oobScatter = base.scatterAdd(oobIndices, src, 1);
+        TensorInternalAccess.setBackend(oobScatter, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext oobContext = planningContext(oobScatter);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        oobContext.compiledNode(nodeId(oobContext, Operation.OpType.SCATTER_ADD)),
+                        oobContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index 3 is outside axis size 3"
+        );
+
+        Tensor layoutBase = new Tensor(new float[]{10f, 40f, 20f, 50f, 30f, 60f}, new int[]{3, 2}, null, "metalPhase36ScatterLayoutBase", DataType.FLOAT32);
+        Tensor nonDenseBase = layoutBase.permute(1, 0);
+        Tensor intIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase36ScatterIntIndices", DataType.INT32);
+        Tensor layoutScatter = nonDenseBase.scatterAdd(intIndices, src, 1);
+        TensorInternalAccess.setBackend(layoutScatter, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext layoutContext = planningContext(layoutScatter);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(
+                        layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.SCATTER_ADD)),
+                        layoutContext
+                ),
+                "UNSUPPORTED_LAYOUT",
+                "SCATTER_ADD inputs require dense layout"
+        );
+    }
+
+    @Test
     void phaseThirtyTwoIndexFamilyRejectsUnprovenBoundsDtypeAndLayout() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalPhase32RejectInput", DataType.FLOAT32);
 

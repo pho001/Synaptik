@@ -257,13 +257,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Completed and verified Phase 35 | Ready for Phase 36 planning | .planning/phases/35-conv-pool-native-execution/35-VERIFICATION.md |
 | 2026-05-02 | Planned Phase 36 with 4 scatter/index-gradient waves | Ready for Phase 36 execution | .planning/phases/36-scatter-and-index-gradient-semantics/36-01-PLAN.md |
 | 2026-05-02 | Completed 36-01 scatter/index-gradient semantics contract | Ready for 36-02 native or stable-rejection execution decision | .planning/phases/36-scatter-and-index-gradient-semantics/36-01-SUMMARY.md |
+| 2026-05-02 | Completed 36-02 native or stable-rejection scatter execution | Ready for 36-03 gradient parity and duplicate-index gates | .planning/phases/36-scatter-and-index-gradient-semantics/36-02-SUMMARY.md |
 
 ---
-*Last updated: 2026-05-02 after Phase 36-01 execution*
+*Last updated: 2026-05-02 after Phase 36-02 execution*
 
 ## Current Position
 
 Phase: 36
-Plan: .planning/phases/36-scatter-and-index-gradient-semantics/36-02-PLAN.md
-Status: Ready for `$gsd-execute-phase 36 --wave 2`
-Last activity: 2026-05-02 — 36-01 scatter/index-gradient semantics contract completed
+Plan: .planning/phases/36-scatter-and-index-gradient-semantics/36-03-PLAN.md
+Status: Ready for `$gsd-execute-phase 36 --wave 3`
+Last activity: 2026-05-02 — 36-02 stable Metal index-write rejection path completed
