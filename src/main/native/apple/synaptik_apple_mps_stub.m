@@ -215,6 +215,20 @@ static int32_t SynaptikDecodeReductionAxis(const float *nodeScalarValues, int32_
     return axis;
 }
 
+static void SynaptikDecodeConv2DMode(
+        const float *nodeScalarValues,
+        int32_t index,
+        int32_t *strideH,
+        int32_t *strideW,
+        int32_t *padH,
+        int32_t *padW) {
+    uint32_t encoded = (uint32_t) SynaptikDecodeIntScalar(nodeScalarValues, index);
+    *strideH = (int32_t) (encoded & 0xFF);
+    *strideW = (int32_t) ((encoded >> 8) & 0xFF);
+    *padH = (int32_t) ((encoded >> 16) & 0xFF);
+    *padW = (int32_t) ((encoded >> 24) & 0xFF);
+}
+
 static NSMutableArray<NSNumber *> *SynaptikOutputShapeForNode(
         int32_t index,
         const int32_t *outputRanks,
@@ -838,6 +852,48 @@ static void *SynaptikCompilePartition(
                                                       name:@"take_along_axis"];
                     } else {
                         return NULL;
+                    }
+                    break;
+                }
+                case 54: {
+                    if (input1 == nil) return NULL;
+                    int32_t strideH = 1;
+                    int32_t strideW = 1;
+                    int32_t padH = 0;
+                    int32_t padW = 0;
+                    SynaptikDecodeConv2DMode(node_scalar_values, i, &strideH, &strideW, &padH, &padW);
+                    if (strideH <= 0 || strideW <= 0 || padH < 0 || padW < 0) {
+                        return NULL;
+                    }
+                    if (input0.shape == nil || input0.shape.count != 4 || input1.shape == nil || input1.shape.count != 4) {
+                        return NULL;
+                    }
+                    MPSGraphConvolution2DOpDescriptor *descriptor =
+                            [MPSGraphConvolution2DOpDescriptor descriptorWithStrideInX:(NSUInteger) strideW
+                                                                              strideInY:(NSUInteger) strideH
+                                                                        dilationRateInX:1
+                                                                        dilationRateInY:1
+                                                                                  groups:1
+                                                                             paddingLeft:(NSUInteger) padW
+                                                                            paddingRight:(NSUInteger) padW
+                                                                             paddingTop:(NSUInteger) padH
+                                                                          paddingBottom:(NSUInteger) padH
+                                                                            paddingStyle:MPSGraphPaddingStyleExplicit
+                                                                              dataLayout:MPSGraphTensorNamedDataLayoutNCHW
+                                                                           weightsLayout:MPSGraphTensorNamedDataLayoutOIHW];
+                    if (descriptor == nil) return NULL;
+                    outTensor = [graph convolution2DWithSourceTensor:input0 weightsTensor:input1 descriptor:descriptor name:@"conv2d"];
+                    if (outTensor == nil) return NULL;
+                    if (input2 != nil) {
+                        NSMutableArray<NSNumber *> *biasShape = [NSMutableArray arrayWithObjects:
+                                @(1),
+                                @(output_dim1 == NULL ? 1 : output_dim1[i]),
+                                @(1),
+                                @(1),
+                                nil];
+                        MPSGraphTensor *bias = [graph reshapeTensor:input2 withShape:biasShape name:@"conv2d_bias_reshape"];
+                        if (bias == nil) return NULL;
+                        outTensor = [graph additionWithPrimaryTensor:outTensor secondaryTensor:bias name:@"conv2d_bias_add"];
                     }
                     break;
                 }

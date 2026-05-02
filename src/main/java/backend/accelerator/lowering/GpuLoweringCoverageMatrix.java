@@ -250,10 +250,17 @@ public final class GpuLoweringCoverageMatrix {
 
     private static void addConvPoolRows(List<GpuLoweringCoverageEntry> entries, ComputeBackend backend) {
         String backendLabel = backend.name();
-        add(entries, backend, Operation.OpType.CONV2D, GpuLoweringOperationFamily.CONV_POOL,
-                GpuLoweringCoverageStatus.UNSUPPORTED,
-                GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
-                backendLabel + " conv2d NCHW rank-4 native/lowered path is not implemented; stride/padding/dilation/groups must be proven before support; target=conv2d_resnet_3x3");
+        if (backend == ComputeBackend.GPU_METAL) {
+            add(entries, backend, Operation.OpType.CONV2D, GpuLoweringOperationFamily.CONV_POOL,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "Metal direct FLOAT32 dense NCHW/OIHW Conv2D forward lowers to MPSGraph convolution2D; scoped to groups=1, dilation=1, stride/padding, and optional bias; target=conv2d_resnet_3x3");
+        } else {
+            add(entries, backend, Operation.OpType.CONV2D, GpuLoweringOperationFamily.CONV_POOL,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    backendLabel + " conv2d NCHW rank-4 native/lowered path is not implemented; stride/padding/dilation/groups must be proven before support; target=conv2d_resnet_3x3");
+        }
         add(entries, backend, Operation.OpType.CONV2D_GEMM, GpuLoweringOperationFamily.CONV_POOL,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.CAPABILITY_MISSING,

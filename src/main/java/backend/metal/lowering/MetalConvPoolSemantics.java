@@ -91,6 +91,9 @@ final class MetalConvPoolSemantics {
         if (options.dilationH() != 1 || options.dilationW() != 1) {
             return "CAPABILITY_MISSING: GPU_METAL CONV2D dilation native execution is not implemented; family=CONV_POOL";
         }
+        if (options.strideH() > 255 || options.strideW() > 255 || options.padH() > 255 || options.padW() > 255) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D stride/padding metadata exceeds native DAG encoding";
+        }
         int outH = inferConvOutput(inH, kernelH, options.padH(), options.strideH(), options.dilationH(), "height");
         if (outH < 0) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D effective kernel does not fit input height";
@@ -102,7 +105,7 @@ final class MetalConvPoolSemantics {
         if (!Arrays.equals(outShape, new int[]{n, outChannels, outH, outW})) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL CONV2D output shape does not match NCHW/OIHW contract";
         }
-        return "CAPABILITY_MISSING: GPU_METAL CONV2D forward semantic contract is legal but native execution is not implemented; family=CONV_POOL target=conv2d_resnet_3x3";
+        return "";
     }
 
     private static String conv2dGemmUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {

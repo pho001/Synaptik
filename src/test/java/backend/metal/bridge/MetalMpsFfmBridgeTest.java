@@ -366,6 +366,78 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsFloat32Conv2dNoBias() {
+        Tensor destination = executeConv2dLoweredPlan(
+                conv2dPlan(
+                        1,
+                        2,
+                        -1,
+                        9,
+                        new int[]{1, 1, 3, 3},
+                        new int[]{1, 1, 2, 2},
+                        new int[]{1, 1, 2, 2},
+                        1,
+                        1,
+                        0,
+                        0
+                ),
+                List.of(
+                        new Tensor(new float[]{
+                                1f, 2f, 3f,
+                                4f, 5f, 6f,
+                                7f, 8f, 9f
+                        }, new int[]{1, 1, 3, 3}, null, "conv2dNoBiasInput", DataType.FLOAT32),
+                        new Tensor(new float[]{
+                                1f, 0f,
+                                0f, 1f
+                        }, new int[]{1, 1, 2, 2}, null, "conv2dNoBiasWeight", DataType.FLOAT32)
+                ),
+                new int[]{1, 1, 2, 2}
+        );
+
+        assertArrayEquals(new float[]{6f, 8f, 12f, 14f}, destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsFloat32Conv2dBiasStridePadding() {
+        Tensor destination = executeConv2dLoweredPlan(
+                conv2dPlan(
+                        1,
+                        2,
+                        3,
+                        9,
+                        new int[]{1, 1, 4, 4},
+                        new int[]{1, 1, 2, 2},
+                        new int[]{1, 1, 3, 3},
+                        2,
+                        2,
+                        1,
+                        1
+                ),
+                List.of(
+                        new Tensor(new float[]{
+                                1f, 2f, 3f, 4f,
+                                5f, 6f, 7f, 8f,
+                                9f, 10f, 11f, 12f,
+                                13f, 14f, 15f, 16f
+                        }, new int[]{1, 1, 4, 4}, null, "conv2dBiasInput", DataType.FLOAT32),
+                        new Tensor(new float[]{
+                                1f, 1f,
+                                1f, 1f
+                        }, new int[]{1, 1, 2, 2}, null, "conv2dBiasWeight", DataType.FLOAT32),
+                        new Tensor(new float[]{0.5f}, new int[]{1}, null, "conv2dBias", DataType.FLOAT32)
+                ),
+                new int[]{1, 1, 3, 3}
+        );
+
+        assertArrayEquals(new float[]{
+                1.5f, 5.5f, 4.5f,
+                14.5f, 34.5f, 20.5f,
+                13.5f, 29.5f, 16.5f
+        }, destination.getFloat32Data(), 1.0e-5f);
+    }
+
+    @Test
     void explicitShimBfloat16BufferRoundTripsRawStorageExactly() {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
@@ -1378,6 +1450,47 @@ class MetalMpsFfmBridgeTest {
         }
     }
 
+    private static Tensor executeConv2dLoweredPlan(
+            MetalPartitionPlan plan,
+            List<Tensor> inputs,
+            int[] outputShape
+    ) {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(context, plan);
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        java.util.ArrayList<MetalBufferBinding> inputBindings = new java.util.ArrayList<>();
+        MetalBufferBinding output = null;
+        try {
+            for (int i = 0; i < inputs.size(); i++) {
+                inputBindings.add(allocator.createInputBinding(plan.subgraph().externalInputNodeIds().get(i), inputs.get(i)));
+            }
+            output = allocator.createOutputBinding(plan.subgraph().outputNodeIds().getFirst(), denseLayout(DataType.FLOAT32, outputShape));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, inputBindings, List.of(output));
+            Tensor destination = new Tensor(new float[(int) output.layout().logicalElementCount()], outputShape, null, "conv2dDestination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            return destination;
+        } finally {
+            for (MetalBufferBinding input : inputBindings) {
+                allocator.destroy(input.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
     private static MetalBufferBinding binding(int nodeId, MetalBufferAccess access) {
         return binding(nodeId, denseF32Layout(new int[]{2}), access);
     }
@@ -1578,6 +1691,60 @@ class MetalMpsFfmBridgeTest {
         );
     }
 
+    private static MetalPartitionPlan conv2dPlan(
+            int inputNodeId,
+            int weightNodeId,
+            int biasNodeId,
+            int outputNodeId,
+            int[] inputShape,
+            int[] weightShape,
+            int[] outputShape,
+            int strideH,
+            int strideW,
+            int padH,
+            int padW
+    ) {
+        java.util.ArrayList<AcceleratorDagInput> inputs = new java.util.ArrayList<>();
+        inputs.add(new AcceleratorDagInput(inputNodeId, Arrays.stream(inputShape).boxed().toList(), DataType.FLOAT32));
+        inputs.add(new AcceleratorDagInput(weightNodeId, Arrays.stream(weightShape).boxed().toList(), DataType.FLOAT32));
+        if (biasNodeId >= 0) {
+            inputs.add(new AcceleratorDagInput(biasNodeId, List.of(weightShape[0]), DataType.FLOAT32));
+        }
+        AcceleratorDagNode node = new AcceleratorDagNode(
+                outputNodeId,
+                AcceleratorDagNodeType.CONV2D,
+                AcceleratorDagValueRef.externalInput(0),
+                AcceleratorDagValueRef.externalInput(1),
+                biasNodeId >= 0 ? AcceleratorDagValueRef.externalInput(2) : AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                encodeConv2dMode(strideH, strideW, padH, padW),
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                DataType.FLOAT32
+        );
+        AcceleratorDagSpec dag = new AcceleratorDagSpec(inputs, List.of(node), List.of(0), List.of(outputNodeId));
+        List<Integer> externalIds = biasNodeId >= 0
+                ? List.of(inputNodeId, weightNodeId, biasNodeId)
+                : List.of(inputNodeId, weightNodeId);
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                outputNodeId,
+                List.of(outputNodeId),
+                List.of(new AcceleratorSubgraphOp(outputNodeId, Operation.OpType.CONV2D)),
+                externalIds,
+                List.of(outputNodeId)
+        );
+        long estimatedWork = Arrays.stream(outputShape).asLongStream().reduce(1L, Math::multiplyExact)
+                * weightShape[1] * weightShape[2] * weightShape[3];
+        return new MetalPartitionPlan(
+                outputNodeId,
+                subgraph,
+                new AcceleratorSubgraphLoweringResult(outputNodeId, null, dag, estimatedWork)
+        );
+    }
+
     private static MetalPartitionPlan reductionPlan(
             int inputNodeId,
             int outputNodeId,
@@ -1636,6 +1803,13 @@ class MetalMpsFfmBridgeTest {
 
     private static int encodeReductionMode(int axis, boolean keepDims) {
         return (axis & 0xFFFF) | (keepDims ? 1 << 16 : 0);
+    }
+
+    private static int encodeConv2dMode(int strideH, int strideW, int padH, int padW) {
+        return (strideH & 0xFF)
+                | ((strideW & 0xFF) << 8)
+                | ((padH & 0xFF) << 16)
+                | ((padW & 0xFF) << 24);
     }
 
     private static PartitionPlanningContext planningContext(Tensor out) {

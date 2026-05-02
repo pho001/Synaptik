@@ -323,11 +323,7 @@ class MetalRegionLowererTest {
         PartitionPlanningContext convContext = planningContext(conv);
         String convReason = MetalPartitionSupport.plannerUnsupportedReason(convContext.compiledNode(nodeId(convContext, Operation.OpType.CONV2D)), convContext);
 
-        assertContainsAll(convReason,
-                "CAPABILITY_MISSING",
-                "CONV2D forward semantic contract is legal",
-                "family=CONV_POOL",
-                "target=conv2d_resnet_3x3");
+        assertEquals("", convReason);
 
         Tensor logits = new Tensor(new float[]{1f, 2f, 3f, 1f, 0f, -1f}, new int[]{2, 3}, null, "metalPhase17LossLogits", DataType.FLOAT32);
         Tensor targetIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase17LossTargets", DataType.INT32);
@@ -532,7 +528,9 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void phaseThirtyFiveConvPoolReasonsClassifyLegalCasesBeforeNativeSupport() {
+    void phaseThirtyFiveConvLowersLegalCasesAndPoolRemainsCapabilityGated() {
+        assertEquals(54, AcceleratorDagNodeType.CONV2D.abiCode());
+
         Tensor input = new Tensor(
                 new float[]{
                         1f, 2f, 3f,
@@ -591,15 +589,21 @@ class MetalRegionLowererTest {
                 avgPoolContext
         );
 
-        assertContainsAll(convReason, "CAPABILITY_MISSING", "CONV2D forward semantic contract is legal", "family=CONV_POOL", "target=conv2d_resnet_3x3");
+        assertEquals("", convReason);
         assertContainsAll(gemmReason, "CAPABILITY_MISSING", "CONV2D_GEMM remains CPU-owned", "family=CONV_POOL", "target=conv2d_resnet_3x3");
         assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "MAX_POOL2D forward semantic contract is legal", "family=CONV_POOL", "target=max_pool2d_small");
         assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "AVG_POOL2D forward semantic contract is legal", "family=CONV_POOL");
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
+        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
                 Set.of(nodeId(convContext, Operation.OpType.CONV2D)),
                 convContext,
                 Set.of(PartitionValueRef.ofNode(nodeId(convContext, Operation.OpType.CONV2D)))
-        ));
+        );
+        assertNotNull(candidate);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, convContext);
+        assertNotNull(plan);
+        assertTrue(plan.lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.CONV2D));
     }
 
     @Test

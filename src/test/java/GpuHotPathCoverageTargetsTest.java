@@ -236,6 +236,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertHardNativePolicy(metal.get("bool_compare_where_small"));
         assertHardNativePolicy(metal.get("gather_take_small"));
         assertHardNativePolicy(metal.get("masked_sdpa_small"));
+        assertHardNativePolicy(metal.get("conv2d_resnet_3x3"));
         GpuCoverageHotPathExpectation layoutRepair = metal.get("layout_broadcast_repair_small");
         assertTrue(layoutRepair.nativeEvidenceRequired());
         assertTrue(layoutRepair.expectedVisibleReasons().isEmpty());
@@ -262,7 +263,7 @@ public class GpuHotPathCoverageTargetsTest {
     void phaseTwentyEightUnsupportedTargetsRequireVisibleReasons() {
         List<GpuCoverageHotPathExpectation> expectations = GpuHotPathCoverageTargets.defaultExpectations();
 
-        assertVisibleBlocker(expectations, "conv2d_resnet_3x3");
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "conv2d_resnet_3x3");
         assertVisibleBlocker(expectations, "max_pool2d_small");
         assertVisibleBlocker(expectations, "cross_entropy_small");
 

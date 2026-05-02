@@ -225,9 +225,16 @@ class GpuLoweringCoverageMatrixTest {
                 assertEquals(backend, entry.backend());
                 assertEquals(opType, entry.opType());
                 assertEquals(GpuLoweringOperationFamily.CONV_POOL, entry.family());
-                assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
-                assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, entry.reason(),
-                        () -> opType + " should be a capability-gated conv/pool rejection, not an unlisted operation");
+                if (backend == ComputeBackend.GPU_METAL && opType == Operation.OpType.CONV2D) {
+                    assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
+                    assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason(),
+                            () -> opType + " should be supported for scoped Metal direct Conv2D forward execution");
+                    assertTrue(entry.note().contains("MPSGraph convolution2D"));
+                } else {
+                    assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
+                    assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, entry.reason(),
+                            () -> opType + " should be a capability-gated conv/pool rejection, not an unlisted operation");
+                }
                 assertFalse(entry.note().isBlank());
             }
 
@@ -288,13 +295,21 @@ class GpuLoweringCoverageMatrixTest {
     @Test
     void phaseSeventeenNonSupportedRowsUseStableReasonCodes() {
         for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
-            for (Operation.OpType opType : List.of(
+            List<Operation.OpType> nonSupportedOps = backend == ComputeBackend.GPU_METAL
+                    ? List.of(
+                    Operation.OpType.NLL_LOSS,
+                    Operation.OpType.CROSS_ENTROPY_LOSS,
+                    Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
+                    Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD
+            )
+                    : List.of(
                     Operation.OpType.NLL_LOSS,
                     Operation.OpType.CROSS_ENTROPY_LOSS,
                     Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
                     Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
                     Operation.OpType.CONV2D
-            )) {
+            );
+            for (Operation.OpType opType : nonSupportedOps) {
                 GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(backend, opType);
 
                 assertFalse(entry.status() == GpuLoweringCoverageStatus.SUPPORTED,

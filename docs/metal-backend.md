@@ -681,6 +681,7 @@ Backward Metal planner support currently includes:
 
 ```text
 MATMUL, LINEAR,
+CONV2D,
 SOFTMAX_GRAD, LOG_SOFTMAX_GRAD,
 REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
 MIN_GRAD, MAX_GRAD,
@@ -689,7 +690,7 @@ SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
 
 Notable current exclusions:
 
-- `CONV2D`, `CONV2D_GEMM`, and conv backward ops
+- `CONV2D_GEMM`, grouped/dilated/unsupported-dtype Conv2D variants, and conv backward ops
 - `MAX_POOL2D`, `AVG_POOL2D`, and pooling backward ops
 - `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD`, and index-target loss ops
 - `FLOAT64`, `INT32`, unsupported `BFLOAT16`, and unsupported `BOOL` compute/output graphs

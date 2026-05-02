@@ -172,9 +172,9 @@ public final class GpuHotPathCoverageTargets {
                 new GpuCoverageHotPathExpectation(
                         "conv2d_resnet_3x3",
                         resolvedBackend,
-                        partialBlockerPolicy(resolvedBackend),
-                        List.of("unsupported-layout", "CONV", "DAG_CANDIDATE_SHORTENED"),
-                        false
+                        conv2dPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend) ? List.of() : List.of("unsupported-layout", "CONV", "DAG_CANDIDATE_SHORTENED"),
+                        "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(
                         "max_pool2d_small",
@@ -305,6 +305,25 @@ public final class GpuHotPathCoverageTargets {
                 4,
                 1,
                 4,
+                0,
+                0,
+                0,
+                0,
+                1,
+                true
+        );
+    }
+
+    private static GpuCoverageGatePolicy conv2dPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return new GpuCoverageGatePolicy(
+                backend,
+                0.5d,
+                1,
+                0,
+                1,
                 0,
                 0,
                 0,
