@@ -1502,7 +1502,9 @@ class PreparedMetalExecutableBufferBindingTest {
                     plan.externalInputNodeIds(),
                     plan.lowering().dagSpec().externalInputs().stream().map(AcceleratorDagInput::dataType).toList(),
                     plan.producedOutputNodeIds(),
-                    plan.producedOutputNodeIds().stream().map(ignored -> DataType.FLOAT32).toList(),
+                    plan.lowering().dagSpec().outputNodeIndices().stream()
+                            .map(index -> plan.lowering().dagSpec().nodes().get(index).outputDataType())
+                            .toList(),
                     plan.lowering().dagSpec().outputNodeIndices()
             );
         }

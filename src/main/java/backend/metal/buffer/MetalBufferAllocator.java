@@ -14,14 +14,15 @@ import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
  * Run-scoped allocator and materializer for native Metal buffer bindings.
  *
  * <p>The allocator is created from the active Metal bridge context. It owns no global state: each allocated
  * {@link MetalBufferHandle} is returned to execution code, which registers the handle as a run resource and
- * eventually calls {@link #destroy(MetalBufferHandle)}. The allocator supports only the narrow phase-46
- * contract: shared F32 compute buffers, BOOL predicate input buffers, and F32 CPU materialization.</p>
+ * eventually calls {@link #destroy(MetalBufferHandle)}. The allocator supports shared F32/BF16 compute buffers,
+ * BOOL predicate input buffers, and dtype-matched CPU materialization.</p>
  */
 public final class MetalBufferAllocator {
     /**
@@ -85,7 +86,7 @@ public final class MetalBufferAllocator {
     }
 
     /**
-     * Creates a shared F32 input binding initialized from the tensor's CPU storage.
+     * Creates a shared numeric input binding initialized from the tensor's CPU storage.
      *
      * @param nodeId compiled node id represented by the tensor
      * @param tensor runtime tensor
@@ -94,19 +95,33 @@ public final class MetalBufferAllocator {
     public MetalBufferBinding createInputBinding(int nodeId, Tensor tensor) {
         ensureAvailable();
         validateCommonInput(tensor);
-        if (tensor.getDataType() != DataType.FLOAT32) {
-            throw new UnsupportedOperationException("Metal buffer inputs support FLOAT32 data buffers only; got " + tensor.getDataType());
-        }
-        float[] data = tensor.getFloat32Data();
-        if (data == null) {
-            throw new UnsupportedOperationException("Metal FLOAT32 input tensor has no direct float[] storage.");
-        }
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment initialData = arena.allocateFrom(JAVA_FLOAT, data);
-            long bytes = (long) data.length * Float.BYTES;
-            MetalBufferHandle handle = nativeAccess.createBuffer(bytes, STORAGE_MODE_SHARED, initialData, bytes);
-            return binding(nodeId, tensor, handle, MetalBufferAccess.READ);
-        }
+        return switch (tensor.getDataType()) {
+            case FLOAT32 -> {
+                float[] data = tensor.getFloat32Data();
+                if (data == null) {
+                    throw new UnsupportedOperationException("Metal FLOAT32 input tensor has no direct float[] storage.");
+                }
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment initialData = arena.allocateFrom(JAVA_FLOAT, data);
+                    long bytes = (long) data.length * Float.BYTES;
+                    MetalBufferHandle handle = nativeAccess.createBuffer(bytes, STORAGE_MODE_SHARED, initialData, bytes);
+                    yield binding(nodeId, tensor, handle, MetalBufferAccess.READ);
+                }
+            }
+            case BFLOAT16 -> {
+                short[] data = tensor.getBFloat16Data();
+                if (data == null) {
+                    throw new UnsupportedOperationException("Metal BFLOAT16 input tensor has no direct short[] storage.");
+                }
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment initialData = arena.allocateFrom(JAVA_SHORT, data);
+                    long bytes = (long) data.length * Short.BYTES;
+                    MetalBufferHandle handle = nativeAccess.createBuffer(bytes, STORAGE_MODE_SHARED, initialData, bytes);
+                    yield binding(nodeId, tensor, handle, MetalBufferAccess.READ);
+                }
+            }
+            default -> throw new UnsupportedOperationException("Metal buffer inputs support FLOAT32/BFLOAT16 data buffers only; got " + tensor.getDataType());
+        };
     }
 
     /**
@@ -135,7 +150,7 @@ public final class MetalBufferAllocator {
     }
 
     /**
-     * Creates an unwritten shared F32 output binding.
+     * Creates an unwritten shared numeric output binding.
      *
      * @param nodeId output node id
      * @param layout output layout
@@ -144,8 +159,8 @@ public final class MetalBufferAllocator {
     public MetalBufferBinding createOutputBinding(int nodeId, AcceleratorBufferLayout layout) {
         ensureAvailable();
         Objects.requireNonNull(layout, "layout cannot be null");
-        if (layout.dataType() != DataType.FLOAT32) {
-            throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32 only in this phase; got " + layout.dataType());
+        if (layout.dataType() != DataType.FLOAT32 && layout.dataType() != DataType.BFLOAT16) {
+            throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32/BFLOAT16 only in this phase; got " + layout.dataType());
         }
         if (layout.logicalElementCount() <= 0) {
             throw new IllegalArgumentException("Metal output elementCount must be positive.");
@@ -166,7 +181,7 @@ public final class MetalBufferAllocator {
     }
 
     /**
-     * Reads a shared F32 Metal binding into CPU tensor storage.
+     * Reads a shared numeric Metal binding into CPU tensor storage.
      *
      * @param binding active Metal binding
      * @param destination destination runtime tensor
@@ -181,9 +196,10 @@ public final class MetalBufferAllocator {
         ensureAvailable();
         Objects.requireNonNull(binding, "binding cannot be null");
         Objects.requireNonNull(destination, "destination cannot be null");
-        if (binding.layout().dataType() != DataType.FLOAT32 || destination.getDataType() != DataType.FLOAT32) {
+        if (binding.layout().dataType() != destination.getDataType()
+                || (binding.layout().dataType() != DataType.FLOAT32 && binding.layout().dataType() != DataType.BFLOAT16)) {
             throw new UnsupportedOperationException(
-                    "Metal materializer supports FLOAT32 bindings only; binding="
+                    "Metal materializer supports dtype-matched FLOAT32/BFLOAT16 bindings only; binding="
                             + binding.layout().dataType() + ", destination=" + destination.getDataType()
             );
         }
@@ -204,32 +220,19 @@ public final class MetalBufferAllocator {
             throw new IllegalArgumentException("Metal binding elementCount " + binding.layout().logicalElementCount()
                     + " does not match destination elementCount " + destinationLayout.logicalElementCount() + ".");
         }
-        float[] data = destination.getFloat32Data();
-        if (data == null) {
-            throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
-        }
         long start = System.nanoTime();
-        if (destination.isContiguous() && !destination.hasStorageOffset()) {
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment nativeDestination = arena.allocate(JAVA_FLOAT, data.length);
-                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
-                MemorySegment.ofArray(data).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+        if (binding.layout().dataType() == DataType.FLOAT32) {
+            float[] data = destination.getFloat32Data();
+            if (data == null) {
+                throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
             }
+            materializeFloat32(binding, destination, destinationLayout, data);
         } else {
-            int logicalElements = checkedLogicalElementCount(binding.layout().logicalElementCount());
-            float[] dense = new float[logicalElements];
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment nativeDestination = arena.allocate(JAVA_FLOAT, logicalElements);
-                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
-                MemorySegment.ofArray(dense).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            short[] data = destination.getBFloat16Data();
+            if (data == null) {
+                throw new UnsupportedOperationException("Destination BFLOAT16 tensor has no direct short[] storage.");
             }
-            scatterDenseLogicalToDestination(
-                    dense,
-                    data,
-                    destinationLayout.shape(),
-                    destinationLayout.strides(),
-                    destinationLayout.storageOffset()
-            );
+            materializeBFloat16(binding, destination, destinationLayout, data);
         }
         destination.markDataViewStale();
         return new CpuMaterializationResult(
@@ -285,9 +288,111 @@ public final class MetalBufferAllocator {
         return (int) logicalElementCount;
     }
 
+    private void materializeFloat32(
+            MetalBufferBinding binding,
+            Tensor destination,
+            AcceleratorBufferLayout destinationLayout,
+            float[] data
+    ) {
+        if (destination.isContiguous() && !destination.hasStorageOffset()) {
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment nativeDestination = arena.allocate(JAVA_FLOAT, data.length);
+                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
+                MemorySegment.ofArray(data).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            }
+        } else {
+            int logicalElements = checkedLogicalElementCount(binding.layout().logicalElementCount());
+            float[] dense = new float[logicalElements];
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment nativeDestination = arena.allocate(JAVA_FLOAT, logicalElements);
+                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
+                MemorySegment.ofArray(dense).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            }
+            scatterDenseLogicalToDestination(
+                    dense,
+                    data,
+                    destinationLayout.shape(),
+                    destinationLayout.strides(),
+                    destinationLayout.storageOffset()
+            );
+        }
+    }
+
+    private void materializeBFloat16(
+            MetalBufferBinding binding,
+            Tensor destination,
+            AcceleratorBufferLayout destinationLayout,
+            short[] data
+    ) {
+        if (destination.isContiguous() && !destination.hasStorageOffset()) {
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment nativeDestination = arena.allocate(JAVA_SHORT, data.length);
+                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
+                MemorySegment.ofArray(data).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            }
+        } else {
+            int logicalElements = checkedLogicalElementCount(binding.layout().logicalElementCount());
+            short[] dense = new short[logicalElements];
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment nativeDestination = arena.allocate(JAVA_SHORT, logicalElements);
+                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
+                MemorySegment.ofArray(dense).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            }
+            scatterDenseLogicalToDestination(
+                    dense,
+                    data,
+                    destinationLayout.shape(),
+                    destinationLayout.strides(),
+                    destinationLayout.storageOffset()
+            );
+        }
+    }
+
     private static void scatterDenseLogicalToDestination(
             float[] dense,
             float[] destination,
+            int[] shape,
+            int[] strides,
+            int storageOffset
+    ) {
+        Objects.requireNonNull(dense, "dense cannot be null");
+        Objects.requireNonNull(destination, "destination cannot be null");
+        Objects.requireNonNull(shape, "shape cannot be null");
+        Objects.requireNonNull(strides, "strides cannot be null");
+        if (shape.length != strides.length) {
+            throw new IllegalArgumentException("shape and strides must have the same length.");
+        }
+        if (shape.length > 4) {
+            throw new UnsupportedOperationException("Metal logical-view materialization supports rank <= 4");
+        }
+        int expectedElements = checkedShapeElementCount(shape);
+        if (dense.length != expectedElements) {
+            throw new IllegalArgumentException(
+                    "Dense logical readback length " + dense.length
+                            + " does not match destination element count " + expectedElements + "."
+            );
+        }
+        for (int linear = 0; linear < dense.length; linear++) {
+            int storageIndex = storageOffset;
+            int remaining = linear;
+            for (int dim = shape.length - 1; dim >= 0; dim--) {
+                int coordinate = remaining % shape[dim];
+                remaining /= shape[dim];
+                storageIndex += coordinate * strides[dim];
+            }
+            if (storageIndex < 0 || storageIndex >= destination.length) {
+                throw new IndexOutOfBoundsException(
+                        "Metal logical-view materialization storage index " + storageIndex
+                                + " outside destination storage length " + destination.length + "."
+                );
+            }
+            destination[storageIndex] = dense[linear];
+        }
+    }
+
+    private static void scatterDenseLogicalToDestination(
+            short[] dense,
+            short[] destination,
             int[] shape,
             int[] strides,
             int storageOffset

@@ -59,6 +59,7 @@ public record AcceleratorSubgraphSignature(
                 dagSpec.nodes().stream().map(AcceleratorDagNode::scalarValueBits).toList(),
                 dagSpec.nodes().stream().map(node ->
                         node.outputRank() + ":" + node.outputDim0() + ":" + node.outputDim1() + ":" + node.outputDim2() + ":" + node.outputDim3()
+                                + ":" + node.outputDataType()
                 ).toList(),
                 plan.matMulSpec() == null
                         ? List.of()

@@ -755,7 +755,8 @@ public final class AcceleratorSubgraphLowerer {
                         shape[0],
                         shape.length >= 2 ? shape[1] : 1,
                         shape.length >= 3 ? shape[2] : 1,
-                        shape.length >= 4 ? shape[3] : 1
+                        shape.length >= 4 ? shape[3] : 1,
+                        node.dataType()
                 ));
                 nodes.add(new AcceleratorDagNode(
                         nodeId,
@@ -769,7 +770,8 @@ public final class AcceleratorSubgraphLowerer {
                         shape[0],
                         shape.length >= 2 ? shape[1] : 1,
                         shape.length >= 3 ? shape[2] : 1,
-                        shape.length >= 4 ? shape[3] : 1
+                        shape.length >= 4 ? shape[3] : 1,
+                        node.dataType()
                 ));
                 loweredNodeIndex.put(nodeId, nodes.size() - 1);
                 continue;
@@ -797,7 +799,8 @@ public final class AcceleratorSubgraphLowerer {
                     shape[0],
                     shape.length >= 2 ? shape[1] : 1,
                     shape.length >= 3 ? shape[2] : 1,
-                    shape.length >= 4 ? shape[3] : 1
+                    shape.length >= 4 ? shape[3] : 1,
+                    node.dataType()
             ));
             loweredNodeIndex.put(nodeId, nodes.size() - 1);
         }
@@ -1044,7 +1047,8 @@ public final class AcceleratorSubgraphLowerer {
                 outputShape[0],
                 outputShape.length >= 2 ? outputShape[1] : 1,
                 outputShape.length >= 3 ? outputShape[2] : 1,
-                outputShape.length >= 4 ? outputShape[3] : 1
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                DataType.FLOAT32
         ));
         return AcceleratorDagValueRef.nodeOutput(nodes.size() - 1);
     }
@@ -1104,7 +1108,8 @@ public final class AcceleratorSubgraphLowerer {
                 outputShape[0],
                 outputShape.length >= 2 ? outputShape[1] : 1,
                 outputShape.length >= 3 ? outputShape[2] : 1,
-                outputShape.length >= 4 ? outputShape[3] : 1
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                logSoftmaxNode.dataType()
         );
         AcceleratorDagNode log = new AcceleratorDagNode(
                 logSoftmaxNode.id(),
@@ -1118,7 +1123,8 @@ public final class AcceleratorSubgraphLowerer {
                 outputShape[0],
                 outputShape.length >= 2 ? outputShape[1] : 1,
                 outputShape.length >= 3 ? outputShape[2] : 1,
-                outputShape.length >= 4 ? outputShape[3] : 1
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                logSoftmaxNode.dataType()
         );
         return new AcceleratorDagSpec(List.of(input), List.of(softmax, log), List.of(1), List.of(logSoftmaxNode.id()));
     }
@@ -1205,7 +1211,8 @@ public final class AcceleratorSubgraphLowerer {
                 outputShape[0],
                 outputShape.length >= 2 ? outputShape[1] : 1,
                 outputShape.length >= 3 ? outputShape[2] : 1,
-                outputShape.length >= 4 ? outputShape[3] : 1
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                outputNode.dataType()
         );
         return new AcceleratorDagSpec(externalInputs, List.of(sdpaNode), List.of(0), List.of(outputNode.id()));
     }
@@ -1271,7 +1278,8 @@ public final class AcceleratorSubgraphLowerer {
                 outputShape[0],
                 outputShape.length >= 2 ? outputShape[1] : 1,
                 outputShape.length >= 3 ? outputShape[2] : 1,
-                outputShape.length >= 4 ? outputShape[3] : 1
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                outputNode.dataType()
         );
         return new AcceleratorDagSpec(externalInputs, List.of(backwardNode), List.of(0), List.of(outputNode.id()));
     }

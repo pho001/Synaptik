@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T07:00:35Z"
-last_activity: 2026-05-02 -- Phase 30 planned
+last_updated: "2026-05-02T07:05:33Z"
+last_activity: 2026-05-02 -- Phase 30-01 implementation started
 progress:
   total_phases: 11
   completed_phases: 1
@@ -192,6 +192,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 29 planning completed | Four plans cover Metal dtype capability decisions, dtype ABI v3 optional probes, dtype diagnostics/report truth, docs, tests, and migration closure. |
 | 2026-05-02 | Phase 29 verification passed | Metal dtype role decisions, dtype ABI v3 discovery, report-visible reason codes, docs, focused Java tests, classes, and metalTest passed without widening native compute beyond FLOAT32. |
 | 2026-05-02 | Phase 30 planning completed | Four plans cover BF16 DAG/native dtype metadata, BF16 buffer/materialization, scoped primitive admission, tolerance/coverage gates, docs, and regression closure. |
+| 2026-05-02 | Phase 30-01 implementation started | Lowered DAG nodes now carry output dtype metadata, native executable cache signatures include output dtype, Metal executable descriptors preserve output dtype, and Metal buffer allocation/materialization has raw BF16 storage tests. |
 
 ## Recent Sessions
 

@@ -1,5 +1,7 @@
 package backend.accelerator.dag;
 
+import tensor.DataType;
+
 import java.util.Objects;
 
 /**
@@ -21,6 +23,7 @@ import java.util.Objects;
  * @param outputDim1 second output dimension, clamped to at least one
  * @param outputDim2 third output dimension, clamped to at least one
  * @param outputDim3 fourth output dimension, clamped to at least one
+ * @param outputDataType dtype produced by this lowered node
  */
 public record AcceleratorDagNode(
         int nodeId,
@@ -34,7 +37,8 @@ public record AcceleratorDagNode(
         int outputDim0,
         int outputDim1,
         int outputDim2,
-        int outputDim3
+        int outputDim3,
+        DataType outputDataType
 ) {
     public AcceleratorDagNode {
         Objects.requireNonNull(type, "type cannot be null");
@@ -47,5 +51,37 @@ public record AcceleratorDagNode(
         outputDim1 = Math.max(1, outputDim1);
         outputDim2 = Math.max(1, outputDim2);
         outputDim3 = Math.max(1, outputDim3);
+        outputDataType = outputDataType == null ? DataType.FLOAT32 : outputDataType;
+    }
+
+    public AcceleratorDagNode(
+            int nodeId,
+            AcceleratorDagNodeType type,
+            AcceleratorDagValueRef input0,
+            AcceleratorDagValueRef input1,
+            AcceleratorDagValueRef input2,
+            AcceleratorDagValueRef input3,
+            int scalarValueBits,
+            int outputRank,
+            int outputDim0,
+            int outputDim1,
+            int outputDim2,
+            int outputDim3
+    ) {
+        this(
+                nodeId,
+                type,
+                input0,
+                input1,
+                input2,
+                input3,
+                scalarValueBits,
+                outputRank,
+                outputDim0,
+                outputDim1,
+                outputDim2,
+                outputDim3,
+                DataType.FLOAT32
+        );
     }
 }

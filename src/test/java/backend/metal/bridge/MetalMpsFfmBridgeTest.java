@@ -579,7 +579,7 @@ class MetalMpsFfmBridgeTest {
         UnsupportedOperationException failure = assertThrows(UnsupportedOperationException.class,
                 () -> MetalMpsFfmBridge.validateBufferBindings(executable, List.of(input), List.of(output)));
 
-        assertEquals("Metal buffer outputs support FLOAT32 only; got FLOAT64.", failure.getMessage());
+        assertEquals("Metal buffer outputs support FLOAT32/BFLOAT16 only; got FLOAT64.", failure.getMessage());
     }
 
     private static AcceleratorBufferLayout denseF32Layout(int[] shape) {
