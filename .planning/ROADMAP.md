@@ -49,10 +49,10 @@ A Metal row can become `SUPPORTED` only when the codebase has all of: semantic c
 5. Phase 30-32 can add dtype-specific execution without reopening ABI semantics.
 
 **Planned waves:**
-- 29-01 Metal dtype capability model and reason codes.
-- 29-02 Native ABI v3 dtype descriptor and optional-symbol probes.
-- 29-03 Dtype trace/report and coverage truth update.
-- 29-04 Docs, tests, and migration closure.
+- [29-01 Metal dtype capability model and reason codes](phases/29-metal-dtype-abi-and-capability-truth/29-01-PLAN.md).
+- [29-02 Native ABI v3 dtype descriptor and optional-symbol probes](phases/29-metal-dtype-abi-and-capability-truth/29-02-PLAN.md).
+- [29-03 Dtype trace/report and coverage truth update](phases/29-metal-dtype-abi-and-capability-truth/29-03-PLAN.md).
+- [29-04 Docs, tests, and migration closure](phases/29-metal-dtype-abi-and-capability-truth/29-04-PLAN.md).
 
 ### Phase 30: BF16 Metal Compute And Output
 
