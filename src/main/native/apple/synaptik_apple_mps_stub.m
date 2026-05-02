@@ -101,6 +101,8 @@ static NSUInteger SynaptikByteSizeForDTypeCode(int32_t dtypeCode) {
             return sizeof(uint8_t);
         case 3:
             return sizeof(uint16_t);
+        case 4:
+            return sizeof(int32_t);
         default:
             return 0;
     }
@@ -123,6 +125,9 @@ static BOOL SynaptikMpsDataTypeForCode(int32_t dtypeCode, MPSDataType *outDataTy
                 return YES;
             }
             return NO;
+        case 4:
+            *outDataType = MPSDataTypeInt32;
+            return YES;
         default:
             return NO;
     }
@@ -380,7 +385,7 @@ int32_t synaptik_apple_mps_validate_dtype_abi_v3(
             case 1: // storage descriptor: all public Synaptik dtypes are representable as storage metadata
                 break;
             case 2: // external data input
-                if (dtype != 1 && dtype != 2) {
+                if (dtype != 1 && dtype != 2 && dtype != 3 && dtype != 4) {
                     return 2;
                 }
                 break;
@@ -391,7 +396,7 @@ int32_t synaptik_apple_mps_validate_dtype_abi_v3(
                 break;
             case 4: // native compute
             case 5: // native output
-                if (dtype != 1) {
+                if (dtype != 1 && dtype != 2 && dtype != 3) {
                     return 2;
                 }
                 break;
@@ -787,6 +792,53 @@ static void *SynaptikCompilePartition(
                             output_dim3,
                             @"reduction_output_shape"
                     );
+                    break;
+                }
+                case 52: {
+                    if (input1 == nil) return NULL;
+                    if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+                        int32_t axis = SynaptikDecodeIntScalar(node_scalar_values, i);
+                        NSUInteger valueRank = input0.shape == nil ? 0 : input0.shape.count;
+                        NSUInteger indexRank = input1.shape == nil ? 0 : input1.shape.count;
+                        if (valueRank < 1 || valueRank > 4 || axis < 0 || axis >= (int32_t) valueRank) {
+                            return NULL;
+                        }
+                        if (indexRank + 1 == valueRank) {
+                            MPSGraphTensor *expandedIndices = [graph expandDimsOfTensor:input1 axis:axis name:@"gather_indices_expand"];
+                            if (expandedIndices == nil) return NULL;
+                            MPSGraphTensor *gathered = [graph gatherAlongAxis:(NSInteger) axis
+                                                            withUpdatesTensor:input0
+                                                                indicesTensor:expandedIndices
+                                                                         name:@"gather"];
+                            outTensor = gathered == nil ? nil : [graph squeezeTensor:gathered axis:axis name:@"gather_output_squeeze"];
+                        } else if (indexRank == valueRank) {
+                            outTensor = [graph gatherAlongAxis:(NSInteger) axis
+                                             withUpdatesTensor:input0
+                                                 indicesTensor:input1
+                                                          name:@"gather_rank1"];
+                        } else {
+                            return NULL;
+                        }
+                    } else {
+                        return NULL;
+                    }
+                    break;
+                }
+                case 53: {
+                    if (input1 == nil) return NULL;
+                    if (@available(macOS 12.3, iOS 15.4, tvOS 15.4, *)) {
+                        int32_t axis = SynaptikDecodeIntScalar(node_scalar_values, i);
+                        NSUInteger valueRank = input0.shape == nil ? 0 : input0.shape.count;
+                        if (valueRank < 1 || valueRank > 4 || axis < 0 || axis >= (int32_t) valueRank) {
+                            return NULL;
+                        }
+                        outTensor = [graph gatherAlongAxis:(NSInteger) axis
+                                         withUpdatesTensor:input0
+                                             indicesTensor:input1
+                                                      name:@"take_along_axis"];
+                    } else {
+                        return NULL;
+                    }
                     break;
                 }
                 case 27: {

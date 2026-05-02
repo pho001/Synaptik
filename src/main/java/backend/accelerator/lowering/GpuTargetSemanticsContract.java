@@ -185,7 +185,7 @@ public record GpuTargetSemanticsContract(
         out.add(new GpuTargetSemanticsContract(
                 opType,
                 GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
-                "INT32 index tensors plus floating or dtype-preserving value tensors; residency evidence is not native index compute",
+                "INT32 index tensors plus floating or dtype-preserving value tensors; native compute support is operation-specific",
                 "rank follows operation descriptor and selected axis",
                 "supported dense/view layouts only",
                 "output shape must match CPU indexing shape inference",

@@ -273,6 +273,50 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsGatherWithInt32Indices() {
+        Tensor destination = executeIndexLoweredPlan(
+                indexPlan(
+                        1,
+                        2,
+                        9,
+                        AcceleratorDagNodeType.GATHER,
+                        Operation.OpType.GATHER,
+                        1,
+                        new int[]{2, 3},
+                        new int[]{2},
+                        new int[]{2}
+                ),
+                new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "gatherValueInput", DataType.FLOAT32),
+                new Tensor(new int[]{2, 0}, new int[]{2}, null, "gatherIndexInput", DataType.INT32),
+                new int[]{2}
+        );
+
+        assertArrayEquals(new float[]{3f, 4f}, destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsTakeAlongAxisWithInt32Indices() {
+        Tensor destination = executeIndexLoweredPlan(
+                indexPlan(
+                        1,
+                        2,
+                        9,
+                        AcceleratorDagNodeType.TAKE_ALONG_AXIS,
+                        Operation.OpType.TAKE_ALONG_AXIS,
+                        1,
+                        new int[]{2, 3},
+                        new int[]{2, 2},
+                        new int[]{2, 2}
+                ),
+                new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "takeValueInput", DataType.FLOAT32),
+                new Tensor(new int[]{2, 1, 0, 0}, new int[]{2, 2}, null, "takeIndexInput", DataType.INT32),
+                new int[]{2, 2}
+        );
+
+        assertArrayEquals(new float[]{3f, 2f, 4f, 4f}, destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
     void explicitShimBfloat16BufferRoundTripsRawStorageExactly() {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
@@ -1050,6 +1094,52 @@ class MetalMpsFfmBridgeTest {
         }
     }
 
+    private static Tensor executeIndexLoweredPlan(
+            MetalPartitionPlan plan,
+            Tensor valueInput,
+            Tensor indexInput,
+            int[] outputShape
+    ) {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.capabilities().dtypeAbiV3Supported());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(context, plan);
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding valueBinding = null;
+        MetalBufferBinding indexBinding = null;
+        MetalBufferBinding output = null;
+        try {
+            valueBinding = allocator.createInputBinding(plan.subgraph().externalInputNodeIds().get(0), valueInput);
+            indexBinding = allocator.createInputBinding(plan.subgraph().externalInputNodeIds().get(1), indexInput);
+            output = allocator.createOutputBinding(plan.subgraph().outputNodeIds().getFirst(), denseLayout(DataType.FLOAT32, outputShape));
+
+            MetalMpsBridgeExecutionStats stats = bridge.executeBuffers(context, executable, List.of(valueBinding, indexBinding), List.of(output));
+            Tensor destination = new Tensor(new float[(int) output.layout().logicalElementCount()], outputShape, null, "indexDestination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            return destination;
+        } finally {
+            if (valueBinding != null) {
+                allocator.destroy(valueBinding.handle());
+            }
+            if (indexBinding != null) {
+                allocator.destroy(indexBinding.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
     private static MetalBufferBinding binding(int nodeId, MetalBufferAccess access) {
         return binding(nodeId, denseF32Layout(new int[]{2}), access);
     }
@@ -1199,6 +1289,50 @@ class MetalMpsFfmBridgeTest {
                 List.of(outputNodeId)
         );
         long estimatedWork = Arrays.stream(input0Shape).asLongStream().reduce(1L, Math::multiplyExact);
+        return new MetalPartitionPlan(
+                outputNodeId,
+                subgraph,
+                new AcceleratorSubgraphLoweringResult(outputNodeId, null, dag, estimatedWork)
+        );
+    }
+
+    private static MetalPartitionPlan indexPlan(
+            int valueNodeId,
+            int indexNodeId,
+            int outputNodeId,
+            AcceleratorDagNodeType nodeType,
+            Operation.OpType opType,
+            int axis,
+            int[] valueShape,
+            int[] indexShape,
+            int[] outputShape
+    ) {
+        AcceleratorDagInput valueInput = new AcceleratorDagInput(valueNodeId, Arrays.stream(valueShape).boxed().toList(), DataType.FLOAT32);
+        AcceleratorDagInput indexInput = new AcceleratorDagInput(indexNodeId, Arrays.stream(indexShape).boxed().toList(), DataType.INT32);
+        AcceleratorDagNode node = new AcceleratorDagNode(
+                outputNodeId,
+                nodeType,
+                AcceleratorDagValueRef.externalInput(0),
+                AcceleratorDagValueRef.externalInput(1),
+                AcceleratorDagValueRef.none(),
+                AcceleratorDagValueRef.none(),
+                axis,
+                outputShape.length,
+                outputShape[0],
+                outputShape.length >= 2 ? outputShape[1] : 1,
+                outputShape.length >= 3 ? outputShape[2] : 1,
+                outputShape.length >= 4 ? outputShape[3] : 1,
+                DataType.FLOAT32
+        );
+        AcceleratorDagSpec dag = new AcceleratorDagSpec(List.of(valueInput, indexInput), List.of(node), List.of(0), List.of(outputNodeId));
+        AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
+                outputNodeId,
+                List.of(outputNodeId),
+                List.of(new AcceleratorSubgraphOp(outputNodeId, opType)),
+                List.of(valueNodeId, indexNodeId),
+                List.of(outputNodeId)
+        );
+        long estimatedWork = Arrays.stream(outputShape).asLongStream().reduce(1L, Math::multiplyExact);
         return new MetalPartitionPlan(
                 outputNodeId,
                 subgraph,

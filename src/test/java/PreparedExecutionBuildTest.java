@@ -525,7 +525,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void phaseTwentySixUnsupportedTakeBoundaryKeepsPrecedingMetalLogSoftmaxRegionSelected() {
+    void phaseThirtyTwoTakeAlongAxisCanStayInsideMetalRegionAfterLogSoftmax() {
         Tensor input = new Tensor(new float[]{0.25f, -0.5f, 1.25f, 2f, -1f, 0.75f}, new int[]{2, 3}, null, "phase26GpuIndexInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{
                 1f, 0.5f, -0.25f,
@@ -538,6 +538,7 @@ public class PreparedExecutionBuildTest {
         Tensor indexed = logProbs.takeAlongAxis(indices, 1);
         TensorInternalAccess.setBackend(matmul, ComputeBackend.GPU_METAL);
         TensorInternalAccess.setBackend(logProbs, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(indexed, ComputeBackend.GPU_METAL);
 
         CompiledGraph compiled = CompiledGraph.compile(indexed, fuseOnlyInferenceConfig());
         PreparedExecution execution = compiled.prepare(RuntimeConfig.inferenceDefaults());
@@ -546,14 +547,15 @@ public class PreparedExecutionBuildTest {
         String takeReason = MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, takeNodeId), planningContext(compiled));
 
         assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, logSoftmaxNodeId),
-                "legal LOG_SOFTMAX producer should stay selected on Metal before CPU-owned take-along-axis");
-        assertFalse(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, takeNodeId),
-                "TAKE_ALONG_AXIS must not be selected until native index execution exists");
-        assertContainsAll(takeReason,
-                "DAG_PRIMITIVE_UNSUPPORTED",
-                "family=INDEX_SCATTER_GATHER",
-                "operation TAKE_ALONG_AXIS is not supported by GPU_METAL lowering");
-        assertCpuPreparedStepAvailable(execution, takeNodeId);
+                "legal LOG_SOFTMAX producer should stay selected on Metal");
+        assertTrue(hasSelectedAcceleratorDecisionFor(execution, ComputeBackend.GPU_METAL, takeNodeId),
+                "TAKE_ALONG_AXIS should stay selected once native INT32 index execution exists");
+        assertTrue(execution.prepareTrace().backendSelection().decisions().stream()
+                        .anyMatch(decision -> decision.selected()
+                                && decision.selectedBackend() == ComputeBackend.GPU_METAL
+                                && decision.nodeIds().containsAll(List.of(logSoftmaxNodeId, takeNodeId))),
+                "LOG_SOFTMAX producer and TAKE_ALONG_AXIS should be admitted into one Metal-owned region");
+        assertEquals("", takeReason);
     }
 
     @Test

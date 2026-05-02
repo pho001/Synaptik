@@ -199,18 +199,32 @@ public final class GpuLoweringCoverageMatrix {
                     "CUDA backward SDPA native path is not currently capability-gated as supported");
         }
         addConvPoolRows(entries, backend);
-        add(entries, backend, Operation.OpType.GATHER, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
-                GpuLoweringCoverageStatus.UNSUPPORTED,
-                GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
-                "forward gather has no native accelerator DAG primitive yet; INT32 index residency is not native index compute");
+        if (backend == ComputeBackend.GPU_METAL) {
+            add(entries, backend, Operation.OpType.GATHER, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "forward gather lowers to Metal gatherAlongAxis with expanded INT32 indices; scoped to dense FLOAT32 value input and INT32 index input");
+        } else {
+            add(entries, backend, Operation.OpType.GATHER, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "CUDA forward gather native/lowered path is not implemented yet");
+        }
         add(entries, backend, Operation.OpType.GATHER_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
                 "gather gradient requires duplicate-index accumulation parity before GPU support");
-        add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
-                GpuLoweringCoverageStatus.UNSUPPORTED,
-                GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
-                "take-along-axis has no native accelerator DAG primitive yet; INT32 index residency is not native index compute");
+        if (backend == ComputeBackend.GPU_METAL) {
+            add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.SUPPORTED,
+                    GpuLoweringUnsupportedReason.SUPPORTED,
+                    "take-along-axis lowers to Metal gatherAlongAxis with INT32 indices; scoped to dense FLOAT32 value input and INT32 index input");
+        } else {
+            add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.CAPABILITY_MISSING,
+                    "CUDA take-along-axis native/lowered path is not implemented yet");
+        }
         add(entries, backend, Operation.OpType.TAKE_ALONG_AXIS_GRAD, GpuLoweringOperationFamily.INDEX_SCATTER_GATHER,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,

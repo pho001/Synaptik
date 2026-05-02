@@ -495,8 +495,8 @@ class CudaRegionLowererTest {
         PartitionPlanningContext scatterContext = planningContext(scatter);
         String scatterReason = CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(scatterContext.compiledNode(nodeId(scatterContext, Operation.OpType.SCATTER_ADD)), scatterContext);
 
-        assertContainsAll(gatherReason, "DAG_PRIMITIVE_UNSUPPORTED", "operation GATHER", "family=INDEX_SCATTER_GATHER");
-        assertContainsAll(takeReason, "DAG_PRIMITIVE_UNSUPPORTED", "operation TAKE_ALONG_AXIS", "family=INDEX_SCATTER_GATHER");
+        assertContainsAll(gatherReason, "CAPABILITY_MISSING", "operation GATHER", "family=INDEX_SCATTER_GATHER");
+        assertContainsAll(takeReason, "CAPABILITY_MISSING", "operation TAKE_ALONG_AXIS", "family=INDEX_SCATTER_GATHER");
         assertContainsAll(scatterReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation SCATTER_ADD", "family=INDEX_SCATTER_GATHER");
     }
 

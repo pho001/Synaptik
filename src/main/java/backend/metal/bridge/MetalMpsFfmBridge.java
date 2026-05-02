@@ -341,7 +341,7 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
             return false;
         }
         for (AcceleratorDagInput input : dagSpec.externalInputs()) {
-            if (input.dataType() != DataType.FLOAT32 && input.dataType() != DataType.BOOL && input.dataType() != DataType.INT32) {
+            if (input.dataType() != DataType.FLOAT32 && input.dataType() != DataType.BOOL) {
                 return true;
             }
         }

@@ -21,6 +21,8 @@ import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.binary.maxGrad;
 import operations.elementwise.binary.minGrad;
+import operations.index.gather;
+import operations.index.takeAlongAxis;
 import operations.layout.expandDims;
 import operations.layout.permute;
 import operations.layout.squeeze;
@@ -789,6 +791,9 @@ public final class AcceleratorSubgraphLowerer {
             if (isReduction(type) && scalarValueBits == Integer.MIN_VALUE) {
                 return null;
             }
+            if (isIndexGather(type) && scalarValueBits == Integer.MIN_VALUE) {
+                return null;
+            }
             nodes.add(new AcceleratorDagNode(
                     nodeId,
                     type,
@@ -1096,6 +1101,11 @@ public final class AcceleratorSubgraphLowerer {
                 || type == AcceleratorDagNodeType.REDUCE_ANY;
     }
 
+    private boolean isIndexGather(AcceleratorDagNodeType type) {
+        return type == AcceleratorDagNodeType.GATHER
+                || type == AcceleratorDagNodeType.TAKE_ALONG_AXIS;
+    }
+
     private AcceleratorDagSpec tryBuildLogSoftmaxDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1) {
             return null;
@@ -1374,6 +1384,8 @@ public final class AcceleratorSubgraphLowerer {
             case LOGICAL_NOT -> AcceleratorDagNodeType.LOGICAL_NOT;
             case REDUCE_ALL -> AcceleratorDagNodeType.REDUCE_ALL;
             case REDUCE_ANY -> AcceleratorDagNodeType.REDUCE_ANY;
+            case GATHER -> AcceleratorDagNodeType.GATHER;
+            case TAKE_ALONG_AXIS -> AcceleratorDagNodeType.TAKE_ALONG_AXIS;
             case SOFTMAX_GRAD -> AcceleratorDagNodeType.SOFTMAX_GRAD;
             case LOG_SOFTMAX_GRAD -> AcceleratorDagNodeType.LOG_SOFTMAX_GRAD;
             case REDUCE_MIN_GRAD -> AcceleratorDagNodeType.REDUCE_MIN_GRAD;
@@ -1400,6 +1412,8 @@ public final class AcceleratorSubgraphLowerer {
             case REDUCE_MAX -> node.operation() instanceof reduceMax op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case REDUCE_ALL -> node.operation() instanceof reduceAll op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case REDUCE_ANY -> node.operation() instanceof reduceAny op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case GATHER -> node.operation() instanceof gather op ? op.getDimension() : Integer.MIN_VALUE;
+            case TAKE_ALONG_AXIS -> node.operation() instanceof takeAlongAxis op ? op.getDimension() : Integer.MIN_VALUE;
             case SOFTMAX_GRAD -> node.operation() instanceof softmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case LOG_SOFTMAX_GRAD -> node.operation() instanceof logSoftmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case REDUCE_MIN_GRAD -> node.operation() instanceof reduceMinGrad op ? op.getDimension() : Integer.MIN_VALUE;

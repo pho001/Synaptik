@@ -28,7 +28,7 @@ This document explains the current Metal MPS backend in Synaptik, including the 
 
 ## Purpose And Current Status
 
-The Metal backend exists to execute selected `FLOAT32` graph regions, scoped `BFLOAT16` operation families, and scoped BOOL-producing mask operations through Apple's MPSGraph runtime instead of replaying every primitive through Java CPU kernels. It is not a separate eager tensor device API. User code still builds normal `Tensor` graphs; graph optimization and preparation decide whether a region can be owned by `GPU_METAL`.
+The Metal backend exists to execute selected `FLOAT32` graph regions, scoped `BFLOAT16` operation families, scoped BOOL-producing mask operations, and scoped forward `INT32` index gather/take paths through Apple's MPSGraph runtime instead of replaying every primitive through Java CPU kernels. It is not a separate eager tensor device API. User code still builds normal `Tensor` graphs; graph optimization and preparation decide whether a region can be owned by `GPU_METAL`.
 
 The current implementation has a real native buffer execution path:
 

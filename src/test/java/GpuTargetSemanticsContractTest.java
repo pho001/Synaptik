@@ -114,7 +114,7 @@ public class GpuTargetSemanticsContractTest {
         assertTrue(loss.dtypeContract().contains("resident-representable"));
         assertTrue(loss.dtypeContract().contains("not native GPU loss compute"));
         assertTrue(loss.numericalContract().contains("ignore-index"));
-        assertTrue(gather.dtypeContract().contains("residency evidence is not native index compute"));
+        assertTrue(gather.dtypeContract().contains("native compute support is operation-specific"));
         assertTrue(scatter.numericalContract().contains("duplicate indices"));
     }
 }

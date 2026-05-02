@@ -48,7 +48,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | supported | `SUPPORTED`; direct unmasked FLOAT32 rank-3/4 native MPSGraph primitive SDPA DAG; masked direct SDPA remains `UNSUPPORTED_MASK_SEMANTICS` until BOOL mask semantics match backend mask behavior |
 | attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` | supported | `SUPPORTED` |
 | conv/pool | `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
-| index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
+| index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | supported | `SUPPORTED`; dense `FLOAT32` value/output with `INT32` indices lowers to MPSGraph `gatherAlongAxis` |
 | index/scatter/gather | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_DUPLICATE_INDEX` |
 | compare/bool | `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, `REDUCE_ANY` | supported | `SUPPORTED`; dense scoped BOOL outputs execute through dtype ABI v3 and can feed legal `WHERE` mask-chain consumers without CPU materialization |
 | backward-adjacent | `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`, `MAX_GRAD` | supported | `SUPPORTED` |
@@ -70,7 +70,7 @@ The source of truth lives in `backend.accelerator.lowering.GpuLoweringCoverageMa
 | attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | fallback | `CAPABILITY_MISSING`; CUDA direct forward SDPA native/lowered path is not implemented and must provide backend evidence before this can become supported |
 | attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` | unsupported | `CAPABILITY_MISSING` |
 | conv/pool | `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
-| index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
+| index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | unsupported | `CAPABILITY_MISSING` |
 | index/scatter/gather | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_DUPLICATE_INDEX` |
 | compare/bool | `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, `REDUCE_ANY` | unsupported | `UNSUPPORTED_DTYPE` |
 | backward-adjacent | `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `REDUCE_MIN_GRAD`, `REDUCE_MAX_GRAD`, `MIN_GRAD`, `MAX_GRAD` | supported | `SUPPORTED` |
@@ -127,7 +127,7 @@ Forward reductions (`SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX`) and legal dense `
 
 Phase 26 makes loss-adjacent and indexing gaps explicit without claiming native GPU execution. `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` remain `DAG_PRIMITIVE_UNSUPPORTED` until a backend-owned loss primitive or lowered loss sub-DAG exists. `CROSS_ENTROPY_LOSS_INDICES` and `CROSS_ENTROPY_LOSS_INDICES_GRAD` remain `UNSUPPORTED_INDEX_SEMANTICS` because legal support must preserve INT32 targets, bounds behavior, ignore-index masking, reduction denominators, and per-class gradient scatter behavior.
 
-Forward `GATHER` and `TAKE_ALONG_AXIS` remain `DAG_PRIMITIVE_UNSUPPORTED`; `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` remain `UNSUPPORTED_DUPLICATE_INDEX` because duplicate-index accumulation must match CPU semantics before GPU support can be claimed. INT32 index tensor residency is diagnostic evidence only; it is not native index compute.
+Phase 32 promotes scoped Metal forward `GATHER` and `TAKE_ALONG_AXIS` from residency-only evidence to native index compute for dense `FLOAT32` value/output tensors with `INT32` index inputs. `TAKE_ALONG_AXIS` maps directly to MPSGraph `gatherAlongAxis`; `GATHER` expands the reduced index tensor on the gathered axis, runs `gatherAlongAxis`, then squeezes the axis back to the public shape. CUDA forward gather/take remains `CAPABILITY_MISSING`. `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` remain `UNSUPPORTED_DUPLICATE_INDEX` because duplicate-index accumulation must match CPU semantics before GPU support can be claimed.
 
 `native support is not implied by matrix text alone`. A supported row means lowering, legality, native execution, trace/report, and parity evidence exist for the legal scoped case. A fallback or unsupported row means the blocker is recognized, diagnosed, and kept visible for planning and reports.
 

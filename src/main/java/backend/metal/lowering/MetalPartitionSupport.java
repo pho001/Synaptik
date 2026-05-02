@@ -8,6 +8,8 @@ import backend.metal.MetalMpsCapabilities;
 import graph.CompiledNode;
 import graph.optimizer.partition.PartitionPlanningContext;
 import operations.Operation;
+import operations.index.gather;
+import operations.index.takeAlongAxis;
 import operations.linalg.scaledDotProductAttention;
 import operations.normalization.layerNorm;
 import operations.normalization.rmsNorm;
@@ -93,6 +95,12 @@ public final class MetalPartitionSupport {
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
         }
+        if (opType == Operation.OpType.GATHER || opType == Operation.OpType.TAKE_ALONG_AXIS) {
+            String indexReason = indexGatherUnsupportedReason(node, context);
+            if (!indexReason.isBlank()) {
+                return indexReason;
+            }
+        }
         String normalizationReason = normalizationUnsupportedReason("GPU_METAL", node, context);
         if (!normalizationReason.isBlank()) {
             return normalizationReason;
@@ -161,6 +169,83 @@ public final class MetalPartitionSupport {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA batch dimensions are not broadcast-compatible";
         }
         return "";
+    }
+
+    private static String indexGatherUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
+        Operation.OpType opType = node.operation().opType();
+        if (node.backwardNode()) {
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opType + " nodes are not legal inside Metal backward regions";
+        }
+        if (context == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires planning context";
+        }
+        if (node.inputIds().size() != 2) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires value and INT32 index inputs";
+        }
+        CompiledNode value = context.compiledNode(node.inputIds().get(0));
+        CompiledNode indices = context.compiledNode(node.inputIds().get(1));
+        if (value == null || indices == null) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " inputs are unavailable";
+        }
+        if (value.dataType() != tensor.DataType.FLOAT32 || node.dataType() != tensor.DataType.FLOAT32) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL " + opType + " currently supports only FLOAT32 value/output tensors";
+        }
+        if (indices.dataType() != tensor.DataType.INT32) {
+            return "UNSUPPORTED_DTYPE: GPU_METAL " + opType + " index input requires INT32";
+        }
+        if (!value.contiguous() || value.hasStorageOffset()
+                || !indices.contiguous() || indices.hasStorageOffset()) {
+            return "UNSUPPORTED_LAYOUT: GPU_METAL " + opType + " inputs require dense layout";
+        }
+        int[] valueShape = value.shape();
+        int[] indexShape = indices.shape();
+        int[] outputShape = node.shape();
+        if (valueShape.length < 1 || valueShape.length > 4
+                || indexShape.length < 1 || indexShape.length > 4
+                || outputShape.length < 1 || outputShape.length > 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " supports rank 1..4 tensors";
+        }
+        int axis = indexAxis(node);
+        if (axis < 0 || axis >= valueShape.length) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " axis is outside value rank";
+        }
+        if (opType == Operation.OpType.GATHER) {
+            int[] expected = reduceShape(valueShape, axis);
+            if (!Arrays.equals(indexShape, expected) || !Arrays.equals(outputShape, expected)) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER index/output shape must equal value shape without gathered axis";
+            }
+        } else {
+            if (indexShape.length != valueShape.length || !Arrays.equals(outputShape, indexShape)) {
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TAKE_ALONG_AXIS index/output rank and shape must match";
+            }
+            for (int i = 0; i < valueShape.length; i++) {
+                if (i != axis && indexShape[i] != valueShape[i]) {
+                    return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TAKE_ALONG_AXIS non-axis dimensions must match value input";
+                }
+            }
+        }
+        return "";
+    }
+
+    private static int indexAxis(CompiledNode node) {
+        return switch (node.operation().opType()) {
+            case GATHER -> node.operation() instanceof gather op ? op.getDimension() : -1;
+            case TAKE_ALONG_AXIS -> node.operation() instanceof takeAlongAxis op ? op.getDimension() : -1;
+            default -> -1;
+        };
+    }
+
+    private static int[] reduceShape(int[] shape, int axis) {
+        if (shape.length == 1) {
+            return new int[]{1};
+        }
+        int[] reduced = new int[shape.length - 1];
+        for (int i = 0, j = 0; i < shape.length; i++) {
+            if (i != axis) {
+                reduced[j++] = shape[i];
+            }
+        }
+        return reduced;
     }
 
     private static boolean sdpaRankSupported(int[] shape) {

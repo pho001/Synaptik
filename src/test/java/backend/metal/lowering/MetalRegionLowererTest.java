@@ -409,7 +409,7 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void phaseTwentySixIndexFamilyUsesStableCoverageReasons() {
+    void phaseThirtyTwoIndexFamilySupportsForwardGatherTakeAndKeepsScatterRejected() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalPhase26IndexInput", DataType.FLOAT32);
         Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase26GatherIndices", DataType.INT32);
         Tensor gather = input.gather(gatherIndices, 1);
@@ -431,8 +431,12 @@ class MetalRegionLowererTest {
         PartitionPlanningContext scatterContext = planningContext(scatter);
         String scatterReason = MetalPartitionSupport.plannerUnsupportedReason(scatterContext.compiledNode(nodeId(scatterContext, Operation.OpType.SCATTER_ADD)), scatterContext);
 
-        assertContainsAll(gatherReason, "DAG_PRIMITIVE_UNSUPPORTED", "operation GATHER", "family=INDEX_SCATTER_GATHER");
-        assertContainsAll(takeReason, "DAG_PRIMITIVE_UNSUPPORTED", "operation TAKE_ALONG_AXIS", "family=INDEX_SCATTER_GATHER");
+        assertEquals("", gatherReason);
+        assertEquals("", takeReason);
+        assertTrue(planFor(gather, Operation.OpType.GATHER).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.GATHER && node.scalarValueBits() == 1));
+        assertTrue(planFor(take, Operation.OpType.TAKE_ALONG_AXIS).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.TAKE_ALONG_AXIS && node.scalarValueBits() == 1));
         assertContainsAll(scatterReason, "UNSUPPORTED_DUPLICATE_INDEX", "operation SCATTER_ADD", "family=INDEX_SCATTER_GATHER");
     }
 
@@ -1095,6 +1099,21 @@ class MetalRegionLowererTest {
                 .filter(node -> node.operation() != null)
                 .map(CompiledNode::id)
                 .collect(java.util.stream.Collectors.toSet());
+    }
+
+    private static MetalPartitionPlan planFor(Tensor out, Operation.OpType opType) {
+        PartitionPlanningContext context = planningContext(out);
+        int nodeId = nodeId(context, opType);
+        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
+        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+                Set.of(nodeId),
+                context,
+                Set.of(PartitionValueRef.ofNode(nodeId))
+        );
+        assertNotNull(candidate);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+        assertNotNull(plan);
+        return plan;
     }
 
     private static int nodeId(PartitionPlanningContext context, Operation.OpType opType) {

@@ -160,9 +160,15 @@ class GpuLoweringCoverageMatrixTest {
 
                 assertEquals(backend, entry.backend());
                 assertEquals(opType, entry.opType());
-                assertFalse(entry.status() == GpuLoweringCoverageStatus.SUPPORTED,
-                        () -> opType + " must not be supported until native index/loss execution exists");
-                assertFalse(entry.reason() == GpuLoweringUnsupportedReason.SUPPORTED);
+                if (backend == ComputeBackend.GPU_METAL
+                        && (opType == Operation.OpType.GATHER || opType == Operation.OpType.TAKE_ALONG_AXIS)) {
+                    assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
+                    assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason());
+                } else {
+                    assertFalse(entry.status() == GpuLoweringCoverageStatus.SUPPORTED,
+                            () -> opType + " must not be supported until native index/loss execution exists");
+                    assertFalse(entry.reason() == GpuLoweringUnsupportedReason.SUPPORTED);
+                }
                 assertFalse(entry.note().isBlank());
             }
 
@@ -170,9 +176,12 @@ class GpuLoweringCoverageMatrixTest {
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).reason());
             assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).reason());
-            assertEquals(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
+            GpuLoweringUnsupportedReason expectedForwardIndexReason = backend == ComputeBackend.GPU_METAL
+                    ? GpuLoweringUnsupportedReason.SUPPORTED
+                    : GpuLoweringUnsupportedReason.CAPABILITY_MISSING;
+            assertEquals(expectedForwardIndexReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.GATHER).reason());
-            assertEquals(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
+            assertEquals(expectedForwardIndexReason,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.TAKE_ALONG_AXIS).reason());
             assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DUPLICATE_INDEX,
                     GpuLoweringCoverageMatrix.entryFor(backend, Operation.OpType.SCATTER_ADD).reason());
