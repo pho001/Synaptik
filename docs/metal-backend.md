@@ -42,6 +42,8 @@ The current implementation has a real native buffer execution path:
 
 The important limitation is that this is not long-lived public GPU tensor storage. Public `Tensor` results are CPU-readable after `compute()` or `PreparedExecution.execute(...)` returns. The MPSGraph buffer path avoids Java-array round trips between adjacent Metal regions, but the Objective-C shim still conservatively copies MPSGraph result storage into caller-provided `MTLBuffer` contents with `readBytes:strideBytes:`. That native copy is measured as `metalNativeDeviceCopyNs`. Phase 45 adds an internal no-copy probe symbol, `synaptik_apple_mps_probe_output_buffer_write_f32_buffers`, so tests can inspect caller output buffers before the explicit `readBytes` copy. The scoped custom RELU route is different: it writes directly into the caller output buffer and reports `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`, but that proof applies only to the custom kernel route, not to MPSGraph generally.
 
+Phase 46 makes that boundary gateable in benchmark reports through `CrossBackendRouterEvidence`. Metal MPSGraph executions must show `metalExecutionRoute=MPS_GRAPH`, `metalNativeCopyStrategy=MPSGRAPH_RESULT_COPY`, and `metalOutputBufferWriteStatus=COPY_REQUIRED`. The scoped custom-kernel route must show `metalExecutionRoute=CUSTOM_KERNEL`, `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`, and `metalOutputBufferWriteStatus=PROVEN_TRUE_WRITE`. A report that combines `MPS_GRAPH` with true-output-write status is treated as an unsupported route overclaim.
+
 ## Mental Model
 
 Think of Metal execution as a compiled subgraph call with two possible transport layers.

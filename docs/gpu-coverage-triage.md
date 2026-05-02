@@ -8,6 +8,18 @@ Phase 14 turns benchmark coverage reports into an ordered backlog for v1.3 GPU r
 
 The ranking is deterministic. It uses raw counts and fixed severity constants so later phases close measured exits before adding speculative operation coverage.
 
+## Cross-Backend Router Evidence
+
+`CrossBackendRouterEvidence` is the Phase 46 router audit layer. It does not change execution. It derives evidence from `ExecutionTrace` attributes and combines the route/path facts that previously had to be read from separate accelerator and coverage sections:
+
+- common transport path counts: `BUFFER_BINDING`, `TENSOR_ARRAY`, `CPU_FALLBACK`, and unavailable paths,
+- backend route counts: Metal `MPS_GRAPH` / `CUSTOM_KERNEL` and CUDA `cudaExecutionPath`,
+- rejected route and capability reason counts, including CUDA `CAPABILITY_MISSING` rows,
+- native copy strategies and output-buffer write statuses,
+- selected region length, lowered primitive count, fused subpattern count, layout materialization, dtype residency, CPU materialization, and device handoff counts.
+
+`CrossBackendRouterRegressionGate` evaluates that evidence for representative workloads. The gate fails hidden tensor-array replay, unexpected CPU fallback, internal CPU materialization, lost native buffer binding, lost lowered-region evidence, missing required visible rejection reasons, unexpected copy/write statuses, and unsupported route overclaims. A CUDA capability skip is valid fallback evidence only when it remains explicit; it is not support. MPSGraph remains `MPSGRAPH_RESULT_COPY` / `COPY_REQUIRED`; only the scoped custom Metal route may report `TRUE_OUTPUT_BUFFER_WRITE` / `PROVEN_TRUE_WRITE`.
+
 ## Hot Path Targets
 
 `GpuHotPathCoverageTargets` defines the checked workload set used by Phase 14 and downstream v1.3 work:
@@ -38,6 +50,7 @@ The ranking is deterministic. It uses raw counts and fixed severity constants so
 ./gradlew classes
 ./gradlew test --tests GpuCoverageGapTriageTest --tests GpuHotPathCoverageTargetsTest --tests GpuCoverageTriageReportTest
 ./gradlew test --tests BenchmarkSuiteSessionTest --tests GpuCoverageSummaryTest
+./gradlew test --tests CrossBackendRouterEvidenceTest --tests BenchmarkSessionTest
 ```
 
 ## Artifact Hygiene

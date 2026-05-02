@@ -588,6 +588,9 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("outputBufferWriteStatuses=[COPY_REQUIRED]"));
         assertTrue(text.contains("executionRouteCounts={MPS_GRAPH=1}"));
         assertTrue(text.contains("rejectedRouteReasonCounts={CUSTOM_KERNEL_UNAVAILABLE=1}"));
+        assertTrue(text.contains("routerEvidence:"));
+        assertTrue(text.contains("backendRouteCounts={MPS_GRAPH=1}"));
+        assertTrue(text.contains("outputBufferWriteStatusCounts={COPY_REQUIRED=1}"));
         assertTrue(text.contains("javaToNativeMs=0.100000"));
         assertTrue(text.contains("nativeDeviceCopyMs=0.025000"));
         assertTrue(text.contains("storageResidency=DEVICE_OWNED"));
@@ -604,6 +607,9 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"outputBufferWriteStatuses\": [\"COPY_REQUIRED\"]"));
         assertTrue(json.contains("\"executionRouteCounts\": {\"MPS_GRAPH\": 1}"));
         assertTrue(json.contains("\"rejectedRouteReasonCounts\": {\"CUSTOM_KERNEL_UNAVAILABLE\": 1}"));
+        assertTrue(json.contains("\"routerEvidence\":"));
+        assertTrue(json.contains("\"backendRouteCounts\": {\"MPS_GRAPH\": 1}"));
+        assertTrue(json.contains("\"outputBufferWriteStatusCounts\": {\"COPY_REQUIRED\": 1}"));
         assertTrue(json.contains("\"javaToNativeCopyNs\": 100000"));
         assertTrue(json.contains("\"nativeDeviceCopyNs\": 25000"));
         assertTrue(json.contains("\"storageResidency\": \"DEVICE_OWNED\""));
@@ -686,6 +692,8 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("preparedInputSteps=1"));
         assertTrue(text.contains("reasonCodes=[BUFFER_BINDING_AVAILABLE]"));
         assertTrue(text.contains("fallbackReasons=[using native CUDA buffer bindings]"));
+        assertTrue(text.contains("routerEvidence:"));
+        assertTrue(text.contains("acceleratorPathCounts={BUFFER_BINDING=1}"));
         assertTrue(text.contains("bytes=2048->1024"));
         assertTrue(text.contains("javaToNativeMs=0.100000"));
         assertTrue(text.contains("nativeDeviceCopyMs=0.025000"));
@@ -697,6 +705,8 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"preparedInputSteps\": 1"));
         assertTrue(json.contains("\"reasonCodes\": [\"BUFFER_BINDING_AVAILABLE\"]"));
         assertTrue(json.contains("\"fallbackReasons\": [\"using native CUDA buffer bindings\"]"));
+        assertTrue(json.contains("\"routerEvidence\":"));
+        assertTrue(json.contains("\"acceleratorPathCounts\": {\"BUFFER_BINDING\": 1}"));
         assertTrue(json.contains("\"inputBytes\": 2048"));
         assertTrue(json.contains("\"outputBytes\": 1024"));
         assertTrue(json.contains("\"javaToNativeCopyNs\": 100000"));

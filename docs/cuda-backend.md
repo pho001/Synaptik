@@ -118,6 +118,8 @@ CUDA fallback interpretation starts with:
 
 Native buffer execution is separate from tensor-array bridge execution. Tensor-array execution and CPU fallback must remain visible in traces and benchmark reports.
 
+Phase 46 adds `CrossBackendRouterEvidence` to keep CUDA route decisions auditable next to Metal. The evidence model records common transport path counts, `cudaExecutionPath`, `cudaFallbackReason`, selected region length, lowered primitive count, dtype/layout residency evidence, and CPU exits. Representative gates can require an explicit `CAPABILITY_MISSING` reason for unsupported CUDA rows, but a capability skip still cannot count as native support. If a CUDA report contains capability-missing evidence while also claiming a native support route for the same gated workload, the router gate reports an unsupported route overclaim.
+
 ## Verification Commands
 
 Portable CUDA parity baseline checks:
@@ -127,6 +129,7 @@ Portable CUDA parity baseline checks:
 ./gradlew test --tests backend.cuda.bridge.CudaCapabilityReportTest --tests backend.cuda.bridge.CudaFfmBridgeTest
 ./gradlew test --tests backend.cuda.CudaDTypeRolePolicyTest --tests backend.cuda.buffer.CudaDeviceLayoutMaterializerTest --tests backend.cuda.lowering.CudaRegionLowererTest
 ./gradlew test --tests GpuCoverageTriageReportTest --tests GpuHotPathCoverageTargetsTest
+./gradlew test --tests CrossBackendRouterEvidenceTest
 ./gradlew classes
 ```
 

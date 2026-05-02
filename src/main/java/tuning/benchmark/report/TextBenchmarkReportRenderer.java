@@ -104,6 +104,7 @@ public final class TextBenchmarkReportRenderer {
                         sb.append("  cpuMaterializationCount=").append(trace.run().cpuMaterializations().size()).append('\n');
                         appendAcceleratorSummary(sb, AcceleratorTraceSummary.fromSteps(trace.run().steps()));
                         appendGpuCoverageSummary(sb, GpuCoverageSummary.fromTrace(trace));
+                        appendCrossBackendRouterEvidence(sb, CrossBackendRouterEvidence.fromTrace(trace));
                         appendBackendSelectionCost(sb, trace.prepare().backendSelection());
                         sb.append("  parallelUsed=").append(usesParallel(trace.run().steps())).append('\n');
                         sb.append("  vectorUsed=").append(usesVector(trace.run().steps())).append('\n');
@@ -251,6 +252,34 @@ public final class TextBenchmarkReportRenderer {
                     .append(" capabilitySkipped=").append("capabilitySkipped".equals(nativeEvidence.nativeStatus()))
                     .append('\n');
             appendTargetCoverageTruth(sb, entry.getKey());
+        }
+    }
+
+    private static void appendCrossBackendRouterEvidence(StringBuilder sb, CrossBackendRouterEvidence evidence) {
+        if (evidence == null || !evidence.present()) {
+            return;
+        }
+        sb.append("  routerEvidence:\n");
+        for (var entry : evidence.backends().entrySet()) {
+            var backend = entry.getValue();
+            sb.append("    - backend=").append(entry.getKey())
+                    .append(" acceleratorPathCounts=").append(backend.acceleratorPathCounts())
+                    .append(" backendRouteCounts=").append(backend.backendRouteCounts())
+                    .append(" rejectedRouteReasonCounts=").append(backend.rejectedRouteReasonCounts())
+                    .append(" reasonCodeCounts=").append(backend.reasonCodeCounts())
+                    .append(" fallbackReasonCounts=").append(backend.fallbackReasonCounts())
+                    .append(" nativeCopyStrategyCounts=").append(backend.nativeCopyStrategyCounts())
+                    .append(" outputBufferWriteStatusCounts=").append(backend.outputBufferWriteStatusCounts())
+                    .append(" selectedRegionCount=").append(backend.selectedRegionCount())
+                    .append(" maxSelectedRegionLength=").append(backend.maxSelectedRegionLength())
+                    .append(" loweredPrimitiveCount=").append(backend.loweredPrimitiveCount())
+                    .append(" gpuFusedSubpatternCount=").append(backend.gpuFusedSubpatternCount())
+                    .append(" tensorArrayStepCount=").append(backend.tensorArrayStepCount())
+                    .append(" cpuFallbackStepCount=").append(backend.cpuFallbackStepCount())
+                    .append(" cpuMaterializationCount=").append(backend.cpuMaterializationCount())
+                    .append(" internalCpuMaterializationCount=").append(backend.internalCpuMaterializationCount())
+                    .append(" deviceHandoffCount=").append(backend.deviceHandoffCount())
+                    .append('\n');
         }
     }
 

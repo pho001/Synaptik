@@ -71,6 +71,9 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"coverage\": ").append(gpuCoverageSummaryJson(
                         GpuCoverageSummary.fromTrace(trace)
                 )).append(",\n");
+                sb.append("        \"routerEvidence\": ").append(crossBackendRouterEvidenceJson(
+                        CrossBackendRouterEvidence.fromTrace(trace)
+                )).append(",\n");
                 sb.append("        \"backendSelectionCost\": ")
                         .append(backendSelectionCostJson(trace.prepare().backendSelection()))
                         .append(",\n");
@@ -257,6 +260,42 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"coverageGate\": ").append(gateResultJson(gate)).append(", ")
                     .append("\"nativeEvidence\": ").append(nativeEvidenceJson(nativeEvidence)).append(", ")
                     .append("\"targetCoverageTruth\": ").append(targetCoverageTruthJson(entry.getKey()))
+                    .append("}");
+        }
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static String crossBackendRouterEvidenceJson(CrossBackendRouterEvidence evidence) {
+        if (evidence == null || !evidence.present()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder("{");
+        int i = 0;
+        for (var entry : evidence.backends().entrySet()) {
+            if (i++ > 0) {
+                sb.append(", ");
+            }
+            var backend = entry.getValue();
+            sb.append('"').append(escape(entry.getKey())).append("\": {")
+                    .append("\"acceleratorPathCounts\": ").append(intMapJson(backend.acceleratorPathCounts())).append(", ")
+                    .append("\"backendRouteCounts\": ").append(intMapJson(backend.backendRouteCounts())).append(", ")
+                    .append("\"rejectedRouteReasonCounts\": ").append(intMapJson(backend.rejectedRouteReasonCounts())).append(", ")
+                    .append("\"reasonCodeCounts\": ").append(intMapJson(backend.reasonCodeCounts())).append(", ")
+                    .append("\"fallbackReasonCounts\": ").append(intMapJson(backend.fallbackReasonCounts())).append(", ")
+                    .append("\"nativeCopyStrategyCounts\": ").append(intMapJson(backend.nativeCopyStrategyCounts())).append(", ")
+                    .append("\"outputBufferWriteStatusCounts\": ")
+                    .append(intMapJson(backend.outputBufferWriteStatusCounts())).append(", ")
+                    .append("\"selectedRegionCount\": ").append(backend.selectedRegionCount()).append(", ")
+                    .append("\"maxSelectedRegionLength\": ").append(backend.maxSelectedRegionLength()).append(", ")
+                    .append("\"loweredPrimitiveCount\": ").append(backend.loweredPrimitiveCount()).append(", ")
+                    .append("\"gpuFusedSubpatternCount\": ").append(backend.gpuFusedSubpatternCount()).append(", ")
+                    .append("\"tensorArrayStepCount\": ").append(backend.tensorArrayStepCount()).append(", ")
+                    .append("\"cpuFallbackStepCount\": ").append(backend.cpuFallbackStepCount()).append(", ")
+                    .append("\"cpuMaterializationCount\": ").append(backend.cpuMaterializationCount()).append(", ")
+                    .append("\"internalCpuMaterializationCount\": ")
+                    .append(backend.internalCpuMaterializationCount()).append(", ")
+                    .append("\"deviceHandoffCount\": ").append(backend.deviceHandoffCount())
                     .append("}");
         }
         sb.append('}');
