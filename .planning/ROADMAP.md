@@ -124,7 +124,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 44: Custom Metal Kernel Execution Route
 
-**Status:** Not started
+**Status:** Planned
 
 **Goal:** Turn the custom Metal kernel route from a visible seam into real scoped native kernel execution.
 
@@ -193,8 +193,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete, security-passed, and Nyquist-validated. Phase 44 Custom Metal Kernel Execution Route is ready for planning.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete, security-passed, and Nyquist-validated. Phase 43 CUDA Training And Index Semantics is complete, security-passed, and Nyquist-validated. Phase 44 Custom Metal Kernel Execution Route is planned and ready for execution.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 43 execution*
+*Last updated: 2026-05-02 after Phase 44 planning*
