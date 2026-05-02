@@ -701,6 +701,41 @@ static void *SynaptikCompilePartition(
                     outTensor = [graph additionWithPrimaryTensor:input0 secondaryTensor:scalarTensor name:@"add_scalar"];
                     break;
                 }
+                case 41:
+                    if (input1 == nil) return NULL;
+                    outTensor = [graph greaterThanWithPrimaryTensor:input0 secondaryTensor:input1 name:@"gt"];
+                    break;
+                case 42:
+                    if (input1 == nil) return NULL;
+                    outTensor = [graph greaterThanOrEqualToWithPrimaryTensor:input0 secondaryTensor:input1 name:@"ge"];
+                    break;
+                case 43:
+                    if (input1 == nil) return NULL;
+                    outTensor = [graph lessThanWithPrimaryTensor:input0 secondaryTensor:input1 name:@"lt"];
+                    break;
+                case 44:
+                    if (input1 == nil) return NULL;
+                    outTensor = [graph lessThanOrEqualToWithPrimaryTensor:input0 secondaryTensor:input1 name:@"le"];
+                    break;
+                case 45:
+                    if (input1 == nil) return NULL;
+                    outTensor = [graph equalWithPrimaryTensor:input0 secondaryTensor:input1 name:@"eq"];
+                    break;
+                case 46:
+                    if (input1 == nil) return NULL;
+                    outTensor = [graph notEqualWithPrimaryTensor:input0 secondaryTensor:input1 name:@"ne"];
+                    break;
+                case 47:
+                    if (input1 == nil) return NULL;
+                    outTensor = [graph logicalANDWithPrimaryTensor:input0 secondaryTensor:input1 name:@"logical_and"];
+                    break;
+                case 48:
+                    if (input1 == nil) return NULL;
+                    outTensor = [graph logicalORWithPrimaryTensor:input0 secondaryTensor:input1 name:@"logical_or"];
+                    break;
+                case 49:
+                    outTensor = [graph notWithTensor:input0 name:@"logical_not"];
+                    break;
                 case 24:
                     if (input1 == nil || input2 == nil) return NULL;
                     outTensor = [graph selectWithPredicateTensor:input0 truePredicateTensor:input1 falsePredicateTensor:input2 name:@"where"];
@@ -713,7 +748,9 @@ static void *SynaptikCompilePartition(
                 case 36:
                 case 37:
                 case 38:
-                case 39: {
+                case 39:
+                case 50:
+                case 51: {
                     int32_t axis = SynaptikDecodeReductionAxis(node_scalar_values, i);
                     NSNumber *axisNumber = @(axis);
                     switch (node_types[i]) {
@@ -728,6 +765,12 @@ static void *SynaptikCompilePartition(
                             break;
                         case 39:
                             outTensor = [graph reductionMaximumWithTensor:input0 axis:axis name:@"reduce_max"];
+                            break;
+                        case 50:
+                            outTensor = [graph reductionAndWithTensor:input0 axis:axis name:@"reduce_all"];
+                            break;
+                        case 51:
+                            outTensor = [graph reductionOrWithTensor:input0 axis:axis name:@"reduce_any"];
                             break;
                         default:
                             outTensor = nil;

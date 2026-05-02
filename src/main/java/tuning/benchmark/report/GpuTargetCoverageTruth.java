@@ -51,7 +51,12 @@ public final class GpuTargetCoverageTruth {
             Operation.OpType.LT,
             Operation.OpType.LE,
             Operation.OpType.EQ,
-            Operation.OpType.NE
+            Operation.OpType.NE,
+            Operation.OpType.LOGICAL_AND,
+            Operation.OpType.LOGICAL_OR,
+            Operation.OpType.LOGICAL_NOT,
+            Operation.OpType.REDUCE_ALL,
+            Operation.OpType.REDUCE_ANY
     );
 
     private static final Map<ComputeBackend, Set<Operation.OpType>> NATIVE_EXECUTABLE_TARGETS =
@@ -125,6 +130,17 @@ public final class GpuTargetCoverageTruth {
         );
         EnumSet<Operation.OpType> metalTargets = EnumSet.copyOf(reductions);
         metalTargets.add(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        metalTargets.add(Operation.OpType.GT);
+        metalTargets.add(Operation.OpType.GE);
+        metalTargets.add(Operation.OpType.LT);
+        metalTargets.add(Operation.OpType.LE);
+        metalTargets.add(Operation.OpType.EQ);
+        metalTargets.add(Operation.OpType.NE);
+        metalTargets.add(Operation.OpType.LOGICAL_AND);
+        metalTargets.add(Operation.OpType.LOGICAL_OR);
+        metalTargets.add(Operation.OpType.LOGICAL_NOT);
+        metalTargets.add(Operation.OpType.REDUCE_ALL);
+        metalTargets.add(Operation.OpType.REDUCE_ANY);
         out.put(ComputeBackend.GPU_METAL, metalTargets);
         out.put(ComputeBackend.GPU_CUDA, EnumSet.copyOf(reductions));
         return Map.copyOf(out);

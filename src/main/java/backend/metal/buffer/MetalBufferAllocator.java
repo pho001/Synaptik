@@ -150,7 +150,7 @@ public final class MetalBufferAllocator {
     }
 
     /**
-     * Creates an unwritten shared numeric output binding.
+     * Creates an unwritten shared output binding.
      *
      * @param nodeId output node id
      * @param layout output layout
@@ -159,8 +159,8 @@ public final class MetalBufferAllocator {
     public MetalBufferBinding createOutputBinding(int nodeId, AcceleratorBufferLayout layout) {
         ensureAvailable();
         Objects.requireNonNull(layout, "layout cannot be null");
-        if (layout.dataType() != DataType.FLOAT32 && layout.dataType() != DataType.BFLOAT16) {
-            throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32/BFLOAT16 only in this phase; got " + layout.dataType());
+        if (layout.dataType() != DataType.FLOAT32 && layout.dataType() != DataType.BFLOAT16 && layout.dataType() != DataType.BOOL) {
+            throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32/BFLOAT16/BOOL only in this phase; got " + layout.dataType());
         }
         if (layout.logicalElementCount() <= 0) {
             throw new IllegalArgumentException("Metal output elementCount must be positive.");
@@ -181,7 +181,7 @@ public final class MetalBufferAllocator {
     }
 
     /**
-     * Reads a shared numeric Metal binding into CPU tensor storage.
+     * Reads a shared Metal binding into CPU tensor storage.
      *
      * @param binding active Metal binding
      * @param destination destination runtime tensor
@@ -197,9 +197,11 @@ public final class MetalBufferAllocator {
         Objects.requireNonNull(binding, "binding cannot be null");
         Objects.requireNonNull(destination, "destination cannot be null");
         if (binding.layout().dataType() != destination.getDataType()
-                || (binding.layout().dataType() != DataType.FLOAT32 && binding.layout().dataType() != DataType.BFLOAT16)) {
+                || (binding.layout().dataType() != DataType.FLOAT32
+                && binding.layout().dataType() != DataType.BFLOAT16
+                && binding.layout().dataType() != DataType.BOOL)) {
             throw new UnsupportedOperationException(
-                    "Metal materializer supports dtype-matched FLOAT32/BFLOAT16 bindings only; binding="
+                    "Metal materializer supports dtype-matched FLOAT32/BFLOAT16/BOOL bindings only; binding="
                             + binding.layout().dataType() + ", destination=" + destination.getDataType()
             );
         }
@@ -227,12 +229,18 @@ public final class MetalBufferAllocator {
                 throw new UnsupportedOperationException("Destination FLOAT32 tensor has no direct float[] storage.");
             }
             materializeFloat32(binding, destination, destinationLayout, data);
-        } else {
+        } else if (binding.layout().dataType() == DataType.BFLOAT16) {
             short[] data = destination.getBFloat16Data();
             if (data == null) {
                 throw new UnsupportedOperationException("Destination BFLOAT16 tensor has no direct short[] storage.");
             }
             materializeBFloat16(binding, destination, destinationLayout, data);
+        } else {
+            byte[] data = destination.getBoolData();
+            if (data == null) {
+                throw new UnsupportedOperationException("Destination BOOL tensor has no direct byte[] storage.");
+            }
+            materializeBool(binding, destination, destinationLayout, data);
         }
         destination.markDataViewStale();
         return new CpuMaterializationResult(
@@ -348,6 +356,36 @@ public final class MetalBufferAllocator {
         }
     }
 
+    private void materializeBool(
+            MetalBufferBinding binding,
+            Tensor destination,
+            AcceleratorBufferLayout destinationLayout,
+            byte[] data
+    ) {
+        if (destination.isContiguous() && !destination.hasStorageOffset()) {
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment nativeDestination = arena.allocate(JAVA_BYTE, data.length);
+                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
+                MemorySegment.ofArray(data).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            }
+        } else {
+            int logicalElements = checkedLogicalElementCount(binding.layout().logicalElementCount());
+            byte[] dense = new byte[logicalElements];
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment nativeDestination = arena.allocate(JAVA_BYTE, logicalElements);
+                nativeAccess.readBuffer(binding.handle(), nativeDestination, binding.logicalByteLength());
+                MemorySegment.ofArray(dense).copyFrom(nativeDestination.reinterpret(binding.logicalByteLength()));
+            }
+            scatterDenseLogicalToDestination(
+                    dense,
+                    data,
+                    destinationLayout.shape(),
+                    destinationLayout.strides(),
+                    destinationLayout.storageOffset()
+            );
+        }
+    }
+
     private static void scatterDenseLogicalToDestination(
             float[] dense,
             float[] destination,
@@ -393,6 +431,48 @@ public final class MetalBufferAllocator {
     private static void scatterDenseLogicalToDestination(
             short[] dense,
             short[] destination,
+            int[] shape,
+            int[] strides,
+            int storageOffset
+    ) {
+        Objects.requireNonNull(dense, "dense cannot be null");
+        Objects.requireNonNull(destination, "destination cannot be null");
+        Objects.requireNonNull(shape, "shape cannot be null");
+        Objects.requireNonNull(strides, "strides cannot be null");
+        if (shape.length != strides.length) {
+            throw new IllegalArgumentException("shape and strides must have the same length.");
+        }
+        if (shape.length > 4) {
+            throw new UnsupportedOperationException("Metal logical-view materialization supports rank <= 4");
+        }
+        int expectedElements = checkedShapeElementCount(shape);
+        if (dense.length != expectedElements) {
+            throw new IllegalArgumentException(
+                    "Dense logical readback length " + dense.length
+                            + " does not match destination element count " + expectedElements + "."
+            );
+        }
+        for (int linear = 0; linear < dense.length; linear++) {
+            int storageIndex = storageOffset;
+            int remaining = linear;
+            for (int dim = shape.length - 1; dim >= 0; dim--) {
+                int coordinate = remaining % shape[dim];
+                remaining /= shape[dim];
+                storageIndex += coordinate * strides[dim];
+            }
+            if (storageIndex < 0 || storageIndex >= destination.length) {
+                throw new IndexOutOfBoundsException(
+                        "Metal logical-view materialization storage index " + storageIndex
+                                + " outside destination storage length " + destination.length + "."
+                );
+            }
+            destination[storageIndex] = dense[linear];
+        }
+    }
+
+    private static void scatterDenseLogicalToDestination(
+            byte[] dense,
+            byte[] destination,
             int[] shape,
             int[] strides,
             int storageOffset

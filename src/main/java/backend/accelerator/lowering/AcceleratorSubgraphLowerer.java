@@ -30,6 +30,8 @@ import operations.reduction.reduceMaxGrad;
 import operations.reduction.reduceMinGrad;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
+import operations.reduction.reduceAll;
+import operations.reduction.reduceAny;
 import operations.reduction.logSoftmax;
 import operations.reduction.logSoftmaxGrad;
 import operations.reduction.mean;
@@ -1089,7 +1091,9 @@ public final class AcceleratorSubgraphLowerer {
         return type == AcceleratorDagNodeType.SUM
                 || type == AcceleratorDagNodeType.MEAN
                 || type == AcceleratorDagNodeType.REDUCE_MIN
-                || type == AcceleratorDagNodeType.REDUCE_MAX;
+                || type == AcceleratorDagNodeType.REDUCE_MAX
+                || type == AcceleratorDagNodeType.REDUCE_ALL
+                || type == AcceleratorDagNodeType.REDUCE_ANY;
     }
 
     private AcceleratorDagSpec tryBuildLogSoftmaxDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
@@ -1365,6 +1369,11 @@ public final class AcceleratorSubgraphLowerer {
             case LE -> AcceleratorDagNodeType.LE;
             case EQ -> AcceleratorDagNodeType.EQ;
             case NE -> AcceleratorDagNodeType.NE;
+            case LOGICAL_AND -> AcceleratorDagNodeType.LOGICAL_AND;
+            case LOGICAL_OR -> AcceleratorDagNodeType.LOGICAL_OR;
+            case LOGICAL_NOT -> AcceleratorDagNodeType.LOGICAL_NOT;
+            case REDUCE_ALL -> AcceleratorDagNodeType.REDUCE_ALL;
+            case REDUCE_ANY -> AcceleratorDagNodeType.REDUCE_ANY;
             case SOFTMAX_GRAD -> AcceleratorDagNodeType.SOFTMAX_GRAD;
             case LOG_SOFTMAX_GRAD -> AcceleratorDagNodeType.LOG_SOFTMAX_GRAD;
             case REDUCE_MIN_GRAD -> AcceleratorDagNodeType.REDUCE_MIN_GRAD;
@@ -1389,6 +1398,8 @@ public final class AcceleratorSubgraphLowerer {
             case MEAN -> node.operation() instanceof mean op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case REDUCE_MIN -> node.operation() instanceof reduceMin op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case REDUCE_MAX -> node.operation() instanceof reduceMax op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case REDUCE_ALL -> node.operation() instanceof reduceAll op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
+            case REDUCE_ANY -> node.operation() instanceof reduceAny op ? encodeReductionMode(op.getDimension(), op.keepDims()) : Integer.MIN_VALUE;
             case SOFTMAX_GRAD -> node.operation() instanceof softmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case LOG_SOFTMAX_GRAD -> node.operation() instanceof logSoftmaxGrad op ? op.getDimension() : Integer.MIN_VALUE;
             case REDUCE_MIN_GRAD -> node.operation() instanceof reduceMinGrad op ? op.getDimension() : Integer.MIN_VALUE;

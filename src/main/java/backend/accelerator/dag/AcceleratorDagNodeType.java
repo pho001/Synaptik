@@ -49,7 +49,12 @@ public enum AcceleratorDagNodeType {
     LT(43),
     LE(44),
     EQ(45),
-    NE(46);
+    NE(46),
+    LOGICAL_AND(47),
+    LOGICAL_OR(48),
+    LOGICAL_NOT(49),
+    REDUCE_ALL(50),
+    REDUCE_ANY(51);
 
     private final int abiCode;
 

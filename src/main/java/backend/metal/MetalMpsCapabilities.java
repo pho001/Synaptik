@@ -131,9 +131,9 @@ public final class MetalMpsCapabilities {
                     "operation " + opType + " cannot produce native BFLOAT16 output on the current Metal bridge");
         }
         if (outputDType == DataType.BOOL) {
-            if (supportsBoolCompareOperation(opType)) {
+            if (supportsBoolOutputOperation(opType)) {
                 return supported(MetalDTypeRole.OPERATION, outputDType, true, true, MetalDTypeReasonCode.SUPPORTED,
-                        "operation " + opType + " is dtype-legal for BOOL compare output in the scoped Metal bridge");
+                        "operation " + opType + " is dtype-legal for BOOL output in the scoped Metal bridge");
             }
             return unsupported(MetalDTypeRole.OPERATION, outputDType, MetalDTypeReasonCode.UNSUPPORTED_OPERATION_DTYPE,
                     "operation " + opType + " cannot produce native BOOL output on the current Metal bridge");
@@ -197,6 +197,26 @@ public final class MetalMpsCapabilities {
             return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
                     MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
                     "BOOL compare inputs require FLOAT32/BFLOAT16 data");
+        }
+        if (supportsBoolLogicalOperation(opType)) {
+            if ((inputIndex == 0 || inputIndex == 1) && dtype == DataType.BOOL) {
+                return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
+                        MetalDTypeReasonCode.SUPPORTED,
+                        "BOOL logical input accepts BOOL predicate data");
+            }
+            return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                    MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                    "BOOL logical inputs require BOOL data");
+        }
+        if (supportsBoolReductionOperation(opType)) {
+            if (inputIndex == 0 && dtype == DataType.BOOL) {
+                return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
+                        MetalDTypeReasonCode.SUPPORTED,
+                        "BOOL reduction input accepts BOOL predicate data");
+            }
+            return unsupported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype,
+                    MetalDTypeReasonCode.UNSUPPORTED_EXTERNAL_INPUT_ROLE,
+                    "BOOL reduction input requires BOOL data");
         }
         if (dtype == DataType.FLOAT32) {
             return supported(MetalDTypeRole.EXTERNAL_INPUT_ROLE, dtype, true, false,
@@ -341,6 +361,26 @@ public final class MetalMpsCapabilities {
             case GT, GE, LT, LE, EQ, NE -> true;
             default -> false;
         };
+    }
+
+    private static boolean supportsBoolLogicalOperation(Operation.OpType opType) {
+        return switch (opType) {
+            case LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean supportsBoolReductionOperation(Operation.OpType opType) {
+        return switch (opType) {
+            case REDUCE_ALL, REDUCE_ANY -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean supportsBoolOutputOperation(Operation.OpType opType) {
+        return supportsBoolCompareOperation(opType)
+                || supportsBoolLogicalOperation(opType)
+                || supportsBoolReductionOperation(opType);
     }
 
     private static MetalDTypeCapabilityDecision supported(

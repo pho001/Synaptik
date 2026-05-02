@@ -470,19 +470,24 @@ class MetalRegionLowererTest {
                 avgPoolContext
         );
 
-        assertContainsAll(compareReason, "CAPABILITY_MISSING", "operation GE", "family=COMPARE_BOOL", "BOOL output DAG/ABI contract");
+        assertEquals("", compareReason);
         assertContainsAll(maxPoolReason, "CAPABILITY_MISSING", "operation MAX_POOL2D", "family=CONV_POOL", "target=max_pool2d_small");
         assertContainsAll(avgPoolReason, "CAPABILITY_MISSING", "operation AVG_POOL2D", "family=CONV_POOL");
     }
 
     @Test
-    void boolCompareDagContractLowersWithoutPlannerAdmissionUntilNativeParity() {
+    void boolCompareDagContractLowersWithPlannerAdmission() {
         assertEquals(41, AcceleratorDagNodeType.GT.abiCode());
         assertEquals(42, AcceleratorDagNodeType.GE.abiCode());
         assertEquals(43, AcceleratorDagNodeType.LT.abiCode());
         assertEquals(44, AcceleratorDagNodeType.LE.abiCode());
         assertEquals(45, AcceleratorDagNodeType.EQ.abiCode());
         assertEquals(46, AcceleratorDagNodeType.NE.abiCode());
+        assertEquals(47, AcceleratorDagNodeType.LOGICAL_AND.abiCode());
+        assertEquals(48, AcceleratorDagNodeType.LOGICAL_OR.abiCode());
+        assertEquals(49, AcceleratorDagNodeType.LOGICAL_NOT.abiCode());
+        assertEquals(50, AcceleratorDagNodeType.REDUCE_ALL.abiCode());
+        assertEquals(51, AcceleratorDagNodeType.REDUCE_ANY.abiCode());
 
         Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase31BoolLeft", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "metalPhase31BoolRight", DataType.FLOAT32);
@@ -509,14 +514,44 @@ class MetalRegionLowererTest {
         assertEquals(DataType.BOOL, lowered.dagSpec().nodes().getFirst().outputDataType());
         assertTrue(lowered.dagSpec().externalInputs().stream().allMatch(input -> input.dataType() == DataType.FLOAT32));
         assertEquals(
-                "CAPABILITY_MISSING",
+                "SUPPORTED",
                 GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.GE).reason().name()
         );
-        assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
+        assertNotNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
                 Set.of(compareNodeId),
                 context,
                 Set.of(PartitionValueRef.ofNode(compareNodeId))
         ));
+    }
+
+    @Test
+    void boolLogicalAndReductionDagContractsLowerForMetal() {
+        Tensor left = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "metalPhase31BoolLeft", DataType.BOOL);
+        Tensor right = new Tensor(new byte[]{1, 1, 0, 0}, new int[]{2, 2}, null, "metalPhase31BoolRight", DataType.BOOL);
+        Tensor logical = left.logicalAnd(right);
+        Tensor reduced = logical.any(1, true);
+        TensorInternalAccess.setBackend(logical, ComputeBackend.GPU_METAL);
+        TensorInternalAccess.setBackend(reduced, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(reduced);
+        int logicalNodeId = nodeId(context, Operation.OpType.LOGICAL_AND);
+        int reduceNodeId = nodeId(context, Operation.OpType.REDUCE_ANY);
+        MetalRegionLegalityAdapter adapter = new MetalRegionLegalityAdapter();
+        PartitionCandidate candidate = adapter.tryCreateStructuralCandidate(
+                Set.of(logicalNodeId, reduceNodeId),
+                context,
+                Set.of(PartitionValueRef.ofNode(reduceNodeId))
+        );
+
+        assertNotNull(candidate);
+        MetalPartitionPlan plan = (MetalPartitionPlan) adapter.tryCreatePlan(candidate, context);
+        assertNotNull(plan);
+        List<AcceleratorDagNodeType> types = plan.lowering().dagSpec().nodes().stream()
+                .map(backend.accelerator.dag.AcceleratorDagNode::type)
+                .toList();
+        assertTrue(types.contains(AcceleratorDagNodeType.LOGICAL_AND));
+        assertTrue(types.contains(AcceleratorDagNodeType.REDUCE_ANY));
+        assertTrue(plan.lowering().dagSpec().nodes().stream().allMatch(node -> node.outputDataType() == DataType.BOOL));
     }
 
     @Test

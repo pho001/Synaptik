@@ -30,7 +30,9 @@ class MetalMpsCapabilitiesTest {
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BFLOAT16).supported());
         assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.CONV2D, DataType.BFLOAT16).supported());
         assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.GE, DataType.BOOL).supported());
-        assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.LOGICAL_AND, DataType.BOOL).supported());
+        assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.LOGICAL_AND, DataType.BOOL).supported());
+        assertTrue(MetalMpsCapabilities.operationDecision(Operation.OpType.REDUCE_ANY, DataType.BOOL).supported());
+        assertFalse(MetalMpsCapabilities.operationDecision(Operation.OpType.MATMUL, DataType.BOOL).supported());
         assertTrue(MetalMpsCapabilities.unsupportedDTypeMessage(DataType.INT32)
                 .contains("FLOAT32 compute/output tensors, scoped BFLOAT16 operation families, scoped BOOL compare outputs, and BOOL predicate inputs"));
     }
@@ -86,6 +88,25 @@ class MetalMpsCapabilitiesTest {
         Tensor mask = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "mask", DataType.BOOL);
         CompiledNode maskNode = CompiledNode.snapshot(List.of(mask)).getFirst();
         assertFalse(MetalMpsCapabilities.externalInputRoleDecision(maskNode, nodes.get(2), 0).supported());
+    }
+
+    @Test
+    void externalInputRoleAllowsBoolForLogicalAndReductionInputs() {
+        Tensor left = new Tensor(new byte[]{1, 0}, new int[]{2}, null, "left", DataType.BOOL);
+        Tensor right = new Tensor(new byte[]{1, 1}, new int[]{2}, null, "right", DataType.BOOL);
+        Tensor logical = left.logicalAnd(right);
+        Tensor reduced = logical.any(0, true);
+        List<CompiledNode> logicalNodes = CompiledNode.snapshot(List.of(left, right, logical));
+        List<CompiledNode> reductionNodes = CompiledNode.snapshot(reduced.topologicalSort());
+
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(logicalNodes.get(0), logicalNodes.get(2), 0).supported());
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(logicalNodes.get(1), logicalNodes.get(2), 1).supported());
+        assertFalse(MetalMpsCapabilities.externalInputRoleDecision(logicalNodes.get(0), logicalNodes.get(2), 2).supported());
+
+        CompiledNode reductionInput = reductionNodes.get(reductionNodes.size() - 2);
+        CompiledNode reduction = reductionNodes.getLast();
+        assertTrue(MetalMpsCapabilities.externalInputRoleDecision(reductionInput, reduction, 0).supported());
+        assertFalse(MetalMpsCapabilities.externalInputRoleDecision(reductionInput, reduction, 1).supported());
     }
 
     @Test

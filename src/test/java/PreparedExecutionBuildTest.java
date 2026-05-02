@@ -2623,7 +2623,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalWhereUsesCpuProducedComparePredicateAsExplicitBoolBoundary() {
+    void gpuMetalWhereCanKeepComparePredicateInsideGpuRegion() {
         Tensor left = new Tensor(new float[]{1f, 3f, 2f, 4f}, new int[]{2, 2}, null, "phase27CompareLeft", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "phase27CompareRight", DataType.FLOAT32);
         Tensor trueBranch = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "phase27True", DataType.FLOAT32);
@@ -2641,13 +2641,6 @@ public class PreparedExecutionBuildTest {
         PartitionPlanningContext planningContext = planningContext(compiled);
         int compareNodeId = nodeId(compiled, Operation.OpType.GT);
 
-        var compareStep = execution.forwardSteps().stream()
-                .filter(step -> step.node().getOperation() != null && step.node().getOperation().opType() == Operation.OpType.GT)
-                .findFirst()
-                .orElseThrow();
-        assertNotEquals(ComputeBackend.GPU_METAL, compareStep.metadata().backend(),
-                "BOOL-producing compare must not be claimed as native Metal compute");
-
         var gpuSteps = execution.forwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .toList();
@@ -2655,15 +2648,16 @@ public class PreparedExecutionBuildTest {
         PreparedMetalExecutable executable = (PreparedMetalExecutable) gpuSteps.getFirst().metadata().acceleratorExecutable();
 
         assertTrue(executable.plan().lowering().dagSpec().externalInputs().stream()
-                .anyMatch(input -> input.dataType() == DataType.BOOL));
+                .noneMatch(input -> input.dataType() == DataType.BOOL));
+        assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.GT));
         assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.WHERE));
         assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
                 .anyMatch(node -> node.type() == backend.accelerator.dag.AcceleratorDagNodeType.RELU));
         assertTrue(executable.plan().lowering().dagSpec().nodes().stream()
-                .noneMatch(node -> node.nodeId() == compareNodeId));
-        assertTrue(MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, compareNodeId), planningContext)
-                .contains("UNSUPPORTED_DTYPE"));
+                .anyMatch(node -> node.nodeId() == compareNodeId));
+        assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(compiledNode(compiled, compareNodeId), planningContext));
     }
 
     @Test

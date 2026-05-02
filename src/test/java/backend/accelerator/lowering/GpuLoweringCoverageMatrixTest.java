@@ -229,10 +229,10 @@ class GpuLoweringCoverageMatrixTest {
                 assertEquals(opType, entry.opType());
                 assertEquals(GpuLoweringOperationFamily.COMPARE_BOOL, entry.family());
                 if (backend == ComputeBackend.GPU_METAL) {
-                    assertEquals(GpuLoweringCoverageStatus.FALLBACK, entry.status());
-                    assertEquals(GpuLoweringUnsupportedReason.CAPABILITY_MISSING, entry.reason(),
-                            () -> opType + " should expose the Metal BOOL compare DAG contract without claiming native parity yet");
-                    assertTrue(entry.note().contains("BOOL output DAG/ABI contract"));
+                    assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
+                    assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason(),
+                            () -> opType + " should be native-supported for Metal BOOL compare output");
+                    assertTrue(entry.note().contains("native Metal BOOL output DAG execution"));
                 } else {
                     assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
                     assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE, entry.reason(),
@@ -248,10 +248,17 @@ class GpuLoweringCoverageMatrixTest {
                 assertEquals(backend, entry.backend());
                 assertEquals(opType, entry.opType());
                 assertEquals(GpuLoweringOperationFamily.COMPARE_BOOL, entry.family());
-                assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
-                assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE, entry.reason(),
-                        () -> opType + " should reject because native BOOL output compute is not implemented");
-                assertTrue(entry.note().contains("BOOL output"));
+                if (backend == ComputeBackend.GPU_METAL) {
+                    assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
+                    assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason(),
+                            () -> opType + " should be native-supported for Metal BOOL logical/reduction output");
+                    assertTrue(entry.note().contains("native Metal BOOL output DAG execution"));
+                } else {
+                    assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, entry.status());
+                    assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE, entry.reason(),
+                            () -> opType + " should reject because native BOOL output compute is not implemented");
+                    assertTrue(entry.note().contains("BOOL output"));
+                }
                 assertTrue(entry.note().contains("WHERE"));
             }
         }

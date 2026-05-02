@@ -724,8 +724,10 @@ public final class MetalMpsFfmBridge implements MetalMpsGraphBridge {
                 throw new UnsupportedOperationException("Metal buffer output " + i
                         + " dtype " + binding.layout().dataType() + " does not match executable dtype " + expected + ".");
             }
-            if (binding.layout().dataType() != DataType.FLOAT32 && binding.layout().dataType() != DataType.BFLOAT16) {
-                throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32/BFLOAT16 only; got " + binding.layout().dataType() + ".");
+            if (binding.layout().dataType() != DataType.FLOAT32
+                    && binding.layout().dataType() != DataType.BFLOAT16
+                    && binding.layout().dataType() != DataType.BOOL) {
+                throw new UnsupportedOperationException("Metal buffer outputs support FLOAT32/BFLOAT16/BOOL only; got " + binding.layout().dataType() + ".");
             }
             if (!writable(binding.access())) {
                 throw new UnsupportedOperationException("Metal buffer output " + i
