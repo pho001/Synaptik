@@ -165,6 +165,60 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimOutputBufferWriteProbeRunsWithoutResultCopy() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        MetalMpsFfmBridge bridge = new MetalMpsFfmBridge();
+        assumeTrue(bridge.isAvailable());
+        assumeTrue(bridge.supportsBufferBindings());
+        assumeTrue(bridge.supportsOutputBufferWriteProbe());
+        MetalMpsBridgeContext context = bridge.createContext();
+        MetalMpsBridgeExecutable executable = bridge.compile(context, reluPlan());
+        assumeTrue(executable.available(), executable.reason());
+        MetalBufferAllocator allocator = bridge.createBufferAllocator(context);
+        assertTrue(allocator.available(), allocator.unavailableReason());
+
+        MetalBufferBinding input = null;
+        MetalBufferBinding output = null;
+        try {
+            Tensor source = new Tensor(new float[]{1.0f, -2.0f}, new int[]{2}, null, "source", DataType.FLOAT32);
+            input = allocator.createInputBinding(1, source);
+            float[] sentinelValues = new float[]{123.0f, -456.0f};
+            Tensor sentinel = new Tensor(sentinelValues.clone(), new int[]{2}, null, "sentinel", DataType.FLOAT32);
+            MetalBufferBinding sentinelBinding = allocator.createInputBinding(9, sentinel);
+            output = new MetalBufferBinding(
+                    9,
+                    AcceleratorBufferLayout.fromTensor(sentinel),
+                    sentinelBinding.handle(),
+                    MetalBufferAccess.READ_WRITE
+            );
+
+            MetalMpsBridgeExecutionStats stats = bridge.probeOutputBufferWriteWithoutResultCopy(context, executable, List.of(input), List.of(output));
+            Tensor destination = new Tensor(new float[]{0.0f, 0.0f}, new int[]{2}, null, "destination", DataType.FLOAT32);
+            allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
+
+            assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
+            assertEquals(MetalNativeCopyStrategy.UNKNOWN_OR_UNPROVEN, stats.nativeCopyStrategy());
+            assertFalse(stats.outputBufferWriteProven());
+            assertEquals(0L, stats.nativeDeviceCopyNs());
+            boolean wroteExpected = Arrays.equals(new float[]{1.0f, 0.0f}, destination.getFloat32Data());
+            boolean keptSentinel = Arrays.equals(sentinelValues, destination.getFloat32Data());
+            assertTrue(
+                    wroteExpected || keptSentinel,
+                    "MPSGraph output-buffer probe produced neither expected direct-write values nor the original sentinel."
+            );
+        } finally {
+            if (input != null) {
+                allocator.destroy(input.handle());
+            }
+            if (output != null) {
+                allocator.destroy(output.handle());
+            }
+        }
+    }
+
+    @Test
     void explicitShimCustomReluKernelWritesCallerOutputBuffer() {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());

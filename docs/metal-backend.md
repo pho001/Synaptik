@@ -40,7 +40,7 @@ The current implementation has a real native buffer execution path:
 - Adjacent Metal regions can pass intermediate values through `MetalBufferBinding` without first copying them into Java tensor arrays.
 - A CPU boundary still materializes data back into Java storage through `MetalDeviceToCpuMaterializer`.
 
-The important limitation is that this is not long-lived public GPU tensor storage. Public `Tensor` results are CPU-readable after `compute()` or `PreparedExecution.execute(...)` returns. The MPSGraph buffer path avoids Java-array round trips between adjacent Metal regions, but the Objective-C shim still conservatively copies MPSGraph result storage into caller-provided `MTLBuffer` contents with `readBytes:strideBytes:`. That native copy is measured as `metalNativeDeviceCopyNs`. The scoped custom RELU route is different: it writes directly into the caller output buffer and reports `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`, but that proof applies only to the custom kernel route, not to MPSGraph generally.
+The important limitation is that this is not long-lived public GPU tensor storage. Public `Tensor` results are CPU-readable after `compute()` or `PreparedExecution.execute(...)` returns. The MPSGraph buffer path avoids Java-array round trips between adjacent Metal regions, but the Objective-C shim still conservatively copies MPSGraph result storage into caller-provided `MTLBuffer` contents with `readBytes:strideBytes:`. That native copy is measured as `metalNativeDeviceCopyNs`. Phase 45 adds an internal no-copy probe symbol, `synaptik_apple_mps_probe_output_buffer_write_f32_buffers`, so tests can inspect caller output buffers before the explicit `readBytes` copy. The scoped custom RELU route is different: it writes directly into the caller output buffer and reports `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`, but that proof applies only to the custom kernel route, not to MPSGraph generally.
 
 ## Mental Model
 
@@ -432,7 +432,7 @@ Phase 44 adds a separate custom-kernel route beside MPSGraph. The route is selec
 
 Unsupported custom candidates do not become custom kernels. Multi-node regions, BF16/BOOL/INT32/FLOAT64 candidates, non-RELU operations, unavailable custom symbols, tensor-array transport, and non-dense runtime bindings stay on MPSGraph or the existing explicit fallback path. This keeps custom kernels region-internal and scoped; it does not reuse CPU `Operation.OpType.FUSED` nodes and does not replace the MPSGraph lowering route for broader operation coverage.
 
-The custom RELU native function writes directly into the caller-provided output `MTLBuffer`, so this route reports `metalExecutionPath=CUSTOM_KERNEL` and `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`. MPSGraph buffer execution still reports `MPSGRAPH_RESULT_COPY` until Phase 45 proves or changes that behavior.
+The custom RELU native function writes directly into the caller-provided output `MTLBuffer`, so this route reports `metalExecutionPath=CUSTOM_KERNEL` and `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`. MPSGraph buffer execution still reports `MPSGRAPH_RESULT_COPY` unless a route-specific no-copy proof is promoted into the normal execution path.
 
 ### Why the native result copy still exists
 
@@ -607,6 +607,7 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 | `metalRouteRejectedRoutes` / `metalRouteRejectedReasonCodes` | Alternatives rejected during route selection, for example `CUSTOM_KERNEL_UNAVAILABLE` or `MPS_GRAPH_SELECTED`. |
 | `metalRouteCustomKernelAvailable` | Whether a scoped custom-kernel executable was available for the prepared region. |
 | `metalBufferBindingDecision` | Why the buffer path was used or why it fell back to tensor arrays. |
+| `metalOutputBufferWriteProbeSupported` | Whether the native shim exports the internal no-copy MPSGraph output-buffer proof symbol. This is diagnostic support only, not a true-write claim. |
 | `metalExecutionPath` | `BUFFER_BINDING`, `TENSOR_ARRAY_COPY`, or `CPU_FALLBACK`. |
 | `metalInputBytes`, `metalOutputBytes` | Logical payload byte counts for external inputs and outputs. |
 | `metalJavaToNativeCopyNs` | Java-side copy time into FFM memory; should be `0` for `BUFFER_BINDING`. |
@@ -620,7 +621,7 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 
 Successful buffer execution leaves the step output `device-owned` in `ExecutionState`: the newest value is in a backend buffer, `storageResidency=DEVICE_OWNED`, and the Java tensor array is not current until a CPU materialization boundary is reached. A CPU materialization boundary is a graph output publication, CPU consumer, or gradient publication site that asks the materializer to synchronize the buffer back to CPU storage.
 
-Use `acceleratorBufferExecutionPath`, `acceleratorBufferReasonCode`, `metalExecutionRoute`, `storageResidency`, `metalNativeCopyStrategy`, and `nativeDeviceCopyNs` together when diagnosing a run. `nativeDeviceCopyNs` measures the native MPSGraph-result-to-output-buffer copy inside the current Metal ABI; it is not the same as a Java array copy-back. `metalExecutionRoute=CUSTOM_KERNEL` plus `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE` means the scoped custom kernel wrote the output buffer directly. `metalExecutionRoute=MPS_GRAPH`, `metalNativeCopyStrategy=MPSGRAPH_RESULT_COPY`, and `metalOutputBufferWriteProven=false` mean the bridge is deliberately not claiming zero-copy output-buffer writes for MPSGraph. `metalNativeToJavaCopyNs=0` plus a later CPU materialization trace is the expected device-owned path.
+Use `acceleratorBufferExecutionPath`, `acceleratorBufferReasonCode`, `metalExecutionRoute`, `storageResidency`, `metalNativeCopyStrategy`, and `nativeDeviceCopyNs` together when diagnosing a run. `nativeDeviceCopyNs` measures the native MPSGraph-result-to-output-buffer copy inside the current Metal ABI; it is not the same as a Java array copy-back. `metalExecutionRoute=CUSTOM_KERNEL` plus `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE` means the scoped custom kernel wrote the output buffer directly. `metalExecutionRoute=MPS_GRAPH`, `metalNativeCopyStrategy=MPSGRAPH_RESULT_COPY`, and `metalOutputBufferWriteProven=false` mean the bridge is deliberately not claiming zero-copy output-buffer writes for MPSGraph. `metalOutputBufferWriteProbeSupported=true` only means the test/proof seam is available. `metalNativeToJavaCopyNs=0` plus a later CPU materialization trace is the expected device-owned path.
 
 CUDA remains capability-gated until a native shim exists. `CudaBridgeCapabilities` reports native library, CUDA runtime, context, graph ABI, and `bufferExecutionSupported` state. CUDA tests may assert shared policy and `REQUIRED_BUFFER_EXECUTION_UNAVAILABLE`, but this documentation does not claim production CUDA native buffer execution.
 

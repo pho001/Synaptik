@@ -521,6 +521,7 @@ public final class PreparedExecution {
             attrs.put("metalRouteCustomKernelAvailable", route.customKernelAvailable());
             attrs.put("metalRouteNativeCopyCostKnown", route.nativeCopyCostKnown());
             attrs.put("metalBufferBindingDecision", metal.lastBufferBindingDecision());
+            attrs.put("metalOutputBufferWriteProbeSupported", metal.bridge().supportsOutputBufferWriteProbe());
             attrs.put("metalSubgraphNodeCount", metal.plan().nodeIds().size());
             attrs.put("metalSubgraphOps", metal.plan().subgraph().ops().stream().map(op -> op.opType().name()).toList());
             attrs.put("metalEstimatedWork", metal.plan().estimatedWork());

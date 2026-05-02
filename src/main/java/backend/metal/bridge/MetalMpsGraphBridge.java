@@ -82,6 +82,16 @@ public interface MetalMpsGraphBridge {
     }
 
     /**
+     * Returns whether this bridge exposes the internal MPSGraph output-buffer write proof probe.
+     *
+     * <p>This is diagnostic evidence only. It does not imply normal MPSGraph execution can skip its
+     * explicit result-copy path or report {@code TRUE_OUTPUT_BUFFER_WRITE}.</p>
+     */
+    default boolean supportsOutputBufferWriteProbe() {
+        return false;
+    }
+
+    /**
      * Creates a buffer allocator bound to the supplied bridge context.
      *
      * <p>The default is unavailable so prepared execution can ask the bridge for a narrow allocation seam without

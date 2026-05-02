@@ -147,7 +147,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 45: Metal Output Buffer Write And Copy Closure
 
-**Status:** Not started
+**Status:** In progress
 
 **Goal:** Prove true output-buffer writes or implement a lower-copy strategy without false zero-copy claims.
 
@@ -163,7 +163,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 5. Regression gates fail false zero-copy claims and unexpected copy reintroduction.
 
 **Planned waves:**
-- [ ] 45-01 Output-buffer write proof harness.
+- [x] 45-01 Output-buffer write proof harness.
 - [ ] 45-02 Lower-copy or alias strategy.
 - [ ] 45-03 Copy strategy reporting and gates.
 - [ ] 45-04 Docs and milestone evidence closure.

@@ -352,6 +352,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(-1L, attrs.get("metalRouteEstimatedCopyCost"));
         assertEquals(false, attrs.get("metalRouteNativeCopyCostKnown"));
         assertEquals(false, attrs.get("metalRouteCustomKernelAvailable"));
+        assertEquals(false, attrs.get("metalOutputBufferWriteProbeSupported"));
         assertEquals("MPSGRAPH_RESULT_COPY", attrs.get("metalNativeCopyStrategy"));
         assertEquals(false, attrs.get("metalOutputBufferWriteProven"));
         assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));

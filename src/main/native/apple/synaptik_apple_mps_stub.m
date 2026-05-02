@@ -1461,14 +1461,15 @@ int synaptik_apple_mps_execute_partition_f32(
     }
 }
 
-int32_t synaptik_apple_mps_execute_partition_f32_buffers(
+static int32_t SynaptikExecutePartitionBuffers(
         void *context,
         void *executable,
         const void * const *external_input_buffers,
         int32_t external_input_count,
         void * const *output_buffers,
         int32_t output_count,
-        int64_t *native_device_copy_ns
+        int64_t *native_device_copy_ns,
+        BOOL copy_mpsgraph_results_to_outputs
 ) {
     @autoreleasepool {
         if (native_device_copy_ns != NULL) {
@@ -1571,29 +1572,31 @@ int32_t synaptik_apple_mps_execute_partition_f32_buffers(
             return 10;
         }
         int64_t copyNs = 0;
-        for (int32_t i = 0; i < output_count; i++) {
-            SynaptikAppleMpsBufferBox *box = SynaptikUnboxBuffer(output_buffers[i]);
-            MPSGraphTensorData *resultData = results[(NSUInteger) i];
-            MPSNDArray *resultArray = resultData.mpsndarray;
-            if (box == nil || box.buffer == nil || resultArray == nil) {
-                return 11;
-            }
-            int32_t dtypeCode = executableBox.outputDTypes[(NSUInteger) i].intValue;
-            NSUInteger elementCount = (NSUInteger) executableBox.outputElementCounts[(NSUInteger) i].unsignedLongLongValue;
-            NSUInteger byteSize = SynaptikByteSizeForDTypeCode(dtypeCode);
-            if (byteSize == 0) {
-                return 12;
-            }
-            NSUInteger bytes = elementCount * byteSize;
-            void *contents = box.buffer.contents;
-            if (contents == NULL || box.byteLength < bytes) {
-                return 12;
-            }
-            int64_t copyStart = SynaptikNowNs();
-            [resultArray readBytes:contents strideBytes:NULL];
-            int64_t copyEnd = SynaptikNowNs();
-            if (copyEnd > copyStart) {
-                copyNs += copyEnd - copyStart;
+        if (copy_mpsgraph_results_to_outputs) {
+            for (int32_t i = 0; i < output_count; i++) {
+                SynaptikAppleMpsBufferBox *box = SynaptikUnboxBuffer(output_buffers[i]);
+                MPSGraphTensorData *resultData = results[(NSUInteger) i];
+                MPSNDArray *resultArray = resultData.mpsndarray;
+                if (box == nil || box.buffer == nil || resultArray == nil) {
+                    return 11;
+                }
+                int32_t dtypeCode = executableBox.outputDTypes[(NSUInteger) i].intValue;
+                NSUInteger elementCount = (NSUInteger) executableBox.outputElementCounts[(NSUInteger) i].unsignedLongLongValue;
+                NSUInteger byteSize = SynaptikByteSizeForDTypeCode(dtypeCode);
+                if (byteSize == 0) {
+                    return 12;
+                }
+                NSUInteger bytes = elementCount * byteSize;
+                void *contents = box.buffer.contents;
+                if (contents == NULL || box.byteLength < bytes) {
+                    return 12;
+                }
+                int64_t copyStart = SynaptikNowNs();
+                [resultArray readBytes:contents strideBytes:NULL];
+                int64_t copyEnd = SynaptikNowNs();
+                if (copyEnd > copyStart) {
+                    copyNs += copyEnd - copyStart;
+                }
             }
         }
         if (native_device_copy_ns != NULL) {
@@ -1601,6 +1604,47 @@ int32_t synaptik_apple_mps_execute_partition_f32_buffers(
         }
         return 0;
     }
+}
+
+int32_t synaptik_apple_mps_execute_partition_f32_buffers(
+        void *context,
+        void *executable,
+        const void * const *external_input_buffers,
+        int32_t external_input_count,
+        void * const *output_buffers,
+        int32_t output_count,
+        int64_t *native_device_copy_ns
+) {
+    return SynaptikExecutePartitionBuffers(
+            context,
+            executable,
+            external_input_buffers,
+            external_input_count,
+            output_buffers,
+            output_count,
+            native_device_copy_ns,
+            YES
+    );
+}
+
+int32_t synaptik_apple_mps_probe_output_buffer_write_f32_buffers(
+        void *context,
+        void *executable,
+        const void * const *external_input_buffers,
+        int32_t external_input_count,
+        void * const *output_buffers,
+        int32_t output_count
+) {
+    return SynaptikExecutePartitionBuffers(
+            context,
+            executable,
+            external_input_buffers,
+            external_input_count,
+            output_buffers,
+            output_count,
+            NULL,
+            NO
+    );
 }
 
 int synaptik_apple_mps_layout_contiguous_f32_buffer(
