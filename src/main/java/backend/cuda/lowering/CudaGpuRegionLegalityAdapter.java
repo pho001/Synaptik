@@ -76,6 +76,12 @@ public final class CudaGpuRegionLegalityAdapter implements RegionLegalityAdapter
                 return indexReason;
             }
         }
+        if (CudaIndexWriteSemantics.isHandled(opType)) {
+            String indexWriteReason = CudaIndexWriteSemantics.unsupportedReason(node, context);
+            if (!indexWriteReason.isBlank()) {
+                return indexWriteReason;
+            }
+        }
         GpuLoweringCoverageEntry entry = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_CUDA, opType);
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_CUDA, opType);

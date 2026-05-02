@@ -116,35 +116,35 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "training_transformer_block_hot_path",
                         "training_attention",
-                        List.of("GPUNATIVE", "GPUSDPA", "GPUCLOSE", "METALTRAIN"),
+                        List.of("GPUNATIVE", "GPUSDPA", "GPUCLOSE", "METALTRAIN", "CUDATRAIN"),
                         38,
                         "Exercises FORWARD_BACKWARD transformer coverage and keeps unsupported SDPA backward report-visible."
                 ),
                 new GpuHotPathCoverageTarget(
                         "training_dense_loss_small",
                         "training_loss_dense",
-                        List.of("GPUNATIVE", "METALLOSS", "GPUCLOSE", "METALTRAIN"),
+                        List.of("GPUNATIVE", "METALLOSS", "GPUCLOSE", "METALTRAIN", "CUDATRAIN"),
                         38,
                         "Exercises dense loss training coverage with gradient publication separated from internal CPU exits."
                 ),
                 new GpuHotPathCoverageTarget(
                         "training_reduction_chain_small",
                         "training_reduction",
-                        List.of("GPUNATIVE", "GPURED", "GPUCLOSE", "METALTRAIN"),
+                        List.of("GPUNATIVE", "GPURED", "GPUCLOSE", "METALTRAIN", "CUDATRAIN"),
                         38,
                         "Exercises reduction backward coverage and gradient publication gates."
                 ),
                 new GpuHotPathCoverageTarget(
                         "training_layer_norm_small",
                         "training_normalization",
-                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALTRAIN"),
+                        List.of("GPUNATIVE", "GPUNORMX", "GPUCLOSE", "METALTRAIN", "CUDATRAIN"),
                         38,
                         "Exercises normalization/reduction training coverage and gradient publication gates."
                 ),
                 new GpuHotPathCoverageTarget(
                         "training_cross_entropy_small",
                         "training_loss_index",
-                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALTRAIN"),
+                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALTRAIN", "CUDATRAIN"),
                         38,
                         "Exercises index-target loss gradient blocker visibility in FORWARD_BACKWARD runs."
                 ),
@@ -165,7 +165,7 @@ public final class GpuHotPathCoverageTargets {
                 new GpuHotPathCoverageTarget(
                         "scatter_index_gradient_small",
                         "index_scatter_gradient",
-                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALSCATTER"),
+                        List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE", "METALSCATTER", "CUDATRAIN"),
                         36,
                         "Exercises SCATTER_ADD, GATHER_GRAD, and TAKE_ALONG_AXIS_GRAD as separately reported duplicate-index blockers."
                 ),

@@ -645,6 +645,120 @@ class CudaRegionLowererTest {
     }
 
     @Test
+    void cudaIndexWriteRejectsDtypeLayoutAndBoundsBeforeDuplicateBlocker() {
+        Tensor base = new Tensor(new float[]{10f, 20f, 30f, 40f, 50f, 60f}, new int[]{2, 3}, null, "cuda43ScatterBase", DataType.FLOAT32);
+        Tensor src = new Tensor(new float[]{1f, 5f}, new int[]{2}, null, "cuda43ScatterSrc", DataType.FLOAT32);
+
+        Tensor floatIndices = new Tensor(new float[]{2f, 0f}, new int[]{2}, null, "cuda43ScatterFloatIndices", DataType.FLOAT32);
+        Tensor dtypeScatter = base.scatterAdd(floatIndices, src, 1);
+        TensorInternalAccess.setBackend(dtypeScatter, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeScatter);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.SCATTER_ADD)),
+                        dtypeContext
+                ),
+                "UNSUPPORTED_DTYPE",
+                "role=INDEX_INPUT",
+                "dtype=FLOAT32"
+        );
+
+        Tensor oobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "cuda43ScatterOobIndices", DataType.INT32);
+        Tensor oobScatter = base.scatterAdd(oobIndices, src, 1);
+        TensorInternalAccess.setBackend(oobScatter, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext oobContext = planningContext(oobScatter);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        oobContext.compiledNode(nodeId(oobContext, Operation.OpType.SCATTER_ADD)),
+                        oobContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index 3 is outside axis size 3"
+        );
+
+        Tensor layoutBase = new Tensor(new float[]{10f, 40f, 20f, 50f, 30f, 60f}, new int[]{3, 2}, null, "cuda43ScatterLayoutBase", DataType.FLOAT32);
+        Tensor nonDenseBase = layoutBase.permute(1, 0);
+        Tensor intIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cuda43ScatterIntIndices", DataType.INT32);
+        Tensor layoutScatter = nonDenseBase.scatterAdd(intIndices, src, 1);
+        TensorInternalAccess.setBackend(layoutScatter, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext layoutContext = planningContext(layoutScatter);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        layoutContext.compiledNode(nodeId(layoutContext, Operation.OpType.SCATTER_ADD)),
+                        layoutContext
+                ),
+                "UNSUPPORTED_LAYOUT",
+                "SCATTER_ADD inputs require dense layout"
+        );
+    }
+
+    @Test
+    void cudaIndexGradientRejectsBoundsAndUnprovenIndexBeforeDuplicateBlocker() {
+        Tensor gatherOobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "cuda43GatherOobIndices", DataType.INT32);
+        Tensor gatherOutGrad = new Tensor(new float[]{1f, 2f}, new int[]{2}, null, "cuda43GatherBoundsOutGrad", DataType.FLOAT32);
+        Tensor gatherGradOut = TensorPrimitiveBuilder.binary(
+                gatherOobIndices,
+                gatherOutGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "cuda43GatherBoundsGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(gatherGradOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext gatherBoundsContext = planningContext(gatherGradOut);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        gatherBoundsContext.compiledNode(nodeId(gatherBoundsContext, Operation.OpType.GATHER_GRAD)),
+                        gatherBoundsContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index 3 is outside axis size 3"
+        );
+
+        Tensor takeOobIndices = new Tensor(new int[]{2, 3, 0, 0}, new int[]{2, 2}, null, "cuda43TakeOobIndices", DataType.INT32);
+        Tensor takeOutGrad = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cuda43TakeBoundsOutGrad", DataType.FLOAT32);
+        Tensor takeGradOut = TensorPrimitiveBuilder.binary(
+                takeOobIndices,
+                takeOutGrad,
+                new int[]{2, 3},
+                new takeAlongAxisGrad(1),
+                "cuda43TakeBoundsGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(takeGradOut, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext takeBoundsContext = planningContext(takeGradOut);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        takeBoundsContext.compiledNode(nodeId(takeBoundsContext, Operation.OpType.TAKE_ALONG_AXIS_GRAD)),
+                        takeBoundsContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index 3 is outside axis size 3"
+        );
+
+        Tensor dynamicGatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cuda43DynamicGatherIndices", DataType.INT32)
+                .reshape(2);
+        Tensor dynamicGatherGrad = TensorPrimitiveBuilder.binary(
+                dynamicGatherIndices,
+                gatherOutGrad,
+                new int[]{2, 3},
+                new gatherGrad(1),
+                "cuda43DynamicGatherGrad",
+                DataType.FLOAT32
+        );
+        TensorInternalAccess.setBackend(dynamicGatherGrad, ComputeBackend.GPU_CUDA);
+        PartitionPlanningContext dynamicGatherContext = planningContext(dynamicGatherGrad);
+        assertContainsAll(
+                CudaGpuRegionLegalityAdapter.plannerUnsupportedReason(
+                        dynamicGatherContext.compiledNode(nodeId(dynamicGatherContext, Operation.OpType.GATHER_GRAD)),
+                        dynamicGatherContext
+                ),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "index bounds require a static INT32 leaf tensor"
+        );
+    }
+
+    @Test
     void cudaForwardGatherTakeValidateContractBeforeCapabilityMissing() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cuda41IndexInput", DataType.FLOAT32);
         Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "cuda41GatherIndices", DataType.INT32);

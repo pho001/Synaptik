@@ -140,6 +140,9 @@ public class GpuHotPathCoverageTargetsTest {
         assertEquals(5, targets.stream()
                 .filter(target -> target.requirementFamilies().contains("CUDANN"))
                 .count());
+        assertEquals(6, targets.stream()
+                .filter(target -> target.requirementFamilies().contains("CUDATRAIN"))
+                .count());
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUNATIVE")));
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUCLOSE")));
         assertEquals(23, targets.getFirst().ownerPhase());
@@ -420,6 +423,33 @@ public class GpuHotPathCoverageTargetsTest {
         assertVisibleBlocker(GpuHotPathCoverageTargets.defaultExpectations(), "training_cross_entropy_small");
         assertTrue(metal.get("training_cross_entropy_small").expectedVisibleReasons()
                 .contains("CROSS_ENTROPY_LOSS_INDICES_GRAD"));
+    }
+
+    @Test
+    void phaseFortyThreeCudaTrainingTargetsSeparateSupportedRowsFromVisibleBlockers() {
+        Map<String, GpuCoverageHotPathExpectation> cuda = expectationsByName("GPU_CUDA");
+
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "training_transformer_block_hot_path");
+        assertTrue(cuda.get("training_transformer_block_hot_path").expectedVisibleReasons()
+                .contains("SCALED_DOT_PRODUCT_ATTENTION_BACKWARD"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "training_dense_loss_small");
+        assertTrue(cuda.get("training_dense_loss_small").expectedVisibleReasons()
+                .contains("DAG_PRIMITIVE_UNSUPPORTED"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "training_cross_entropy_small");
+        assertTrue(cuda.get("training_cross_entropy_small").expectedVisibleReasons()
+                .contains("UNSUPPORTED_INDEX_SEMANTICS"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "scatter_index_gradient_small");
+
+        assertTrue(cuda.get("training_reduction_chain_small").nativeEvidenceRequired());
+        assertTrue(cuda.get("training_reduction_chain_small").expectedVisibleReasons().isEmpty());
+        assertTrue(cuda.get("training_reduction_chain_small").policy().requireNativeBufferBinding());
+        assertEquals(0, cuda.get("training_reduction_chain_small").policy().maxInternalCpuMaterializationCount());
+        assertTrue(cuda.get("training_reduction_chain_small").policy().maxGradientPublicationMaterializationCount() > 0);
+        assertTrue(cuda.get("training_layer_norm_small").nativeEvidenceRequired());
+        assertTrue(cuda.get("training_layer_norm_small").expectedVisibleReasons().isEmpty());
+        assertTrue(cuda.get("training_layer_norm_small").policy().requireNativeBufferBinding());
+        assertEquals(0, cuda.get("training_layer_norm_small").policy().maxInternalCpuMaterializationCount());
+        assertTrue(cuda.get("training_layer_norm_small").policy().maxGradientPublicationMaterializationCount() > 0);
     }
 
     @Test
