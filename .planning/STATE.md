@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 40 CUDA Parity Gap Triage And Capability Baseline validation
+**Current focus:** Phase 41 CUDA DType Layout And Index Residency planning
 
 ## Project Reference
 
@@ -225,6 +225,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | v1.6 milestone started | Accelerator Backend Parity And Native Kernel Closure targets CUDA parity, real custom Metal kernels, output-copy proof, and cross-backend routing gates. |
 | 2026-05-02 | Phase 40 execution completed | CUDA parity baseline, capability dimensions, hot-path blocker classifications, docs, and verification evidence close `CUDAPARITY-01..03`. |
 | 2026-05-02 | Phase 40 security passed | Security audit closed 4/4 Phase 40 threats with `threats_open: 0`. |
+| 2026-05-02 | Phase 40 Nyquist validation passed | Validation audit found 0 gaps and kept optional native CUDA pass/skip evidence manual-only. |
 
 ## Recent Sessions
 
@@ -292,7 +293,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 
 ## Current Position
 
-Phase: 40 CUDA Parity Gap Triage And Capability Baseline
-Plan: complete
-Status: Ready for `$gsd-validate-phase 40`
-Last activity: 2026-05-02 -- Phase 40 security passed
+Phase: 41 CUDA DType Layout And Index Residency
+Plan: none
+Status: Ready for `$gsd-discuss-phase 41 --auto` or `$gsd-plan-phase 41 --auto`
+Last activity: 2026-05-02 -- Phase 40 validation passed
