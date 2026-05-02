@@ -4,6 +4,7 @@ import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
 import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
+import backend.cuda.CudaDTypeRolePolicy;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaGraphBridge;
 import backend.memory.DeviceBufferBinding;
@@ -38,6 +39,14 @@ public final class CudaDeviceLayoutMaterializer implements DeviceLayoutMateriali
             ExecutionContext context
     ) {
         Objects.requireNonNull(decision, "decision cannot be null");
+        if (decision.kind() == AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION) {
+            throw new UnsupportedOperationException("CUDA_LAYOUT_BROADCAST_UNSUPPORTED: CUDA layout materializer "
+                    + "does not implement broadcast/zero-stride GPU materialization yet.");
+        }
+        if (decision.kind() == AcceleratorLayoutTransformKind.STRIDED_NATIVE_COMPUTE) {
+            throw new UnsupportedOperationException("CUDA_STRIDED_COMPUTE_UNSUPPORTED: CUDA layout materializer "
+                    + "cannot execute arbitrary strided native compute.");
+        }
         if (decision.kind() != AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION) {
             throw new UnsupportedOperationException("CUDA layout materializer requires DENSE_GPU_MATERIALIZATION, got "
                     + decision.kind());
@@ -57,12 +66,13 @@ public final class CudaDeviceLayoutMaterializer implements DeviceLayoutMateriali
 
         AcceleratorBufferLayout targetLayout = decision.targetLayout();
         if (targetLayout.dataType() != DataType.FLOAT32) {
-            throw new UnsupportedOperationException("CUDA dense layout materialization supports FLOAT32 only; got "
-                    + targetLayout.dataType());
+            throw new UnsupportedOperationException("NATIVE_LAYOUT_DTYPE_UNSUPPORTED: CUDA dense layout materialization "
+                    + "requires native compute/output role FLOAT32; "
+                    + CudaDTypeRolePolicy.computeOutput(targetLayout.dataType()).detail());
         }
         if (targetLayout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
-            throw new UnsupportedOperationException("CUDA dense layout materialization requires dense target layout; got "
-                    + targetLayout.layoutClass());
+            throw new UnsupportedOperationException("CUDA_LAYOUT_TARGET_UNSUPPORTED: CUDA dense layout materialization "
+                    + "requires dense target layout; layoutClass=" + targetLayout.layoutClass());
         }
 
         CudaBufferBinding destination = allocator.createOutputBinding(decision.targetNodeId(), targetLayout);

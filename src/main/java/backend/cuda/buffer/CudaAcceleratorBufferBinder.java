@@ -487,10 +487,12 @@ public final class CudaAcceleratorBufferBinder {
         }
         AcceleratorBufferLayout actualLayout = cudaBinding.layout();
         if (expectedLayout != null && actualLayout.dataType() != expectedLayout.dataType()) {
-            return "binding dtype " + actualLayout.dataType() + " does not match expected dtype " + expectedLayout.dataType();
+            return "dtype-role mismatch: binding dtype " + actualLayout.dataType()
+                    + " does not match expected dtype " + expectedLayout.dataType();
         }
         if (expectedDataType != null && actualLayout.dataType() != expectedDataType) {
-            return "binding dtype " + actualLayout.dataType() + " does not match executable dtype " + expectedDataType;
+            return "dtype-role mismatch: binding dtype " + actualLayout.dataType()
+                    + " does not match executable dtype " + expectedDataType;
         }
         if (expectedLayout != null && !Arrays.equals(actualLayout.shape(), expectedLayout.shape())) {
             return "binding shape " + Arrays.toString(actualLayout.shape())
@@ -501,16 +503,21 @@ public final class CudaAcceleratorBufferBinder {
                     + " do not match expected strides " + Arrays.toString(expectedLayout.strides());
         }
         if (expectedLayout != null && actualLayout.storageOffset() != expectedLayout.storageOffset()) {
-            return "binding storageOffset " + actualLayout.storageOffset()
+            return "storage-offset mismatch: binding storageOffset " + actualLayout.storageOffset()
                     + " does not match expected storageOffset " + expectedLayout.storageOffset();
         }
         if (expectedLayout != null && actualLayout.logicalElementCount() != expectedLayout.logicalElementCount()) {
             return "binding elementCount " + actualLayout.logicalElementCount()
                     + " does not match expected elementCount " + expectedLayout.logicalElementCount();
         }
+        if (expectedLayout != null && actualLayout.logicalByteLength() != expectedLayout.logicalByteLength()) {
+            return "byte-span mismatch: binding logicalByteLength " + actualLayout.logicalByteLength()
+                    + " does not match expected logicalByteLength " + expectedLayout.logicalByteLength();
+        }
         if (requiredAccess == CudaBufferAccess.READ
                 && actualLayout.layoutClass() != AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS) {
-            return "binding is a metadata-only CUDA layout view and must be materialized before native buffer compute";
+            return "metadata-only CUDA layout view requires dense materialization before native buffer compute; layoutClass="
+                    + actualLayout.layoutClass();
         }
         if (!accessCompatible(cudaBinding.access(), requiredAccess)) {
             return "binding access " + cudaBinding.access() + " is incompatible with required " + requiredAccess;
