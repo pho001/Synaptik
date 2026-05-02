@@ -240,6 +240,56 @@
 - Sessions: one extended v1.4 run covering phases 22 through 28 and archive close.
 - Notable: coverage regression gates and targeted Gradle filters kept verification focused despite a broad operation-family milestone.
 
+---
+
+## Milestone: v1.5 - Production-Grade Metal Backend Expansion
+
+**Shipped:** 2026-05-02
+**Phases:** 11 | **Plans:** 44 | **Tasks:** not recorded
+
+### What Was Built
+
+- Versioned Metal dtype ABI and capability truth across storage, external input, compute, output, operation roles, and reason codes.
+- Scoped BF16 compute/output, BOOL-producing compute, and INT32 index/gather/take execution with native Metal evidence or stable rejection.
+- GPU-side layout repair, masked/causal SDPA, conv/pool forward execution, dense loss lowering, and selected backward rows.
+- Scatter/index-gradient and index-target loss blockers with CPU parity, duplicate/bounds semantics, and visible reason codes.
+- Metal route/copy evidence for MPSGraph, custom-kernel seam, tensor-array fallback, CPU fallback, and `MPSGRAPH_RESULT_COPY`.
+- Validation, security, verification, coverage gates, and milestone audit artifacts for all v1.5 phases.
+
+### What Worked
+
+- The milestone rule that a Metal row needs semantic contract, lowering, legality, execution, CPU parity, trace/report evidence, and regression coverage prevented overclaiming.
+- Backend-neutral contracts still let Metal move first without silently widening CUDA behavior.
+- Coverage gates made support-or-rejection work reviewable: unsupported scatter, CUDA parity, custom kernels, and output-buffer writes are visible rather than hidden.
+- Closing security and Nyquist artifacts before archive made the final milestone audit a tech-debt review instead of a functional blocker.
+
+### What Was Inefficient
+
+- Security and validation artifacts again lagged implementation and had to be backfilled after the first v1.5 audit.
+- `gsd-sdk query milestone.complete` generated low-quality accomplishment text, so MILESTONES/ROADMAP/PROJECT needed manual cleanup.
+- Local tuning/profile artifacts remained dirty throughout the close and required explicit staging discipline.
+- True MPSGraph output-buffer write proof and real custom Metal kernels remain deferred, so route/copy closure is evidence-based rather than a full zero-copy implementation.
+
+### Patterns Established
+
+- Dtype support must be role-specific: storage/residency is not compute/output support.
+- Metal support can be widened safely when every new family has native or routed execution proof plus explicit unsupported variants.
+- Copy strategy should be a named report field; `MPSGRAPH_RESULT_COPY` is acceptable only when not mislabeled as zero-copy.
+- Phase archival should happen immediately after milestone close to keep `.planning/phases/` ready for the next cycle.
+
+### Key Lessons
+
+1. Run security and Nyquist validation before the first milestone audit, not after audit reports missing artifacts.
+2. Treat generated milestone archive text as draft output; inspect and repair user-facing summaries before commit.
+3. Do not equate "custom-kernel route exists" with "custom kernels execute"; the seam needs real kernel bridge and parity tests in a later milestone.
+4. The next backend milestone should choose between CUDA parity, true output-buffer write proof, and custom Metal kernels based on measured coverage gaps.
+
+### Cost Observations
+
+- Model mix: not recorded for this milestone.
+- Sessions: one extended v1.5 run covering phases 29 through 39 and archive close.
+- Notable: targeted Gradle filters and coverage gates kept validation feasible despite broad Metal dtype, NN, indexing, loss, training, and router scope.
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -251,6 +301,7 @@
 | v1.2 | multiple | 5 | Added three-source requirement audit discipline across GPU layout, lowering, fusion, and coverage gates. |
 | v1.3 | multiple | 8 | Added coverage-driven GPU region expansion, region-internal fusion, multi-op execution, hard coverage gates, and evidence-only audit closure. |
 | v1.4 | multiple | 7 | Added native/lowered GPU operation coverage closure, support-or-rejection diagnostics, and hard execution-path regression gates for high-impact fallback families. |
+| v1.5 | multiple | 11 | Expanded Metal toward production-grade coverage with dtype, layout, NN/index/loss/training, router, copy-strategy, security, and validation closure. |
 
 ### Cumulative Quality
 
@@ -261,6 +312,7 @@
 | v1.2 | 16/16 satisfied | 5/5 phases passed | 0 |
 | v1.3 | 24/24 satisfied | 8/8 phases passed | 0 |
 | v1.4 | 21/21 satisfied | 7/7 phases passed | 0 |
+| v1.5 | 33/33 satisfied | 11/11 phases passed | 0 |
 
 ### Top Lessons
 
@@ -270,3 +322,4 @@
 4. GPU residency improvements need layout, lowering, fusion, and coverage gates to evolve together.
 5. Evidence-only closure phases are valid when the implementation is complete but audit-readable proof is stale.
 6. Native coverage claims should require executable backend evidence or explicit capability-gated rejection, never support labels alone.
+7. Milestone archive automation should be treated as a helper, not a substitute for a final human-readable summary pass.

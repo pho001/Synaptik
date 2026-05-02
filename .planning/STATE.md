@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
-status: active
-last_updated: "2026-05-02T13:03:00Z"
-last_activity: 2026-05-02 -- Phase 39 verification completed
+status: v1.5 milestone archived; ready for `$gsd-new-milestone`
+last_updated: "2026-05-02T13:14:26.643Z"
+last_activity: 2026-05-02
 progress:
   total_phases: 11
   completed_phases: 11
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 39 — Metal Backend Router And Zero-Copy Closure
+**Current focus:** Planning next milestone
 
 ## Project Reference
 
@@ -36,14 +36,15 @@ Completed milestones:
 - v1.2 GPU Region Coverage - shipped 2026-05-01
 - v1.3 Coverage-Driven GPU Region Expansion - shipped 2026-05-01
 - v1.4 Native GPU Operation Coverage Closure - shipped 2026-05-02
+- v1.5 Production-Grade Metal Backend Expansion - shipped 2026-05-02
 
 Current milestone:
 
-- v1.5 Production-Grade Metal Backend Expansion - active
+- None. Run `$gsd-new-milestone` to define the next milestone.
 
 Recently completed milestone:
 
-- v1.4 Native GPU Operation Coverage Closure - shipped 2026-05-02
+- v1.5 Production-Grade Metal Backend Expansion - shipped 2026-05-02
 
 ## Codebase Map
 
@@ -69,22 +70,23 @@ Planning agents should read the relevant codebase map documents before proposing
 - v1.2 phase execution directories were archived to `.planning/milestones/v1.2-phases/` before starting the next milestone.
 - v1.3 phase execution directories were archived to `.planning/milestones/v1.3-phases/` before starting the next milestone.
 - v1.4 phase execution directories were archived to `.planning/milestones/v1.4-phases/` before starting v1.5.
+- v1.5 phase execution directories were archived to `.planning/milestones/v1.5-phases/` before starting the next milestone.
 
 ## Phase Planning Status
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
-| 29 — Metal DType ABI And Capability Truth | Complete | 4/4 | Verified |
-| 30 — BF16 Metal Compute And Output | Complete | 4/4 | Verified |
-| 31 — BOOL-Producing Metal Compute | Complete | 4/4 | Verified |
-| 32 — INT32 Index Tensor And Gather Take Path | Complete | 4/4 | Verified |
-| 33 — GPU Layout Router And Strided Materialization | Complete | 4/4 | Verified |
-| 34 — Masked And Causal SDPA | Complete | 4/4 | Verified |
-| 35 — Conv Pool Native Execution | Complete | 4/4 | Verified |
-| 36 — Scatter And Index Gradient Semantics | Complete | 4/4 | Verified |
-| 37 — Loss-Adjacent Metal Lowering | Complete | 4/4 | Verified |
-| 38 — Metal Training Backward Coverage | Complete | 4/4 | Verified |
-| 39 — Metal Backend Router And Zero-Copy Closure | Complete | 4/4 | Verified |
+| 29 — Metal DType ABI And Capability Truth | Archived | 4/4 | Verified |
+| 30 — BF16 Metal Compute And Output | Archived | 4/4 | Verified |
+| 31 — BOOL-Producing Metal Compute | Archived | 4/4 | Verified |
+| 32 — INT32 Index Tensor And Gather Take Path | Archived | 4/4 | Verified |
+| 33 — GPU Layout Router And Strided Materialization | Archived | 4/4 | Verified |
+| 34 — Masked And Causal SDPA | Archived | 4/4 | Verified |
+| 35 — Conv Pool Native Execution | Archived | 4/4 | Verified |
+| 36 — Scatter And Index Gradient Semantics | Archived | 4/4 | Verified |
+| 37 — Loss-Adjacent Metal Lowering | Archived | 4/4 | Verified |
+| 38 — Metal Training Backward Coverage | Archived | 4/4 | Verified |
+| 39 — Metal Backend Router And Zero-Copy Closure | Archived | 4/4 | Verified |
 | 22 — Coverage Truth And Semantics Lock | Archived | 3/3 | Verified |
 | 23 — Forward Reductions Native Execution | Archived | 3/3 | Verified |
 | 24 — Normalization GPU Lowering | Archived | 4/4 | Verified |
@@ -272,13 +274,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Planned Phase 36 with 4 scatter/index-gradient waves | Ready for Phase 36 execution | .planning/phases/36-scatter-and-index-gradient-semantics/36-01-PLAN.md |
 | 2026-05-02 | Completed 36-01 scatter/index-gradient semantics contract | Ready for 36-02 native or stable-rejection execution decision | .planning/phases/36-scatter-and-index-gradient-semantics/36-01-SUMMARY.md |
 | 2026-05-02 | Completed 36-02 native or stable-rejection scatter execution | Ready for 36-03 gradient parity and duplicate-index gates | .planning/phases/36-scatter-and-index-gradient-semantics/36-02-SUMMARY.md |
+| 2026-05-02 | Completed v1.5 milestone archive | Ready for `$gsd-new-milestone` | .planning/milestones/v1.5-ROADMAP.md |
 
 ---
-*Last updated: 2026-05-02 after Phase 36-02 execution*
+*Last updated: 2026-05-02 after v1.5 milestone completion*
 
 ## Current Position
 
-Phase: 36
-Plan: .planning/phases/36-scatter-and-index-gradient-semantics/36-03-PLAN.md
-Status: Ready for `$gsd-execute-phase 36 --wave 3`
-Last activity: 2026-05-02 — 36-02 stable Metal index-write rejection path completed
+Phase: none
+Plan: none
+Status: Ready for `$gsd-new-milestone`
+Last activity: 2026-05-02

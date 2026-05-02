@@ -4,7 +4,7 @@
 
 Synaptik is a Java tensor and compiled computation graph framework for engineers who need to build, optimize, benchmark, and extend tensor execution internals directly in Java. The project centers on explicit graph construction, staged compilation, reverse-mode autodiff, backend-aware runtime execution, calibration, and graph autotune rather than an eager-only numerical scripting model.
 
-This is an existing brownfield codebase. v1.0 shipped accelerator/runtime architecture hardening, v1.1 shipped the first checked-in CUDA native runtime path for dense `FLOAT32` buffer execution, v1.2 shipped broader Metal/CUDA GPU region coverage through layout ABI v2, GPU layout/view paths, lowering coverage, compound GPU regions, and coverage regression gates, v1.3 shipped coverage-driven GPU region expansion with internal lowered DAGs, dtype/storage residency, broader lowering metadata, region-internal fusion evidence, multi-op GPU regions, and hard coverage evidence, and v1.4 shipped native/lowered GPU execution closure for high-impact operation families with support-or-rejection coverage gates.
+This is an existing brownfield codebase. v1.0 shipped accelerator/runtime architecture hardening, v1.1 shipped the first checked-in CUDA native runtime path for dense `FLOAT32` buffer execution, v1.2 shipped broader Metal/CUDA GPU region coverage through layout ABI v2, GPU layout/view paths, lowering coverage, compound GPU regions, and coverage regression gates, v1.3 shipped coverage-driven GPU region expansion with internal lowered DAGs, dtype/storage residency, broader lowering metadata, region-internal fusion evidence, multi-op GPU regions, and hard coverage evidence, v1.4 shipped native/lowered GPU execution closure for high-impact operation families with support-or-rejection coverage gates, and v1.5 shipped a substantially broader Metal backend with dtype, layout, NN, indexing, loss, training, routing, and copy-strategy evidence.
 
 ## Core Value
 
@@ -12,18 +12,21 @@ Synaptik must produce correct tensor results through a clean compiled graph arch
 
 ## Current State
 
-v1.4 Native GPU Operation Coverage Closure shipped and was archived on 2026-05-02. Phases 22 through 28 are complete and the v1.4 milestone audit passed. Synaptik now has target coverage truth, semantics contracts, native/lowered reduction coverage, normalization GPU lowering, verified Metal forward SDPA admission, explicit CUDA SDPA capability fallback, loss/indexing support-or-rejection diagnostics, conv/pool and BOOL-output coverage evidence, and hard regression gates that prove supported families do not silently fall back to tensor-array or CPU replay.
+v1.5 Production-Grade Metal Backend Expansion shipped and was archived on 2026-05-02. Phases 29 through 39 are complete and the v1.5 milestone audit is at tech-debt-only status with no functional, security, or validation blockers. Synaptik now has versioned Metal dtype capability truth, scoped BF16 compute/output, BOOL-producing compute, INT32 index/gather/take execution, GPU-side layout repair, masked/causal SDPA, conv/pool, dense loss, selected training backward rows, explicit scatter/index-gradient blockers, and route/copy strategy evidence.
 
-- 28 phases and 108 plans completed across v1.0, v1.1, v1.2, v1.3, and v1.4; v1.4 phase artifacts are archived in `.planning/milestones/v1.4-phases/`.
-- 94/94 milestone requirements are satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, `.planning/milestones/v1.2-REQUIREMENTS.md`, `.planning/milestones/v1.3-REQUIREMENTS.md`, and `.planning/milestones/v1.4-REQUIREMENTS.md`.
-- v1.4 phase verification, security, Nyquist validation, milestone audit, and archival passed; final closure normalized Phase 22/23/25/26 evidence so all v1.4 phases are audit-readable.
+- 39 phases and 152 plans completed across v1.0 through v1.5; v1.5 phase artifacts are archived in `.planning/milestones/v1.5-phases/`.
+- 127/127 milestone requirements are satisfied and archived in `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.1-REQUIREMENTS.md`, `.planning/milestones/v1.2-REQUIREMENTS.md`, `.planning/milestones/v1.3-REQUIREMENTS.md`, `.planning/milestones/v1.4-REQUIREMENTS.md`, and `.planning/milestones/v1.5-REQUIREMENTS.md`.
+- v1.5 phase verification, security, Nyquist validation, milestone audit, and archival passed; residual CUDA parity, custom-kernel implementation, and true output-buffer write proof remain future scope.
+- v1.4 phase verification, security, Nyquist validation, milestone audit, and archival passed.
 - v1.3 phase verification, Nyquist validation, milestone audit, and archival passed.
 - v1.2 phase verification, security, Nyquist validation, milestone audit, and archival passed.
-- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, dtype/storage residency, operation-family support/rejection evidence, region-internal GPU fusion, multi-op GPU region execution, native/lowered reductions, normalization lowering, Metal forward SDPA, target coverage truth, and hard v1.4 coverage regression closure are now validated project state.
+- Backend-neutral device buffer layout ABI, Metal logical-view device flow, materialization-aware planning, tuning/profile ownership, accelerator observability, narrow CUDA native runtime execution, GPU layout/view residency, GPU lowering coverage, fused GPU compound region metadata, coverage regression gates, GPU coverage triage, lowered-region manifest contracts, dtype/storage residency, operation-family support/rejection evidence, region-internal GPU fusion, multi-op GPU region execution, native/lowered reductions, normalization lowering, Metal forward SDPA, target coverage truth, hard v1.4 coverage regression closure, and production-grade Metal v1.5 expansion evidence are now validated project state.
 - Real CUDA hardware/native execution remains a residual environment risk because local CUDA native tasks capability-skipped; portable gates and capability-skip behavior passed.
-- Current milestone v1.5 is active and focuses on making the Metal backend substantially more production-grade: broader dtype compute/output, BOOL/INT32 semantics, conv/pool, masked SDPA, indexing, loss-adjacent training flows, layout repair, backend routing, and lower-copy execution.
+- No active milestone is currently planned; the next milestone should start from `.planning/MILESTONES.md`, `.planning/ROADMAP.md`, and the v1.5 residual non-blocking items.
 
-## Current Milestone: v1.5 Production-Grade Metal Backend Expansion
+## Recently Shipped Milestone: v1.5 Production-Grade Metal Backend Expansion
+
+**Status:** shipped 2026-05-02.
 
 **Goal:** Move Metal from high-value `FLOAT32` graph-region coverage toward a production-grade backend with broader dtype support, NN/index/loss/training coverage, GPU-side layout repair, router decisions, and lower-copy execution.
 
@@ -118,19 +121,17 @@ v1.4 Native GPU Operation Coverage Closure shipped and was archived on 2026-05-0
 - ✓ Forward SDPA semantics are locked and Metal admits verified unmasked forward SDPA while CUDA and unsupported SDPA variants retain stable capability-specific rejection evidence — validated in Phase 25 by `.planning/milestones/v1.4-phases/25-forward-sdpa-semantic-enablement/25-VERIFICATION.md`.
 - ✓ Loss-adjacent, gather/scatter/take-along-axis, index-target, conv/pool, and BOOL-output target families expose GPU support-or-rejection coverage, residency diagnostics, and parity evidence without hidden CPU exits — validated in Phases 26 and 27 by `.planning/milestones/v1.4-phases/26-loss-adjacent-and-indexing-gpu-coverage/26-VERIFICATION.md` and `.planning/milestones/v1.4-phases/27-conv-pool-and-bool-compare-outputs/27-VERIFICATION.md`.
 - ✓ v1.4 coverage regression gates harden representative transformer, normalization, loss/indexing, and conv/pool workloads with native evidence, target deltas, fallback counts, CPU materialization counts, region length, lowered primitive count, backend path, and artifact hygiene — validated in Phase 28 by `.planning/milestones/v1.4-phases/28-coverage-regression-closure/28-VERIFICATION.md`.
+- ✓ Metal dtype ABI/capability truth, BF16 compute/output, BOOL-producing compute, INT32 index/gather/take, GPU layout repair, masked/causal SDPA, conv/pool, scatter/index-gradient semantics, dense loss lowering, selected training backward rows, and Metal route/copy evidence are validated in v1.5 by `.planning/milestones/v1.5-MILESTONE-AUDIT.md` and `.planning/milestones/v1.5-phases/`.
 
 ### Active
 
-- [ ] v1.5 must widen Metal dtype support without conflating dtype residency with native dtype compute.
-- [ ] v1.5 must add support-or-rejection execution coverage for BF16, BOOL-producing compute, INT32 indexing, masked SDPA, conv/pool, scatter/index gradients, loss-adjacent flows, and training/backward paths.
-- [ ] v1.5 must keep all unsupported dtype/layout/operation combinations explicit in traces, coverage reports, and benchmark gates.
-- [ ] v1.5 must add router/cost evidence for MPSGraph vs custom Metal kernels vs CPU fallback and address the remaining native result-copy evidence gap.
+No active milestone requirements. Run `$gsd-new-milestone` to define the next requirement set.
 
 ### Out of Scope
 
 - Rewriting the public `Tensor` API around user-visible device objects — current direction keeps public tensors logical and puts device residency in runtime execution state.
 - Replacing the CPU backend with accelerator-first execution — CPU remains the correctness baseline and a performance-critical backend.
-- CUDA parity for the new v1.5 Metal coverage — v1.5 is Metal-first; shared contracts should remain backend-neutral but CUDA native implementation follows later.
+- CUDA parity for the v1.5 Metal coverage — v1.5 was Metal-first; shared contracts remain backend-neutral, but CUDA native implementation follows later.
 - Universal Metal operation, dtype, rank, and fused-kernel coverage — v1.5 targets high-impact production gaps first and keeps unsupported cases explicit.
 - Supporting every dtype/rank/layout combination on Metal immediately — capability checks must stay explicit and conservative.
 - Hiding fallback behavior — accelerator fallback must remain traceable and benchmark-visible.
@@ -208,4 +209,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state.
 
 ---
-*Last updated: 2026-05-02 after v1.5 milestone planning*
+*Last updated: 2026-05-02 after v1.5 milestone completion*

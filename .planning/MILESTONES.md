@@ -1,18 +1,26 @@
 # Milestones
 
-## v1.5 Production-Grade Metal Backend Expansion (Active)
+## v1.5 Production-Grade Metal Backend Expansion (Shipped: 2026-05-02)
 
-**Planned phases:** 11 phases, starting at Phase 29
+**Delivered:** Production-grade Metal backend expansion with broader dtype execution, GPU-side layout repair, native NN/index/loss/training coverage, route evidence, and explicit copy strategy boundaries.
 
-**Goal:** Move Metal from high-value FLOAT32 graph-region coverage toward a production-grade backend with broader dtype support, NN/index/loss/training coverage, layout repair, router decisions, and lower-copy execution.
+**Phases completed:** 29-39 (44 plans total)
 
-**Target families:**
+**Archives:**
 
-- Metal dtype ABI and capability truth for `BFLOAT16`, `BOOL`, `INT32`, and explicit `FLOAT64` support/rejection.
-- BF16 compute/output, BOOL-producing compute, and INT32 index tensor execution.
-- Masked/causal SDPA, conv/pool, gather/scatter/index, loss-adjacent flows, and backward coverage.
-- GPU-side layout repair and strided/broadcast materialization without CPU exits.
-- MPSGraph/custom-kernel/CPU router and zero-copy/native-copy closure.
+- `milestones/v1.5-ROADMAP.md`
+- `milestones/v1.5-REQUIREMENTS.md`
+- `milestones/v1.5-MILESTONE-AUDIT.md`
+- `milestones/v1.5-phases/`
+
+**Key accomplishments:**
+
+- Metal dtype ABI and capability truth now distinguishes residency, external input, compute, output, operation role, and explicit unsupported reason codes.
+- BF16 compute/output, BOOL-producing compute, and INT32 index/gather/take paths have scoped Metal execution or stable rejection evidence.
+- GPU-side layout repair, masked/causal SDPA, conv/pool, dense loss, and selected training backward rows now keep supported flows device-owned.
+- Scatter/index-gradient and index-target loss semantics remain explicit blockers with CPU parity and visible reason codes instead of hidden fallback.
+- Metal execution now exposes route decisions across MPSGraph, custom-kernel seam, tensor-array fallback, CPU fallback, and `MPSGRAPH_RESULT_COPY` copy strategy.
+- Security, Nyquist validation, verification, coverage gates, and milestone audit artifacts exist for every v1.5 phase.
 
 ---
 
