@@ -209,6 +209,10 @@ public final class MetalPartitionSupport {
         if (axis < 0 || axis >= valueShape.length) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " axis is outside value rank";
         }
+        String boundsReason = indexBoundsUnsupportedReason(indices, valueShape[axis], opType);
+        if (!boundsReason.isBlank()) {
+            return boundsReason;
+        }
         if (opType == Operation.OpType.GATHER) {
             int[] expected = reduceShape(valueShape, axis);
             if (!Arrays.equals(indexShape, expected) || !Arrays.equals(outputShape, expected)) {
@@ -222,6 +226,35 @@ public final class MetalPartitionSupport {
                 if (i != axis && indexShape[i] != valueShape[i]) {
                     return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL TAKE_ALONG_AXIS non-axis dimensions must match value input";
                 }
+            }
+        }
+        return "";
+    }
+
+    private static String indexBoundsUnsupportedReason(CompiledNode indices, int axisSize, Operation.OpType opType) {
+        if (axisSize <= 0) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " axis size must be positive";
+        }
+        if (!indices.leaf()) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require a static INT32 leaf tensor";
+        }
+        int[] data;
+        try {
+            data = indices.semanticTensor().getInt32Data();
+        } catch (RuntimeException ex) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
+        }
+        if (data == null) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds require readable INT32 storage";
+        }
+        int logicalElements = indices.flatDataSize();
+        if (logicalElements < 0 || logicalElements > data.length) {
+            return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index bounds cannot be proven from storage";
+        }
+        for (int i = 0; i < logicalElements; i++) {
+            int index = data[i];
+            if (index < 0 || index >= axisSize) {
+                return "UNSUPPORTED_BOUNDS_CHECK: GPU_METAL " + opType + " index " + index + " is outside axis size " + axisSize;
             }
         }
         return "";

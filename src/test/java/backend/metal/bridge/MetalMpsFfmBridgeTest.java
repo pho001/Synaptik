@@ -295,6 +295,33 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
+    void explicitShimExecuteBuffersSupportsRankThreeGatherWithInt32Indices() {
+        Tensor destination = executeIndexLoweredPlan(
+                indexPlan(
+                        1,
+                        2,
+                        9,
+                        AcceleratorDagNodeType.GATHER,
+                        Operation.OpType.GATHER,
+                        2,
+                        new int[]{2, 2, 3},
+                        new int[]{2, 2},
+                        new int[]{2, 2}
+                ),
+                new Tensor(new float[]{
+                        1f, 2f, 3f,
+                        4f, 5f, 6f,
+                        7f, 8f, 9f,
+                        10f, 11f, 12f
+                }, new int[]{2, 2, 3}, null, "rank3GatherValueInput", DataType.FLOAT32),
+                new Tensor(new int[]{2, 0, 1, 1}, new int[]{2, 2}, null, "rank3GatherIndexInput", DataType.INT32),
+                new int[]{2, 2}
+        );
+
+        assertArrayEquals(new float[]{3f, 4f, 8f, 11f}, destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
     void explicitShimExecuteBuffersSupportsTakeAlongAxisWithInt32Indices() {
         Tensor destination = executeIndexLoweredPlan(
                 indexPlan(
@@ -314,6 +341,28 @@ class MetalMpsFfmBridgeTest {
         );
 
         assertArrayEquals(new float[]{3f, 2f, 4f, 4f}, destination.getFloat32Data(), 0.0f);
+    }
+
+    @Test
+    void explicitShimExecuteBuffersSupportsAxisZeroTakeAlongAxisWithInt32Indices() {
+        Tensor destination = executeIndexLoweredPlan(
+                indexPlan(
+                        1,
+                        2,
+                        9,
+                        AcceleratorDagNodeType.TAKE_ALONG_AXIS,
+                        Operation.OpType.TAKE_ALONG_AXIS,
+                        0,
+                        new int[]{3, 2},
+                        new int[]{2, 2},
+                        new int[]{2, 2}
+                ),
+                new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "takeAxisZeroValueInput", DataType.FLOAT32),
+                new Tensor(new int[]{2, 0, 1, 1}, new int[]{2, 2}, null, "takeAxisZeroIndexInput", DataType.INT32),
+                new int[]{2, 2}
+        );
+
+        assertArrayEquals(new float[]{5f, 2f, 3f, 4f}, destination.getFloat32Data(), 0.0f);
     }
 
     @Test

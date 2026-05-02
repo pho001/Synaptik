@@ -441,6 +441,54 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void phaseThirtyTwoIndexFamilyRejectsUnprovenBoundsDtypeAndLayout() {
+        Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalPhase32RejectInput", DataType.FLOAT32);
+
+        Tensor oobIndices = new Tensor(new int[]{3, 0}, new int[]{2}, null, "metalPhase32OobIndices", DataType.INT32);
+        Tensor oobGather = input.gather(oobIndices, 1);
+        TensorInternalAccess.setBackend(oobGather, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext oobContext = planningContext(oobGather);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(oobContext.compiledNode(nodeId(oobContext, Operation.OpType.GATHER)), oobContext),
+                "UNSUPPORTED_BOUNDS_CHECK",
+                "outside axis size 3"
+        );
+
+        Tensor f32Indices = new Tensor(new float[]{2f, 0f}, new int[]{2}, null, "metalPhase32F32Indices", DataType.FLOAT32);
+        Tensor dtypeGather = input.gather(f32Indices, 1);
+        TensorInternalAccess.setBackend(dtypeGather, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext dtypeContext = planningContext(dtypeGather);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.GATHER)), dtypeContext),
+                "UNSUPPORTED_DTYPE",
+                "index input requires INT32"
+        );
+
+        Tensor nonDenseValue = input.permute(1, 0);
+        Tensor valueLayoutIndices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "metalPhase32ValueLayoutIndices", DataType.INT32);
+        Tensor valueLayoutGather = nonDenseValue.gather(valueLayoutIndices, 0);
+        TensorInternalAccess.setBackend(valueLayoutGather, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext valueLayoutContext = planningContext(valueLayoutGather);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(valueLayoutContext.compiledNode(nodeId(valueLayoutContext, Operation.OpType.GATHER)), valueLayoutContext),
+                "UNSUPPORTED_LAYOUT",
+                "inputs require dense layout"
+        );
+
+        Tensor denseInput = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase32DenseInput", DataType.FLOAT32);
+        Tensor indexBase = new Tensor(new int[]{1, 0, 0, 1}, new int[]{2, 2}, null, "metalPhase32IndexBase", DataType.INT32);
+        Tensor nonDenseIndices = indexBase.permute(1, 0);
+        Tensor indexLayoutTake = denseInput.takeAlongAxis(nonDenseIndices, 1);
+        TensorInternalAccess.setBackend(indexLayoutTake, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext indexLayoutContext = planningContext(indexLayoutTake);
+        assertContainsAll(
+                MetalPartitionSupport.plannerUnsupportedReason(indexLayoutContext.compiledNode(nodeId(indexLayoutContext, Operation.OpType.TAKE_ALONG_AXIS)), indexLayoutContext),
+                "UNSUPPORTED_LAYOUT",
+                "inputs require dense layout"
+        );
+    }
+
+    @Test
     void metalPhaseTwentySevenBoolCompareAndPoolUseStableCoverageReasons() {
         Tensor left = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "metalPhase27CompareLeft", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "metalPhase27CompareRight", DataType.FLOAT32);
