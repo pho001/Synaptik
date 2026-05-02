@@ -118,14 +118,14 @@ public final class MetalPartitionSupport {
         if (!(node.operation() instanceof scaledDotProductAttention attention)) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA descriptor is unavailable";
         }
-        if (attention.hasMask()) {
-            return "UNSUPPORTED_MASK_SEMANTICS: direct masked SDPA disabled until bool-mask semantics are verified against MPSGraph floating masks";
-        }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA requires planning context";
         }
-        if (node.inputIds().size() != 3) {
+        if (!attention.hasMask() && node.inputIds().size() != 3) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL unmasked SDPA requires query, key, and value";
+        }
+        if (attention.hasMask() && node.inputIds().size() != 4) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL masked SDPA requires query, key, value, and BOOL mask";
         }
         CompiledNode query = context.compiledNode(node.inputIds().get(0));
         CompiledNode key = context.compiledNode(node.inputIds().get(1));
@@ -139,7 +139,9 @@ public final class MetalPartitionSupport {
                 || node.dataType() != tensor.DataType.FLOAT32) {
             return "UNSUPPORTED_DTYPE: GPU_METAL SDPA supports only FLOAT32 query/key/value/output";
         }
-        if (hasDirectNonDenseInput(node, context)) {
+        if (!query.contiguous() || query.hasStorageOffset()
+                || !key.contiguous() || key.hasStorageOffset()
+                || !value.contiguous() || value.hasStorageOffset()) {
             return "UNSUPPORTED_LAYOUT: GPU_METAL SDPA inputs require dense layout";
         }
         int[] qShape = query.shape();
@@ -167,6 +169,10 @@ public final class MetalPartitionSupport {
                 || !broadcastBatchMatches(outBatch, kBatch)
                 || !broadcastBatchMatches(outBatch, vBatch)) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA batch dimensions are not broadcast-compatible";
+        }
+        MetalSdpaMaskSemantics.Decision maskDecision = MetalSdpaMaskSemantics.classify(node, context);
+        if (!maskDecision.supported()) {
+            return maskDecision.unsupportedReason();
         }
         return "";
     }

@@ -1038,7 +1038,7 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(out);
         int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
         assertEquals(
-                "UNSUPPORTED_MASK_SEMANTICS: direct masked SDPA disabled until bool-mask semantics are verified against MPSGraph floating masks",
+                "UNSUPPORTED_MASK_SEMANTICS: GPU_METAL SDPA mask mode EXTERNAL_BOOL_MASK requires native BOOL mask ABI support",
                 MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
         );
         assertNull(new MetalRegionLegalityAdapter().tryCreateStructuralCandidate(
@@ -1046,6 +1046,56 @@ class MetalRegionLowererTest {
                 context,
                 Set.of(PartitionValueRef.ofNode(sdpaNodeId))
         ));
+    }
+
+    @Test
+    void rejectsDirectCausalSdpaWithCausalSpecificReasonUntilNativeMaskContractExists() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
+        Tensor out = q.scaledDotProductAttention(k, v, AttentionOptions.causalDefaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        assertEquals(
+                "UNSUPPORTED_MASK_SEMANTICS: GPU_METAL SDPA mask mode CAUSAL_BOOL_MASK requires native causal mask support",
+                MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
+        );
+    }
+
+    @Test
+    void rejectsDirectExternalAndCausalSdpaWithCombinedReasonUntilNativeMaskContractExists() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{1, 0, 1, 1}, new int[]{1, 2, 2}, null, "mask", DataType.BOOL);
+        Tensor out = q.scaledDotProductAttention(k, v, mask, AttentionOptions.causalDefaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        assertEquals(
+                "UNSUPPORTED_MASK_SEMANTICS: GPU_METAL SDPA mask mode EXTERNAL_AND_CAUSAL_BOOL_MASK requires native causal mask support",
+                MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
+        );
+    }
+
+    @Test
+    void rejectsDirectBroadcastMaskSdpaWithMaskLayoutReason() {
+        Tensor q = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "q", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "k", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{10f, 1f, 1f, 10f}, new int[]{1, 2, 2}, null, "v", DataType.FLOAT32);
+        Tensor mask = new Tensor(new byte[]{1, 0}, new int[]{1, 1, 2}, null, "mask", DataType.BOOL);
+        Tensor out = q.scaledDotProductAttention(k, v, mask, AttentionOptions.defaults().withScale(0.5));
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        int sdpaNodeId = nodeId(context, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        assertEquals(
+                "UNSUPPORTED_LAYOUT: GPU_METAL SDPA mask input requires dense BOOL layout",
+                MetalPartitionSupport.plannerUnsupportedReason(context.compiledNode(sdpaNodeId), context)
+        );
     }
 
     @Test
