@@ -161,7 +161,10 @@ class GpuLoweringCoverageMatrixTest {
                 assertEquals(backend, entry.backend());
                 assertEquals(opType, entry.opType());
                 if (backend == ComputeBackend.GPU_METAL
-                        && (opType == Operation.OpType.GATHER || opType == Operation.OpType.TAKE_ALONG_AXIS)) {
+                        && (opType == Operation.OpType.NLL_LOSS
+                        || opType == Operation.OpType.CROSS_ENTROPY_LOSS
+                        || opType == Operation.OpType.GATHER
+                        || opType == Operation.OpType.TAKE_ALONG_AXIS)) {
                     assertEquals(GpuLoweringCoverageStatus.SUPPORTED, entry.status());
                     assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, entry.reason());
                 } else {
@@ -199,18 +202,18 @@ class GpuLoweringCoverageMatrixTest {
     }
 
     @Test
-    void phaseThirtySevenMatrixSeparatesDenseLossContractFromIndexTargetLoss() {
+    void phaseThirtySevenMatrixSeparatesSupportedDenseLossFromIndexTargetLoss() {
         GpuLoweringCoverageEntry nll = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.NLL_LOSS);
         GpuLoweringCoverageEntry denseCe = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.CROSS_ENTROPY_LOSS);
         GpuLoweringCoverageEntry indexCe = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
         GpuLoweringCoverageEntry indexCeGrad = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD);
 
-        assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, nll.status());
-        assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, denseCe.status());
-        assertEquals(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED, nll.reason());
-        assertEquals(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED, denseCe.reason());
-        assertTrue(nll.note().contains("dense-target loss contract is locked"));
-        assertTrue(denseCe.note().contains("Phase 37-02"));
+        assertEquals(GpuLoweringCoverageStatus.SUPPORTED, nll.status());
+        assertEquals(GpuLoweringCoverageStatus.SUPPORTED, denseCe.status());
+        assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, nll.reason());
+        assertEquals(GpuLoweringUnsupportedReason.SUPPORTED, denseCe.reason());
+        assertTrue(nll.note().contains("all-axis SUM"));
+        assertTrue(denseCe.note().contains("SOFTMAX"));
         assertTrue(denseCe.note().contains("target=loss_dense_small"));
 
         assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS, indexCe.reason());
@@ -333,8 +336,6 @@ class GpuLoweringCoverageMatrixTest {
         for (ComputeBackend backend : List.of(ComputeBackend.GPU_METAL, ComputeBackend.GPU_CUDA)) {
             List<Operation.OpType> nonSupportedOps = backend == ComputeBackend.GPU_METAL
                     ? List.of(
-                    Operation.OpType.NLL_LOSS,
-                    Operation.OpType.CROSS_ENTROPY_LOSS,
                     Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
                     Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD
             )

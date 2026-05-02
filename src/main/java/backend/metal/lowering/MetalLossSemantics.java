@@ -61,9 +61,7 @@ final class MetalLossSemantics {
         if (!Arrays.equals(node.shape(), new int[]{1})) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL dense " + opType + " currently locks mean-reduced scalar output shape [1]";
         }
-        return "DAG_PRIMITIVE_UNSUPPORTED: GPU_METAL dense " + opType
-                + " contract locked for FLOAT32 dense rank 1..4 mean-reduced class-axis loss; "
-                + "native/lowered execution is pending Phase 37-02; target=loss_dense_small target=transformer_block_hot_path";
+        return "";
     }
 
     private static int classAxis(CompiledNode node) {

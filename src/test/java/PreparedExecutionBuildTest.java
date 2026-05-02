@@ -1727,6 +1727,85 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
+    void gpuMetalDenseCrossEntropyAndNllCanExecuteThroughExplicitAppleShim() {
+        String explicitLib = System.getProperty("synaptik.metal.mps.lib");
+        assumeTrue(explicitLib != null && !explicitLib.isBlank());
+
+        Tensor cpuLogits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "cpuDenseLossLogits", DataType.FLOAT32);
+        Tensor cpuCeTargets = new Tensor(new float[]{
+                0f, 0f, 1f,
+                1f, 0f, 0f
+        }, new int[]{2, 3}, null, "cpuDenseLossCeTargets", DataType.FLOAT32);
+        Tensor cpuCe = cpuLogits.crossEntropyLoss(cpuCeTargets, 1);
+        CompiledGraph.compile(cpuCe, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor logits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "metalDenseLossLogits", DataType.FLOAT32);
+        Tensor ceTargets = new Tensor(new float[]{
+                0f, 0f, 1f,
+                1f, 0f, 0f
+        }, new int[]{2, 3}, null, "metalDenseLossCeTargets", DataType.FLOAT32);
+        Tensor ce = logits.crossEntropyLoss(ceTargets, 1);
+        TensorInternalAccess.setBackend(ce, ComputeBackend.GPU_METAL);
+        PreparedExecution ceExecution = CompiledGraph.compile(ce, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+        PreparedMetalExecutable ceExecutable = (PreparedMetalExecutable) ceExecution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow()
+                .metadata()
+                .acceleratorExecutable();
+        assumeTrue(ceExecutable.bridgeContext().available());
+        assumeTrue(ceExecutable.bridgeExecutable().available());
+        ceExecution.execute(ExecutionMode.FORWARD);
+
+        Tensor cpuLogProbs = new Tensor(new float[]{
+                -0.16984604f, -2.169846f, -3.169846f,
+                -1.407606f, -0.40760595f, -2.407606f
+        }, new int[]{2, 3}, null, "cpuDenseLossLogProbs", DataType.FLOAT32);
+        Tensor cpuNllTargets = new Tensor(new float[]{
+                1f, 0f, 0f,
+                0f, 1f, 0f
+        }, new int[]{2, 3}, null, "cpuDenseLossNllTargets", DataType.FLOAT32);
+        Tensor cpuNll = cpuLogProbs.nllLoss(cpuNllTargets, 1);
+        CompiledGraph.compile(cpuNll, OptimizerConfig.noOptimization())
+                .execute(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD);
+
+        Tensor logProbs = new Tensor(new float[]{
+                -0.16984604f, -2.169846f, -3.169846f,
+                -1.407606f, -0.40760595f, -2.407606f
+        }, new int[]{2, 3}, null, "metalDenseLossLogProbs", DataType.FLOAT32);
+        Tensor nllTargets = new Tensor(new float[]{
+                1f, 0f, 0f,
+                0f, 1f, 0f
+        }, new int[]{2, 3}, null, "metalDenseLossNllTargets", DataType.FLOAT32);
+        Tensor nll = logProbs.nllLoss(nllTargets, 1);
+        TensorInternalAccess.setBackend(nll, ComputeBackend.GPU_METAL);
+        PreparedExecution nllExecution = CompiledGraph.compile(nll, OptimizerConfig.noOptimization())
+                .prepare(RuntimeConfig.inferenceDefaults());
+        PreparedMetalExecutable nllExecutable = (PreparedMetalExecutable) nllExecution.forwardSteps().stream()
+                .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                .findFirst()
+                .orElseThrow()
+                .metadata()
+                .acceleratorExecutable();
+        assumeTrue(nllExecutable.bridgeContext().available());
+        assumeTrue(nllExecutable.bridgeExecutable().available());
+        nllExecution.execute(ExecutionMode.FORWARD);
+
+        assertFalse(ceExecutable.lastExecutionStats().usedCpuFallback());
+        assertFalse(nllExecutable.lastExecutionStats().usedCpuFallback());
+        assertArrayEquals(cpuCe.toDoubleArrayCopy(), ce.toDoubleArrayCopy(), 1e-5);
+        assertArrayEquals(cpuNll.toDoubleArrayCopy(), nll.toDoubleArrayCopy(), 1e-5);
+    }
+
+    @Test
     void gpuCudaDirectUnmaskedSdpaFallsBackWithCapabilityMissingReason() {
         Tensor cpuQ = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuCudaSdpaQ", DataType.FLOAT32);
         Tensor cpuK = new Tensor(new float[]{1f, 0f, 0f, 1f}, new int[]{1, 2, 2}, null, "cpuCudaSdpaK", DataType.FLOAT32);

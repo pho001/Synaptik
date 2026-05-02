@@ -46,6 +46,8 @@ import operations.reduction.softmaxGrad;
 import operations.reduction.sum;
 import operations.linalg.scaledDotProductAttention;
 import operations.linalg.scaledDotProductAttentionBackward;
+import operations.loss.crossEntropyLoss;
+import operations.loss.nllLoss;
 import tensor.DataType;
 
 import java.util.ArrayList;
@@ -694,6 +696,10 @@ public final class AcceleratorSubgraphLowerer {
     }
 
     private AcceleratorDagSpec buildDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
+        AcceleratorDagSpec specializedDenseLoss = tryBuildDenseLossDagSpec(subgraph, context);
+        if (specializedDenseLoss != null) {
+            return specializedDenseLoss;
+        }
         AcceleratorDagSpec specializedNormalization = tryBuildNormalizationDagSpec(subgraph, context);
         if (specializedNormalization != null) {
             return specializedNormalization;
@@ -834,6 +840,166 @@ public final class AcceleratorSubgraphLowerer {
             outputNodeIndexes.add(outputNodeIndex);
         }
         return new AcceleratorDagSpec(externalInputs, nodes, outputNodeIndexes, outputNodeIds);
+    }
+
+    private AcceleratorDagSpec tryBuildDenseLossDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {
+        if (subgraph == null || context == null || subgraph.orderedNodeIds().isEmpty()) {
+            return null;
+        }
+        int lossNodeId = subgraph.outputNodeIds().isEmpty()
+                ? subgraph.orderedNodeIds().getLast()
+                : subgraph.outputNodeIds().getLast();
+        CompiledNode lossNode = context.compiledNode(lossNodeId);
+        if (lossNode == null || lossNode.operation() == null || lossNode.inputIds().size() != 2) {
+            return null;
+        }
+        Operation.OpType lossOpType = lossNode.operation().opType();
+        boolean nll = lossOpType == Operation.OpType.NLL_LOSS;
+        boolean ce = lossOpType == Operation.OpType.CROSS_ENTROPY_LOSS;
+        if (!nll && !ce) {
+            return null;
+        }
+        int classAxis = denseLossClassAxis(lossNode);
+        if (classAxis < 0) {
+            return null;
+        }
+        CompiledNode scoreInput = context.compiledNode(lossNode.inputIds().getFirst());
+        CompiledNode targets = context.compiledNode(lossNode.inputIds().get(1));
+        if (!isSupportedDenseLossValue(scoreInput) || !isSupportedDenseLossValue(targets)) {
+            return null;
+        }
+
+        CompiledNode externalScores = scoreInput;
+        boolean logSoftmaxInputIsInternal = false;
+        int logSoftmaxNodeId = scoreInput.id();
+        if (nll
+                && subgraph.orderedNodeIds().contains(scoreInput.id())
+                && scoreInput.operation() != null
+                && scoreInput.operation().opType() == Operation.OpType.LOG_SOFTMAX
+                && scoreInput.operation() instanceof logSoftmax logSoftmaxOp
+                && scoreInput.inputIds().size() == 1
+                && logSoftmaxOp.getDimension() == classAxis) {
+            externalScores = context.compiledNode(scoreInput.inputIds().getFirst());
+            logSoftmaxInputIsInternal = true;
+        }
+        if (!isSupportedDenseLossValue(externalScores)) {
+            return null;
+        }
+        int[] scoreShape = scoreInput.shape();
+        if (!Arrays.equals(scoreShape, targets.shape())
+                || !Arrays.equals(lossNode.shape(), new int[]{1})
+                || classAxis >= scoreShape.length
+                || scoreShape.length < 1
+                || scoreShape.length > 4) {
+            return null;
+        }
+        if (logSoftmaxInputIsInternal && !subgraph.orderedNodeIds().equals(List.of(logSoftmaxNodeId, lossNode.id()))) {
+            return null;
+        }
+        if (!logSoftmaxInputIsInternal && subgraph.orderedNodeIds().size() != 1) {
+            return null;
+        }
+
+        List<AcceleratorDagInput> externalInputs = List.of(
+                new AcceleratorDagInput(externalScores.id(), shapeList(externalScores.shape()), externalScores.dataType()),
+                new AcceleratorDagInput(targets.id(), shapeList(targets.shape()), targets.dataType())
+        );
+        List<AcceleratorDagNode> nodes = new ArrayList<>();
+        AcceleratorDagValueRef scoresRef = AcceleratorDagValueRef.externalInput(0);
+        if (ce || logSoftmaxInputIsInternal) {
+            int softmaxSourceNodeId = logSoftmaxInputIsInternal ? logSoftmaxNodeId : lossNode.id();
+            scoresRef = addNode(nodes, softmaxSourceNodeId, AcceleratorDagNodeType.SOFTMAX, scoresRef, AcceleratorDagValueRef.none(), classAxis, scoreShape, DataType.FLOAT32);
+            scoresRef = addNode(nodes, softmaxSourceNodeId, AcceleratorDagNodeType.LOG, scoresRef, AcceleratorDagValueRef.none(), 0, scoreShape, DataType.FLOAT32);
+        }
+        AcceleratorDagValueRef weighted = addNode(
+                nodes,
+                lossNode.id(),
+                AcceleratorDagNodeType.MUL,
+                scoresRef,
+                AcceleratorDagValueRef.externalInput(1),
+                0,
+                scoreShape,
+                DataType.FLOAT32
+        );
+        AcceleratorDagValueRef reduced = addAllAxesSumNodes(nodes, lossNode.id(), weighted, scoreShape, DataType.FLOAT32);
+        float scale = -1.0f / denseLossSampleCount(scoreShape, classAxis);
+        addNode(
+                nodes,
+                lossNode.id(),
+                AcceleratorDagNodeType.MUL_SCALAR,
+                reduced,
+                AcceleratorDagValueRef.none(),
+                Float.floatToIntBits(scale),
+                new int[]{1},
+                DataType.FLOAT32
+        );
+        return new AcceleratorDagSpec(externalInputs, nodes, List.of(nodes.size() - 1), List.of(lossNode.id()));
+    }
+
+    private int denseLossClassAxis(CompiledNode lossNode) {
+        Operation operation = lossNode.operation();
+        return switch (operation.opType()) {
+            case NLL_LOSS -> operation instanceof nllLoss op ? op.getClassDimension() : -1;
+            case CROSS_ENTROPY_LOSS -> operation instanceof crossEntropyLoss op ? op.getClassDimension() : -1;
+            default -> -1;
+        };
+    }
+
+    private boolean isSupportedDenseLossValue(CompiledNode node) {
+        return node != null
+                && node.dataType() == DataType.FLOAT32
+                && node.shape().length >= 1
+                && node.shape().length <= 4
+                && node.contiguous()
+                && !node.hasStorageOffset();
+    }
+
+    private AcceleratorDagValueRef addAllAxesSumNodes(
+            List<AcceleratorDagNode> nodes,
+            int nodeId,
+            AcceleratorDagValueRef inputRef,
+            int[] inputShape,
+            DataType dataType
+    ) {
+        AcceleratorDagValueRef current = inputRef;
+        int[] currentShape = inputShape.clone();
+        for (int axis = inputShape.length - 1; axis >= 0; axis--) {
+            currentShape = removeAxisForReduction(currentShape, axis);
+            current = addNode(
+                    nodes,
+                    nodeId,
+                    AcceleratorDagNodeType.SUM,
+                    current,
+                    AcceleratorDagValueRef.none(),
+                    encodeReductionMode(axis, false),
+                    currentShape,
+                    dataType
+            );
+        }
+        return current;
+    }
+
+    private int[] removeAxisForReduction(int[] shape, int axis) {
+        if (shape.length == 1) {
+            return new int[]{1};
+        }
+        int[] out = new int[shape.length - 1];
+        for (int i = 0, j = 0; i < shape.length; i++) {
+            if (i != axis) {
+                out[j++] = shape[i];
+            }
+        }
+        return out;
+    }
+
+    private int denseLossSampleCount(int[] shape, int classAxis) {
+        int count = 1;
+        for (int i = 0; i < shape.length; i++) {
+            if (i != classAxis) {
+                count *= shape[i];
+            }
+        }
+        return Math.max(1, count);
     }
 
     private AcceleratorDagSpec tryBuildNormalizationDagSpec(AcceleratorSubgraphSpec subgraph, PartitionPlanningContext context) {

@@ -411,7 +411,7 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void phaseThirtySevenDenseLossContractRejectsWithScopedPendingReason() {
+    void phaseThirtySevenDenseLossContractAdmitsScopedDenseLosses() {
         Tensor logProbs = new Tensor(new float[]{
                 -0.1f, -2.0f, -3.0f,
                 -1.5f, -0.3f, -2.5f
@@ -444,19 +444,22 @@ class MetalRegionLowererTest {
                 ceContext
         );
 
-        assertContainsAll(nllReason,
-                "DAG_PRIMITIVE_UNSUPPORTED",
-                "dense NLL_LOSS contract locked",
-                "FLOAT32 dense rank 1..4",
-                "mean-reduced class-axis loss",
-                "Phase 37-02",
-                "target=loss_dense_small");
-        assertContainsAll(ceReason,
-                "DAG_PRIMITIVE_UNSUPPORTED",
-                "dense CROSS_ENTROPY_LOSS contract locked",
-                "FLOAT32 dense rank 1..4",
-                "Phase 37-02",
-                "target=loss_dense_small");
+        assertEquals("", nllReason);
+        assertEquals("", ceReason);
+        List<AcceleratorDagNodeType> nllTypes = planFor(nll, Operation.OpType.NLL_LOSS).lowering().dagSpec().nodes().stream()
+                .map(backend.accelerator.dag.AcceleratorDagNode::type)
+                .toList();
+        List<AcceleratorDagNodeType> ceTypes = planFor(ce, Operation.OpType.CROSS_ENTROPY_LOSS).lowering().dagSpec().nodes().stream()
+                .map(backend.accelerator.dag.AcceleratorDagNode::type)
+                .toList();
+        assertTrue(nllTypes.contains(AcceleratorDagNodeType.MUL));
+        assertTrue(nllTypes.contains(AcceleratorDagNodeType.SUM));
+        assertTrue(nllTypes.contains(AcceleratorDagNodeType.MUL_SCALAR));
+        assertTrue(ceTypes.contains(AcceleratorDagNodeType.SOFTMAX));
+        assertTrue(ceTypes.contains(AcceleratorDagNodeType.LOG));
+        assertTrue(ceTypes.contains(AcceleratorDagNodeType.MUL));
+        assertTrue(ceTypes.contains(AcceleratorDagNodeType.SUM));
+        assertTrue(ceTypes.contains(AcceleratorDagNodeType.MUL_SCALAR));
     }
 
     @Test

@@ -161,8 +161,8 @@ public record GpuTargetSemanticsContract(
                 "dense target shape equals input shape; output shape is [1] for the current public mean-reduced dense loss contract",
                 parameter,
                 "CPU parity must cover class-axis reduction, sample-count denominator, distribution targets, and numerically stable log-softmax behavior for cross entropy",
-                true,
-                "DAG_PRIMITIVE_UNSUPPORTED until Phase 37-02 provides backend-owned dense loss lowering/execution and parity evidence"
+                false,
+                "Metal admits the scoped dense FLOAT32 loss subset after Phase 37-02 lowering/parity evidence; other backends and unsupported variants remain capability-gated"
         ));
     }
 
