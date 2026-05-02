@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T12:45:00Z"
-last_activity: 2026-05-02 -- Phase 38 verification completed
+last_updated: "2026-05-02T12:47:12Z"
+last_activity: 2026-05-02 -- Phase 39 planning completed
 progress:
   total_phases: 11
   completed_phases: 10
@@ -17,7 +17,7 @@ progress:
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Phase 38 — Metal Training Backward Coverage
+**Current focus:** Phase 39 — Metal Backend Router And Zero-Copy Closure
 
 ## Project Reference
 
@@ -84,7 +84,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 36 — Scatter And Index Gradient Semantics | Complete | 4/4 | Verified |
 | 37 — Loss-Adjacent Metal Lowering | Complete | 4/4 | Verified |
 | 38 — Metal Training Backward Coverage | Complete | 4/4 | Verified |
-| 39 — Metal Backend Router And Zero-Copy Closure | Planned | 0/4 | Pending |
+| 39 — Metal Backend Router And Zero-Copy Closure | Planned | 4/4 | Pending |
 | 22 — Coverage Truth And Semantics Lock | Archived | 3/3 | Verified |
 | 23 — Forward Reductions Native Execution | Archived | 3/3 | Verified |
 | 24 — Normalization GPU Lowering | Archived | 4/4 | Verified |
@@ -208,6 +208,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 38-02 completed | Supported Metal softmax/log-softmax/min/max backward rows now have native buffer trace evidence; SDPA backward remains matrix-supported-only with required-buffer rejection. |
 | 2026-05-02 | Phase 38-03 completed | Training coverage gates now separate allowed `GRADIENT_PUBLICATION` from hidden internal CPU materialization and add representative `training_*` report targets. |
 | 2026-05-02 | Phase 38 verification passed | `METALTRAIN-01..03` are complete with parity, trace/report gates, docs, native Metal test, and residual backward scope recorded in `38-VERIFICATION.md`. |
+| 2026-05-02 | Phase 39 planning completed | Four plans cover Metal route decisions, custom-kernel seam, native copy classification or output-buffer proof, and final route-aware coverage audit readiness. |
 
 ## Recent Sessions
 
