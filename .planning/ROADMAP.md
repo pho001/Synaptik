@@ -193,8 +193,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is executed and verified. Phase 42 CUDA NN Operation Parity is ready for `$gsd-discuss-phase 42 --auto` or `$gsd-plan-phase 42 --auto`.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is ready for `$gsd-discuss-phase 42 --auto` or `$gsd-plan-phase 42 --auto`.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 41 execution*
+*Last updated: 2026-05-02 after Phase 41 validation*
