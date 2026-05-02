@@ -78,7 +78,7 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ### Phase 42: CUDA NN Operation Parity
 
-**Status:** Planned
+**Status:** Complete
 
 **Goal:** Add native/lowered CUDA coverage or stable rejection for high-value NN forward families.
 
@@ -94,10 +94,10 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 5. Reports prove supported CUDA NN rows use native buffer execution instead of hidden tensor-array or CPU replay.
 
 **Planned waves:**
-- [ ] 42-01 CUDA SDPA forward parity.
-- [ ] 42-02 CUDA conv/pool forward parity.
-- [ ] 42-03 CUDA dense loss parity.
-- [ ] 42-04 Coverage, docs, and regression closure.
+- [x] 42-01 CUDA SDPA forward parity.
+- [x] 42-02 CUDA conv/pool forward parity.
+- [x] 42-03 CUDA dense loss parity.
+- [x] 42-04 Coverage, docs, and regression closure.
 
 ### Phase 43: CUDA Training And Index Semantics
 
@@ -193,8 +193,8 @@ CUDA parity means matching the v1.5 Metal support-or-rejection discipline, not b
 
 ## Current Status
 
-v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is planned and ready for execution.
+v1.6 is active. Phase 40 CUDA Parity Gap Triage And Capability Baseline is complete, security-passed, and Nyquist-validated. Phase 41 CUDA DType Layout And Index Residency is complete, security-passed, and Nyquist-validated. Phase 42 CUDA NN Operation Parity is complete and verified. Phase 43 CUDA Training And Index Semantics is ready for planning.
 
 ---
 
-*Last updated: 2026-05-02 after Phase 42 planning*
+*Last updated: 2026-05-02 after Phase 42 execution*

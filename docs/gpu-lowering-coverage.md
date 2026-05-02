@@ -69,11 +69,12 @@ Phase 39 adds route/copy evidence on top of the operation coverage matrix. Suppo
 | softmax/log-softmax-ish flows | `LOG_SOFTMAX` | supported | `SUPPORTED`; lowered as SOFTMAX followed by LOG |
 | reductions | `SUM`, `MEAN`, `REDUCE_MIN`, `REDUCE_MAX` | supported | `SUPPORTED`; axis and keep-dims metadata lower through the shared DAG ABI |
 | normalization pieces | `LAYER_NORM`, `RMS_NORM` | supported | `SUPPORTED`; lowered as repeated keep-dims `MEAN` plus elementwise normalization DAG with epsilon scalar |
-| loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED` |
+| loss-adjacent ops | `NLL_LOSS`, `CROSS_ENTROPY_LOSS` | unsupported | `DAG_PRIMITIVE_UNSUPPORTED`; Phase 42 validates dense `FLOAT32` rank 1..4, dense target shape, class axis, and scalar mean-output contract before rejecting |
 | loss-adjacent ops | `CROSS_ENTROPY_LOSS_INDICES`, `CROSS_ENTROPY_LOSS_INDICES_GRAD` | unsupported | `UNSUPPORTED_INDEX_SEMANTICS` |
-| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | fallback | `CAPABILITY_MISSING`; CUDA direct forward SDPA native/lowered path is not implemented and must provide backend evidence before this can become supported |
+| attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION` | fallback | `CAPABILITY_MISSING`; Phase 42 validates unmasked, dense external BOOL masked, causal, and external+causal mask modes before rejecting because CUDA direct forward SDPA native/lowered path is not implemented |
 | attention/SDPA | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` | unsupported | `CAPABILITY_MISSING` |
-| conv/pool | `CONV2D`, `CONV2D_GEMM`, `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
+| conv/pool | `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, `AVG_POOL2D` | unsupported | `CAPABILITY_MISSING`; Phase 42 validates dense `FLOAT32` NCHW/OIHW forward conv/pool contracts, groups, dilation, shape/rank/layout, and average-pool divisor blockers before rejecting |
+| conv/pool | `CONV2D_BACKWARD_INPUT`, `CONV2D_BACKWARD_WEIGHT`, `CONV2D_BACKWARD_INPUT_GEMM`, `CONV2D_BACKWARD_WEIGHT_GEMM`, `MAX_POOL2D_BACKWARD_INPUT`, `AVG_POOL2D_BACKWARD_INPUT` | unsupported | `CAPABILITY_MISSING` |
 | index/scatter/gather | `GATHER`, `TAKE_ALONG_AXIS` | unsupported | `CAPABILITY_MISSING` |
 | index/scatter/gather | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD` | unsupported | `UNSUPPORTED_DUPLICATE_INDEX` |
 | compare/bool | `GT`, `GE`, `LT`, `LE`, `EQ`, `NE`, `LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`, `REDUCE_ALL`, `REDUCE_ANY` | unsupported | `UNSUPPORTED_DTYPE` |
@@ -95,6 +96,8 @@ CUDA supported rows still require backend-owned dtype, layout, capability, nativ
 CUDA unsupported rows for dense loss, SDPA, conv/pool, gather/take, BOOL-producing compute, and selected training/index-gradient families are v1.6 targets or explicit blockers. Capability skip and optional native test skip must not be counted as support.
 
 Phase 41 closes the CUDA dtype/layout/index residency contract without overclaiming compute support. `CUDADTYPE-01` is covered by `CudaDTypeRolePolicy`: CUDA `FLOAT32` remains native compute/output, `INT32` is index-input/residency only, `BOOL` is predicate-input/residency only, `BFLOAT16` is residency-only, and `FLOAT64` remains unsupported. `CUDADTYPE-02` is covered by CUDA layout diagnostics: metadata-only views remain distinct from dense `FLOAT32` GPU materialization, broadcast repair rejects with `CUDA_LAYOUT_BROADCAST_UNSUPPORTED`, and strided native compute rejects with `CUDA_STRIDED_COMPUTE_UNSUPPORTED`. `CUDAINDEX-01` is covered by `CudaPartitionSupport`: CUDA forward `GATHER` / `TAKE_ALONG_AXIS` validate dtype, layout, rank/axis/shape, and static bounds before legal cases end in `CAPABILITY_MISSING` until native CUDA execution exists.
+
+Phase 42 adds CUDA NN operation parity diagnostics without claiming new native execution. `CUDANN-01` is covered by `CudaNnSemantics`: forward SDPA validates dense `FLOAT32` rank-3/4 tensors and classifies unmasked, external BOOL masked, causal, and external+causal mask modes before final `CAPABILITY_MISSING`. `CUDANN-02` is covered by forward conv/pool semantic checks for dense `FLOAT32` NCHW/OIHW contracts, groups, dilation, shape/layout, and average-pool divisor blockers before final `CAPABILITY_MISSING`. `CUDANN-03` is covered by dense-loss checks for dense `FLOAT32` `NLL_LOSS` and `CROSS_ENTROPY_LOSS`; legal dense cases end in `DAG_PRIMITIVE_UNSUPPORTED`, while index-target losses remain `UNSUPPORTED_INDEX_SEMANTICS`.
 
 Phase 33 adds coverage evidence for Metal layout repair. `layout_broadcast_repair_small` requires native buffer execution,
 `BROADCAST_GPU_MATERIALIZATION` evidence, and no `CPU_CONSUMER` materialization on the supported hot path. This is not a

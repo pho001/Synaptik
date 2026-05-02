@@ -21,9 +21,9 @@ Requirements for the v1.6 milestone. Each requirement maps to exactly one roadma
 
 ### CUDA NN Operation Parity
 
-- [ ] **CUDANN-01**: CUDA masked/causal SDPA forward has native/lowered execution or stable capability-gated rejection with mask polarity, scale, rank, dtype, and layout evidence.
-- [ ] **CUDANN-02**: CUDA conv/pool forward coverage for scoped `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` either executes natively/lowered or reports precise capability/layout/reduction-divisor blockers.
-- [ ] **CUDANN-03**: CUDA dense `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` lower or reject under the same dense loss contract as Metal, with CPU parity and report-visible boundaries.
+- [x] **CUDANN-01**: CUDA masked/causal SDPA forward has native/lowered execution or stable capability-gated rejection with mask polarity, scale, rank, dtype, and layout evidence.
+- [x] **CUDANN-02**: CUDA conv/pool forward coverage for scoped `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` either executes natively/lowered or reports precise capability/layout/reduction-divisor blockers.
+- [x] **CUDANN-03**: CUDA dense `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` lower or reject under the same dense loss contract as Metal, with CPU parity and report-visible boundaries.
 
 ### CUDA Training And Index Semantics
 
@@ -81,9 +81,9 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 | CUDADTYPE-01 | Phase 41 | Complete |
 | CUDADTYPE-02 | Phase 41 | Complete |
 | CUDAINDEX-01 | Phase 41 | Complete |
-| CUDANN-01 | Phase 42 | Pending |
-| CUDANN-02 | Phase 42 | Pending |
-| CUDANN-03 | Phase 42 | Pending |
+| CUDANN-01 | Phase 42 | Complete |
+| CUDANN-02 | Phase 42 | Complete |
+| CUDANN-03 | Phase 42 | Complete |
 | CUDATRAIN-01 | Phase 43 | Pending |
 | CUDATRAIN-02 | Phase 43 | Pending |
 | CUDATRAIN-03 | Phase 43 | Pending |
@@ -104,4 +104,4 @@ Explicitly excluded from v1.6 to keep the milestone reviewable.
 
 ---
 *Requirements defined: 2026-05-02*
-*Last updated: 2026-05-02 after Phase 41 execution*
+*Last updated: 2026-05-02 after Phase 42 execution*

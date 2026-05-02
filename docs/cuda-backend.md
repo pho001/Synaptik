@@ -66,6 +66,8 @@ CUDA vendor-library routing for cuBLAS/cuDNN is not integrated until a dedicated
 
 Current CUDA parity gaps include operation families such as dense loss, SDPA, conv/pool, forward gather/take, BOOL-producing compute, and selected training/index-gradient rows. These rows must remain explicit fallback or unsupported evidence until their own CUDA implementation proves correctness.
 
+Phase 42 adds CUDA NN semantic contracts for forward SDPA, conv/pool, and dense loss without promoting native execution. Legal CUDA candidates now validate dtype, layout, rank/shape, mask mode, conv grouping/dilation, pool divisor, or dense-loss target contracts before ending in a visible blocker. Final legal blockers remain `CAPABILITY_MISSING` for SDPA and conv/pool and `DAG_PRIMITIVE_UNSUPPORTED` for dense `NLL_LOSS` / `CROSS_ENTROPY_LOSS`.
+
 ## Hot Path Blockers
 
 `CudaHotPathBlockerPolicy` classifies hot-path targets into:
@@ -87,6 +89,14 @@ CUDA layout handling is explicit:
 - arbitrary strided native compute rejects with `CUDA_STRIDED_COMPUTE_UNSUPPORTED`.
 
 Forward `GATHER` and `TAKE_ALONG_AXIS` now validate the scoped CUDA contract before final rejection: dense `FLOAT32` value/output, dense static `INT32` indices, rank/axis/shape compatibility, and in-bounds indices. Legal candidates still end in `CAPABILITY_MISSING` because CUDA native forward gather/take execution has not been implemented. Invalid candidates reject earlier with `UNSUPPORTED_DTYPE`, `UNSUPPORTED_LAYOUT`, `UNSUPPORTED_RANK_OR_SHAPE`, or `UNSUPPORTED_BOUNDS_CHECK`.
+
+## NN Operation Scope
+
+CUDA forward SDPA validates dense `FLOAT32` rank-3/4 query/key/value/output tensors and classifies `UNMASKED`, `EXTERNAL_BOOL_MASK`, `CAUSAL_BOOL_MASK`, and `EXTERNAL_AND_CAUSAL_BOOL_MASK` before reporting `CAPABILITY_MISSING`. This is rejection evidence only; CUDA has no native/routed SDPA execution path yet.
+
+CUDA forward `CONV2D`, `CONV2D_GEMM`, `MAX_POOL2D`, and `AVG_POOL2D` validate the scoped dense `FLOAT32` NCHW/OIHW contract before final `CAPABILITY_MISSING`. Grouped/depthwise conv, dilation, invalid shape/rank/layout/dtype, and `AVG_POOL2D countIncludePad=true` remain explicit blockers.
+
+CUDA dense `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` validate dense `FLOAT32` rank 1..4 inputs, dense targets matching score shape, valid class axis, and scalar mean output `[1]` before reporting `DAG_PRIMITIVE_UNSUPPORTED`. Index-target loss remains separate as `UNSUPPORTED_INDEX_SEMANTICS`.
 
 ## Fallback And Report Interpretation
 
