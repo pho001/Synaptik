@@ -199,6 +199,27 @@ class GpuLoweringCoverageMatrixTest {
     }
 
     @Test
+    void phaseThirtySevenMatrixSeparatesDenseLossContractFromIndexTargetLoss() {
+        GpuLoweringCoverageEntry nll = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.NLL_LOSS);
+        GpuLoweringCoverageEntry denseCe = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.CROSS_ENTROPY_LOSS);
+        GpuLoweringCoverageEntry indexCe = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
+        GpuLoweringCoverageEntry indexCeGrad = GpuLoweringCoverageMatrix.entryFor(ComputeBackend.GPU_METAL, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD);
+
+        assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, nll.status());
+        assertEquals(GpuLoweringCoverageStatus.UNSUPPORTED, denseCe.status());
+        assertEquals(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED, nll.reason());
+        assertEquals(GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED, denseCe.reason());
+        assertTrue(nll.note().contains("dense-target loss contract is locked"));
+        assertTrue(denseCe.note().contains("Phase 37-02"));
+        assertTrue(denseCe.note().contains("target=loss_dense_small"));
+
+        assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS, indexCe.reason());
+        assertEquals(GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS, indexCeGrad.reason());
+        assertTrue(indexCe.note().contains("ignore-index"));
+        assertTrue(indexCeGrad.note().contains("scatter-like per-class gradient semantics"));
+    }
+
+    @Test
     void phaseTwentySevenMatrixCoversConvPoolAndBoolOutputFamilyExplicitly() {
         List<Operation.OpType> convPoolOps = List.of(
                 Operation.OpType.CONV2D,

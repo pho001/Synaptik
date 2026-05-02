@@ -161,14 +161,17 @@ public final class GpuLoweringCoverageMatrix {
                 GpuLoweringCoverageStatus.SUPPORTED,
                 GpuLoweringUnsupportedReason.SUPPORTED,
                 "lowered as repeated MEAN plus elementwise RMS normalization DAG with epsilon scalar; target=rms_norm_small");
+        String denseLossNote = backend == ComputeBackend.GPU_METAL
+                ? "dense-target loss contract is locked for FLOAT32 dense rank 1..4 mean-reduced scalar output; native/lowered execution remains pending Phase 37-02; target=loss_dense_small target=transformer_block_hot_path"
+                : "loss-adjacent operation remains explicit CPU fallback because no native loss primitive exists; reduction semantics must match CPU; target=transformer_block_hot_path";
         add(entries, backend, Operation.OpType.NLL_LOSS, GpuLoweringOperationFamily.LOSS_ADJACENT,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
-                "loss-adjacent operation remains explicit CPU fallback because no native loss primitive exists; reduction semantics must match CPU; target=transformer_block_hot_path");
+                denseLossNote);
         add(entries, backend, Operation.OpType.CROSS_ENTROPY_LOSS, GpuLoweringOperationFamily.LOSS_ADJACENT,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
-                "dense-target cross-entropy remains explicit CPU fallback because no native loss primitive exists; reduction semantics must match CPU; target=transformer_block_hot_path");
+                denseLossNote);
         add(entries, backend, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES, GpuLoweringOperationFamily.LOSS_ADJACENT,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,

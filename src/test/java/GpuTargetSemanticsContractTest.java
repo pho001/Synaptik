@@ -128,4 +128,26 @@ public class GpuTargetSemanticsContractTest {
         assertTrue(takeGrad.shapeContract().contains("original input shape"));
         assertTrue(takeGrad.numericalContract().contains("logical-index accumulation order"));
     }
+
+    @Test
+    void phaseThirtySevenDenseLossContractsLockScopeWithoutPromotingIndexTargets() {
+        GpuTargetSemanticsContract nll = GpuTargetSemanticsContract.forOp(Operation.OpType.NLL_LOSS);
+        GpuTargetSemanticsContract denseCe = GpuTargetSemanticsContract.forOp(Operation.OpType.CROSS_ENTROPY_LOSS);
+        GpuTargetSemanticsContract indexCe = GpuTargetSemanticsContract.forOp(Operation.OpType.CROSS_ENTROPY_LOSS_INDICES);
+
+        assertNotNull(nll);
+        assertNotNull(denseCe);
+        assertNotNull(indexCe);
+        assertEquals(GpuLoweringOperationFamily.LOSS_ADJACENT, nll.family());
+        assertEquals(GpuLoweringOperationFamily.LOSS_ADJACENT, denseCe.family());
+        assertTrue(nll.dtypeContract().contains("dense FLOAT32"));
+        assertTrue(denseCe.shapeContract().contains("output shape is [1]"));
+        assertTrue(denseCe.numericalContract().contains("sample-count denominator"));
+        assertTrue(denseCe.blockerReason().contains("DAG_PRIMITIVE_UNSUPPORTED"));
+        assertTrue(denseCe.plannerAdmissionBlocked());
+
+        assertTrue(indexCe.dtypeContract().contains("INT32 index targets"));
+        assertTrue(indexCe.blockerReason().contains("UNSUPPORTED_INDEX_SEMANTICS"));
+        assertTrue(indexCe.blockerReason().contains("scatter/index-gradient blockers"));
+    }
 }

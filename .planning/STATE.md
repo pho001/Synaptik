@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T10:26:24Z"
-last_activity: 2026-05-02 -- Phase 37 planning completed
+last_updated: "2026-05-02T10:42:21Z"
+last_activity: 2026-05-02 -- Phase 37-01 dense loss lowering contract completed
 progress:
   total_phases: 11
   completed_phases: 8
   total_plans: 44
-  completed_plans: 32
-  percent: 73
+  completed_plans: 33
+  percent: 75
 ---
 
 # GSD State
@@ -82,7 +82,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 34 — Masked And Causal SDPA | Complete | 4/4 | Verified |
 | 35 — Conv Pool Native Execution | Complete | 4/4 | Verified |
 | 36 — Scatter And Index Gradient Semantics | Complete | 4/4 | Verified |
-| 37 — Loss-Adjacent Metal Lowering | Planned | 0/4 | Pending |
+| 37 — Loss-Adjacent Metal Lowering | In Progress | 1/4 | Pending |
 | 38 — Metal Training Backward Coverage | Planned | 0/4 | Pending |
 | 39 — Metal Backend Router And Zero-Copy Closure | Planned | 0/4 | Pending |
 | 22 — Coverage Truth And Semantics Lock | Archived | 3/3 | Verified |
@@ -199,6 +199,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 31 planning completed | Four plans cover BOOL output ABI and compare primitive contract, native compare/logical/reduction support-or-reject execution, mask-chain residency through `WHERE`, docs, reports, and verification closure. |
 | 2026-05-02 | Phase 31-01 completed | Metal compare ops now have stable accelerator DAG ABI codes and BOOL output dtype metadata, capability truth distinguishes scoped compare output from broader BOOL compute, and coverage keeps native execution capability-gated until Phase 31-02 parity lands. |
 | 2026-05-02 | Phase 31-02 completed | Metal now lowers and executes native BOOL compare, logical, and REDUCE_ALL/REDUCE_ANY DAG nodes through MPSGraph buffer binding with exact BOOL byte readback, while CUDA remains explicitly unsupported for BOOL-producing compute. |
+| 2026-05-02 | Phase 37-01 completed | Dense Metal `NLL_LOSS` and `CROSS_ENTROPY_LOSS` now have a locked planner contract and stable `DAG_PRIMITIVE_UNSUPPORTED` rejection until Phase 37-02 implements backend-owned lowering/execution. |
 
 ## Recent Sessions
 

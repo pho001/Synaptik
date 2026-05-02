@@ -411,6 +411,77 @@ class MetalRegionLowererTest {
     }
 
     @Test
+    void phaseThirtySevenDenseLossContractRejectsWithScopedPendingReason() {
+        Tensor logProbs = new Tensor(new float[]{
+                -0.1f, -2.0f, -3.0f,
+                -1.5f, -0.3f, -2.5f
+        }, new int[]{2, 3}, null, "metalDenseNllLogProbs", DataType.FLOAT32);
+        Tensor nllTargets = new Tensor(new float[]{
+                1f, 0f, 0f,
+                0f, 1f, 0f
+        }, new int[]{2, 3}, null, "metalDenseNllTargets", DataType.FLOAT32);
+        Tensor nll = logProbs.nllLoss(nllTargets, 1);
+        TensorInternalAccess.setBackend(nll, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext nllContext = planningContext(nll);
+        String nllReason = MetalPartitionSupport.plannerUnsupportedReason(
+                nllContext.compiledNode(nodeId(nllContext, Operation.OpType.NLL_LOSS)),
+                nllContext
+        );
+
+        Tensor logits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "metalDenseCeLogits", DataType.FLOAT32);
+        Tensor ceTargets = new Tensor(new float[]{
+                0f, 0f, 1f,
+                1f, 0f, 0f
+        }, new int[]{2, 3}, null, "metalDenseCeTargets", DataType.FLOAT32);
+        Tensor ce = logits.crossEntropyLoss(ceTargets, 1);
+        TensorInternalAccess.setBackend(ce, ComputeBackend.GPU_METAL);
+        PartitionPlanningContext ceContext = planningContext(ce);
+        String ceReason = MetalPartitionSupport.plannerUnsupportedReason(
+                ceContext.compiledNode(nodeId(ceContext, Operation.OpType.CROSS_ENTROPY_LOSS)),
+                ceContext
+        );
+
+        assertContainsAll(nllReason,
+                "DAG_PRIMITIVE_UNSUPPORTED",
+                "dense NLL_LOSS contract locked",
+                "FLOAT32 dense rank 1..4",
+                "mean-reduced class-axis loss",
+                "Phase 37-02",
+                "target=loss_dense_small");
+        assertContainsAll(ceReason,
+                "DAG_PRIMITIVE_UNSUPPORTED",
+                "dense CROSS_ENTROPY_LOSS contract locked",
+                "FLOAT32 dense rank 1..4",
+                "Phase 37-02",
+                "target=loss_dense_small");
+    }
+
+    @Test
+    void phaseThirtySevenDenseLossContractRejectsNonDenseInputsBeforePendingExecution() {
+        Tensor logits = new Tensor(new float[]{
+                1f, 2f, 3f,
+                1f, 0f, -1f
+        }, new int[]{2, 3}, null, "metalDenseLossLayoutLogits", DataType.FLOAT32);
+        Tensor targets = new Tensor(new float[]{
+                0f, 0f, 1f,
+                1f, 0f, 0f
+        }, new int[]{2, 3}, null, "metalDenseLossLayoutTargets", DataType.FLOAT32);
+        Tensor out = logits.select(0, 1).crossEntropyLoss(targets.select(0, 1), 0);
+        TensorInternalAccess.setBackend(out, ComputeBackend.GPU_METAL);
+
+        PartitionPlanningContext context = planningContext(out);
+        String reason = MetalPartitionSupport.plannerUnsupportedReason(
+                context.compiledNode(nodeId(context, Operation.OpType.CROSS_ENTROPY_LOSS)),
+                context
+        );
+
+        assertEquals("UNSUPPORTED_LAYOUT: GPU_METAL dense CROSS_ENTROPY_LOSS inputs require dense zero-offset layout", reason);
+    }
+
+    @Test
     void phaseThirtyTwoIndexFamilySupportsForwardGatherTakeAndKeepsScatterRejected() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalPhase26IndexInput", DataType.FLOAT32);
         Tensor gatherIndices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "metalPhase26GatherIndices", DataType.INT32);

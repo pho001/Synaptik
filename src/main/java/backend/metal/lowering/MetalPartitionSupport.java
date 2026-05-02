@@ -104,6 +104,12 @@ public final class MetalPartitionSupport {
                 return indexWriteReason;
             }
         }
+        if (MetalLossSemantics.isDenseLoss(opType)) {
+            String denseLossReason = MetalLossSemantics.unsupportedReason(node, context);
+            if (!denseLossReason.isBlank()) {
+                return denseLossReason;
+            }
+        }
         if (entry.status() != GpuLoweringCoverageStatus.SUPPORTED) {
             return compoundPatternPrefix(opType) + GpuLoweringCoverageMatrix.plannerUnsupportedDetail(ComputeBackend.GPU_METAL, opType);
         }

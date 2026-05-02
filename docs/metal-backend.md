@@ -654,7 +654,7 @@ BOOL support is also real but deliberately narrow. Metal can produce and consume
 
 Forward `GATHER` and `TAKE_ALONG_AXIS` support is deliberately scoped: dense `FLOAT32` value/output tensors, dense static leaf `INT32` indices, proven in-bounds index values, and native buffer execution through MPSGraph `gatherAlongAxis`. This is not generic INT32 arithmetic or INT32 output support. `gather_take_small` is the native forward-index hot-path target; `scatter_index_gradient_small` is a separate visible-blocker target for `SCATTER_ADD`, `GATHER_GRAD`, and `TAKE_ALONG_AXIS_GRAD`.
 
-Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Conv/pool variants outside the scoped forward `FLOAT32` dense subset, gather/take gradients, scatter, loss-adjacent ops, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts remain separate future phases.
+Unsupported BF16 and BOOL families still reject with stable dtype or operation-family diagnostics. Dense loss-adjacent ops now have a Phase 37 planner contract, but still reject before native execution: `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` are scoped to `FLOAT32` dense rank 1..4 inputs, dense same-shape targets, a valid class axis, and public mean-reduced output shape `[1]`. Conv/pool variants outside the scoped forward `FLOAT32` dense subset, gather/take gradients, scatter, index-target loss ops, generic INT32 compute/output, arbitrary BOOL consumers, and non-dense/unsupported SDPA mask layouts remain separate future phases.
 
 ### Planner allowlist
 
@@ -693,7 +693,7 @@ Notable current exclusions:
 
 - grouped/dilated/unsupported-dtype Conv2D variants and conv backward ops
 - pooling backward ops and unsupported pooling variants such as `AVG_POOL2D countIncludePad=true`
-- `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD`, and index-target loss ops
+- dense `NLL_LOSS` / `CROSS_ENTROPY_LOSS` native execution, plus `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SCATTER_ADD`, and index-target loss ops
 - `FLOAT64`, `INT32`, unsupported `BFLOAT16`, and unsupported `BOOL` compute/output graphs
 
 ## Fallbacks And Failure Modes
@@ -707,6 +707,7 @@ Notable current exclusions:
 | Missing BOOL residency evidence | Coverage regression gate | Supported `bool_compare_where_small` fails if traces do not show native buffer execution and non-rejected `dtype=BOOL` residency evidence. |
 | Illegal or unproven index input | `MetalPartitionSupport`, `MetalMpsCapabilities.supportsExternalInputRole(...)` | Forward gather/take rejects non-`INT32`, non-dense, non-static, or out-of-bounds indices with stable `UNSUPPORTED_DTYPE`, `UNSUPPORTED_LAYOUT`, or `UNSUPPORTED_BOUNDS_CHECK` details. |
 | Index write/gradient duplicate accumulation unproven | `GpuLoweringCoverageMatrix`, `MetalPartitionSupport`, `MetalIndexWriteSemantics` | `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `SCATTER_ADD` first validate dtype, dense layout, rank/shape, axis, static `INT32` bounds, then reject with `UNSUPPORTED_DUPLICATE_INDEX` until native execution proves CPU-compatible accumulation semantics. |
+| Dense loss native execution pending | `GpuLoweringCoverageMatrix`, `MetalPartitionSupport`, `MetalLossSemantics` | `NLL_LOSS` and dense `CROSS_ENTROPY_LOSS` first validate the Phase 37 dense `FLOAT32` mean-loss contract, then reject with `DAG_PRIMITIVE_UNSUPPORTED` until the lowered/native loss execution wave lands. |
 | Missing INT32 index residency evidence | Coverage regression gate | Supported `gather_take_small` fails if traces do not show native buffer execution and non-rejected `dtype=INT32` residency evidence. |
 | Forward index coverage counted as scatter/index-gradient support | Coverage regression gate | `scatter_index_gradient_small` is separate from `gather_take_small` and must expose `UNSUPPORTED_DUPLICATE_INDEX`, `SCATTER_ADD`, `GATHER_GRAD`, or `TAKE_ALONG_AXIS_GRAD` as a visible blocker. |
 | Missing layout materialization evidence | Coverage regression gate | Supported `layout_broadcast_repair_small` fails if traces do not show `BROADCAST_GPU_MATERIALIZATION`, native buffer execution, and no `CPU_CONSUMER` materialization. |

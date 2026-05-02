@@ -103,10 +103,10 @@ public record GpuTargetSemanticsContract(
                 false,
                 "Metal admits scale-verified unmasked, dense external BOOL masked, causal, and external+causal FLOAT32 rank-3/4 forward SDPA after parity evidence; unsupported backend variants remain capability-gated"
         ));
-        addLoss(out, Operation.OpType.NLL_LOSS, "class-probability target tensor semantics; reduction mode must match CPU");
-        addLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS, "dense target tensor semantics; reduction mode must match CPU");
-        addLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES, "INT32 target indices, bounds checks, ignore-index, and reduction mode must match CPU");
-        addLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD, "INT32 target indices and gradient scatter semantics must match CPU");
+        addDenseLoss(out, Operation.OpType.NLL_LOSS, "dense target tensor multiplies log-probabilities along the class axis; public dense loss is mean-reduced by non-class sample count");
+        addDenseLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS, "dense target tensor multiplies log-softmax logits along the class axis; public dense loss is mean-reduced by non-class sample count");
+        addIndexTargetLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES, "INT32 target indices, bounds checks, ignore-index, and reduction mode must match CPU");
+        addIndexTargetLoss(out, Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD, "INT32 target indices and gradient scatter semantics must match CPU");
         addConvPool(out, Operation.OpType.CONV2D, "conv2d NCHW-style shape, stride, padding, dilation, groups, and dtype contract");
         addConvPool(out, Operation.OpType.CONV2D_GEMM, "lowered conv2d GEMM shape contract must preserve CPU conv semantics");
         addConvPool(out, Operation.OpType.CONV2D_BACKWARD_INPUT, "conv2d input-gradient shape, stride, padding, dilation, and groups must match CPU");
@@ -151,7 +151,22 @@ public record GpuTargetSemanticsContract(
         ));
     }
 
-    private static void addLoss(ArrayList<GpuTargetSemanticsContract> out, Operation.OpType opType, String parameter) {
+    private static void addDenseLoss(ArrayList<GpuTargetSemanticsContract> out, Operation.OpType opType, String parameter) {
+        out.add(new GpuTargetSemanticsContract(
+                opType,
+                GpuLoweringOperationFamily.LOSS_ADJACENT,
+                "dense FLOAT32 scores/log-probabilities and dense FLOAT32 targets for the Phase 37 Metal candidate scope; other dtypes reject explicitly until admitted",
+                "rank 1-4 with a descriptor class axis inside input rank",
+                "dense zero-offset input and target layouts only until GPU-side loss layout repair is proven",
+                "dense target shape equals input shape; output shape is [1] for the current public mean-reduced dense loss contract",
+                parameter,
+                "CPU parity must cover class-axis reduction, sample-count denominator, distribution targets, and numerically stable log-softmax behavior for cross entropy",
+                true,
+                "DAG_PRIMITIVE_UNSUPPORTED until Phase 37-02 provides backend-owned dense loss lowering/execution and parity evidence"
+        ));
+    }
+
+    private static void addIndexTargetLoss(ArrayList<GpuTargetSemanticsContract> out, Operation.OpType opType, String parameter) {
         out.add(new GpuTargetSemanticsContract(
                 opType,
                 GpuLoweringOperationFamily.LOSS_ADJACENT,
@@ -161,8 +176,8 @@ public record GpuTargetSemanticsContract(
                 "scalar or reduced output shape follows loss reduction mode",
                 parameter,
                 "CPU parity must cover reduction mode, ignore-index denominator behavior, bounds checks, and numerically stable log/softmax behavior",
-                false,
-                ""
+                true,
+                "UNSUPPORTED_INDEX_SEMANTICS until INT32 targets, ignore-index, bounds, class weights, denominator rules, and Phase 36 scatter/index-gradient blockers are proven"
         ));
     }
 
