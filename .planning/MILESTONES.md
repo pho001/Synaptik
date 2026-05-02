@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.6 Accelerator Backend Parity And Native Kernel Closure (Active)
+
+**Planned phases:** 7 phases, starting at Phase 40
+
+**Goal:** Close the biggest remaining accelerator backend gaps after v1.5 by bringing CUDA toward the same support-or-rejection evidence standard as Metal, proving real custom Metal kernel execution, and reducing or precisely classifying remaining native copy boundaries.
+
+**Target families:**
+
+- CUDA parity triage and capability baseline for v1.5 Metal-supported families.
+- CUDA dtype/layout/index residency and high-value NN operation parity.
+- CUDA training/backward, scatter, and index-gradient support-or-rejection evidence.
+- Real custom Metal kernel execution route and report-visible route selection.
+- Metal output-buffer write or lower-copy proof without false zero-copy claims.
+- Cross-backend router calibration and hard regression gates.
+
+---
+
 ## v1.5 Production-Grade Metal Backend Expansion (Shipped: 2026-05-02)
 
 **Delivered:** Production-grade Metal backend expansion with broader dtype execution, GPU-side layout repair, native NN/index/loss/training coverage, route evidence, and explicit copy strategy boundaries.

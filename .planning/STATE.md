@@ -1,23 +1,23 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Production-Grade Metal Backend Expansion
-status: v1.5 milestone archived; ready for `$gsd-new-milestone`
-last_updated: "2026-05-02T13:14:26.643Z"
+milestone: v1.6
+milestone_name: Accelerator Backend Parity And Native Kernel Closure
+status: planning
+last_updated: "2026-05-02T13:29:02.640Z"
 last_activity: 2026-05-02
 progress:
-  total_phases: 11
-  completed_phases: 11
-  total_plans: 44
-  completed_plans: 44
-  percent: 100
+  total_phases: 7
+  completed_phases: 0
+  total_plans: 28
+  completed_plans: 0
+  percent: 0
 ---
 
 # GSD State
 
 **Initialized:** 2026-04-29
 **Project:** Synaptik
-**Current focus:** Planning next milestone
+**Current focus:** Phase 40 CUDA Parity Gap Triage And Capability Baseline planning
 
 ## Project Reference
 
@@ -40,7 +40,7 @@ Completed milestones:
 
 Current milestone:
 
-- None. Run `$gsd-new-milestone` to define the next milestone.
+- v1.6 Accelerator Backend Parity And Native Kernel Closure - active.
 
 Recently completed milestone:
 
@@ -76,6 +76,13 @@ Planning agents should read the relevant codebase map documents before proposing
 
 | Phase | Status | Plans | Verification |
 |-------|--------|-------|--------------|
+| 40 — CUDA Parity Gap Triage And Capability Baseline | Not started | 0/4 | Not verified |
+| 41 — CUDA DType Layout And Index Residency | Not started | 0/4 | Not verified |
+| 42 — CUDA NN Operation Parity | Not started | 0/4 | Not verified |
+| 43 — CUDA Training And Index Semantics | Not started | 0/4 | Not verified |
+| 44 — Custom Metal Kernel Execution Route | Not started | 0/4 | Not verified |
+| 45 — Metal Output Buffer Write And Copy Closure | Not started | 0/4 | Not verified |
+| 46 — Cross-Backend Router Calibration And Regression Gates | Not started | 0/4 | Not verified |
 | 29 — Metal DType ABI And Capability Truth | Archived | 4/4 | Verified |
 | 30 — BF16 Metal Compute And Output | Archived | 4/4 | Verified |
 | 31 — BOOL-Producing Metal Compute | Archived | 4/4 | Verified |
@@ -215,6 +222,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 39-02 completed | Added the backend-internal custom Metal kernel SPI and route adapter while keeping current supported execution on MPSGraph with machine-readable `CUSTOM_KERNEL_UNAVAILABLE` rejection evidence. |
 | 2026-05-02 | Phase 39-03 completed | Metal bridge stats, traces, benchmark reports, and coverage summaries now classify native output behavior as `MPSGRAPH_RESULT_COPY` unless a future proof upgrades it to `TRUE_OUTPUT_BUFFER_WRITE`. |
 | 2026-05-02 | Phase 39 verification completed | Route-aware reports, custom-kernel rejection evidence, native-copy strategy gates, docs, and verification artifacts close `METALROUTER-01..03`. |
+| 2026-05-02 | v1.6 milestone started | Accelerator Backend Parity And Native Kernel Closure targets CUDA parity, real custom Metal kernels, output-copy proof, and cross-backend routing gates. |
 
 ## Recent Sessions
 
@@ -275,13 +283,14 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Completed 36-01 scatter/index-gradient semantics contract | Ready for 36-02 native or stable-rejection execution decision | .planning/phases/36-scatter-and-index-gradient-semantics/36-01-SUMMARY.md |
 | 2026-05-02 | Completed 36-02 native or stable-rejection scatter execution | Ready for 36-03 gradient parity and duplicate-index gates | .planning/phases/36-scatter-and-index-gradient-semantics/36-02-SUMMARY.md |
 | 2026-05-02 | Completed v1.5 milestone archive | Ready for `$gsd-new-milestone` | .planning/milestones/v1.5-ROADMAP.md |
+| 2026-05-02 | Started v1.6 milestone | Ready for `$gsd-plan-phase 40 --auto` | .planning/ROADMAP.md |
 
 ---
-*Last updated: 2026-05-02 after v1.5 milestone completion*
+*Last updated: 2026-05-02 after v1.6 milestone start*
 
 ## Current Position
 
-Phase: none
+Phase: 40 CUDA Parity Gap Triage And Capability Baseline
 Plan: none
-Status: Ready for `$gsd-new-milestone`
-Last activity: 2026-05-02
+Status: Ready for `$gsd-discuss-phase 40 --auto` or `$gsd-plan-phase 40 --auto`
+Last activity: 2026-05-02 - Milestone v1.6 started
