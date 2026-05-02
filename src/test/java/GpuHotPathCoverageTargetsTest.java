@@ -38,6 +38,7 @@ public class GpuHotPathCoverageTargetsTest {
                 "rms_norm_small",
                 "rms_norm_small_bf16",
                 "reduction_chain_small_bf16",
+                "dense_loss_small",
                 "cross_entropy_small",
                 "bool_compare_where_small",
                 "gather_take_small",
@@ -61,7 +62,7 @@ public class GpuHotPathCoverageTargetsTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(18, request.workloads().size());
+        assertEquals(19, request.workloads().size());
         assertTrue(names.contains("reduction_chain_small"));
         assertTrue(names.contains("reduction_chain_small_bf16"));
         assertTrue(names.contains("transformer_block_hot_path"));
@@ -74,6 +75,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(names.contains("layer_norm_small_bf16"));
         assertTrue(names.contains("rms_norm_small"));
         assertTrue(names.contains("rms_norm_small_bf16"));
+        assertTrue(names.contains("dense_loss_small"));
         assertTrue(names.contains("cross_entropy_small"));
         assertTrue(names.contains("bool_compare_where_small"));
         assertTrue(names.contains("gather_take_small"));
@@ -100,6 +102,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(targets.stream().anyMatch(target -> target.requirementFamilies().contains("GPUNORMX")));
         assertTrue(targets.stream().anyMatch(target -> target.requirementFamilies().contains("GPUSDPA")));
         assertTrue(targets.stream().anyMatch(target -> target.requirementFamilies().contains("GPULOSSIDX")));
+        assertTrue(targets.stream().anyMatch(target -> target.requirementFamilies().contains("METALLOSS")));
         assertTrue(targets.stream().anyMatch(target -> target.requirementFamilies().contains("GPUCONVBOOL")));
         assertEquals(1, targets.stream()
                 .filter(target -> target.requirementFamilies().contains("METALINTIDX"))
@@ -120,6 +123,11 @@ public class GpuHotPathCoverageTargetsTest {
         assertTrue(targets.stream().allMatch(target -> target.requirementFamilies().contains("GPUCLOSE")));
         assertEquals(23, targets.getFirst().ownerPhase());
         assertEquals(34, targets.getLast().ownerPhase());
+        assertEquals(37, targets.stream()
+                .filter(target -> target.workloadName().equals("dense_loss_small"))
+                .findFirst()
+                .orElseThrow()
+                .ownerPhase());
         assertEquals(36, targets.stream()
                 .filter(target -> target.workloadName().equals("scatter_index_gradient_small"))
                 .findFirst()
@@ -134,7 +142,7 @@ public class GpuHotPathCoverageTargetsTest {
     void phaseTwentyTargetsHaveHardeningPolicies() {
         List<GpuCoverageHotPathExpectation> expectations = GpuHotPathCoverageTargets.defaultExpectations();
 
-        assertEquals(18, expectations.size());
+        assertEquals(19, expectations.size());
         assertTrue(expectations.stream().allMatch(expectation -> "GPU_METAL".equals(expectation.backend())));
         assertTrue(expectations.stream().allMatch(expectation -> expectation.policy() != null));
         assertTrue(GpuHotPathCoverageTargets.defaults().stream()
@@ -162,6 +170,7 @@ public class GpuHotPathCoverageTargetsTest {
                 "rms_norm_small",
                 "rms_norm_small_bf16",
                 "reduction_chain_small_bf16",
+                "dense_loss_small",
                 "cross_entropy_small",
                 "bool_compare_where_small",
                 "gather_take_small",
@@ -256,6 +265,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertHardNativePolicy(metal.get("conv2d_resnet_3x3"));
         assertHardNativePolicy(metal.get("max_pool2d_small"));
         assertHardNativePolicy(metal.get("avg_pool2d_small"));
+        assertHardNativePolicy(metal.get("dense_loss_small"));
         GpuCoverageHotPathExpectation layoutRepair = metal.get("layout_broadcast_repair_small");
         assertTrue(layoutRepair.nativeEvidenceRequired());
         assertTrue(layoutRepair.expectedVisibleReasons().isEmpty());
@@ -269,6 +279,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "scatter_index_gradient_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "layout_broadcast_repair_small");
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "masked_sdpa_small");
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "dense_loss_small");
 
         assertEquals(
                 GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
@@ -293,6 +304,28 @@ public class GpuHotPathCoverageTargetsTest {
         GpuCoverageHotPathExpectation cudaSdpa = expectationsByName("GPU_CUDA").get("transformer_block_hot_path");
         assertTrue(!cudaSdpa.nativeEvidenceRequired());
         assertTrue(cudaSdpa.expectedVisibleReasons().contains("CAPABILITY_MISSING"));
+    }
+
+    @Test
+    void phaseThirtySevenLossTargetsSeparateDenseNativeFromIndexBlocker() {
+        Map<String, GpuCoverageHotPathExpectation> metal = expectationsByName("GPU_METAL");
+        Map<String, GpuCoverageHotPathExpectation> cuda = expectationsByName("GPU_CUDA");
+
+        assertHardNativePolicy(metal.get("dense_loss_small"));
+        assertTrue(metal.get("dense_loss_small").policy().minLoweredPrimitiveCount() >= 3);
+
+        assertVisibleBlocker(GpuHotPathCoverageTargets.defaultExpectations(), "cross_entropy_small");
+        assertTrue(metal.get("cross_entropy_small").expectedVisibleReasons().contains("UNSUPPORTED_INDEX_SEMANTICS"));
+        assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "dense_loss_small");
+        assertTrue(cuda.get("dense_loss_small").expectedVisibleReasons().contains("DAG_PRIMITIVE_UNSUPPORTED"));
+
+        Map<operations.Operation.OpType, GpuTargetCoverageTruth.Row> rows = GpuTargetCoverageTruth.rowsFor(backend.ComputeBackend.GPU_METAL)
+                .stream()
+                .collect(Collectors.toMap(GpuTargetCoverageTruth.Row::opType, row -> row));
+        assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.NLL_LOSS).executionStatus());
+        assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS).executionStatus());
+        assertEquals(GpuTargetExecutionStatus.UNSUPPORTED_REJECTION, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).executionStatus());
+        assertEquals(GpuTargetExecutionStatus.UNSUPPORTED_REJECTION, rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).executionStatus());
     }
 
     @Test

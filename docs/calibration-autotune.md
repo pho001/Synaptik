@@ -901,6 +901,7 @@ There are two main workload catalogs:
 | `mlp_classifier_blas_heavy` | Larger MLP | Batch `64`, input `256`, hidden `512` and `256`, classes `32`, mean reduction. |
 | `layer_norm_small` | Normalization | Batch `4`, channels `64`, height `8`, width `1`, epsilon `1e-5`. |
 | `max_pool2d_small` | Pooling | Batch `2`, channels `8`, `16 x 16`, square `2`. |
+| `dense_loss_small` | Dense loss | Batch `8`, classes `16`, mean reduction, dense CE plus dense NLL. |
 | `cross_entropy_small` | Indexed loss | Batch `8`, classes `16`, mean reduction. |
 | `transformer_hot_path` | Transformer-like hot path | Constructed by `TransformerHotPathWorkloadSpec`. |
 

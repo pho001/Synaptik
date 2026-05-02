@@ -14,7 +14,8 @@ import java.util.Map;
 public final class LossWorkloadSpec implements WorkloadSpec {
     public enum LossKind {
         CROSS_ENTROPY_FROM_INDICES,
-        NLL_FROM_INDICES
+        NLL_FROM_INDICES,
+        DENSE_CROSS_ENTROPY_AND_NLL
     }
 
     private final String name;
@@ -58,9 +59,15 @@ public final class LossWorkloadSpec implements WorkloadSpec {
 
         Tensor logits = tensor("LOSS_LOGITS", 601, dataType, requiresGrad, batch, classes);
         Tensor targetIndices = targetIndices(batch, classes);
+        Tensor denseTargets = denseTargets(batch, classes, dataType);
         Tensor root = switch (lossKind) {
             case CROSS_ENTROPY_FROM_INDICES -> logits.crossEntropyLossFromIndices(targetIndices, 1, reduction);
             case NLL_FROM_INDICES -> logits.logSoftmax(1).nllLossFromIndices(targetIndices, 1, reduction);
+            case DENSE_CROSS_ENTROPY_AND_NLL -> {
+                Tensor denseCe = logits.crossEntropyLoss(denseTargets, 1);
+                Tensor denseNll = logits.logSoftmax(1).nllLoss(denseTargets, 1);
+                yield denseCe.add(denseNll);
+            }
         };
         root = finalizeRoot(root, profile.mode());
 
@@ -96,6 +103,14 @@ public final class LossWorkloadSpec implements WorkloadSpec {
             data[i] = i % classes;
         }
         return new Tensor(data, new int[]{batch}, null, "LOSS_TARGETS", DataType.INT32);
+    }
+
+    private static Tensor denseTargets(int batch, int classes, DataType dataType) {
+        double[] data = new double[batch * classes];
+        for (int row = 0; row < batch; row++) {
+            data[row * classes + (row % classes)] = 1.0d;
+        }
+        return new Tensor(data, new int[]{batch, classes}, null, "LOSS_DENSE_TARGETS", dataType);
     }
 
     private static int flatSize(int[] shape) {

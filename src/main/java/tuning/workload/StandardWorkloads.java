@@ -149,6 +149,21 @@ public final class StandardWorkloads {
         return new LossWorkloadSpec(name, kind, batch, classes, reduction);
     }
 
+    public static LossWorkloadSpec denseLoss(
+            String name,
+            int batch,
+            int classes,
+            LossReduction reduction
+    ) {
+        return new LossWorkloadSpec(
+                name,
+                LossWorkloadSpec.LossKind.DENSE_CROSS_ENTROPY_AND_NLL,
+                batch,
+                classes,
+                reduction
+        );
+    }
+
     public static WorkloadCatalog defaultCatalog() {
         return new WorkloadCatalog()
                 .register(matmul("matmul_small", 1, 64, 64, 64))
@@ -186,6 +201,7 @@ public final class StandardWorkloads {
                 .register(normalization("rms_norm_small_bf16", NormalizationWorkloadSpec.NormalizationKind.RMS_NORM, 4, 64, 8, 1, 1e-5))
                 .register(pool2d("max_pool2d_small", Pool2dWorkloadSpec.PoolKind.MAX, 2, 8, 16, 16, Pool2dOptions.square(2)))
                 .register(pool2d("avg_pool2d_small", Pool2dWorkloadSpec.PoolKind.AVG, 2, 8, 16, 16, Pool2dOptions.square(2)))
+                .register(denseLoss("dense_loss_small", 8, 16, LossReduction.MEAN))
                 .register(indexedLoss("cross_entropy_small", LossWorkloadSpec.LossKind.CROSS_ENTROPY_FROM_INDICES, 8, 16, LossReduction.MEAN))
                 .register(boolCompareWhere("bool_compare_where_small", 8, 32))
                 .register(gatherTake("gather_take_small", 8, 16, 4))

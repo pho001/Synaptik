@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Production-Grade Metal Backend Expansion
 status: active
-last_updated: "2026-05-02T10:51:51Z"
-last_activity: 2026-05-02 -- Phase 37-03 loss training boundary gates completed
+last_updated: "2026-05-02T10:56:40Z"
+last_activity: 2026-05-02 -- Phase 37 loss-adjacent Metal lowering completed
 progress:
   total_phases: 11
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 44
-  completed_plans: 35
-  percent: 80
+  completed_plans: 36
+  percent: 82
 ---
 
 # GSD State
@@ -82,7 +82,7 @@ Planning agents should read the relevant codebase map documents before proposing
 | 34 — Masked And Causal SDPA | Complete | 4/4 | Verified |
 | 35 — Conv Pool Native Execution | Complete | 4/4 | Verified |
 | 36 — Scatter And Index Gradient Semantics | Complete | 4/4 | Verified |
-| 37 — Loss-Adjacent Metal Lowering | In Progress | 3/4 | Pending |
+| 37 — Loss-Adjacent Metal Lowering | Complete | 4/4 | Verified |
 | 38 — Metal Training Backward Coverage | Planned | 0/4 | Pending |
 | 39 — Metal Backend Router And Zero-Copy Closure | Planned | 0/4 | Pending |
 | 22 — Coverage Truth And Semantics Lock | Archived | 3/3 | Verified |
@@ -202,6 +202,7 @@ Items acknowledged and deferred at milestone close on 2026-04-30:
 | 2026-05-02 | Phase 37-01 completed | Dense Metal `NLL_LOSS` and `CROSS_ENTROPY_LOSS` now have a locked planner contract and stable `DAG_PRIMITIVE_UNSUPPORTED` rejection until Phase 37-02 implements backend-owned lowering/execution. |
 | 2026-05-02 | Phase 37-02 completed | Scoped dense `NLL_LOSS` and `CROSS_ENTROPY_LOSS` now lower to Metal DAG primitives and pass native parity; index-target loss and gradient variants remain explicit `UNSUPPORTED_INDEX_SEMANTICS` blockers. |
 | 2026-05-02 | Phase 37-03 completed | Training traces now prove dense Metal loss forward remains GPU-owned without hidden internal CPU consumer materialization, while index-target loss gradients remain explicit CPU boundaries. |
+| 2026-05-02 | Phase 37 verification passed | Dense loss has a separate `dense_loss_small` native Metal target and index-target `cross_entropy_small` remains a visible `UNSUPPORTED_INDEX_SEMANTICS` blocker. |
 
 ## Recent Sessions
 

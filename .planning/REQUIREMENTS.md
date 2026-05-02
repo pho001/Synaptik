@@ -57,9 +57,9 @@ Requirements for the v1.5 milestone. Each requirement maps to exactly one roadma
 
 ### Loss-Adjacent Metal Lowering
 
-- [ ] **METALLOSS-01**: Dense `NLL_LOSS` and `CROSS_ENTROPY_LOSS` have Metal lowering or backend primitives for supported reduction modes and dtype/layout contracts.
-- [ ] **METALLOSS-02**: Index-target CE/NLL variants preserve `INT32` target semantics, ignore-index masking, class weights, bounds behavior, and reduction denominator semantics before any supported Metal admission.
-- [ ] **METALLOSS-03**: Loss-adjacent training workloads reduce CPU boundaries while keeping unsupported loss variants explicitly visible in traces and benchmark reports.
+- [x] **METALLOSS-01**: Dense `NLL_LOSS` and `CROSS_ENTROPY_LOSS` have Metal lowering or backend primitives for supported reduction modes and dtype/layout contracts.
+- [x] **METALLOSS-02**: Index-target CE/NLL variants preserve `INT32` target semantics, ignore-index masking, class weights, bounds behavior, and reduction denominator semantics before any supported Metal admission.
+- [x] **METALLOSS-03**: Loss-adjacent training workloads reduce CPU boundaries while keeping unsupported loss variants explicitly visible in traces and benchmark reports.
 
 ### Metal Training Backward Coverage
 
@@ -127,9 +127,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALSCATTER-01 | Phase 36 | Complete |
 | METALSCATTER-02 | Phase 36 | Complete |
 | METALSCATTER-03 | Phase 36 | Complete |
-| METALLOSS-01 | Phase 37 | Pending |
-| METALLOSS-02 | Phase 37 | Pending |
-| METALLOSS-03 | Phase 37 | Pending |
+| METALLOSS-01 | Phase 37 | Complete |
+| METALLOSS-02 | Phase 37 | Complete |
+| METALLOSS-03 | Phase 37 | Complete |
 | METALTRAIN-01 | Phase 38 | Pending |
 | METALTRAIN-02 | Phase 38 | Pending |
 | METALTRAIN-03 | Phase 38 | Pending |

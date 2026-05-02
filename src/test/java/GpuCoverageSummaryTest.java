@@ -74,12 +74,36 @@ public class GpuCoverageSummaryTest {
                         GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
                         rows.get(operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION).executionStatus()
                 );
+                assertEquals(
+                        GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                        rows.get(operations.Operation.OpType.NLL_LOSS).executionStatus()
+                );
+                assertEquals(
+                        GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
+                        rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS).executionStatus()
+                );
             } else {
                 assertEquals(
                         GpuTargetExecutionStatus.EXPLICIT_CPU_FALLBACK,
                         rows.get(operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION).executionStatus()
                 );
+                assertEquals(
+                        GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                        rows.get(operations.Operation.OpType.NLL_LOSS).executionStatus()
+                );
+                assertEquals(
+                        GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                        rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS).executionStatus()
+                );
             }
+            assertEquals(
+                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES).executionStatus()
+            );
+            assertEquals(
+                    GpuTargetExecutionStatus.UNSUPPORTED_REJECTION,
+                    rows.get(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD).executionStatus()
+            );
             assertEquals(
                     backend == ComputeBackend.GPU_METAL
                             ? GpuTargetExecutionStatus.NATIVE_EXECUTABLE

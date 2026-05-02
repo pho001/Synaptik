@@ -130,6 +130,8 @@ public final class GpuTargetCoverageTruth {
         );
         EnumSet<Operation.OpType> metalTargets = EnumSet.copyOf(reductions);
         metalTargets.add(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION);
+        metalTargets.add(Operation.OpType.NLL_LOSS);
+        metalTargets.add(Operation.OpType.CROSS_ENTROPY_LOSS);
         metalTargets.add(Operation.OpType.GT);
         metalTargets.add(Operation.OpType.GE);
         metalTargets.add(Operation.OpType.LT);

@@ -100,6 +100,13 @@ public final class GpuHotPathCoverageTargets {
                         "Exercises BF16 SUM, MEAN, REDUCE_MIN, and REDUCE_MAX native coverage."
                 ),
                 new GpuHotPathCoverageTarget(
+                        "dense_loss_small",
+                        "loss_dense",
+                        List.of("GPUNATIVE", "METALLOSS", "GPUCLOSE"),
+                        37,
+                        "Exercises dense NLL and dense cross-entropy Metal lowering with native buffer evidence."
+                ),
+                new GpuHotPathCoverageTarget(
                         "cross_entropy_small",
                         "loss_index",
                         List.of("GPUNATIVE", "GPULOSSIDX", "GPUCLOSE"),
@@ -240,10 +247,19 @@ public final class GpuHotPathCoverageTargets {
                         "GPU_METAL".equals(resolvedBackend)
                 ),
                 new GpuCoverageHotPathExpectation(
+                        "dense_loss_small",
+                        resolvedBackend,
+                        denseLossPolicy(resolvedBackend),
+                        "GPU_METAL".equals(resolvedBackend)
+                                ? List.of()
+                                : List.of("DAG_PRIMITIVE_UNSUPPORTED", "NLL_LOSS", "CROSS_ENTROPY_LOSS"),
+                        "GPU_METAL".equals(resolvedBackend)
+                ),
+                new GpuCoverageHotPathExpectation(
                         "cross_entropy_small",
                         resolvedBackend,
                         partialBlockerPolicy(resolvedBackend),
-                        List.of("LOSS", "INT32", "CROSS_ENTROPY_LOSS_INDICES"),
+                        List.of("UNSUPPORTED_INDEX_SEMANTICS", "INT32", "CROSS_ENTROPY_LOSS_INDICES"),
                         false
                 ),
                 new GpuCoverageHotPathExpectation(
@@ -479,5 +495,24 @@ public final class GpuHotPathCoverageTargets {
             return partialBlockerPolicy(backend);
         }
         return reductionSupportedPolicy(backend);
+    }
+
+    private static GpuCoverageGatePolicy denseLossPolicy(String backend) {
+        if (!"GPU_METAL".equals(backend)) {
+            return partialBlockerPolicy(backend);
+        }
+        return new GpuCoverageGatePolicy(
+                backend,
+                0.1d,
+                1,
+                0,
+                3,
+                0,
+                0,
+                0,
+                0,
+                1,
+                true
+        );
     }
 }

@@ -219,7 +219,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 
 ### Phase 37: Loss-Adjacent Metal Lowering
 
-**Status:** In Progress
+**Status:** Complete
 
 **Goal:** Lower dense and index-target loss-adjacent flows where semantics are proven.
 
@@ -238,7 +238,7 @@ Wave 4 *(blocked on Waves 1-3 completion)*:
 - [x] [37-01 Dense loss lowering contract](phases/37-loss-adjacent-metal-lowering/37-01-PLAN.md).
 - [x] [37-02 Dense and index-target loss admission](phases/37-loss-adjacent-metal-lowering/37-02-PLAN.md).
 - [x] [37-03 Loss backward and training boundary gates](phases/37-loss-adjacent-metal-lowering/37-03-PLAN.md).
-- [ ] [37-04 Loss coverage report and docs closure](phases/37-loss-adjacent-metal-lowering/37-04-PLAN.md).
+- [x] [37-04 Loss coverage report and docs closure](phases/37-loss-adjacent-metal-lowering/37-04-PLAN.md).
 
 ### Phase 38: Metal Training Backward Coverage
 

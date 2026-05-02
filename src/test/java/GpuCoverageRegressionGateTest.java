@@ -413,6 +413,62 @@ public class GpuCoverageRegressionGateTest {
         assertTrue(visible.getFirst().passed(), visible.getFirst().failures().toString());
     }
 
+    @Test
+    void phaseThirtySevenDenseLossRequiresHardNativeCoverage() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
+                .stream()
+                .filter(item -> item.workloadName().equals("dense_loss_small"))
+                .findFirst()
+                .orElseThrow();
+        var missing = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", coverage(1.0d, 1, 0, 1, 0, 0, 0, 1, 3, 0, 0)),
+                expectation.policy()
+        );
+        var passed = GpuCoverageRegressionGate.evaluate(
+                summary("GPU_METAL", coverage(1.0d, 1, 0, 0, 0, 0, 1, 1, 3, 0, 0)),
+                expectation.policy()
+        );
+
+        assertTrue(missing.failures().contains("hidden tensor-array fallback"));
+        assertTrue(missing.failures().contains("lost native buffer binding"));
+        assertTrue(passed.passed(), passed.failures().toString());
+    }
+
+    @Test
+    void phaseThirtySevenIndexLossTargetStillRequiresUnsupportedIndexReason() {
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
+                .stream()
+                .filter(item -> item.workloadName().equals("cross_entropy_small"))
+                .findFirst()
+                .orElseThrow();
+        var missingReason = reportWithRejectedReason(
+                "cross_entropy_small",
+                "GPU_METAL",
+                backend.ComputeBackend.GPU_METAL,
+                "DAG_PRIMITIVE_UNSUPPORTED: dense loss unsupported"
+        );
+        var visibleReason = reportWithRejectedReason(
+                "cross_entropy_small",
+                "GPU_METAL",
+                backend.ComputeBackend.GPU_METAL,
+                "UNSUPPORTED_INDEX_SEMANTICS: operation CROSS_ENTROPY_LOSS_INDICES is not supported by GPU_METAL lowering"
+        );
+
+        List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
+                missingReason,
+                List.of(expectation)
+        );
+        List<GpuCoverageGateResult> visible = GpuCoverageRegressionGate.evaluateTargets(
+                visibleReason,
+                List.of(expectation)
+        );
+
+        assertTrue(missing.getFirst().failures().stream()
+                .anyMatch(failure -> failure.contains("cross_entropy_small")
+                        && failure.contains(expectation.backend())));
+        assertTrue(visible.getFirst().passed(), visible.getFirst().failures().toString());
+    }
+
     private static config.profile.ExecutionProfile profile() {
         return new config.profile.ExecutionProfile(
                 "phase28-gate-profile",

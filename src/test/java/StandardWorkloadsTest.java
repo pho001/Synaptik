@@ -38,6 +38,7 @@ public class StandardWorkloadsTest {
         assertTrue(catalog.names().contains("rms_norm_small_bf16"));
         assertTrue(catalog.names().contains("max_pool2d_small"));
         assertTrue(catalog.names().contains("avg_pool2d_small"));
+        assertTrue(catalog.names().contains("dense_loss_small"));
         assertTrue(catalog.names().contains("cross_entropy_small"));
         assertTrue(catalog.names().contains("bool_compare_where_small"));
         assertTrue(catalog.names().contains("gather_take_small"));
@@ -119,6 +120,36 @@ public class StandardWorkloadsTest {
         assertTrue(opTypes.contains(operations.Operation.OpType.SCATTER_ADD));
         assertTrue(opTypes.contains(operations.Operation.OpType.GATHER_GRAD));
         assertTrue(opTypes.contains(operations.Operation.OpType.TAKE_ALONG_AXIS_GRAD));
+    }
+
+    @Test
+    void denseLossWorkloadInstantiatesDenseNllAndCrossEntropyGraph() {
+        ExecutionProfile profile = new ExecutionProfile(
+                "dense-loss-profile",
+                "dense-loss-profile",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.optimizer.OptimizerConfig.inferenceDefaults(),
+                config.runtime.RuntimeConfig.inferenceDefaults(),
+                WorkloadProfile.none()
+        );
+
+        WorkloadInstance instance = StandardWorkloads.denseLoss("dense_loss_small", 4, 8, tensor.loss.LossReduction.MEAN)
+                .instantiate(new WorkloadEnvironment(profile));
+
+        assertEquals("dense_loss_small", instance.metadata().name());
+        assertEquals(tuning.workload.WorkloadKind.LOSS, instance.metadata().kind());
+        assertEquals(1, instance.root().getShapeUnsafe().length);
+        assertEquals(ValidationTargetKind.ROOT, instance.validationTarget().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, instance.reference().kind());
+        List<operations.Operation.OpType> opTypes = instance.root().topologicalSort().stream()
+                .map(tensor.Tensor::getOperation)
+                .filter(java.util.Objects::nonNull)
+                .map(operations.Operation::opType)
+                .toList();
+        assertTrue(opTypes.contains(operations.Operation.OpType.NLL_LOSS));
+        assertTrue(opTypes.contains(operations.Operation.OpType.CROSS_ENTROPY_LOSS));
+        assertTrue(!opTypes.contains(operations.Operation.OpType.CROSS_ENTROPY_LOSS_INDICES));
     }
 
     @Test
@@ -248,6 +279,12 @@ public class StandardWorkloadsTest {
                         tensor.loss.LossReduction.MEAN
                 )
                 .instantiate(new WorkloadEnvironment(profile));
+        var denseLoss = StandardWorkloads.denseLoss(
+                        "dense_loss_test",
+                        4, 8,
+                        tensor.loss.LossReduction.MEAN
+                )
+                .instantiate(new WorkloadEnvironment(profile));
         var boolCompare = StandardWorkloads.boolCompareWhere("bool_compare_test", 4, 8)
                 .instantiate(new WorkloadEnvironment(profile));
         var scatterIndexGradient = StandardWorkloads.scatterIndexGradient("scatter_index_gradient_test", 4, 8, 2)
@@ -261,6 +298,7 @@ public class StandardWorkloadsTest {
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, reduction.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, pool.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, loss.reference().kind());
+        assertEquals(ValidationReferenceKind.BASELINE_PROFILE, denseLoss.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, boolCompare.reference().kind());
         assertEquals(ValidationReferenceKind.BASELINE_PROFILE, scatterIndexGradient.reference().kind());
 
@@ -273,6 +311,7 @@ public class StandardWorkloadsTest {
         assertEquals(ValidationTargetKind.LABEL, pool.validationTarget().kind());
         assertEquals("maxPool2d", pool.validationTarget().label());
         assertEquals(ValidationTargetKind.ROOT, loss.validationTarget().kind());
+        assertEquals(ValidationTargetKind.ROOT, denseLoss.validationTarget().kind());
         assertEquals(ValidationTargetKind.ROOT, reduction.validationTarget().kind());
         assertEquals(ValidationTargetKind.ROOT, boolCompare.validationTarget().kind());
         assertEquals(ValidationTargetKind.ROOT, scatterIndexGradient.validationTarget().kind());

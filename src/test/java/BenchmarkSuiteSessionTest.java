@@ -288,7 +288,7 @@ public class BenchmarkSuiteSessionTest {
         ));
         List<String> names = request.workloads().stream().map(tuning.workload.WorkloadSpec::name).toList();
 
-        assertEquals(18, request.workloads().size());
+        assertEquals(19, request.workloads().size());
         assertTrue(names.contains("transformer_block_hot_path"));
         assertTrue(names.contains("mlp_classifier_small"));
         assertTrue(names.contains("mlp_classifier_small_bf16"));
@@ -301,6 +301,7 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(names.contains("rms_norm_small_bf16"));
         assertTrue(names.contains("reduction_chain_small"));
         assertTrue(names.contains("reduction_chain_small_bf16"));
+        assertTrue(names.contains("dense_loss_small"));
         assertTrue(names.contains("cross_entropy_small"));
         assertTrue(names.contains("bool_compare_where_small"));
         assertTrue(names.contains("gather_take_small"));
@@ -328,8 +329,8 @@ public class BenchmarkSuiteSessionTest {
 
     @Test
     void phaseTwentyPartialTargetsRequireVisibleBlockerEvidence() {
-        BenchmarkSuiteReport report = suiteReportFor("conv2d_resnet_3x3", "GPU_METAL");
-        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_METAL")
+        BenchmarkSuiteReport report = suiteReportFor("conv2d_resnet_3x3", "GPU_CUDA");
+        GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA")
                 .stream()
                 .filter(target -> target.workloadName().equals("conv2d_resnet_3x3"))
                 .findFirst()
@@ -348,7 +349,7 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(missing.getFirst().failures().stream()
                 .anyMatch(failure -> failure.contains("missing target coverage summary")
                         && failure.contains("conv2d_resnet_3x3")
-                        && failure.contains("GPU_METAL")));
+                        && failure.contains("GPU_CUDA")));
     }
 
     @Test
