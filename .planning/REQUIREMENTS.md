@@ -112,9 +112,9 @@ Explicitly excluded from v1.5 to keep the milestone reviewable.
 | METALBOOL-01 | Phase 31 | Complete |
 | METALBOOL-02 | Phase 31 | Complete |
 | METALBOOL-03 | Phase 31 | Complete |
-| METALINTIDX-01 | Phase 32 | Pending |
-| METALINTIDX-02 | Phase 32 | Pending |
-| METALINTIDX-03 | Phase 32 | Pending |
+| METALINTIDX-01 | Phase 32 | Complete |
+| METALINTIDX-02 | Phase 32 | Complete |
+| METALINTIDX-03 | Phase 32 | Complete |
 | METALLAYOUT-01 | Phase 33 | Pending |
 | METALLAYOUT-02 | Phase 33 | Pending |
 | METALLAYOUT-03 | Phase 33 | Pending |
